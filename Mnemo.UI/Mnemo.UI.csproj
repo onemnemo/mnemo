@@ -121,6 +121,8 @@
       <_LibWinArm64>$([System.IO.Path]::Combine('$(PublishDir)', 'lib', 'windows', 'arm64'))</_LibWinArm64>
       <_LibMacArm64>$([System.IO.Path]::Combine('$(PublishDir)', 'lib', 'mac', 'arm64'))</_LibMacArm64>
       <_LibMacX64>$([System.IO.Path]::Combine('$(PublishDir)', 'lib', 'mac', 'x86_64'))</_LibMacX64>
+      <IncludeNativeLibrariesForSelfContained>true</IncludeNativeLibrariesForSelfContained>
+      <PublishingSingleFile>false</PublishingSingleFile>
     </PropertyGroup>
     <ItemGroup Condition="'$(_Rid)' != '' and Exists('$(_RtDir)')">
       <_RuntimeSubdir Include="$([System.IO.Directory]::GetDirectories('$(_RtDir)'))" />
