@@ -6,7 +6,12 @@ namespace Mnemo.UI.Components.Overlays;
 
 public partial class PerfDiagnosticsOverlay : UserControl
 {
-    private readonly IPerfDiagnostics _perf;
+    private readonly IPerfDiagnostics? _perf;
+
+    public PerfDiagnosticsOverlay()
+    {
+        InitializeComponent();
+    }
 
     public PerfDiagnosticsOverlay(IPerfDiagnostics perf)
     {
