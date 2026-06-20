@@ -16,6 +16,11 @@ public partial class SidebarItem : ObservableObject
     public string IconPath => Icon;
     public int Order { get; }
 
+    /// <summary>
+    /// Additional routes (sub-pages) that should also highlight this sidebar item as active.
+    /// </summary>
+    public IReadOnlySet<string> ChildRoutes { get; }
+
     [ObservableProperty]
     private bool _isSelected;
 
@@ -26,12 +31,15 @@ public partial class SidebarItem : ObservableObject
     [ObservableProperty]
     private bool _showUpdateBadge;
 
-    public SidebarItem(string label, string route, string icon, int order = int.MaxValue)
+    public SidebarItem(string label, string route, string icon, int order = int.MaxValue, IEnumerable<string>? childRoutes = null)
     {
         _label = label;
         Route = route;
         Icon = icon;
         Order = order;
+        ChildRoutes = childRoutes != null
+            ? new HashSet<string>(childRoutes, StringComparer.OrdinalIgnoreCase)
+            : (IReadOnlySet<string>)new HashSet<string>();
     }
 }
 

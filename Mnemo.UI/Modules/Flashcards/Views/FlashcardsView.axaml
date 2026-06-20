@@ -17,9 +17,7 @@
 
     <UserControl.Styles>
         <Style Selector="Border.library-pane">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-            <Setter Property="BorderThickness" Value="0,0,1,0" />
+            <Setter Property="Background" Value="{DynamicResource NotesPaneBackgroundBrush}" />
         </Style>
 
         <Style Selector="Button.library-nav">
@@ -42,16 +40,16 @@
 
         <Style Selector="TextBlock.library-section">
             <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}" />
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource NotesSectionHeaderForegroundBrush}" />
             <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}" />
             <Setter Property="Margin" Value="12,10,0,8" />
         </Style>
 
         <Style Selector="Border.library-divider">
             <Setter Property="Height" Value="1" />
-            <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource NotesPaneDividerBrush}" />
             <Setter Property="Margin" Value="12,10" />
-            <Setter Property="Opacity" Value="0.8" />
+            <Setter Property="Opacity" Value="0.5" />
         </Style>
 
         <Style Selector="Border.search-surface">
@@ -113,11 +111,17 @@
                    IsPaneOpen="{Binding IsSidebarOpen}"
                    OpenPaneLength="280"
                    CompactPaneLength="0"
-                   Background="Transparent">
+                   Background="Transparent"
+                   PaneBackground="{DynamicResource NotesPaneBackgroundBrush}">
             <SplitView.Pane>
                 <!-- Library sidebar -->
                 <Border Classes="library-pane">
-                    <ScrollViewer>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <ScrollViewer Grid.Column="0"
+                                      Classes="sidebar-scroll"
+                                      Margin="0,0,12,0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="16,20,16,16" Spacing="4">
                         <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,2">
                             <TextBlock Grid.Column="0"
@@ -163,7 +167,7 @@
                                        Text="{markup:T Ns=Flashcards, Key=Folders}"
                                        FontFamily="{DynamicResource Font.SemiBold}"
                                        FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Foreground="{DynamicResource NotesSectionHeaderForegroundBrush}"
                                        VerticalAlignment="Center" />
                             <Button Grid.Column="1"
                                     Command="{Binding CreateFolderCommand}"
@@ -186,7 +190,11 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                         </StackPanel>
-                    </ScrollViewer>
+                        </ScrollViewer>
+                        <Border Grid.Column="1"
+                                Width="1"
+                                Background="{DynamicResource NotesPaneDividerBrush}" />
+                    </Grid>
                 </Border>
             </SplitView.Pane>
 

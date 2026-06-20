@@ -10,7 +10,7 @@ public partial class AppIconSettingViewModel : ViewModelBase
 {
     private readonly ISettingsService _settingsService;
     private const string SettingKey = "App.Icon";
-    private const string DefaultIcon = "avares://Mnemo.UI/Assets/AppIcons/AppIconLightClassic.ico";
+    private const string DefaultIcon = "avares://Mnemo.UI/Assets/AppIcons/AppIconDawn.ico";
 
     [ObservableProperty] private string _title;
     [ObservableProperty] private string _description;
@@ -36,12 +36,11 @@ public partial class AppIconSettingViewModel : ViewModelBase
         // Initialize options
         string[] iconFiles = new[]
         {
-            "AppIconDarkClassic.ico",
-            "AppIconDarkFaceted.ico",
-            "AppIconDarkNebula.ico",
-            "AppIconLightClassic.ico",
-            "AppIconLightFaceted.ico",
-            "AppIconLightNebula.ico"
+            "AppIconDawn.ico",
+            "AppIconDusk.ico",
+            "AppIconAurora.ico",
+            "AppIconEmber.ico",
+            "AppIconEarth.ico"
         };
 
         foreach (var file in iconFiles)

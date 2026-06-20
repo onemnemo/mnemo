@@ -8,7 +8,7 @@
     <Version>0.6.5</Version>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>Assets\AppIcons/AppIconLightClassic.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\AppIcons/AppIconDawn.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 
     <AssemblyTitle>Mnemo</AssemblyTitle>

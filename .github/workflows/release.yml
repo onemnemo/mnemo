@@ -22,7 +22,7 @@ jobs:
           - rid: win-x64
             os: windows-latest
             mainexe: Mnemo.UI.exe
-            packIcon: Mnemo.UI/Assets/AppIcons/AppIconLightClassic.ico
+            packIcon: Mnemo.UI/Assets/AppIcons/AppIconDawn.ico
           - rid: linux-x64
             os: ubuntu-latest
             mainexe: Mnemo.UI

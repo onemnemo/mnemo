@@ -121,7 +121,8 @@ public class SidebarViewModel : ViewModelBase
         {
             foreach (var item in category.Items)
             {
-                item.IsSelected = item.Route == currentRoute;
+                item.IsSelected = item.Route == currentRoute
+                    || item.ChildRoutes.Contains(currentRoute ?? string.Empty);
             }
         }
     }

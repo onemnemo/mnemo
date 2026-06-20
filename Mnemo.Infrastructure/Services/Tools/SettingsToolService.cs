@@ -19,7 +19,7 @@ public sealed class SettingsToolService
     private const string ThemeSettingKey = "Appearance.Theme";
 
     /// <summary>Must stay aligned with <c>Mnemo.UI.Services.ThemeService</c> bundled themes.</summary>
-    private static readonly string[] ThemeIds = ["Dawn", "Noon", "Dusk"];
+    private static readonly string[] ThemeIds = ["Dawn", "Noon", "Dusk", "Ember", "Glass"];
 
     /// <summary>Human-friendly keys models often use; values are catalog keys used for storage.</summary>
     private static readonly IReadOnlyDictionary<string, string> KeyAliases =

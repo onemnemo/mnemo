@@ -75,7 +75,7 @@ public class SidebarService : ISidebarService, INotifyPropertyChanged
             item.Label = _localizationService.T(labelKey, ns);
     }
 
-    public void RegisterItem(string labelKey, string route, string icon, string categoryKey = "General", int? categoryOrder = null, int itemOrder = int.MaxValue, string ns = "Sidebar", SidebarItemVisibilityRequirement visibilityRequirement = SidebarItemVisibilityRequirement.None)
+    public void RegisterItem(string labelKey, string route, string icon, string categoryKey = "General", int? categoryOrder = null, int itemOrder = int.MaxValue, string ns = "Sidebar", SidebarItemVisibilityRequirement visibilityRequirement = SidebarItemVisibilityRequirement.None, string[]? childRoutes = null)
     {
         var category = _categoryKeys.FirstOrDefault(t => string.Equals(t.nameKey, categoryKey, StringComparison.OrdinalIgnoreCase) && t.ns == ns).category;
         if (category == null)
@@ -99,7 +99,7 @@ public class SidebarService : ISidebarService, INotifyPropertyChanged
         }
 
         var resolvedLabel = _localizationService.T(labelKey, ns);
-        var item = new SidebarItem(resolvedLabel, route, icon, itemOrder);
+        var item = new SidebarItem(resolvedLabel, route, icon, itemOrder, childRoutes);
         _itemKeys.Add((item, labelKey, ns));
 
         if (visibilityRequirement != SidebarItemVisibilityRequirement.None)

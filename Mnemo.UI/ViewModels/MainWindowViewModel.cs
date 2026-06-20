@@ -20,7 +20,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public System.Windows.Input.ICommand ToggleRightSidebarCommand => RightSidebarViewModel.ToggleCommand;
 
     [ObservableProperty]
-    private string _appIconPath = "avares://Mnemo.UI/Assets/AppIcons/AppIconLightClassic.ico";
+    private string _appIconPath = "avares://Mnemo.UI/Assets/AppIcons/AppIconDawn.ico";
 
     public MainWindowViewModel(
         INavigationService navigation, 
@@ -56,7 +56,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async Task LoadSettingsAsync()
     {
-        AppIconPath = await _settingsService.GetAsync("App.Icon", "avares://Mnemo.UI/Assets/AppIcons/AppIconLightClassic.ico");
+        AppIconPath = await _settingsService.GetAsync("App.Icon", "avares://Mnemo.UI/Assets/AppIcons/AppIconDawn.ico");
     }
 }
 

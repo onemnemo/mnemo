@@ -1,0 +1,50 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Font Family Resources with proper avares paths -->
+    <FontFamily x:Key="Font.Regular">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-Regular.ttf#Lexend</FontFamily>
+    <FontFamily x:Key="Font.Light">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-Light.ttf#Lexend</FontFamily>
+    <FontFamily x:Key="Font.Medium">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-Medium.ttf#Lexend</FontFamily>
+    <FontFamily x:Key="Font.SemiBold">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-SemiBold.ttf#Lexend</FontFamily>
+    <FontFamily x:Key="Font.Bold">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-Bold.ttf#Lexend</FontFamily>
+    <FontFamily x:Key="Font.ExtraBold">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-ExtraBold.ttf#Lexend</FontFamily>
+    
+    <!-- Default font family for all controls with fallbacks -->
+    <FontFamily x:Key="DefaultFontFamily">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-Regular.ttf#Lexend, Segoe UI, Arial, sans-serif</FontFamily>
+    
+    <!-- Math font for LaTeX rendering -->
+    <FontFamily x:Key="MathFontFamily">avares://Mnemo.UI/Themes/Fonts/STIXTwoMath/STIXTwoMath-Regular.ttf#STIX Two Math</FontFamily>
+
+    <!-- Font Sizes -->
+    <!-- Headings -->
+    <x:Double x:Key="FontSize.Heading1">32</x:Double>
+    <x:Double x:Key="FontSize.Heading2">28</x:Double>
+    <x:Double x:Key="FontSize.Heading3">24</x:Double>
+    <x:Double x:Key="FontSize.Heading4">20</x:Double>
+    <x:Double x:Key="FontSize.Heading5">18</x:Double>
+    <x:Double x:Key="FontSize.Heading6">16</x:Double>
+    
+    <!-- Body Text -->
+    <x:Double x:Key="FontSize.Body.Large">18</x:Double>
+    <x:Double x:Key="FontSize.Body.Medium">16</x:Double>
+    <x:Double x:Key="FontSize.Body.Small">14</x:Double>
+    <x:Double x:Key="FontSize.Body.ExtraSmall">12</x:Double>
+    
+    <!-- UI Elements -->
+    <x:Double x:Key="FontSize.Button">14</x:Double>
+    <x:Double x:Key="FontSize.Input">14</x:Double>
+    <x:Double x:Key="FontSize.Label">14</x:Double>
+    <x:Double x:Key="FontSize.Navigation">14</x:Double>
+    <x:Double x:Key="FontSize.Sidebar">14</x:Double>
+    
+    <!-- Specialized -->
+    <x:Double x:Key="FontSize.Tooltip">12</x:Double>
+    <x:Double x:Key="FontSize.Caption">11</x:Double>
+    <x:Double x:Key="FontSize.CaptionButton">10</x:Double>
+    <x:Double x:Key="FontSize.Micro">9</x:Double>
+    
+
+</ResourceDictionary>
+
+
+
+

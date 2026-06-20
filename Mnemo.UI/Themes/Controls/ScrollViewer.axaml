@@ -68,6 +68,11 @@
       <Setter Property="Grid.ColumnSpan" Value="2" />
       <Setter Property="Grid.RowSpan" Value="2" />
     </Style>
+
+    <!-- Narrow module sidebars: pin the vertical track right so it sits in the ScrollViewer's own margin lane. -->
+    <Style Selector="^.sidebar-scroll /template/ ScrollBar#PART_VerticalScrollBar">
+      <Setter Property="Margin" Value="0,6,2,6" />
+    </Style>
   </ControlTheme>
 </ResourceDictionary>
 

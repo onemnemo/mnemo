@@ -43,7 +43,8 @@ public class FlashcardsModule : IModule
             "avares://Mnemo.UI/Icons/Sidebar/flashcard.svg",
             "Library",
             1,
-            40);
+            40,
+            childRoutes: ["flashcard-deck", "flashcard-practice"]);
     }
 
     public void RegisterTools(IFunctionRegistry registry, IServiceProvider services)

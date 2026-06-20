@@ -37,11 +37,13 @@
                IsVisible="{Binding !IsLoading}"
                PaneBackground="{DynamicResource NotesPaneBackgroundBrush}">
         <SplitView.Pane>
-            <Border BorderThickness="0,0,1,0" BorderBrush="{DynamicResource NotesPaneDividerBrush}"
-                    HorizontalAlignment="Stretch" x:Name="SidebarPaneBorder" ClipToBounds="True">
-                <!-- Panel stacks pane content + drag overlay canvas -->
-                <Panel>
-                <Grid RowDefinitions="Auto,*" x:Name="SidebarPaneGrid">
+            <Border HorizontalAlignment="Stretch"
+                    x:Name="SidebarPaneBorder"
+                    ClipToBounds="False">
+                <Grid ColumnDefinitions="*,Auto">
+                    <!-- Panel stacks pane content + drag overlay canvas -->
+                    <Panel Grid.Column="0">
+                    <Grid RowDefinitions="Auto,*" x:Name="SidebarPaneGrid">
                     <Grid.Resources>
                         <x:Double x:Key="TreeViewItemIndent">8</x:Double>
                         <x:Double x:Key="TreeViewItemMinHeight">28</x:Double>
@@ -81,7 +83,12 @@
                     </Grid>
 
                     <!-- Content -->
-                    <ScrollViewer Grid.Row="1" x:Name="SidebarScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer Grid.Row="1"
+                                  Classes="sidebar-scroll"
+                                  x:Name="SidebarScrollViewer"
+                                  Margin="0,0,12,0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="6,0,6,8" Spacing="4">
                             <!-- Favorites -->
                             <StackPanel IsVisible="{Binding FavouriteNotes.Count}">
@@ -204,7 +211,11 @@
                 </Grid>
                 <!-- Drag overlay: ZIndex ensures it sits above everything in the pane; IsHitTestVisible=False so rows remain interactive -->
                 <Canvas x:Name="DragOverlayCanvas" IsHitTestVisible="False" ZIndex="999"/>
-                </Panel>
+                    </Panel>
+                    <Border Grid.Column="1"
+                            Width="1"
+                            Background="{DynamicResource NotesPaneDividerBrush}" />
+                </Grid>
             </Border>
         </SplitView.Pane>
 
