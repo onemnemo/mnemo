@@ -181,7 +181,7 @@ dotnet run
 3. Open the installer.
 4. Follow the setup instructions to install Mnemo.
 
-For a step-by-step guide, see the [installation documentation](https://www.docs.mnemo.one/students/installing).
+For a step-by-step guide, see the [installation documentation](https://www.mnemo.one/docs/students/installing).
 
 
 ## Development
@@ -190,7 +190,7 @@ See [coding-standard.md](coding-standard.md) for detailed coding standards and a
 
 ## Documentation
 
-Project documentation is available [here](https://www.docs.mnemo.one/).
+Project documentation is available [here](https://www.mnemo.one/docs/students).
 
 ### Key Principles
 
