@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Models;
@@ -16,8 +14,6 @@ using Mnemo.Infrastructure.Services.Updates;
 using Mnemo.Core.History;
 using Mnemo.Infrastructure.History;
 using Mnemo.Infrastructure.Services.AI;
-using Mnemo.Infrastructure.Services.AI.PlatformHardware;
-using Mnemo.Infrastructure.Services.Knowledge;
 using Mnemo.Infrastructure.Services.Notes;
 using Mnemo.Infrastructure.Services.Notes.Pdf;
 using Mnemo.Infrastructure.Services.Flashcards;
@@ -33,6 +29,12 @@ using Mnemo.Infrastructure.Services.ImportExport.Adapters;
 using Mnemo.Infrastructure.Services.Spellcheck;
 using Mnemo.Infrastructure.Services.Search;
 using Mnemo.Core.Services.Search;
+using Atlas.Composition;
+using Atlas.Core;
+using Atlas.Inference.Configuration;
+using Atlas.Tools.Mcp;
+using Mnemo.UI.Ai;
+using Mnemo.UI.Mcp;
 using Mnemo.UI.Modules.Notes.Services;
 
 namespace Mnemo.UI.Services;
@@ -52,8 +54,6 @@ public static class Bootstrapper
         services.AddSingleton<ISettingsService, SettingsService>();
         services.AddSingleton<IPerfDiagnostics, PerfDiagnosticsService>();
         services.AddSingleton<IUpdateService, VelopackUpdateService>();
-        services.AddSingleton<IChatDatasetLogger, ChatDatasetLogger>();
-        services.AddSingleton<DatasetExporter>();
         services.AddSingleton<ILaTeXEngine, LaTeXEngine>();
         services.AddSingleton<IMarkdownProcessor, MarkdownProcessor>();
         services.AddSingleton<ITextMateSyntaxHighlighter, TextMateSyntaxHighlighter>();
@@ -66,37 +66,16 @@ public static class Bootstrapper
         services.AddSingleton<IUserSpellbookService, UserSpellbookService>();
         services.AddSingleton<ISpellcheckService, HunspellSpellcheckService>();
 
-        // AI Services
-        services.AddSingleton<IPlatformHardwareGpuProvider>(sp =>
-            PlatformHardwareGpuProviderFactory.Create(sp.GetRequiredService<ILoggerService>()));
-        services.AddSingleton<HardwareDetector>();
-        services.AddSingleton<IAIModelRegistry, ModelRegistry>();
-        services.AddSingleton<IAIModelsSetupService, AIModelsSetupService>();
-        services.AddSingleton<IAIModelInstallCoordinator, AIModelInstallCoordinator>();
-        services.AddSingleton<IAiSetupOverlayPresenter, AiSetupOverlayPresenter>();
-        services.AddSingleton<IResourceGovernor, ResourceGovernor>();
-        services.AddSingleton<LlamaCppServerManager>();
-        services.AddSingleton<IAIServerManager>(sp => sp.GetRequiredService<LlamaCppServerManager>());
-        services.AddSingleton<LlamaCppHttpTextService>(sp =>
-            new LlamaCppHttpTextService(
-                sp.GetRequiredService<ILoggerService>(),
-                new Lazy<LlamaCppServerManager>(() => sp.GetRequiredService<LlamaCppServerManager>())));
-        services.AddSingleton<ITeacherModelClient, VertexGeminiTeacherClient>();
-        services.AddSingleton<ITextGenerationService>(sp => new DelegatingTextGenerationService(
-            sp.GetRequiredService<LlamaCppHttpTextService>(),
-            sp.GetRequiredService<ITeacherModelClient>(),
-            sp.GetRequiredService<ISettingsService>()));
-        services.AddSingleton<IHardwareTierEvaluator, HardwareTierEvaluator>();
+        // ── MCP tool surface (skills + dispatcher → exposed over MCP to Atlas) ─
         services.AddSingleton<ISkillRegistry, SkillRegistry>();
         services.AddSingleton<ISkillSystemPromptComposer, SkillSystemPromptComposer>();
-        services.AddSingleton<IOrchestrationLayer, OrchestrationLayerService>();
         services.AddSingleton<IToolResultFormatter, ToolResultFormatter>();
         services.AddSingleton<IMainThreadDispatcher, AvaloniaMainThreadDispatcher>();
         services.AddSingleton(sp => new NotesToolService(
             sp.GetRequiredService<INoteService>(),
             sp.GetRequiredService<INavigationService>(),
             sp.GetRequiredService<IMainThreadDispatcher>(),
-            sp.GetRequiredService<IKnowledgeService>()));
+            sp.GetService<INoteFolderService>()));
         services.AddSingleton<ApplicationToolService>();
         services.AddSingleton<IToolDispatchAmbient, ToolDispatchAmbient>();
         services.AddSingleton<ISkillInjectionOverrideStore, SkillInjectionOverrideStore>();
@@ -106,38 +85,61 @@ public static class Bootstrapper
             sp.GetRequiredService<IMindmapService>(),
             sp.GetRequiredService<IMindmapLayoutService>(),
             sp.GetRequiredService<INavigationService>(),
-            sp.GetRequiredService<IMainThreadDispatcher>()));
+            sp.GetRequiredService<IMainThreadDispatcher>(),
+            sp.GetService<INoteService>()));
         services.AddSingleton<IToolDispatcher, ToolDispatcher>();
-        services.AddSingleton<IRoutingToolHintStore, RoutingToolHintStore>();
 
-        // Conversation Memory System
+        // ── Conversation memory (in-process UI state only) ────────────────────
         services.AddSingleton<IConversationMemoryStore>(sp =>
             new ConversationMemoryStore(sp.GetRequiredService<ILoggerService>()));
-        services.AddSingleton<IConversationSummarizer, ConversationSummarizer>();
-        services.AddSingleton<IConversationLongTermMemoryEmbedder, ConversationLongTermMemoryEmbedder>();
-        // Module-specific memory extractors registered below in RegisterTools;
-        // the composite is built after module discovery so all extractors are included.
-        services.AddSingleton<NotesMemoryExtractor>();
-        services.AddSingleton<MindmapMemoryExtractor>();
-        services.AddSingleton<IToolResultMemoryExtractor>(sp =>
-            new CompositeToolResultMemoryExtractor(new IToolResultMemoryExtractor[]
+        services.AddSingleton<IConversationSummarizer>(sp =>
+            new AtlasConversationSummarizer(sp.GetRequiredService<IAIOrchestrator>()));
+        services.AddSingleton<IConversationMemoryInjector, ConversationMemoryInjector>();
+
+        // ── MCP tool server (exposes Mnemo tools to Atlas and external agents) ─
+        services.AddSingleton<MnemoMcpOptions>();
+        services.AddSingleton<MnemoMcpServer>();
+
+        // ── Atlas AI system (replaces all Mnemo inference) ───────────────────────
+        // Atlas is now the sole AI backend. Configure model endpoints to match
+        // serve.ps1 (override via ATLAS__Inference__ModelEndpoints__<name> env vars).
+        services.AddAtlas(opts =>
+        {
+            // Multi-model endpoints matching atlas-main/serve.ps1
+            opts.ModelEndpoints["qwen3-0.6b"]  = "http://localhost:8081";
+            opts.ModelEndpoints["qwen3-1.7b"]  = "http://localhost:8082";
+            opts.ModelEndpoints["smollm3-3b"]  = "http://localhost:8083";
+            opts.ModelEndpoints["qwen3-4b"]    = "http://localhost:8084";
+        });
+
+        // Wire Atlas's MCP client to call back into Mnemo's loopback tool server
+        // (same process, same port as MnemoMcpServer above).
+        services.Configure<McpClientOptions>(opts =>
+        {
+            opts.Servers.Add(new McpServerOptions
             {
-                sp.GetRequiredService<NotesMemoryExtractor>(),
-                sp.GetRequiredService<MindmapMemoryExtractor>()
-            }));
-        services.AddSingleton<IConversationMemoryInjector>(sp =>
-            new ConversationMemoryInjector(
-                sp.GetRequiredService<IConversationMemoryStore>(),
-                sp.GetRequiredService<IKnowledgeService>(),
+                Id      = "mnemo",
+                Transport = McpTransport.Http,
+                Url     = "http://127.0.0.1:48200/mcp",
+                Enabled = true,
+                Branch  = Atlas.Core.Tools.ToolBranch.External,
+                NamePrefixBranchMap =
+                {
+                    ["_note"]    = Atlas.Core.Tools.ToolBranch.Notes,
+                    ["_mindmap"] = Atlas.Core.Tools.ToolBranch.Mindmaps,
+                },
+            });
+        });
+
+        services.AddSingleton<IAIOrchestrator>(sp =>
+            new AtlasAIOrchestrator(
+                sp.GetRequiredService<IAtlasOrchestrator>(),
+                sp.GetRequiredService<ISettingsService>(),
                 sp.GetRequiredService<ILoggerService>()));
 
-        services.AddSingleton<IAIOrchestrator, AIOrchestrator>();
         services.AddSingleton<IAITaskManager, AITaskManager>();
+        services.AddSingleton<AtlasOptionsBridge>();
 
-        // Knowledge/RAG Services
-        services.AddSingleton<IVectorStore, SqliteVectorStore>();
-        services.AddSingleton<IEmbeddingService, OnnxEmbeddingService>();
-        services.AddSingleton<IKnowledgeService, KnowledgeService>();
         services.AddSingleton<ILearningPathService, LearningPathService>();
         services.AddSingleton<INoteService, NoteService>();
         services.AddSingleton<INoteFolderService, NoteFolderService>();
@@ -257,37 +259,14 @@ public static class Bootstrapper
             }
         });
 
-        // GPU detection can call DXGI/WMI; cache it in the background so first AI request reuses it.
-        _ = Task.Run(() => serviceProvider.GetRequiredService<HardwareDetector>().Initialize());
-
         // 5. Load saved or default language
         _ = LoadSavedLanguageAsync(serviceProvider);
-
-        // 6. Initialize AI Model Registry and set default server path
-        var settingsService = serviceProvider.GetRequiredService<ISettingsService>();
-        _ = Task.Run(async () =>
-        {
-            var serverPath = await settingsService.GetAsync<string>("AI.LlamaCpp.ServerPath");
-            if (string.IsNullOrEmpty(serverPath))
-            {
-                var defaultPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "mnemo",
-                    "models",
-                    "llamaServer",
-                    "llama-server.exe");
-
-                await settingsService.SetAsync("AI.LlamaCpp.ServerPath", defaultPath);
-            }
-        });
-
-        var modelRegistry = serviceProvider.GetRequiredService<IAIModelRegistry>();
-        _ = modelRegistry.RefreshAsync();
 
         // Tools + skill manifests load only when AI.EnableAssistant is on (see AiAssistantToolHost).
         _ = serviceProvider.GetRequiredService<IAiAssistantToolHost>();
 
-        // Local llama-server processes start on first generation route (LlamaCppHttpTextService / orchestration).
+        // Start the Atlas options bridge so live settings changes are propagated immediately.
+        _ = serviceProvider.GetRequiredService<AtlasOptionsBridge>();
 
         // 7. Register Routes, Sidebar Items, and Widgets (tools deferred to AiAssistantToolHost)
         var navRegistry = serviceProvider.GetRequiredService<INavigationRegistry>();

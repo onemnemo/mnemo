@@ -129,88 +129,14 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
     }
 
     /// <summary>
-    /// Flat transcript for dataset logging after a turn finishes. Includes every message in the window,
-    /// including the assistant reply for the current turn (pass <paramref name="excludeMessage"/> as null).
-    /// </summary>
-    public static string? BuildDatasetConversationContextString<T>(
-        IList<T> messages,
-        Func<T, bool> isUser,
-        Func<T, string> getContent)
-    {
-        // No message instance equals default(T), so nothing is excluded (include full transcript for this turn).
-        var turns = BuildConversationHistory(messages, default!, isUser, getContent);
-        if (turns.Count == 0) return null;
-        return "Conversation transcript:\n" + string.Join("\n",
-            turns.Select(t => $"{(t.Role == ConversationRole.User ? "User" : "Assistant")}: {t.Content}"));
-    }
-
-    /// <summary>
-    /// Runs the streaming prompt loop and reports content via callbacks. Incoming tokens are buffered
-    /// and revealed at a capped rate so the UI does not jump ahead of a comfortable reading pace.
-    /// Callbacks may be invoked from a background thread; caller must marshal to UI for updates.
-    /// </summary>
-    /// <param name="imageBase64Contents">Optional. For vision: list of image base64 strings to send with the prompt.</param>
-    /// <param name="routingUserMessage">Optional. Latest user message only; forwarded for orchestration routing so it does not grow with conversation history.</param>
-    /// <param name="pipelineStatus">Optional. Receives <c>Mnemo.Core.Models.ChatPipelineStatusKeys</c> for UI pipeline labels while routing or before the first token.</param>
-    /// <param name="displayOptions">Optional. Reveal pacing from <c>Chat.StreamingReveal</c>.</param>
-    /// <returns>True if at least one token was received; false if empty response.</returns>
-    public static async Task<(bool FoundResponse, string FinalContent)> RunStreamingAsync(
-        IAIOrchestrator orchestrator,
-        string systemPrompt,
-        string fullPrompt,
-        CancellationToken cancellationToken,
-        Action<string> onContentUpdate,
-        IReadOnlyList<string>? imageBase64Contents = null,
-        string? routingUserMessage = null,
-        IProgress<string>? pipelineStatus = null,
-        RoutingAndSkillDecision? precomputedDecision = null,
-        ChatStreamingDisplayOptions? displayOptions = null,
-        Action<ChatDatasetToolCall>? onToolCall = null,
-        Action<string>? onAssistantReasoningUpdate = null)
-    {
-        var options = displayOptions ?? ChatStreamingDisplayOptions.Balanced;
-        var throttledPipeline = ThrottlePipeline(pipelineStatus, minIntervalMs: 80);
-        var emitContent = CreateThrottledContentEmitter(onContentUpdate, ChatStreamingDisplayOptions.DefaultUiThrottleMs);
-
-        if (options.IsInstant)
-            return await RunInstantAsync(
-                orchestrator,
-                systemPrompt,
-                fullPrompt,
-                cancellationToken,
-                emitContent,
-                imageBase64Contents,
-                routingUserMessage,
-                throttledPipeline,
-                precomputedDecision,
-                onToolCall,
-                onAssistantReasoningUpdate).ConfigureAwait(false);
-
-        return await RunRevealAsync(
-            orchestrator,
-            systemPrompt,
-            fullPrompt,
-            cancellationToken,
-            emitContent,
-            imageBase64Contents,
-            routingUserMessage,
-            throttledPipeline,
-            precomputedDecision,
-            options,
-            onToolCall,
-            onAssistantReasoningUpdate).ConfigureAwait(false);
-    }
-
-    /// <summary>
     /// Runs the streaming prompt loop using real multi-turn conversation history. History turns are passed
-    /// as proper OpenAI-format messages instead of a flat text blob, improving multi-turn reasoning quality.
+    /// as proper message objects instead of a flat text blob, improving multi-turn reasoning quality.
     /// </summary>
-    /// <param name="systemPrompt">Base system prompt only (mode text). Skill injection is applied inside <see cref="IAIOrchestrator.PromptStreamingWithHistoryAsync"/>—do not pre-compose with <see cref="ISkillSystemPromptComposer"/>.</param>
+    /// <param name="systemPrompt">Base system prompt only (mode text).</param>
     /// <param name="history">Prior turns (oldest first, not including the current user message).</param>
     /// <param name="userMessage">The latest user message.</param>
-    /// <param name="imageBase64Contents">Optional. For vision: list of image base64 strings.</param>
     /// <param name="pipelineStatus">Optional. Receives pipeline label keys.</param>
-    /// <param name="conversationRoutingKey">Optional. Thread id for last-tool routing hints (same as chat session id).</param>
+    /// <param name="conversationRoutingKey">Optional. Thread id for session continuity (same as chat session id).</param>
     /// <param name="displayOptions">Optional. Reveal pacing.</param>
     /// <param name="onAssistantReasoningUpdate">Optional. Cumulative model reasoning for thinking models (UI thought panel).</param>
     /// <returns>True if at least one token was received; false if empty response.</returns>
@@ -221,12 +147,10 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
         string userMessage,
         CancellationToken cancellationToken,
         Action<string> onContentUpdate,
-        IReadOnlyList<string>? imageBase64Contents = null,
         IProgress<string>? pipelineStatus = null,
-        RoutingAndSkillDecision? precomputedDecision = null,
         string? conversationRoutingKey = null,
         ChatStreamingDisplayOptions? displayOptions = null,
-        Action<ChatDatasetToolCall>? onToolCall = null,
+        Action<ChatToolCall>? onToolCall = null,
         Action<string>? onAssistantReasoningUpdate = null)
     {
         var options = displayOptions ?? ChatStreamingDisplayOptions.Balanced;
@@ -241,9 +165,7 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
                 userMessage,
                 cancellationToken,
                 emitContent,
-                imageBase64Contents,
                 throttledPipeline,
-                precomputedDecision,
                 conversationRoutingKey,
                 onToolCall,
                 onAssistantReasoningUpdate).ConfigureAwait(false);
@@ -255,9 +177,7 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
             userMessage,
             cancellationToken,
             emitContent,
-            imageBase64Contents,
             throttledPipeline,
-            precomputedDecision,
             conversationRoutingKey,
             options,
             onToolCall,
@@ -296,65 +216,6 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
         };
     }
 
-    private static async Task<(bool FoundResponse, string FinalContent)> RunInstantAsync(
-        IAIOrchestrator orchestrator,
-        string systemPrompt,
-        string fullPrompt,
-        CancellationToken cancellationToken,
-        Action<string, bool> emitContent,
-        IReadOnlyList<string>? imageBase64Contents,
-        string? routingUserMessage,
-        IProgress<string>? pipelineStatus,
-        RoutingAndSkillDecision? precomputedDecision,
-        Action<ChatDatasetToolCall>? onToolCall = null,
-        Action<string>? onAssistantReasoningUpdate = null)
-    {
-        var buffer = new StringBuilder();
-        var lockObj = new object();
-        var foundResponse = false;
-
-        try
-        {
-            await foreach (var token in orchestrator.PromptStreamingAsync(systemPrompt, fullPrompt, cancellationToken, imageBase64Contents, routingUserMessage, pipelineStatus, precomputedDecision, null, onToolCall, onAssistantReasoningUpdate)
-                .ConfigureAwait(false))
-            {
-                lock (lockObj)
-                {
-                    buffer.Append(token);
-                    foundResponse = true;
-                }
-
-                string snapshot;
-                lock (lockObj)
-                {
-                    snapshot = buffer.ToString();
-                }
-
-                emitContent(snapshot, false);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            lock (lockObj)
-            {
-                emitContent(buffer.ToString(), true);
-            }
-
-            throw;
-        }
-
-        var finalContent = buffer.ToString();
-        emitContent(finalContent, true);
-
-        bool found;
-        lock (lockObj)
-        {
-            found = foundResponse;
-        }
-
-        return (found, finalContent);
-    }
-
     private static async Task<(bool FoundResponse, string FinalContent)> RunInstantWithHistoryAsync(
         IAIOrchestrator orchestrator,
         string systemPrompt,
@@ -362,11 +223,9 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
         string userMessage,
         CancellationToken cancellationToken,
         Action<string, bool> emitContent,
-        IReadOnlyList<string>? imageBase64Contents,
         IProgress<string>? pipelineStatus,
-        RoutingAndSkillDecision? precomputedDecision,
         string? conversationRoutingKey,
-        Action<ChatDatasetToolCall>? onToolCall = null,
+        Action<ChatToolCall>? onToolCall = null,
         Action<string>? onAssistantReasoningUpdate = null)
     {
         var buffer = new StringBuilder();
@@ -375,7 +234,7 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
 
         try
         {
-            await foreach (var token in orchestrator.PromptStreamingWithHistoryAsync(systemPrompt, history, userMessage, cancellationToken, imageBase64Contents, pipelineStatus, precomputedDecision, conversationRoutingKey, onToolCall, onAssistantReasoningUpdate)
+            await foreach (var token in orchestrator.PromptStreamingWithHistoryAsync(systemPrompt, history, userMessage, cancellationToken, pipelineStatus, conversationRoutingKey, onToolCall, onAssistantReasoningUpdate)
                 .ConfigureAwait(false))
             {
                 lock (lockObj)
@@ -422,12 +281,10 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
         string userMessage,
         CancellationToken cancellationToken,
         Action<string, bool> emitContent,
-        IReadOnlyList<string>? imageBase64Contents,
         IProgress<string>? pipelineStatus,
-        RoutingAndSkillDecision? precomputedDecision,
         string? conversationRoutingKey,
         ChatStreamingDisplayOptions options,
-        Action<ChatDatasetToolCall>? onToolCall = null,
+        Action<ChatToolCall>? onToolCall = null,
         Action<string>? onAssistantReasoningUpdate = null)
     {
         var buffer = new StringBuilder();
@@ -443,104 +300,7 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
         {
             try
             {
-                await foreach (var token in orchestrator.PromptStreamingWithHistoryAsync(systemPrompt, history, userMessage, cancellationToken, imageBase64Contents, pipelineStatus, precomputedDecision, conversationRoutingKey, onToolCall, onAssistantReasoningUpdate)
-                    .ConfigureAwait(false))
-                {
-                    lock (lockObj)
-                    {
-                        buffer.Append(token);
-                        foundResponse = true;
-                    }
-                }
-            }
-            finally
-            {
-                lock (lockObj)
-                {
-                    streamComplete = true;
-                }
-            }
-        }
-
-        async Task ConsumerAsync()
-        {
-            while (true)
-            {
-                await Task.Delay(tickMs, cancellationToken).ConfigureAwait(false);
-
-                string slice;
-                bool done;
-                lock (lockObj)
-                {
-                    var len = buffer.Length;
-                    if (len == 0 && !streamComplete)
-                        continue;
-
-                    if (len > 0)
-                        revealedLength = Math.Min(len, revealedLength + charsPerTick);
-
-                    slice = revealedLength == 0 ? string.Empty : buffer.ToString(0, revealedLength);
-                    done = streamComplete && revealedLength >= len;
-                }
-
-                emitContent(slice, done);
-                if (done)
-                    break;
-            }
-        }
-
-        try
-        {
-            await Task.WhenAll(ProducerAsync(), ConsumerAsync()).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            lock (lockObj)
-            {
-                emitContent(buffer.ToString(), true);
-            }
-
-            throw;
-        }
-
-        var finalContent = buffer.ToString();
-        bool found;
-        lock (lockObj)
-        {
-            found = foundResponse;
-        }
-
-        return (found, finalContent);
-    }
-
-    private static async Task<(bool FoundResponse, string FinalContent)> RunRevealAsync(
-        IAIOrchestrator orchestrator,
-        string systemPrompt,
-        string fullPrompt,
-        CancellationToken cancellationToken,
-        Action<string, bool> emitContent,
-        IReadOnlyList<string>? imageBase64Contents,
-        string? routingUserMessage,
-        IProgress<string>? pipelineStatus,
-        RoutingAndSkillDecision? precomputedDecision,
-        ChatStreamingDisplayOptions options,
-        Action<ChatDatasetToolCall>? onToolCall = null,
-        Action<string>? onAssistantReasoningUpdate = null)
-    {
-        var buffer = new StringBuilder();
-        var lockObj = new object();
-        var streamComplete = false;
-        var revealedLength = 0;
-        var foundResponse = false;
-
-        var tickMs = Math.Max(1, options.TickMs);
-        var charsPerTick = Math.Max(1, options.CharsPerTick);
-
-        async Task ProducerAsync()
-        {
-            try
-            {
-                await foreach (var token in orchestrator.PromptStreamingAsync(systemPrompt, fullPrompt, cancellationToken, imageBase64Contents, routingUserMessage, pipelineStatus, precomputedDecision, null, onToolCall, onAssistantReasoningUpdate)
+                await foreach (var token in orchestrator.PromptStreamingWithHistoryAsync(systemPrompt, history, userMessage, cancellationToken, pipelineStatus, conversationRoutingKey, onToolCall, onAssistantReasoningUpdate)
                     .ConfigureAwait(false))
                 {
                     lock (lockObj)

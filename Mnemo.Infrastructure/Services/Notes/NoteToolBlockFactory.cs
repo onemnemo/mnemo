@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text.Json;
 using Mnemo.Core.Formatting;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Tools.Notes;
@@ -9,86 +7,59 @@ using Mnemo.Infrastructure.Services.Notes.Markdown;
 
 namespace Mnemo.Infrastructure.Services.Notes;
 
+/// <summary>Builds <see cref="Block"/> instances from the agent-facing <see cref="NoteBlockSpec"/>.</summary>
 internal static class NoteToolBlockFactory
 {
-    public static Block FromPayload(ToolBlockPayload p, int order)
+    /// <summary>Builds a block (with any nested children) from the agent-facing <see cref="NoteBlockSpec"/>.</summary>
+    public static Block FromSpec(NoteBlockSpec spec, int order)
     {
-        if (!Enum.TryParse<BlockType>(p.Type, true, out var bt))
-            bt = BlockType.Text;
+        if (!Enum.TryParse<BlockType>(spec.Type, true, out var type))
+            type = BlockType.Text;
 
-        var id = string.IsNullOrWhiteSpace(p.BlockId) ? Guid.NewGuid().ToString() : p.BlockId.Trim();
-        var b = new Block { Id = id, Type = bt, Order = order };
+        var b = new Block { Id = Guid.NewGuid().ToString(), Type = type, Order = order };
 
-        if (p.Meta != null)
+        switch (type)
         {
-            foreach (var kv in p.Meta)
-                b.Meta[kv.Key] = kv.Value;
+            case BlockType.Divider:
+                break;
+            case BlockType.Equation:
+                b.Payload = new EquationPayload((spec.Latex ?? spec.Markdown ?? string.Empty).Trim());
+                b.Spans = new List<InlineSpan> { InlineSpan.Plain(string.Empty) };
+                break;
+            case BlockType.Code:
+                var source = spec.Markdown ?? string.Empty;
+                b.Payload = new CodePayload(string.IsNullOrWhiteSpace(spec.Language) ? "csharp" : spec.Language!.Trim(), source);
+                b.Spans = new List<InlineSpan> { InlineSpan.Plain(source) };
+                break;
+            case BlockType.Page:
+                b.Payload = new PagePayload((spec.Markdown ?? string.Empty).Trim());
+                b.Spans = new List<InlineSpan> { InlineSpan.Plain(string.Empty) };
+                break;
+            default:
+                b.Spans = InlineMarkdownParser.ToSpans(spec.Markdown ?? string.Empty);
+                if (type is BlockType.Heading1 or BlockType.Heading2 or BlockType.Heading3 or BlockType.Heading4)
+                    EnsureHeadingBold(b);
+                if (type == BlockType.Checklist)
+                    b.Payload = new ChecklistPayload(spec.Checked ?? false);
+                break;
         }
 
-        if (bt == BlockType.Divider)
-            return b;
-
-        if (bt == BlockType.Equation)
+        if (spec.Children is { Count: > 0 })
         {
-            var latex = p.Content ?? string.Empty;
-            b.Payload = new EquationPayload(latex);
-            b.Spans = new List<InlineSpan> { InlineSpan.Plain(string.Empty) };
-            b.Meta.Remove("equationLatex");
-            return b;
-        }
-
-        if (bt == BlockType.Code)
-        {
-            var lang = b.Meta.TryGetValue("language", out var lv) ? lv?.ToString() ?? "csharp" : "csharp";
-            var src = p.Content ?? string.Empty;
-            b.Payload = new CodePayload(lang, src);
-            b.Spans = new List<InlineSpan> { InlineSpan.Plain(src) };
-            b.Meta.Remove("language");
-            return b;
-        }
-
-        if (bt == BlockType.Page)
-        {
-            var refId = string.Empty;
-            if (b.Meta.TryGetValue("reference_note_id", out var rv) && rv != null)
-                refId = rv is string s ? s : rv.ToString() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(refId))
-                refId = (p.Content ?? string.Empty).Trim();
-            b.Payload = new PagePayload(refId);
-            b.Spans = new List<InlineSpan> { InlineSpan.Plain(string.Empty) };
-            b.Meta.Remove("reference_note_id");
-            return b;
-        }
-
-        b.Spans = InlineMarkdownParser.ToSpans(p.Content ?? string.Empty);
-        if (bt is BlockType.Heading1 or BlockType.Heading2 or BlockType.Heading3 or BlockType.Heading4)
-            EnsureHeadingBold(b);
-
-        if (bt == BlockType.Checklist)
-        {
-            b.Payload = new ChecklistPayload(ReadMetaChecked(b.Meta));
-            b.Meta.Remove("checked");
+            b.Children = new List<Block>(spec.Children.Count);
+            for (var i = 0; i < spec.Children.Count; i++)
+                b.Children.Add(FromSpec(spec.Children[i], i));
         }
 
         return b;
     }
 
-    private static bool ReadMetaChecked(Dictionary<string, object> meta)
+    /// <summary>Builds an ordered block list from specs, numbering from <paramref name="startOrder"/>.</summary>
+    public static List<Block> FromSpecs(IReadOnlyList<NoteBlockSpec> specs, int startOrder = 0)
     {
-        if (!meta.TryGetValue("checked", out var v) || v == null)
-            return false;
-        if (v is bool b)
-            return b;
-        if (v is JsonElement je)
-            return je.ValueKind == JsonValueKind.True;
-        return false;
-    }
-
-    public static List<Block> FromPayloads(IReadOnlyList<ToolBlockPayload> payloads, int startOrder = 0)
-    {
-        var list = new List<Block>(payloads.Count);
-        for (var i = 0; i < payloads.Count; i++)
-            list.Add(FromPayload(payloads[i], startOrder + i));
+        var list = new List<Block>(specs.Count);
+        for (var i = 0; i < specs.Count; i++)
+            list.Add(FromSpec(specs[i], startOrder + i));
         return list;
     }
 

@@ -19,7 +19,6 @@ public class GeneratePathTask : AITaskBase
     private readonly string _instructions;
     private readonly string[] _filePaths;
     private readonly IAIOrchestrator _orchestrator;
-    private readonly IKnowledgeService _knowledge;
     private readonly ILearningPathService _pathService;
     private readonly ISettingsService _settings;
     private readonly ILoggerService _logger;
@@ -30,11 +29,10 @@ public class GeneratePathTask : AITaskBase
     public override string DisplayName => $"Generating Learning Path: {_topic}";
 
     public GeneratePathTask(
-        string topic, 
-        string instructions, 
+        string topic,
+        string instructions,
         string[] filePaths,
-        IAIOrchestrator orchestrator, 
-        IKnowledgeService knowledge,
+        IAIOrchestrator orchestrator,
         ILearningPathService pathService,
         ISettingsService settings,
         ILoggerService logger)
@@ -43,7 +41,6 @@ public class GeneratePathTask : AITaskBase
         _instructions = instructions;
         _filePaths = filePaths;
         _orchestrator = orchestrator;
-        _knowledge = knowledge;
         _pathService = pathService;
         _settings = settings;
         _logger = logger;
@@ -56,7 +53,7 @@ public class GeneratePathTask : AITaskBase
         if (_generatedPath == null) return;
 
         bool smartGen = await _settings.GetAsync("AI.SmartUnitGeneration", false);
-        
+
         var unitsToGenerate = smartGen ? _generatedPath.Units.Take(1) : _generatedPath.Units;
 
         foreach (var unit in unitsToGenerate)
@@ -71,10 +68,11 @@ public class GeneratePathTask : AITaskBase
         await _pathService.SavePathAsync(_generatedPath);
     }
 
-    /// <summary>Reads file contents and returns them as chunks for inline context (RAG off). Truncates to stay within context window.</summary>
-    private static async Task<List<KnowledgeChunk>> ReadFilesAsChunksAsync(string[] filePaths, int maxCharsPerFile, int maxTotalChars, CancellationToken ct)
+    /// <summary>Reads file contents and returns them as a single combined string for inline context.</summary>
+    private static async Task<string?> ReadFilesAsInlineContextAsync(string[] filePaths, int maxCharsPerFile, int maxTotalChars, CancellationToken ct)
     {
-        var chunks = new List<KnowledgeChunk>();
+        if (filePaths.Length == 0) return null;
+        var sb = new StringBuilder();
         int total = 0;
         foreach (var path in filePaths)
         {
@@ -84,14 +82,9 @@ public class GeneratePathTask : AITaskBase
             {
                 var content = await File.ReadAllTextAsync(path, ct).ConfigureAwait(false);
                 var take = Math.Min(content.Length, Math.Min(maxCharsPerFile, maxTotalChars - total));
-                var segment = take < content.Length ? content.AsSpan(0, take).ToString() + "\n\n[Content truncated for context limit.]" : content;
-                chunks.Add(new KnowledgeChunk
-                {
-                    Content = segment,
-                    SourceId = path,
-                    RelevanceScore = 1f,
-                    Metadata = new Dictionary<string, object> { { "path", path } }
-                });
+                sb.AppendLine($"--- File: {System.IO.Path.GetFileName(path)} ---");
+                sb.AppendLine(take < content.Length ? content.AsSpan(0, take).ToString() + "\n\n[Content truncated.]" : content);
+                sb.AppendLine();
                 total += take;
             }
             catch
@@ -99,7 +92,7 @@ public class GeneratePathTask : AITaskBase
                 // Skip unreadable files
             }
         }
-        return chunks;
+        return sb.Length > 0 ? sb.ToString() : null;
     }
 
     private class GenerateStructureStep : IAITaskStep
@@ -118,29 +111,22 @@ public class GeneratePathTask : AITaskBase
         {
             if (string.IsNullOrWhiteSpace(input)) return string.Empty;
 
-            // 1. Try to find markdown JSON block (case-insensitive for language tag)
             var match = System.Text.RegularExpressions.Regex.Match(
-                input, 
-                @"```(?:json)?\s*([\s\S]*?)\s*```", 
+                input,
+                @"```(?:json)?\s*([\s\S]*?)\s*```",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             if (match.Success)
             {
                 var extracted = match.Groups[1].Value.Trim();
-                // Ensure we extracted actual JSON content, not empty
                 if (!string.IsNullOrEmpty(extracted) && extracted.StartsWith("{"))
-                {
                     return extracted;
-                }
             }
 
-            // 2. Fallback to finding first { and last }
             int startIndex = input.IndexOf('{');
             int endIndex = input.LastIndexOf('}');
 
             if (startIndex != -1 && endIndex != -1 && endIndex > startIndex)
-            {
                 return input.Substring(startIndex, endIndex - startIndex + 1).Trim();
-            }
 
             return input.Trim();
         }
@@ -150,61 +136,44 @@ public class GeneratePathTask : AITaskBase
             Status = AITaskStatus.Running;
             Progress = 0.1;
 
-            try 
+            try
             {
-                bool ragEnabled = await _parent._settings.GetAsync("AI.EnableRAG", true).ConfigureAwait(false);
-                string pathScopeId = Guid.NewGuid().ToString();
+                var pathScopeId = Guid.NewGuid().ToString();
 
-                // 1. Ingest files (only when RAG enabled, into this path's scope)
-                if (ragEnabled && _parent._filePaths.Length > 0)
-                {
-                    double stepSize = 0.2 / _parent._filePaths.Length;
-                    foreach (var file in _parent._filePaths)
-                    {
-                        var ingestResult = await _parent._knowledge.IngestDocumentAsync(file, pathScopeId, ct);
-                        if (!ingestResult.IsSuccess)
-                        {
-                            _parent._logger.Warning("PathGen", $"Failed to ingest {file}: {ingestResult.ErrorMessage}");
-                        }
-                        Progress += stepSize;
-                    }
-                }
+                // Read uploaded files inline and fold into the prompt
+                var fileContext = await ReadFilesAsInlineContextAsync(_parent._filePaths, 4000, 16000, ct).ConfigureAwait(false);
 
                 Progress = 0.3;
 
-                // 2. Build context: RAG on = semantic search over ingested docs; RAG off = inline file content (context-window limited)
-                var chunks = new List<KnowledgeChunk>();
-                if (ragEnabled)
-                {
-                    var searchQuery = $"{_parent._topic} {_parent._instructions}";
-                    var searchResult = await _parent._knowledge.SearchAsync(searchQuery, 15, pathScopeId, ct);
-                    if (searchResult.IsSuccess && searchResult.Value != null)
-                        chunks.AddRange(searchResult.Value);
-                }
-                else if (_parent._filePaths.Length > 0)
-                {
-                    var inlineChunks = await ReadFilesAsChunksAsync(_parent._filePaths, 4000, 16000, ct).ConfigureAwait(false);
-                    chunks.AddRange(inlineChunks);
-                }
-
-                Progress = 0.4;
-
-                // 3. Prompt AI for structure (output shape is enforced by LearningPathJsonSchema via response_format).
-                // Note: The model does not see the schema—only the prompt. Title length rules must be stated here (see llama.cpp grammars README).
                 var systemPrompt = @"You are an expert curriculum designer. Generate a comprehensive learning path. Respond only with a JSON object. No conversational text before or after. Use forward slashes for any paths in strings.
 
 CRITICAL title rules (follow exactly):
 - Learning path ""title"": must be short, clean and concise — maximum 4 words (e.g. ""Introduction to Python"" or ""Data Structures Basics"").
 - Each unit ""title"": maximum 3–5 words, short and clear (e.g. ""Variables and Types"", ""First Program"").";
 
-                var userPrompt = $@"Create a learning path for the topic: '{_parent._topic}'
-Additional instructions: {_parent._instructions}";
+                var userPromptBuilder = new StringBuilder();
+                userPromptBuilder.AppendLine($"Create a learning path for the topic: '{_parent._topic}'");
+                userPromptBuilder.AppendLine($"Additional instructions: {_parent._instructions}");
+                if (!string.IsNullOrEmpty(fileContext))
+                {
+                    userPromptBuilder.AppendLine();
+                    userPromptBuilder.AppendLine("Reference materials:");
+                    userPromptBuilder.AppendLine(fileContext);
+                }
 
-                var aiResult = await _parent._orchestrator.PromptWithContextAsync(systemPrompt, userPrompt, chunks, ct, LearningPathJsonSchema.GetSchema());
-                if (!aiResult.IsSuccess || aiResult.Value == null) return Result.Failure(aiResult.ErrorMessage ?? "AI failed to respond.");
+                Progress = 0.4;
+
+                var aiResult = await _parent._orchestrator.PromptStructuredAsync(
+                    systemPrompt,
+                    userPromptBuilder.ToString(),
+                    LearningPathJsonSchema.GetSchema(),
+                    ct);
+
+                if (!aiResult.IsSuccess || aiResult.Value == null)
+                    return Result.Failure(aiResult.ErrorMessage ?? "AI failed to respond.");
 
                 var json = ExtractJson(aiResult.Value);
-                
+
                 var jsonOptions = new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true,
@@ -220,17 +189,14 @@ Additional instructions: {_parent._instructions}";
                     _parent._logger.Error("PathGen", $"JSON Parsing failed. Raw: {aiResult.Value}");
                     return Result.Failure($"Failed to parse generated path structure: {ex.Message}. The AI response was not valid JSON.", ex);
                 }
-                
+
                 if (_parent._generatedPath == null) return Result.Failure("Failed to parse generated path structure.");
 
                 _parent._generatedPath.PathId = pathScopeId;
                 _parent._generatedPath.Title = string.IsNullOrWhiteSpace(_parent._generatedPath.Title) ? _parent._topic : _parent._generatedPath.Title;
                 _parent._generatedPath.Metadata.Model = "AI Assistant";
 
-                // Save initial path
                 await _parent._pathService.SavePathAsync(_parent._generatedPath);
-
-                // Add unit steps
                 await _parent.AddUnitGenerationStepsAsync();
 
                 Progress = 1.0;
@@ -280,22 +246,9 @@ Additional instructions: {_parent._instructions}";
                 DisplayName = $"Generating: {unit.Title}";
                 Description = unit.Goal;
 
-                // 1. Gather material for this unit (scoped to this path's knowledge)
-                var chunks = new List<KnowledgeChunk>();
-                bool ragEnabled = await _parent._settings.GetAsync("AI.EnableRAG", true).ConfigureAwait(false);
-                if (ragEnabled && (unit.AllocatedMaterial.ChunkIds.Count > 0 || !string.IsNullOrWhiteSpace(unit.Goal)))
-                {
-                    var searchResult = await _parent._knowledge.SearchAsync($"{unit.Title} {unit.Goal}", 5, _pathId, ct);
-                    if (searchResult.IsSuccess && searchResult.Value != null)
-                    {
-                        chunks.AddRange(searchResult.Value);
-                    }
-                }
-
                 Progress = 0.3;
 
-                // 2. Prompt for content
-                var systemPrompt = @"You are a friendly, patient, and encouraging tutor. 
+                var systemPrompt = @"You are a friendly, patient, and encouraging tutor.
 Generate educational content for the specific unit following these rules:
 1. Why This Topic Matters (Relevance before definitions, real-world intuition)
 2. Conceptual Introduction (Informal, metaphors, no formulas yet)
@@ -303,7 +256,7 @@ Generate educational content for the specific unit following these rules:
 4. Interpretation & Understanding (What it means, address confusion)
 5. What to Remember (Short recap, intuition focus)
 
-Tone: Assume learner is capable but new. Never shame. 
+Tone: Assume learner is capable but new. Never shame.
 Formatting: Markdown, short paragraphs, LaTeX only when needed (wrapped in $ (inline) or $$ (block) delimiters). Whitespace is key.
 Avoid: Tool instructions, academic-only language, dense formula blocks without explanation, never include a title or heading at the top of your response.";
 
@@ -314,7 +267,7 @@ Focus: {string.Join(", ", unit.GenerationHints.Focus)}
 Avoid: {string.Join(", ", unit.GenerationHints.Avoid)}
 Prerequisites: {string.Join(", ", unit.GenerationHints.Prerequisites)}";
 
-                var aiResult = await _parent._orchestrator.PromptWithContextAsync(systemPrompt, userPrompt, chunks, ct);
+                var aiResult = await _parent._orchestrator.PromptAsync(systemPrompt, userPrompt, ct);
                 if (!aiResult.IsSuccess) return Result.Failure(aiResult.ErrorMessage!);
 
                 unit.Content = aiResult.Value;

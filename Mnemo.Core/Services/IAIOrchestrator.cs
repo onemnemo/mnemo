@@ -9,66 +9,31 @@ namespace Mnemo.Core.Services;
 public interface IAIOrchestrator
 {
     Task<Result<string>> PromptAsync(string systemPrompt, string userPrompt, CancellationToken ct = default);
-    Task<Result<RoutingAndSkillDecision>> AnalyzeMessageAsync(
-        string userMessage,
-        CancellationToken ct = default,
-        IProgress<string>? pipelineStatus = null,
-        string? conversationRoutingKey = null);
-    /// <param name="systemPrompt">Base system prompt only; skill context is composed inside the orchestrator (do not pre-compose).</param>
-    /// <param name="imageBase64Contents">Optional. For vision (e.g. low-tier model): images to send with the user prompt.</param>
-    /// <param name="routingUserMessage">Optional. When set, used only for orchestration routing / complexity (not sent as the chat prompt). Use the latest user turn so routing stays fast as history grows.</param>
-    /// <param name="pipelineStatus">Optional. Reports <see cref="ChatPipelineStatusKeys"/> localization keys while routing, loading the model, or before the first token.</param>
-    /// <param name="precomputedDecision">Optional. When provided, avoids an additional manager call and reuses this routing/skill decision for model selection.</param>
-    /// <param name="onAssistantReasoningUpdate">When set, receives cumulative reasoning text from thinking models (not mixed into yielded tokens).</param>
-    IAsyncEnumerable<string> PromptStreamingAsync(
-        string systemPrompt,
-        string userPrompt,
-        CancellationToken ct = default,
-        IReadOnlyList<string>? imageBase64Contents = null,
-        string? routingUserMessage = null,
-        IProgress<string>? pipelineStatus = null,
-        RoutingAndSkillDecision? precomputedDecision = null,
-        string? conversationRoutingKey = null,
-        Action<ChatDatasetToolCall>? onToolCall = null,
-        Action<string>? onAssistantReasoningUpdate = null);
 
     /// <summary>
-    /// Streaming generation with real multi-turn conversation history. Sends proper OpenAI-format
-    /// system/user/assistant message objects instead of a flat text blob, which improves multi-turn
-    /// reasoning quality on chat-tuned models.
+    /// Structured-output prompt: returns a JSON string conforming to <paramref name="jsonSchema"/>.
+    /// Used by learning-path and unit generation tasks.
     /// </summary>
-    /// <param name="systemPrompt">Base system prompt only. The implementation composes skill context once via <see cref="ISkillSystemPromptComposer"/>—do not pass an already-composed prompt or skill text will duplicate.</param>
+    Task<Result<string>> PromptStructuredAsync(string systemPrompt, string userPrompt, object? jsonSchema = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Streaming generation with real multi-turn conversation history. Sends proper message-list
+    /// context instead of a flat text blob, improving multi-turn reasoning quality.
+    /// </summary>
+    /// <param name="systemPrompt">Base system prompt (mode text). Atlas composes any additional context internally.</param>
     /// <param name="history">Prior turns (oldest first, excluding the current user message).</param>
     /// <param name="userMessage">The latest user message (will become the final user turn).</param>
-    /// <param name="imageBase64Contents">Optional. For vision: images to send with the user message.</param>
     /// <param name="pipelineStatus">Optional. Reports <see cref="ChatPipelineStatusKeys"/> localization keys while routing or loading.</param>
-    /// <param name="precomputedDecision">Optional. Reuses a previously computed routing/skill decision.</param>
-    /// <param name="onAssistantReasoningUpdate">When set, receives cumulative reasoning text from thinking models (not mixed into yielded tokens).</param>
+    /// <param name="conversationRoutingKey">Optional. Thread id for session continuity (same as chat session id).</param>
+    /// <param name="onToolCall">Optional. Called for each tool call the assistant makes during an agentic turn (for UI process-step display).</param>
+    /// <param name="onAssistantReasoningUpdate">Optional. Receives cumulative reasoning text from thinking models (not mixed into yielded tokens).</param>
     IAsyncEnumerable<string> PromptStreamingWithHistoryAsync(
         string systemPrompt,
         IReadOnlyList<ConversationTurn> history,
         string userMessage,
         CancellationToken ct = default,
-        IReadOnlyList<string>? imageBase64Contents = null,
         IProgress<string>? pipelineStatus = null,
-        RoutingAndSkillDecision? precomputedDecision = null,
         string? conversationRoutingKey = null,
-        Action<ChatDatasetToolCall>? onToolCall = null,
+        Action<ChatToolCall>? onToolCall = null,
         Action<string>? onAssistantReasoningUpdate = null);
-    /// <param name="responseJsonSchema">Optional. When set, forwarded to text service so the server forces JSON output (same as mini manager); use e.g. LearningPathJsonSchema.GetSchema().</param>
-    Task<Result<string>> PromptWithModelAsync(string modelId, string prompt, CancellationToken ct = default, object? responseJsonSchema = null);
-
-    /// <summary>RAG-enabled prompt (no system prompt).</summary>
-    Task<Result<string>> PromptWithContextAsync(string prompt, IEnumerable<KnowledgeChunk> context, CancellationToken ct = default);
-
-    /// <param name="responseJsonSchema">Optional. When set, server is asked to return JSON matching this schema (Llama forced output; same mechanism as the manager model).</param>
-    Task<Result<string>> PromptWithContextAsync(string systemPrompt, string prompt, IEnumerable<KnowledgeChunk> context, CancellationToken ct = default, object? responseJsonSchema = null);
-
-    /// <summary>Reserved; local llama-server processes start on first chat Send / generation.</summary>
-    Task WarmUpLowTierModelAsync(CancellationToken ct = default);
-
-    /// <summary>Reserved; routing prefetch that started local models was removed.</summary>
-    Task PrefetchRoutingAndWarmupAsync(string routingUserMessage, string? modelRoutingMode = null, CancellationToken ct = default);
 }
-
-

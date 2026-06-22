@@ -17,7 +17,6 @@
         <converters:BoolToStreamingIntervalConverter x:Key="BoolToStreamingIntervalConverter"/>
         <converters:NullToBoolConverter x:Key="StringNotEmptyToBoolConverter"/>
         <converters:AssistantModeToLabelConverter x:Key="AssistantModeToLabelConverter"/>
-        <converters:ModelRoutingModeToLabelConverter x:Key="ModelRoutingModeToLabelConverter"/>
         <converters:LocalPathToBitmapConverter x:Key="LocalPathToBitmapConverter"/>
         <converters:ChatAttachmentKindToBoolConverter x:Key="ChatAttachmentKindToBoolConverter"/>
         <converters:ChatViewModelDataContextCommandConverter x:Key="ChatViewModelDataContextCommandConverter"/>
@@ -1029,22 +1028,6 @@
                                 <controls:ModernComboBox.ItemTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Converter={StaticResource AssistantModeToLabelConverter}}"
-                                                   FontSize="{DynamicResource FontSize.Body.Caption}"
-                                                   FontFamily="{DynamicResource Font.Medium}"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    </DataTemplate>
-                                </controls:ModernComboBox.ItemTemplate>
-                            </controls:ModernComboBox>
-                            <controls:ModernComboBox Grid.Column="4"
-                                                      Classes="PromptPill"
-                                                      ItemsSource="{Binding ModelRoutingModes}"
-                                                      SelectedItem="{Binding SelectedModelRoutingMode}"
-                                                      MinWidth="88"
-                                                      Margin="0,0,6,0"
-                                                      ToolTip.Tip="{markup:T Ns=Chat, Key=ModelRoutingMode}">
-                                <controls:ModernComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Converter={StaticResource ModelRoutingModeToLabelConverter}}"
                                                    FontSize="{DynamicResource FontSize.Body.Caption}"
                                                    FontFamily="{DynamicResource Font.Medium}"
                                                    Foreground="{DynamicResource TextPrimaryBrush}"/>

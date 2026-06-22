@@ -43,6 +43,11 @@ public sealed class NotesMemoryExtractor : IToolResultMemoryExtractor
         switch (toolName.ToLowerInvariant())
         {
             case "create_note":
+            case "read_note":
+            case "outline_note":
+            case "edit_note":
+            case "manage_note":
+            case "open_note":
             {
                 if (TryGetString(data, "note_id", out var noteId))
                     yield return MakeFact("active_note_id", noteId!, toolName, turnNumber, now);
@@ -51,16 +56,7 @@ public sealed class NotesMemoryExtractor : IToolResultMemoryExtractor
                 break;
             }
 
-            case "get_note":
-            {
-                if (TryGetString(data, "note_id", out var noteId))
-                    yield return MakeFact("active_note_id", noteId!, toolName, turnNumber, now);
-                if (TryGetString(data, "title", out var title))
-                    yield return MakeFact("active_note_title", title!, toolName, turnNumber, now);
-                break;
-            }
-
-            case "list_notes":
+            case "search_notes":
             {
                 if (data.TryGetProperty("notes", out var notes) && notes.ValueKind == JsonValueKind.Array)
                 {
@@ -90,50 +86,7 @@ public sealed class NotesMemoryExtractor : IToolResultMemoryExtractor
                 }
                 break;
             }
-
-            case "update_note":
-            case "append_to_note":
-            case "insert_blocks":
-            case "replace_block":
-            case "delete_blocks":
-            {
-                // These tools don't return note_id in data, but the message contains it —
-                // active_note_id was already set from the get/create; no update needed unless
-                // we can parse it from the message.
-                if (TryGetString(root, "message", out var msg) && msg != null)
-                {
-                    var extracted = ExtractIdFromMessage(msg);
-                    if (extracted != null)
-                        yield return MakeFact("active_note_id", extracted, toolName, turnNumber, now);
-                }
-                break;
-            }
-
-            case "open_note":
-            {
-                if (TryGetString(root, "message", out var msg) && msg != null)
-                {
-                    var extracted = ExtractIdFromMessage(msg);
-                    if (extracted != null)
-                        yield return MakeFact("active_note_id", extracted, toolName, turnNumber, now);
-                }
-                break;
-            }
-
         }
-    }
-
-    private static string? ExtractIdFromMessage(string message)
-    {
-        // Matches "(id: <value>)" or "id: <value>" patterns in tool messages
-        var start = message.IndexOf("id: ", StringComparison.OrdinalIgnoreCase);
-        if (start < 0)
-            return null;
-
-        start += 4;
-        var end = message.IndexOfAny([')', ' ', '\n', '\r'], start);
-        var id = end < 0 ? message[start..] : message[start..end];
-        return string.IsNullOrWhiteSpace(id) ? null : id.Trim();
     }
 
     private static bool TryGetString(JsonElement element, string property, out string? value)

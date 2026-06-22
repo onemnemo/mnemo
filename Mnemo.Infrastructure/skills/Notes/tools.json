@@ -1,127 +1,145 @@
 {
   "tools": [
     {
-      "name": "list_notes",
-      "description": "Lists notes or searches. sort: newest (default) = by modified time. search: optional keywords (comma/space OR). fuzzy (default true) tolerates typos. match_all: when true, every keyword must match (AND). snippet_search: when true with search, returns block-level snippets (like deep search); when false, filters note titles/metadata only.",
+      "name": "search_notes",
+      "description": "Find notes. With query: returns ranked block-level hits (note_id, block_id, heading_path, snippet, type). Without query: lists notes newest-first. fuzzy (default true) tolerates typos; match_all requires every keyword (AND). Filter by folder (id or name) and favorite.",
       "parameters": {
         "type": "object",
         "properties": {
-          "search": { "type": "string" },
-          "limit": { "type": "integer" },
-          "fuzzy": { "type": "boolean" },
+          "query": { "type": "string", "description": "Keywords. Omit to list notes." },
+          "folder": { "type": "string", "description": "Folder id or name to restrict to." },
+          "favorite": { "type": "boolean" },
+          "limit": { "type": "integer", "description": "Max results (default 10, max 50)." },
           "match_all": { "type": "boolean" },
-          "sort": { "type": "string", "description": "newest (default)" },
-          "snippet_search": { "type": "boolean" },
-          "mode": { "type": "string", "description": "text (default) or semantic — semantic uses knowledge base, may not map to notes" }
+          "fuzzy": { "type": "boolean" }
         }
       },
       "enabled": true
     },
     {
-      "name": "get_note",
-      "description": "Reads a note: title and full blocks (block_id, type, content, order, meta).",
+      "name": "outline_note",
+      "description": "Compact map of a note: each block as { n, id, type, depth, len, preview }. Use it to locate the blocks you want before reading or editing — keeps context small. Returns a version token to pass to edit_note. Set headings_only for a table of contents.",
       "parameters": {
         "type": "object",
-        "properties": { "note_id": { "type": "string" } },
+        "properties": {
+          "note_id": { "type": "string" },
+          "headings_only": { "type": "boolean" },
+          "preview_chars": { "type": "integer", "description": "Preview length per block (default 60)." }
+        },
         "required": ["note_id"]
       },
       "enabled": true
     },
     {
-      "name": "get_note_outline",
-      "description": "Heading blocks only (TOC) with block_id for precise block edits.",
+      "name": "read_note",
+      "description": "Read specific parts of a note losslessly. Provide block_ids (ids or short-id prefixes), OR section (a heading id — returns that heading and its content), OR from/to (1-based block window). With none, returns the whole note (capped). Each block includes markdown plus typed payload (latex, code, image, page, checked).",
       "parameters": {
         "type": "object",
-        "properties": { "note_id": { "type": "string" } },
+        "properties": {
+          "note_id": { "type": "string" },
+          "block_ids": { "type": "array", "items": { "type": "string" } },
+          "section": { "type": "string", "description": "Heading block id." },
+          "from": { "type": "integer" },
+          "to": { "type": "integer" }
+        },
         "required": ["note_id"]
+      },
+      "enabled": true
+    },
+    {
+      "name": "edit_note",
+      "description": "Apply a batch of block operations atomically (all-or-nothing). Each op has an 'op' field: set_text {id, markdown} edits a block's inline text; replace {id, type?, markdown?} swaps a block; insert {blocks|markdown, anchor?, position: before|after|start|end} adds blocks; delete {ids|id}; move {id, anchor, position: before|after}; convert {id, type}; set_checked {id, checked}. Address blocks by id or short-id prefix from outline/read. Pass expected_version (from outline/read) so you never overwrite a note that changed.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "note_id": { "type": "string" },
+          "expected_version": { "type": "string" },
+          "ops": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "op": { "type": "string", "enum": ["set_text", "replace", "insert", "delete", "move", "convert", "set_checked"] },
+                "id": { "type": "string" },
+                "ids": { "type": "array", "items": { "type": "string" } },
+                "markdown": { "type": "string" },
+                "type": { "type": "string" },
+                "latex": { "type": "string" },
+                "language": { "type": "string" },
+                "checked": { "type": "boolean" },
+                "anchor": { "type": "string" },
+                "position": { "type": "string", "enum": ["before", "after", "start", "end"] },
+                "blocks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": { "type": "string" },
+                      "markdown": { "type": "string" },
+                      "latex": { "type": "string" },
+                      "language": { "type": "string" },
+                      "checked": { "type": "boolean" }
+                    }
+                  }
+                }
+              },
+              "required": ["op"]
+            }
+          }
+        },
+        "required": ["note_id", "ops"]
       },
       "enabled": true
     },
     {
       "name": "create_note",
-      "description": "Creates a note. content is markdown converted to blocks. Prefer updating an existing note when one matches.",
+      "description": "Create a note. Provide body as markdown OR structured blocks. Optional folder (id or name) and favorite. Returns note_id and a version token.",
       "parameters": {
         "type": "object",
         "properties": {
           "title": { "type": "string" },
-          "content": { "type": "string" }
+          "folder": { "type": "string" },
+          "favorite": { "type": "boolean" },
+          "markdown": { "type": "string" },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "markdown": { "type": "string" },
+                "latex": { "type": "string" },
+                "language": { "type": "string" },
+                "checked": { "type": "boolean" },
+                "children": { "type": "array", "items": { "type": "object" } }
+              }
+            }
+          }
         },
         "required": ["title"]
       },
       "enabled": true
     },
     {
-      "name": "update_note",
-      "description": "Updates title and/or body. content is markdown converted to blocks.",
+      "name": "manage_note",
+      "description": "Organize a note: rename, move_to_folder (id or name), clear_folder, favorite (true/false), or delete (true).",
       "parameters": {
         "type": "object",
         "properties": {
           "note_id": { "type": "string" },
-          "title": { "type": "string" },
-          "content": { "type": "string" }
+          "rename": { "type": "string" },
+          "move_to_folder": { "type": "string" },
+          "clear_folder": { "type": "boolean" },
+          "favorite": { "type": "boolean" },
+          "delete": { "type": "boolean" }
         },
         "required": ["note_id"]
-      },
-      "enabled": true
-    },
-    {
-      "name": "append_to_note",
-      "description": "Appends markdown text to the end as real blocks.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "note_id": { "type": "string" },
-          "text": { "type": "string" }
-        },
-        "required": ["note_id"]
-      },
-      "enabled": true
-    },
-    {
-      "name": "insert_blocks",
-      "description": "Insert structured blocks at top, bottom, before_block_id, or after_block_id (anchor_block_id for last two).",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "note_id": { "type": "string" },
-          "blocks": { "type": "array", "items": { "type": "object" } },
-          "position": { "type": "string" },
-          "anchor_block_id": { "type": "string" }
-        },
-        "required": ["note_id", "blocks"]
-      },
-      "enabled": true
-    },
-    {
-      "name": "replace_block",
-      "description": "Replace one block by block_id. block uses type + markdown content.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "note_id": { "type": "string" },
-          "block_id": { "type": "string" },
-          "block": { "type": "object" }
-        },
-        "required": ["note_id", "block_id", "block"]
-      },
-      "enabled": true
-    },
-    {
-      "name": "delete_blocks",
-      "description": "Deletes blocks by id list.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "note_id": { "type": "string" },
-          "block_ids": { "type": "array", "items": { "type": "string" } }
-        },
-        "required": ["note_id", "block_ids"]
       },
       "enabled": true
     },
     {
       "name": "open_note",
-      "description": "Opens the note in the Notes UI.",
+      "description": "Open a note in the Notes editor UI.",
       "parameters": {
         "type": "object",
         "properties": { "note_id": { "type": "string" } },

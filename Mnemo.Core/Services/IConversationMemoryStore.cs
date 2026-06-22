@@ -58,10 +58,4 @@ public interface IConversationMemoryStore
     /// </summary>
     IReadOnlyList<ConversationMemorySnapshot> GetConversationsPendingTier3Embedding(int tier3ThresholdTurns);
 
-    /// <summary>
-    /// Returns the latest tool hint derived from the most recent fact whose source is a tool name,
-    /// for backward compatibility with <see cref="IRoutingToolHintStore"/> consumers.
-    /// Returns null when no facts exist.
-    /// </summary>
-    RoutingToolHint? GetLatestToolHint(string conversationId);
 }

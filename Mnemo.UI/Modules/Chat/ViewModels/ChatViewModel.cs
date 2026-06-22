@@ -38,9 +38,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     /// <summary>Number of turns between automatic summarizations.</summary>
     private const int SummarizationInterval = 3;
 
-    /// <summary>Minimum turn count before Tier-3 long-term memory embedding is triggered.</summary>
-    private const int Tier3EmbeddingThreshold = 15;
-
     private readonly IAIOrchestrator _orchestrator;
     private readonly ILoggerService _logger;
     private readonly ILocalizationService _localizationService;
@@ -49,14 +46,11 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     private readonly ISettingsService _settingsService;
     private readonly ISkillSystemPromptComposer _skillSystemPromptComposer;
     private readonly ChatTypingPrefetchHelper _typingPrefetch;
-    private readonly IChatDatasetLogger _chatDatasetLogger;
-    private readonly IRoutingToolHintStore _routingToolHintStore;
     private readonly IChatModuleHistoryService _chatHistoryService;
     private readonly IChatHistoryClearService _chatHistoryClearService;
     private readonly IConversationMemoryStore _memoryStore;
     private readonly IConversationSummarizer _memorySummarizer;
     private readonly IConversationMemoryInjector _memoryInjector;
-    private readonly IConversationLongTermMemoryEmbedder _longTermMemoryEmbedder;
 
     private string _conversationId = string.Empty;
 
@@ -186,9 +180,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     /// <summary>Available assistant modes for the mode dropdown.</summary>
     public IReadOnlyList<string> AssistantModes { get; } = new[] { "Short", "Normal", "Detailed" };
 
-    /// <summary>Auto (manager), Simple (low-tier), or Reasoning (tiered).</summary>
-    public IReadOnlyList<string> ModelRoutingModes { get; } = new[] { ChatModelRouting.Auto, ChatModelRouting.Simple, ChatModelRouting.Reasoning };
-
     private string _selectedAssistantMode = "Normal";
     public string SelectedAssistantMode
     {
@@ -205,27 +196,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             else
             {
                 SetProperty(ref _selectedAssistantMode, value);
-            }
-        }
-    }
-
-    private string _selectedModelRoutingMode = ChatModelRouting.Auto;
-    public string SelectedModelRoutingMode
-    {
-        get => ActiveSession?.ModelRoutingMode ?? _selectedModelRoutingMode;
-        set
-        {
-            var session = ActiveSession;
-            if (session != null)
-            {
-                var normalized = ChatModelRouting.NormalizeModelRoutingMode(value);
-                if (session.ModelRoutingMode == normalized) return;
-                session.ModelRoutingMode = normalized;
-                OnPropertyChanged();
-            }
-            else
-            {
-                SetProperty(ref _selectedModelRoutingMode, ChatModelRouting.NormalizeModelRoutingMode(value));
             }
         }
     }
@@ -310,14 +280,11 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         ISettingsService settingsService,
         ISkillSystemPromptComposer skillSystemPromptComposer,
         ChatPauseToSendEstimator pauseToSendEstimator,
-        IChatDatasetLogger chatDatasetLogger,
-        IRoutingToolHintStore routingToolHintStore,
         IChatModuleHistoryService chatHistoryService,
         IChatHistoryClearService chatHistoryClearService,
         IConversationMemoryStore memoryStore,
         IConversationSummarizer memorySummarizer,
-        IConversationMemoryInjector memoryInjector,
-        IConversationLongTermMemoryEmbedder longTermMemoryEmbedder)
+        IConversationMemoryInjector memoryInjector)
     {
         _orchestrator = orchestrator;
         _logger = logger;
@@ -326,15 +293,12 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         _speechService = speechService;
         _settingsService = settingsService;
         _skillSystemPromptComposer = skillSystemPromptComposer;
-        _chatDatasetLogger = chatDatasetLogger;
-        _routingToolHintStore = routingToolHintStore;
         _chatHistoryService = chatHistoryService;
         _chatHistoryClearService = chatHistoryClearService;
         _chatHistoryClearService.Cleared += OnChatHistoryClearServiceCleared;
         _memoryStore = memoryStore;
         _memorySummarizer = memorySummarizer;
         _memoryInjector = memoryInjector;
-        _longTermMemoryEmbedder = longTermMemoryEmbedder;
         _typingPrefetch = new ChatTypingPrefetchHelper(pauseToSendEstimator);
 
         SendMessageCommand = new AsyncRelayCommand(SendMessageAsync, () => !string.IsNullOrWhiteSpace(InputText) && !IsBusy && !IsRecording && _isHistoryReady);
@@ -632,7 +596,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             PersistFireAndForget();
         if (_isEphemeralConversation)
         {
-            _routingToolHintStore.Clear(_conversationId);
             _ephemeralMessages.Clear();
             _isEphemeralConversation = false;
         }
@@ -644,7 +607,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         ResubscribeActiveMessages();
         OnPropertyChanged(nameof(Messages));
         OnPropertyChanged(nameof(SelectedAssistantMode));
-        OnPropertyChanged(nameof(SelectedModelRoutingMode));
         RequestScrollToBottom?.Invoke(this, EventArgs.Empty);
         if (persistBookends)
             PersistFireAndForget();
@@ -660,7 +622,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
 
         if (!string.IsNullOrEmpty(_conversationId))
         {
-            _routingToolHintStore.Clear(_conversationId);
             _memoryStore.Evict(_conversationId);
         }
 
@@ -673,7 +634,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         ResubscribeActiveMessages();
         OnPropertyChanged(nameof(Messages));
         OnPropertyChanged(nameof(SelectedAssistantMode));
-        OnPropertyChanged(nameof(SelectedModelRoutingMode));
         NotifyShowWelcomeIntroChanged();
         RequestScrollToBottom?.Invoke(this, EventArgs.Empty);
         RefreshMemoryPillUi();
@@ -687,7 +647,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         {
             Id = id,
             AssistantMode = SelectedAssistantMode,
-            ModelRoutingMode = SelectedModelRoutingMode,
             LastActivityUtc = DateTime.UtcNow
         };
         _chatSessions[id] = session;
@@ -703,7 +662,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         ResubscribeActiveMessages();
         OnPropertyChanged(nameof(Messages));
         OnPropertyChanged(nameof(SelectedAssistantMode));
-        OnPropertyChanged(nameof(SelectedModelRoutingMode));
         NotifyShowWelcomeIntroChanged();
         RefreshMemoryPillUi();
     }
@@ -796,7 +754,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             r.IsSelected = r.ConversationId == _conversationId;
         OnPropertyChanged(nameof(Messages));
         OnPropertyChanged(nameof(SelectedAssistantMode));
-        OnPropertyChanged(nameof(SelectedModelRoutingMode));
         NotifyShowWelcomeIntroChanged();
         RequestScrollToBottom?.Invoke(this, EventArgs.Empty);
         RefreshMemoryPillUi();
@@ -829,7 +786,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         {
             Id = id,
             AssistantMode = ChatStreamingHelper.NormalizeAssistantMode(c.AssistantMode),
-            ModelRoutingMode = ChatModelRouting.NormalizeModelRoutingMode(c.ModelRoutingMode),
             LastActivityUtc = c.LastActivityUtc == default ? DateTime.UtcNow : c.LastActivityUtc,
             CustomTitle = string.IsNullOrWhiteSpace(c.CustomTitle) ? null : c.CustomTitle.Trim()
         };
@@ -1033,7 +989,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
                     Id = s.Id,
                     LastActivityUtc = s.LastActivityUtc,
                     AssistantMode = s.AssistantMode,
-                    ModelRoutingMode = s.ModelRoutingMode,
                     CustomTitle = s.CustomTitle,
                     Messages = s.Messages.Select(MapToPersistedMessage).ToList(),
                     MemorySnapshotJson = memoryJson
@@ -1170,7 +1125,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         var row = FindRow(conversationId);
         if (row != null)
             ConversationRows.Remove(row);
-        _routingToolHintStore.Clear(conversationId);
         _memoryStore.Evict(conversationId);
 
         if (!wasActive)
@@ -1254,8 +1208,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     {
         if (!_isHistoryReady || string.IsNullOrWhiteSpace(InputText) || IsBusy) return;
 
-        await _typingPrefetch.RecordSendPauseAsync().ConfigureAwait(false);
-
         MaterializeEphemeralConversation();
 
         var userMessage = InputText;
@@ -1291,6 +1243,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             IsStreaming = true
         };
         Messages.Add(aiMessage);
+
+        _ = _typingPrefetch.RecordSendPauseAsync();
 
         await RunAssistantStreamingTurnCoreAsync(aiMessage, userMessage, imagePaths).ConfigureAwait(false);
     }
@@ -1365,7 +1319,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     }
 
     /// <summary>Runs orchestration and streaming for an assistant bubble that is already in <see cref="Messages"/>.</summary>
-    private async Task RunAssistantStreamingTurnCoreAsync(ChatMessageViewModel aiMessage, string userMessage, IReadOnlyList<string> imagePaths)
+    private async Task RunAssistantStreamingTurnCoreAsync(ChatMessageViewModel aiMessage, string userMessage, IReadOnlyList<string> imagePaths = null!)
     {
         _cts = new CancellationTokenSource();
 
@@ -1373,47 +1327,12 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             (
                 ConversationId: _conversationId,
                 Messages: Messages,
-                AssistantMode: SelectedAssistantMode,
-                ModelRoutingMode: SelectedModelRoutingMode
+                AssistantMode: SelectedAssistantMode
             ));
 
-        List<string>? imageBase64 = null;
-        if (imagePaths.Count > 0)
-        {
-            try
-            {
-                imageBase64 = new List<string>(imagePaths.Count);
-                foreach (var p in imagePaths)
-                {
-                    var bytes = await File.ReadAllBytesAsync(p, _cts.Token).ConfigureAwait(false);
-                    imageBase64.Add(Convert.ToBase64String(bytes));
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Error("Chat", $"Failed to read image(s) for upload: {ex}");
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    aiMessage.Content = _localizationService.T("ErrorUnexpected", "Chat");
-                    aiMessage.PipelineStatusText = null;
-                    aiMessage.IsStreaming = false;
-                });
-                IsBusy = false;
-                var ctsEarly = _cts;
-                _cts = null;
-                ctsEarly?.Dispose();
-                return;
-            }
-        }
+        _turnIndex++;
 
-        var logDataset = await _settingsService.GetAsync(ChatDatasetSettings.LoggingEnabledKey, false).ConfigureAwait(false);
-        IDisposable? datasetScope = null;
-        string? datasetTurnId = null;
-        var thisTurnIndex = _turnIndex++;
-        if (logDataset)
-            datasetScope = ChatDatasetLoggingScope.BeginTurn(out datasetTurnId);
-
-        // Build raw turns for fallback / summarizer input (excludes current user turn to avoid duplication)
+        // Build raw turns for summarizer input (excludes current user turn to avoid duplication)
         var rawConversationHistory = ChatStreamingHelper.BuildConversationHistory(
             streamingTurn.Messages, aiMessage, m => m.IsUser, m => m.Content,
             excludeLastUserTurn: true);
@@ -1425,12 +1344,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             userMessage,
             _cts.Token).ConfigureAwait(false);
 
-        var foundForDataset = false;
-        var toolDatasetCallCount = 0;
-        var cancelledForDataset = false;
-        string? errorForDataset = null;
-        var composedSystemForDataset = string.Empty;
-        string? finalAssistantResponseForDataset = null;
+        var toolCallCount = 0;
 
         ChatProcessThreadTracker? processThread = null;
         try
@@ -1453,21 +1367,14 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
                     aiMessage.Thoughts = string.IsNullOrEmpty(reasoning) ? null : reasoning;
                 }, DispatcherPriority.Background);
 
-            var analyzed = await _orchestrator.AnalyzeMessageAsync(userMessage, _cts.Token, pipelineProgress, streamingTurn.ConversationId).ConfigureAwait(false);
-            var decision = analyzed.IsSuccess && analyzed.Value != null
-                ? analyzed.Value
-                : new RoutingAndSkillDecision { Complexity = RoutingComplexity.Simple, Skills = new[] { "NONE" } };
-            decision = ChatModelRouting.ApplyComplexityOverride(decision, streamingTurn.ModelRoutingMode);
-            pipelineProgress.Report(ChatPipelineStatusKeys.ReadingSkill);
             var baseSystemPrompt = ChatStreamingHelper.GetSystemPromptForMode(streamingTurn.AssistantMode);
-            composedSystemForDataset = _skillSystemPromptComposer.Compose(baseSystemPrompt, decision.GetNormalizedSkillIds());
 
             var reveal = await _settingsService.GetAsync("Chat.StreamingReveal", "balanced").ConfigureAwait(false);
             var displayOptions = ChatStreamingDisplayOptions.Parse(reveal);
 
-            Action<ChatDatasetToolCall> onToolCall = tc =>
+            Action<ChatToolCall> onToolCall = tc =>
             {
-                toolDatasetCallCount++;
+                toolCallCount++;
                 Dispatcher.UIThread.Post(() =>
                 {
                     processThread?.AddToolCall(tc, k => _localizationService.T(k, "Chat"));
@@ -1482,16 +1389,11 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
                 userMessage,
                 _cts.Token,
                 UpdateContent,
-                imageBase64,
                 pipelineProgress,
-                precomputedDecision: decision,
                 conversationRoutingKey: streamingTurn.ConversationId,
                 displayOptions,
                 onToolCall,
                 onAssistantReasoningUpdate: UpdateReasoning);
-
-            foundForDataset = foundResponse || toolDatasetCallCount > 0;
-            finalAssistantResponseForDataset = foundForDataset ? finalContent : null;
 
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -1504,7 +1406,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
                 aiMessage.IsStreaming = false;
             });
 
-            if (!foundResponse && toolDatasetCallCount == 0)
+            if (!foundResponse && toolCallCount == 0)
             {
                 await Dispatcher.UIThread.InvokeAsync(() =>
                     aiMessage.Content = _localizationService.T("ErrorSorry", "Chat"));
@@ -1512,7 +1414,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         }
         catch (OperationCanceledException)
         {
-            cancelledForDataset = true;
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 if (string.IsNullOrEmpty(aiMessage.Content))
@@ -1525,7 +1426,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         }
         catch (Exception ex)
         {
-            errorForDataset = ex.Message;
             _logger.Error("Chat", $"SendMessage failed: {ex}");
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -1538,43 +1438,11 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         }
         finally
         {
-            try
-            {
-                string? contextForDataset = null;
-                if (!string.IsNullOrEmpty(datasetTurnId))
-                {
-                    contextForDataset = await Dispatcher.UIThread.InvokeAsync(() =>
-                        ChatStreamingHelper.BuildDatasetConversationContextString(
-                            streamingTurn.Messages, m => m.IsUser, m => m.Content));
-                }
-
-                await TryCommitDatasetLogAsync(
-                    datasetTurnId,
-                    streamingTurn.ConversationId,
-                    thisTurnIndex,
-                    "chat_module",
-                    streamingTurn.AssistantMode,
-                    userMessage,
-                    contextForDataset,
-                    composedSystemForDataset,
-                    finalAssistantResponseForDataset,
-                    foundForDataset,
-                    cancelledForDataset,
-                    errorForDataset).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.Error("Chat", $"Dataset log commit failed: {ex}");
-            }
-
-            datasetScope?.Dispose();
-
             var cts = _cts;
             _cts = null;
             cts?.Dispose();
 
             // Increment the memory turn counter and trigger summarization if due.
-            // Use full transcript including this turn (rawConversationHistory was built before the reply completed).
             var fullTranscriptForMemory = ChatStreamingHelper.BuildFullConversationHistory(
                 streamingTurn.Messages,
                 m => m.IsUser,
@@ -1724,15 +1592,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             _memoryStore.SetSummary(conversationId, summaryResult.Value);
             _logger.Info("Memory", $"PostTurn: summary stored conv={conversationId}");
 
-            // Tier-3: embed into vector store once the conversation is long enough
-            if (snapshot.TurnCount >= Tier3EmbeddingThreshold && !snapshot.HasLongTermMemory)
-            {
-                var updatedSnapshot = _memoryStore.Get(conversationId);
-                if (updatedSnapshot != null)
-                    await _longTermMemoryEmbedder.EmbedSummaryAsync(updatedSnapshot)
-                        .ConfigureAwait(false);
-            }
-
             // Persist the updated memory immediately after summarization
             PersistFireAndForget();
         }
@@ -1751,41 +1610,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
                 // ignore UI teardown
             }
         }
-    }
-
-    private async Task TryCommitDatasetLogAsync(
-        string? turnId,
-        string conversationId,
-        int turnIndex,
-        string source,
-        string assistantMode,
-        string userMessage,
-        string? conversationContext,
-        string composedSystemPrompt,
-        string? finalAssistantResponse,
-        bool foundResponse,
-        bool cancelled,
-        string? error)
-    {
-        if (string.IsNullOrEmpty(turnId)) return;
-        await _chatDatasetLogger.CommitTurnAsync(new ChatDatasetCommitRequest
-        {
-            TurnId = turnId,
-            ConversationId = conversationId,
-            TurnIndex = turnIndex,
-            Source = source,
-            AssistantMode = assistantMode,
-            LatestUserMessage = userMessage,
-            ConversationContext = conversationContext,
-            ComposedSystemPrompt = composedSystemPrompt,
-            FinalAssistantResponse = finalAssistantResponse,
-            Outcome = new ChatDatasetOutcomeSection
-            {
-                FoundResponse = foundResponse,
-                Cancelled = cancelled,
-                Error = error
-            }
-        }).ConfigureAwait(false);
     }
 
     private static void UpdateProcessHeader(ChatMessageViewModel message, ChatProcessThreadTracker tracker)
@@ -1857,8 +1681,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         public ObservableCollection<ChatMessageViewModel> Messages { get; } = new();
 
         public string AssistantMode { get; set; } = "Normal";
-
-        public string ModelRoutingMode { get; set; } = ChatModelRouting.Auto;
 
         public DateTime LastActivityUtc { get; set; }
 

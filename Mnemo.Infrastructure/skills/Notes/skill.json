@@ -5,7 +5,7 @@
   "description": "The Notes module: folders, favorites, tree, block editor, creating/editing note content, or using note tools.",
   "detection_hint": "note, notes module, folder, favorite, star, sidebar, tree, breadcrumb, block editor, create note, edit note, append, read note, list notes",
   "injection": {
-    "system_prompt_fragment": "Notes: block editor; markdown in create_note/update_note/append_to_note becomes real blocks. Precise edits: get_note or get_note_outline → insert_blocks, replace_block, delete_blocks, append_to_note. list_notes: optional search; set snippet_search true for block-level hits; match_all for AND keywords; sort newest by default. Tool results are JSON: ok, code, message, data.",
+    "system_prompt_fragment": "Notes are block documents. Work like a code editor: search_notes to find a note/block, outline_note to map it cheaply (gives short block ids + a version), read_note to pull only the blocks you need, then edit_note to apply a batch of surgical ops (set_text, replace, insert, delete, move, convert, set_checked) addressing blocks by their short id. Pass expected_version from outline/read into edit_note so you don't overwrite changes. create_note for new notes; manage_note to rename/move/favorite/delete. Prefer small reads and targeted edits over rewriting whole notes. Tool results are JSON: ok, code, message, data.",
     "include_tools": true
   }
 }

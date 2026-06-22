@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -12,742 +13,656 @@ using Mnemo.Infrastructure.Services.Tools;
 
 namespace Mnemo.Infrastructure.Services.Notes;
 
-/// <summary>Module-owned tool logic for the Notes skill. Registered via <see cref="NotesToolRegistrar"/>.</summary>
+/// <summary>
+/// Agent-facing tools for the Notes module, registered via <see cref="Mnemo.Infrastructure.Services.Tools.NotesToolRegistrar"/>.
+/// </summary>
+/// <remarks>
+/// The surface follows an editor-agent loop: <c>search_notes</c> to discover, <c>outline_note</c>
+/// to map a note cheaply, <c>read_note</c> to pull only the parts that matter, and <c>edit_note</c>
+/// to apply a batch of surgical block operations atomically. Blocks are addressed by id or short-id
+/// prefix and resolved across the whole tree (including nested two-column cells). Reads are lossless
+/// (markdown + typed payloads) so edits are never made blind, and edits carry an optional version
+/// token so the agent never silently clobbers a note the user is editing.
+/// </remarks>
 public sealed class NotesToolService
 {
-    private const int ReadNoteBodyMaxChars = 80_000;
+    private static readonly JsonSerializerOptions CloneOptions = new();
+
     private readonly INoteService _notes;
     private readonly INavigationService _nav;
     private readonly IMainThreadDispatcher _ui;
-    private readonly IKnowledgeService? _knowledge;
+    private readonly INoteFolderService? _folders;
 
     public NotesToolService(
         INoteService notes,
         INavigationService nav,
         IMainThreadDispatcher ui,
-        IKnowledgeService? knowledge = null)
+        INoteFolderService? folders = null)
     {
         _notes = notes;
         _nav = nav;
         _ui = ui;
-        _knowledge = knowledge;
+        _folders = folders;
     }
+
+    // ---------------------------------------------------------------- discovery
+
+    public async Task<ToolInvocationResult> SearchNotesAsync(SearchNotesParameters p)
+    {
+        var limit = p.Limit is > 0 and <= 50 ? p.Limit!.Value : 10;
+        var fuzzy = p.Fuzzy ?? true;
+        var matchAll = p.MatchAll ?? false;
+
+        var all = (await _notes.GetAllNotesAsync().ConfigureAwait(false)).ToList();
+
+        string? folderId = null;
+        string? folderName = null;
+        if (!string.IsNullOrWhiteSpace(p.Folder))
+            (folderId, folderName) = await ResolveFolderAsync(p.Folder!.Trim()).ConfigureAwait(false);
+
+        IEnumerable<Note> scope = all;
+        if (p.Favorite == true)
+            scope = scope.Where(n => n.IsFavorite);
+        if (folderId != null)
+            scope = scope.Where(n => string.Equals(n.FolderId, folderId, StringComparison.Ordinal));
+        else if (folderName != null)
+            scope = scope.Where(n => (n.FolderPath ?? string.Empty).Contains(folderName, StringComparison.OrdinalIgnoreCase));
+
+        // List mode: no query → newest-first listing.
+        if (string.IsNullOrWhiteSpace(p.Query))
+        {
+            var listed = scope
+                .OrderByDescending(n => n.ModifiedAt)
+                .Take(limit)
+                .Select(NoteSummary)
+                .ToList();
+
+            return listed.Count == 0
+                ? ToolInvocationResult.Success("No notes found.", new { notes = listed })
+                : ToolInvocationResult.Success($"{listed.Count} note(s).", new { notes = listed });
+        }
+
+        var tokens = TextSearchMatch.ResolveSearchTokens(p.Query.Trim());
+        if (tokens.Count == 0)
+            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "query has no searchable tokens.");
+
+        var hits = new List<(double score, DateTime modified, Dictionary<string, object?> dto)>();
+        foreach (var note in scope)
+        {
+            NoteDocumentHelper.EnsureBlocks(note);
+            CollectHits(note, tokens, matchAll, fuzzy, hits);
+        }
+
+        var ranked = hits
+            .OrderByDescending(h => h.score)
+            .ThenByDescending(h => h.modified)
+            .Take(limit)
+            .Select(h => h.dto)
+            .ToList();
+
+        return ToolInvocationResult.Success($"Found {ranked.Count} match(es).", new { hits = ranked });
+    }
+
+    // ---------------------------------------------------------------- mapping
+
+    public async Task<ToolInvocationResult> OutlineNoteAsync(OutlineNoteParameters p)
+    {
+        var (note, error) = await LoadAsync(p.NoteId).ConfigureAwait(false);
+        if (error != null) return error;
+
+        var previewChars = p.PreviewChars is > 0 and <= 200 ? p.PreviewChars!.Value : 60;
+        var headingsOnly = p.HeadingsOnly ?? false;
+
+        var entries = new List<Dictionary<string, object?>>();
+        var ordinal = 0;
+        foreach (var located in NoteBlockTree.Walk(note!.Blocks!))
+        {
+            if (headingsOnly && !NoteBlockTree.IsHeading(located.Block.Type))
+                continue;
+            ordinal++;
+            var entry = NotesAgentBlockMapper.ToOutlineEntry(located.Block, ordinal, previewChars);
+            entry["depth"] = located.Depth;
+            entries.Add(entry);
+        }
+
+        return ToolInvocationResult.Success($"{entries.Count} block(s).", new
+        {
+            note_id = note.NoteId,
+            title = note.Title,
+            version = Version(note),
+            folder = note.FolderPath,
+            favorite = note.IsFavorite,
+            block_count = entries.Count,
+            blocks = entries
+        });
+    }
+
+    public async Task<ToolInvocationResult> ReadNoteAsync(ReadNoteParameters p)
+    {
+        var (note, error) = await LoadAsync(p.NoteId).ConfigureAwait(false);
+        if (error != null) return error;
+
+        var roots = note!.Blocks!;
+        var selected = new List<Block>();
+        var unresolved = new List<string>();
+
+        if (p.BlockIds is { Count: > 0 })
+        {
+            foreach (var raw in p.BlockIds)
+            {
+                if (NoteBlockTree.TryLocate(roots, raw, out var loc, out _, out _))
+                    selected.Add(loc.Block);
+                else
+                    unresolved.Add(raw);
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(p.Section))
+        {
+            if (!NoteBlockTree.TryLocate(roots, p.Section!, out var loc, out var ambiguous, out var candidates))
+                return ResolveFailure(p.Section!, ambiguous, candidates);
+            selected.AddRange(SectionBlocks(roots, loc.Block));
+        }
+        else if (p.From is > 0 || p.To is > 0)
+        {
+            var from = Math.Max(1, p.From ?? 1);
+            var to = p.To is > 0 ? p.To!.Value : roots.Count;
+            for (var i = from; i <= Math.Min(to, roots.Count); i++)
+                selected.Add(roots[i - 1]);
+        }
+        else
+        {
+            selected.AddRange(roots);
+        }
+
+        var blocks = selected.Select(b => NotesAgentBlockMapper.ToReadEntry(b, 0)).ToList();
+        return ToolInvocationResult.Success($"{blocks.Count} block(s).", new
+        {
+            note_id = note.NoteId,
+            title = note.Title,
+            version = Version(note),
+            blocks,
+            unresolved = unresolved.Count > 0 ? unresolved : null
+        });
+    }
+
+    // ---------------------------------------------------------------- editing
+
+    public async Task<ToolInvocationResult> EditNoteAsync(EditNoteParameters p)
+    {
+        var (note, error) = await LoadAsync(p.NoteId).ConfigureAwait(false);
+        if (error != null) return error;
+        if (p.Ops == null || p.Ops.Count == 0)
+            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "ops is required and must be non-empty.");
+
+        if (!string.IsNullOrWhiteSpace(p.ExpectedVersion) &&
+            !string.Equals(p.ExpectedVersion.Trim(), Version(note!), StringComparison.Ordinal))
+        {
+            return ToolInvocationResult.Failure(ToolResultCodes.Conflict,
+                "The note changed since it was read. Re-read it (outline_note/read_note) and retry with the new version.",
+                new { note_id = note!.NoteId, version = Version(note) });
+        }
+
+        // Apply to a clone so a failure mid-batch leaves the note untouched (all-or-nothing).
+        var working = Clone(note!.Blocks!);
+
+        for (var i = 0; i < p.Ops.Count; i++)
+        {
+            var opError = ApplyOp(working, p.Ops[i]);
+            if (opError != null)
+                return ToolInvocationResult.Failure(opError.Value.code, $"op[{i}] ({p.Ops[i].Op}): {opError.Value.message}",
+                    new { note_id = note.NoteId });
+        }
+
+        NoteBlockTree.ReindexByPosition(working);
+        note.Blocks = working;
+        note.Content = string.Empty;
+
+        var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
+        if (!res.IsSuccess)
+            return ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
+
+        return ToolInvocationResult.Success($"Applied {p.Ops.Count} op(s).", new
+        {
+            note_id = note.NoteId,
+            version = Version(note),
+            applied = p.Ops.Count,
+            block_count = working.Count
+        });
+    }
+
+    // ---------------------------------------------------------------- create
 
     public async Task<ToolInvocationResult> CreateNoteAsync(CreateNoteParameters p)
     {
         if (string.IsNullOrWhiteSpace(p.Title))
             return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "title is required.");
 
-        var note = new Note { Title = p.Title.Trim() };
+        var note = new Note { Title = p.Title.Trim(), IsFavorite = p.Favorite ?? false };
 
         if (p.Blocks is { Count: > 0 })
+            note.Blocks = NoteToolBlockFactory.FromSpecs(p.Blocks);
+        else if (!string.IsNullOrEmpty(p.Markdown))
+            note.Blocks = NoteBlockMarkdownConverter.Deserialize(p.Markdown);
+        else
+            note.Blocks = [];
+
+        NoteBlockTree.ReindexByPosition(note.Blocks);
+        note.Content = string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(p.Folder))
         {
-            note.Blocks = NoteToolBlockFactory.FromPayloads(p.Blocks);
-            NoteDocumentHelper.NormalizeOrders(note.Blocks);
-            note.Content = string.Empty;
-        }
-        else if (!string.IsNullOrEmpty(p.Content))
-        {
-            note.Blocks = NoteBlockMarkdownConverter.Deserialize(p.Content);
-            NoteDocumentHelper.NormalizeOrders(note.Blocks);
-            note.Content = string.Empty;
+            var (folderId, folderName) = await ResolveFolderAsync(p.Folder!.Trim()).ConfigureAwait(false);
+            note.FolderId = folderId;
+            note.FolderPath = folderName ?? p.Folder!.Trim();
         }
 
         var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
         return res.IsSuccess
-            ? ToolInvocationResult.Success($"Note created (id: {note.NoteId})", new { note_id = note.NoteId, title = note.Title })
+            ? ToolInvocationResult.Success($"Note created (id: {note.NoteId}).",
+                new { note_id = note.NoteId, title = note.Title, version = Version(note), block_count = note.Blocks.Count })
             : ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
     }
 
-    public async Task<ToolInvocationResult> ListNotesAsync(ListNotesParameters p)
+    // ---------------------------------------------------------------- manage
+
+    public async Task<ToolInvocationResult> ManageNoteAsync(ManageNoteParameters p)
     {
-        var limit = p.Limit is > 0 and <= 100 ? p.Limit!.Value : 30;
-        var mode = (p.Mode ?? "text").Trim();
+        var (note, error) = await LoadAsync(p.NoteId).ConfigureAwait(false);
+        if (error != null) return error;
 
-        if (string.Equals(mode, "semantic", StringComparison.OrdinalIgnoreCase))
+        if (p.Delete == true)
         {
-            if (_knowledge == null)
-                return ToolInvocationResult.Failure(ToolResultCodes.ValidationError,
-                    "Semantic search is not available in this environment.");
-
-            if (string.IsNullOrWhiteSpace(p.Search))
-                return ToolInvocationResult.Failure(ToolResultCodes.ValidationError,
-                    "mode=semantic requires a non-empty search string.");
-
-            return await SearchNotesAsync(new SearchNotesParameters
-            {
-                Query = p.Search!.Trim(),
-                Limit = limit,
-                Mode = "semantic",
-                MatchAll = p.MatchAll,
-                Fuzzy = p.Fuzzy
-            }).ConfigureAwait(false);
+            var del = await _notes.DeleteNoteAsync(note!.NoteId).ConfigureAwait(false);
+            return del.IsSuccess
+                ? ToolInvocationResult.Success($"Note deleted (id: {note.NoteId}).", new { note_id = note.NoteId, deleted = true })
+                : ToolInvocationResult.Failure(ToolResultCodes.InternalError, del.ErrorMessage ?? "Delete failed.");
         }
 
-        if (p.SnippetSearch == true)
-        {
-            if (string.IsNullOrWhiteSpace(p.Search))
-                return ToolInvocationResult.Failure(ToolResultCodes.ValidationError,
-                    "snippet_search requires a non-empty search string.");
+        var changed = false;
 
-            return await SearchNotesAsync(new SearchNotesParameters
-            {
-                Query = p.Search!.Trim(),
-                Limit = limit,
-                Mode = "text",
-                MatchAll = p.MatchAll,
-                Fuzzy = p.Fuzzy
-            }).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(p.Rename))
+        {
+            note!.Title = p.Rename.Trim();
+            changed = true;
         }
 
-        var all = (await _notes.GetAllNotesAsync().ConfigureAwait(false)).ToList();
-        var ordered = all.OrderByDescending(n => n.ModifiedAt).ToList();
-
-        if (!string.IsNullOrWhiteSpace(p.Search))
+        if (p.ClearFolder == true)
         {
-            var q = p.Search.Trim();
-            var fuzzy = p.Fuzzy ?? true;
-            var matchAll = p.MatchAll ?? false;
-            ordered = ordered.Where(n => NoteMatchesListSearch(n, q, fuzzy, matchAll)).ToList();
+            note!.FolderId = null;
+            note.FolderPath = string.Empty;
+            changed = true;
+        }
+        else if (!string.IsNullOrWhiteSpace(p.MoveToFolder))
+        {
+            var (folderId, folderName) = await ResolveFolderAsync(p.MoveToFolder!.Trim()).ConfigureAwait(false);
+            note!.FolderId = folderId;
+            note.FolderPath = folderName ?? p.MoveToFolder!.Trim();
+            changed = true;
         }
 
-        var slice = ordered.Take(limit).ToList();
-        if (slice.Count == 0)
-            return ToolInvocationResult.Success(
-                string.IsNullOrWhiteSpace(p.Search) ? "No notes found." : $"No notes matching \"{p.Search.Trim()}\".");
-
-        var lines = slice.Select(n => new { id = n.NoteId, title = n.Title, modifiedUtc = n.ModifiedAt }).ToList();
-        return ToolInvocationResult.Success($"Showing {slice.Count} of {ordered.Count} notes.", new { notes = lines });
-    }
-
-    public async Task<ToolInvocationResult> GetNoteAsync(NoteIdParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        NoteDocumentHelper.EnsureBlocks(note);
-        var blocks = note.Blocks!.OrderBy(b => b.Order).Select(NoteDocumentHelper.BlockToDto).ToList();
-        return ToolInvocationResult.Success("OK", new
+        if (p.Favorite.HasValue)
         {
-            note_id = note.NoteId,
-            title = note.Title,
-            modifiedUtc = note.ModifiedAt,
-            blocks
-        });
-    }
-
-    public async Task<ToolInvocationResult> NoteExistsAsync(NoteIdParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Success("Note does not exist.", new { note_id = id, exists = false });
-
-        return ToolInvocationResult.Success("Note exists.", new
-        {
-            note_id = note.NoteId,
-            exists = true,
-            title = note.Title,
-            modifiedUtc = note.ModifiedAt
-        });
-    }
-
-    public async Task<ToolInvocationResult> ReadNoteAsync(NoteIdParameters p) => await GetNoteAsync(p).ConfigureAwait(false);
-
-    public async Task<ToolInvocationResult> SearchNotesAsync(SearchNotesParameters p)
-    {
-        if (string.IsNullOrWhiteSpace(p.Query))
-            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "query is required.");
-
-        var limit = p.Limit is > 0 and <= 50 ? p.Limit!.Value : 15;
-        var mode = (p.Mode ?? "text").Trim();
-
-        if (string.Equals(mode, "semantic", StringComparison.OrdinalIgnoreCase) && _knowledge != null)
-        {
-            var kb = await _knowledge.SearchAsync(p.Query.Trim(), Math.Min(limit, 10), null).ConfigureAwait(false);
-            var chunks = kb.IsSuccess && kb.Value != null
-                ? kb.Value.Select(c => new { content = c.Content, source_id = c.SourceId }).ToList<object>()
-                : [];
-            return ToolInvocationResult.Success("Semantic knowledge search results (may not map to notes).", new
-            {
-                mode = "semantic",
-                chunks
-            });
+            note!.IsFavorite = p.Favorite.Value;
+            changed = true;
         }
 
-        var rawQuery = p.Query.Trim();
-        var tokens = TextSearchMatch.ResolveSearchTokens(rawQuery);
-        if (tokens.Count == 0)
-            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "query has no searchable tokens.");
-
-        var matchAll = p.MatchAll ?? false;
-        var fuzzy = p.Fuzzy ?? true;
-
-        var all = (await _notes.GetAllNotesAsync().ConfigureAwait(false)).ToList();
-        var hits = new List<object>();
-
-        foreach (var note in all.OrderByDescending(n => n.ModifiedAt))
-        {
-            NoteDocumentHelper.EnsureBlocks(note);
-            var blocks = note.Blocks ?? [];
-            var title = note.Title ?? string.Empty;
-            var titleMatched = TextSearchMatch.MatchTokens(title, tokens, matchAll, fuzzy);
-            var anyBlockHit = false;
-
-            foreach (var b in blocks.OrderBy(x => x.Order))
-            {
-                b.EnsureSpans();
-                var text = b.Content ?? string.Empty;
-                if (!TextSearchMatch.MatchTokens(text, tokens, matchAll, fuzzy))
-                    continue;
-
-                anyBlockHit = true;
-                string snippet;
-                if (TextSearchMatch.TryGetSnippetSpan(text, tokens, fuzzy, out var snStart, out var snLen))
-                    snippet = text.Substring(snStart, snLen);
-                else
-                    snippet = text.Length <= 120 ? text : text[..120];
-
-                hits.Add(new
-                {
-                    note_id = note.NoteId,
-                    title = note.Title,
-                    block_id = b.Id,
-                    block_type = b.Type.ToString(),
-                    snippet
-                });
-                if (hits.Count >= limit) goto done;
-            }
-
-            if (!anyBlockHit && titleMatched && blocks.Count > 0)
-            {
-                var t = title.Length > 120 ? title[..120] : title;
-                hits.Add(new
-                {
-                    note_id = note.NoteId,
-                    title = note.Title,
-                    block_id = (string?)null,
-                    block_type = "Title",
-                    snippet = t
-                });
-                if (hits.Count >= limit) goto done;
-            }
-
-            if (blocks.Count == 0 && titleMatched)
-            {
-                var t = title.Length > 120 ? title[..120] : title;
-                hits.Add(new
-                {
-                    note_id = note.NoteId,
-                    title = note.Title,
-                    block_id = (string?)null,
-                    block_type = "Title",
-                    snippet = t
-                });
-                if (hits.Count >= limit) goto done;
-            }
-        }
-
-    done:
-        return ToolInvocationResult.Success($"Found {hits.Count} hit(s).", new { mode = "text", hits });
-    }
-
-    public async Task<ToolInvocationResult> GetRecentNotesAsync(GetRecentNotesParameters p)
-    {
-        var limit = p.Limit is > 0 and <= 100 ? p.Limit!.Value : 20;
-        var all = (await _notes.GetAllNotesAsync().ConfigureAwait(false))
-            .OrderByDescending(n => n.ModifiedAt)
-            .Take(limit)
-            .Select(n => new { id = n.NoteId, title = n.Title, modifiedUtc = n.ModifiedAt })
-            .ToList();
-
-        return ToolInvocationResult.Success($"Recent {all.Count} notes.", new { notes = all });
-    }
-
-    public async Task<ToolInvocationResult> UpdateNoteAsync(UpdateNoteParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-
-        var hasTitle = p.Title != null && !string.IsNullOrWhiteSpace(p.Title);
-        var hasContent = p.Content != null;
-        var hasBlocks = p.Blocks is { Count: > 0 };
-        if (!hasTitle && !hasContent && !hasBlocks)
+        if (!changed)
             return ToolInvocationResult.Failure(ToolResultCodes.ValidationError,
-                "Provide title, content, and/or blocks.");
+                "Nothing to do. Provide rename, move_to_folder, clear_folder, favorite, or delete.");
 
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        if (hasTitle)
-            note.Title = p.Title!.Trim();
-
-        if (hasBlocks)
-        {
-            note.Blocks = NoteToolBlockFactory.FromPayloads(p.Blocks!);
-            NoteDocumentHelper.NormalizeOrders(note.Blocks);
-            note.Content = string.Empty;
-        }
-        else if (hasContent)
-        {
-            note.Blocks = NoteBlockMarkdownConverter.Deserialize(p.Content!);
-            NoteDocumentHelper.NormalizeOrders(note.Blocks);
-            note.Content = string.Empty;
-        }
-
-        var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
+        var res = await _notes.SaveNoteAsync(note!).ConfigureAwait(false);
         return res.IsSuccess
-            ? ToolInvocationResult.Success($"Note updated (id: {note.NoteId})")
+            ? ToolInvocationResult.Success($"Note updated (id: {note.NoteId}).",
+                new { note_id = note.NoteId, title = note.Title, favorite = note.IsFavorite, folder = note.FolderPath })
             : ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
     }
 
-    public async Task<ToolInvocationResult> AppendToNoteAsync(AppendToNoteParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        NoteDocumentHelper.EnsureBlocks(note);
-
-        List<Block> toAppend;
-        if (p.Blocks is { Count: > 0 })
-        {
-            toAppend = NoteToolBlockFactory.FromPayloads(p.Blocks, startOrder: note.Blocks!.Count);
-        }
-        else if (!string.IsNullOrEmpty(p.Text))
-        {
-            toAppend = NoteBlockMarkdownConverter.Deserialize(p.Text);
-            if (toAppend.Count == 0)
-                return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "text/blocks must not be empty.");
-        }
-        else
-            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "Provide text or blocks.");
-
-        var maxOrder = note.Blocks!.Count == 0 ? -1 : note.Blocks.Max(b => b.Order);
-        foreach (var b in toAppend)
-            b.Order = ++maxOrder;
-
-        note.Blocks.AddRange(toAppend);
-        NoteDocumentHelper.NormalizeOrders(note.Blocks);
-
-        var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
-        return res.IsSuccess
-            ? ToolInvocationResult.Success($"Appended to note (id: {note.NoteId})")
-            : ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
-    }
-
-    public async Task<ToolInvocationResult> InsertBlocksAsync(InsertBlocksParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-        if (p.Blocks.Count == 0)
-            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "blocks is required.");
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        NoteDocumentHelper.EnsureBlocks(note);
-        var list = note.Blocks!;
-        var newBlocks = NoteToolBlockFactory.FromPayloads(p.Blocks, startOrder: 0);
-        var pos = (p.Position ?? "bottom").Trim();
-
-        int insertIndex;
-        if (string.Equals(pos, "top", StringComparison.OrdinalIgnoreCase))
-            insertIndex = 0;
-        else if (string.Equals(pos, "bottom", StringComparison.OrdinalIgnoreCase))
-            insertIndex = list.Count;
-        else if (string.Equals(pos, "after_block_id", StringComparison.OrdinalIgnoreCase))
-        {
-            if (string.IsNullOrWhiteSpace(p.AnchorBlockId))
-                return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "anchor_block_id is required.");
-            var ix = list.FindIndex(b => string.Equals(b.Id, p.AnchorBlockId.Trim(), StringComparison.Ordinal));
-            if (ix < 0)
-                return ToolInvocationResult.Failure(ToolResultCodes.NotFound, "anchor block not found.");
-            insertIndex = ix + 1;
-        }
-        else if (string.Equals(pos, "before_block_id", StringComparison.OrdinalIgnoreCase))
-        {
-            if (string.IsNullOrWhiteSpace(p.AnchorBlockId))
-                return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "anchor_block_id is required.");
-            var ix = list.FindIndex(b => string.Equals(b.Id, p.AnchorBlockId.Trim(), StringComparison.Ordinal));
-            if (ix < 0)
-                return ToolInvocationResult.Failure(ToolResultCodes.NotFound, "anchor block not found.");
-            insertIndex = ix;
-        }
-        else
-            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError,
-                "position must be top, bottom, before_block_id, or after_block_id.");
-
-        list.InsertRange(insertIndex, newBlocks);
-        NoteDocumentHelper.NormalizeOrders(list);
-
-        var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
-        return res.IsSuccess
-            ? ToolInvocationResult.Success($"Inserted blocks (id: {note.NoteId})")
-            : ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
-    }
-
-    public async Task<ToolInvocationResult> ReplaceBlockAsync(ReplaceBlockParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-        if (string.IsNullOrWhiteSpace(p.BlockId))
-            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "block_id is required.");
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        NoteDocumentHelper.EnsureBlocks(note);
-        var list = note.Blocks!;
-        var ix = list.FindIndex(b => string.Equals(b.Id, p.BlockId.Trim(), StringComparison.Ordinal));
-        if (ix < 0)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, "block not found.");
-
-        var order = list[ix].Order;
-        var replacement = NoteToolBlockFactory.FromPayload(p.Block, order);
-        replacement.Id = string.IsNullOrWhiteSpace(p.Block.BlockId) ? list[ix].Id : p.Block.BlockId.Trim();
-        list[ix] = replacement;
-
-        var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
-        return res.IsSuccess
-            ? ToolInvocationResult.Success("Block replaced.")
-            : ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
-    }
-
-    public async Task<ToolInvocationResult> DeleteBlocksAsync(DeleteBlocksParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-        if (p.BlockIds == null || p.BlockIds.Count == 0)
-            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "block_ids is required.");
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        NoteDocumentHelper.EnsureBlocks(note);
-        var remove = new HashSet<string>(p.BlockIds.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()),
-            StringComparer.Ordinal);
-        note.Blocks!.RemoveAll(b => remove.Contains(b.Id));
-        NoteDocumentHelper.NormalizeOrders(note.Blocks);
-
-        var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
-        return res.IsSuccess
-            ? ToolInvocationResult.Success("Blocks deleted.")
-            : ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
-    }
-
-    public async Task<ToolInvocationResult> RestructureNoteAsync(RestructureNoteParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        note.Blocks = NoteToolBlockFactory.FromPayloads(p.Blocks);
-        NoteDocumentHelper.NormalizeOrders(note.Blocks);
-        note.Content = string.Empty;
-
-        var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
-        return res.IsSuccess
-            ? ToolInvocationResult.Success("Note restructured.")
-            : ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
-    }
-
-    public async Task<ToolInvocationResult> ConvertBlockAsync(ConvertBlockParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-        if (!Enum.TryParse<BlockType>(p.NewType, true, out var newType))
-            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "invalid new_type.");
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        NoteDocumentHelper.EnsureBlocks(note);
-        var b = note.Blocks!.FirstOrDefault(x => string.Equals(x.Id, p.BlockId.Trim(), StringComparison.Ordinal));
-        if (b == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, "block not found.");
-
-        b.Type = newType;
-        if (newType == BlockType.Checklist)
-        {
-            var chk = b.Payload is ChecklistPayload cp
-                ? cp.Checked
-                : ReadMetaCheckedFlag(b.Meta);
-            b.Payload = new ChecklistPayload(chk);
-            b.Meta.Remove("checked");
-        }
-        else
-        {
-            b.Meta.Remove("checked");
-            if (b.Payload is ChecklistPayload)
-                b.Payload = new EmptyPayload();
-        }
-
-        var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
-        return res.IsSuccess
-            ? ToolInvocationResult.Success("Block type converted.")
-            : ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
-    }
-
-    public async Task<ToolInvocationResult> FindRelatedNotesAsync(FindRelatedNotesParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-        var limit = p.Limit is > 0 and <= 30 ? p.Limit!.Value : 8;
-
-        var source = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (source == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        var sourceTokens = Tokenize(NoteDocumentHelper.GetPlainText(source));
-        if (sourceTokens.Count == 0)
-            return ToolInvocationResult.Success("No tokens to compare.", new { related = Array.Empty<object>() });
-
-        var all = await _notes.GetAllNotesAsync().ConfigureAwait(false);
-        var scored = new List<(Note n, double score)>();
-
-        foreach (var n in all)
-        {
-            if (string.Equals(n.NoteId, id, StringComparison.Ordinal)) continue;
-            var tokens = Tokenize(NoteDocumentHelper.GetPlainText(n));
-            var score = Jaccard(sourceTokens, tokens);
-            if (score > 0.05)
-                scored.Add((n, score));
-        }
-
-        var top = scored.OrderByDescending(x => x.score).ThenByDescending(x => x.n.ModifiedAt).Take(limit)
-            .Select(x => new { note_id = x.n.NoteId, title = x.n.Title, score = Math.Round(x.score, 4) }).ToList();
-
-        return ToolInvocationResult.Success($"Found {top.Count} related notes.", new { related = top });
-    }
-
-    public Task<ToolInvocationResult> GetBacklinksAsync(NoteIdParameters p) =>
-        Task.FromResult(ToolInvocationResult.Success("Wiki-style backlinks are not enabled yet.",
-            new { backlinks = Array.Empty<object>(), feature = "unavailable" }));
-
-    public async Task<ToolInvocationResult> GetNoteOutlineAsync(NoteIdParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        NoteDocumentHelper.EnsureBlocks(note);
-        var headings = note.Blocks!
-            .Where(b => b.Type is BlockType.Heading1 or BlockType.Heading2 or BlockType.Heading3 or BlockType.Heading4)
-            .OrderBy(b => b.Order)
-            .Select(b =>
-            {
-                b.EnsureSpans();
-                return new { block_id = b.Id, type = b.Type.ToString(), text = b.Content, order = b.Order };
-            }).ToList();
-
-        return ToolInvocationResult.Success($"Outline: {headings.Count} heading(s).", new { headings });
-    }
-
-    public async Task<ToolInvocationResult> GetWorkspaceSummaryAsync()
-    {
-        var all = (await _notes.GetAllNotesAsync().ConfigureAwait(false)).ToList();
-        var recent = all.OrderByDescending(n => n.ModifiedAt).Take(5)
-            .Select(n => new { n.NoteId, n.Title, n.ModifiedAt }).ToList();
-        var totalBlocks = 0;
-        foreach (var n in all)
-        {
-            NoteDocumentHelper.EnsureBlocks(n);
-            totalBlocks += n.Blocks?.Count ?? 0;
-        }
-
-        return ToolInvocationResult.Success("Workspace summary.", new
-        {
-            note_count = all.Count,
-            total_blocks = totalBlocks,
-            recent_notes = recent
-        });
-    }
-
-    public async Task<ToolInvocationResult> ReadNoteLinesAsync(ReadNoteLinesParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        NoteDocumentHelper.EnsureBlocks(note);
-        var md = NoteBlockMarkdownConverter.Serialize(note.Blocks!);
-        var lines = md.Replace("\r\n", "\n").Split('\n');
-        if (string.IsNullOrWhiteSpace(p.LineRange))
-        {
-            var numbered = lines.Select((t, i) => $"{i + 1:D4}| {t}").ToList();
-            var text = string.Join("\n", numbered);
-            if (text.Length > ReadNoteBodyMaxChars)
-                text = text[..ReadNoteBodyMaxChars] + "\n(truncated)";
-            return ToolInvocationResult.Success("Lines (full document markdown projection).", new { lines = text, line_count = lines.Length });
-        }
-
-        if (!LineRangeParser.TryParseRange(p.LineRange, out var start, out var end, out var rangeErr))
-            return LineRangeParser.InvalidRange(rangeErr!);
-
-        if (start > lines.Length)
-            return ToolInvocationResult.Failure(ToolResultCodes.OutOfRange, "start line past end of document.");
-
-        end = Math.Min(end, lines.Length);
-        var slice = new string[end - start + 1];
-        for (var i = start; i <= end; i++)
-            slice[i - start] = $"{i:D4}| {lines[i - 1]}";
-
-        return ToolInvocationResult.Success("Line range.",
-            new { lines = string.Join("\n", slice), line_count = lines.Length });
-    }
-
-    public async Task<ToolInvocationResult> ReplaceNoteLinesAsync(ReplaceNoteLinesParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-
-        if (!LineRangeParser.TryParseRange(p.ReplaceLines, out var start, out var end, out var rangeErr))
-            return LineRangeParser.InvalidRange(rangeErr!);
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        NoteDocumentHelper.EnsureBlocks(note);
-        var md = NoteBlockMarkdownConverter.Serialize(note.Blocks!);
-        var lines = md.Replace("\r\n", "\n").Split('\n').ToList();
-        if (start < 1 || end > lines.Count || start > end)
-            return ToolInvocationResult.Failure(ToolResultCodes.OutOfRange, "invalid line range for this note.");
-
-        var insertLines = (p.ContentMarkdown ?? string.Empty).Replace("\r\n", "\n").Split('\n');
-        lines.RemoveRange(start - 1, end - start + 1);
-        lines.InsertRange(start - 1, insertLines);
-        var newMd = string.Join("\n", lines);
-        note.Blocks = NoteBlockMarkdownConverter.Deserialize(newMd);
-        NoteDocumentHelper.NormalizeOrders(note.Blocks);
-        note.Content = string.Empty;
-
-        var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
-        return res.IsSuccess
-            ? ToolInvocationResult.Success("Lines replaced and blocks rebuilt from markdown.")
-            : ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
-    }
-
-    public async Task<ToolInvocationResult> InsertNoteLinesAsync(InsertNoteLinesParameters p)
-    {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-        if (p.AtLine < 1)
-            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "at_line must be >= 1.");
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
-
-        NoteDocumentHelper.EnsureBlocks(note);
-        var md = NoteBlockMarkdownConverter.Serialize(note.Blocks!);
-        var lines = md.Replace("\r\n", "\n").Split('\n').ToList();
-        var at = Math.Min(p.AtLine - 1, lines.Count);
-        var insertLines = (p.ContentMarkdown ?? string.Empty).Replace("\r\n", "\n").Split('\n');
-        lines.InsertRange(at, insertLines);
-        var newMd = string.Join("\n", lines);
-        note.Blocks = NoteBlockMarkdownConverter.Deserialize(newMd);
-        NoteDocumentHelper.NormalizeOrders(note.Blocks);
-        note.Content = string.Empty;
-
-        var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
-        return res.IsSuccess
-            ? ToolInvocationResult.Success("Lines inserted.")
-            : ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
-    }
+    // ---------------------------------------------------------------- UI
 
     public async Task<ToolInvocationResult> OpenNoteAsync(OpenNoteParameters p)
     {
-        var err = RequireNoteId(p.NoteId, out var id);
-        if (err != null) return err;
-
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
-        if (note == null)
-            return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\".");
+        var (note, error) = await LoadAsync(p.NoteId).ConfigureAwait(false);
+        if (error != null) return error;
 
         await _ui.InvokeAsync(() =>
         {
-            _nav.NavigateTo("notes", id);
+            _nav.NavigateTo("notes", note!.NoteId);
             return Task.CompletedTask;
         }).ConfigureAwait(false);
 
-        return ToolInvocationResult.Success($"Opened note \"{note.Title}\" (id: {note.NoteId}).");
+        return ToolInvocationResult.Success($"Opened note \"{note!.Title}\" (id: {note.NoteId}).", new { note_id = note.NoteId });
     }
 
-    private static ToolInvocationResult? RequireNoteId(string raw, out string id)
+    // ---------------------------------------------------------------- edit ops
+
+    private static (string code, string message)? ApplyOp(List<Block> roots, NoteEditOp op)
     {
-        id = raw?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(id))
-            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "note_id is required.");
+        var kind = (op.Op ?? string.Empty).Trim().ToLowerInvariant();
+        switch (kind)
+        {
+            case "set_text":
+                return ApplySetText(roots, op);
+            case "replace":
+                return ApplyReplace(roots, op);
+            case "insert":
+                return ApplyInsert(roots, op);
+            case "delete":
+                return ApplyDelete(roots, op);
+            case "move":
+                return ApplyMove(roots, op);
+            case "convert":
+                return ApplyConvert(roots, op);
+            case "set_checked":
+                return ApplySetChecked(roots, op);
+            default:
+                return ("validation_error",
+                    $"unknown op \"{op.Op}\". Use set_text, replace, insert, delete, move, convert, or set_checked.");
+        }
+    }
+
+    private static (string, string)? ApplySetText(List<Block> roots, NoteEditOp op)
+    {
+        if (!Locate(roots, op.Id, out var loc, out var fail)) return fail;
+        var block = loc.Block;
+
+        switch (block.Type)
+        {
+            case BlockType.Equation:
+                block.Payload = new EquationPayload((op.Latex ?? op.Markdown ?? string.Empty).Trim());
+                break;
+            case BlockType.Code:
+                var lang = !string.IsNullOrWhiteSpace(op.Language)
+                    ? op.Language!.Trim()
+                    : (block.Payload is CodePayload existing ? existing.Language : "csharp");
+                var src = op.Markdown ?? string.Empty;
+                block.Payload = new CodePayload(lang, src);
+                block.Spans = new List<InlineSpan> { InlineSpan.Plain(src) };
+                break;
+            default:
+                block.Spans = InlineMarkdownParser.ToSpans(op.Markdown ?? string.Empty);
+                if (NoteBlockTree.IsHeading(block.Type))
+                    EnsureHeadingBold(block);
+                break;
+        }
+
         return null;
     }
 
-    private static bool NoteMatchesListSearch(Note n, string q, bool fuzzy, bool matchAll)
+    private static (string, string)? ApplyReplace(List<Block> roots, NoteEditOp op)
     {
-        var title = n.Title ?? string.Empty;
-        var body = NoteDocumentHelper.GetPlainText(n);
-        var hay = title + "\n" + body;
+        if (!Locate(roots, op.Id, out var loc, out var fail)) return fail;
 
-        if (hay.Contains(q, StringComparison.OrdinalIgnoreCase))
+        var spec = new NoteBlockSpec
+        {
+            Type = string.IsNullOrWhiteSpace(op.Type) ? loc.Block.Type.ToString() : op.Type!,
+            Markdown = op.Markdown,
+            Latex = op.Latex,
+            Language = op.Language,
+            Checked = op.Checked
+        };
+
+        var replacement = NoteToolBlockFactory.FromSpec(spec, loc.Block.Order);
+        replacement.Id = loc.Block.Id;
+        loc.Container[loc.Index] = replacement;
+        return null;
+    }
+
+    private static (string, string)? ApplyInsert(List<Block> roots, NoteEditOp op)
+    {
+        var specs = op.Blocks is { Count: > 0 }
+            ? op.Blocks
+            : new List<NoteBlockSpec> { new() { Type = string.IsNullOrWhiteSpace(op.Type) ? "Text" : op.Type!, Markdown = op.Markdown, Latex = op.Latex, Language = op.Language, Checked = op.Checked } };
+
+        if (specs.Count == 1 && string.IsNullOrEmpty(specs[0].Markdown) && string.IsNullOrEmpty(specs[0].Latex)
+            && specs[0].Type.Equals("Text", StringComparison.OrdinalIgnoreCase) && specs[0].Children is null)
+            return ("validation_error", "insert has no content. Provide blocks[] or markdown.");
+
+        var blocks = NoteToolBlockFactory.FromSpecs(specs);
+        var position = (op.Position ?? "end").Trim().ToLowerInvariant();
+
+        List<Block> container;
+        int index;
+
+        if (!string.IsNullOrWhiteSpace(op.Anchor))
+        {
+            if (!Locate(roots, op.Anchor, out var anchor, out var fail)) return fail;
+            container = anchor.Container;
+            index = position == "before" ? anchor.Index : anchor.Index + 1;
+        }
+        else
+        {
+            container = roots;
+            index = position == "start" ? 0 : roots.Count;
+        }
+
+        container.InsertRange(Math.Clamp(index, 0, container.Count), blocks);
+        return null;
+    }
+
+    private static (string, string)? ApplyDelete(List<Block> roots, NoteEditOp op)
+    {
+        var ids = new List<string>();
+        if (op.Ids is { Count: > 0 }) ids.AddRange(op.Ids);
+        if (!string.IsNullOrWhiteSpace(op.Id)) ids.Add(op.Id!);
+        if (ids.Count == 0)
+            return ("validation_error", "delete requires id or ids.");
+
+        foreach (var raw in ids)
+        {
+            if (!Locate(roots, raw, out var loc, out var fail)) return fail;
+            loc.Container.RemoveAt(loc.Index);
+        }
+
+        return null;
+    }
+
+    private static (string, string)? ApplyMove(List<Block> roots, NoteEditOp op)
+    {
+        if (!Locate(roots, op.Id, out var loc, out var fail)) return fail;
+        if (string.IsNullOrWhiteSpace(op.Anchor))
+            return ("validation_error", "move requires an anchor.");
+
+        var moving = loc.Block;
+        loc.Container.RemoveAt(loc.Index);
+
+        if (!Locate(roots, op.Anchor, out var anchor, out var anchorFail))
+            return anchorFail;
+
+        var position = (op.Position ?? "after").Trim().ToLowerInvariant();
+        var index = position == "before" ? anchor.Index : anchor.Index + 1;
+        anchor.Container.Insert(Math.Clamp(index, 0, anchor.Container.Count), moving);
+        return null;
+    }
+
+    private static (string, string)? ApplyConvert(List<Block> roots, NoteEditOp op)
+    {
+        if (!Locate(roots, op.Id, out var loc, out var fail)) return fail;
+        if (!Enum.TryParse<BlockType>(op.Type, true, out var newType))
+            return ("validation_error", $"invalid type \"{op.Type}\".");
+
+        var block = loc.Block;
+        block.Type = newType;
+        if (newType == BlockType.Checklist)
+            block.Payload = new ChecklistPayload(op.Checked ?? (block.Payload is ChecklistPayload cp && cp.Checked));
+        else if (block.Payload is ChecklistPayload)
+            block.Payload = new EmptyPayload();
+
+        if (NoteBlockTree.IsHeading(newType))
+            EnsureHeadingBold(block);
+
+        return null;
+    }
+
+    private static (string, string)? ApplySetChecked(List<Block> roots, NoteEditOp op)
+    {
+        if (!Locate(roots, op.Id, out var loc, out var fail)) return fail;
+        var block = loc.Block;
+        if (block.Type != BlockType.Checklist)
+            return ("validation_error", "set_checked targets a Checklist block.");
+        block.Payload = new ChecklistPayload(op.Checked ?? true);
+        return null;
+    }
+
+    // ---------------------------------------------------------------- helpers
+
+    private static bool Locate(List<Block> roots, string? idOrPrefix, out NoteBlockTree.Located located, out (string, string)? failure)
+    {
+        located = default;
+        failure = null;
+        if (string.IsNullOrWhiteSpace(idOrPrefix))
+        {
+            failure = ("validation_error", "block id is required.");
+            return false;
+        }
+
+        if (NoteBlockTree.TryLocate(roots, idOrPrefix, out located, out var ambiguous, out var candidates))
             return true;
 
-        var tokens = TextSearchMatch.ResolveSearchTokens(q);
-        if (tokens.Count == 0)
-            return false;
-
-        return TextSearchMatch.MatchTokens(hay, tokens, matchAll, fuzzy);
+        failure = ambiguous
+            ? ("validation_error", $"id \"{idOrPrefix}\" is ambiguous; candidates: {string.Join(", ", candidates)}.")
+            : ("not_found", $"no block matching \"{idOrPrefix}\".");
+        return false;
     }
 
-    private static HashSet<string> Tokenize(string text)
+    private static ToolInvocationResult ResolveFailure(string id, bool ambiguous, IReadOnlyList<string> candidates) =>
+        ambiguous
+            ? ToolInvocationResult.Failure(ToolResultCodes.ValidationError,
+                $"id \"{id}\" is ambiguous; candidates: {string.Join(", ", candidates)}.")
+            : ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"no block matching \"{id}\".");
+
+    private async Task<(Note? note, ToolInvocationResult? error)> LoadAsync(string rawId)
     {
-        var separators = new[] { ' ', '\n', '\r', '\t', '.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '{', '}', '\"', '\'', '/' };
-        return text.Split(separators, StringSplitOptions.RemoveEmptyEntries)
-            .Select(t => t.ToLowerInvariant())
-            .Where(t => t.Length > 2)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var id = rawId?.Trim() ?? string.Empty;
+        if (id.Length == 0)
+            return (null, ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "note_id is required."));
+
+        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
+        if (note == null)
+            return (null, ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\"."));
+
+        NoteDocumentHelper.EnsureBlocks(note);
+        return (note, null);
     }
 
-    private static double Jaccard(HashSet<string> a, HashSet<string> b)
+    private async Task<(string? folderId, string? folderName)> ResolveFolderAsync(string value)
     {
-        if (a.Count == 0 || b.Count == 0) return 0;
-        var inter = a.Count(x => b.Contains(x));
-        var union = a.Count + b.Count - inter;
-        return union == 0 ? 0 : (double)inter / union;
+        if (_folders == null)
+            return (value, value);
+
+        var folders = (await _folders.GetAllFoldersAsync().ConfigureAwait(false)).ToList();
+        var byId = folders.FirstOrDefault(f => string.Equals(f.FolderId, value, StringComparison.Ordinal));
+        if (byId != null)
+            return (byId.FolderId, byId.Name);
+
+        var byName = folders.FirstOrDefault(f => string.Equals(f.Name, value, StringComparison.OrdinalIgnoreCase));
+        if (byName != null)
+            return (byName.FolderId, byName.Name);
+
+        // Unknown folder: keep the raw value so the note still carries a breadcrumb.
+        return (null, value);
     }
 
-    private static bool ReadMetaCheckedFlag(Dictionary<string, object> meta)
+    private static IEnumerable<Block> SectionBlocks(List<Block> roots, Block heading)
     {
-        if (!meta.TryGetValue("checked", out var v) || v == null)
-            return false;
-        return v switch
+        if (!NoteBlockTree.IsHeading(heading.Type))
         {
-            bool b => b,
-            JsonElement je when je.ValueKind == JsonValueKind.True => true,
-            _ => false
-        };
+            yield return heading;
+            yield break;
+        }
+
+        var level = NoteBlockTree.HeadingLevel(heading.Type);
+        var started = false;
+        foreach (var b in roots)
+        {
+            if (!started)
+            {
+                if (ReferenceEquals(b, heading))
+                {
+                    started = true;
+                    yield return b;
+                }
+
+                continue;
+            }
+
+            if (NoteBlockTree.IsHeading(b.Type) && NoteBlockTree.HeadingLevel(b.Type) <= level)
+                yield break;
+            yield return b;
+        }
+    }
+
+    private void CollectHits(
+        Note note,
+        IReadOnlyList<string> tokens,
+        bool matchAll,
+        bool fuzzy,
+        List<(double, DateTime, Dictionary<string, object?>)> hits)
+    {
+        var title = note.Title ?? string.Empty;
+        var titleMatched = TextSearchMatch.MatchTokens(title, tokens, matchAll, fuzzy);
+        var path = new List<string>();
+
+        foreach (var located in NoteBlockTree.Walk(note.Blocks!))
+        {
+            var b = located.Block;
+            b.EnsureSpans();
+
+            if (NoteBlockTree.IsHeading(b.Type))
+            {
+                var level = NoteBlockTree.HeadingLevel(b.Type);
+                while (path.Count >= level) path.RemoveAt(path.Count - 1);
+                while (path.Count < level - 1) path.Add(string.Empty);
+                path.Add(b.Content);
+            }
+
+            var text = b.Content ?? string.Empty;
+            if (text.Length == 0 || !TextSearchMatch.MatchTokens(text, tokens, matchAll, fuzzy))
+                continue;
+
+            var matched = tokens.Count(t => TextSearchMatch.MatchTokens(text, new[] { t }, false, fuzzy));
+            var score = matched + (titleMatched ? 0.5 : 0) + (NoteBlockTree.IsHeading(b.Type) ? 0.5 : 0);
+
+            string snippet;
+            if (TextSearchMatch.TryGetSnippetSpan(text, tokens, fuzzy, out var start, out var len))
+                snippet = text.Substring(start, len);
+            else
+                snippet = text.Length <= 120 ? text : text[..120];
+
+            hits.Add((score, note.ModifiedAt, new Dictionary<string, object?>
+            {
+                ["note_id"] = note.NoteId,
+                ["title"] = note.Title,
+                ["block_id"] = NoteBlockTree.ShortId(b.Id),
+                ["type"] = b.Type.ToString(),
+                ["heading_path"] = string.Join(" > ", path.Where(s => s.Length > 0)),
+                ["snippet"] = snippet
+            }));
+        }
+    }
+
+    private static object NoteSummary(Note n) => new
+    {
+        id = n.NoteId,
+        title = n.Title,
+        folder = n.FolderPath,
+        favorite = n.IsFavorite,
+        modifiedUtc = n.ModifiedAt
+    };
+
+    private static string Version(Note note) => note.ModifiedAt.Ticks.ToString(CultureInfo.InvariantCulture);
+
+    private static List<Block> Clone(List<Block> blocks)
+    {
+        var json = JsonSerializer.Serialize(blocks, CloneOptions);
+        return JsonSerializer.Deserialize<List<Block>>(json, CloneOptions) ?? new List<Block>();
+    }
+
+    private static void EnsureHeadingBold(Block b)
+    {
+        b.EnsureSpans();
+        var list = new List<InlineSpan>();
+        foreach (var s in b.Spans)
+            list.Add(s is TextSpan t ? t with { Style = t.Style.WithSet(Mnemo.Core.Formatting.InlineFormatKind.Bold) } : s);
+        b.Spans = Mnemo.Core.Formatting.InlineSpanFormatApplier.Normalize(list);
     }
 }

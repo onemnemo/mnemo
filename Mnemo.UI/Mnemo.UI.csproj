@@ -88,6 +88,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.1" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.0" />
     <PackageReference Include="SkiaSharp" Version="3.119.4-preview.1.1" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4-preview.1.1" />
     <PackageReference Include="Svg.Skia" Version="3.7.0" />
@@ -102,6 +103,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Mnemo.Core\Mnemo.Core.csproj" />
     <ProjectReference Include="..\Mnemo.Infrastructure\Mnemo.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\atlas-main\src\Atlas.Composition\Atlas.Composition.csproj" />
   </ItemGroup>
 
   <!--

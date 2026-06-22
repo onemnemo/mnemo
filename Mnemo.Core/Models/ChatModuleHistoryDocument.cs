@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-
 namespace Mnemo.Core.Models;
 
 /// <summary>Root document for persisted Atlas (chat module) sessions.</summary>
@@ -20,8 +19,9 @@ public sealed class ChatModulePersistedConversation
 
     public string AssistantMode { get; set; } = "Normal";
 
-    /// <summary>Auto (manager routing), Simple (low-tier), or Reasoning (tiered). Default Auto.</summary>
-    public string ModelRoutingMode { get; set; } = ChatModelRouting.Auto;
+    /// <summary>Kept for JSON backward-compat with old persisted data; no longer used.</summary>
+    [Obsolete("ModelRoutingMode is no longer used; Atlas handles routing internally.")]
+    public string? ModelRoutingMode { get; set; }
 
     /// <summary>Optional user-defined title for the sidebar; when null, title is derived from the first user message.</summary>
     public string? CustomTitle { get; set; }

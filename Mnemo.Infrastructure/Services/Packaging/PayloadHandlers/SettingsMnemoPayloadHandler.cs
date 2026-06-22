@@ -12,8 +12,7 @@ public sealed class SettingsMnemoPayloadHandler : IMnemoPayloadHandler
     [
         "App.Language",
         "Theme.Current",
-        "Theme.Mode",
-        "AI.LlamaCpp.ServerPath"
+        "Theme.Mode"
     ];
 
     private readonly ISettingsService _settingsService;

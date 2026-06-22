@@ -20,7 +20,6 @@ public class PathViewModel : ViewModelBase, IDisposable
     private readonly IAITaskManager _taskManager;
     private readonly IAIOrchestrator _orchestrator;
     private readonly ILearningPathService _pathService;
-    private readonly IKnowledgeService _knowledge;
     private readonly ISettingsService _settings;
     private readonly INavigationService _navigation;
     private readonly IOverlayService _overlay;
@@ -53,7 +52,6 @@ public class PathViewModel : ViewModelBase, IDisposable
         IAITaskManager taskManager, 
         IAIOrchestrator orchestrator, 
         ILearningPathService pathService,
-        IKnowledgeService knowledge,
         ISettingsService settings,
         INavigationService navigation,
         IOverlayService overlay,
@@ -63,7 +61,6 @@ public class PathViewModel : ViewModelBase, IDisposable
         _taskManager = taskManager;
         _orchestrator = orchestrator;
         _pathService = pathService;
-        _knowledge = knowledge;
         _settings = settings;
         _navigation = navigation;
         _overlay = overlay;
@@ -154,7 +151,6 @@ public class PathViewModel : ViewModelBase, IDisposable
                 var deleteResult = await _pathService.DeletePathAsync(pathItem.Id);
                 if (deleteResult.IsSuccess)
                 {
-                    await _knowledge.RemoveScopeAsync(pathItem.Id);
                     _ = LoadPathsAsync();
                     _logger.Info("Path", $"Deleted path: {pathItem.Name}");
                 }
@@ -200,7 +196,6 @@ public class PathViewModel : ViewModelBase, IDisposable
             "", 
             files, 
             _orchestrator, 
-            _knowledge, 
             _pathService, 
             _settings, 
             _logger);

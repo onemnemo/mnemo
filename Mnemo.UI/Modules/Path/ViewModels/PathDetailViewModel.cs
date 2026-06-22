@@ -18,7 +18,6 @@ public partial class PathDetailViewModel : ViewModelBase, INavigationAware, IDis
     private readonly ILearningPathService _pathService;
     private readonly IAITaskManager _taskManager;
     private readonly IAIOrchestrator _orchestrator;
-    private readonly IKnowledgeService _knowledge;
     private readonly ISettingsService _settings;
     private readonly ILoggerService _logger;
     private readonly IStatisticsManager _statistics;
@@ -53,7 +52,6 @@ public partial class PathDetailViewModel : ViewModelBase, INavigationAware, IDis
         ILearningPathService pathService,
         IAITaskManager taskManager,
         IAIOrchestrator orchestrator,
-        IKnowledgeService knowledge,
         ISettingsService settings,
         ILoggerService logger,
         IStatisticsManager statistics)
@@ -61,7 +59,6 @@ public partial class PathDetailViewModel : ViewModelBase, INavigationAware, IDis
         _pathService = pathService;
         _taskManager = taskManager;
         _orchestrator = orchestrator;
-        _knowledge = knowledge;
         _settings = settings;
         _logger = logger;
         _statistics = statistics;
@@ -212,9 +209,7 @@ public partial class PathDetailViewModel : ViewModelBase, INavigationAware, IDis
             Path.PathId,
             unit.UnitId,
             _orchestrator,
-            _knowledge,
             _pathService,
-            _settings,
             _logger);
 
         _logger.Info("Path", $"Triggering generation for unit: {unit.Title}");

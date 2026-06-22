@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
@@ -9,7 +8,6 @@ namespace Mnemo.Infrastructure.Services.Tools;
 
 /// <summary>
 /// Extracts conversation-memory facts from Mindmap tool results.
-/// Rule-based and synchronous — no LLM call.
 /// </summary>
 public sealed class MindmapMemoryExtractor : IToolResultMemoryExtractor
 {
@@ -36,39 +34,30 @@ public sealed class MindmapMemoryExtractor : IToolResultMemoryExtractor
         if (!root.TryGetProperty("ok", out var okProp) || !okProp.GetBoolean())
             yield break;
 
+        if (!root.TryGetProperty("data", out var data) || data.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            yield break;
+
         var now = DateTime.UtcNow;
-        root.TryGetProperty("data", out var data);
 
         switch (toolName.ToLowerInvariant())
         {
             case "create_mindmap":
-            {
-                if (data.ValueKind != JsonValueKind.Null && data.ValueKind != JsonValueKind.Undefined)
-                {
-                    if (TryGetString(data, "mindmap_id", out var mmId))
-                        yield return MakeFact("active_mindmap_id", mmId!, toolName, turnNumber, now);
-                    if (TryGetString(data, "title", out var title))
-                        yield return MakeFact("active_mindmap_title", title!, toolName, turnNumber, now);
-                }
-                break;
-            }
-
+            case "outline_mindmap":
             case "read_mindmap":
+            case "edit_mindmap":
+            case "manage_mindmap":
+            case "open_mindmap":
             {
-                if (data.ValueKind != JsonValueKind.Null && data.ValueKind != JsonValueKind.Undefined)
-                {
-                    if (TryGetString(data, "mindmap_id", out var mmId))
-                        yield return MakeFact("active_mindmap_id", mmId!, toolName, turnNumber, now);
-                    if (TryGetString(data, "title", out var title))
-                        yield return MakeFact("active_mindmap_title", title!, toolName, turnNumber, now);
-                }
+                if (TryGetString(data, "mindmap_id", out var mmId))
+                    yield return MakeFact("active_mindmap_id", mmId!, toolName, turnNumber, now);
+                if (TryGetString(data, "title", out var title))
+                    yield return MakeFact("active_mindmap_title", title!, toolName, turnNumber, now);
                 break;
             }
 
-            case "list_mindmaps":
+            case "search_mindmaps":
             {
-                if (data.ValueKind != JsonValueKind.Null && data.ValueKind != JsonValueKind.Undefined
-                    && data.TryGetProperty("mindmaps", out var maps) && maps.ValueKind == JsonValueKind.Array)
+                if (data.TryGetProperty("mindmaps", out var maps) && maps.ValueKind == JsonValueKind.Array)
                 {
                     var ids = new List<string>();
                     foreach (var m in maps.EnumerateArray())
@@ -82,54 +71,7 @@ public sealed class MindmapMemoryExtractor : IToolResultMemoryExtractor
                 }
                 break;
             }
-
-            case "add_nodes":
-            {
-                if (data.ValueKind != JsonValueKind.Null && data.ValueKind != JsonValueKind.Undefined
-                    && data.TryGetProperty("node_ids", out var nodeIds) && nodeIds.ValueKind == JsonValueKind.Array)
-                {
-                    var last = nodeIds.EnumerateArray().LastOrDefault();
-                    if (last.ValueKind == JsonValueKind.String)
-                    {
-                        var s = last.GetString();
-                        if (!string.IsNullOrWhiteSpace(s))
-                            yield return MakeFact("last_added_node_id", s!, toolName, turnNumber, now);
-                    }
-                }
-                break;
-            }
-
-            case "connect_nodes":
-            {
-                if (data.ValueKind != JsonValueKind.Null && data.ValueKind != JsonValueKind.Undefined
-                    && TryGetString(data, "edge_id", out var edgeId))
-                {
-                    yield return MakeFact("last_added_edge_id", edgeId!, toolName, turnNumber, now);
-                }
-                break;
-            }
-
-            case "open_mindmap":
-            {
-                if (TryGetString(root, "message", out var msg) && msg != null)
-                {
-                    var extracted = ExtractIdFromMessage(msg);
-                    if (extracted != null)
-                        yield return MakeFact("active_mindmap_id", extracted, toolName, turnNumber, now);
-                }
-                break;
-            }
         }
-    }
-
-    private static string? ExtractIdFromMessage(string message)
-    {
-        var start = message.IndexOf("id: ", StringComparison.OrdinalIgnoreCase);
-        if (start < 0) return null;
-        start += 4;
-        var end = message.IndexOfAny([')', ' ', '\n', '\r'], start);
-        var id = end < 0 ? message[start..] : message[start..end];
-        return string.IsNullOrWhiteSpace(id) ? null : id.Trim();
     }
 
     private static bool TryGetString(JsonElement element, string property, out string? value)

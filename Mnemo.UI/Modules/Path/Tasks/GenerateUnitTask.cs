@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models;
@@ -14,9 +13,7 @@ public class GenerateUnitTask : AITaskBase
     private readonly string _pathId;
     private readonly string _unitId;
     private readonly IAIOrchestrator _orchestrator;
-    private readonly IKnowledgeService _knowledge;
     private readonly ILearningPathService _pathService;
-    private readonly ISettingsService _settings;
     private readonly ILoggerService _logger;
 
     public override string DisplayName => "Generating Learning Unit";
@@ -25,17 +22,13 @@ public class GenerateUnitTask : AITaskBase
         string pathId,
         string unitId,
         IAIOrchestrator orchestrator,
-        IKnowledgeService knowledge,
         ILearningPathService pathService,
-        ISettingsService settings,
         ILoggerService logger)
     {
         _pathId = pathId;
         _unitId = unitId;
         _orchestrator = orchestrator;
-        _knowledge = knowledge;
         _pathService = pathService;
-        _settings = settings;
         _logger = logger;
 
         _steps.Add(new GenerateUnitStep(this));
@@ -68,22 +61,9 @@ public class GenerateUnitTask : AITaskBase
                 DisplayName = $"Generating: {unit.Title}";
                 Description = unit.Goal;
 
-                // 1. Gather material for this unit (scoped to path, only when RAG enabled)
-                var chunks = Enumerable.Empty<KnowledgeChunk>();
-                var ragEnabled = await _parent._settings.GetAsync("AI.EnableRAG", true).ConfigureAwait(false);
-                if (ragEnabled)
-                {
-                    var searchResult = await _parent._knowledge.SearchAsync($"{unit.Title} {unit.Goal}", 5, _parent._pathId, ct).ConfigureAwait(false);
-                    if (searchResult is { IsSuccess: true, Value: not null })
-                    {
-                        chunks = searchResult.Value;
-                    }
-                }
-
                 Progress = 0.3;
 
-                // 2. Prompt for content
-                var systemPrompt = @"You are a friendly, patient, and encouraging tutor. 
+                var systemPrompt = @"You are a friendly, patient, and encouraging tutor.
 Generate educational content for the specific unit following these rules:
 1. Unit Introduction (Clear, learner-friendly)
 2. Why This Topic Matters (Relevance before definitions, real-world intuition)
@@ -94,7 +74,7 @@ Generate educational content for the specific unit following these rules:
 
 IMPORTANT: Do NOT include a title or heading (# Title) at the top of your response. The unit title is already provided and displayed separately. Start directly with the content.
 
-Tone: Assume learner is capable but new. Never shame. 
+Tone: Assume learner is capable but new. Never shame.
 Formatting: Use Markdown headings and short paragraphs; use LaTeX only for complex math, strictly wrapped in $ (inline) or $$ (block) delimiters (e.g., $ \frac{a}{b} $), and never as raw text. White space is key.
 Avoid: Tool instructions, academic-only language, dense formula blocks without explanation.";
 
@@ -105,7 +85,7 @@ Focus: {string.Join(", ", unit.GenerationHints.Focus)}
 Avoid: {string.Join(", ", unit.GenerationHints.Avoid)}
 Prerequisites: {string.Join(", ", unit.GenerationHints.Prerequisites)}";
 
-                var aiResult = await _parent._orchestrator.PromptWithContextAsync(systemPrompt, userPrompt, chunks, ct);
+                var aiResult = await _parent._orchestrator.PromptAsync(systemPrompt, userPrompt, ct);
                 if (!aiResult.IsSuccess) return Result.Failure(aiResult.ErrorMessage!);
 
                 unit.Content = aiResult.Value;
@@ -122,9 +102,8 @@ Prerequisites: {string.Join(", ", unit.GenerationHints.Prerequisites)}";
             {
                 ErrorMessage = ex.Message;
                 Status = AITaskStatus.Failed;
-                
-                // Try to update unit status to failed if possible
-                try 
+
+                try
                 {
                     var path = await _parent._pathService.GetPathAsync(_parent._pathId);
                     var unit = path?.Units.FirstOrDefault(u => u.UnitId == _parent._unitId);

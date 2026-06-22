@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -10,12 +9,11 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
-using Mnemo.Core.Models;
 using Mnemo.Core.Services;
-using Mnemo.Infrastructure.Services.AI;
 using Mnemo.Infrastructure.Services.Updates;
 using Mnemo.UI.Modules.Onboarding.Views;
 using Mnemo.UI.Modules.Updates.Services;
+using Mnemo.UI.Mcp;
 using Mnemo.UI.Services;
 using Mnemo.UI.ViewModels;
 using Mnemo.UI.Views;
@@ -79,19 +77,33 @@ public partial class App : Application
             mainWindow.Loaded += OnMainWindowLoadedOnce;
             desktop.MainWindow = mainWindow;
 
-            desktop.Exit += (_, _) =>
+        // Start MCP server in the background after DI is ready.
+        _ = Task.Run(async () =>
+        {
+            try
             {
-                try
-                {
-                    DisposeServerManagerIfCreated();
-                    (Services?.GetService(typeof(ITextGenerationService)) as IDisposable)?.Dispose();
-                    (Services?.GetService(typeof(IResourceGovernor)) as IDisposable)?.Dispose();
-                    (Services?.GetService(typeof(IEmbeddingService)) as IDisposable)?.Dispose();
-                }
-                catch
-                {
-                    // Ignore disposal errors during shutdown
-                }
+                var mcpServer = Services?.GetService<MnemoMcpServer>();
+                if (mcpServer != null)
+                    await mcpServer.StartAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Services?.GetService<ILoggerService>()?.Error("MnemoMcpServer", "Failed to start MCP tool server.", ex);
+            }
+        });
+
+        desktop.Exit += (_, _) =>
+        {
+            try
+            {
+                // Dispose the MCP server synchronously-safe via GetAwaiter (shutdown path).
+                (Services?.GetService(typeof(MnemoMcpServer)) as IAsyncDisposable)
+                    ?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+            catch
+            {
+                // Ignore disposal errors during shutdown
+            }
 
                 AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
                 AppDomain.CurrentDomain.UnhandledException -= OnUnhandledException;
@@ -117,15 +129,6 @@ public partial class App : Application
         catch
         {
             // Keep startup resilient if onboarding flow fails.
-        }
-
-        try
-        {
-            await RunHardwareInstallMismatchCheckAsync().ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            Services?.GetService<ILoggerService>()?.Error("Hardware", "RunHardwareInstallMismatchCheckAsync threw.", ex);
         }
 
         try
@@ -170,70 +173,6 @@ public partial class App : Application
         toast.SpawnToast(ToastType.Info, TimeSpan.FromSeconds(5), title, description);
     }
 
-    private void DisposeServerManagerIfCreated()
-    {
-        if (Services == null)
-            return;
-        (Services.GetService(typeof(IAIServerManager)) as IDisposable)?.Dispose();
-    }
-
-    private async Task RunHardwareInstallMismatchCheckAsync()
-    {
-        await Task.Delay(1500).ConfigureAwait(false);
-        if (Services == null)
-        {
-            return;
-        }
-
-        var settings = Services.GetRequiredService<ISettingsService>();
-        var onboardingDone = await settings.GetAsync("Onboarding.Completed", false).ConfigureAwait(false);
-        var registry = Services.GetRequiredService<IAIModelRegistry>();
-        await registry.RefreshAsync().ConfigureAwait(false);
-
-        var models = await registry.GetAvailableModelsAsync().ConfigureAwait(false);
-        var hasMid = models.Any(m => m.Type == AIModelType.Text && m.Role == AIModelRoles.Mid);
-        var hasHigh = models.Any(m => m.Type == AIModelType.Text && m.Role == AIModelRoles.High);
-
-        var detector = Services.GetRequiredService<HardwareDetector>();
-        var hardware = detector.Detect();
-        var tierEval = Services.GetRequiredService<IHardwareTierEvaluator>();
-        var tier = tierEval.EvaluateTier(hardware);
-
-        var mismatch =
-            (tier == HardwarePerformanceTier.Low && (hasMid || hasHigh)) ||
-            (tier == HardwarePerformanceTier.Mid && hasHigh);
-
-        if (!mismatch)
-        {
-            return;
-        }
-
-        var logger = Services.GetRequiredService<ILoggerService>();
-        logger.Warning(
-            "Hardware",
-            $"Detected hardware tier ({tier}) is below installed text model tiers. Mid installed: {hasMid}, High installed: {hasHigh}. VRAM reported: {hardware.TotalVramBytes / 1024 / 1024} MB.");
-
-        if (!onboardingDone)
-        {
-            return;
-        }
-
-        var loc = Services.GetRequiredService<ILocalizationService>();
-        var title = loc.T("ModelTierMismatchTitle", "Hardware");
-        var message = loc.T("ModelTierMismatchMessage", "Hardware");
-
-        await Dispatcher.UIThread.InvokeAsync(async () =>
-        {
-            if (Services == null)
-            {
-                return;
-            }
-
-            var overlay = Services.GetRequiredService<IOverlayService>();
-            await overlay.CreateDialogAsync(title, message, loc.T("OK", "Common"), "").ConfigureAwait(false);
-        });
-    }
-
     private async Task ShowOnboardingIfNeededAsync()
     {
         if (Services == null) return;
@@ -270,35 +209,9 @@ public partial class App : Application
         }, DispatcherPriority.Normal);
     }
 
-    private static void OnProcessExit(object? sender, EventArgs e)
-    {
-        ShutdownServerManager();
-    }
+    private static void OnProcessExit(object? sender, EventArgs e) { }
 
-    private static void OnUnhandledException(object? sender, UnhandledExceptionEventArgs e)
-    {
-        try
-        {
-            ShutdownServerManager();
-        }
-        catch
-        {
-            // Ignore disposal errors during crash
-        }
-    }
-
-    private static void ShutdownServerManager()
-    {
-        try
-        {
-            if (Current is App app)
-                app.DisposeServerManagerIfCreated();
-        }
-        catch
-        {
-            // Ignore disposal errors during process exit or crash
-        }
-    }
+    private static void OnUnhandledException(object? sender, UnhandledExceptionEventArgs e) { }
 
     private void DisableAvaloniaDataAnnotationValidation()
     {

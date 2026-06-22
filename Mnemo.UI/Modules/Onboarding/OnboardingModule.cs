@@ -7,7 +7,6 @@ public class OnboardingModule : IModule
 {
     public void ConfigureServices(IServiceRegistrar services)
     {
-        services.AddSingleton<AiModelSetupViewModel>();
         services.AddTransient<OnboardingWizardViewModel>();
     }
 

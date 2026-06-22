@@ -134,36 +134,6 @@ public sealed class ConversationMemoryStore : IConversationMemoryStore
         _logger.Info("Memory", "Store: evicted all conversations");
     }
 
-    public RoutingToolHint? GetLatestToolHint(string conversationId)
-    {
-        if (string.IsNullOrWhiteSpace(conversationId))
-            return null;
-
-        if (!_snapshots.TryGetValue(conversationId, out var snapshot))
-            return null;
-
-        // Build a routing hint from the summary + most recent tool-sourced fact
-        string skillId = "NONE";
-        if (snapshot.LatestSummary != null)
-            skillId = snapshot.LatestSummary.ActiveSkill;
-
-        ConversationMemoryEntry? latestToolFact;
-        lock (snapshot)
-        {
-            latestToolFact = snapshot.Facts
-                .Where(f => !string.IsNullOrWhiteSpace(f.Source))
-                .OrderByDescending(f => f.TurnNumber)
-                .ThenByDescending(f => f.CreatedUtc)
-                .FirstOrDefault();
-        }
-
-        if (latestToolFact == null)
-            return null;
-
-        var detail = $"{latestToolFact.Key}={latestToolFact.Value}";
-        return new RoutingToolHint(skillId, latestToolFact.Source, detail);
-    }
-
     public IReadOnlyList<ConversationMemorySnapshot> GetConversationsPendingTier3Embedding(int tier3ThresholdTurns)
     {
         return _snapshots.Values

@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -25,12 +24,6 @@ public sealed class ConversationMemoryInjector : IConversationMemoryInjector
     /// <summary>Number of recent raw turns to keep verbatim after the summary turn.</summary>
     public const int DefaultRawTailLength = 4;
 
-    /// <summary>
-    /// Maximum number of Tier-3 semantic memory chunks to inject per turn.
-    /// Kept small to minimize context overhead.
-    /// </summary>
-    private const int MaxSemanticRecallChunks = 2;
-
     private const string SummaryTurnPrefix = "[CONVERSATION SUMMARY]\n";
 
     /// <summary>
@@ -41,16 +34,13 @@ public sealed class ConversationMemoryInjector : IConversationMemoryInjector
         "The following assistant message is a compressed summary of earlier turns in this chat. Use it for continuity.";
 
     private readonly IConversationMemoryStore _memoryStore;
-    private readonly IKnowledgeService _knowledgeService;
     private readonly ILoggerService _logger;
 
     public ConversationMemoryInjector(
         IConversationMemoryStore memoryStore,
-        IKnowledgeService knowledgeService,
         ILoggerService logger)
     {
         _memoryStore = memoryStore;
-        _knowledgeService = knowledgeService;
         _logger = logger;
     }
 
@@ -96,19 +86,6 @@ public sealed class ConversationMemoryInjector : IConversationMemoryInjector
             summaryContent.AppendLine(string.Join("; ", summary.KeyFacts));
         }
 
-        // Append Tier-3 semantic recall if the conversation has long-term memories
-        if (snapshot.HasLongTermMemory && !string.IsNullOrWhiteSpace(userMessage))
-        {
-            var recalled = await TryRecallSemanticMemoryAsync(conversationId, userMessage, ct)
-                .ConfigureAwait(false);
-            if (recalled != null)
-            {
-                summaryContent.AppendLine("[RECALLED CONTEXT]");
-                summaryContent.AppendLine(recalled);
-                _logger.Debug("Memory", $"Injector: tier3 recall appended for conv={conversationId} (chars={recalled.Length})");
-            }
-        }
-
         var assistantSummaryText = summaryContent.ToString().TrimEnd();
 
         // Take the K most recent raw messages (ConversationTurn list items, not “exchanges”)
@@ -131,38 +108,4 @@ public sealed class ConversationMemoryInjector : IConversationMemoryInjector
         return composed;
     }
 
-    private async Task<string?> TryRecallSemanticMemoryAsync(
-        string conversationId,
-        string userMessage,
-        CancellationToken ct)
-    {
-        try
-        {
-            var scopeId = ConversationMemoryScopeId(conversationId);
-            var searchResult = await _knowledgeService.SearchAsync(
-                userMessage,
-                limit: MaxSemanticRecallChunks,
-                scopeId: scopeId,
-                ct: ct).ConfigureAwait(false);
-
-            if (!searchResult.IsSuccess || searchResult.Value == null)
-                return null;
-
-            var chunks = searchResult.Value.ToList();
-            if (chunks.Count == 0)
-                return null;
-
-            return string.Join("\n---\n", chunks.Select(c => c.Content.Trim()));
-        }
-        catch (Exception ex)
-        {
-            _logger.Warning("ConversationMemoryInjector",
-                $"Tier-3 recall failed for {conversationId}: {ex.Message}");
-            return null;
-        }
-    }
-
-    /// <summary>Returns the vector-store scope ID for a conversation's long-term memories.</summary>
-    public static string ConversationMemoryScopeId(string conversationId) =>
-        $"conv_mem_{conversationId}";
 }

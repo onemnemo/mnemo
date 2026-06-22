@@ -77,7 +77,7 @@ public sealed class ChatProcessThreadTracker
         }
     }
 
-    public void AddToolCall(ChatDatasetToolCall toolCall, Func<string, string> localize)
+    public void AddToolCall(ChatToolCall toolCall, Func<string, string> localize)
     {
         if (_steps.Count == 0) return;
         var last = _steps[^1];
@@ -104,7 +104,7 @@ public sealed class ChatProcessThreadTracker
         }
     }
 
-    private static string BuildToolSummary(ChatDatasetToolCall toolCall)
+    private static string BuildToolSummary(ChatToolCall toolCall)
     {
         var result = toolCall.ResultContent;
         if (string.IsNullOrWhiteSpace(result))
@@ -128,8 +128,7 @@ public sealed class ChatProcessThreadTracker
     private static bool IsRoutingKey(string key) =>
         key == ChatPipelineStatusKeys.LoadingSkills
         || key == ChatPipelineStatusKeys.Classifying
-        || key == ChatPipelineStatusKeys.Routing
-        || key == ChatPipelineStatusKeys.ReadingSkill;
+        || key == ChatPipelineStatusKeys.Routing;
 
     private void BumpRouting(Func<string, string> localize)
     {

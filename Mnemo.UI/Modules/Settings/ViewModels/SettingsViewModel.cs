@@ -4,9 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Mnemo.Core.Models;
 using Mnemo.Core.Services;
-using Mnemo.Infrastructure.Services.AI;
 using Mnemo.Infrastructure.Services.Updates;
 using Mnemo.UI.Modules.Updates.Services;
 using Mnemo.UI.Services;
@@ -22,19 +20,14 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly ISettingsService _settingsService;
     private readonly IThemeService _themeService;
     private readonly ILocalizationService _localizationService;
-    private readonly DatasetExporter _datasetExporter;
     private readonly IChatHistoryClearService _chatHistoryClearService;
     private readonly IOverlayService _overlayService;
-    private readonly IAIModelsSetupService _aiModelsSetupService;
-    private readonly IAIModelInstallCoordinator _aiInstallCoordinator;
-    private readonly IAiSetupOverlayPresenter _aiSetupOverlay;
     private readonly IMainThreadDispatcher _mainThreadDispatcher;
     private readonly IUpdateService _updateService;
     private readonly UpdateOrchestrator _updateOrchestrator;
     private readonly IKeyMap _keyMap;
     private readonly IPerfDiagnostics _perf;
 
-    private bool _aiRuntimeInstalled;
     private bool _developerGateUnlocked;
     private bool _developerMode;
     private int _secretTitleTapCount;
@@ -92,12 +85,8 @@ public partial class SettingsViewModel : ViewModelBase
         ISettingsService settingsService,
         IThemeService themeService,
         ILocalizationService localizationService,
-        DatasetExporter datasetExporter,
         IChatHistoryClearService chatHistoryClearService,
         IOverlayService overlayService,
-        IAIModelsSetupService aiModelsSetupService,
-        IAIModelInstallCoordinator aiInstallCoordinator,
-        IAiSetupOverlayPresenter aiSetupOverlay,
         IMainThreadDispatcher mainThreadDispatcher,
         IUpdateService updateService,
         UpdateOrchestrator updateOrchestrator,
@@ -107,43 +96,19 @@ public partial class SettingsViewModel : ViewModelBase
         _settingsService = settingsService;
         _themeService = themeService;
         _localizationService = localizationService;
-        _datasetExporter = datasetExporter;
         _chatHistoryClearService = chatHistoryClearService;
         _overlayService = overlayService;
-        _aiModelsSetupService = aiModelsSetupService;
-        _aiInstallCoordinator = aiInstallCoordinator;
-        _aiSetupOverlay = aiSetupOverlay;
         _mainThreadDispatcher = mainThreadDispatcher;
         _updateService = updateService;
         _updateOrchestrator = updateOrchestrator;
         _keyMap = keyMap;
         _perf = perf;
 
-        _aiInstallCoordinator.Completed += OnAiInstallCompleted;
-
         AttachSettingsHandlers();
         _ = LoadInitialSettingsAsync();
 
         _localizationService.LanguageChanged += OnLanguageChanged;
         RebuildCategories();
-    }
-
-    private void OnAiInstallCompleted(Result<AIModelsSetupResult> result)
-    {
-        _ = RefreshAiInstallStateAndRebuildAsync();
-    }
-
-    private async Task RefreshAiInstallStateAsync()
-    {
-        try
-        {
-            var status = await _aiModelsSetupService.GetSetupStatusAsync().ConfigureAwait(false);
-            _aiRuntimeInstalled = status.AllRequiredInstalled;
-        }
-        catch
-        {
-            _aiRuntimeInstalled = false;
-        }
     }
 
     private void AttachSettingsHandlers()
@@ -164,21 +129,14 @@ public partial class SettingsViewModel : ViewModelBase
 
         if (key is DeveloperModeKey or DeveloperModeGateUnlockedKey)
         {
-            await RefreshDeveloperFlagsAndRebuildAsync().ConfigureAwait(false);
+            _developerGateUnlocked = await _settingsService.GetAsync(DeveloperModeGateUnlockedKey, false).ConfigureAwait(false);
+            _developerMode = await _settingsService.GetAsync(DeveloperModeKey, false).ConfigureAwait(false);
+            await RebuildCategoriesOnMainThreadAsync().ConfigureAwait(false);
         }
-    }
-
-    private async Task RefreshDeveloperFlagsAndRebuildAsync()
-    {
-        _developerGateUnlocked = await _settingsService.GetAsync(DeveloperModeGateUnlockedKey, false).ConfigureAwait(false);
-        _developerMode = await _settingsService.GetAsync(DeveloperModeKey, false).ConfigureAwait(false);
-        await RefreshAiInstallStateAsync().ConfigureAwait(false);
-        await RebuildCategoriesOnMainThreadAsync().ConfigureAwait(false);
     }
 
     private async void OnLanguageChanged(object? sender, EventArgs e)
     {
-        await RefreshAiInstallStateAsync().ConfigureAwait(false);
         await RebuildCategoriesOnMainThreadAsync().ConfigureAwait(false);
     }
 
@@ -187,13 +145,6 @@ public partial class SettingsViewModel : ViewModelBase
         await LoadUserProfileAsync().ConfigureAwait(false);
         _developerGateUnlocked = await _settingsService.GetAsync(DeveloperModeGateUnlockedKey, false).ConfigureAwait(false);
         _developerMode = await _settingsService.GetAsync(DeveloperModeKey, false).ConfigureAwait(false);
-        await RefreshAiInstallStateAsync().ConfigureAwait(false);
-        await RebuildCategoriesOnMainThreadAsync().ConfigureAwait(false);
-    }
-
-    private async Task RefreshAiInstallStateAndRebuildAsync()
-    {
-        await RefreshAiInstallStateAsync().ConfigureAwait(false);
         await RebuildCategoriesOnMainThreadAsync().ConfigureAwait(false);
     }
 
@@ -266,26 +217,9 @@ public partial class SettingsViewModel : ViewModelBase
         editor.Groups.Add(editorGroup);
         editor.Groups.Add(markdownGroup);
 
-        var aiTools = new SettingsCategoryViewModel(T("AITools"), "avares://Mnemo.UI/Icons/Common/chart-bubble.svg", "AITools")
-        {
-            Subtitle = T("AIToolsExperimentalSubtitle")
-        };
+        var aiTools = new SettingsCategoryViewModel(T("AITools"), "avares://Mnemo.UI/Icons/Common/chart-bubble.svg", "AITools");
 
-        var aiInstalled = _aiRuntimeInstalled;
-
-        var manageAiGroup = new SettingsGroupViewModel(T("ManageAILocalModels"), isCollapsible: true);
-        manageAiGroup.Items.Add(new SettingsNoticeViewModel(T("ExperimentalLocalAINoticeTitle"), T("ExperimentalLocalAINoticeDescription")));
-        manageAiGroup.Items.Add(new AsyncActionSettingViewModel(
-            T("OpenAIManager"),
-            T("OpenAIManagerDescription"),
-            T("OpenManager"),
-            async vm =>
-            {
-                await _aiSetupOverlay.ShowAsync().ConfigureAwait(false);
-                vm.StatusText = string.Empty;
-            },
-            isInteractionEnabled: true));
-
+        // Assistant group
         var aiGroup = new SettingsGroupViewModel(T("Intelligence"), isCollapsible: true);
         aiGroup.Items.Add(new EnableAiAssistantToggleSettingViewModel(
             _settingsService,
@@ -294,9 +228,9 @@ public partial class SettingsViewModel : ViewModelBase
             "AI.EnableAssistant",
             T("EnableAIAssistant"),
             T("EnableAIAssistantDescription"),
-            false,
-            aiInstalled));
-        aiGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "Chat.WipeInputForDictation", T("WipeInputForDictation"), T("WipeInputForDictationDescription"), false, aiInstalled));
+            false));
+        aiGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.AgentMode", T("AgentMode"), T("AgentModeDescription"), true));
+        aiGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "Chat.WipeInputForDictation", T("WipeInputForDictation"), T("WipeInputForDictationDescription"), false));
         aiGroup.Items.Add(new DropdownSettingViewModel(
             _settingsService,
             "Chat.StreamingReveal",
@@ -304,21 +238,8 @@ public partial class SettingsViewModel : ViewModelBase
             T("ChatStreamingRevealDescription"),
             new[] { "instant", "balanced", "smooth" },
             new[] { T("StreamingInstant"), T("StreamingBalanced"), T("StreamingSmooth") },
-            "balanced",
-            null,
-            aiInstalled));
-        aiGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.SmartUnitGeneration", T("SmartUnitGeneration"), T("SmartUnitGenerationDescription"), false, aiInstalled));
-        aiGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.GpuAcceleration", T("GpuAcceleration"), T("GpuAccelerationDescription"), false, aiInstalled));
-        aiGroup.Items.Add(new DropdownSettingViewModel(
-            _settingsService,
-            "AI.UnloadTimeout",
-            T("UnloadTimeout"),
-            T("UnloadTimeoutDescription"),
-            new[] { UnloadTimeoutPolicy.Never, UnloadTimeoutPolicy.FiveMinutes, UnloadTimeoutPolicy.FifteenMinutes, UnloadTimeoutPolicy.OneHour },
-            new[] { T("Never"), T("FiveMinutes"), T("FifteenMinutes"), T("OneHour") },
-            UnloadTimeoutPolicy.FifteenMinutes,
-            UnloadTimeoutPolicy.TryNormalizeToCanonicalKey,
-            aiInstalled));
+            "balanced"));
+        aiGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.SmartUnitGeneration", T("SmartUnitGeneration"), T("SmartUnitGenerationDescription"), false));
         var clearChatLabel = T("ClearAllChatHistory");
         aiGroup.Items.Add(new AsyncActionSettingViewModel(
             T("ClearChatHistory"),
@@ -337,16 +258,22 @@ public partial class SettingsViewModel : ViewModelBase
                 vm.StatusText = result.IsSuccess
                     ? T("ClearChatHistoryDone")
                     : result.ErrorMessage ?? "Failed";
-            },
-            aiInstalled));
+            }));
 
-        var ragGroup = new SettingsGroupViewModel(T("LocalKnowledge"), isCollapsible: true);
-        ragGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.EnableRAG", T("EnableRAG"), T("EnableRAGDescription"), true, aiInstalled));
-        ragGroup.Items.Add(new DropdownSettingViewModel(_settingsService, "AI.EmbeddingModel", T("EmbeddingModel"), T("EmbeddingModelDescription"), new[] { T("BgeSmallFast") }, null, null, null, aiInstalled));
+        // Web search group
+        var webSearchGroup = new SettingsGroupViewModel(T("WebSearch"), isCollapsible: true);
+        webSearchGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.WebSearch.Enabled", T("WebSearchEnabled"), T("WebSearchEnabledDescription"), false));
+        webSearchGroup.Items.Add(new DropdownSettingViewModel(
+            _settingsService,
+            "AI.WebSearch.Provider",
+            T("WebSearchProvider"),
+            T("WebSearchProviderDescription"),
+            new[] { "None", "DuckDuckGo", "SearXNG", "Brave" }));
+        webSearchGroup.Items.Add(new TextSettingViewModel(_settingsService, "AI.WebSearch.SearxngUrl", T("SearxngUrl"), T("SearxngUrlDescription"), "http://localhost:8888"));
+        webSearchGroup.Items.Add(new TextSettingViewModel(_settingsService, "AI.WebSearch.BraveApiKey", T("BraveApiKey"), T("BraveApiKeyDescription"), ""));
 
-        aiTools.Groups.Add(manageAiGroup);
         aiTools.Groups.Add(aiGroup);
-        aiTools.Groups.Add(ragGroup);
+        aiTools.Groups.Add(webSearchGroup);
 
         var appearance = new SettingsCategoryViewModel(T("Appearance"), "avares://Mnemo.UI/Icons/Common/template.svg", "Appearance");
 
@@ -452,28 +379,6 @@ public partial class SettingsViewModel : ViewModelBase
                     _perf.CaptureMemorySnapshot("manual (settings)");
                     await Task.CompletedTask;
                 }));
-            devGroup.Items.Add(new ToggleSettingViewModel(_settingsService, ChatDatasetSettings.LoggingEnabledKey, "Log conversations for dataset", "Append each turn (manager model + chat model request/response) as one JSON object per line to %LocalAppData%\\mnemo\\chat_dataset\\conversations.jsonl. Off by default.", false));
-            devGroup.Items.Add(new AsyncActionSettingViewModel(
-                "Export training datasets",
-                "Reads conversations.jsonl and generates manager_dataset.jsonl (routing fine-tune) and main_model_dataset.jsonl (chat fine-tune) in the same folder.",
-                "Export",
-                async vm =>
-                {
-                    var result = await _datasetExporter.ExportAsync(ChatDatasetSettings.LogFilePath);
-                    vm.StatusText = result.IsSuccess
-                        ? $"Done — manager: {result.ManagerRowCount} rows, main model: {result.MainModelRowCount} rows, skipped: {result.SkippedTurnCount}"
-                        : $"Failed: {result.ErrorMessage}";
-                }));
-            devGroup.Items.Add(new ToggleSettingViewModel(_settingsService, TeacherModelSettings.UseTeacherRoutingKey, "Use teacher model for routing", "When on, routing and skill classification use Vertex AI Gemini (see .temp-teacher) instead of the local manager model. Falls back to the local manager if the request fails. Off by default.", false));
-            devGroup.Items.Add(new ToggleSettingViewModel(_settingsService, TeacherModelSettings.UseTeacherMainChatKey, "Use teacher model as main model", "When on, chat generation uses Gemini instead of local low/mid/high tier models. Falls back is not applied mid-stream; turn off to restore local-only behavior. Off by default.", false));
-            devGroup.Items.Add(new TextSettingViewModel(_settingsService, TeacherModelSettings.VertexCredentialsPathKey, "Vertex service account JSON path", "Optional absolute path to a Google Cloud service account key. If empty, the GOOGLE_APPLICATION_CREDENTIALS environment variable is used."));
-            devGroup.Items.Add(new TextSettingViewModel(_settingsService, TeacherModelSettings.ChatTemperatureKey, "Teacher: chat temperature", "Vertex generation temperature for main chat streaming and tools (0–2). Default 0.7.", TeacherModelSettings.DefaultChatTemperatureString));
-            devGroup.Items.Add(new TextSettingViewModel(_settingsService, TeacherModelSettings.ChatMaxOutputTokensKey, "Teacher: chat max output tokens", "Max tokens for chat streaming (typical 1024–65535). Default 65536.", TeacherModelSettings.DefaultChatMaxOutputTokensString));
-            devGroup.Items.Add(new TextSettingViewModel(_settingsService, TeacherModelSettings.RoutingTemperatureKey, "Teacher: routing temperature", "Temperature for routing JSON (often 0 for deterministic skill selection). Default 0.", TeacherModelSettings.DefaultRoutingTemperatureString));
-            devGroup.Items.Add(new TextSettingViewModel(_settingsService, TeacherModelSettings.RoutingMaxOutputTokensKey, "Teacher: routing max output tokens", "Max tokens for routing response. Default 512.", TeacherModelSettings.DefaultRoutingMaxOutputTokensString));
-            devGroup.Items.Add(new TextSettingViewModel(_settingsService, TeacherModelSettings.StructuredTemperatureKey, "Teacher: structured JSON temperature", "Temperature when the app forces JSON (e.g. learning path). Default 0.2.", TeacherModelSettings.DefaultStructuredTemperatureString));
-            devGroup.Items.Add(new TextSettingViewModel(_settingsService, TeacherModelSettings.StructuredMaxOutputTokensKey, "Teacher: structured JSON max output tokens", "Max tokens for forced JSON non-streaming calls. Default 8192.", TeacherModelSettings.DefaultStructuredMaxOutputTokensString));
-            devGroup.Items.Add(new TextSettingViewModel(_settingsService, TeacherModelSettings.ChatStylePromptKey, "Teacher: answer style (system suffix)", "When \"Use teacher model as main model\" is on, this text is appended to the system prompt (after skill context) to steer tone, length, headings, or question-and-answer format for dataset collection. Leave empty for default behavior.", ""));
             developer.Groups.Add(devGroup);
             Categories.Add(developer);
         }
