@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "enabled": true,
   "expose_in_get_skills": false,
-  "description": "In-app statistics and aggregates (flashcards, notes, learning path, app telemetry): list schemas, query keys, read/write/delete statistic records. Large tool surface—injected only when needed.",
+  "description": "In-app statistics and aggregates (flashcards, notes, app telemetry): list schemas, query keys, read/write/delete statistic records. Large tool surface—injected only when needed.",
   "detection_hint": "statistics, stats, analytics, aggregates, telemetry, totals, streak, how many reviewed, metrics, dashboard",
   "injection": {
     "system_prompt_fragment": "Analytics: typed statistic records at namespace/kind/key. Prefer stats_list_schemas before writes; stats_query to enumerate keys; stats_get_record or stats_read_fields for values. Writes validate against registered schemas when present.",

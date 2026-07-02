@@ -227,7 +227,6 @@
     "Library": "ライブラリ",
     "Ecosystem": "エコシステム",
     "Overview": "概要",
-    "LearningPath": "学習パス",
     "Notes": "ノート",
     "Mindmap": "マインドマップ",
     "Flashcards": "フラッシュカード",
@@ -256,21 +255,6 @@
   "App": {
     "AppTitle": "Mnemo",
     "ToggleAssistant": "アシスタントを切り替えます"
-  },
-  "Path": {
-    "Title": "学習パス",
-    "Subtitle": "知識を組織し、進捗を追跡します。",
-    "GenerateNew": "新規生成",
-    "RecentlyActive": "最近活用したもの",
-    "Library": "ライブラリ",
-    "SearchLibrary": "ライブラリを検索...",
-    "Regenerate": "再生成",
-    "GeneratingContent": "コンテンツの生成中...",
-    "RegenerateNow": "今すぐ再生成",
-    "ColumnName": "NAME",
-    "LastModified": "最終更新",
-    "Size": "サイズ",
-    "Progress": "進捗"
   },
   "Chat": {
     "Atlas": "アトラス",
@@ -582,14 +566,6 @@
     "ConfirmExitTitle": "終了の確認",
     "ConfirmExitMessage": "Mnemo を終了してもよろしいですか？",
     "ConfirmExitButton": "終了"
-  },
-  "InputBuilder": {
-    "WhatToLearn": "何を学びたいですか？",
-    "DescribeTopic": "トピックを記述したり、以下に核心情報を貼り付けてください。",
-    "PastePlaceholder": "テキストや指示、特定のトピックをここに貼り付けます...",
-    "AddSourceMaterials": "ソースマテリアル（オプション）を追加",
-    "UploadFiles": "ファイルをアップロード",
-    "GenerateLearningPath": "学習パスを生成"
   },
   "AddWidget": {
     "Title": "ウィジェットを追加",

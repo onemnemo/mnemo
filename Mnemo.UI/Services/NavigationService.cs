@@ -17,8 +17,6 @@ public class NavigationService : INavigationService, INotifyPropertyChanged
     private static readonly HashSet<string> AiAssistantGatedRoutes = new(StringComparer.Ordinal)
     {
         "chat",
-        "path",
-        "path-detail",
     };
 
     private readonly IServiceProvider _serviceProvider;

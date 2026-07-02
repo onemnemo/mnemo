@@ -46,7 +46,6 @@ public sealed class ApplicationToolService
             "notes" => "notes",
             "chat" => "chat",
             "mindmap" => "mindmap",
-            "path" or "learning_path" or "learningpath" => "path",
             "settings" => "settings",
             _ => dest
         };

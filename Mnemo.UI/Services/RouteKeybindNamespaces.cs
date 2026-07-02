@@ -19,7 +19,6 @@ public static class RouteKeybindNamespaces
             "flashcard-practice" => null,
             "settings" => "settings",
             "chat" => "chat",
-            "path" or "path-detail" => "path",
             _ => route
         };
     }

@@ -12,7 +12,6 @@ public interface IAIOrchestrator
 
     /// <summary>
     /// Structured-output prompt: returns a JSON string conforming to <paramref name="jsonSchema"/>.
-    /// Used by learning-path and unit generation tasks.
     /// </summary>
     Task<Result<string>> PromptStructuredAsync(string systemPrompt, string userPrompt, object? jsonSchema = null, CancellationToken ct = default);
 

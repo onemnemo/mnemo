@@ -227,7 +227,6 @@
     "Library": "Biblioteca",
     "Ecosystem": "Ecosistema",
     "Overview": "Resumen",
-    "LearningPath": "Ruta de aprendizaje",
     "Notes": "Notas",
     "Mindmap": "Mapa mental",
     "Flashcards": "Tarjetas de estudio",
@@ -256,21 +255,6 @@
   "App": {
     "AppTitle": "Mnemo",
     "ToggleAssistant": "Alternar asistente"
-  },
-  "Path": {
-    "Title": "Ruta de aprendizaje",
-    "Subtitle": "Organice su conocimiento y siga su progreso",
-    "GenerateNew": "Generar nuevo",
-    "RecentlyActive": "Activo recientemente",
-    "Library": "Biblioteca",
-    "SearchLibrary": "Buscar en la biblioteca...",
-    "Regenerate": "Regenerar",
-    "GeneratingContent": "Generando contenido...",
-    "RegenerateNow": "Regenerar ahora",
-    "ColumnName": "NOMBRE",
-    "LastModified": "ÚLTIMA MODIFICACIÓN",
-    "Size": "TAMAÑO",
-    "Progress": "PROGRESO"
   },
   "Chat": {
     "Atlas": "Atlas",
@@ -582,14 +566,6 @@
     "ConfirmExitTitle": "Confirmar salida",
     "ConfirmExitMessage": "¿Seguro que quieres cerrar Mnemo?",
     "ConfirmExitButton": "Salir"
-  },
-  "InputBuilder": {
-    "WhatToLearn": "¿Qué quieres aprender?",
-    "DescribeTopic": "Describa el tema o pegue la información principal a continuación.",
-    "PastePlaceholder": "Pegue texto, instrucciones o temas específicos aquí...",
-    "AddSourceMaterials": "Añadir materiales de origen (opcional)",
-    "UploadFiles": "Subir archivos",
-    "GenerateLearningPath": "Generar ruta de aprendizaje"
   },
   "AddWidget": {
     "Title": "Añadir widget",

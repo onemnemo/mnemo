@@ -16,8 +16,6 @@ namespace Mnemo.Infrastructure.Services.Statistics;
 public static class StatisticsRecorder
 {
     private const string SourceFlashcards = StatisticsNamespaces.Flashcards;
-    private const string SourceNotes = StatisticsNamespaces.Notes;
-    private const string SourcePath = StatisticsNamespaces.Path;
 
     /// <summary>
     /// Records a completed flashcard practice session. Updates daily/per-deck/lifetime aggregates
@@ -164,39 +162,6 @@ public static class StatisticsRecorder
         catch (Exception ex)
         {
             logger?.Error("Statistics", $"Incrementing {ns}/{kind}/{fieldName} failed.", ex);
-        }
-    }
-
-    /// <summary>Records a per-path summary update (creates or refreshes <c>path:{id}</c>).</summary>
-    public static async Task RecordPathSummaryAsync(
-        IStatisticsManager stats,
-        ILoggerService logger,
-        string pathId,
-        string title,
-        int unitsTotal,
-        int unitsCompleted)
-    {
-        if (stats == null || string.IsNullOrEmpty(pathId)) return;
-        try
-        {
-            await stats.UpsertAsync(new StatisticsRecordWrite
-            {
-                Namespace = SourcePath,
-                Kind = PathStatKinds.PathSummary,
-                Key = $"path:{pathId}",
-                SourceModule = SourcePath,
-                Fields = new Dictionary<string, StatValue>(StringComparer.Ordinal)
-                {
-                    ["title"] = StatValue.FromString(title ?? string.Empty),
-                    ["units_total"] = StatValue.FromInt(unitsTotal),
-                    ["units_completed"] = StatValue.FromInt(unitsCompleted),
-                    ["last_touched"] = StatValue.FromDateTime(DateTimeOffset.UtcNow)
-                }
-            }).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            logger?.Error("Statistics", "Recording path summary failed.", ex);
         }
     }
 

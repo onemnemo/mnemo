@@ -230,7 +230,6 @@
     "Library": "Library",
     "Ecosystem": "Ecosystem",
     "Overview": "Overview",
-    "LearningPath": "Learning Path",
     "Notes": "Notes",
     "Mindmap": "Mindmap",
     "Flashcards": "Flashcards",
@@ -259,21 +258,6 @@
   "App": {
     "AppTitle": "Mnemo",
     "ToggleAssistant": "Toggle Assistant"
-  },
-  "Path": {
-    "Title": "Learning Path",
-    "Subtitle": "Organize your knowledge and track your progress",
-    "GenerateNew": "Generate New",
-    "RecentlyActive": "Recently Active",
-    "Library": "Library",
-    "SearchLibrary": "Search your library...",
-    "Regenerate": "Regenerate",
-    "GeneratingContent": "Generating content...",
-    "RegenerateNow": "Regenerate Now",
-    "ColumnName": "NAME",
-    "LastModified": "LAST MODIFIED",
-    "Size": "SIZE",
-    "Progress": "PROGRESS"
   },
   "Chat": {
     "Atlas": "Atlas",
@@ -593,14 +577,6 @@
     "ConfirmExitTitle": "Confirm exit",
     "ConfirmExitMessage": "Are you sure you want to close Mnemo?",
     "ConfirmExitButton": "Exit"
-  },
-  "InputBuilder": {
-    "WhatToLearn": "What do you want to learn?",
-    "DescribeTopic": "Describe the topic or paste the core information below.",
-    "PastePlaceholder": "Paste text, instructions, or specific topics here...",
-    "AddSourceMaterials": "Add Source Materials (Optional)",
-    "UploadFiles": "Upload Files",
-    "GenerateLearningPath": "Generate Learning Path"
   },
   "AddWidget": {
     "Title": "Add Widget",

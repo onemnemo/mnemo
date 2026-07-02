@@ -176,7 +176,6 @@ public static class Bootstrapper
         services.AddSingleton<AtlasOptionsBridge>();
         services.AddSingleton<IAiSystemMonitor, AtlasSystemMonitor>();
 
-        services.AddSingleton<ILearningPathService, LearningPathService>();
         services.AddSingleton<INoteService, NoteService>();
         services.AddSingleton<INoteFolderService, NoteFolderService>();
         services.AddSingleton<INotePdfLatexImageRenderer, NotePdfLatexImageRenderer>();

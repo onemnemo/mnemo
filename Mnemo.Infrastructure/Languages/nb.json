@@ -230,7 +230,6 @@
     "Library": "Bibliotek",
     "Ecosystem": "Økosystem",
     "Overview": "Oversikt",
-    "LearningPath": "Læringsvei",
     "Notes": "Notater",
     "Mindmap": "Tankekart",
     "Flashcards": "Flashkort",
@@ -259,21 +258,6 @@
   "App": {
     "AppTitle": "Mnemo",
     "ToggleAssistant": "Vis/skjul assistent"
-  },
-  "Path": {
-    "Title": "Læringsvei",
-    "Subtitle": "Organiser kunnskapen din og følg fremgangen",
-    "GenerateNew": "Generer ny",
-    "RecentlyActive": "Nylig aktiv",
-    "Library": "Bibliotek",
-    "SearchLibrary": "Søk i biblioteket...",
-    "Regenerate": "Generer på nytt",
-    "GeneratingContent": "Genererer innhold...",
-    "RegenerateNow": "Generer på nytt nå",
-    "ColumnName": "NAVN",
-    "LastModified": "SIST ENDRET",
-    "Size": "STØRRELSE",
-    "Progress": "FREMGANG"
   },
   "Chat": {
     "Atlas": "Atlas",
@@ -585,14 +569,6 @@
     "ConfirmExitTitle": "Bekreft avslutt",
     "ConfirmExitMessage": "Er du sikker på at du vil lukke Mnemo?",
     "ConfirmExitButton": "Avslutt"
-  },
-  "InputBuilder": {
-    "WhatToLearn": "Hva vil du lære?",
-    "DescribeTopic": "Beskriv emnet eller lim inn kjernen av informasjonen under.",
-    "PastePlaceholder": "Lim inn tekst, instruksjoner eller spesifikke emner her...",
-    "AddSourceMaterials": "Legg til kildemateriale (valgfritt)",
-    "UploadFiles": "Last opp filer",
-    "GenerateLearningPath": "Generer læringsvei"
   },
   "AddWidget": {
     "Title": "Legg til widget",

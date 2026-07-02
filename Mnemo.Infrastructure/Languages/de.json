@@ -227,7 +227,6 @@
     "Library": "Bibliothek",
     "Ecosystem": "Ökosystem",
     "Overview": "Übersicht",
-    "LearningPath": "Lernpfad",
     "Notes": "Notizen",
     "Mindmap": "Mindmap",
     "Flashcards": "Karteikarten",
@@ -256,21 +255,6 @@
   "App": {
     "AppTitle": "Mnemo",
     "ToggleAssistant": "Assistent an/aus schalten"
-  },
-  "Path": {
-    "Title": "Lernpfad",
-    "Subtitle": "Organisieren Sie Ihr Wissen und verfolgen Sie Ihre Fortschritte.",
-    "GenerateNew": "Neu generieren",
-    "RecentlyActive": "Letzte aktive",
-    "Library": "Bibliothek",
-    "SearchLibrary": "Suche in Ihrer Bibliothek...",
-    "Regenerate": "Neu generieren",
-    "GeneratingContent": "Inhalt wird generiert...",
-    "RegenerateNow": "Jetzt neu generieren",
-    "ColumnName": "NAME",
-    "LastModified": "LETZT BEARBEITET",
-    "Size": "GRÖßE",
-    "Progress": "FORTGESCHRITTENHEIT"
   },
   "Chat": {
     "Atlas": "Atlas",
@@ -576,14 +560,6 @@
     "ConfirmExitTitle": "Beenden bestätigen",
     "ConfirmExitMessage": "Mnemo wirklich schließen?",
     "ConfirmExitButton": "Beenden"
-  },
-  "InputBuilder": {
-    "WhatToLearn": "Was möchten Sie lernen?",
-    "DescribeTopic": "Beschreiben Sie das Thema oder fügen Sie den Kern der Informationen ein.",
-    "PastePlaceholder": "Fügen Sie Text, Anweisungen oder spezifische Themen hier ein...",
-    "AddSourceMaterials": "Quellenmaterialien hinzufügen (optional)",
-    "UploadFiles": "Dateien hochladen",
-    "GenerateLearningPath": "Lernpfad generieren"
   },
   "AddWidget": {
     "Title": "Widget hinzufügen",

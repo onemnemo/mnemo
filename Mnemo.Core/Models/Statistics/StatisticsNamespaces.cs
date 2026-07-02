@@ -8,7 +8,6 @@ public static class StatisticsNamespaces
 {
     public const string Flashcards = "flashcards";
     public const string Notes = "notes";
-    public const string Path = "path";
 
     /// <summary>Cross-app usage (launches, route dwell time). Key for daily: <c>yyyy-MM-dd</c> UTC.</summary>
     public const string App = "app";
@@ -41,16 +40,6 @@ public static class FlashcardStatKinds
 public static class NoteStatKinds
 {
     public const string DailySummary = "daily.summary";
-    public const string LifetimeTotals = "totals";
-}
-
-/// <summary>
-/// Stable record kinds for learning path statistics.
-/// </summary>
-public static class PathStatKinds
-{
-    public const string DailySummary = "daily.summary";
-    public const string PathSummary = "path.summary";
     public const string LifetimeTotals = "totals";
 }
 

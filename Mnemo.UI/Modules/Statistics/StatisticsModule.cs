@@ -7,7 +7,7 @@ using Mnemo.Infrastructure.Services.Tools;
 namespace Mnemo.UI.Modules.Statistics;
 
 /// <summary>
-/// Registers statistics-system tools and built-in schemas (flashcards/notes/path) so the
+/// Registers statistics-system tools and built-in schemas (flashcards/notes) so the
 /// <see cref="IStatisticsManager"/> validates writes from any caller, internal or extension.
 /// Has no UI surface of its own; widgets/data producers consume the manager directly via DI.
 /// </summary>
@@ -154,51 +154,6 @@ public sealed class StatisticsModule : IModule
                 IntField("total_notes_created", required: false, defaultValue: 0, min: 0),
                 IntField("total_notes_edited", required: false, defaultValue: 0, min: 0),
                 IntField("total_notes_deleted", required: false, defaultValue: 0, min: 0)
-            }
-        }).GetAwaiter().GetResult();
-
-        // Path: per-day aggregate
-        stats.RegisterSchemaAsync(new StatisticsSchema
-        {
-            Namespace = StatisticsNamespaces.Path,
-            Kind = PathStatKinds.DailySummary,
-            Description = "Per-day learning-path activity.",
-            AllowAdditionalFields = true,
-            Fields = new[]
-            {
-                IntField("paths_created", required: false, defaultValue: 0, min: 0),
-                IntField("units_generated", required: false, defaultValue: 0, min: 0),
-                IntField("units_completed", required: false, defaultValue: 0, min: 0)
-            }
-        }).GetAwaiter().GetResult();
-
-        // Path: per-path summary (key = path:{pathId})
-        stats.RegisterSchemaAsync(new StatisticsSchema
-        {
-            Namespace = StatisticsNamespaces.Path,
-            Kind = PathStatKinds.PathSummary,
-            Description = "Rolling summary per learning path.",
-            AllowAdditionalFields = true,
-            Fields = new[]
-            {
-                StringField("title", required: false),
-                IntField("units_total", required: false, defaultValue: 0, min: 0),
-                IntField("units_completed", required: false, defaultValue: 0, min: 0),
-                DateTimeField("last_touched", required: false)
-            }
-        }).GetAwaiter().GetResult();
-
-        // Path: lifetime totals (single record, key = "all")
-        stats.RegisterSchemaAsync(new StatisticsSchema
-        {
-            Namespace = StatisticsNamespaces.Path,
-            Kind = PathStatKinds.LifetimeTotals,
-            Description = "Lifetime learning-path totals.",
-            AllowAdditionalFields = true,
-            Fields = new[]
-            {
-                IntField("total_paths_created", required: false, defaultValue: 0, min: 0),
-                IntField("total_units_completed", required: false, defaultValue: 0, min: 0)
             }
         }).GetAwaiter().GetResult();
 
