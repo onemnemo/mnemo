@@ -351,7 +351,13 @@
     "Suggestion2Prompt": "Summarize the transcript from today's Intro to Psychology lecture",
     "Suggestion3Title": "Quiz Me",
     "Suggestion3Description": "Test my knowledge on the European History mid-term study guide",
-    "Suggestion3Prompt": "Quiz me on the European History mid-term study guide"
+    "Suggestion3Prompt": "Quiz me on the European History mid-term study guide",
+    "ToolCallRunning": "Running…",
+    "ToolCallFailed": "Failed",
+    "ModelStatusReady": "Atlas is ready",
+    "ModelStatusWarming": "Atlas is warming up…",
+    "ModelStatusOffline": "Atlas is offline — models load on first use",
+    "ThinkingLabel": "Thinking"
   },
   "Notes": {
     "NewNote": "New Note",

@@ -344,7 +344,13 @@
     "Suggestion2Prompt": "Fasse das Transkript der heutigen Einführung in die Psychologie zusammen",
     "Suggestion3Title": "Quiz mich",
     "Suggestion3Description": "Teste mein Wissen zum Lernleitfaden für Europäische Geschichte",
-    "Suggestion3Prompt": "Quiz mich zum Lernleitfaden für Europäische Geschichte"
+    "Suggestion3Prompt": "Quiz mich zum Lernleitfaden für Europäische Geschichte",
+    "ToolCallRunning": "Läuft…",
+    "ToolCallFailed": "Fehlgeschlagen",
+    "ModelStatusReady": "Atlas ist bereit",
+    "ModelStatusWarming": "Atlas wärmt auf…",
+    "ModelStatusOffline": "Atlas ist offline — Modelle laden bei der ersten Nutzung",
+    "ThinkingLabel": "Denkt nach"
   },
   "Notes": {
     "NewNote": "Neue Notiz",

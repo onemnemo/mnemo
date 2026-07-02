@@ -347,7 +347,13 @@
     "Suggestion2Prompt": "Oppsummer transkripsjonen fra dagens innføring i psykologi",
     "Suggestion3Title": "Quiz meg",
     "Suggestion3Description": "Test kunnskapen min på studieguiden i europeisk historie",
-    "Suggestion3Prompt": "Quiz meg på studieguiden i europeisk historie"
+    "Suggestion3Prompt": "Quiz meg på studieguiden i europeisk historie",
+    "ToolCallRunning": "Kjører…",
+    "ToolCallFailed": "Mislyktes",
+    "ModelStatusReady": "Atlas er klar",
+    "ModelStatusWarming": "Atlas varmes opp…",
+    "ModelStatusOffline": "Atlas er frakoblet — modeller lastes ved første bruk",
+    "ThinkingLabel": "Tenker"
   },
   "Notes": {
     "NewNote": "Nytt notat",

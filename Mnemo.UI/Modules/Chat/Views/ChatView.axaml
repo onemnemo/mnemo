@@ -669,20 +669,20 @@
                                                               Width="16" Height="16"
                                                               Color="{DynamicResource TextFadedBrush}"/>
                                         </ToggleButton>
-                                        <!-- Model badge -->
+                                        <!-- Model badge; dot color doubles as live model status -->
                                         <Border Grid.Column="2"
                                                 BorderBrush="{DynamicResource SidebarBorderBrush}"
                                                 BorderThickness="1"
                                                 CornerRadius="14"
                                                 Padding="10,5"
-                                                VerticalAlignment="Center">
+                                                VerticalAlignment="Center"
+                                                ToolTip.Tip="{Binding AiStatusTooltip}">
                                             <StackPanel Orientation="Horizontal" Spacing="7">
                                                 <Border Width="12" Height="12" CornerRadius="6"
                                                         Background="{DynamicResource CardAccentBrush}"
                                                         VerticalAlignment="Center">
-                                                    <Border Width="5" Height="5" CornerRadius="2.5"
-                                                            BorderBrush="{DynamicResource AccentButtonIconBrush}"
-                                                            BorderThickness="1.5"
+                                                    <Border Width="6" Height="6" CornerRadius="3"
+                                                            Background="{Binding AiStatusBrush}"
                                                             HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 </Border>
                                                 <TextBlock Text="atlas-1"
@@ -921,9 +921,22 @@
                                                                                                           Margin="0,0,0,4">
                                                                                                     <Expander.Header>
                                                                                                         <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
-                                                                                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/external-link.svg"
-                                                                                                                              Width="13" Height="13"
-                                                                                                                              Color="{DynamicResource TextSecondaryBrush}"/>
+                                                                                                            <!-- Live call state: spinner while running, check on success, alert on failure -->
+                                                                                                            <Panel Width="13" Height="13" VerticalAlignment="Center">
+                                                                                                                <controls:SvgIcon Classes="ActiveSpin"
+                                                                                                                                  SvgPath="avares://Mnemo.UI/Icons/States/active.svg"
+                                                                                                                                  Width="13" Height="13"
+                                                                                                                                  Color="{DynamicResource ChatProcessStateActiveBrush}"
+                                                                                                                                  IsVisible="{Binding IsRunning}"/>
+                                                                                                                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/States/done-check.svg"
+                                                                                                                                  Width="13" Height="13"
+                                                                                                                                  Color="{DynamicResource ChatProcessStateDoneFillBrush}"
+                                                                                                                                  IsVisible="{Binding IsSucceeded}"/>
+                                                                                                                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/square-rounded-x.svg"
+                                                                                                                                  Width="13" Height="13"
+                                                                                                                                  Color="{DynamicResource TextFadedBrush}"
+                                                                                                                                  IsVisible="{Binding IsFailed}"/>
+                                                                                                            </Panel>
                                                                                                             <TextBlock Text="{Binding Name}"
                                                                                                                        FontFamily="{DynamicResource Font.Monospace}"
                                                                                                                        FontSize="11"
@@ -950,10 +963,43 @@
                                                                         </DataTemplate>
                                                                     </ItemsControl.ItemTemplate>
                                                                 </ItemsControl>
-                                                                <components:MarkdownView Source="{Binding Thoughts}"
-                                                                                         IsVisible="{Binding IsThinking}"
-                                                                                         Foreground="{DynamicResource TextSecondaryBrush}"
-                                                                                         Margin="0,0,0,4"/>
+                                                                <!-- Reasoning trace: its own labeled state, clearly separate
+                                                                     from the routing/tool steps above and from the final
+                                                                     answer below — spinner while thinking, check once the
+                                                                     model has moved on to generating the reply. -->
+                                                                <StackPanel IsVisible="{Binding IsThinking}"
+                                                                            Margin="0,10,0,4"
+                                                                            Spacing="8">
+                                                                    <Border BorderBrush="{DynamicResource SidebarBorderBrush}"
+                                                                            BorderThickness="0,1,0,0"
+                                                                            Margin="0,0,0,2"/>
+                                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                        <controls:SvgIcon Classes="ActiveSpin"
+                                                                                          SvgPath="avares://Mnemo.UI/Icons/States/active.svg"
+                                                                                          Width="13" Height="13"
+                                                                                          VerticalAlignment="Center"
+                                                                                          Color="{DynamicResource ChatProcessStateActiveBrush}"
+                                                                                          IsVisible="{Binding IsActivelyThinking}"/>
+                                                                        <Panel Width="14" Height="14" VerticalAlignment="Center"
+                                                                               IsVisible="{Binding HasFinishedThinking}">
+                                                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/States/done-disc.svg"
+                                                                                              Width="14" Height="14"
+                                                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                              Color="{DynamicResource ChatProcessStateDoneFillBrush}"/>
+                                                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/States/done-check.svg"
+                                                                                              Width="14" Height="14"
+                                                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                              Color="{DynamicResource ChatProcessStateDoneGlyphBrush}"/>
+                                                                        </Panel>
+                                                                        <TextBlock Text="{markup:T Ns=Chat, Key=ThinkingLabel}"
+                                                                                   FontSize="{DynamicResource FontSize.Body.Small}"
+                                                                                   FontFamily="{DynamicResource Font.Medium}"
+                                                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                                   VerticalAlignment="Center"/>
+                                                                    </StackPanel>
+                                                                    <components:MarkdownView Source="{Binding Thoughts}"
+                                                                                             Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                                </StackPanel>
                                                             </StackPanel>
                                                         </Border>
 

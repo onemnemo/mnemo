@@ -40,6 +40,29 @@ namespace Mnemo.UI.Services;
 
 public static class Bootstrapper
 {
+    /// <summary>
+    /// Locates the default GGUF weights directory: <c>models/</c> beside the
+    /// executable (packaged installs), else the <c>atlas-main/models</c> checkout
+    /// found by walking up from the build output (running from source). Returns
+    /// null to leave the Atlas default (env var / app-relative) in charge.
+    /// </summary>
+    private static string? FindDefaultModelsDirectory()
+    {
+        var appLocal = System.IO.Path.Combine(AppContext.BaseDirectory, "models");
+        if (System.IO.Directory.Exists(appLocal))
+            return appLocal;
+
+        var current = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        for (var depth = 0; depth < 8 && current != null; depth++, current = current.Parent)
+        {
+            var candidate = System.IO.Path.Combine(current.FullName, "atlas-main", "models");
+            if (System.IO.Directory.Exists(candidate))
+                return candidate;
+        }
+
+        return null;
+    }
+
     public static IServiceProvider Build()
     {
         var services = new ServiceCollection();
@@ -100,16 +123,29 @@ public static class Bootstrapper
         services.AddSingleton<MnemoMcpServer>();
 
         // ── Atlas AI system (replaces all Mnemo inference) ───────────────────────
-        // Atlas is now the sole AI backend. Configure model endpoints to match
-        // serve.ps1 (override via ATLAS__Inference__ModelEndpoints__<name> env vars).
-        services.AddAtlas(opts =>
-        {
-            // Multi-model endpoints matching atlas-main/serve.ps1
-            opts.ModelEndpoints["qwen3-0.6b"]  = "http://localhost:8081";
-            opts.ModelEndpoints["qwen3-1.7b"]  = "http://localhost:8082";
-            opts.ModelEndpoints["smollm3-3b"]  = "http://localhost:8083";
-            opts.ModelEndpoints["qwen3-4b"]    = "http://localhost:8084";
-        });
+        // Atlas is the sole AI backend and manages its own llama-server processes:
+        // models start on demand, warm on typing, and offload when idle. The
+        // endpoints below are adoption candidates — when a server is already
+        // running there (serve.ps1 or a previous run), Atlas adopts it instead of
+        // launching its own, so external serving keeps working unchanged.
+        services.AddAtlas(
+            configureInference: opts =>
+            {
+                // Multi-model endpoints matching atlas-main/serve.ps1
+                opts.ModelEndpoints["qwen3-0.6b"]  = "http://localhost:8081";
+                opts.ModelEndpoints["qwen3-1.7b"]  = "http://localhost:8082";
+                opts.ModelEndpoints["smollm3-3b"]  = "http://localhost:8083";
+                opts.ModelEndpoints["qwen3-4b"]    = "http://localhost:8084";
+            },
+            configureServing: serving =>
+            {
+                // Weights resolution order: explicit setting (applied live via
+                // AtlasOptionsBridge) → ATLAS_MODELS_DIR → models/ beside the
+                // executable → the atlas-main dev checkout when running from source.
+                var modelsDirectory = FindDefaultModelsDirectory();
+                if (modelsDirectory != null)
+                    serving.ModelsDirectory = modelsDirectory;
+            });
 
         // Wire Atlas's MCP client to call back into Mnemo's loopback tool server
         // (same process, same port as MnemoMcpServer above).
@@ -138,6 +174,7 @@ public static class Bootstrapper
 
         services.AddSingleton<IAITaskManager, AITaskManager>();
         services.AddSingleton<AtlasOptionsBridge>();
+        services.AddSingleton<IAiSystemMonitor, AtlasSystemMonitor>();
 
         services.AddSingleton<ILearningPathService, LearningPathService>();
         services.AddSingleton<INoteService, NoteService>();

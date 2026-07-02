@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Atlas.Core;
+using Atlas.Core.Inference;
 using Atlas.Core.Permissions;
 using Atlas.Core.Pipeline;
 using Atlas.Core.Results;
@@ -16,12 +18,10 @@ namespace Mnemo.UI.Mcp;
 
 /// <summary>
 /// Adapts <see cref="IAtlasOrchestrator"/> to Mnemo's <see cref="IAIOrchestrator"/> interface.
-/// History is folded into the prompt by serializing <see cref="ConversationTurn"/>s into a compact
-/// text prefix so Atlas's <see cref="PipelineRequest.Input"/> carries full context.
+/// Tokens stream through a channel as Atlas produces them, conversation history is
+/// passed as structured turns, and tool-call lifecycle events (running → completed/failed)
+/// are forwarded for live process display.
 /// </summary>
-/// <remarks>
-/// TODO: Replace FoldHistory with structured Atlas history once Atlas exposes a typed history API.
-/// </remarks>
 public sealed class AtlasAIOrchestrator : IAIOrchestrator
 {
     private readonly IAtlasOrchestrator _atlas;
@@ -126,46 +126,74 @@ public sealed class AtlasAIOrchestrator : IAIOrchestrator
 
         var agentMode = await _settings.GetAsync("AI.AgentMode", true).ConfigureAwait(false);
 
-        // Fold history into the input: Atlas's PipelineRequest takes a single Input
-        // string, so we serialize prior turns as a compact prefix the model can read.
-        // TODO: Replace with structured Atlas history API when available.
-        string input = FoldHistory(history, userMessage);
+        // Tokens flow pipeline-thread → channel → this iterator, so the UI sees
+        // them as Atlas generates them instead of one blob at the end.
+        var tokens = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false,
+        });
 
-        string? finalContent = null;
         var request = new PipelineRequest(
             TaskId: TaskIds.ChatResponse,
-            Input: input,
+            Input: userMessage,
             Permissions: MnemoFullPermissions,
             SessionId: conversationRoutingKey)
         {
             AgentMode = agentMode,
             SystemPrompt = NullIfBlank(systemPrompt),
-            OnToken = token => finalContent = (finalContent ?? string.Empty) + token,
+            History = MapHistory(history),
+            OnToken = token => tokens.Writer.TryWrite(token),
+            OnReasoningToken = CreateReasoningRelay(onAssistantReasoningUpdate),
             OnActivity = entry => pipelineStatus?.Report(MapActivity(entry)),
-            OnToolCall = activity =>
+            OnToolCall = activity => onToolCall?.Invoke(MapToolCall(activity)),
+        };
+
+        // Detached from the iterator so tokens can be yielded while the pipeline
+        // runs; the writer is always completed so the read loop terminates.
+        Task<PipelineResult> execution = Task.Run(
+            async () =>
             {
-                if (onToolCall == null)
-                    return;
-                // Surface the call once it has a result so the UI shows arguments + output.
-                if (activity.Stage is ToolCallStage.Completed or ToolCallStage.Failed)
+                try
                 {
-                    onToolCall(new ChatToolCall
-                    {
-                        ToolCallId = activity.CallId,
-                        Name = activity.ToolName,
-                        ArgumentsJson = activity.ArgumentsJson,
-                        ResultContent = activity.ResultContent,
-                    });
+                    return await _atlas.ExecuteAsync(request, ct).ConfigureAwait(false);
+                }
+                finally
+                {
+                    tokens.Writer.TryComplete();
                 }
             },
-        };
+            CancellationToken.None);
+
+        var streamedAnything = false;
+        var cancelled = false;
+        while (true)
+        {
+            string? token = null;
+            try
+            {
+                if (!await tokens.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
+                    break;
+                if (!tokens.Reader.TryRead(out token))
+                    continue;
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled = true;
+                break;
+            }
+
+            streamedAnything = true;
+            yield return token!;
+        }
 
         PipelineResult? result = null;
         string? errorMessage = null;
-        bool cancelled = false;
         try
         {
-            result = await _atlas.ExecuteAsync(request, ct).ConfigureAwait(false);
+            // Atlas honours the token cooperatively, so this settles quickly
+            // after cancellation too; awaiting it observes any faults.
+            result = await execution.ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -186,35 +214,73 @@ public sealed class AtlasAIOrchestrator : IAIOrchestrator
             yield break;
         }
 
-        string content = result!.HasUsableOutput
-            ? result.Content!
-            : SummarizeFailure(result);
-
-        yield return content;
+        // Paths that never invoke OnToken (clarification short-circuit, repair
+        // retries, non-streaming fallbacks) still deliver their content once.
+        if (!streamedAnything)
+        {
+            yield return result!.HasUsableOutput
+                ? result.Content!
+                : SummarizeFailure(result);
+        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Folds multi-turn history into the Atlas <c>Input</c> string.
-    /// Format: one line per turn "<c>User: ...</c>" / "<c>Assistant: ...</c>",
-    /// then the new user message on the last line.
-    /// </summary>
-    private static string FoldHistory(IReadOnlyList<ConversationTurn> history, string userMessage)
+    /// <summary>Maps Mnemo conversation turns onto Atlas's structured history messages.</summary>
+    private static IReadOnlyList<InferenceMessage>? MapHistory(IReadOnlyList<ConversationTurn> history)
     {
         if (history.Count == 0)
-            return userMessage;
+            return null;
 
-        var sb = new StringBuilder();
+        var messages = new List<InferenceMessage>(history.Count);
         foreach (ConversationTurn turn in history)
         {
-            string role = turn.Role == ConversationRole.User ? "User" : "Assistant";
-            sb.Append(role).Append(": ").AppendLine(turn.Content);
+            messages.Add(turn.Role == ConversationRole.User
+                ? InferenceMessage.User(turn.Content)
+                : InferenceMessage.Assistant(turn.Content));
         }
 
-        sb.Append("User: ").Append(userMessage);
-        return sb.ToString();
+        return messages;
     }
+
+    /// <summary>
+    /// Builds the reasoning relay: Atlas reports incremental reasoning tokens,
+    /// Mnemo's callback expects the cumulative text. Serialized with a lock
+    /// because pipeline callbacks may arrive from any thread.
+    /// </summary>
+    private static Action<string>? CreateReasoningRelay(Action<string>? onAssistantReasoningUpdate)
+    {
+        if (onAssistantReasoningUpdate == null)
+            return null;
+
+        var buffer = new StringBuilder();
+        var gate = new object();
+        return token =>
+        {
+            string snapshot;
+            lock (gate)
+            {
+                buffer.Append(token);
+                snapshot = buffer.ToString();
+            }
+
+            onAssistantReasoningUpdate(snapshot);
+        };
+    }
+
+    private static ChatToolCall MapToolCall(ToolCallActivity activity) => new()
+    {
+        ToolCallId = activity.CallId,
+        Name = activity.ToolName,
+        ArgumentsJson = activity.ArgumentsJson,
+        ResultContent = activity.ResultContent,
+        Stage = activity.Stage switch
+        {
+            ToolCallStage.Started => ChatToolCallStage.Running,
+            ToolCallStage.Failed => ChatToolCallStage.Failed,
+            _ => ChatToolCallStage.Completed,
+        },
+    };
 
     private static string? NullIfBlank(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;

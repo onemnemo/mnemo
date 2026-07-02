@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Mnemo.Core.Models;
@@ -12,6 +13,7 @@ namespace Mnemo.UI.Services;
 public sealed class ChatProcessThreadTracker
 {
     private readonly ObservableCollection<ChatProcessStepViewModel> _steps;
+    private readonly Dictionary<string, ChatToolCallViewModel> _toolCallsById = new(StringComparer.Ordinal);
     private readonly Stopwatch _elapsed = Stopwatch.StartNew();
 
     /// <summary>Elapsed wall-clock time since this tracker was created (i.e. since the turn started).</summary>
@@ -77,20 +79,68 @@ public sealed class ChatProcessThreadTracker
         }
     }
 
+    /// <summary>
+    /// Records a tool-call lifecycle event. A <see cref="ChatToolCallStage.Running"/>
+    /// event adds a spinner row; the terminal event for the same call id resolves
+    /// that row into a checkmark or error instead of adding a duplicate.
+    /// </summary>
     public void AddToolCall(ChatToolCall toolCall, Func<string, string> localize)
     {
-        if (_steps.Count == 0) return;
-        var last = _steps[^1];
+        if (toolCall.Stage != ChatToolCallStage.Running
+            && !string.IsNullOrEmpty(toolCall.ToolCallId)
+            && _toolCallsById.TryGetValue(toolCall.ToolCallId, out var existing))
+        {
+            ResolveToolCall(existing, toolCall, localize);
+            return;
+        }
 
-        var summary = BuildToolSummary(toolCall);
-
-        last.ToolCalls.Add(new ChatToolCallViewModel
+        var vm = new ChatToolCallViewModel
         {
             Name = toolCall.Name,
             Arguments = toolCall.ArgumentsJson ?? string.Empty,
-            Result = toolCall.ResultContent ?? string.Empty,
-            Summary = summary
-        });
+        };
+
+        if (toolCall.Stage == ChatToolCallStage.Running)
+        {
+            vm.IsRunning = true;
+            vm.Summary = localize("ToolCallRunning");
+            if (!string.IsNullOrEmpty(toolCall.ToolCallId))
+                _toolCallsById[toolCall.ToolCallId] = vm;
+        }
+        else
+        {
+            // Terminal event with no prior Running (e.g. a call rejected before
+            // execution): the row appears directly in its final state.
+            ResolveToolCall(vm, toolCall, localize);
+        }
+
+        AttachToCurrentStep(vm);
+    }
+
+    private static void ResolveToolCall(ChatToolCallViewModel vm, ChatToolCall toolCall, Func<string, string> localize)
+    {
+        vm.Result = toolCall.ResultContent ?? string.Empty;
+        vm.IsFailed = toolCall.Stage == ChatToolCallStage.Failed;
+        vm.IsRunning = false;
+        vm.Summary = toolCall.Stage == ChatToolCallStage.Failed
+            ? localize("ToolCallFailed")
+            : BuildToolSummary(toolCall);
+    }
+
+    private void AttachToCurrentStep(ChatToolCallViewModel vm)
+    {
+        if (_steps.Count == 0)
+        {
+            _steps.Add(new ChatProcessStepViewModel
+            {
+                Label = vm.Name,
+                PhaseKind = ChatProcessPhaseKind.Tool,
+                IsActive = true,
+                IsComplete = false
+            });
+        }
+
+        _steps[^1].ToolCalls.Add(vm);
     }
 
     /// <summary>Marks all steps complete (call when the assistant turn ends).</summary>

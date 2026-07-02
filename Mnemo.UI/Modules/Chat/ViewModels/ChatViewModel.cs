@@ -52,6 +52,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     private readonly IOverlayService _overlayService;
     private readonly ISettingsService _settingsService;
     private readonly ISkillSystemPromptComposer _skillSystemPromptComposer;
+    private readonly IAiSystemMonitor _aiSystemMonitor;
     private readonly ChatTypingPrefetchHelper _typingPrefetch;
     private readonly IChatModuleHistoryService _chatHistoryService;
     private readonly IChatHistoryClearService _chatHistoryClearService;
@@ -154,16 +155,55 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     /// <summary>Compact quick-action pills shown above the landing composer; sends the prompt on click.</summary>
     public ObservableCollection<ChatLandingSuggestionViewModel> LandingQuickActions { get; } = new();
 
-    private bool _isWebSearchEnabled;
-    /// <summary>When true, the user has toggled the "Web Search" affordance in the composer (UI state; orchestration wiring TBD).</summary>
+    private const string WebSearchEnabledKey = "AI.WebSearch.Enabled";
+
+    private bool _isWebSearchEnabled = true;
+    /// <summary>
+    /// Mirrors the global <c>AI.WebSearch.Enabled</c> setting: toggling this in
+    /// the composer enables/disables the assistant's web-search tool for every
+    /// conversation, same as the Settings page control.
+    /// </summary>
     public bool IsWebSearchEnabled
     {
         get => _isWebSearchEnabled;
-        set => SetProperty(ref _isWebSearchEnabled, value);
+        set
+        {
+            if (!SetProperty(ref _isWebSearchEnabled, value))
+                return;
+            if (_suppressWebSearchSettingWrite)
+                return;
+            _ = _settingsService.SetAsync(WebSearchEnabledKey, value);
+        }
     }
+
+    /// <summary>Guards against re-writing the setting while applying a value loaded from it.</summary>
+    private bool _suppressWebSearchSettingWrite;
 
     /// <summary>True when the empty-state welcome + suggestions should show (no user messages in the thread yet).</summary>
     public bool ShowWelcomeIntro => _isHistoryReady && !Messages.Any(m => m.IsUser);
+
+    private static readonly Avalonia.Media.IBrush AiOfflineBrush =
+        new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#9CA3AF"));
+    private static readonly Avalonia.Media.IBrush AiWarmingBrush =
+        new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F59E0B"));
+    private static readonly Avalonia.Media.IBrush AiReadyBrush =
+        new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#22C55E"));
+
+    private Avalonia.Media.IBrush _aiStatusBrush = AiOfflineBrush;
+    /// <summary>Dot color of the model pill: gray offline, amber warming, green ready.</summary>
+    public Avalonia.Media.IBrush AiStatusBrush
+    {
+        get => _aiStatusBrush;
+        private set => SetProperty(ref _aiStatusBrush, value);
+    }
+
+    private string _aiStatusTooltip = string.Empty;
+    /// <summary>Localized readiness description shown when hovering the model pill.</summary>
+    public string AiStatusTooltip
+    {
+        get => _aiStatusTooltip;
+        private set => SetProperty(ref _aiStatusTooltip, value);
+    }
 
     private bool _showMemoryPill;
     /// <summary>True when this thread has working memory, a rolling summary, or long-term recall.</summary>
@@ -270,6 +310,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         IOverlayService overlayService,
         ISettingsService settingsService,
         ISkillSystemPromptComposer skillSystemPromptComposer,
+        IAiSystemMonitor aiSystemMonitor,
         ChatPauseToSendEstimator pauseToSendEstimator,
         IChatModuleHistoryService chatHistoryService,
         IChatHistoryClearService chatHistoryClearService,
@@ -283,13 +324,18 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         _overlayService = overlayService;
         _settingsService = settingsService;
         _skillSystemPromptComposer = skillSystemPromptComposer;
+        _aiSystemMonitor = aiSystemMonitor;
+        _aiSystemMonitor.StateChanged += OnAiSystemStateChanged;
         _chatHistoryService = chatHistoryService;
         _chatHistoryClearService = chatHistoryClearService;
         _chatHistoryClearService.Cleared += OnChatHistoryClearServiceCleared;
         _memoryStore = memoryStore;
         _memorySummarizer = memorySummarizer;
         _memoryInjector = memoryInjector;
-        _typingPrefetch = new ChatTypingPrefetchHelper(pauseToSendEstimator);
+        // Typing is the strongest "about to ask the AI" signal we get; use it to
+        // heat the chat models so Send never waits on a cold load.
+        _typingPrefetch = new ChatTypingPrefetchHelper(pauseToSendEstimator, _aiSystemMonitor.WarmChatModels);
+        RefreshAiStatusUi(_aiSystemMonitor.State);
 
         SendMessageCommand = new AsyncRelayCommand(SendMessageAsync, () => !string.IsNullOrWhiteSpace(InputText) && !IsBusy && _isHistoryReady);
         StopCommand = new RelayCommand(StopGeneration, () => IsBusy);
@@ -316,6 +362,26 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         _settingsService.SettingChanged += OnSettingsServiceSettingChanged;
         _localizationService.LanguageChanged += OnLocalizationLanguageChanged;
         _ = LoadGreetingNameAsync();
+        _ = LoadWebSearchEnabledAsync();
+    }
+
+    private async Task LoadWebSearchEnabledAsync()
+    {
+        try
+        {
+            var enabled = await _settingsService.GetAsync(WebSearchEnabledKey, true).ConfigureAwait(false);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (_disposed) return;
+                _suppressWebSearchSettingWrite = true;
+                IsWebSearchEnabled = enabled;
+                _suppressWebSearchSettingWrite = false;
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Chat", $"Failed to load web search setting: {ex}");
+        }
     }
 
     private void RefreshLandingSuggestions()
@@ -390,6 +456,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     {
         if (key is UserDisplayNameKey or UserProfilePictureKey)
             _ = LoadGreetingNameAsync();
+        else if (key == WebSearchEnabledKey)
+            _ = LoadWebSearchEnabledAsync();
     }
 
     private void OnLocalizationLanguageChanged(object? sender, EventArgs e)
@@ -399,6 +467,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             RefreshLandingSuggestions();
             OnPropertyChanged(nameof(GreetingText));
             OnPropertyChanged(nameof(GreetingSubtitle));
+            RefreshAiStatusUi(_aiSystemMonitor.State);
         });
     }
 
@@ -416,9 +485,37 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     /// <inheritdoc />
     public void OnNavigatedTo(object? parameter)
     {
+        // Opening the chat is a strong signal a request is coming: start
+        // heating the chat models now so the first Send has no cold start.
+        _aiSystemMonitor.WarmChatModels();
         if (_historyLoadStarted) return;
         _historyLoadStarted = true;
         _ = LoadHistoryAsync();
+    }
+
+    private void OnAiSystemStateChanged(object? sender, AiSystemState state)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_disposed)
+                RefreshAiStatusUi(state);
+        });
+    }
+
+    private void RefreshAiStatusUi(AiSystemState state)
+    {
+        AiStatusBrush = state switch
+        {
+            AiSystemState.Ready => AiReadyBrush,
+            AiSystemState.Warming => AiWarmingBrush,
+            _ => AiOfflineBrush,
+        };
+        AiStatusTooltip = state switch
+        {
+            AiSystemState.Ready => _localizationService.T("ModelStatusReady", "Chat"),
+            AiSystemState.Warming => _localizationService.T("ModelStatusWarming", "Chat"),
+            _ => _localizationService.T("ModelStatusOffline", "Chat"),
+        };
     }
 
     /// <summary>Called by the view when scroll position changes; updates <see cref="ShowScrollToBottomButton"/> and auto-scroll attachment.</summary>
@@ -1337,13 +1434,25 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             var reveal = await _settingsService.GetAsync("Chat.StreamingReveal", "balanced").ConfigureAwait(false);
             var displayOptions = ChatStreamingDisplayOptions.Parse(reveal);
 
+            // Each call surfaces twice (Running → Completed/Failed); count it once.
+            var seenToolCallIds = new HashSet<string>(StringComparer.Ordinal);
             Action<ChatToolCall> onToolCall = tc =>
             {
-                toolCallCount++;
+                bool isNewCall;
+                lock (seenToolCallIds)
+                {
+                    isNewCall = string.IsNullOrEmpty(tc.ToolCallId)
+                        ? tc.Stage == ChatToolCallStage.Running
+                        : seenToolCallIds.Add(tc.ToolCallId);
+                }
+
+                if (isNewCall)
+                    toolCallCount++;
                 Dispatcher.UIThread.Post(() =>
                 {
                     processThread?.AddToolCall(tc, k => _localizationService.T(k, "Chat"));
-                    aiMessage.ThoughtsCount += 1;
+                    if (isNewCall)
+                        aiMessage.ThoughtsCount += 1;
                 }, DispatcherPriority.Background);
             };
 
@@ -1602,6 +1711,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         _chatHistoryClearService.Cleared -= OnChatHistoryClearServiceCleared;
         _settingsService.SettingChanged -= OnSettingsServiceSettingChanged;
         _localizationService.LanguageChanged -= OnLocalizationLanguageChanged;
+        _aiSystemMonitor.StateChanged -= OnAiSystemStateChanged;
         _disposed = true;
         if (_messagesSubscriptionTarget != null)
             _messagesSubscriptionTarget.CollectionChanged -= OnMessagesCollectionChanged;

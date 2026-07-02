@@ -258,15 +258,19 @@ public partial class SettingsViewModel : ViewModelBase
                     : result.ErrorMessage ?? "Failed";
             }));
 
-        // Web search group
+        // Web search group. Enabled by default via DuckDuckGo (no key/signup
+        // required) so the assistant has a working tool out of the box — a
+        // model with zero tools available otherwise has no way to answer
+        // current-events questions except by hallucinating one.
         var webSearchGroup = new SettingsGroupViewModel(T("WebSearch"), isCollapsible: true);
-        webSearchGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.WebSearch.Enabled", T("WebSearchEnabled"), T("WebSearchEnabledDescription"), false));
+        webSearchGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.WebSearch.Enabled", T("WebSearchEnabled"), T("WebSearchEnabledDescription"), true));
         webSearchGroup.Items.Add(new DropdownSettingViewModel(
             _settingsService,
             "AI.WebSearch.Provider",
             T("WebSearchProvider"),
             T("WebSearchProviderDescription"),
-            new[] { "None", "DuckDuckGo", "SearXNG", "Brave" }));
+            new[] { "None", "DuckDuckGo", "SearXNG", "Brave" },
+            defaultStorageValue: "DuckDuckGo"));
         webSearchGroup.Items.Add(new TextSettingViewModel(_settingsService, "AI.WebSearch.SearxngUrl", T("SearxngUrl"), T("SearxngUrlDescription"), "http://localhost:8888"));
         webSearchGroup.Items.Add(new TextSettingViewModel(_settingsService, "AI.WebSearch.BraveApiKey", T("BraveApiKey"), T("BraveApiKeyDescription"), ""));
 

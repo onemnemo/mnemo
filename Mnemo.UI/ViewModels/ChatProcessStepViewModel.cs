@@ -13,6 +13,33 @@ public enum ChatProcessPhaseKind
 
 public class ChatToolCallViewModel : ViewModelBase
 {
+    private bool _isRunning;
+    /// <summary>True while the tool is executing (spinner state).</summary>
+    public bool IsRunning
+    {
+        get => _isRunning;
+        set
+        {
+            if (SetProperty(ref _isRunning, value))
+                OnPropertyChanged(nameof(IsSucceeded));
+        }
+    }
+
+    private bool _isFailed;
+    /// <summary>True when the tool was rejected or failed (error state).</summary>
+    public bool IsFailed
+    {
+        get => _isFailed;
+        set
+        {
+            if (SetProperty(ref _isFailed, value))
+                OnPropertyChanged(nameof(IsSucceeded));
+        }
+    }
+
+    /// <summary>True once the tool completed successfully (checkmark state).</summary>
+    public bool IsSucceeded => !_isRunning && !_isFailed;
+
     private string _name = string.Empty;
     public string Name
     {

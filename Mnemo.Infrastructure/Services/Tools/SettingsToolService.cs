@@ -44,8 +44,8 @@ public sealed class SettingsToolService
         ["Editor.Width"] = new("Editor", true, "Wide", v => v?.ToString() ?? "Wide"),
         ["AI.EnableAssistant"] = new("AI", true, false, CoerceBool),
         ["AI.AgentMode"] = new("AI", true, true, CoerceBool),
-        ["AI.WebSearch.Enabled"] = new("AI", true, false, CoerceBool),
-        ["AI.WebSearch.Provider"] = new("AI", true, "None", v => v?.ToString() ?? "None"),
+        ["AI.WebSearch.Enabled"] = new("AI", true, true, CoerceBool),
+        ["AI.WebSearch.Provider"] = new("AI", true, "DuckDuckGo", v => v?.ToString() ?? "DuckDuckGo"),
     };
 
     private sealed record SettingDescriptor(

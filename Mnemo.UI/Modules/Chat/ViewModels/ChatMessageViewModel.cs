@@ -28,7 +28,11 @@ public class ChatMessageViewModel : ViewModelBase
         set
         {
             if (SetProperty(ref _content, value))
+            {
                 OnPropertyChanged(nameof(HasCopiableAssistantContent));
+                OnPropertyChanged(nameof(IsActivelyThinking));
+                OnPropertyChanged(nameof(HasFinishedThinking));
+            }
         }
     }
 
@@ -61,6 +65,8 @@ public class ChatMessageViewModel : ViewModelBase
                 OnPropertyChanged(nameof(IsThinking));
                 OnPropertyChanged(nameof(HasProcessThreadOrThoughts));
                 OnPropertyChanged(nameof(HasSubstantiveProcessThread));
+                OnPropertyChanged(nameof(IsActivelyThinking));
+                OnPropertyChanged(nameof(HasFinishedThinking));
             }
         }
     }
@@ -136,6 +142,17 @@ public class ChatMessageViewModel : ViewModelBase
 
     public bool IsThinking => !string.IsNullOrEmpty(Thoughts);
 
+    /// <summary>
+    /// True while the model's reasoning trace is the only thing being
+    /// produced — distinct from the "generating response" phase, which starts
+    /// the moment visible <see cref="Content"/> begins to arrive. Drives the
+    /// live "Thinking" indicator so the two states never look merged.
+    /// </summary>
+    public bool IsActivelyThinking => IsThinking && IsStreaming && Content.Length == 0;
+
+    /// <summary>True once the model has moved on from reasoning to producing (or has finished) its final reply.</summary>
+    public bool HasFinishedThinking => IsThinking && !IsActivelyThinking;
+
     private string? _pipelineStatusText;
     /// <summary>Localized pipeline label while routing or loading the model (cleared when reply text appears).</summary>
     public string? PipelineStatusText
@@ -176,7 +193,11 @@ public class ChatMessageViewModel : ViewModelBase
         set
         {
             if (SetProperty(ref _isStreaming, value))
+            {
                 OnPropertyChanged(nameof(HasCopiableAssistantContent));
+                OnPropertyChanged(nameof(IsActivelyThinking));
+                OnPropertyChanged(nameof(HasFinishedThinking));
+            }
         }
     }
 

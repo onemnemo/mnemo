@@ -344,7 +344,13 @@
     "Suggestion2Prompt": "今日の心理学入門の講義の書き起こしを要約して",
     "Suggestion3Title": "クイズを出して",
     "Suggestion3Description": "ヨーロッパ史の中間試験対策ガイドの理解度をテスト",
-    "Suggestion3Prompt": "ヨーロッパ史の中間試験対策ガイドについてクイズを出して"
+    "Suggestion3Prompt": "ヨーロッパ史の中間試験対策ガイドについてクイズを出して",
+    "ToolCallRunning": "実行中…",
+    "ToolCallFailed": "失敗",
+    "ModelStatusReady": "Atlas は準備完了",
+    "ModelStatusWarming": "Atlas を準備中…",
+    "ModelStatusOffline": "Atlas はオフライン — モデルは初回使用時に読み込まれます",
+    "ThinkingLabel": "考え中"
   },
   "Notes": {
     "NewNote": "新しいノート",

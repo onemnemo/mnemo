@@ -344,7 +344,13 @@
     "Suggestion2Prompt": "Resume la transcripción de la clase de hoy de Introducción a la Psicología",
     "Suggestion3Title": "Ponme a prueba",
     "Suggestion3Description": "Evalúa mis conocimientos de la guía de estudio de Historia Europea",
-    "Suggestion3Prompt": "Hazme preguntas sobre la guía de estudio de Historia Europea"
+    "Suggestion3Prompt": "Hazme preguntas sobre la guía de estudio de Historia Europea",
+    "ToolCallRunning": "Ejecutando…",
+    "ToolCallFailed": "Falló",
+    "ModelStatusReady": "Atlas está listo",
+    "ModelStatusWarming": "Atlas se está preparando…",
+    "ModelStatusOffline": "Atlas está desconectado — los modelos se cargan al primer uso",
+    "ThinkingLabel": "Pensando"
   },
   "Notes": {
     "NewNote": "Nueva nota",
