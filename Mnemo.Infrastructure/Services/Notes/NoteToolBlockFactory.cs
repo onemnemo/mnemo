@@ -78,3 +78,8 @@ internal static class NoteToolBlockFactory
         b.Spans = InlineSpanFormatApplier.Normalize(list);
     }
 }
+
+
+
+
+

@@ -17,7 +17,6 @@ using Mnemo.Infrastructure.Services.AI;
 using Mnemo.Infrastructure.Services.Notes;
 using Mnemo.Infrastructure.Services.Notes.Pdf;
 using Mnemo.Infrastructure.Services.Flashcards;
-using Mnemo.Infrastructure.Services.Speech;
 using Mnemo.Infrastructure.Services.Statistics;
 using Mnemo.Infrastructure.Services.TextShortcuts;
 using Mnemo.Infrastructure.Services.Keybinds;
@@ -152,7 +151,6 @@ public static class Bootstrapper
         services.AddSingleton<IFlashcardScheduler, BaselineFlashcardScheduler>();
         services.AddSingleton<IFlashcardSchedulerResolver, FlashcardSchedulerResolver>();
         services.AddSingleton<IFlashcardDeckService, PersistentFlashcardDeckService>();
-        services.AddSingleton<ISpeechRecognitionService, WhisperSpeechRecognitionService>();
         services.AddSingleton<IMnemoPackageService, MnemoPackageService>();
         services.AddSingleton<IMnemoPayloadHandler, NotesMnemoPayloadHandler>();
         services.AddSingleton<IMnemoPayloadHandler, SettingsMnemoPayloadHandler>();

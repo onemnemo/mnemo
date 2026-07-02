@@ -43,7 +43,6 @@ public sealed class SettingsToolService
         ["Editor.SpellCheckLanguages"] = new("Editor", true, "en", v => v?.ToString() ?? "en"),
         ["Editor.Width"] = new("Editor", true, "Wide", v => v?.ToString() ?? "Wide"),
         ["AI.EnableAssistant"] = new("AI", true, false, CoerceBool),
-        ["AI.SmartUnitGeneration"] = new("AI", true, false, CoerceBool),
         ["AI.AgentMode"] = new("AI", true, true, CoerceBool),
         ["AI.WebSearch.Enabled"] = new("AI", true, false, CoerceBool),
         ["AI.WebSearch.Provider"] = new("AI", true, "None", v => v?.ToString() ?? "None"),

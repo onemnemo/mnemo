@@ -38,11 +38,18 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     /// <summary>Number of turns between automatic summarizations.</summary>
     private const int SummarizationInterval = 3;
 
+    /// <summary>Settings key for the user's display name (shared with Overview greeting).</summary>
+    private const string UserDisplayNameKey = "User.DisplayName";
+
+    /// <summary>Settings key for the user's profile picture (shared with Overview / Topbar).</summary>
+    private const string UserProfilePictureKey = "User.ProfilePicture";
+
+    private const string DefaultProfilePicture = "avares://Mnemo.UI/Assets/ProfilePictures/img2.png";
+
     private readonly IAIOrchestrator _orchestrator;
     private readonly ILoggerService _logger;
     private readonly ILocalizationService _localizationService;
     private readonly IOverlayService _overlayService;
-    private readonly ISpeechRecognitionService _speechService;
     private readonly ISettingsService _settingsService;
     private readonly ISkillSystemPromptComposer _skillSystemPromptComposer;
     private readonly ChatTypingPrefetchHelper _typingPrefetch;
@@ -63,14 +70,11 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     private ObservableCollection<ChatMessageViewModel>? _messagesSubscriptionTarget;
     private bool _disposed;
 
-    private string _welcomeIntroText = string.Empty;
+    /// <summary>User's display name for the landing greeting (empty until profile loads / when unset).</summary>
+    private string _greetingUserName = string.Empty;
 
     /// <summary>Zero-based turn counter within the current conversation, incremented each time a user message is sent.</summary>
     private int _turnIndex;
-
-    /// <summary>When recording started, if append mode: content that was in the input before dictation.</summary>
-    private string _inputTextBeforeRecording = string.Empty;
-    private bool _wipeInputForDictation;
 
     private string _inputText = string.Empty;
     public string InputText
@@ -81,7 +85,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             if (SetProperty(ref _inputText, value))
             {
                 ((AsyncRelayCommand)SendMessageCommand).NotifyCanExecuteChanged();
-                _typingPrefetch.NotifyInputChanged(IsBusy, IsRecording);
+                _typingPrefetch.NotifyInputChanged(IsBusy);
             }
         }
     }
@@ -128,15 +132,35 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
 
     public ObservableCollection<ChatConversationRowViewModel> ConversationRows { get; } = new();
 
-    /// <summary>Localized welcome copy for the intro panel (not part of <see cref="Messages"/>).</summary>
-    public string WelcomeIntroText
+    /// <summary>Greeting headline for the landing/empty state, e.g. "Ready to learn, Alex?" or a generic fallback.</summary>
+    public string GreetingText => string.IsNullOrWhiteSpace(_greetingUserName)
+        ? _localizationService.T("GreetingNoName", "Chat")
+        : string.Format(_localizationService.T("GreetingFormat", "Chat"), _greetingUserName.Trim());
+
+    /// <summary>Lighter subtitle shown under the greeting headline on the landing state.</summary>
+    public string GreetingSubtitle => _localizationService.T("GreetingSubtitle", "Chat");
+
+    private string _profilePicturePath = DefaultProfilePicture;
+    /// <summary>User's avatar shown beside their messages (shared setting with Overview / Topbar).</summary>
+    public string ProfilePicturePath
     {
-        get => _welcomeIntroText;
-        private set => SetProperty(ref _welcomeIntroText, value);
+        get => _profilePicturePath;
+        private set => SetProperty(ref _profilePicturePath, value);
     }
 
-    /// <summary>Suggestion chips for the welcome intro panel.</summary>
-    public ObservableCollection<string> WelcomeSuggestionList { get; } = new();
+    /// <summary>Rich suggestion cards (icon + title + description) shown on the landing/empty state.</summary>
+    public ObservableCollection<ChatLandingSuggestionViewModel> LandingSuggestions { get; } = new();
+
+    /// <summary>Compact quick-action pills shown above the landing composer; sends the prompt on click.</summary>
+    public ObservableCollection<ChatLandingSuggestionViewModel> LandingQuickActions { get; } = new();
+
+    private bool _isWebSearchEnabled;
+    /// <summary>When true, the user has toggled the "Web Search" affordance in the composer (UI state; orchestration wiring TBD).</summary>
+    public bool IsWebSearchEnabled
+    {
+        get => _isWebSearchEnabled;
+        set => SetProperty(ref _isWebSearchEnabled, value);
+    }
 
     /// <summary>True when the empty-state welcome + suggestions should show (no user messages in the thread yet).</summary>
     public bool ShowWelcomeIntro => _isHistoryReady && !Messages.Any(m => m.IsUser);
@@ -207,12 +231,11 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     public ICommand NewChatCommand { get; }
     public ICommand ToggleChatHistorySidebarCommand { get; }
     public ICommand SuggestionSelectedCommand { get; }
+    /// <summary>Fills the input with a suggestion prompt and immediately sends it (used by landing suggestion cards).</summary>
+    public ICommand SendSuggestionCommand { get; }
     public ICommand ScrollToBottomCommand { get; }
     public ICommand RemoveAttachmentCommand { get; }
     public ICommand OpenImagePreviewCommand { get; }
-    public ICommand StartRecordingCommand { get; }
-    public ICommand StopRecordingCommand { get; }
-    public ICommand CancelRecordingCommand { get; }
 
     public AsyncRelayCommand<ChatMessageViewModel> RegenerateAssistantMessageCommand { get; }
     public AsyncRelayCommand<ChatMessageViewModel> CopyAssistantMessageCommand { get; }
@@ -221,52 +244,21 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     public IRelayCommand<string> RenameChatCommand { get; }
 
     /// <summary>True when chat actions that must not overlap generation (e.g. regenerate) are allowed.</summary>
-    public bool CanUseChatActions => !IsBusy && !IsRecording;
+    public bool CanUseChatActions => !IsBusy;
 
     /// <summary>True when the user can switch threads or start a new chat from the history sidebar (streaming is cancelled on navigation).</summary>
-    public bool CanNavigateChatHistory => !IsRecording && _isHistoryReady;
+    public bool CanNavigateChatHistory => _isHistoryReady;
 
     /// <summary>True when history actions that must not overlap generation (delete, rename) are allowed.</summary>
-    public bool CanSwitchChatHistory => !IsBusy && !IsRecording && _isHistoryReady;
+    public bool CanSwitchChatHistory => !IsBusy && _isHistoryReady;
 
     /// <summary>Raised when the view should scroll to the end (e.g. after new message or user clicked "Scroll to bottom").</summary>
     public event EventHandler? RequestScrollToBottom;
 
     private CancellationTokenSource? _cts;
     private ChatMessageViewModel? _lastMessageSubscribed;
-    private CancellationTokenSource? _recordingDurationCts;
     /// <summary>Coalesces <see cref="RequestScrollToBottom"/> during token streaming so ScrollToEnd/layout does not run on every content tick.</summary>
     private DispatcherTimer? _scrollToBottomDebounceTimer;
-
-    private bool _isRecording;
-    public bool IsRecording
-    {
-        get => _isRecording;
-        set
-        {
-            if (SetProperty(ref _isRecording, value))
-            {
-                OnPropertyChanged(nameof(WatermarkText));
-                ((AsyncRelayCommand)StartRecordingCommand).NotifyCanExecuteChanged();
-                ((AsyncRelayCommand)StopRecordingCommand).NotifyCanExecuteChanged();
-                ((AsyncRelayCommand)CancelRecordingCommand).NotifyCanExecuteChanged();
-                ((AsyncRelayCommand)SendMessageCommand).NotifyCanExecuteChanged();
-                OnPropertyChanged(nameof(CanUseChatActions));
-                OnPropertyChanged(nameof(CanNavigateChatHistory));
-                OnPropertyChanged(nameof(CanSwitchChatHistory));
-                DeleteChatCommand.NotifyCanExecuteChanged();
-                RenameChatCommand.NotifyCanExecuteChanged();
-                RegenerateAssistantMessageCommand.NotifyCanExecuteChanged();
-            }
-        }
-    }
-
-    public string WatermarkText => IsRecording 
-        ? _localizationService.T("Listening", "Chat") 
-        : _localizationService.T("AskPlaceholder", "Chat");
-
-    private TimeSpan _recordingDuration;
-    public string RecordingDurationText => _recordingDuration.ToString(@"mm\:ss");
 
     private ChatSession? ActiveSession =>
         !string.IsNullOrEmpty(_conversationId) && _chatSessions.TryGetValue(_conversationId, out var s) ? s : null;
@@ -276,7 +268,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         ILoggerService logger,
         ILocalizationService localizationService,
         IOverlayService overlayService,
-        ISpeechRecognitionService speechService,
         ISettingsService settingsService,
         ISkillSystemPromptComposer skillSystemPromptComposer,
         ChatPauseToSendEstimator pauseToSendEstimator,
@@ -290,7 +281,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         _logger = logger;
         _localizationService = localizationService;
         _overlayService = overlayService;
-        _speechService = speechService;
         _settingsService = settingsService;
         _skillSystemPromptComposer = skillSystemPromptComposer;
         _chatHistoryService = chatHistoryService;
@@ -301,11 +291,12 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         _memoryInjector = memoryInjector;
         _typingPrefetch = new ChatTypingPrefetchHelper(pauseToSendEstimator);
 
-        SendMessageCommand = new AsyncRelayCommand(SendMessageAsync, () => !string.IsNullOrWhiteSpace(InputText) && !IsBusy && !IsRecording && _isHistoryReady);
+        SendMessageCommand = new AsyncRelayCommand(SendMessageAsync, () => !string.IsNullOrWhiteSpace(InputText) && !IsBusy && _isHistoryReady);
         StopCommand = new RelayCommand(StopGeneration, () => IsBusy);
-        NewChatCommand = new RelayCommand(NewChat, () => !IsRecording && _isHistoryReady);
+        NewChatCommand = new RelayCommand(NewChat, () => _isHistoryReady);
         ToggleChatHistorySidebarCommand = new RelayCommand(() => IsChatHistorySidebarOpen = !IsChatHistorySidebarOpen);
         SuggestionSelectedCommand = new RelayCommand<string>(ApplySuggestion);
+        SendSuggestionCommand = new AsyncRelayCommand<string>(SendSuggestionAsync);
         ScrollToBottomCommand = new RelayCommand(OnScrollToBottom);
         RemoveAttachmentCommand = new RelayCommand<ChatAttachmentViewModel>(a =>
         {
@@ -314,27 +305,110 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         });
         OpenImagePreviewCommand = new RelayCommand<string>(OpenImagePreview);
 
-        StartRecordingCommand = new AsyncRelayCommand(StartRecordingAsync, () => !IsBusy && !IsRecording);
-        StopRecordingCommand = new AsyncRelayCommand(StopRecordingAsync, () => IsRecording);
-        CancelRecordingCommand = new AsyncRelayCommand(CancelRecordingAsync, () => IsRecording);
-
         RegenerateAssistantMessageCommand = new AsyncRelayCommand<ChatMessageViewModel>(RegenerateAssistantMessageAsync, CanRegenerateAssistantMessage);
         CopyAssistantMessageCommand = new AsyncRelayCommand<ChatMessageViewModel>(CopyAssistantMessageAsync);
 
         DeleteChatCommand = new AsyncRelayCommand<string>(DeleteChatAsync, CanModifyChat);
         RenameChatCommand = new RelayCommand<string>(BeginRenameChat, CanModifyChat);
 
-        RefreshLocalizedWelcomeUi();
-        OnPropertyChanged(nameof(WatermarkText));
+        RefreshLandingSuggestions();
+
+        _settingsService.SettingChanged += OnSettingsServiceSettingChanged;
+        _localizationService.LanguageChanged += OnLocalizationLanguageChanged;
+        _ = LoadGreetingNameAsync();
     }
 
-    private void RefreshLocalizedWelcomeUi()
+    private void RefreshLandingSuggestions()
     {
-        WelcomeIntroText = _localizationService.T("WelcomeMessage", "Chat");
-        WelcomeSuggestionList.Clear();
-        WelcomeSuggestionList.Add(_localizationService.T("SuggestionExplain", "Chat"));
-        WelcomeSuggestionList.Add(_localizationService.T("SuggestionQuiz", "Chat"));
-        WelcomeSuggestionList.Add(_localizationService.T("SuggestionSummarize", "Chat"));
+        LandingSuggestions.Clear();
+        LandingSuggestions.Add(new ChatLandingSuggestionViewModel(
+            _localizationService.T("Suggestion1Title", "Chat"),
+            _localizationService.T("Suggestion1Prompt", "Chat"),
+            "avares://Mnemo.UI/Icons/Sidebar/flashcard.svg",
+            SendSuggestionCommand,
+            _localizationService.T("Suggestion1Description", "Chat"),
+            "#6366F1"));
+        LandingSuggestions.Add(new ChatLandingSuggestionViewModel(
+            _localizationService.T("Suggestion2Title", "Chat"),
+            _localizationService.T("Suggestion2Prompt", "Chat"),
+            "avares://Mnemo.UI/Icons/Common/file-text.svg",
+            SendSuggestionCommand,
+            _localizationService.T("Suggestion2Description", "Chat"),
+            "#3B82F6"));
+        LandingSuggestions.Add(new ChatLandingSuggestionViewModel(
+            _localizationService.T("Suggestion3Title", "Chat"),
+            _localizationService.T("Suggestion3Prompt", "Chat"),
+            "avares://Mnemo.UI/Icons/Common/pencil.svg",
+            SendSuggestionCommand,
+            _localizationService.T("Suggestion3Description", "Chat"),
+            "#10B981"));
+
+        LandingQuickActions.Clear();
+        LandingQuickActions.Add(new ChatLandingSuggestionViewModel(
+            _localizationService.T("QuickActionFlashcards", "Chat"),
+            _localizationService.T("QuickActionFlashcardsPrompt", "Chat"),
+            "avares://Mnemo.UI/Icons/Sidebar/flashcard.svg",
+            SendSuggestionCommand,
+            isPrimary: true));
+        LandingQuickActions.Add(new ChatLandingSuggestionViewModel(
+            _localizationService.T("QuickActionSummarize", "Chat"),
+            _localizationService.T("QuickActionSummarizePrompt", "Chat"),
+            "avares://Mnemo.UI/Icons/Common/file-text.svg",
+            SendSuggestionCommand));
+        LandingQuickActions.Add(new ChatLandingSuggestionViewModel(
+            _localizationService.T("QuickActionQuiz", "Chat"),
+            _localizationService.T("QuickActionQuizPrompt", "Chat"),
+            "avares://Mnemo.UI/Icons/Common/pencil.svg",
+            SendSuggestionCommand));
+        LandingQuickActions.Add(new ChatLandingSuggestionViewModel(
+            _localizationService.T("QuickActionConceptMap", "Chat"),
+            _localizationService.T("QuickActionConceptMapPrompt", "Chat"),
+            "avares://Mnemo.UI/Icons/Common/sitemap.svg",
+            SendSuggestionCommand));
+    }
+
+    private async Task LoadGreetingNameAsync()
+    {
+        try
+        {
+            var name = await _settingsService.GetAsync(UserDisplayNameKey, string.Empty).ConfigureAwait(false);
+            var picture = await _settingsService.GetAsync(UserProfilePictureKey, DefaultProfilePicture).ConfigureAwait(false);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _greetingUserName = name ?? string.Empty;
+                OnPropertyChanged(nameof(GreetingText));
+                ProfilePicturePath = string.IsNullOrWhiteSpace(picture) ? DefaultProfilePicture : picture;
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Chat", $"Failed to load greeting name: {ex}");
+        }
+    }
+
+    private void OnSettingsServiceSettingChanged(object? sender, string key)
+    {
+        if (key is UserDisplayNameKey or UserProfilePictureKey)
+            _ = LoadGreetingNameAsync();
+    }
+
+    private void OnLocalizationLanguageChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            RefreshLandingSuggestions();
+            OnPropertyChanged(nameof(GreetingText));
+            OnPropertyChanged(nameof(GreetingSubtitle));
+        });
+    }
+
+    private async Task SendSuggestionAsync(string? prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt) || IsBusy || !_isHistoryReady)
+            return;
+        InputText = prompt;
+        if (SendMessageCommand is AsyncRelayCommand send && send.CanExecute(null))
+            await send.ExecuteAsync(null).ConfigureAwait(false);
     }
 
     private void NotifyShowWelcomeIntroChanged() => OnPropertyChanged(nameof(ShowWelcomeIntro));
@@ -345,115 +419,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         if (_historyLoadStarted) return;
         _historyLoadStarted = true;
         _ = LoadHistoryAsync();
-    }
-
-    private void OnPartialTranscript(string text)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            InputText = _wipeInputForDictation
-                ? text
-                : string.IsNullOrWhiteSpace(_inputTextBeforeRecording)
-                    ? text
-                    : _inputTextBeforeRecording + (string.IsNullOrWhiteSpace(text) ? "" : " " + text);
-        });
-    }
-
-    private async Task StartRecordingAsync()
-    {
-        if (IsRecording) return;
-        _wipeInputForDictation = await _settingsService.GetAsync("Chat.WipeInputForDictation", false).ConfigureAwait(false);
-        _inputTextBeforeRecording = _wipeInputForDictation ? string.Empty : InputText;
-        try
-        {
-            await _speechService.StartRecordingAsync(CancellationToken.None, OnPartialTranscript).ConfigureAwait(false);
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                IsRecording = true;
-                _recordingDuration = TimeSpan.Zero;
-                OnPropertyChanged(nameof(RecordingDurationText));
-
-                _recordingDurationCts = new CancellationTokenSource();
-                var ct = _recordingDurationCts.Token;
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        while (!ct.IsCancellationRequested)
-                        {
-                            await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false);
-                            if (ct.IsCancellationRequested) break;
-                            Dispatcher.UIThread.Post(() =>
-                            {
-                                _recordingDuration = _recordingDuration.Add(TimeSpan.FromSeconds(1));
-                                OnPropertyChanged(nameof(RecordingDurationText));
-                            });
-                        }
-                    }
-                    catch (OperationCanceledException) { }
-                }, CancellationToken.None);
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.Error("Chat", $"Failed to start recording: {ex}");
-        }
-    }
-
-    private async Task StopRecordingAsync()
-    {
-        if (!IsRecording) return;
-
-        _recordingDurationCts?.Cancel();
-        _recordingDurationCts?.Dispose();
-        _recordingDurationCts = null;
-        IsRecording = false;
-
-        IsBusy = true;
-        try
-        {
-            var result = await _speechService.StopAndTranscribeAsync(CancellationToken.None).ConfigureAwait(false);
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                if (result.IsSuccess && !string.IsNullOrWhiteSpace(result.Value))
-                {
-                    InputText = _wipeInputForDictation
-                        ? result.Value
-                        : string.IsNullOrWhiteSpace(_inputTextBeforeRecording)
-                            ? result.Value
-                            : _inputTextBeforeRecording + " " + result.Value;
-                }
-                else if (!result.IsSuccess)
-                    _logger.Error("Chat", result.ErrorMessage ?? "Speech recognition failed.");
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.Error("Chat", $"Speech recognition failed: {ex}");
-        }
-        finally
-        {
-            await Dispatcher.UIThread.InvokeAsync(() => IsBusy = false);
-        }
-    }
-
-    private async Task CancelRecordingAsync()
-    {
-        if (!IsRecording) return;
-
-        _recordingDurationCts?.Cancel();
-        _recordingDurationCts?.Dispose();
-        _recordingDurationCts = null;
-
-        await _speechService.CancelRecordingAsync(CancellationToken.None).ConfigureAwait(false);
-
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            IsRecording = false;
-            _recordingDuration = TimeSpan.Zero;
-            OnPropertyChanged(nameof(RecordingDurationText));
-            InputText = _inputTextBeforeRecording;
-        });
     }
 
     /// <summary>Called by the view when scroll position changes; updates <see cref="ShowScrollToBottomButton"/> and auto-scroll attachment.</summary>
@@ -579,7 +544,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
 
     private void NewChat()
     {
-        if (!_isHistoryReady || IsRecording) return;
+        if (!_isHistoryReady) return;
         if (IsBusy)
             StopGeneration();
         EnterEphemeralConversation(persistIfLeavingMaterialized: true);
@@ -588,7 +553,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
 
     private void SelectConversationById(string id, bool persistBookends = true)
     {
-        if (!_isHistoryReady || IsRecording) return;
+        if (!_isHistoryReady) return;
         if (IsBusy)
             StopGeneration();
         if (id == _conversationId) return;
@@ -1251,7 +1216,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
 
     private async Task RegenerateAssistantMessageAsync(ChatMessageViewModel? assistantMessage)
     {
-        if (assistantMessage == null || assistantMessage.IsUser || IsBusy || IsRecording) return;
+        if (assistantMessage == null || assistantMessage.IsUser || IsBusy) return;
         var userMessage = FindPreviousUserMessage(assistantMessage);
         if (userMessage == null || string.IsNullOrWhiteSpace(userMessage.Content)) return;
 
@@ -1635,6 +1600,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     {
         if (_disposed) return;
         _chatHistoryClearService.Cleared -= OnChatHistoryClearServiceCleared;
+        _settingsService.SettingChanged -= OnSettingsServiceSettingChanged;
+        _localizationService.LanguageChanged -= OnLocalizationLanguageChanged;
         _disposed = true;
         if (_messagesSubscriptionTarget != null)
             _messagesSubscriptionTarget.CollectionChanged -= OnMessagesCollectionChanged;
@@ -1644,8 +1611,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         _scrollToBottomDebounceTimer = null;
         _cts?.Cancel();
         _cts?.Dispose();
-        _recordingDurationCts?.Cancel();
-        _recordingDurationCts?.Dispose();
         try
         {
             if (_isHistoryReady && _chatSessions.Count > 0)
@@ -1686,4 +1651,51 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
 
         public string? CustomTitle { get; set; }
     }
+}
+
+/// <summary>A landing-state suggestion (card or quick-action pill): icon + title, and a prompt sent on click.</summary>
+public sealed class ChatLandingSuggestionViewModel
+{
+    public ChatLandingSuggestionViewModel(
+        string title,
+        string prompt,
+        string iconPath,
+        ICommand command,
+        string? description = null,
+        string? iconColor = null,
+        bool isPrimary = false)
+    {
+        Title = title;
+        Prompt = prompt;
+        IconPath = iconPath;
+        Command = command;
+        Description = description ?? string.Empty;
+        IsPrimary = isPrimary;
+        IconBrush = iconColor != null && Avalonia.Media.Color.TryParse(iconColor, out var c)
+            ? new Avalonia.Media.SolidColorBrush(c)
+            : null;
+    }
+
+    /// <summary>Display text shown on the card / pill.</summary>
+    public string Title { get; }
+
+    /// <summary>Prompt sent when the item is clicked (also used as the command parameter).</summary>
+    public string Prompt { get; }
+
+    /// <summary>Optional secondary line shown on suggestion cards.</summary>
+    public string Description { get; }
+
+    public bool HasDescription => Description.Length > 0;
+
+    /// <summary>Resource URI of the icon.</summary>
+    public string IconPath { get; }
+
+    /// <summary>Optional fixed icon color for suggestion cards (falls back to theme brushes when null).</summary>
+    public Avalonia.Media.IBrush? IconBrush { get; }
+
+    /// <summary>True for the emphasized (filled) quick-action pill.</summary>
+    public bool IsPrimary { get; }
+
+    /// <summary>Command invoked on click, with <see cref="Prompt"/> as the parameter.</summary>
+    public ICommand Command { get; }
 }

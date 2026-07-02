@@ -18,7 +18,6 @@ public partial class PathDetailViewModel : ViewModelBase, INavigationAware, IDis
     private readonly ILearningPathService _pathService;
     private readonly IAITaskManager _taskManager;
     private readonly IAIOrchestrator _orchestrator;
-    private readonly ISettingsService _settings;
     private readonly ILoggerService _logger;
     private readonly IStatisticsManager _statistics;
 
@@ -27,21 +26,6 @@ public partial class PathDetailViewModel : ViewModelBase, INavigationAware, IDis
 
     [ObservableProperty]
     private LearningUnit? _selectedUnit;
-
-    async partial void OnSelectedUnitChanged(LearningUnit? value)
-    {
-        if (value == null) return;
-
-        // If smart generation is on and unit is not generated, trigger it
-        if (!value.IsCompleted && value.Status != AITaskStatus.Running)
-        {
-            bool smartGen = await _settings.GetAsync("AI.SmartUnitGeneration", false);
-            if (smartGen)
-            {
-                await GenerateUnitAsync(value);
-            }
-        }
-    }
 
     [ObservableProperty]
     private bool _isSidebarOpen = true;
@@ -52,14 +36,12 @@ public partial class PathDetailViewModel : ViewModelBase, INavigationAware, IDis
         ILearningPathService pathService,
         IAITaskManager taskManager,
         IAIOrchestrator orchestrator,
-        ISettingsService settings,
         ILoggerService logger,
         IStatisticsManager statistics)
     {
         _pathService = pathService;
         _taskManager = taskManager;
         _orchestrator = orchestrator;
-        _settings = settings;
         _logger = logger;
         _statistics = statistics;
 

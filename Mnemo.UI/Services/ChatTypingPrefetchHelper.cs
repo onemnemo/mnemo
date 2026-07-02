@@ -19,7 +19,7 @@ public sealed class ChatTypingPrefetchHelper
     }
 
     /// <summary>Call when chat input text changes.</summary>
-    public void NotifyInputChanged(bool isBusy, bool isRecording)
+    public void NotifyInputChanged(bool isBusy)
     {
         _lastKeystrokeUtc = DateTime.UtcNow;
     }

@@ -107,25 +107,16 @@
   </ItemGroup>
 
   <!--
-    Whisper.net.Runtime copies runtimes/* for every OS when TFM is plain net10.0.
-    PvRecorder copies lib/{linux,mac,raspberry-pi,windows} for every OS.
+    Some NuGet packages (e.g. ONNX runtime) copy runtimes/* for every OS when TFM is plain net10.0.
     After publish, drop foreign RID / arch trees so portable/installer zips stay small.
   -->
   <Target Name="TrimPublishRuntimesToCurrentRid" AfterTargets="Publish">
-    <!-- runtimes/: default folder name matches RID; Whisper uses macos-* (RID is osx-*). -->
     <PropertyGroup>
       <_Rid>$(RuntimeIdentifier)</_Rid>
       <_KeepRuntimeDir>$(_Rid)</_KeepRuntimeDir>
       <_KeepRuntimeDir Condition="'$(_Rid)' == 'osx-x64'">macos-x64</_KeepRuntimeDir>
       <_KeepRuntimeDir Condition="'$(_Rid)' == 'osx-arm64'">macos-arm64</_KeepRuntimeDir>
       <_RtDir>$([System.IO.Path]::Combine('$(PublishDir)', 'runtimes'))</_RtDir>
-      <_LibLinux>$([System.IO.Path]::Combine('$(PublishDir)', 'lib', 'linux'))</_LibLinux>
-      <_LibMac>$([System.IO.Path]::Combine('$(PublishDir)', 'lib', 'mac'))</_LibMac>
-      <_LibRaspberryPi>$([System.IO.Path]::Combine('$(PublishDir)', 'lib', 'raspberry-pi'))</_LibRaspberryPi>
-      <_LibWindows>$([System.IO.Path]::Combine('$(PublishDir)', 'lib', 'windows'))</_LibWindows>
-      <_LibWinArm64>$([System.IO.Path]::Combine('$(PublishDir)', 'lib', 'windows', 'arm64'))</_LibWinArm64>
-      <_LibMacArm64>$([System.IO.Path]::Combine('$(PublishDir)', 'lib', 'mac', 'arm64'))</_LibMacArm64>
-      <_LibMacX64>$([System.IO.Path]::Combine('$(PublishDir)', 'lib', 'mac', 'x86_64'))</_LibMacX64>
     </PropertyGroup>
     <ItemGroup Condition="'$(_Rid)' != '' and Exists('$(_RtDir)')">
       <_RuntimeSubdir Include="$([System.IO.Directory]::GetDirectories('$(_RtDir)'))" />
@@ -134,21 +125,5 @@
       <_RuntimeSubdirToDelete Include="@(_RuntimeSubdir)" Condition="'%(Filename)' != '$(_KeepRuntimeDir)'" />
     </ItemGroup>
     <RemoveDir Directories="@(_RuntimeSubdirToDelete)" Condition="'@(_RuntimeSubdirToDelete)' != ''" />
-    <!-- lib/ (PvRecorder): keep only the native tree for this RID. -->
-    <RemoveDir Directories="$(_LibLinux)" Condition="'$(_Rid)' == 'win-x64' and Exists('$(_LibLinux)')" />
-    <RemoveDir Directories="$(_LibMac)" Condition="'$(_Rid)' == 'win-x64' and Exists('$(_LibMac)')" />
-    <RemoveDir Directories="$(_LibRaspberryPi)" Condition="'$(_Rid)' == 'win-x64' and Exists('$(_LibRaspberryPi)')" />
-    <RemoveDir Directories="$(_LibWinArm64)" Condition="'$(_Rid)' == 'win-x64' and Exists('$(_LibWinArm64)')" />
-    <RemoveDir Directories="$(_LibMac)" Condition="'$(_Rid)' == 'linux-x64' and Exists('$(_LibMac)')" />
-    <RemoveDir Directories="$(_LibRaspberryPi)" Condition="'$(_Rid)' == 'linux-x64' and Exists('$(_LibRaspberryPi)')" />
-    <RemoveDir Directories="$(_LibWindows)" Condition="'$(_Rid)' == 'linux-x64' and Exists('$(_LibWindows)')" />
-    <RemoveDir Directories="$(_LibLinux)" Condition="'$(_Rid)' == 'osx-x64' and Exists('$(_LibLinux)')" />
-    <RemoveDir Directories="$(_LibRaspberryPi)" Condition="'$(_Rid)' == 'osx-x64' and Exists('$(_LibRaspberryPi)')" />
-    <RemoveDir Directories="$(_LibWindows)" Condition="'$(_Rid)' == 'osx-x64' and Exists('$(_LibWindows)')" />
-    <RemoveDir Directories="$(_LibMacArm64)" Condition="'$(_Rid)' == 'osx-x64' and Exists('$(_LibMacArm64)')" />
-    <RemoveDir Directories="$(_LibLinux)" Condition="'$(_Rid)' == 'osx-arm64' and Exists('$(_LibLinux)')" />
-    <RemoveDir Directories="$(_LibRaspberryPi)" Condition="'$(_Rid)' == 'osx-arm64' and Exists('$(_LibRaspberryPi)')" />
-    <RemoveDir Directories="$(_LibWindows)" Condition="'$(_Rid)' == 'osx-arm64' and Exists('$(_LibWindows)')" />
-    <RemoveDir Directories="$(_LibMacX64)" Condition="'$(_Rid)' == 'osx-arm64' and Exists('$(_LibMacX64)')" />
   </Target>
 </Project>

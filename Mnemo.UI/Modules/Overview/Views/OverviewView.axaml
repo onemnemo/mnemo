@@ -19,14 +19,13 @@
         <converters:RowSpanToHeightConverter x:Key="RowSpanToHeightConverter"/>
         <converters:EditModeConverter x:Key="EditModeConverter"/>
         <converters:PathToImageConverter x:Key="PathToImageConverter"/>
-        <converters:ContentPaddingWhenSidebarConverter x:Key="ContentPaddingWhenSidebarConverter"/>
     </UserControl.Resources>
 
     <Grid>
         <!-- Dashboard Canvas: right padding shrinks when sidebar is open so content is not blocked -->
         <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Hidden"
-                      Padding="{Binding IsRightSidebarCollapsed, RelativeSource={RelativeSource AncestorType=views:MainWindow}, Converter={StaticResource ContentPaddingWhenSidebarConverter}}">
+                      Padding="40,24,40,24">
             <StackPanel Spacing="28">
                 <!-- Header: Avatar | Title + Greeting | Edit toolbar -->
                 <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,4">

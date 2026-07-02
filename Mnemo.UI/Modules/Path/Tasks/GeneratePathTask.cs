@@ -20,7 +20,6 @@ public class GeneratePathTask : AITaskBase
     private readonly string[] _filePaths;
     private readonly IAIOrchestrator _orchestrator;
     private readonly ILearningPathService _pathService;
-    private readonly ISettingsService _settings;
     private readonly ILoggerService _logger;
 
     private LearningPath? _generatedPath;
@@ -34,7 +33,6 @@ public class GeneratePathTask : AITaskBase
         string[] filePaths,
         IAIOrchestrator orchestrator,
         ILearningPathService pathService,
-        ISettingsService settings,
         ILoggerService logger)
     {
         _topic = topic;
@@ -42,7 +40,6 @@ public class GeneratePathTask : AITaskBase
         _filePaths = filePaths;
         _orchestrator = orchestrator;
         _pathService = pathService;
-        _settings = settings;
         _logger = logger;
 
         _steps.Add(new GenerateStructureStep(this));
@@ -52,11 +49,7 @@ public class GeneratePathTask : AITaskBase
     {
         if (_generatedPath == null) return;
 
-        bool smartGen = await _settings.GetAsync("AI.SmartUnitGeneration", false);
-
-        var unitsToGenerate = smartGen ? _generatedPath.Units.Take(1) : _generatedPath.Units;
-
-        foreach (var unit in unitsToGenerate)
+        foreach (var unit in _generatedPath.Units)
         {
             if (unit.Status != AITaskStatus.Completed)
             {

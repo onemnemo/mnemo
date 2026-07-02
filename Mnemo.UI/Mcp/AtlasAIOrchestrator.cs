@@ -55,6 +55,7 @@ public sealed class AtlasAIOrchestrator : IAIOrchestrator
             Permissions: MnemoFullPermissions)
         {
             AgentMode = false,
+            SystemPrompt = NullIfBlank(systemPrompt),
         };
 
         try
@@ -93,6 +94,7 @@ public sealed class AtlasAIOrchestrator : IAIOrchestrator
             Metadata: metadata)
         {
             AgentMode = false,
+            SystemPrompt = NullIfBlank(systemPrompt),
         };
 
         try
@@ -137,8 +139,25 @@ public sealed class AtlasAIOrchestrator : IAIOrchestrator
             SessionId: conversationRoutingKey)
         {
             AgentMode = agentMode,
+            SystemPrompt = NullIfBlank(systemPrompt),
             OnToken = token => finalContent = (finalContent ?? string.Empty) + token,
             OnActivity = entry => pipelineStatus?.Report(MapActivity(entry)),
+            OnToolCall = activity =>
+            {
+                if (onToolCall == null)
+                    return;
+                // Surface the call once it has a result so the UI shows arguments + output.
+                if (activity.Stage is ToolCallStage.Completed or ToolCallStage.Failed)
+                {
+                    onToolCall(new ChatToolCall
+                    {
+                        ToolCallId = activity.CallId,
+                        Name = activity.ToolName,
+                        ArgumentsJson = activity.ArgumentsJson,
+                        ResultContent = activity.ResultContent,
+                    });
+                }
+            },
         };
 
         PipelineResult? result = null;
@@ -197,11 +216,17 @@ public sealed class AtlasAIOrchestrator : IAIOrchestrator
         return sb.ToString();
     }
 
+    private static string? NullIfBlank(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
+
     /// <summary>Maps an Atlas <see cref="ActivityEntry"/> to a Mnemo pipeline-status key.</summary>
     private static string MapActivity(ActivityEntry entry) => entry.Phase switch
     {
         ActivityPhase.Routing => ChatPipelineStatusKeys.Routing,
+        ActivityPhase.Planning => ChatPipelineStatusKeys.Classifying,
         ActivityPhase.Searching => ChatPipelineStatusKeys.Processing,
+        ActivityPhase.ExecutingTool => ChatPipelineStatusKeys.RunningTool(
+            string.IsNullOrWhiteSpace(entry.Detail) ? "tool" : entry.Detail),
         ActivityPhase.Generating => ChatPipelineStatusKeys.Generating,
         _ => ChatPipelineStatusKeys.Processing,
     };

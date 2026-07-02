@@ -20,7 +20,6 @@ public class PathViewModel : ViewModelBase, IDisposable
     private readonly IAITaskManager _taskManager;
     private readonly IAIOrchestrator _orchestrator;
     private readonly ILearningPathService _pathService;
-    private readonly ISettingsService _settings;
     private readonly INavigationService _navigation;
     private readonly IOverlayService _overlay;
     private readonly ILoggerService _logger;
@@ -50,9 +49,8 @@ public class PathViewModel : ViewModelBase, IDisposable
 
     public PathViewModel(
         IAITaskManager taskManager, 
-        IAIOrchestrator orchestrator, 
+        IAIOrchestrator orchestrator,
         ILearningPathService pathService,
-        ISettingsService settings,
         INavigationService navigation,
         IOverlayService overlay,
         ILoggerService logger,
@@ -61,7 +59,6 @@ public class PathViewModel : ViewModelBase, IDisposable
         _taskManager = taskManager;
         _orchestrator = orchestrator;
         _pathService = pathService;
-        _settings = settings;
         _navigation = navigation;
         _overlay = overlay;
         _logger = logger;
@@ -197,7 +194,6 @@ public class PathViewModel : ViewModelBase, IDisposable
             files, 
             _orchestrator, 
             _pathService, 
-            _settings, 
             _logger);
 
         await _taskManager.QueueTaskAsync(task);

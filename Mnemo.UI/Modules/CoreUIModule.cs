@@ -4,8 +4,8 @@ using Mnemo.Core.Services;
 using Mnemo.Core.Services.Keybinds;
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Infrastructure.Services.Tools;
+using Mnemo.UI.Ai.Overlay;
 using Mnemo.UI.Components;
-using Mnemo.UI.Components.RightSidebar;
 using Mnemo.UI.Components.Sidebar;
 using Mnemo.UI.Services;
 using Mnemo.UI.ViewModels;
@@ -19,8 +19,11 @@ public class CoreUIModule : IModule
         services.AddSingleton<ChatPauseToSendEstimator>();
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<SidebarViewModel>();
-        services.AddTransient<RightSidebarViewModel>();
         services.AddTransient<TopbarViewModel>();
+
+        // Centralized AI assistant: one engine, reachable anywhere via the Ask overlay.
+        services.AddSingleton<IAssistantOverlayService, AssistantOverlayService>();
+        services.AddTransient<AskOverlayViewModel>();
     }
 
     public void RegisterTranslationSources(ITranslationSourceRegistry registry)
@@ -65,6 +68,27 @@ public class CoreUIModule : IModule
                 {
                     Kind = KeybindBindingKind.Chord,
                     Chord = CanonicalKeyGestureCodec.ParseChord("Primary+K")
+                }
+            ]
+        });
+
+        registry.Register(new KeybindActionDefinition
+        {
+            ActionId = "global.assistant",
+            Namespace = "global",
+            Scope = KeybindScope.Global,
+            Module = "core",
+            DisplayLabelKey = "global.assistant",
+            DisplayDescriptionKey = "global.assistant.description",
+            DisplayCategoryKey = "category.general",
+            AllowedDuringTextCapture = true,
+            ToggleOnRepeat = true,
+            Bindings =
+            [
+                new KeybindBindingEntry
+                {
+                    Kind = KeybindBindingKind.Chord,
+                    Chord = CanonicalKeyGestureCodec.ParseChord("Primary+J")
                 }
             ]
         });

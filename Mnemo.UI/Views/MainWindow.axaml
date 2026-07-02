@@ -4,7 +4,6 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:sidebar="using:Mnemo.UI.Components.Sidebar"
-        xmlns:rightsidebar="using:Mnemo.UI.Components.RightSidebar"
         xmlns:components="using:Mnemo.UI.Components"
         xmlns:controls="using:Mnemo.UI.Controls"
         xmlns:converters="using:Mnemo.UI.Converters"
@@ -23,41 +22,20 @@
 
 <Border CornerRadius="8" Background="{DynamicResource WorkspaceBackgroundBrush}" ClipToBounds="True">
     <Grid>
-        <!-- Actual Application Content: 3 columns when sidebar expanded, right column has 0 width when collapsed -->
-        <Grid RowDefinitions="Auto,*" ColumnDefinitions="Auto,*,Auto">
+        <!-- Application content: left navigation + topbar + module host -->
+        <Grid RowDefinitions="Auto,*" ColumnDefinitions="Auto,*">
             <!-- Left Sidebar -->
             <sidebar:Sidebar Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" DataContext="{Binding SidebarViewModel}"/>
 
             <!-- Topbar -->
             <components:Topbar Grid.Row="0" Grid.Column="1" PointerPressed="Window_PointerPressed" DataContext="{Binding TopbarViewModel}"/>
 
-            <!-- Main Content: full width; resize handle overlays right edge when sidebar open (does not take layout space) -->
+            <!-- Main Content -->
             <Grid Grid.Row="1" Grid.Column="1">
                 <components:WorkspaceKeybindHost>
                     <ContentControl Content="{Binding Navigation.CurrentViewModel}"/>
                 </components:WorkspaceKeybindHost>
-                <Border HorizontalAlignment="Right"
-                        Width="12"
-                        IsVisible="{Binding RightSidebarViewModel.ShowResizeHandle}"
-                        Background="Transparent"
-                        Cursor="SizeWestEast"
-                        PointerPressed="SidebarResizeHandle_PointerPressed"
-                        PointerMoved="SidebarResizeHandle_PointerMoved"
-                        PointerReleased="SidebarResizeHandle_PointerReleased"
-                        PointerCaptureLost="SidebarResizeHandle_PointerCaptureLost">
-                    <Border Width="4" Height="40" CornerRadius="2"
-                            Background="{DynamicResource TextTertiaryBrush}"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            IsHitTestVisible="False"/>
-                </Border>
             </Grid>
-
-            <!-- Right Sidebar - Layout width excludes handle so main content gets that space -->
-            <rightsidebar:RightSidebar Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" 
-                                      DataContext="{Binding RightSidebarViewModel}"
-                                      Width="{Binding LayoutWidth}"
-                                      MinWidth="0"/>
         </Grid>
 
         <components:ToastHost ZIndex="9000"
@@ -67,23 +45,24 @@
                               MaxWidth="460"
                               DataContext="{Binding ToastPresenter}" />
 
+        <!-- Floating assistant access point: opens the centralized Ask overlay -->
         <Button HorizontalAlignment="Right"
                 VerticalAlignment="Bottom"
                 Margin="0,0,20,24"
-                Width="44"
-                Height="44"
+                Width="48"
+                Height="48"
                 Padding="0"
-                CornerRadius="22"
+                CornerRadius="24"
                 BorderThickness="0"
-                Background="{DynamicResource TopbarButtonBackgroundBrush}"
-                Foreground="{DynamicResource TopbarButtonForegroundBrush}"
-                Command="{Binding ToggleRightSidebarCommand}"
-                IsVisible="{Binding RightSidebarViewModel.ShowFloatingOpenButton}"
+                Background="{DynamicResource CardAccentBrush}"
+                Foreground="{DynamicResource AccentButtonIconBrush}"
+                Command="{Binding OpenAssistantCommand}"
+                IsVisible="{Binding IsAssistantEnabled}"
                 ToolTip.Tip="{markup:T Ns=App, Key=ToggleAssistant}">
-            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/layout-sidebar.svg"
-                              Color="{DynamicResource TopbarIconsBrush}"
-                              Width="22"
-                              Height="22"/>
+            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chart-bubble.svg"
+                              Color="{DynamicResource AccentButtonIconBrush}"
+                              Width="24"
+                              Height="24"/>
         </Button>
 
         <!-- Global Overlay Layer (ZIndex above extended client area / siblings) -->

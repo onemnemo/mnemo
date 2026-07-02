@@ -23,9 +23,6 @@ public class ChatAttachmentKindToBoolConverter : IValueConverter
             
         if (param.Equals("File", StringComparison.OrdinalIgnoreCase))
             return kind == ChatAttachmentKind.File;
-            
-        if (param.Equals("Voice", StringComparison.OrdinalIgnoreCase))
-            return kind == ChatAttachmentKind.Voice;
 
         return false;
     }

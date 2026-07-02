@@ -7,8 +7,5 @@ public enum ChatAttachmentKind
     File,
 
     /// <summary>Image (sent to vision model as base64).</summary>
-    Image,
-
-    /// <summary>Voice/Audio recording.</summary>
-    Voice
+    Image
 }

@@ -31,6 +31,7 @@ public partial class ChatView : UserControl
     private ItemsRepeater? _chatMessagesRepeater;
     private ChatViewModel? _currentVm;
     private TextBox? _inputBox;
+    private TextBox? _landingInputBox;
     private readonly EventHandler<KeyEventArgs> _inputBoxKeyDownHandler;
     private readonly IPerfDiagnostics? _perf;
     private DispatcherTimer? _chatMetricsDebounce;
@@ -52,6 +53,8 @@ public partial class ChatView : UserControl
             _chatScrollViewer.ScrollChanged += OnScrollChanged;
         _inputBox = this.FindControl<TextBox>("InputBox");
         _inputBox?.AddHandler(InputElement.KeyDownEvent, _inputBoxKeyDownHandler, RoutingStrategies.Tunnel);
+        _landingInputBox = this.FindControl<TextBox>("LandingInputBox");
+        _landingInputBox?.AddHandler(InputElement.KeyDownEvent, _inputBoxKeyDownHandler, RoutingStrategies.Tunnel);
         DataContextChanged += OnDataContextChanged;
         AttachViewModel(DataContext as ChatViewModel);
     }
@@ -64,6 +67,11 @@ public partial class ChatView : UserControl
         {
             _inputBox.RemoveHandler(InputElement.KeyDownEvent, _inputBoxKeyDownHandler);
             _inputBox = null;
+        }
+        if (_landingInputBox != null)
+        {
+            _landingInputBox.RemoveHandler(InputElement.KeyDownEvent, _inputBoxKeyDownHandler);
+            _landingInputBox = null;
         }
         if (_chatScrollViewer != null)
         {

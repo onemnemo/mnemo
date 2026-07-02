@@ -230,7 +230,6 @@ public partial class SettingsViewModel : ViewModelBase
             T("EnableAIAssistantDescription"),
             false));
         aiGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.AgentMode", T("AgentMode"), T("AgentModeDescription"), true));
-        aiGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "Chat.WipeInputForDictation", T("WipeInputForDictation"), T("WipeInputForDictationDescription"), false));
         aiGroup.Items.Add(new DropdownSettingViewModel(
             _settingsService,
             "Chat.StreamingReveal",
@@ -239,7 +238,6 @@ public partial class SettingsViewModel : ViewModelBase
             new[] { "instant", "balanced", "smooth" },
             new[] { T("StreamingInstant"), T("StreamingBalanced"), T("StreamingSmooth") },
             "balanced"));
-        aiGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.SmartUnitGeneration", T("SmartUnitGeneration"), T("SmartUnitGenerationDescription"), false));
         var clearChatLabel = T("ClearAllChatHistory");
         aiGroup.Items.Add(new AsyncActionSettingViewModel(
             T("ClearChatHistory"),
