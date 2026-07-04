@@ -47,36 +47,6 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFadedBrush}"/>
         </Style>
 
-        <!-- Dark floating index popover rows -->
-        <Style Selector="Button.index-entry">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="10,0"/>
-            <Setter Property="Height" Value="30"/>
-            <Setter Property="CornerRadius" Value="7"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-        </Style>
-        <Style Selector="Button.index-entry:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource FloatingChromeHoverBrush}"/>
-        </Style>
-        <Style Selector="Button.index-entry.current /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource FloatingChromeActiveBrush}"/>
-        </Style>
-        <Style Selector="Button.index-entry TextBlock.index-number">
-            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeForegroundMutedBrush}"/>
-        </Style>
-        <Style Selector="Button.index-entry TextBlock.index-title">
-            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeForegroundBrush}"/>
-        </Style>
-        <Style Selector="Button.index-entry.current TextBlock.index-number">
-            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeAccentBrush}"/>
-        </Style>
-        <Style Selector="Button.index-entry.current TextBlock.index-title">
-            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeForegroundStrongBrush}"/>
-            <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
-        </Style>
     </UserControl.Styles>
 
     <!-- DataTemplate for note/folder rows — used by TreeView ItemTemplate (drag-drop and folder icons in NoteTreeRow) -->
@@ -441,9 +411,17 @@
                         <Grid IsVisible="{Binding SelectedNote, Converter={StaticResource NullToBoolConverter}}"
                               MinWidth="0"
                               RowDefinitions="Auto,Auto,*">
+                            <!--
+                              Title/metadata Margin.Left=32 matches where paragraph text actually starts:
+                              EditableBlock reserves 64px (8px container padding + two 28px gutter-icon
+                              columns) before its content column, and BlockEditor's own -32 outer margin
+                              (calibrated to the page's margin, for drag-box hit-testing) only cancels half
+                              of that.
+                            -->
                             <!-- Title -->
                             <TextBox Grid.Row="0" Text="{Binding SelectedNoteTitle, Mode=TwoWay}"
                                      MinWidth="0"
+                                     Margin="32,0,0,0"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      ToolTip.Tip="{Binding SelectedNoteTitle}"
                                      FontSize="{DynamicResource FontSize.Heading1}"
@@ -456,7 +434,7 @@
                                      x:Name="NoteTitleBox"/>
 
                             <!-- Created · edited · word count -->
-                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="0,10,0,26">
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="32,10,0,26">
                                 <StackPanel.Styles>
                                     <Style Selector="TextBlock">
                                         <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}"/>
@@ -493,89 +471,54 @@
                     </Border>
                 </ScrollViewer>
 
-                <!-- Floating index chip + chapter popover (dark chrome) -->
-                <StackPanel HorizontalAlignment="Left" VerticalAlignment="Bottom"
-                            Margin="16,0,0,14" Spacing="8"
-                            IsVisible="{Binding SelectedNote, Converter={StaticResource NullToBoolConverter}}">
-                    <Border x:Name="IndexPopover"
-                            IsVisible="False"
-                            Width="254"
-                            Background="{DynamicResource FloatingChromeBackgroundBrush}"
-                            CornerRadius="{DynamicResource Radius.Lg}"
-                            BoxShadow="0 16 40 0 #59000000"
-                            Padding="8">
-                        <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl x:Name="IndexItemsControl">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Spacing="1"/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Button Classes="index-entry"
-                                                Classes.current="{Binding IsCurrent}"
-                                                Click="OnIndexEntryClick"
-                                                Tag="{Binding}">
-                                            <Grid ColumnDefinitions="Auto,*">
-                                                <TextBlock Classes="index-number"
-                                                           Text="{Binding Number}"
-                                                           FontFamily="{DynamicResource Font.Monospace}"
-                                                           FontSize="10.5"
-                                                           VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Column="1" Classes="index-title"
-                                                           Text="{Binding Title}"
-                                                           FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           VerticalAlignment="Center"
-                                                           Margin="9,0,0,0"/>
-                                            </Grid>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </Border>
-
-                    <Button x:Name="IndexChipButton"
-                            Background="{DynamicResource FloatingChromeBackgroundBrush}"
-                            BorderThickness="0"
-                            CornerRadius="{DynamicResource Radius.Pill}"
-                            Height="30"
-                            Padding="12,0"
-                            Cursor="Hand"
-                            HorizontalAlignment="Left"
-                            Click="OnIndexChipClick">
-                        <Button.Styles>
-                            <Style Selector="Button#IndexChipButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-                                <Setter Property="Background" Value="{DynamicResource FloatingChromeBackgroundBrush}"/>
-                            </Style>
-                            <Style Selector="Button#IndexChipButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
-                                <Setter Property="Background" Value="{DynamicResource FloatingChromeBackgroundBrush}"/>
-                            </Style>
-                        </Button.Styles>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <controls:AppIcon Icon="Common/menu"
-                                              Width="12" Height="12"
-                                              VerticalAlignment="Center"
-                                              Color="{DynamicResource FloatingChromeForegroundBrush}"/>
-                            <TextBlock Text="{markup:T Ns=Notes, Key=Index}"
-                                       FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
-                                       Foreground="{DynamicResource FloatingChromeForegroundBrush}"
-                                       VerticalAlignment="Center"/>
-                            <Border Width="1" Height="12"
-                                    VerticalAlignment="Center"
-                                    Background="{DynamicResource FloatingChromeDividerBrush}"/>
-                            <TextBlock x:Name="IndexPercentText"
-                                       Text="0%"
-                                       FontFamily="{DynamicResource Font.Monospace}"
-                                       FontSize="10.5"
-                                       Foreground="{DynamicResource FloatingChromeForegroundStrongBrush}"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
+                <!-- Floating index chip (dark chrome); the chapter popover opens via IOverlayService (NotesView.Index.cs) -->
+                <Button x:Name="IndexChipButton"
+                        Background="{DynamicResource FloatingChromeBackgroundBrush}"
+                        BorderThickness="0"
+                        CornerRadius="{DynamicResource Radius.Pill}"
+                        Height="30"
+                        Padding="12,0"
+                        Cursor="Hand"
+                        HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                        Margin="16,0,0,14"
+                        Opacity="0.28"
+                        Click="OnIndexChipClick"
+                        PointerEntered="OnIndexChipPointerEntered"
+                        PointerExited="OnIndexChipPointerExited"
+                        IsVisible="{Binding SelectedNote, Converter={StaticResource NullToBoolConverter}}">
+                    <Button.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.25"/>
+                        </Transitions>
+                    </Button.Transitions>
+                    <Button.Styles>
+                        <Style Selector="Button#IndexChipButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="Background" Value="{DynamicResource FloatingChromeBackgroundBrush}"/>
+                        </Style>
+                        <Style Selector="Button#IndexChipButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="Background" Value="{DynamicResource FloatingChromeBackgroundBrush}"/>
+                        </Style>
+                    </Button.Styles>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <controls:AppIcon Icon="Common/menu"
+                                          Width="12" Height="12"
+                                          VerticalAlignment="Center"
+                                          Color="{DynamicResource FloatingChromeForegroundBrush}"/>
+                        <TextBlock Text="{markup:T Ns=Notes, Key=Index}"
+                                   FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                   Foreground="{DynamicResource FloatingChromeForegroundBrush}"
+                                   VerticalAlignment="Center"/>
+                        <Border Width="1" Height="12"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource FloatingChromeDividerBrush}"/>
+                        <TextBlock x:Name="IndexPercentText"
+                                   Text="0%"
+                                   FontFamily="{DynamicResource Font.Monospace}"
+                                   FontSize="10.5"
+                                   Foreground="{DynamicResource FloatingChromeForegroundStrongBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
             </Panel>
         </Grid>
     </SplitView>

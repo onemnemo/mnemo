@@ -1,8 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Linq;
+using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Microsoft.Extensions.DependencyInjection;
+using Mnemo.Core.Services;
 using Mnemo.UI.Components.BlockEditor;
 
 namespace Mnemo.UI.Modules.Notes.Views;
@@ -18,15 +25,36 @@ public sealed class NoteIndexEntry
 
 /// <summary>
 /// Floating "Index" chip: reading progress from the editor scroll offset, and a chapter
-/// popover built from the document's heading outline. Presentation-only view chrome —
-/// it reads editor visuals (scroll/realized rows), so it lives beside the zoom/camera partials.
+/// popover (hosted via <see cref="IOverlayService"/>) built from the document's heading
+/// outline. The chip itself idles at low opacity and brightens on hover/scroll/while-open
+/// so it stays informative without competing with the page for attention.
 /// </summary>
 public partial class NotesView
 {
+    private const double ChipIdleOpacity = 0.28;
+    private const double ChipActiveOpacity = 1.0;
+    private static readonly TimeSpan ChipFadeInDuration = TimeSpan.FromMilliseconds(150);
+    private static readonly TimeSpan ChipFadeOutDuration = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan ScrollIdleDelay = TimeSpan.FromMilliseconds(1300);
+
     private bool _indexScrollHooked;
+    private bool _isIndexChipHovered;
+    private bool _isIndexScrollActive;
+    private DispatcherTimer? _scrollIdleTimer;
+
+    private IOverlayService? _indexOverlayService;
+    private string? _indexOverlayId;
+    private NoteIndexPopover? _currentIndexPopover;
 
     private void SetupNoteIndex()
     {
+        if (_indexOverlayService == null)
+        {
+            _indexOverlayService = ((App)Application.Current!).Services?.GetService<IOverlayService>();
+            if (_indexOverlayService != null)
+                _indexOverlayService.Overlays.CollectionChanged += OnOverlaysCollectionChanged;
+        }
+
         var scroll = this.FindControl<ScrollViewer>("EditorScrollViewer");
         if (scroll != null && !_indexScrollHooked)
         {
@@ -42,10 +70,88 @@ public partial class NotesView
         if (scroll != null && _indexScrollHooked)
             scroll.ScrollChanged -= OnEditorScrollChangedForIndex;
         _indexScrollHooked = false;
+
+        if (_scrollIdleTimer != null)
+        {
+            _scrollIdleTimer.Stop();
+            _scrollIdleTimer.Tick -= OnScrollIdleTimerTick;
+            _scrollIdleTimer = null;
+        }
+
+        CloseIndexPopover();
+
+        if (_indexOverlayService != null)
+        {
+            _indexOverlayService.Overlays.CollectionChanged -= OnOverlaysCollectionChanged;
+            _indexOverlayService = null;
+        }
     }
 
-    private void OnEditorScrollChangedForIndex(object? sender, ScrollChangedEventArgs e) =>
+    /// <summary>
+    /// The popover can also close via outside-click or Escape (handled entirely inside
+    /// OverlayPopupHost), bypassing <see cref="CloseIndexPopover"/>. Watch the overlay
+    /// collection so the chip's open/closed toggle state never goes stale.
+    /// </summary>
+    private void OnOverlaysCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_indexOverlayId == null) return;
+        if (_indexOverlayService!.Overlays.Any(o => o.Id == _indexOverlayId)) return;
+
+        if (_currentIndexPopover != null)
+        {
+            _currentIndexPopover.EntrySelected -= OnIndexEntrySelected;
+            _currentIndexPopover = null;
+        }
+        _indexOverlayId = null;
+        UpdateIndexChipOpacity();
+    }
+
+    private void OnEditorScrollChangedForIndex(object? sender, ScrollChangedEventArgs e)
+    {
         UpdateIndexProgress();
+
+        _isIndexScrollActive = true;
+        UpdateIndexChipOpacity();
+
+        _scrollIdleTimer ??= new DispatcherTimer { Interval = ScrollIdleDelay };
+        _scrollIdleTimer.Tick -= OnScrollIdleTimerTick;
+        _scrollIdleTimer.Tick += OnScrollIdleTimerTick;
+        _scrollIdleTimer.Stop();
+        _scrollIdleTimer.Start();
+    }
+
+    private void OnScrollIdleTimerTick(object? sender, EventArgs e)
+    {
+        _scrollIdleTimer?.Stop();
+        _isIndexScrollActive = false;
+        UpdateIndexChipOpacity();
+    }
+
+    private void OnIndexChipPointerEntered(object? sender, PointerEventArgs e)
+    {
+        _isIndexChipHovered = true;
+        UpdateIndexChipOpacity();
+    }
+
+    private void OnIndexChipPointerExited(object? sender, PointerEventArgs e)
+    {
+        _isIndexChipHovered = false;
+        UpdateIndexChipOpacity();
+    }
+
+    private void UpdateIndexChipOpacity()
+    {
+        var chip = this.FindControl<Button>("IndexChipButton");
+        if (chip == null) return;
+
+        var active = _isIndexChipHovered || _isIndexScrollActive || _indexOverlayId != null;
+        var target = active ? ChipActiveOpacity : ChipIdleOpacity;
+        if (chip.Opacity == target) return;
+
+        var duration = active ? ChipFadeInDuration : ChipFadeOutDuration;
+        chip.Transitions = new Transitions { new DoubleTransition { Property = Visual.OpacityProperty, Duration = duration } };
+        chip.Opacity = target;
+    }
 
     private void UpdateIndexProgress()
     {
@@ -68,35 +174,66 @@ public partial class NotesView
 
     private void OnIndexChipClick(object? sender, RoutedEventArgs e)
     {
-        var popover = this.FindControl<Border>("IndexPopover");
-        if (popover == null)
-            return;
-
-        if (popover.IsVisible)
+        if (_indexOverlayId != null)
         {
-            popover.IsVisible = false;
+            CloseIndexPopover();
             return;
         }
 
-        RefreshIndexEntries();
-        popover.IsVisible = true;
+        OpenIndexPopover();
+    }
+
+    private void OpenIndexPopover()
+    {
+        var chip = this.FindControl<Button>("IndexChipButton");
+        if (_indexOverlayService == null || chip == null)
+            return;
+
+        var popover = new NoteIndexPopover();
+        popover.SetEntries(BuildIndexEntries());
+        popover.EntrySelected += OnIndexEntrySelected;
+        _currentIndexPopover = popover;
+
+        _indexOverlayId = _indexOverlayService.CreateOverlay(popover, new OverlayOptions
+        {
+            ShowBackdrop = true,
+            BackdropOpacity = 0,
+            CloseOnOutsideClick = true,
+            CloseOnEscape = true,
+            AnchorControl = chip,
+            AnchorPosition = AnchorPosition.TopLeft,
+            AnchorOffset = new Thickness(0, -8, 0, 0),
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top
+        }, "NoteIndexPopover");
+
+        UpdateIndexChipOpacity();
     }
 
     private void CloseIndexPopover()
     {
-        var popover = this.FindControl<Border>("IndexPopover");
-        if (popover != null)
-            popover.IsVisible = false;
+        if (_currentIndexPopover != null)
+        {
+            _currentIndexPopover.EntrySelected -= OnIndexEntrySelected;
+            _currentIndexPopover = null;
+        }
+
+        if (_indexOverlayId != null && _indexOverlayService != null)
+        {
+            _indexOverlayService.CloseOverlay(_indexOverlayId);
+            _indexOverlayId = null;
+        }
+
+        UpdateIndexChipOpacity();
     }
 
-    private void RefreshIndexEntries()
+    private List<NoteIndexEntry> BuildIndexEntries()
     {
         var editor = GetBlockEditor();
-        var itemsControl = this.FindControl<ItemsControl>("IndexItemsControl");
-        var scroll = this.FindControl<ScrollViewer>("EditorScrollViewer");
-        if (editor == null || itemsControl == null)
-            return;
+        if (editor == null)
+            return new List<NoteIndexEntry>();
 
+        var scroll = this.FindControl<ScrollViewer>("EditorScrollViewer");
         var outline = editor.GetHeadingOutline();
         var currentIndex = DetermineCurrentOutlineIndex(editor, outline, scroll);
 
@@ -111,7 +248,7 @@ public partial class NotesView
                 IsCurrent = i == currentIndex
             });
         }
-        itemsControl.ItemsSource = entries;
+        return entries;
     }
 
     /// <summary>
@@ -142,11 +279,8 @@ public partial class NotesView
         return current;
     }
 
-    private void OnIndexEntryClick(object? sender, RoutedEventArgs e)
+    private void OnIndexEntrySelected(NoteIndexEntry entry)
     {
-        if (sender is not Button { Tag: NoteIndexEntry entry })
-            return;
-
         CloseIndexPopover();
 
         var editor = GetBlockEditor();

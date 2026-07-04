@@ -46,7 +46,7 @@
                         VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
               <controls:AppIcon x:Name="PART_Icon"
                                  Icon="{TemplateBinding IconName}"
-                                 Width="16" Height="16"
+                                 Width="{TemplateBinding IconSize}" Height="{TemplateBinding IconSize}"
                                  VerticalAlignment="Center"
                                  IsVisible="{TemplateBinding IconName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
               <!-- Collapses when empty so icon-only buttons stay centered (StackPanel spacing) -->
@@ -62,7 +62,7 @@
 
           <controls:AppIcon x:Name="PART_LoadingIcon"
                              Icon="Common/circle-dashed"
-                             Width="16" Height="16"
+                             Width="{TemplateBinding IconSize}" Height="{TemplateBinding IconSize}"
                              HorizontalAlignment="Center"
                              VerticalAlignment="Center"
                              IsHitTestVisible="False"

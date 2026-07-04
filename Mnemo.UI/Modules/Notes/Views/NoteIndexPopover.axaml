@@ -1,0 +1,76 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Mnemo.UI.Modules.Notes.Views.NoteIndexPopover"
+             x:CompileBindings="False"
+             Focusable="False">
+    <UserControl.Styles>
+        <Style Selector="Button.index-entry">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="CornerRadius" Value="7"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        </Style>
+        <Style Selector="Button.index-entry:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource FloatingChromeHoverBrush}"/>
+        </Style>
+        <Style Selector="Button.index-entry.current /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource FloatingChromeActiveBrush}"/>
+        </Style>
+        <Style Selector="Button.index-entry TextBlock.index-number">
+            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeForegroundMutedBrush}"/>
+        </Style>
+        <Style Selector="Button.index-entry TextBlock.index-title">
+            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeForegroundBrush}"/>
+        </Style>
+        <Style Selector="Button.index-entry.current TextBlock.index-number">
+            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeAccentBrush}"/>
+        </Style>
+        <Style Selector="Button.index-entry.current TextBlock.index-title">
+            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeForegroundStrongBrush}"/>
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Border Width="254"
+            Background="{DynamicResource FloatingChromeBackgroundBrush}"
+            CornerRadius="{DynamicResource Radius.Lg}"
+            BoxShadow="0 16 40 0 #59000000"
+            Padding="8">
+        <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl x:Name="EntriesItemsControl">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="1"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Classes="index-entry"
+                                Classes.current="{Binding IsCurrent}"
+                                Click="OnEntryClick"
+                                Tag="{Binding}">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <TextBlock Classes="index-number"
+                                           Text="{Binding Number}"
+                                           FontFamily="{DynamicResource Font.Monospace}"
+                                           FontSize="10.5"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Classes="index-title"
+                                           Text="{Binding Title}"
+                                           FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center"
+                                           Margin="9,0,0,0"/>
+                            </Grid>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Border>
+</UserControl>

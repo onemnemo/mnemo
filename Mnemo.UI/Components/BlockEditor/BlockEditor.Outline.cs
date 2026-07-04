@@ -10,7 +10,7 @@ public sealed record BlockOutlineEntry(string BlockId, string Text, BlockType Ty
 public partial class BlockEditor
 {
     /// <summary>
-    /// Top-level heading blocks (H1/H2) in document order, for the note index popover.
+    /// Top-level heading blocks (H1-H4) in document order, for the note index popover.
     /// Empty-text headings are skipped.
     /// </summary>
     public IReadOnlyList<BlockOutlineEntry> GetHeadingOutline()
@@ -19,7 +19,7 @@ public partial class BlockEditor
         for (var i = 0; i < Blocks.Count; i++)
         {
             var block = Blocks[i];
-            if (block.Type is not (BlockType.Heading1 or BlockType.Heading2))
+            if (block.Type is not (BlockType.Heading1 or BlockType.Heading2 or BlockType.Heading3 or BlockType.Heading4))
                 continue;
 
             var text = block.Content?.Trim();

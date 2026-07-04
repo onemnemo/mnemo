@@ -12,6 +12,25 @@
         BoxShadow="0 12 32 0 #52000000"
         CornerRadius="10"
         Padding="6">
+        <!--
+          Scope the scrollbar to the floating-chrome palette. The global scrollbar theme
+          uses light-neutral brushes that read as a bright beige bar over this dark menu, so
+          override the thumb/track brushes with subtle translucent-white values here.
+        -->
+        <Border.Resources>
+            <SolidColorBrush x:Key="ScrollBarThumbBackgroundBrush" Color="#33FFFFFF" />
+            <SolidColorBrush x:Key="ScrollBarThumbBackgroundPointerOverBrush" Color="#4DFFFFFF" />
+            <SolidColorBrush x:Key="ScrollBarThumbBackgroundPressedBrush" Color="#66FFFFFF" />
+            <SolidColorBrush x:Key="ScrollBarThumbBackgroundDisabledBrush" Color="#1AFFFFFF" />
+            <SolidColorBrush x:Key="ScrollBarBackgroundBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarBackgroundPointerOverBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarBorderBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackFillBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackStrokeBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackFillPointerOverBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackStrokePointerOverBrush" Color="Transparent" />
+            <x:Double x:Key="ScrollBarSize">6</x:Double>
+        </Border.Resources>
         <StackPanel>
             <!-- Filter hint header -->
             <Grid ColumnDefinitions="*,Auto" Margin="10,5,10,7">
@@ -65,6 +84,7 @@
                                         <TextBlock
                                             Classes="slash-row-name"
                                             VerticalAlignment="Center"
+                                            FontFamily="{DynamicResource Font.Medium}"
                                             FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
                                             Foreground="{DynamicResource FloatingChromeForegroundBrush}"
                                             Text="{Binding Name}"
@@ -73,7 +93,7 @@
                                             Grid.Column="1"
                                             VerticalAlignment="Center"
                                             FontFamily="{DynamicResource Font.Monospace}"
-                                            FontSize="{DynamicResource FontSize.Caption}"
+                                            FontSize="10.5"
                                             Foreground="{DynamicResource FloatingChromeForegroundMutedBrush}"
                                             Text="{Binding Shortcut}" />
                                     </Grid>

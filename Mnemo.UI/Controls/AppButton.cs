@@ -16,6 +16,9 @@ public class AppButton : Button
     public static readonly StyledProperty<string?> IconNameProperty =
         AvaloniaProperty.Register<AppButton, string?>(nameof(IconName));
 
+    public static readonly StyledProperty<double> IconSizeProperty =
+        AvaloniaProperty.Register<AppButton, double>(nameof(IconSize), 16);
+
     static AppButton()
     {
         IsLoadingProperty.Changed.AddClassHandler<AppButton>((x, _) => x.UpdateClasses());
@@ -33,6 +36,13 @@ public class AppButton : Button
     {
         get => GetValue(IconNameProperty);
         set => SetValue(IconNameProperty, value);
+    }
+
+    /// <summary>Width/height of the leading icon (and loading spinner), in DIPs. Defaults to 16.</summary>
+    public double IconSize
+    {
+        get => GetValue(IconSizeProperty);
+        set => SetValue(IconSizeProperty, value);
     }
 
     private void UpdateClasses()

@@ -473,7 +473,7 @@
     "ImageAlignRightTooltip": "Alinear a la derecha",
     "ImageImportFailed": "No se pudo importar la imagen. Por favor, inténtelo de nuevo.",
     "CloseMenu": "Cerrar menú",
-    "SlashMenuSearchPlaceholder": "Escriba para buscar",
+    "SlashMenuSearchPlaceholder": "Escriba para filtrar",
     "LinkTooltip": "Enlace (Ctrl+Shift+L)",
     "InsertLinkTitle": "Insertar enlace",
     "EditLinkTitle": "Editar enlace",

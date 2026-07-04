@@ -479,7 +479,7 @@
     "ImageAlignRightTooltip": "Align right",
     "ImageImportFailed": "Could not import the image. Please try again.",
     "CloseMenu": "Close menu",
-    "SlashMenuSearchPlaceholder": "Type to search",
+    "SlashMenuSearchPlaceholder": "Type to filter",
     "LinkTooltip": "Link (Ctrl+Shift+L)",
     "InsertLinkTitle": "Insert link",
     "EditLinkTitle": "Edit link",

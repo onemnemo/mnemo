@@ -51,7 +51,7 @@
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                         <controls:AppIcon Grid.Column="0"
                                           Icon="Common/search"
-                                          Width="13" Height="13"
+                                          Width="12" Height="12"
                                           Color="{DynamicResource TextFadedBrush}"
                                           VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="1"
@@ -110,6 +110,7 @@
                 <Panel>
                     <controls:AppButton Classes="ghost"
                                         IconName="Common/bell"
+                                        IconSize="14"
                                         Padding="5"
                                         ToolTip.Tip="{markup:T Ns=Topbar, Key=NotificationsTitle}">
                         <controls:AppButton.Flyout>
@@ -204,7 +205,7 @@
                             <Setter Property="Background" Value="Transparent"/>
                         </Style>
                     </Button.Styles>
-                    <Border Width="22" Height="22" CornerRadius="11" ClipToBounds="True">
+                    <Border Width="18" Height="18" CornerRadius="9" ClipToBounds="True">
                         <Image Source="{Binding ProfilePicturePath, Converter={StaticResource PathToImageConverter}}"
                                Stretch="UniformToFill"/>
                     </Border>
@@ -214,16 +215,19 @@
                 <StackPanel Orientation="Horizontal" Spacing="2" Margin="4,0,0,0">
                     <controls:AppButton Classes="ghost"
                                         IconName="Window/minimize"
+                                        IconSize="13"
                                         Padding="5"
                                         Command="{Binding MinimizeCommand}"
                                         ToolTip.Tip="{markup:T Ns=Topbar, Key=MinimizeTooltip}"/>
                     <controls:AppButton Classes="ghost"
                                         IconName="Window/maximize"
+                                        IconSize="13"
                                         Padding="5"
                                         Command="{Binding MaximizeCommand}"
                                         ToolTip.Tip="{markup:T Ns=Topbar, Key=MaximizeTooltip}"/>
                     <controls:AppButton Classes="ghost"
                                         IconName="Window/close"
+                                        IconSize="13"
                                         Padding="5"
                                         Command="{Binding CloseCommand}"
                                         ToolTip.Tip="{markup:T Ns=Topbar, Key=CloseTooltip}"/>
