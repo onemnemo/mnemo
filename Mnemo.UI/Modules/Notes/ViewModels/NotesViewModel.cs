@@ -28,6 +28,7 @@ public partial class NotesViewModel : ViewModelBase, INavigationAware
     private readonly INoteFolderService _folderService;
     private readonly ISettingsService _settingsService;
     private readonly ILocalizationService _localizationService;
+    private readonly IDateDisplayService _dateDisplayService;
 
     [ObservableProperty]
     private Note? _selectedNote;
@@ -92,7 +93,8 @@ public partial class NotesViewModel : ViewModelBase, INavigationAware
         INoteService noteService,
         INoteFolderService folderService,
         ISettingsService settingsService,
-        ILocalizationService localizationService)
+        ILocalizationService localizationService,
+        IDateDisplayService dateDisplayService)
     {
         _library = library;
         _editor = editor;
@@ -103,6 +105,7 @@ public partial class NotesViewModel : ViewModelBase, INavigationAware
         _folderService = folderService;
         _settingsService = settingsService;
         _localizationService = localizationService;
+        _dateDisplayService = dateDisplayService;
 
         NoteBreadcrumb = new NoteBreadcrumbViewModel(() => Notes, folderService, NavigateToNoteById);
 
@@ -345,18 +348,6 @@ public partial class NotesViewModel : ViewModelBase, INavigationAware
         NoteBreadcrumb.BuildForNote(SelectedNote, _library.FoldersById);
     }
 
-    internal string FormatRelative(DateTime dateTime, string prefixKey, string ns)
-    {
-        var prefix = _localizationService.T(prefixKey, ns);
-        var utc = dateTime.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc) : dateTime.ToUniversalTime();
-        var diff = DateTime.UtcNow - utc;
-
-        if (diff.TotalMinutes < 1) return $"{prefix} {_localizationService.T("JustNow", ns)}";
-        if (diff.TotalMinutes < 60) return $"{prefix} {string.Format(_localizationService.T("MinutesAgo", ns), (int)diff.TotalMinutes)}";
-        if (diff.TotalHours < 24) return $"{prefix} {string.Format(_localizationService.T("HoursAgo", ns), (int)diff.TotalHours)}";
-        if (diff.TotalDays < 7) return $"{prefix} {string.Format(_localizationService.T("DaysAgo", ns), (int)diff.TotalDays)}";
-        if (diff.TotalDays < 30) return $"{prefix} {string.Format(_localizationService.T("WeeksAgo", ns), (int)(diff.TotalDays / 7))}";
-        if (diff.TotalDays < 365) return $"{prefix} {string.Format(_localizationService.T("MonthsAgo", ns), (int)(diff.TotalDays / 30))}";
-        return $"{prefix} {string.Format(_localizationService.T("YearsAgo", ns), (int)(diff.TotalDays / 365))}";
-    }
+    internal string FormatRelative(DateTime dateTime, string prefixKey, string ns) =>
+        $"{_localizationService.T(prefixKey, ns)} {_dateDisplayService.FormatRelative(dateTime)}";
 }

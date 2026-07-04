@@ -191,7 +191,11 @@
     "PracticeKeyboardShortcutsLabel": "キーボードショートカット:",
     "PracticeRevealPrefix": "",
     "PracticeRevealSpacebar": "Spacebar",
-    "PracticeRevealSuffix": "で答えを表示"
+    "PracticeRevealSuffix": "で答えを表示",
+    "LibraryEmptyTitle": "デッキがまだありません",
+    "LibraryEmptyDescription": "最初のデッキを作成して、間隔反復学習を始めましょう。",
+    "NoResultsTitle": "一致するデッキがありません",
+    "NoResultsDescription": "別の検索語やフォルダーを試してください。"
   },
   "Keybinds": {
     "module.flashcards": "フラッシュカード",
@@ -201,5 +205,3 @@
     "flashcard.wrap-cloze.description": "表面フィールドの選択を穴埋めマーカーで囲みます（穴埋めカードタイプ）。"
   }
 }
-
-

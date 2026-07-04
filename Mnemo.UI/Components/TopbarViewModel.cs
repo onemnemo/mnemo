@@ -205,6 +205,9 @@ public partial class TopbarViewModel : ViewModelBase
         }
     }
 
+    [RelayCommand]
+    private void OpenProfileSettings() => _navigation.NavigateTo("settings");
+
     /// <summary>When global search is open, closes it; otherwise opens it. Used when <see cref="KeybindActionDefinition.ToggleOnRepeat"/> is set.</summary>
     public void TryToggleGlobalSearch()
     {

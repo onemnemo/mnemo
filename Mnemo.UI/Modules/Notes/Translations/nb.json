@@ -30,7 +30,9 @@
     "PdfExportCompleteTitle": "Eksport fullført",
     "PdfExportCompleteMessage": "PDF-en ble lagret.",
     "PdfExportFailedTitle": "Eksport mislyktes",
-    "ToolbarExportPdf": "Eksporter som PDF"
+    "ToolbarExportPdf": "Eksporter som PDF",
+    "NoNoteSelectedTitle": "Ingen notat valgt",
+    "NoNoteSelectedDescription": "Velg et notat fra sidefeltet, eller opprett et nytt for å begynne å skrive."
   },
   "Keybinds": {
     "module.editor": "Redigeringsprogram",

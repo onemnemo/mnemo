@@ -27,7 +27,14 @@
     "ImportCompleteTitle": "インポート完了",
     "ImportFailedTitle": "インポート失敗",
     "ExportCompleteTitle": "エクスポート完了",
-    "ExportFailedTitle": "エクスポート失敗"
+    "ExportFailedTitle": "エクスポート失敗",
+    "JustNow": "今すぐ",
+    "MinutesAgo": "{0}分前",
+    "HoursAgo": "{0}時間前",
+    "DaysAgo": "{0}日前",
+    "WeeksAgo": "{0}週間前",
+    "MonthsAgo": "{0}ヶ月前",
+    "YearsAgo": "{0}年前"
   },
   "Settings": {
     "Title": "設定",
@@ -182,7 +189,10 @@
     "UpdateNow": "今すぐ更新",
     "UpdateToastLater": "あとで",
     "PostUpdateToastTitle": "更新をインストールしました",
-    "PostUpdateToastDescriptionFormat": "バージョン {0} に更新しました。"
+    "PostUpdateToastDescriptionFormat": "バージョン {0} に更新しました。",
+    "SearchResults": "検索結果",
+    "SearchResultsSubtitleFormat": "「{1}」の一致：{0}件",
+    "SearchNoResultsFormat": "「{0}」に一致する設定はありません"
   },
   "Onboarding": {
     "WelcomeTitle": "Mnemoへようこそ",
@@ -250,7 +260,8 @@
     "CardsPracticed": "練習したカード",
     "Today": "今日",
     "DayStreak": "連続日数",
-    "cards": "カード"
+    "cards": "カード",
+    "RemoveWidget": "ウィジェットを削除"
   },
   "App": {
     "AppTitle": "Mnemo",
@@ -542,7 +553,11 @@
     "Swatch3": "スウォッチ 3",
     "Swatch4": "スウォッチ 4",
     "Swatch5": "スウォッチ 5",
-    "Swatch6": "スウォッチ 6"
+    "Swatch6": "スウォッチ 6",
+    "LibraryEmptyTitle": "最初のマインドマップを作成",
+    "LibraryEmptyDescription": "アイデアを可視化し、概念をつなげましょう。マインドマップはここに表示されます。",
+    "NoResultsTitle": "マインドマップが見つかりません",
+    "NoResultsDescription": "別の検索キーワードをお試しください。"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",
@@ -565,7 +580,8 @@
     "GamificationStreakFormat": "{0}日連続",
     "ConfirmExitTitle": "終了の確認",
     "ConfirmExitMessage": "Mnemo を終了してもよろしいですか？",
-    "ConfirmExitButton": "終了"
+    "ConfirmExitButton": "終了",
+    "ProfileTooltip": "プロフィールと設定"
   },
   "AddWidget": {
     "Title": "ウィジェットを追加",

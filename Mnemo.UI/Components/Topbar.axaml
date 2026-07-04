@@ -96,9 +96,6 @@
                         Spacing="8"
                         HorizontalAlignment="Right">
                 <Button Background="{DynamicResource TopbarButtonBackgroundBrush}" Foreground="{DynamicResource TopbarButtonForegroundBrush}" Height="34" Width="34" Padding="7" CornerRadius="19" BorderThickness="0">
-                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/device-speaker.svg" Color="{DynamicResource TopbarIconsBrush}" Width="20" Height="20" />
-                </Button>
-                <Button Background="{DynamicResource TopbarButtonBackgroundBrush}" Foreground="{DynamicResource TopbarButtonForegroundBrush}" Height="34" Width="34" Padding="7" CornerRadius="19" BorderThickness="0">
                     <Button.Flyout>
                         <Flyout Placement="BottomEdgeAlignedRight" ShowMode="TransientWithDismissOnPointerMoveAway">
                             <!-- No inner ScrollViewer: FlyoutPresenter template already wraps content in ScrollViewer.
@@ -204,7 +201,11 @@
                                              Color="{DynamicResource TopbarIconsBrush}"
                                              Width="22" Height="22"/>
                         </Button>
-                        <Button Background="Transparent" BorderThickness="0" Padding="0">
+                        <Button Background="Transparent"
+                                BorderThickness="0"
+                                Padding="0"
+                                Command="{Binding OpenProfileSettingsCommand}"
+                                ToolTip.Tip="{markup:T Ns=Topbar, Key=ProfileTooltip}">
                             <Button.Styles>
                                 <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
                                     <Setter Property="Background" Value="Transparent"/>

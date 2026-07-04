@@ -191,7 +191,11 @@
     "PracticeKeyboardShortcutsLabel": "Atajos de teclado:",
     "PracticeRevealPrefix": "Pulsa",
     "PracticeRevealSpacebar": "Barra espaciadora",
-    "PracticeRevealSuffix": "para revelar"
+    "PracticeRevealSuffix": "para revelar",
+    "LibraryEmptyTitle": "Aún no hay mazos",
+    "LibraryEmptyDescription": "Crea tu primer mazo para empezar a practicar con repetición espaciada.",
+    "NoResultsTitle": "Ningún mazo coincide",
+    "NoResultsDescription": "Prueba otra búsqueda u otra carpeta."
   },
   "Keybinds": {
     "module.flashcards": "Tarjetas",
@@ -201,5 +205,3 @@
     "flashcard.wrap-cloze.description": "Envuelve la selección del campo frontal en un marcador cloze (tipo de tarjeta cloze)."
   }
 }
-
-

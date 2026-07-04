@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mnemo.UI.Modules.Flashcards.ViewModels"
+             xmlns:components="using:Mnemo.UI.Components"
              xmlns:controls="using:Mnemo.UI.Controls"
              xmlns:markup="using:Mnemo.UI.Markup"
              xmlns:models="using:Mnemo.Core.Models.Flashcards"
@@ -52,21 +53,6 @@
             <Setter Property="Opacity" Value="0.5" />
         </Style>
 
-        <Style Selector="Border.search-surface">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="10,8" />
-        </Style>
-
-        <Style Selector="TextBox.deck-search">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="0,2,0,2" />
-            <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.Medium}" />
-        </Style>
-
         <!-- Deck cards: Border only (no Button / ContentPresenter theme = no square grey plate) -->
         <Style Selector="Border.deck-card">
             <Setter Property="Width" Value="280" />
@@ -75,7 +61,7 @@
             <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Xl}" />
             <Setter Property="Padding" Value="18,16" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="BoxShadow" Value="0 6 18 -10 #3A000000" />
@@ -86,7 +72,7 @@
             </Setter>
         </Style>
         <Style Selector="Border.deck-card:pointerover">
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}" />
             <Setter Property="BoxShadow" Value="0 18 36 -8 #46000000" />
         </Style>
         <Style Selector="Border.deck-card:pressed">
@@ -99,7 +85,7 @@
 
         <Style Selector="Border.deck-due-pill">
             <Setter Property="Background" Value="{DynamicResource WidgetBackgroundPrimaryBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Padding" Value="8,4" />
@@ -253,20 +239,34 @@
                     </StackPanel>
                 </Grid>
 
-                <Border Classes="search-surface" Width="420" MaxWidth="560" HorizontalAlignment="Left">
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                        <controls:SvgIcon Grid.Column="0"
-                                          SvgPath="avares://Mnemo.UI/Icons/Common/search.svg"
-                                          Width="18" Height="18"
-                                          VerticalAlignment="Center"
-                                          Color="{DynamicResource TextSecondaryBrush}" />
-                        <TextBox Grid.Column="1"
-                                 Classes="deck-search"
-                                 Text="{Binding SearchText}"
-                                 HorizontalAlignment="Stretch"
-                                PlaceholderText="{markup:T Ns=Flashcards, Key=SearchPlaceholder}" />
-                    </Grid>
-                </Border>
+                <TextBox Classes="page-search"
+                         Width="420"
+                         HorizontalAlignment="Left"
+                         Text="{Binding SearchText}"
+                         PlaceholderText="{markup:T Ns=Flashcards, Key=SearchPlaceholder}">
+                    <TextBox.InnerLeftContent>
+                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/search.svg"
+                                          Width="16" Height="16"
+                                          Margin="12,0,0,0"
+                                          Color="{DynamicResource TextSecondaryBrush}"/>
+                    </TextBox.InnerLeftContent>
+                </TextBox>
+
+                <!-- First-run: no decks exist anywhere -->
+                <components:EmptyState IsVisible="{Binding ShowEmptyState}"
+                                       IconPath="avares://Mnemo.UI/Icons/Common/book.svg"
+                                       Title="{markup:T Ns=Flashcards, Key=LibraryEmptyTitle}"
+                                       Description="{markup:T Ns=Flashcards, Key=LibraryEmptyDescription}"
+                                       ActionText="{markup:T Ns=Flashcards, Key=NewDeck}"
+                                       ActionCommand="{Binding CreateDeckCommand}"
+                                       Margin="0,48,0,0"/>
+
+                <!-- Decks exist but the folder/search filter matches none -->
+                <components:EmptyState IsVisible="{Binding ShowNoResultsState}"
+                                       IconPath="avares://Mnemo.UI/Icons/Common/search.svg"
+                                       Title="{markup:T Ns=Flashcards, Key=NoResultsTitle}"
+                                       Description="{markup:T Ns=Flashcards, Key=NoResultsDescription}"
+                                       Margin="0,48,0,0"/>
 
                 <ItemsControl Classes="deck-library-grid" ItemsSource="{Binding FilteredDecks}" ClipToBounds="False">
                     <ItemsControl.ItemsPanel>
@@ -284,19 +284,19 @@
                                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                                         <Grid Grid.Column="0" ColumnDefinitions="Auto,*" ColumnSpacing="8">
                                             <Border Width="24" Height="24"
-                                                    Background="{DynamicResource WidgetBackgroundPrimaryBrush}"
+                                                    Background="{DynamicResource CardIconBackgroundBrush}"
                                                     CornerRadius="6"
                                                     VerticalAlignment="Top">
                                                 <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/file-text.svg"
                                                                   Width="14" Height="14"
                                                                   HorizontalAlignment="Center"
                                                                   VerticalAlignment="Center"
-                                                                  Color="{DynamicResource TextSecondaryBrush}" />
+                                                                  Color="{DynamicResource CardAccentBrush}" />
                                             </Border>
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Name}" TextWrapping="Wrap"
                                                        FontFamily="{DynamicResource Font.SemiBold}"
-                                                       FontSize="{DynamicResource FontSize.Heading3}"
+                                                       FontSize="{DynamicResource FontSize.Heading5}"
                                                        MaxLines="2" TextTrimming="CharacterEllipsis"
                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                        VerticalAlignment="Top" Margin="0,0,8,0" />
@@ -313,11 +313,11 @@
                                                     VerticalAlignment="Top">
                                                 <StackPanel Orientation="Horizontal" Spacing="4">
                                                     <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/player-play.svg"
-                                                                      Width="12" Height="12" Color="{DynamicResource AccentPrimaryBrush}" />
+                                                                      Width="12" Height="12" Color="{DynamicResource CardAccentBrush}" />
                                                     <TextBlock Text="{Binding DueBadgeText}"
-                                                               FontSize="12"
+                                                               FontSize="{DynamicResource FontSize.Caption}"
                                                                FontFamily="{DynamicResource Font.SemiBold}"
-                                                               Foreground="{DynamicResource AccentPrimaryBrush}"
+                                                               Foreground="{DynamicResource CardAccentBrush}"
                                                                VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </Border>
@@ -439,7 +439,7 @@
                                             <ProgressBar Minimum="0" Maximum="100"
                                                          Value="{Binding RetentionPercent}"
                                                          Height="6" CornerRadius="3"
-                                                         Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                         Foreground="{DynamicResource CardAccentBrush}" />
                                         </Button>
                                     </StackPanel>
 

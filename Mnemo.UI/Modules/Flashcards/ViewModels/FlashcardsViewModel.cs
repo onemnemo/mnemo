@@ -39,6 +39,14 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private bool _isSidebarOpen = true;
 
+    /// <summary>True when the library has no decks at all (first-run state).</summary>
+    [ObservableProperty]
+    private bool _showEmptyState;
+
+    /// <summary>True when decks exist but the current folder/search filter matches none.</summary>
+    [ObservableProperty]
+    private bool _showNoResultsState;
+
     public ObservableCollection<FlashcardFolder> Folders { get; } = new();
     public ObservableCollection<FlashcardFolderItemViewModel> FolderTreeItems { get; } = new();
     public ObservableCollection<FlashcardFolderItemViewModel> FlatFolderItems { get; } = new();
@@ -194,6 +202,9 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
                 LastStudiedLine = lastLine
             });
         }
+
+        ShowEmptyState = _loadedDecks.Count == 0;
+        ShowNoResultsState = _loadedDecks.Count > 0 && FilteredDecks.Count == 0;
     }
 
     private void OpenDeck(FlashcardDeckRowViewModel? row)
@@ -340,7 +351,8 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
             _localization.T("DeleteDeck", "Flashcards"),
             _localization.T("DeleteDeckConfirm", "Flashcards"),
             deleteLabel,
-            cancelLabel).ConfigureAwait(false);
+            cancelLabel,
+            severity: DialogSeverity.Destructive).ConfigureAwait(false);
         if (!string.Equals(confirm, deleteLabel, StringComparison.Ordinal))
             return;
 

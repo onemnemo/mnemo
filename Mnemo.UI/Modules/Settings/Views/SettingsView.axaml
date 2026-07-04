@@ -502,7 +502,8 @@
 
                 <!-- Search Bar -->
                 <Border Grid.Row="1" Padding="24,0,24,24">
-                    <TextBox PlaceholderText="{markup:T Ns=Settings, Key=SearchPlaceholder}"
+                    <TextBox Text="{Binding SearchText}"
+                             PlaceholderText="{markup:T Ns=Settings, Key=SearchPlaceholder}"
                              Classes="SettingsSearch"
                              Height="38"
                              VerticalContentAlignment="Center">

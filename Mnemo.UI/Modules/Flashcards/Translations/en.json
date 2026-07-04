@@ -156,43 +156,47 @@
     "DeckRetentionLabel": "Retention",
     "DeckCardCountFormat": "{0} cards",
     "DeckLastStudiedFormat": "Last studied {0}",
-    "DeckNeverStudied": "Never studied"
-    ,"RetentionTrend": "Retention trend"
-    ,"RetentionTrendSubtitle": "Daily retention across recent reviews"
-    ,"RetentionTrendSummaryAverage": "Avg on review days"
-    ,"RetentionTrendSummaryEmpty": "Awaiting review data"
-    ,"RetentionTrendDeltaUpFormat": "+{0}% vs previous period"
-    ,"RetentionTrendDeltaDownFormat": "-{0}% vs previous period"
-    ,"RetentionTrendDeltaFlat": "No change vs previous period"
-    ,"RetentionTrendDeltaInsufficient": "Need review activity in both periods to compare"
-    ,"RetentionTrendActivityNone": "No review days in the last {0}"
-    ,"RetentionTrendActivitySingle": "1 active day in the last {0}"
-    ,"RetentionTrendActivityPlural": "{0} active days in the last {1}"
-    ,"RetentionTrendEmptyState": "Complete a review session to start seeing a trend"
-    ,"RetentionTrend14DaysAgo": "14d ago"
-    ,"RetentionTrendToday": "Today"
-    ,"SchedulingSectionTitle": "Scheduling"
-    ,"SchedulingEngineLabel": "Scheduling engine"
-    ,"SchedulingEngineHint": "This engine is used in Review mode. Quick, Cram, and Test do not change the schedule."
-    ,"DescriptionLabel": "Description"
-    ,"GeneralSectionTitle": "General"
-    ,"FolderLabel": "Folder"
-    ,"SchedulingEngineSmart": "Smart (FSRS)"
-    ,"SchedulingEngineClassic": "Classic (SM-2)"
-    ,"SchedulingEngineBoxed": "Boxed (Leitner)"
-    ,"SchedulingEngineSimple": "Simple"
-    ,"CardTypeLabel": "TYPE"
-    ,"InstalledModesTitle": "Installed modes"
-    ,"InstalledModesPlaceholder": "No installed custom modes yet."
-    ,"ExitSessionTitle": "End session?"
-    ,"ExitSessionConfirm": "Progress from this session will be saved. Do you want to end now?"
-    ,"SummaryDurationLabel": "Duration"
-    ,"SummaryAccuracyLabel": "Accuracy"
-    ,"SummaryNextDueLabel": "Next due"
-    ,"PracticeKeyboardShortcutsLabel": "Keyboard shortcuts:"
-    ,"PracticeRevealPrefix": "Press"
-    ,"PracticeRevealSpacebar": "Spacebar"
-    ,"PracticeRevealSuffix": "to reveal"
+    "DeckNeverStudied": "Never studied",
+    "RetentionTrend": "Retention trend",
+    "RetentionTrendSubtitle": "Daily retention across recent reviews",
+    "RetentionTrendSummaryAverage": "Avg on review days",
+    "RetentionTrendSummaryEmpty": "Awaiting review data",
+    "RetentionTrendDeltaUpFormat": "+{0}% vs previous period",
+    "RetentionTrendDeltaDownFormat": "-{0}% vs previous period",
+    "RetentionTrendDeltaFlat": "No change vs previous period",
+    "RetentionTrendDeltaInsufficient": "Need review activity in both periods to compare",
+    "RetentionTrendActivityNone": "No review days in the last {0}",
+    "RetentionTrendActivitySingle": "1 active day in the last {0}",
+    "RetentionTrendActivityPlural": "{0} active days in the last {1}",
+    "RetentionTrendEmptyState": "Complete a review session to start seeing a trend",
+    "RetentionTrend14DaysAgo": "14d ago",
+    "RetentionTrendToday": "Today",
+    "SchedulingSectionTitle": "Scheduling",
+    "SchedulingEngineLabel": "Scheduling engine",
+    "SchedulingEngineHint": "This engine is used in Review mode. Quick, Cram, and Test do not change the schedule.",
+    "DescriptionLabel": "Description",
+    "GeneralSectionTitle": "General",
+    "FolderLabel": "Folder",
+    "SchedulingEngineSmart": "Smart (FSRS)",
+    "SchedulingEngineClassic": "Classic (SM-2)",
+    "SchedulingEngineBoxed": "Boxed (Leitner)",
+    "SchedulingEngineSimple": "Simple",
+    "CardTypeLabel": "TYPE",
+    "InstalledModesTitle": "Installed modes",
+    "InstalledModesPlaceholder": "No installed custom modes yet.",
+    "ExitSessionTitle": "End session?",
+    "ExitSessionConfirm": "Progress from this session will be saved. Do you want to end now?",
+    "SummaryDurationLabel": "Duration",
+    "SummaryAccuracyLabel": "Accuracy",
+    "SummaryNextDueLabel": "Next due",
+    "PracticeKeyboardShortcutsLabel": "Keyboard shortcuts:",
+    "PracticeRevealPrefix": "Press",
+    "PracticeRevealSpacebar": "Spacebar",
+    "PracticeRevealSuffix": "to reveal",
+    "LibraryEmptyTitle": "No decks yet",
+    "LibraryEmptyDescription": "Create your first deck to start practicing with spaced repetition.",
+    "NoResultsTitle": "No matching decks",
+    "NoResultsDescription": "Try a different search or folder."
   },
   "Keybinds": {
     "module.flashcards": "Flashcards",

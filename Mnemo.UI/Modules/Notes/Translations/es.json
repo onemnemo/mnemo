@@ -30,7 +30,9 @@
     "PdfExportCompleteTitle": "Exportación completada",
     "PdfExportCompleteMessage": "Se guardó el PDF.",
     "PdfExportFailedTitle": "Error al exportar",
-    "ToolbarExportPdf": "Exportar como PDF"
+    "ToolbarExportPdf": "Exportar como PDF",
+    "NoNoteSelectedTitle": "Ninguna nota seleccionada",
+    "NoNoteSelectedDescription": "Selecciona una nota de la barra lateral o crea una nueva para empezar a escribir."
   },
   "Keybinds": {
     "module.editor": "Editor",

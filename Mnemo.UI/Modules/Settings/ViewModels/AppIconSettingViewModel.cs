@@ -6,7 +6,7 @@ using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Settings.ViewModels;
 
-public partial class AppIconSettingViewModel : ViewModelBase
+public partial class AppIconSettingViewModel : ViewModelBase, ISettingsSearchable
 {
     private readonly ISettingsService _settingsService;
     private const string SettingKey = "App.Icon";

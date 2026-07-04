@@ -4,7 +4,7 @@ using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Settings.ViewModels;
 
-public partial class TextSettingViewModel : ViewModelBase
+public partial class TextSettingViewModel : ViewModelBase, ISettingsSearchable
 {
     private readonly ISettingsService _settingsService;
     private readonly string _settingsKey;

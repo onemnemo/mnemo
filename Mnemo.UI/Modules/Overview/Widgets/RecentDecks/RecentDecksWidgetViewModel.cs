@@ -21,16 +21,12 @@ public partial class RecentDeckItem : ObservableObject
     [ObservableProperty]
     private string _name = string.Empty;
 
+    /// <summary>Subject and card count on one line ("Biology • 63 cards"); subject omitted when the deck has no tags.</summary>
     [ObservableProperty]
-    private string _subject = string.Empty;
+    private string _metaText = string.Empty;
 
     [ObservableProperty]
-    private int _cardCount;
-
-    [ObservableProperty]
-    private DateTime _lastPracticed;
-
-    public string LastPracticedText => LastPracticed == default ? "—" : LastPracticed.ToLocalTime().ToString("MMM dd, yyyy");
+    private string _lastPracticedText = "—";
 }
 
 /// <summary>
@@ -44,17 +40,23 @@ public partial class RecentDecksWidgetViewModel : WidgetViewModelBase
     private readonly IFlashcardDeckService _decks;
     private readonly INavigationService _navigation;
     private readonly ILoggerService _logger;
+    private readonly ILocalizationService _localization;
+    private readonly IDateDisplayService _dateDisplay;
 
     public RecentDecksWidgetViewModel(
         IStatisticsManager statistics,
         IFlashcardDeckService decks,
         INavigationService navigation,
-        ILoggerService logger)
+        ILoggerService logger,
+        ILocalizationService localization,
+        IDateDisplayService dateDisplay)
     {
         _statistics = statistics;
         _decks = decks;
         _navigation = navigation;
         _logger = logger;
+        _localization = localization;
+        _dateDisplay = dateDisplay;
     }
 
     [RelayCommand]
@@ -101,14 +103,15 @@ public partial class RecentDecksWidgetViewModel : WidgetViewModelBase
                     continue;
 
                 var lastPracticed = ReadDateTime(record, "last_practiced") ?? deck.LastStudied?.UtcDateTime ?? default;
+                var subject = deck.Tags?.Count > 0 ? deck.Tags[0] : string.Empty;
+                var cardsLine = $"{deck.Cards?.Count ?? 0} {_localization.T("cards", "Overview")}";
 
                 RecentDecks.Add(new RecentDeckItem
                 {
                     DeckId = deckId,
                     Name = deck.Name,
-                    Subject = deck.Tags?.Count > 0 ? deck.Tags[0] : string.Empty,
-                    CardCount = deck.Cards?.Count ?? 0,
-                    LastPracticed = lastPracticed
+                    MetaText = string.IsNullOrWhiteSpace(subject) ? cardsLine : $"{subject} • {cardsLine}",
+                    LastPracticedText = lastPracticed == default ? "—" : _dateDisplay.FormatSmart(lastPracticed)
                 });
                 added++;
             }

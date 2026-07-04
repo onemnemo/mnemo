@@ -46,11 +46,12 @@ public class OverviewModule : IModule
         var navigation = services.GetRequiredService<INavigationService>();
         var logger = services.GetRequiredService<ILoggerService>();
         var localization = services.GetRequiredService<ILocalizationService>();
+        var dateDisplay = services.GetRequiredService<IDateDisplayService>();
 
         registry.RegisterWidget(new Widgets.FlashcardStats.FlashcardStatsWidget(stats, logger));
-        registry.RegisterWidget(new Widgets.RecentDecks.RecentDecksWidget(stats, decks, navigation, logger));
+        registry.RegisterWidget(new Widgets.RecentDecks.RecentDecksWidget(stats, decks, navigation, logger, localization, dateDisplay));
         registry.RegisterWidget(new Widgets.StudyGoals.StudyGoalsWidget(stats, logger, localization));
-        registry.RegisterWidget(new Widgets.RecentNotes.RecentNotesWidget(notes, navigation, logger, localization));
+        registry.RegisterWidget(new Widgets.RecentNotes.RecentNotesWidget(notes, navigation, logger, localization, dateDisplay));
         registry.RegisterWidget(new Widgets.UsageSummary.UsageSummaryWidget(stats, logger, localization));
     }
 }

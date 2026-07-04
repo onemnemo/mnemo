@@ -33,6 +33,19 @@ public class SidebarViewModel : ViewModelBase
     public ICommand NavigateCommand { get; }
     public ICommand OpenKeybindManagerCommand { get; }
 
+    /// <summary>Shows the build-channel footer label only on debug or pre-release builds.</summary>
+    public static bool IsDevelopmentBuild
+    {
+        get
+        {
+#if DEBUG
+            return true;
+#else
+            return AppVersion.GetVersion().Contains('-');
+#endif
+        }
+    }
+
     private string _quickActionsShortcutDisplay = string.Empty;
 
     public string QuickActionsShortcutDisplay

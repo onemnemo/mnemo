@@ -100,7 +100,7 @@ public class OverlayService : IOverlayService
         return instance.Id;
     }
 
-    public async Task<string?> CreateDialogAsync(string title, string message, string confirmText = "OK", string cancelText = "", object? icon = null, object? parameter = null)
+    public async Task<string?> CreateDialogAsync(string title, string message, string confirmText = "OK", string cancelText = "", object? icon = null, object? parameter = null, DialogSeverity severity = DialogSeverity.Default)
     {
         var tcs = new TaskCompletionSource<object?>();
         var dialog = new DialogOverlay
@@ -108,7 +108,8 @@ public class OverlayService : IOverlayService
             Title = title,
             Description = message,
             PrimaryText = confirmText,
-            SecondaryText = cancelText
+            SecondaryText = cancelText,
+            IsDestructive = severity == DialogSeverity.Destructive
         };
 
         var options = new OverlayOptions

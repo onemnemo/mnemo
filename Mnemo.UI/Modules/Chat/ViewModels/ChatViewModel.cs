@@ -1174,7 +1174,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             _localizationService.T("DeleteChatTitle", "Chat"),
             _localizationService.T("DeleteChatMessage", "Chat"),
             deleteLabel,
-            _localizationService.T("Cancel", "Common"));
+            _localizationService.T("Cancel", "Common"),
+            severity: DialogSeverity.Destructive);
         if (choice != deleteLabel) return;
 
         await Dispatcher.UIThread.InvokeAsync(() => RemoveConversationCore(conversationId));

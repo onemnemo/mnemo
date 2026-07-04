@@ -128,7 +128,7 @@ public partial class MindmapOverviewView : UserControl
         var overlayService = services?.GetService<IOverlayService>();
         if (mindmapService == null || overlayService == null)
             return;
-        var confirm = await overlayService.CreateDialogAsync("Delete Mindmap", $"Are you sure you want to delete '{item.Name}'?", "Delete", "Cancel").ConfigureAwait(true);
+        var confirm = await overlayService.CreateDialogAsync("Delete Mindmap", $"Are you sure you want to delete '{item.Name}'?", "Delete", "Cancel", severity: DialogSeverity.Destructive).ConfigureAwait(true);
         if (!string.Equals(confirm, "Delete", StringComparison.Ordinal))
             return;
         var deleted = await mindmapService.DeleteMindmapAsync(item.Id).ConfigureAwait(true);

@@ -7,7 +7,7 @@ using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Settings.ViewModels;
 
-public partial class ProfilePictureSettingViewModel : ViewModelBase
+public partial class ProfilePictureSettingViewModel : ViewModelBase, ISettingsSearchable
 {
     private readonly ISettingsService _settingsService;
     private const string SettingKey = "User.ProfilePicture";

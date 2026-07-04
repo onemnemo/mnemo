@@ -8,7 +8,7 @@ using Mnemo.UI.ViewModels;
 namespace Mnemo.UI.Modules.Settings.ViewModels;
 
 /// <summary>A settings row with a button that runs an async action and shows a status/result message.</summary>
-public partial class AsyncActionSettingViewModel : ViewModelBase
+public partial class AsyncActionSettingViewModel : ViewModelBase, ISettingsSearchable
 {
     [ObservableProperty] private string _title;
     [ObservableProperty] private string _description;

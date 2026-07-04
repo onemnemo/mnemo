@@ -73,6 +73,18 @@
     <SolidColorBrush x:Key="ToastTimerTrackBrush" Color="{DynamicResource ToastTimerTrack}"/>
     <SolidColorBrush x:Key="ToastTimerFillBrush" Color="{DynamicResource ToastTimerFill}"/>
     <SolidColorBrush x:Key="NotificationFlyoutRowHoverBrush" Color="{DynamicResource NotificationFlyoutHover}"/>
+    <!-- Avalonia WindowNotificationManager cards (alias onto the toast palette) -->
+    <SolidColorBrush x:Key="NotificationCardBackgroundBrush" Color="{DynamicResource ToastBackgroundPrimary}"/>
+    <SolidColorBrush x:Key="NotificationCardForegroundBrush" Color="{DynamicResource ToastTitleColor}"/>
+    <SolidColorBrush x:Key="NotificationCardProgressBackgroundBrush" Color="{DynamicResource ToastTimerTrack}"/>
+    <SolidColorBrush x:Key="NotificationCardInformationBackgroundBrush" Color="{DynamicResource ToastAccentInfo}"/>
+    <SolidColorBrush x:Key="NotificationCardSuccessBackgroundBrush" Color="{DynamicResource ToastAccentSuccess}"/>
+    <SolidColorBrush x:Key="NotificationCardWarningBackgroundBrush" Color="{DynamicResource ToastAccentWarning}"/>
+    <SolidColorBrush x:Key="NotificationCardErrorBackgroundBrush" Color="{DynamicResource SystemErrorBackground}"/>
+    <!-- Dropdown overlay rows -->
+    <SolidColorBrush x:Key="DropdownItemForegroundBrush" Color="{DynamicResource TextPrimary}"/>
+    <SolidColorBrush x:Key="DropdownItemForegroundSecondaryBrush" Color="{DynamicResource TextSecondary}"/>
+    <SolidColorBrush x:Key="DropdownItemForegroundHeaderBrush" Color="{DynamicResource TextSecondary}"/>
     <SolidColorBrush x:Key="NavElementActiveBackgroundBrush" Color="{DynamicResource NavElementActiveBackground}"/>
     <SolidColorBrush x:Key="NavElementHoverBackgroundBrush" Color="{DynamicResource NavElementHoverBackground}"/>
     <SolidColorBrush x:Key="WidgetBackgroundPrimaryBrush" Color="{DynamicResource WidgetBackgroundPrimary}"/>

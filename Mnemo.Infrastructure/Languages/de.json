@@ -27,7 +27,14 @@
     "ImportCompleteTitle": "Import abgeschlossen",
     "ImportFailedTitle": "Import fehlgeschlagen",
     "ExportCompleteTitle": "Export abgeschlossen",
-    "ExportFailedTitle": "Export fehlgeschlagen"
+    "ExportFailedTitle": "Export fehlgeschlagen",
+    "JustNow": "Jetzt",
+    "MinutesAgo": "{0} Minuten her",
+    "HoursAgo": "{0} Stunden her",
+    "DaysAgo": "{0} Tage her",
+    "WeeksAgo": "{0} Wochen her",
+    "MonthsAgo": "{0} Monate her",
+    "YearsAgo": "{0} Jahre her"
   },
   "Settings": {
     "Title": "Einstellungen",
@@ -182,7 +189,10 @@
     "UpdateNow": "Jetzt aktualisieren",
     "UpdateToastLater": "Später",
     "PostUpdateToastTitle": "Update installiert",
-    "PostUpdateToastDescriptionFormat": "Aktualisiert auf Version {0}."
+    "PostUpdateToastDescriptionFormat": "Aktualisiert auf Version {0}.",
+    "SearchResults": "Suchergebnisse",
+    "SearchResultsSubtitleFormat": "{0} Treffer für „{1}“",
+    "SearchNoResultsFormat": "Keine Einstellungen für „{0}“ gefunden"
   },
   "Onboarding": {
     "WelcomeTitle": "Willkommen bei Mnemo",
@@ -250,7 +260,8 @@
     "CardsPracticed": "Ausgeübte Karten",
     "Today": "Heute",
     "DayStreak": "Tägliche Streaks",
-    "cards": "Karten"
+    "cards": "Karten",
+    "RemoveWidget": "Widget entfernen"
   },
   "App": {
     "AppTitle": "Mnemo",
@@ -536,7 +547,11 @@
     "Swatch3": "Swatch 3",
     "Swatch4": "Swatch 4",
     "Swatch5": "Swatch 5",
-    "Swatch6": "Swatch 6"
+    "Swatch6": "Swatch 6",
+    "LibraryEmptyTitle": "Erstelle deine erste Mindmap",
+    "LibraryEmptyDescription": "Visualisiere Ideen und verbinde Konzepte. Deine Mindmaps erscheinen hier.",
+    "NoResultsTitle": "Keine Mindmaps gefunden",
+    "NoResultsDescription": "Versuche einen anderen Suchbegriff."
   },
   "GlobalSearch": {
     "ShortcutHint": "Strg/Cmd + K",
@@ -559,7 +574,8 @@
     "GamificationStreakFormat": "{0} Tage",
     "ConfirmExitTitle": "Beenden bestätigen",
     "ConfirmExitMessage": "Mnemo wirklich schließen?",
-    "ConfirmExitButton": "Beenden"
+    "ConfirmExitButton": "Beenden",
+    "ProfileTooltip": "Profil & Einstellungen"
   },
   "AddWidget": {
     "Title": "Widget hinzufügen",

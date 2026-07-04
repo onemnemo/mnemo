@@ -27,7 +27,14 @@
     "ImportCompleteTitle": "Importación completada",
     "ImportFailedTitle": "Importación fallida",
     "ExportCompleteTitle": "Exportación completada",
-    "ExportFailedTitle": "Exportación fallida"
+    "ExportFailedTitle": "Exportación fallida",
+    "JustNow": "justo ahora",
+    "MinutesAgo": "hace {0} minutos",
+    "HoursAgo": "hace {0} horas",
+    "DaysAgo": "hace {0} días",
+    "WeeksAgo": "hace {0} semanas",
+    "MonthsAgo": "hace {0} meses",
+    "YearsAgo": "hace {0} años"
   },
   "Settings": {
     "Title": "Configuración",
@@ -182,7 +189,10 @@
     "UpdateNow": "Actualizar ahora",
     "UpdateToastLater": "Más tarde",
     "PostUpdateToastTitle": "Actualización instalada",
-    "PostUpdateToastDescriptionFormat": "Actualizado a la versión {0}."
+    "PostUpdateToastDescriptionFormat": "Actualizado a la versión {0}.",
+    "SearchResults": "Resultados de búsqueda",
+    "SearchResultsSubtitleFormat": "{0} coincidencias para “{1}”",
+    "SearchNoResultsFormat": "Ningún ajuste coincide con “{0}”"
   },
   "Onboarding": {
     "WelcomeTitle": "Bienvenido a Mnemo",
@@ -250,7 +260,8 @@
     "CardsPracticed": "Tarjetas practicadas",
     "Today": "Hoy",
     "DayStreak": "Racha diaria",
-    "cards": "tarjetas"
+    "cards": "tarjetas",
+    "RemoveWidget": "Quitar widget"
   },
   "App": {
     "AppTitle": "Mnemo",
@@ -542,7 +553,11 @@
     "Swatch3": "Muestra 3",
     "Swatch4": "Muestra 4",
     "Swatch5": "Muestra 5",
-    "Swatch6": "Muestra 6"
+    "Swatch6": "Muestra 6",
+    "LibraryEmptyTitle": "Crea tu primer mapa mental",
+    "LibraryEmptyDescription": "Visualiza ideas y conecta conceptos. Tus mapas mentales aparecerán aquí.",
+    "NoResultsTitle": "No se encontraron mapas mentales",
+    "NoResultsDescription": "Prueba con otro término de búsqueda."
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",
@@ -565,7 +580,8 @@
     "GamificationStreakFormat": "{0} Días",
     "ConfirmExitTitle": "Confirmar salida",
     "ConfirmExitMessage": "¿Seguro que quieres cerrar Mnemo?",
-    "ConfirmExitButton": "Salir"
+    "ConfirmExitButton": "Salir",
+    "ProfileTooltip": "Perfil y ajustes"
   },
   "AddWidget": {
     "Title": "Añadir widget",

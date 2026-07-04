@@ -43,7 +43,8 @@
                 Command="{Binding SecondaryCommand}"
                 IsVisible="{Binding SecondaryText, Converter={StaticResource NullToBoolConverter}}"/>
         <Button Content="{Binding PrimaryText}"
-                Classes="destructive"
+                Classes.destructive="{Binding IsDestructive}"
+                Classes.accent="{Binding !IsDestructive}"
                 Command="{Binding PrimaryCommand}"
                 IsVisible="{Binding PrimaryText, Converter={StaticResource NullToBoolConverter}}"/>
       </StackPanel>

@@ -30,7 +30,9 @@
     "PdfExportCompleteTitle": "Export complete",
     "PdfExportCompleteMessage": "The PDF was saved.",
     "PdfExportFailedTitle": "Export failed",
-    "ToolbarExportPdf": "Export as PDF"
+    "ToolbarExportPdf": "Export as PDF",
+    "NoNoteSelectedTitle": "No note selected",
+    "NoNoteSelectedDescription": "Select a note from the sidebar or create a new one to start writing."
   },
   "Keybinds": {
     "module.editor": "Editor",

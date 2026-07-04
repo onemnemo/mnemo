@@ -8,20 +8,31 @@
              x:Class="Mnemo.UI.Modules.Overview.Widgets.FlashcardStats.FlashcardStatsWidgetView"
              x:DataType="vm:FlashcardStatsWidgetViewModel">
 
+    <UserControl.Styles>
+        <!-- Secondary metrics: muted at zero, accent only when the metric is earned. -->
+        <Style Selector="TextBlock.metric">
+            <Setter Property="FontSize" Value="{DynamicResource FontSize.Heading5}"/>
+            <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBlock.metric.active">
+            <Setter Property="Foreground" Value="{DynamicResource CardAccentBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
     <Grid RowDefinitions="*,Auto">
-        <!-- Icon removed to avoid duplication with container header -->
-        
         <!-- Main Stats -->
-        <StackPanel Grid.Row="0" 
+        <StackPanel Grid.Row="0"
                     VerticalAlignment="Center"
                     Spacing="8">
             <TextBlock Text="{Binding TotalCardsPracticed}"
-                       FontSize="42"
+                       FontSize="{DynamicResource FontSize.Stat.Hero}"
                        FontFamily="{DynamicResource Font.Bold}"
                        Foreground="{DynamicResource TextPrimaryBrush}"
                        HorizontalAlignment="Center"/>
             <TextBlock Text="{markup:T Ns=Overview, Key=CardsPracticed}"
-                       FontSize="14"
+                       FontSize="{DynamicResource FontSize.Body.Small}"
                        Foreground="{DynamicResource TextSecondaryBrush}"
                        HorizontalAlignment="Center"/>
         </StackPanel>
@@ -29,25 +40,21 @@
         <!-- Secondary Stats -->
         <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="0,24,0,0">
             <StackPanel Grid.Column="0" Spacing="4">
-                <TextBlock Text="{Binding CardsToday}"
-                           FontSize="18"
-                           FontFamily="{DynamicResource Font.SemiBold}"
-                           Foreground="{DynamicResource CardAccentBrush}"
-                           HorizontalAlignment="Center"/>
+                <TextBlock Classes="metric"
+                           Classes.active="{Binding !!CardsToday}"
+                           Text="{Binding CardsToday}"/>
                 <TextBlock Text="{markup:T Ns=Overview, Key=Today}"
-                           FontSize="11"
+                           FontSize="{DynamicResource FontSize.Caption}"
                            Foreground="{DynamicResource TextSecondaryBrush}"
                            HorizontalAlignment="Center"/>
             </StackPanel>
 
             <StackPanel Grid.Column="1" Spacing="4">
-                <TextBlock FontSize="18"
-                           FontFamily="{DynamicResource Font.SemiBold}"
-                           Foreground="{DynamicResource CardAccentBrush}"
-                           HorizontalAlignment="Center"
+                <TextBlock Classes="metric"
+                           Classes.active="{Binding !!StudyStreak}"
                            Text="{Binding StudyStreak}"/>
                 <TextBlock Text="{markup:T Ns=Overview, Key=DayStreak}"
-                           FontSize="11"
+                           FontSize="{DynamicResource FontSize.Caption}"
                            Foreground="{DynamicResource TextSecondaryBrush}"
                            HorizontalAlignment="Center"/>
             </StackPanel>

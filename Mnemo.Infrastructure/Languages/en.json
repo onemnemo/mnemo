@@ -27,7 +27,14 @@
     "ImportCompleteTitle": "Import complete",
     "ImportFailedTitle": "Import failed",
     "ExportCompleteTitle": "Export complete",
-    "ExportFailedTitle": "Export failed"
+    "ExportFailedTitle": "Export failed",
+    "JustNow": "just now",
+    "MinutesAgo": "{0} minutes ago",
+    "HoursAgo": "{0} hours ago",
+    "DaysAgo": "{0} days ago",
+    "WeeksAgo": "{0} weeks ago",
+    "MonthsAgo": "{0} months ago",
+    "YearsAgo": "{0} years ago"
   },
   "Settings": {
     "Title": "Settings",
@@ -185,7 +192,10 @@
     "UpdateNow": "Update now",
     "UpdateToastLater": "Later",
     "PostUpdateToastTitle": "Update installed",
-    "PostUpdateToastDescriptionFormat": "Updated to version {0}."
+    "PostUpdateToastDescriptionFormat": "Updated to version {0}.",
+    "SearchResults": "Search results",
+    "SearchResultsSubtitleFormat": "{0} matches for “{1}”",
+    "SearchNoResultsFormat": "No settings match “{0}”"
   },
   "Onboarding": {
     "WelcomeTitle": "Welcome to Mnemo",
@@ -253,7 +263,8 @@
     "CardsPracticed": "Cards Practiced",
     "Today": "Today",
     "DayStreak": "Day Streak",
-    "cards": "cards"
+    "cards": "cards",
+    "RemoveWidget": "Remove widget"
   },
   "App": {
     "AppTitle": "Mnemo",
@@ -553,7 +564,11 @@
     "Swatch3": "Swatch 3",
     "Swatch4": "Swatch 4",
     "Swatch5": "Swatch 5",
-    "Swatch6": "Swatch 6"
+    "Swatch6": "Swatch 6",
+    "LibraryEmptyTitle": "Create your first mindmap",
+    "LibraryEmptyDescription": "Visualize ideas and connect concepts. Your mindmaps will appear here.",
+    "NoResultsTitle": "No mindmaps found",
+    "NoResultsDescription": "Try a different search term."
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",
@@ -576,7 +591,8 @@
     "GamificationStreakFormat": "{0} Days",
     "ConfirmExitTitle": "Confirm exit",
     "ConfirmExitMessage": "Are you sure you want to close Mnemo?",
-    "ConfirmExitButton": "Exit"
+    "ConfirmExitButton": "Exit",
+    "ProfileTooltip": "Profile & settings"
   },
   "AddWidget": {
     "Title": "Add Widget",

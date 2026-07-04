@@ -20,21 +20,6 @@
     </UserControl.Resources>
 
     <UserControl.Styles>
-        <Style Selector="TextBox.SettingsSearch">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="8,0"/>
-            <Style Selector="^:pointerover /template/ Border#PART_BorderElement">
-                <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
-            </Style>
-            <Style Selector="^:focus /template/ Border#PART_BorderElement">
-                <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
-            </Style>
-        </Style>
-
         <Style Selector="RadioButton.ToggleViewItem">
             <Setter Property="Width" Value="38"/>
             <Setter Property="Height" Value="38"/>
@@ -70,7 +55,6 @@
         <Style Selector="Border.CardHover:pointerover">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
         </Style>
         <Style Selector="Border.FeaturedCardHover:pointerover">
             <Setter Property="RenderTransform" Value="scale(1.02)"/>
@@ -112,7 +96,7 @@
     </UserControl.Styles>
 
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="40" Spacing="40">
+        <StackPanel Margin="36,28,36,32" Spacing="28">
             <!-- Header Section -->
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="8">
@@ -135,24 +119,24 @@
                             <TextBlock Text="{markup:T Ns=Mindmap, Key=Transfer}"/>
                         </StackPanel>
                     </Button>
-                    <Button Command="{Binding CreateCommand}" 
-                            Background="Transparent" 
-                            BorderThickness="1"
-                            BorderBrush="{DynamicResource CardAccentBrush}"
-                            Padding="20,10" CornerRadius="12">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/file-plus.svg" 
-                                              Width="18" Height="18" Color="{DynamicResource CardAccentBrush}"/>
-                            <TextBlock Text="{markup:T Ns=Mindmap, Key=NewMindmap}" 
-                                       FontFamily="{DynamicResource Font.SemiBold}" 
-                                       Foreground="{DynamicResource CardAccentBrush}"/>
+                    <Button Command="{Binding CreateCommand}"
+                            Classes="accent"
+                            BorderThickness="0"
+                            Padding="16,10" CornerRadius="10">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/plus.svg"
+                                              Width="18" Height="18"
+                                              Color="{DynamicResource AccentButtonForegroundBrush}"/>
+                            <TextBlock Text="{markup:T Ns=Mindmap, Key=NewMindmap}"
+                                       FontFamily="{DynamicResource Font.SemiBold}"
+                                       Foreground="{DynamicResource AccentButtonForegroundBrush}"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>
             </Grid>
 
             <!-- Featured / Recently Active -->
-            <StackPanel Spacing="20">
+            <StackPanel Spacing="20" IsVisible="{Binding !!FrequentlyUsedItems.Count}">
                 <TextBlock Text="{markup:T Ns=Mindmap, Key=RecentlyActive}" 
                            FontSize="{DynamicResource FontSize.Heading3}" 
                            FontFamily="{DynamicResource Font.SemiBold}"
@@ -172,10 +156,10 @@
                             <Button Command="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource OpenMindmapCommandConverter}}"
                                     CommandParameter="{Binding}"
                                     Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,20,0">
-                                <Border Width="280" Height="170" 
-                                        Background="{DynamicResource CardBackgroundSecondaryBrush}" 
+                                <Border Width="280" Height="170"
+                                        Background="{DynamicResource CardBackgroundSecondaryBrush}"
                                         Cursor="Hand"
-                                        CornerRadius="24" ClipToBounds="True"
+                                        CornerRadius="{DynamicResource Radius.Xl}" ClipToBounds="True"
                                         Classes="FeaturedCardHover">
                                         <Panel>
                                             <!-- Background Decoration -->
@@ -313,9 +297,8 @@
                 <!-- Modern Toolbar -->
                 <DockPanel LastChildFill="False">
                     <TextBox PlaceholderText="{markup:T Ns=Mindmap, Key=SearchMindmaps}"
-                             Classes="SettingsSearch"
-                             Width="320" 
-                             Height="38"
+                             Classes="page-search"
+                             Width="320"
                              Text="{Binding SearchText}"
                              VerticalContentAlignment="Center"
                              DockPanel.Dock="Left">
@@ -356,13 +339,14 @@
                                 <Button Command="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource OpenMindmapCommandConverter}}"
                                         CommandParameter="{Binding}"
                                         Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,20,20">
-                                    <Border Padding="20" Background="{DynamicResource CardBackgroundPrimaryBrush}" Cursor="Hand" 
-                                            CornerRadius="20" MinWidth="180" MaxWidth="220" Height="180" Classes="CardHover">
+                                    <Border Padding="20" Background="{DynamicResource CardBackgroundSecondaryBrush}" Cursor="Hand"
+                                            CornerRadius="{DynamicResource Radius.Xl}" MinWidth="180" MaxWidth="220" Height="180" Classes="CardHover"
+                                            BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
                                         <Grid RowDefinitions="Auto,*,Auto">
                                             <Grid Grid.Row="0">
                                                 <StackPanel Orientation="Horizontal" Spacing="12">
-                                                    <Border Width="40" Height="40" CornerRadius="12" Background="{DynamicResource SearchBarBackgroundBrush}">
-                                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chart-bubble.svg" 
+                                                    <Border Width="40" Height="40" CornerRadius="{DynamicResource Radius.Md}" Background="{DynamicResource CardIconBackgroundBrush}">
+                                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chart-bubble.svg"
                                                                           Width="20" Height="20" Color="{DynamicResource CardAccentBrush}"/>
                                                     </Border>
                                                     <StackPanel VerticalAlignment="Center">
@@ -408,8 +392,8 @@
                                                 </Button>
                                             </Grid>
                                             
-                                            <TextBlock Grid.Row="1" Text="{Binding Name}" FontSize="{DynamicResource FontSize.Body.Small}" 
-                                                       FontFamily="{DynamicResource Font.Medium}" TextWrapping="Wrap" Margin="0,12,0,0"
+                                            <TextBlock Grid.Row="1" Text="{Binding Name}" FontSize="{DynamicResource FontSize.Heading5}"
+                                                       FontFamily="{DynamicResource Font.SemiBold}" TextWrapping="Wrap" Margin="0,12,0,0"
                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                        VerticalAlignment="Top" MaxLines="2" TextTrimming="CharacterEllipsis"/>
                                             
@@ -472,9 +456,10 @@
                                     <Button Command="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource OpenMindmapCommandConverter}}"
                                             CommandParameter="{Binding}"
                                             Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Stretch">
-                                        <Border Background="{DynamicResource CardBackgroundPrimaryBrush}" CornerRadius="16" Margin="0,0,0,8" Padding="12" Classes="CardHover" ClipToBounds="True" Cursor="Hand">
+                                        <Border Background="{DynamicResource CardBackgroundSecondaryBrush}" CornerRadius="{DynamicResource Radius.Lg}" Margin="0,0,0,8" Padding="12" Classes="CardHover" ClipToBounds="True" Cursor="Hand"
+                                                BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
                                             <Grid ColumnDefinitions="48,*,150,170,40">
-                                                <Border Grid.Column="0" Width="40" Height="40" CornerRadius="10" Background="{DynamicResource SearchBarBackgroundBrush}">
+                                                <Border Grid.Column="0" Width="40" Height="40" CornerRadius="{DynamicResource Radius.Md}" Background="{DynamicResource CardIconBackgroundBrush}">
                                                     <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chart-bubble.svg"
                                                                       Width="20" Height="20" Color="{DynamicResource CardAccentBrush}"/>
                                                 </Border>
@@ -552,6 +537,19 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                     </StackPanel>
+
+                    <components:EmptyState IsVisible="{Binding ShowEmptyState}"
+                                           IconPath="avares://Mnemo.UI/Icons/Common/chart-bubble.svg"
+                                           Title="{markup:T Ns=Mindmap, Key=LibraryEmptyTitle}"
+                                           Description="{markup:T Ns=Mindmap, Key=LibraryEmptyDescription}"
+                                           ActionText="{markup:T Ns=Mindmap, Key=NewMindmap}"
+                                           ActionCommand="{Binding CreateCommand}"
+                                           Margin="0,48,0,0"/>
+                    <components:EmptyState IsVisible="{Binding ShowNoResultsState}"
+                                           IconPath="avares://Mnemo.UI/Icons/Common/search.svg"
+                                           Title="{markup:T Ns=Mindmap, Key=NoResultsTitle}"
+                                           Description="{markup:T Ns=Mindmap, Key=NoResultsDescription}"
+                                           Margin="0,48,0,0"/>
                 </Panel>
             </StackPanel>
         </StackPanel>

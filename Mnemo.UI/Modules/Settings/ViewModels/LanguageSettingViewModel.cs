@@ -8,7 +8,7 @@ using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Settings.ViewModels;
 
-public partial class LanguageSettingViewModel : ViewModelBase
+public partial class LanguageSettingViewModel : ViewModelBase, ISettingsSearchable
 {
     private readonly ILocalizationService _localizationService;
     private readonly ISettingsService _settingsService;

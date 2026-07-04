@@ -123,6 +123,8 @@ public class MindmapService : IMindmapService
 
     public async Task<Result> SaveMindmapAsync(Mindmap mindmap)
     {
+        mindmap.ModifiedAt = DateTime.UtcNow;
+
         var saveResult = await _storage.SaveAsync(MindmapPrefix + mindmap.Id, mindmap).ConfigureAwait(false);
         if (!saveResult.IsSuccess)
             return saveResult;

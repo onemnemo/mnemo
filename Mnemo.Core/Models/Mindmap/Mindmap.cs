@@ -12,4 +12,5 @@ public class Mindmap
     public List<MindmapNode> Nodes { get; set; } = new();
     public List<MindmapEdge> Edges { get; set; } = new();
     public MindmapLayout Layout { get; set; } = new();
+    public DateTime? ModifiedAt { get; set; }
 }

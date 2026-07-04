@@ -11,13 +11,20 @@ public sealed class RecentNotesWidget : IWidget
     private readonly INavigationService _navigation;
     private readonly ILoggerService _logger;
     private readonly ILocalizationService _localization;
+    private readonly IDateDisplayService _dateDisplay;
 
-    public RecentNotesWidget(INoteService notes, INavigationService navigation, ILoggerService logger, ILocalizationService localization)
+    public RecentNotesWidget(
+        INoteService notes,
+        INavigationService navigation,
+        ILoggerService logger,
+        ILocalizationService localization,
+        IDateDisplayService dateDisplay)
     {
         _notes = notes;
         _navigation = navigation;
         _logger = logger;
         _localization = localization;
+        _dateDisplay = dateDisplay;
         Metadata = new WidgetMetadata(
             id: "recent-notes",
             title: "Recent notes",
@@ -31,5 +38,5 @@ public sealed class RecentNotesWidget : IWidget
     }
 
     public IWidgetViewModel CreateViewModel(IWidgetSettings? settings = null)
-        => new RecentNotesWidgetViewModel(_notes, _navigation, _logger, _localization);
+        => new RecentNotesWidgetViewModel(_notes, _navigation, _logger, _localization, _dateDisplay);
 }

@@ -7,7 +7,7 @@ using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Settings.ViewModels;
 
-public partial class ThemeSettingViewModel : ViewModelBase
+public partial class ThemeSettingViewModel : ViewModelBase, ISettingsSearchable
 {
     private readonly IThemeService _themeService;
     

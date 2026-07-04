@@ -4,7 +4,7 @@ using Mnemo.UI.ViewModels;
 namespace Mnemo.UI.Modules.Settings.ViewModels;
 
 /// <summary>Read-only notice row (title + description) for settings categories.</summary>
-public partial class SettingsNoticeViewModel : ViewModelBase
+public partial class SettingsNoticeViewModel : ViewModelBase, ISettingsSearchable
 {
     [ObservableProperty] private string _title;
     [ObservableProperty] private string _description;

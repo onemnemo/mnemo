@@ -16,13 +16,23 @@ public class RecentDecksWidget : IWidget
     private readonly IFlashcardDeckService _decks;
     private readonly INavigationService _navigation;
     private readonly ILoggerService _logger;
+    private readonly ILocalizationService _localization;
+    private readonly IDateDisplayService _dateDisplay;
 
-    public RecentDecksWidget(IStatisticsManager statistics, IFlashcardDeckService decks, INavigationService navigation, ILoggerService logger)
+    public RecentDecksWidget(
+        IStatisticsManager statistics,
+        IFlashcardDeckService decks,
+        INavigationService navigation,
+        ILoggerService logger,
+        ILocalizationService localization,
+        IDateDisplayService dateDisplay)
     {
         _statistics = statistics;
         _decks = decks;
         _navigation = navigation;
         _logger = logger;
+        _localization = localization;
+        _dateDisplay = dateDisplay;
         Metadata = new WidgetMetadata(
             id: "recent-decks",
             title: "Recent Decks",
@@ -38,6 +48,6 @@ public class RecentDecksWidget : IWidget
 
     public IWidgetViewModel CreateViewModel(IWidgetSettings? settings = null)
     {
-        return new RecentDecksWidgetViewModel(_statistics, _decks, _navigation, _logger);
+        return new RecentDecksWidgetViewModel(_statistics, _decks, _navigation, _logger, _localization, _dateDisplay);
     }
 }

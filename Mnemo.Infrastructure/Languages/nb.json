@@ -27,7 +27,14 @@
     "ImportCompleteTitle": "Import fullført",
     "ImportFailedTitle": "Import mislyktes",
     "ExportCompleteTitle": "Eksport fullført",
-    "ExportFailedTitle": "Eksport mislyktes"
+    "ExportFailedTitle": "Eksport mislyktes",
+    "JustNow": "akkurat nå",
+    "MinutesAgo": "{0} minutter siden",
+    "HoursAgo": "{0} timer siden",
+    "DaysAgo": "{0} dager siden",
+    "WeeksAgo": "{0} uker siden",
+    "MonthsAgo": "{0} måneder siden",
+    "YearsAgo": "{0} år siden"
   },
   "Settings": {
     "Title": "Innstillinger",
@@ -185,7 +192,10 @@
     "UpdateNow": "Oppdater nå",
     "UpdateToastLater": "Senere",
     "PostUpdateToastTitle": "Oppdatering installert",
-    "PostUpdateToastDescriptionFormat": "Oppdatert til versjon {0}."
+    "PostUpdateToastDescriptionFormat": "Oppdatert til versjon {0}.",
+    "SearchResults": "Søkeresultater",
+    "SearchResultsSubtitleFormat": "{0} treff for «{1}»",
+    "SearchNoResultsFormat": "Ingen innstillinger samsvarer med «{0}»"
   },
   "Onboarding": {
     "WelcomeTitle": "Velkommen til Mnemo",
@@ -253,7 +263,8 @@
     "CardsPracticed": "Kort øvd på",
     "Today": "I dag",
     "DayStreak": "Dags-streak",
-    "cards": "kort"
+    "cards": "kort",
+    "RemoveWidget": "Fjern widget"
   },
   "App": {
     "AppTitle": "Mnemo",
@@ -545,7 +556,11 @@
     "Swatch3": "Fargeprøve 3",
     "Swatch4": "Fargeprøve 4",
     "Swatch5": "Fargeprøve 5",
-    "Swatch6": "Fargeprøve 6"
+    "Swatch6": "Fargeprøve 6",
+    "LibraryEmptyTitle": "Lag ditt første tankekart",
+    "LibraryEmptyDescription": "Visualiser ideer og koble sammen konsepter. Tankekartene dine vises her.",
+    "NoResultsTitle": "Ingen tankekart funnet",
+    "NoResultsDescription": "Prøv et annet søkeord."
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",
@@ -568,7 +583,8 @@
     "GamificationStreakFormat": "{0} dager",
     "ConfirmExitTitle": "Bekreft avslutt",
     "ConfirmExitMessage": "Er du sikker på at du vil lukke Mnemo?",
-    "ConfirmExitButton": "Avslutt"
+    "ConfirmExitButton": "Avslutt",
+    "ProfileTooltip": "Profil og innstillinger"
   },
   "AddWidget": {
     "Title": "Legg til widget",

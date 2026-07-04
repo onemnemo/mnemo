@@ -240,6 +240,7 @@ public static class Bootstrapper
             translationRegistry.Sources,
             sp.GetRequiredService<ILoggerService>(),
             "en"));
+        services.AddSingleton<IDateDisplayService, DateDisplayService>();
 
         // 4. Configure Modules
         var registrar = new ServiceRegistrar(services);

@@ -19,6 +19,7 @@ public partial class MindmapOverviewViewModel : ViewModelBase
     private readonly INavigationService _navigation;
     private readonly IOverlayService _overlay;
     private readonly ILoggerService _logger;
+    private readonly IDateDisplayService _dateDisplay;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -28,6 +29,12 @@ public partial class MindmapOverviewViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isLoading;
+
+    [ObservableProperty]
+    private bool _showEmptyState;
+
+    [ObservableProperty]
+    private bool _showNoResultsState;
 
     public ObservableCollection<MindmapItemViewModel> FrequentlyUsedItems { get; } = new();
     public ObservableCollection<MindmapItemViewModel> AllItems { get; } = new();
@@ -42,12 +49,14 @@ public partial class MindmapOverviewViewModel : ViewModelBase
         IMindmapService mindmapService,
         INavigationService navigation,
         IOverlayService overlay,
-        ILoggerService logger)
+        ILoggerService logger,
+        IDateDisplayService dateDisplay)
     {
         _mindmapService = mindmapService;
         _navigation = navigation;
         _overlay = overlay;
         _logger = logger;
+        _dateDisplay = dateDisplay;
 
         ToggleViewCommand = new RelayCommand(() => IsGridView = !IsGridView);
         CreateCommand = new RelayCommand(CreateNewMindmap);
@@ -69,6 +78,9 @@ public partial class MindmapOverviewViewModel : ViewModelBase
             : AllItems.Where(i => i.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
         foreach (var item in source)
             FilteredItems.Add(item);
+
+        ShowEmptyState = AllItems.Count == 0;
+        ShowNoResultsState = AllItems.Count > 0 && FilteredItems.Count == 0;
     }
 
     private async Task LoadMindmapsAsync()
@@ -89,7 +101,7 @@ public partial class MindmapOverviewViewModel : ViewModelBase
                         Name = m.Title,
                         NodeCount = m.Nodes.Count,
                         EdgeCount = m.Edges.Count,
-                        LastModified = DateTime.Now.ToString("MM/dd/yyyy")
+                        LastModified = m.ModifiedAt is DateTime dt ? _dateDisplay.FormatSmart(dt) : "—"
                     };
                     MindmapPreviewBuilder.PopulatePreviews(vm, m);
                     return vm;
@@ -132,7 +144,8 @@ public partial class MindmapOverviewViewModel : ViewModelBase
             "Delete Mindmap",
             $"Are you sure you want to delete '{item.Name}'?",
             "Delete",
-            "Cancel");
+            "Cancel",
+            severity: DialogSeverity.Destructive);
 
         if (result == "Delete")
         {

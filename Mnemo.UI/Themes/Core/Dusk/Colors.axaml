@@ -46,11 +46,11 @@
     <Color x:Key="Links">#2686C2</Color>
     <Color x:Key="LinksHover">#3396D2</Color>
     <Color x:Key="NavButtonBackground">Transparent</Color>
-    <Color x:Key="NavButtonHover">#FFFFFF</Color>
-    <Color x:Key="NavButtonActive">#FFFFFF</Color>
+    <Color x:Key="NavButtonHover">#1f1f1e</Color>
+    <Color x:Key="NavButtonActive">#312e2d</Color>
     <Color x:Key="NavElementBackground">#312e2d</Color>
     <Color x:Key="NavElementActiveBackground">#e95b45</Color>
-    <Color x:Key="NavElementHoverBackground">#FFFFFF</Color>
+    <Color x:Key="NavElementHoverBackground">#3a3a38</Color>
     <Color x:Key="WidgetBackgroundPrimary">#3A3A3A</Color>
     <Color x:Key="WidgetBackgroundSecondary">#464549</Color>
     <Color x:Key="WidgetBackgroundHover">#414145</Color>

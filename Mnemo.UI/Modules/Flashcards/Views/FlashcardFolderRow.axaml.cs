@@ -189,7 +189,7 @@ public partial class FlashcardFolderRow : UserControl
         var message = string.Format(localization.T("DeleteFolderConfirm", "Flashcards"), item.Name);
         var deleteLabel = localization.T("DeleteFolder", "Flashcards");
         var cancelLabel = localization.T("Cancel", "Common");
-        var result = await overlay.CreateDialogAsync(title, message, deleteLabel, cancelLabel).ConfigureAwait(true);
+        var result = await overlay.CreateDialogAsync(title, message, deleteLabel, cancelLabel, severity: DialogSeverity.Destructive).ConfigureAwait(true);
         if (!string.Equals(result, deleteLabel, StringComparison.Ordinal))
             return;
 

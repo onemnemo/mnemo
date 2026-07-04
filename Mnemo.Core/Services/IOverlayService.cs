@@ -51,6 +51,16 @@ public class OverlayInstance : INotifyPropertyChanged
     protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
+/// <summary>
+/// Visual weight of a confirmation dialog's primary button: accent for ordinary
+/// confirms, destructive (red) only for irreversible actions such as deletes.
+/// </summary>
+public enum DialogSeverity
+{
+    Default,
+    Destructive
+}
+
 public interface IOverlayService
 {
     ObservableCollection<OverlayInstance> Overlays { get; }
@@ -59,5 +69,5 @@ public interface IOverlayService
     void CloseOverlay(string id);
     void CloseOverlay(string id, object? result);
     string CreateOverlay(object content, OverlayOptions options, string? name = null);
-    Task<string?> CreateDialogAsync(string title, string message, string confirmText = "OK", string cancelText = "", object? icon = null, object? parameter = null);
+    Task<string?> CreateDialogAsync(string title, string message, string confirmText = "OK", string cancelText = "", object? icon = null, object? parameter = null, DialogSeverity severity = DialogSeverity.Default);
 }

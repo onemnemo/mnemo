@@ -16,6 +16,7 @@ public partial class SettingsViewModel : ViewModelBase
 {
     public const string DeveloperModeKey = "App.DeveloperMode";
     public const string DeveloperModeGateUnlockedKey = "App.DeveloperModeGateUnlocked";
+    private const string SearchResultsCategoryId = "SearchResults";
 
     private readonly ISettingsService _settingsService;
     private readonly IThemeService _themeService;
@@ -39,6 +40,15 @@ public partial class SettingsViewModel : ViewModelBase
     private SettingsCategoryViewModel? _selectedCategory;
 
     [ObservableProperty]
+    private string _searchText = string.Empty;
+
+    /// <summary>Category the user was on before typing a search, restored when the query is cleared.</summary>
+    private SettingsCategoryViewModel? _categoryBeforeSearch;
+
+    /// <summary>Set while clearing the query programmatically so the filter does not re-run.</summary>
+    private bool _suppressSearchFilter;
+
+    [ObservableProperty]
     private string _userName = "John Doe";
 
     [ObservableProperty]
@@ -55,9 +65,70 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private void SelectCategory(SettingsCategoryViewModel category)
     {
+        _categoryBeforeSearch = null;
+        if (SearchText.Length > 0)
+            SearchText = string.Empty;
+
         if (SelectedCategory != null) SelectedCategory.IsSelected = false;
         SelectedCategory = category;
         SelectedCategory.IsSelected = true;
+    }
+
+    partial void OnSearchTextChanged(string value)
+    {
+        if (!_suppressSearchFilter)
+            ApplySearchFilter(value.Trim());
+    }
+
+    /// <summary>
+    /// Cross-category search: while a query is active, the content area shows a transient
+    /// "Search results" category whose groups are labelled "Category › Group". Clearing the
+    /// query restores the category the user was on.
+    /// </summary>
+    private void ApplySearchFilter(string query)
+    {
+        if (query.Length == 0)
+        {
+            if (_categoryBeforeSearch != null && Categories.Contains(_categoryBeforeSearch))
+                SelectCategory(_categoryBeforeSearch);
+            _categoryBeforeSearch = null;
+            return;
+        }
+
+        if (SelectedCategory?.CategoryId != SearchResultsCategoryId)
+            _categoryBeforeSearch = SelectedCategory;
+
+        var compare = System.Globalization.CultureInfo.CurrentCulture.CompareInfo;
+        bool Matches(ISettingsSearchable item) =>
+            compare.IndexOf(item.Title ?? string.Empty, query, System.Globalization.CompareOptions.IgnoreCase) >= 0 ||
+            compare.IndexOf(item.Description ?? string.Empty, query, System.Globalization.CompareOptions.IgnoreCase) >= 0;
+
+        var resultGroups = Categories
+            .SelectMany(category => category.Groups.Select(group => (category, group)))
+            .Select(pair => (pair.category, pair.group,
+                matches: pair.group.Items.OfType<ISettingsSearchable>().Where(Matches).Cast<ViewModelBase>().ToList()))
+            .Where(t => t.matches.Count > 0)
+            .ToList();
+
+        var totalMatches = resultGroups.Sum(t => t.matches.Count);
+        var results = new SettingsCategoryViewModel(T("SearchResults"), "avares://Mnemo.UI/Icons/Common/search.svg", SearchResultsCategoryId)
+        {
+            Subtitle = totalMatches > 0
+                ? string.Format(T("SearchResultsSubtitleFormat"), totalMatches, query)
+                : string.Format(T("SearchNoResultsFormat"), query)
+        };
+
+        foreach (var (category, group, matches) in resultGroups)
+        {
+            var resultGroup = new SettingsGroupViewModel($"{category.Name} › {group.Name}");
+            foreach (var match in matches)
+                resultGroup.Items.Add(match);
+            results.Groups.Add(resultGroup);
+        }
+
+        foreach (var c in Categories)
+            c.IsSelected = false;
+        SelectedCategory = results;
     }
 
     [RelayCommand]
@@ -168,6 +239,15 @@ public partial class SettingsViewModel : ViewModelBase
 
     private void RebuildCategories(string? preserveCategoryId = null)
     {
+        // Rebuilding replaces all category/item instances, so any active search is stale.
+        _categoryBeforeSearch = null;
+        if (SearchText.Length > 0)
+        {
+            _suppressSearchFilter = true;
+            try { SearchText = string.Empty; }
+            finally { _suppressSearchFilter = false; }
+        }
+
         var account = new SettingsCategoryViewModel(T("Account"), "avares://Mnemo.UI/Icons/Common/user.svg", "Account");
         var profileGroup = new SettingsGroupViewModel(T("Profile"), isCollapsible: true);
         profileGroup.Items.Add(new ProfilePictureSettingViewModel(_settingsService, T("ProfilePicture"), T("ProfilePictureDescription")));
@@ -249,7 +329,8 @@ public partial class SettingsViewModel : ViewModelBase
                     T("ClearChatHistoryConfirmTitle"),
                     T("ClearChatHistoryConfirmMessage"),
                     clearChatLabel,
-                    _localizationService.T("Cancel", "Common"));
+                    _localizationService.T("Cancel", "Common"),
+                    severity: DialogSeverity.Destructive);
                 if (confirm != clearChatLabel)
                     return;
                 var result = await _chatHistoryClearService.ClearAllAsync();

@@ -30,7 +30,9 @@
     "PdfExportCompleteTitle": "書き出し完了",
     "PdfExportCompleteMessage": "PDFを保存しました。",
     "PdfExportFailedTitle": "書き出しに失敗しました",
-    "ToolbarExportPdf": "PDFとして書き出す"
+    "ToolbarExportPdf": "PDFとして書き出す",
+    "NoNoteSelectedTitle": "ノートが選択されていません",
+    "NoNoteSelectedDescription": "サイドバーからノートを選択するか、新しいノートを作成して書き始めましょう。"
   },
   "Keybinds": {
     "module.editor": "エディター",

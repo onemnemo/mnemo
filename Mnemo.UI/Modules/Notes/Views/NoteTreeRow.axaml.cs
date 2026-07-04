@@ -261,7 +261,7 @@ public partial class NoteTreeRow : UserControl
 
         var deleteLabel = loc.T("Delete", "Notes");
         var cancel = loc.T("Cancel", "Common");
-        var result = await overlay.CreateDialogAsync(title, message, deleteLabel, cancel).ConfigureAwait(true);
+        var result = await overlay.CreateDialogAsync(title, message, deleteLabel, cancel, severity: DialogSeverity.Destructive).ConfigureAwait(true);
         if (result != deleteLabel)
             return;
 

@@ -1,0 +1,34 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:ClassModifier="internal"
+        x:CompileBindings="True">
+
+    <!--
+      Standard in-page search field used by library/list toolbars (Flashcards, Mindmap, Settings).
+      Usage:
+        <TextBox Classes="page-search" Width="320" Text="{Binding SearchText}"
+                 PlaceholderText="...">
+            <TextBox.InnerLeftContent>
+                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/search.svg"
+                                  Width="16" Height="16" Margin="12,0,0,0"
+                                  Color="{DynamicResource TextSecondaryBrush}"/>
+            </TextBox.InnerLeftContent>
+        </TextBox>
+    -->
+    <Style Selector="TextBox.page-search">
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}"/>
+        <Setter Property="Padding" Value="8,0"/>
+        <Setter Property="Height" Value="38"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Style Selector="^:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
+        </Style>
+        <Style Selector="^:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+        </Style>
+    </Style>
+</Styles>

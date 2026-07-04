@@ -14,7 +14,7 @@
              x:Class="Mnemo.UI.Modules.Notes.Views.NotesView"
              x:DataType="vm:NotesViewModel"
              x:CompileBindings="False"
-             Foreground="{DynamicResource TextSecondaryBrush}">
+             Foreground="{DynamicResource TextPrimaryBrush}">
 
     <UserControl.Resources>
         <converters:NullToBoolConverter x:Key="NullToBoolConverter" />
@@ -64,12 +64,12 @@
                         </Style>
                     </Grid.Styles>
                     <!-- Header -->
-                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="10,12,10,8">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,20,16,8">
                         <TextBlock Text="{markup:T Ns=Notes, Key=Notes}"
-                                   FontSize="{DynamicResource FontSize.Heading2}"
-                                   FontFamily="{DynamicResource Font.Bold}"
+                                   FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                   FontFamily="{DynamicResource Font.SemiBold}"
                                    VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                   Foreground="{DynamicResource NotesSectionHeaderForegroundBrush}"/>
 
                         <!-- Collapse Button -->
                         <Button Grid.Column="1" Command="{Binding ToggleSidebarCommand}"
@@ -323,17 +323,16 @@
                 </Grid>
 
                 <!-- Empty state when no note selected -->
-                <StackPanel HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Margin="0,48,0,0"
-                            Spacing="12">
-                    <StackPanel.IsVisible>
+                <components:EmptyState Margin="0,48,0,0"
+                                       IconPath="avares://Mnemo.UI/Icons/Common/file-text.svg"
+                                       Title="{markup:T Ns=Notes, Key=NoNoteSelectedTitle}"
+                                       Description="{markup:T Ns=Notes, Key=NoNoteSelectedDescription}"
+                                       ActionText="{markup:T Ns=Notes, Key=NewNote}"
+                                       ActionCommand="{Binding NewNoteCommand}">
+                    <components:EmptyState.IsVisible>
                         <Binding Path="SelectedNote" Converter="{StaticResource NullToBoolInvertedConverter}"/>
-                    </StackPanel.IsVisible>
-                    <TextBlock Text="{markup:T Ns=Notes, Key=SelectOrCreateNote}"
-                               FontSize="{DynamicResource FontSize.Body.Medium}"
-                               Foreground="{DynamicResource TextTertiaryBrush}"/>
-                </StackPanel>
+                    </components:EmptyState.IsVisible>
+                </components:EmptyState>
                 </Grid>
             </Grid>
             </views:EditorZoomHost>

@@ -887,7 +887,8 @@ public partial class FlashcardDeckDetailViewModel : ViewModelBase, INavigationAw
             _localization.T("DeleteCard", "Flashcards"),
             _localization.T("DeleteCardConfirm", "Flashcards"),
             deleteLabel,
-            cancelLabel).ConfigureAwait(false);
+            cancelLabel,
+            severity: DialogSeverity.Destructive).ConfigureAwait(false);
 
         if (!string.Equals(confirm, deleteLabel, StringComparison.Ordinal))
             return;
@@ -915,7 +916,8 @@ public partial class FlashcardDeckDetailViewModel : ViewModelBase, INavigationAw
             _localization.T("DeleteDeck", "Flashcards"),
             _localization.T("DeleteDeckConfirm", "Flashcards"),
             deleteLabel,
-            cancelLabel).ConfigureAwait(false);
+            cancelLabel,
+            severity: DialogSeverity.Destructive).ConfigureAwait(false);
 
         if (!string.Equals(confirm, deleteLabel, StringComparison.Ordinal))
             return;

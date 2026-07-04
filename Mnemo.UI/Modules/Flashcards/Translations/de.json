@@ -192,7 +192,11 @@
     "PracticeKeyboardShortcutsLabel": "Tastenkürzel:",
     "PracticeRevealPrefix": "Drücke",
     "PracticeRevealSpacebar": "Leertaste",
-    "PracticeRevealSuffix": "zum Aufdecken"
+    "PracticeRevealSuffix": "zum Aufdecken",
+    "LibraryEmptyTitle": "Noch keine Stapel",
+    "LibraryEmptyDescription": "Erstelle deinen ersten Stapel, um mit verteiltem Wiederholen zu üben.",
+    "NoResultsTitle": "Keine passenden Stapel",
+    "NoResultsDescription": "Versuche eine andere Suche oder einen anderen Ordner."
   },
   "Keybinds": {
     "module.flashcards": "Karteikarten",

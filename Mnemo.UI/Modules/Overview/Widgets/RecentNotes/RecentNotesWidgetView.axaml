@@ -34,9 +34,9 @@
                     <DataTemplate DataType="vm:RecentNoteRow">
                         <Button Background="Transparent"
                                 BorderThickness="0"
-                                Padding="12,10"
+                                Padding="{DynamicResource ListRowPadding}"
                                 Margin="0,0,0,8"
-                                CornerRadius="12"
+                                CornerRadius="{DynamicResource Radius.Md}"
                                 HorizontalAlignment="Stretch"
                                 HorizontalContentAlignment="Stretch"
                                 MinWidth="0"
@@ -50,14 +50,14 @@
                             </Button.Styles>
                             <Grid ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch" MinWidth="0">
                                 <Border Grid.Column="0"
-                                        Background="{DynamicResource CardAccentBrush}"
+                                        Background="{DynamicResource CardIconBackgroundBrush}"
                                         Width="36"
                                         Height="36"
-                                        CornerRadius="10"
+                                        CornerRadius="{DynamicResource Radius.Md}"
                                         Margin="0,0,12,0">
                                     <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/file-description-filled.svg"
                                                       Width="18" Height="18"
-                                                      Color="{DynamicResource TextPrimaryBrush}"
+                                                      Color="{DynamicResource CardAccentBrush}"
                                                       HorizontalAlignment="Center"
                                                       VerticalAlignment="Center"/>
                                 </Border>
@@ -67,19 +67,19 @@
                                             MinWidth="0"
                                             Spacing="0">
                                     <TextBlock Text="{Binding Title}"
-                                               FontSize="13"
+                                               FontSize="{DynamicResource FontSize.Body.Small}"
                                                FontFamily="{DynamicResource Font.SemiBold}"
                                                Foreground="{DynamicResource TextPrimaryBrush}"
                                                TextTrimming="CharacterEllipsis"/>
                                     <TextBlock Text="{Binding FolderLine}"
-                                               FontSize="11"
+                                               FontSize="{DynamicResource FontSize.Caption}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                Margin="0,2,0,0"
                                                TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <TextBlock Grid.Column="2"
                                            Text="{Binding ModifiedColumnText}"
-                                           FontSize="11"
+                                           FontSize="{DynamicResource FontSize.Caption}"
                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                            VerticalAlignment="Center"
                                            Margin="12,0,0,0"

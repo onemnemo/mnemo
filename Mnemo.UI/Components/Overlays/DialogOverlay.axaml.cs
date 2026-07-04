@@ -15,11 +15,15 @@ namespace Mnemo.UI.Components.Overlays
         public static readonly StyledProperty<string?> DescriptionProperty = AvaloniaProperty.Register<DialogOverlay, string?>(nameof(Description));
         public static readonly StyledProperty<string?> PrimaryTextProperty = AvaloniaProperty.Register<DialogOverlay, string?>(nameof(PrimaryText));
         public static readonly StyledProperty<string?> SecondaryTextProperty = AvaloniaProperty.Register<DialogOverlay, string?>(nameof(SecondaryText));
+        public static readonly StyledProperty<bool> IsDestructiveProperty = AvaloniaProperty.Register<DialogOverlay, bool>(nameof(IsDestructive));
 
         public string? Title { get => GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
         public string? Description { get => GetValue(DescriptionProperty); set => SetValue(DescriptionProperty, value); }
         public string? PrimaryText { get => GetValue(PrimaryTextProperty); set => SetValue(PrimaryTextProperty, value); }
         public string? SecondaryText { get => GetValue(SecondaryTextProperty); set => SetValue(SecondaryTextProperty, value); }
+
+        /// <summary>Renders the primary button red; reserved for irreversible confirms (delete, clear).</summary>
+        public bool IsDestructive { get => GetValue(IsDestructiveProperty); set => SetValue(IsDestructiveProperty, value); }
 
         public ICommand PrimaryCommand { get; }
         public ICommand SecondaryCommand { get; }

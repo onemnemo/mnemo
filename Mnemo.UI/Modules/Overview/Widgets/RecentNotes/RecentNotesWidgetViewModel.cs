@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Globalization;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -34,15 +33,22 @@ public partial class RecentNotesWidgetViewModel : WidgetViewModelBase
     private readonly INavigationService _navigation;
     private readonly ILoggerService _logger;
     private readonly ILocalizationService _localization;
+    private readonly IDateDisplayService _dateDisplay;
 
     public ObservableCollection<RecentNoteRow> Items { get; } = new();
 
-    public RecentNotesWidgetViewModel(INoteService notes, INavigationService navigation, ILoggerService logger, ILocalizationService localization)
+    public RecentNotesWidgetViewModel(
+        INoteService notes,
+        INavigationService navigation,
+        ILoggerService logger,
+        ILocalizationService localization,
+        IDateDisplayService dateDisplay)
     {
         _notes = notes;
         _navigation = navigation;
         _logger = logger;
         _localization = localization;
+        _dateDisplay = dateDisplay;
     }
 
     public override async Task InitializeAsync()
@@ -64,7 +70,7 @@ public partial class RecentNotesWidgetViewModel : WidgetViewModelBase
                     NoteId = n.NoteId,
                     Title = string.IsNullOrWhiteSpace(n.Title) ? _localization.T("Untitled", "RecentNotes") : n.Title.Trim(),
                     FolderLine = string.IsNullOrWhiteSpace(n.FolderPath) ? "—" : n.FolderPath.Trim(),
-                    ModifiedColumnText = n.ModifiedAt.ToLocalTime().ToString("MMM dd, yyyy", CultureInfo.CurrentCulture)
+                    ModifiedColumnText = _dateDisplay.FormatSmart(n.ModifiedAt)
                 });
             }
         }

@@ -77,12 +77,14 @@
                 <ResourceInclude Source="WidgetContainer.axaml" />
                 <ResourceInclude Source="avares://Mnemo.UI/Components/SettingsCard.axaml" />
                 <ResourceInclude Source="avares://Mnemo.UI/Components/CollapsibleSection.axaml" />
+                <ResourceInclude Source="avares://Mnemo.UI/Components/EmptyState.axaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Styles.Resources>
     
     <!-- NavigationButton (includes ControlTheme and child element styles) -->
     <StyleInclude Source="NavigationButton.axaml" />
+    <StyleInclude Source="PageSearch.axaml" />
     <StyleInclude Source="ModernComboBox.axaml" />
     <StyleInclude Source="SlashCommandMenu.axaml" />
     <StyleInclude Source="InlineFormattingToolbar.axaml" />

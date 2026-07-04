@@ -4,7 +4,7 @@ using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Settings.ViewModels;
 
-public partial class ActionSettingViewModel : ViewModelBase
+public partial class ActionSettingViewModel : ViewModelBase, ISettingsSearchable
 {
     [ObservableProperty] private string _title;
     [ObservableProperty] private string _description;

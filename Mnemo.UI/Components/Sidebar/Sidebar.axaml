@@ -120,18 +120,19 @@
                                           Color="{DynamicResource CardIconColorBrush}"/>
                         </Border>
                         <StackPanel Spacing="2">
-                            <TextBlock Text="{markup:T Ns=Sidebar, Key=QuickActions}"
+                            <TextBlock Text="{markup:T Ns=Sidebar, Key=KeyboardShortcuts}"
                                        Foreground="{DynamicResource QuickActionsTextPrimaryBrush}"
                                        FontSize="{DynamicResource FontSize.Body.Small}"/>
-                            <TextBlock Text="{Binding QuickActionsShortcutDisplay}" 
-                                       FontSize="{DynamicResource FontSize.Caption}" 
+                            <TextBlock Text="{Binding QuickActionsShortcutDisplay}"
+                                       FontSize="{DynamicResource FontSize.Caption}"
                                        Foreground="{DynamicResource QuickActionsTextSecondaryBrush}"/>
                         </StackPanel>
                     </StackPanel>
                 </Button>
-                
-                <TextBlock Text="{markup:T Ns=Sidebar, Key=DevelopmentBuild}" 
-                           FontSize="{DynamicResource FontSize.Body.Caption}" 
+
+                <TextBlock Text="{markup:T Ns=Sidebar, Key=DevelopmentBuild}"
+                           IsVisible="{Binding IsDevelopmentBuild}"
+                           FontSize="{DynamicResource FontSize.Body.Caption}"
                            Foreground="{DynamicResource VersionTextBrush}"
                            HorizontalAlignment="Center"
                            Margin="0,8,0,0"/>

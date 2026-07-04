@@ -98,7 +98,7 @@
     <Setter Property="Foreground" Value="{DynamicResource TextControlForegroundBrush}" />
     <Setter Property="Background" Value="{DynamicResource TextControlBackgroundBrush}" />
     <Setter Property="CaretBrush" Value="{DynamicResource TextControlForegroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrushBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrush}" />
     <Setter Property="SelectionBrush" Value="{DynamicResource TextControlSelectionHighlightColorBrush}" />
     <Setter Property="BorderThickness" Value="{DynamicResource TextControlBorderThemeThickness}" />
     <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}" />
