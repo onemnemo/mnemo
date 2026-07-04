@@ -4,7 +4,7 @@ using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Settings.ViewModels;
 
-public partial class ToggleSettingViewModel : ViewModelBase, ISettingsSearchable
+public partial class ToggleSettingViewModel : ViewModelBase, IToggleSetting
 {
     private readonly ISettingsService _settingsService;
     private readonly string _settingsKey;

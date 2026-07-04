@@ -157,6 +157,8 @@ logs/
 .cursor/
 .vs/
 
+.claude/
 
 docs/
 lucid-icons/
+Claude.md

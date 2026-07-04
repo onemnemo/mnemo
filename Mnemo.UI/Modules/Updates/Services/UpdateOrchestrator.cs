@@ -375,8 +375,12 @@ public sealed class UpdateOrchestrator : IDisposable
         return raw ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>Whether an update offer is pending; mirrored by the sidebar dot and the Settings nav badge.</summary>
+    public bool HasPendingUpdateBadge { get; private set; }
+
     private void SetSettingsUpdateBadge(bool visible)
     {
+        HasPendingUpdateBadge = visible;
         foreach (var cat in _sidebarService.Categories)
         {
             foreach (var item in cat.Items)

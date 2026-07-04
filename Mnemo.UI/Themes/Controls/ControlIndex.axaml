@@ -76,8 +76,7 @@
                 <ResourceInclude Source="TextSelectionHandle.axaml" />
                 <ResourceInclude Source="SearchBox.axaml" />
                 <ResourceInclude Source="WidgetContainer.axaml" />
-                <ResourceInclude Source="avares://Mnemo.UI/Components/SettingsCard.axaml" />
-                <ResourceInclude Source="avares://Mnemo.UI/Components/CollapsibleSection.axaml" />
+                <ResourceInclude Source="avares://Mnemo.UI/Components/SettingsRow.axaml" />
                 <ResourceInclude Source="avares://Mnemo.UI/Components/EmptyState.axaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

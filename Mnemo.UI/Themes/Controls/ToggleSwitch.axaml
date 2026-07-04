@@ -3,152 +3,124 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     x:ClassModifier="internal"
     x:CompileBindings="True">
-  
-  <Thickness x:Key="ToggleSwitchTopHeaderMargin">0,0,0,6</Thickness>
-  <GridLength x:Key="ToggleSwitchPreContentMargin">6</GridLength>
-  <GridLength x:Key="ToggleSwitchPostContentMargin">6</GridLength>
-  <x:Double x:Key="ToggleSwitchThemeMinWidth">0</x:Double>
 
+  <!--
+    Compact pill switch (32x18 track, 14px knob). States come from the
+    ToggleSwitch* theme tokens; keyboard focus renders an accent ring.
+    OnContent/OffContent are intentionally not rendered - pair the switch
+    with an external label (e.g. a SettingsRow title).
+  -->
   <ControlTheme x:Key="{x:Type ToggleSwitch}" TargetType="ToggleSwitch">
     <Setter Property="Cursor" Value="Hand" />
-    <Setter Property="Foreground" Value="{DynamicResource ToggleSwitchContentForegroundBrush}" />
     <Setter Property="HorizontalAlignment" Value="Left" />
     <Setter Property="VerticalAlignment" Value="Center" />
-    <Setter Property="HorizontalContentAlignment" Value="Left" />
-    <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Grid Background="{TemplateBinding Background}">
-          <Grid MinWidth="{DynamicResource ToggleSwitchThemeMinWidth}"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center">
-            
-            <Grid.RowDefinitions>
-              <RowDefinition Height="{DynamicResource ToggleSwitchPreContentMargin}" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="{DynamicResource ToggleSwitchPostContentMargin}" />
-            </Grid.RowDefinitions>
+        <Grid Background="Transparent"
+              Width="32" Height="18"
+              TemplatedControl.IsTemplateFocusTarget="True">
 
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="Auto" />
-              <ColumnDefinition Width="16" MaxWidth="16" />
-              <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+          <Border x:Name="PillBody"
+                  CornerRadius="9"
+                  Background="{DynamicResource ToggleSwitchFillOffBrush}"
+                  BorderBrush="{DynamicResource ToggleSwitchStrokeOffBrush}"
+                  BorderThickness="1">
+            <Border.Transitions>
+              <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15" />
+              </Transitions>
+            </Border.Transitions>
+          </Border>
 
-            <Grid x:Name="SwitchAreaGrid"
-                  Grid.RowSpan="3"
-                  Grid.ColumnSpan="3"
-                  Background="{DynamicResource ToggleSwitchContainerBackgroundBrush}"
-                  Margin="0,5"
-                  TemplatedControl.IsTemplateFocusTarget="True" />
-
-            <!-- Pill body -->
-            <Border x:Name="PillBody"
-                    Grid.Row="1"
-                    Width="40"
-                    Height="20"
-                    CornerRadius="10"
-                    Background="{DynamicResource ToggleSwitchFillOffBrush}"
-                    BorderBrush="{DynamicResource ToggleSwitchStrokeOffBrush}"
-                    BorderThickness="1" />
-
-            <!-- Knob -->
-            <Grid x:Name="PART_MovingKnobs" Grid.Row="1">
-              <Ellipse Width="14"
-                       Height="14"
-                       Fill="{DynamicResource ToggleSwitchKnobFillOffBrush}"
-                       HorizontalAlignment="Left"
-                       Margin="3,0,0,0" />
-            </Grid>
-
+          <Grid x:Name="PART_MovingKnobs">
+            <Border x:Name="SwitchKnob"
+                    Width="14" Height="14"
+                    CornerRadius="7"
+                    Background="{DynamicResource ToggleSwitchKnobFillOffBrush}"
+                    BoxShadow="0 1 2 0 #26000000"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Margin="2,0,0,0">
+              <Border.Transitions>
+                <Transitions>
+                  <ThicknessTransition Property="Margin" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                </Transitions>
+              </Border.Transitions>
+            </Border>
           </Grid>
+
+          <Border x:Name="PART_FocusRing"
+                  BorderBrush="{DynamicResource AccentBrush}"
+                  BorderThickness="2"
+                  CornerRadius="11"
+                  Margin="-3"
+                  IsHitTestVisible="False"
+                  IsVisible="False" />
         </Grid>
       </ControlTemplate>
     </Setter>
 
-    <!-- Checked State -->
+    <!-- Checked -->
     <Style Selector="^:checked /template/ Border#PillBody">
       <Setter Property="Background" Value="{DynamicResource ToggleSwitchFillOnBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchStrokeOnBrush}" />
     </Style>
-
-    <Style Selector="^:checked /template/ Grid#PART_MovingKnobs Ellipse">
-      <Setter Property="Fill" Value="{DynamicResource ToggleSwitchKnobFillOnBrush}" />
-      <Setter Property="Margin" Value="23,0,0,0" />
+    <Style Selector="^:checked /template/ Border#SwitchKnob">
+      <Setter Property="Background" Value="{DynamicResource ToggleSwitchKnobFillOnBrush}" />
+      <Setter Property="Margin" Value="16,0,0,0" />
     </Style>
 
-    <!-- PointerOver State -->
+    <!-- PointerOver -->
     <Style Selector="^:pointerover /template/ Border#PillBody">
       <Setter Property="Background" Value="{DynamicResource ToggleSwitchFillOffPointerOverBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchStrokeOffPointerOverBrush}" />
     </Style>
-
-    <Style Selector="^:pointerover /template/ Grid#PART_MovingKnobs Ellipse">
-      <Setter Property="Fill" Value="{DynamicResource ToggleSwitchKnobFillOffPointerOverBrush}" />
+    <Style Selector="^:pointerover /template/ Border#SwitchKnob">
+      <Setter Property="Background" Value="{DynamicResource ToggleSwitchKnobFillOffPointerOverBrush}" />
     </Style>
-
-    <Style Selector="^:pointerover /template/ Grid#SwitchAreaGrid">
-      <Setter Property="Background" Value="{DynamicResource ToggleSwitchContainerBackgroundPointerOverBrush}" />
-    </Style>
-
     <Style Selector="^:checked:pointerover /template/ Border#PillBody">
       <Setter Property="Background" Value="{DynamicResource ToggleSwitchFillOnPointerOverBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchStrokeOnPointerOverBrush}" />
     </Style>
-
-    <Style Selector="^:checked:pointerover /template/ Grid#PART_MovingKnobs Ellipse">
-      <Setter Property="Fill" Value="{DynamicResource ToggleSwitchKnobFillOnPointerOverBrush}" />
+    <Style Selector="^:checked:pointerover /template/ Border#SwitchKnob">
+      <Setter Property="Background" Value="{DynamicResource ToggleSwitchKnobFillOnPointerOverBrush}" />
     </Style>
 
-    <!-- Pressed State -->
+    <!-- Pressed -->
     <Style Selector="^:pressed /template/ Border#PillBody">
       <Setter Property="Background" Value="{DynamicResource ToggleSwitchFillOffPressedBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchStrokeOffPressedBrush}" />
     </Style>
-
-    <Style Selector="^:pressed /template/ Grid#PART_MovingKnobs Ellipse">
-      <Setter Property="Fill" Value="{DynamicResource ToggleSwitchKnobFillOffPressedBrush}" />
+    <Style Selector="^:pressed /template/ Border#SwitchKnob">
+      <Setter Property="Background" Value="{DynamicResource ToggleSwitchKnobFillOffPressedBrush}" />
     </Style>
-
-    <Style Selector="^:pressed /template/ Grid#SwitchAreaGrid">
-      <Setter Property="Background" Value="{DynamicResource ToggleSwitchContainerBackgroundPressedBrush}" />
-    </Style>
-
     <Style Selector="^:checked:pressed /template/ Border#PillBody">
       <Setter Property="Background" Value="{DynamicResource ToggleSwitchFillOnPressedBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchStrokeOnPressedBrush}" />
     </Style>
-
-    <Style Selector="^:checked:pressed /template/ Grid#PART_MovingKnobs Ellipse">
-      <Setter Property="Fill" Value="{DynamicResource ToggleSwitchKnobFillOnPressedBrush}" />
+    <Style Selector="^:checked:pressed /template/ Border#SwitchKnob">
+      <Setter Property="Background" Value="{DynamicResource ToggleSwitchKnobFillOnPressedBrush}" />
     </Style>
 
-    <!-- Disabled State -->
-    <Style Selector="^:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource ToggleSwitchHeaderForegroundDisabledBrush}" />
-    </Style>
-
+    <!-- Disabled -->
     <Style Selector="^:disabled /template/ Border#PillBody">
       <Setter Property="Background" Value="{DynamicResource ToggleSwitchFillOffDisabledBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchStrokeOffDisabledBrush}" />
     </Style>
-
-    <Style Selector="^:disabled /template/ Grid#PART_MovingKnobs Ellipse">
-      <Setter Property="Fill" Value="{DynamicResource ToggleSwitchKnobFillOffDisabledBrush}" />
+    <Style Selector="^:disabled /template/ Border#SwitchKnob">
+      <Setter Property="Background" Value="{DynamicResource ToggleSwitchKnobFillOffDisabledBrush}" />
     </Style>
-
     <Style Selector="^:checked:disabled /template/ Border#PillBody">
       <Setter Property="Background" Value="{DynamicResource ToggleSwitchFillOnDisabledBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchStrokeOnDisabledBrush}" />
     </Style>
-
-    <Style Selector="^:checked:disabled /template/ Grid#PART_MovingKnobs Ellipse">
-      <Setter Property="Fill" Value="{DynamicResource ToggleSwitchKnobFillOnDisabledBrush}" />
+    <Style Selector="^:checked:disabled /template/ Border#SwitchKnob">
+      <Setter Property="Background" Value="{DynamicResource ToggleSwitchKnobFillOnDisabledBrush}" />
     </Style>
 
+    <!-- Keyboard focus ring -->
+    <Style Selector="^:focus-visible /template/ Border#PART_FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
   </ControlTheme>
 </ResourceDictionary>
-
-
-
-

@@ -589,6 +589,21 @@
     <SolidColorBrush x:Key="SliderThumbBackgroundDisabledBrush" Color="{DynamicResource SliderThumbBackgroundDisabled}"/>
     <SolidColorBrush x:Key="SliderTickBarFillDisabledBrush" Color="{DynamicResource SliderTickBarFillDisabled}"/>
     <SolidColorBrush x:Key="SliderContainerBackgroundDisabledBrush" Color="{DynamicResource SliderContainerBackgroundDisabled}"/>
+
+    <!-- Subtle divider -->
+    <SolidColorBrush x:Key="DividerSubtleBrush" Color="{DynamicResource DividerSubtle}"/>
+
+    <!-- Outline Button -->
+    <SolidColorBrush x:Key="OutlineButtonBackgroundBrush" Color="{DynamicResource OutlineButtonBackground}"/>
+    <SolidColorBrush x:Key="OutlineButtonBackgroundPointerOverBrush" Color="{DynamicResource OutlineButtonBackgroundPointerOver}"/>
+    <SolidColorBrush x:Key="OutlineButtonBackgroundPressedBrush" Color="{DynamicResource OutlineButtonBackgroundPressed}"/>
+    <SolidColorBrush x:Key="OutlineButtonBackgroundDisabledBrush" Color="{DynamicResource OutlineButtonBackgroundDisabled}"/>
+    <SolidColorBrush x:Key="OutlineButtonForegroundBrush" Color="{DynamicResource OutlineButtonForeground}"/>
+    <SolidColorBrush x:Key="OutlineButtonForegroundDisabledBrush" Color="{DynamicResource OutlineButtonForegroundDisabled}"/>
+    <SolidColorBrush x:Key="OutlineButtonBorderBrush" Color="{DynamicResource OutlineButtonBorder}"/>
+    <SolidColorBrush x:Key="OutlineButtonBorderPointerOverBrush" Color="{DynamicResource OutlineButtonBorderPointerOver}"/>
+    <SolidColorBrush x:Key="OutlineButtonBorderPressedBrush" Color="{DynamicResource OutlineButtonBorderPressed}"/>
+    <SolidColorBrush x:Key="OutlineButtonBorderDisabledBrush" Color="{DynamicResource OutlineButtonBorderDisabled}"/>
 </ResourceDictionary>
 
 

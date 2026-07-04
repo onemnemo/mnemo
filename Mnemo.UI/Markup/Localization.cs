@@ -19,6 +19,8 @@ namespace Mnemo.UI.Markup
     {
         public string? Ns { get; set; }
         public string? Key { get; set; }
+        /// <summary>Optional value converter applied to the localized string (e.g. uppercasing section labels).</summary>
+        public Avalonia.Data.Converters.IValueConverter? Converter { get; set; }
 
         private sealed class LocalizationBindingSource : AvaloniaObject, System.ComponentModel.INotifyPropertyChanged
         {
@@ -49,7 +51,8 @@ namespace Mnemo.UI.Markup
             {
                 Source = source,
                 Path = nameof(LocalizationBindingSource.Value),
-                Mode = BindingMode.OneWay
+                Mode = BindingMode.OneWay,
+                Converter = Converter
             };
         }
     }

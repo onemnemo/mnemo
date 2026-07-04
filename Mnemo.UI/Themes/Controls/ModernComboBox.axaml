@@ -142,6 +142,19 @@
         <Setter Property="Background" Value="{DynamicResource ButtonBackgroundDisabledBrush}" />
       </Style>
     </Style>
+
+    <!-- Compact: low-height variant for dense rows (settings) -->
+    <Style Selector="^.compact">
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+      <Setter Property="FontSize" Value="13" />
+      <Style Selector="^ /template/ PathIcon#DropDownGlyph">
+        <Setter Property="Width" Value="10" />
+        <Setter Property="Height" Value="10" />
+        <Setter Property="Margin" Value="0,0,10,0" />
+      </Style>
+    </Style>
       </ControlTheme>
     </ResourceDictionary>
   </Styles.Resources>

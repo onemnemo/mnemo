@@ -241,6 +241,43 @@
       </Style>
     </Style>
 
+    <!-- Outline: bordered, sits on canvas surfaces (settings rows, toolbars) -->
+    <Style Selector="^.outline">
+      <Style Selector="^ /template/ Border#PART_Border">
+        <Setter Property="Background" Value="{DynamicResource OutlineButtonBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource OutlineButtonBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+      </Style>
+      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource OutlineButtonForegroundBrush}" />
+      </Style>
+
+      <Style Selector="^:pointerover /template/ Border#PART_Border">
+        <Setter Property="Background" Value="{DynamicResource OutlineButtonBackgroundPointerOverBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource OutlineButtonBorderPointerOverBrush}" />
+      </Style>
+
+      <Style Selector="^:pressed /template/ Border#PART_Border">
+        <Setter Property="Background" Value="{DynamicResource OutlineButtonBackgroundPressedBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource OutlineButtonBorderPressedBrush}" />
+      </Style>
+
+      <Style Selector="^:disabled /template/ Border#PART_Border">
+        <Setter Property="Background" Value="{DynamicResource OutlineButtonBackgroundDisabledBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource OutlineButtonBorderDisabledBrush}" />
+      </Style>
+      <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource OutlineButtonForegroundDisabledBrush}" />
+      </Style>
+
+      <Style Selector="^ /template/ controls|AppIcon#PART_Icon">
+        <Setter Property="Color" Value="{DynamicResource OutlineButtonForegroundBrush}"/>
+      </Style>
+      <Style Selector="^ /template/ controls|AppIcon#PART_LoadingIcon">
+        <Setter Property="Color" Value="{DynamicResource OutlineButtonForegroundBrush}"/>
+      </Style>
+    </Style>
+
     <Style Selector="^.ghost">
       <Style Selector="^ /template/ Border#PART_Border">
         <Setter Property="Background" Value="Transparent" />

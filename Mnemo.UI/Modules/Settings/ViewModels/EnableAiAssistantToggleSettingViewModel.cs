@@ -5,7 +5,7 @@ using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Settings.ViewModels;
 
-public partial class EnableAiAssistantToggleSettingViewModel : ViewModelBase, ISettingsSearchable
+public partial class EnableAiAssistantToggleSettingViewModel : ViewModelBase, IToggleSetting
 {
     private readonly ISettingsService _settingsService;
     private readonly IOverlayService _overlayService;

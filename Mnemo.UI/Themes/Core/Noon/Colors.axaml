@@ -520,4 +520,19 @@
     <Color x:Key="SliderThumbBackgroundDisabled">#FBF8F0</Color>
     <Color x:Key="SliderTickBarFillDisabled">#EFE5D5</Color>
     <Color x:Key="SliderContainerBackgroundDisabled">Transparent</Color>
+
+    <!-- Subtle divider (flat list/settings rows; lighter than Border) -->
+    <Color x:Key="DividerSubtle">#F2EBDD</Color>
+
+    <!-- Outline Button (bordered secondary action on canvas surfaces) -->
+    <Color x:Key="OutlineButtonBackground">#FFFDF8</Color>
+    <Color x:Key="OutlineButtonBackgroundPointerOver">#F5EFE3</Color>
+    <Color x:Key="OutlineButtonBackgroundPressed">#EFE4D2</Color>
+    <Color x:Key="OutlineButtonBackgroundDisabled">#FBF8F0</Color>
+    <Color x:Key="OutlineButtonForeground">#57534E</Color>
+    <Color x:Key="OutlineButtonForegroundDisabled">#D6D3D1</Color>
+    <Color x:Key="OutlineButtonBorder">#EADFCB</Color>
+    <Color x:Key="OutlineButtonBorderPointerOver">#DCCEB4</Color>
+    <Color x:Key="OutlineButtonBorderPressed">#DCCEB4</Color>
+    <Color x:Key="OutlineButtonBorderDisabled">#F5EFE3</Color>
 </ResourceDictionary>

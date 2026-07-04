@@ -157,13 +157,13 @@
     <Color x:Key="SidebarBadgeBackground">#25C64F33</Color>
 
     <!-- ToggleSwitch -->
-    <Color x:Key="ToggleSwitchFillOff">#E6E4DE</Color>
+    <Color x:Key="ToggleSwitchFillOff">#D8D5CE</Color>
     <Color x:Key="ToggleSwitchFillOn">#C64F33</Color>
     <Color x:Key="ToggleSwitchKnobFillOff">#FFFFFF</Color>
     <Color x:Key="ToggleSwitchKnobFillOn">#FFFFFF</Color>
-    <Color x:Key="ToggleSwitchStrokeOff">#E6E4DE</Color>
+    <Color x:Key="ToggleSwitchStrokeOff">#D8D5CE</Color>
     <Color x:Key="ToggleSwitchStrokeOn">#C64F33</Color>
-    <Color x:Key="ToggleSwitchFillOffPointerOver">#DAD8D1</Color>
+    <Color x:Key="ToggleSwitchFillOffPointerOver">#CCC9C1</Color>
     <Color x:Key="ToggleSwitchFillOnPointerOver">#C64F33</Color>
     <Color x:Key="ToggleSwitchContainerBackground">Transparent</Color>
     
@@ -524,4 +524,19 @@
     <Color x:Key="SliderThumbBackgroundDisabled">#F1F0EC</Color>
     <Color x:Key="SliderTickBarFillDisabled">#E6E4DE</Color>
     <Color x:Key="SliderContainerBackgroundDisabled">Transparent</Color>
+
+    <!-- Subtle divider (flat list/settings rows; lighter than Border) -->
+    <Color x:Key="DividerSubtle">#F0EEE8</Color>
+
+    <!-- Outline Button (bordered secondary action on canvas surfaces) -->
+    <Color x:Key="OutlineButtonBackground">#FFFFFF</Color>
+    <Color x:Key="OutlineButtonBackgroundPointerOver">#F1F0EC</Color>
+    <Color x:Key="OutlineButtonBackgroundPressed">#E9E7E1</Color>
+    <Color x:Key="OutlineButtonBackgroundDisabled">#F7F6F2</Color>
+    <Color x:Key="OutlineButtonForeground">#514F49</Color>
+    <Color x:Key="OutlineButtonForegroundDisabled">#C9C6BE</Color>
+    <Color x:Key="OutlineButtonBorder">#E6E4DE</Color>
+    <Color x:Key="OutlineButtonBorderPointerOver">#D8D5CE</Color>
+    <Color x:Key="OutlineButtonBorderPressed">#D8D5CE</Color>
+    <Color x:Key="OutlineButtonBorderDisabled">#F1F0EC</Color>
 </ResourceDictionary>

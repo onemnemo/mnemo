@@ -515,6 +515,21 @@
     <Color x:Key="SyntaxCodeVariable">#9CDCFE</Color>
     <Color x:Key="SyntaxCodeMarkup">#569CD6</Color>
     <Color x:Key="SyntaxCodeInvalid">#F44747</Color>
+
+    <!-- Subtle divider (flat list/settings rows; lighter than Border) -->
+    <Color x:Key="DividerSubtle">#262523</Color>
+
+    <!-- Outline Button (bordered secondary action on canvas surfaces) -->
+    <Color x:Key="OutlineButtonBackground">#232321</Color>
+    <Color x:Key="OutlineButtonBackgroundPointerOver">#2B2A28</Color>
+    <Color x:Key="OutlineButtonBackgroundPressed">#302E2C</Color>
+    <Color x:Key="OutlineButtonBackgroundDisabled">#1F1F1E</Color>
+    <Color x:Key="OutlineButtonForeground">#D6D3D0</Color>
+    <Color x:Key="OutlineButtonForegroundDisabled">#666666</Color>
+    <Color x:Key="OutlineButtonBorder">#3A3836</Color>
+    <Color x:Key="OutlineButtonBorderPointerOver">#4A4744</Color>
+    <Color x:Key="OutlineButtonBorderPressed">#4A4744</Color>
+    <Color x:Key="OutlineButtonBorderDisabled">#2A2927</Color>
 </ResourceDictionary>
 
 
