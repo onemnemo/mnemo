@@ -21,7 +21,7 @@
         </Style>
         <Style Selector="Border.sessionCardPrimary">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="MinHeight" Value="126" />
         </Style>
         <Style Selector="TextBlock.sessionTitle">
@@ -79,7 +79,7 @@
             <Border Classes="sessionCard sessionCardPrimary" Padding="20,16">
                 <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
                     <TextBlock Text="{markup:T Ns=Flashcards, Key=SessionPrimaryBadge}"
-                               Foreground="{DynamicResource AccentPrimaryBrush}"
+                               Foreground="{DynamicResource AccentBrush}"
                                FontFamily="{DynamicResource Font.SemiBold}"
                                FontSize="12"
                                LetterSpacing="0.4" />

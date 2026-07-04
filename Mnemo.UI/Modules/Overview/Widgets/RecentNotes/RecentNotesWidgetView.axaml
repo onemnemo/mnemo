@@ -57,7 +57,7 @@
                                         Margin="0,0,12,0">
                                     <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/file-description-filled.svg"
                                                       Width="18" Height="18"
-                                                      Color="{DynamicResource CardAccentBrush}"
+                                                      Color="{DynamicResource AccentBrush}"
                                                       HorizontalAlignment="Center"
                                                       VerticalAlignment="Center"/>
                                 </Border>

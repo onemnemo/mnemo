@@ -3,94 +3,107 @@
              xmlns:controls="using:Mnemo.UI.Controls"
              xmlns:vm="using:Mnemo.UI.Components.Sidebar"
              xmlns:markup="using:Mnemo.UI.Markup"
+             xmlns:converters="using:Mnemo.UI.Converters"
              x:Class="Mnemo.UI.Components.Sidebar.Sidebar"
              x:DataType="vm:SidebarViewModel">
     <Grid>
         <!-- Expanded Sidebar -->
         <Border x:Name="ExpandedSidebar"
-            Background="{DynamicResource SidebarBackgroundBrush}" 
+            Background="{DynamicResource SidebarBackgroundBrush}"
             BorderBrush="{DynamicResource SidebarBorderBrush}"
-            Padding="20"
-            CornerRadius="0, 15, 15, 0" 
-            BorderThickness="0, 0, 1, 0"
-            Width="280"
+            Padding="{DynamicResource SidebarPadding}"
+            BorderThickness="0,0,1,0"
+            Width="{DynamicResource SidebarWidth}"
             IsVisible="{Binding !IsSidebarCollapsed}">
-        
+
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            
+
             <!-- Header Section -->
-            <Grid Grid.Row="0" 
-                  Margin="0,0,0,20">
+            <Grid Grid.Row="0"
+                  Margin="8,4,8,12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                
+
                 <controls:SvgIcon Grid.Column="0"
-                                  SvgPath="avares://Mnemo.UI/Assets/Branding/logo_full.svg" 
-                                  Width="100" Height="20" 
+                                  SvgPath="avares://Mnemo.UI/Assets/Branding/logo_full.svg"
+                                  Width="90" Height="18"
                                   Color="{DynamicResource SidebarLogoBrush}"
                                   HorizontalAlignment="Left"/>
-                <Button Grid.Column="1"
-                        Background="Transparent" 
-                        BorderThickness="0" 
+                <controls:AppButton Grid.Column="1"
+                        Classes="ghost"
+                        IconName="Common/chevron-left"
+                        Padding="4"
                         Command="{Binding ToggleSidebarCommand}"
                         ToolTip.Tip="{markup:T Ns=Sidebar, Key=CollapseSidebar}"
-                        VerticalAlignment="Center">
-                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chevron-left.svg" 
-                                      Width="18" Height="18" 
-                                      Color="{DynamicResource ChevronSidebarBrush}"
-                                      />
-                </Button>
+                        VerticalAlignment="Center"/>
             </Grid>
-            
-            <!-- Navigation Section -->
-            <ScrollViewer Grid.Row="1" 
+
+            <!-- Navigation Section (main nav = non-footer categories) -->
+            <ScrollViewer Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl ItemsSource="{Binding Categories}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Spacing="8" Margin="0,0,0,16">
-                                <!-- Category Header -->
-                                <TextBlock Text="{Binding Name}" 
-                                           FontSize="{DynamicResource FontSize.Navigation}" 
-                                           FontFamily="{DynamicResource Font.Medium}" 
-                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                           Margin="0,0,0,8"/>
+                            <StackPanel Spacing="1" Margin="0,0,0,4" IsVisible="{Binding !IsFooter}">
+                                <!-- Category Header (suppressed for the top-level flat "hub" category, Order 0) -->
+                                <TextBlock Text="{Binding Name, Converter={x:Static converters:UpperCaseStringConverter.Instance}}"
+                                           IsVisible="{Binding !!Order}"
+                                           FontSize="10.5"
+                                           LetterSpacing="1"
+                                           FontFamily="{DynamicResource Font.SemiBold}"
+                                           Foreground="{DynamicResource TextFadedBrush}"
+                                           Margin="8,12,8,6"/>
 
-                                
                                 <!-- Category Items -->
                                 <ItemsControl ItemsSource="{Binding Items}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Panel IsVisible="{Binding IsVisible}">
-                                            <Grid>
-                                                <controls:NavigationButton IsSelected="{Binding IsSelected}"
-                                                                           BorderThickness="0" 
-                                                                           HorizontalAlignment="Stretch"
-                                                                           HorizontalContentAlignment="Left"
-                                                                           ToolTip.Tip="{Binding Label}"
-                                                                           Command="{Binding $parent[UserControl].((vm:SidebarViewModel)DataContext).NavigateCommand}"
-                                                                           CommandParameter="{Binding}">
-                                                    <StackPanel Orientation="Horizontal" Spacing="12">
-                                                        <controls:SvgIcon SvgPath="{Binding Icon, FallbackValue='avares://Mnemo.UI/Icons/Common/circle.svg'}" 
-                                                                          Width="20" Height="20"/>
-                                                        <TextBlock Text="{Binding Label}" 
-                                                                   VerticalAlignment="Center"/>
-                                                    </StackPanel>
-                                                </controls:NavigationButton>
-                                                <Border Width="8" Height="8" CornerRadius="4"
-                                                        Background="{DynamicResource AccentBrush}"
-                                                        HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                        Margin="0,6,10,0"
-                                                        IsVisible="{Binding ShowUpdateBadge}"/>
-                                            </Grid>
+                                            <controls:NavigationButton IsSelected="{Binding IsSelected}"
+                                                                       BorderThickness="0"
+                                                                       Height="29"
+                                                                       Padding="8,0"
+                                                                       HorizontalAlignment="Stretch"
+                                                                       HorizontalContentAlignment="Stretch"
+                                                                       ToolTip.Tip="{Binding Label}"
+                                                                       Command="{Binding $parent[UserControl].((vm:SidebarViewModel)DataContext).NavigateCommand}"
+                                                                       CommandParameter="{Binding}">
+                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                    <controls:SvgIcon Grid.Column="0"
+                                                                      SvgPath="{Binding Icon, FallbackValue='avares://Mnemo.UI/Icons/Common/circle.svg'}"
+                                                                      Width="{DynamicResource IconSize.Sm}" Height="{DynamicResource IconSize.Sm}"
+                                                                      VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding Label}"
+                                                               Margin="9,0,0,0"
+                                                               VerticalAlignment="Center"/>
+                                                    <!-- Count pill (e.g. flashcards due) -->
+                                                    <Border Grid.Column="2"
+                                                            Background="{DynamicResource SidebarBadgeBackgroundBrush}"
+                                                            CornerRadius="9"
+                                                            Padding="7,1"
+                                                            VerticalAlignment="Center"
+                                                            IsVisible="{Binding BadgeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                        <TextBlock Text="{Binding BadgeText}"
+                                                                   FontFamily="{DynamicResource Font.Monospace}"
+                                                                   FontSize="10.5"
+                                                                   Foreground="{DynamicResource AccentBrush}"/>
+                                                    </Border>
+                                                    <!-- Update dot -->
+                                                    <Border Grid.Column="2" Width="8" Height="8" CornerRadius="4"
+                                                            Background="{DynamicResource AccentBrush}"
+                                                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                            IsVisible="{Binding ShowUpdateBadge}"/>
+                                                </Grid>
+                                            </controls:NavigationButton>
                                             </Panel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -100,83 +113,116 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
-            
-            <!-- Footer Section -->
-            <StackPanel Grid.Row="2" 
-                        Spacing="12">
-                
-                <Button Classes="nav-button"
-                        Background="{DynamicResource CardBackgroundPrimaryBrush}" 
-                        BorderThickness="0" 
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Left"
-                        ToolTip.Tip="{markup:T Ns=Sidebar, Key=KeyboardShortcuts}"
-                        Command="{Binding OpenKeybindManagerCommand}"
-                        Padding="12,8">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Border Background="{DynamicResource CardBackgroundSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="6" CornerRadius="6">
-                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/pointer-x.svg" 
-                                          Width="20" Height="20" 
-                                          Color="{DynamicResource CardIconColorBrush}"/>
-                        </Border>
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="{markup:T Ns=Sidebar, Key=KeyboardShortcuts}"
-                                       Foreground="{DynamicResource QuickActionsTextPrimaryBrush}"
-                                       FontSize="{DynamicResource FontSize.Body.Small}"/>
-                            <TextBlock Text="{Binding QuickActionsShortcutDisplay}"
-                                       FontSize="{DynamicResource FontSize.Caption}"
-                                       Foreground="{DynamicResource QuickActionsTextSecondaryBrush}"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Button>
 
-                <TextBlock Text="{markup:T Ns=Sidebar, Key=DevelopmentBuild}"
-                           IsVisible="{Binding IsDevelopmentBuild}"
+            <!-- Footer Section: footer categories (e.g. Settings) + Quick actions + version -->
+            <StackPanel Grid.Row="2"
+                        Spacing="1"
+                        Margin="0,8,0,0">
+
+                <controls:NavigationButton BorderThickness="0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Stretch"
+                        Height="29"
+                        ToolTip.Tip="{markup:T Ns=Sidebar, Key=QuickActions}"
+                        Command="{Binding OpenKeybindManagerCommand}"
+                        Padding="8,0">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <controls:AppIcon Grid.Column="0" Icon="Sidebar/quick-actions"
+                                          Width="{DynamicResource IconSize.Sm}" Height="{DynamicResource IconSize.Sm}"
+                                          Color="{DynamicResource NavigationButtonIconBrush}"
+                                          VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1"
+                                   Text="{markup:T Ns=Sidebar, Key=QuickActions}"
+                                   Foreground="{DynamicResource NavigationButtonForegroundBrush}"
+                                   Margin="9,0,0,0"
+                                   VerticalAlignment="Center"/>
+                        <Border Grid.Column="2"
+                                Background="{DynamicResource WorkspaceBackgroundBrush}"
+                                BorderBrush="{DynamicResource SidebarBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="5,1"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="{Binding QuickActionsShortcutDisplay}"
+                                       FontFamily="{DynamicResource Font.Monospace}"
+                                       FontSize="10"
+                                       Foreground="{DynamicResource TextFadedBrush}"/>
+                        </Border>
+                    </Grid>
+                </controls:NavigationButton>
+
+                <!-- Footer categories (Settings, etc.) rendered flat, no section header -->
+                <ItemsControl ItemsSource="{Binding Categories}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding IsFooter}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Panel IsVisible="{Binding IsVisible}">
+                                        <controls:NavigationButton IsSelected="{Binding IsSelected}"
+                                                                   BorderThickness="0"
+                                                                   Height="29"
+                                                                   Padding="8,0"
+                                                                   HorizontalAlignment="Stretch"
+                                                                   HorizontalContentAlignment="Left"
+                                                                   ToolTip.Tip="{Binding Label}"
+                                                                   Command="{Binding $parent[UserControl].((vm:SidebarViewModel)DataContext).NavigateCommand}"
+                                                                   CommandParameter="{Binding}">
+                                            <StackPanel Orientation="Horizontal" Spacing="9">
+                                                <controls:SvgIcon SvgPath="{Binding Icon, FallbackValue='avares://Mnemo.UI/Icons/Common/circle.svg'}"
+                                                                  Width="{DynamicResource IconSize.Sm}" Height="{DynamicResource IconSize.Sm}"/>
+                                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </controls:NavigationButton>
+                                        </Panel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="{Binding VersionDisplay}"
                            FontSize="{DynamicResource FontSize.Body.Caption}"
                            Foreground="{DynamicResource VersionTextBrush}"
-                           HorizontalAlignment="Center"
-                           Margin="0,8,0,0"/>
+                           Margin="8,10,0,0"/>
             </StackPanel>
         </Grid>
         </Border>
-        
+
         <!-- Collapsed Sidebar -->
         <Border x:Name="CollapsedSidebar"
                 Background="{DynamicResource SidebarBackgroundBrush}"
                 BorderBrush="{DynamicResource SidebarBorderBrush}"
-                BorderThickness="0, 0, 1, 0"
-                CornerRadius="0, 15, 15, 0" 
-                Padding="15"
-                Width="70"
+                BorderThickness="0,0,1,0"
+                Padding="10"
+                Width="{DynamicResource SidebarCollapsedWidth}"
                 IsVisible="{Binding IsSidebarCollapsed}">
-            
+
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                
+
                 <!-- Header Section -->
-                <StackPanel Grid.Row="0" 
-                            Orientation="Vertical" 
+                <StackPanel Grid.Row="0"
+                            Orientation="Vertical"
                             Spacing="10"
                             HorizontalAlignment="Center"
                             Margin="0,0,0,20">
-                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Assets/Branding/logo_icon.svg" 
-                                      Width="24" Height="24" 
+                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Assets/Branding/logo_icon.svg"
+                                      Width="24" Height="24"
                                       Color="{DynamicResource SidebarLogoBrush}"/>
-                    <Button Background="Transparent" 
-                            BorderThickness="0" 
+                    <controls:AppButton Classes="ghost"
+                            IconName="Common/chevron-right"
+                            Padding="4"
                             Command="{Binding ToggleSidebarCommand}"
-                            ToolTip.Tip="{markup:T Ns=Sidebar, Key=ExpandSidebar}">
-                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chevron-right.svg" 
-                                          Width="16" Height="16" 
-                                          Color="{DynamicResource ChevronSidebarBrush}"/>
-                    </Button>
+                            ToolTip.Tip="{markup:T Ns=Sidebar, Key=ExpandSidebar}"/>
                 </StackPanel>
-                
+
                 <!-- Navigation Section -->
-                <ScrollViewer Grid.Row="1" 
+                <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="8" HorizontalAlignment="Center">
@@ -190,12 +236,12 @@
                                                 <Grid Margin="0,0,0,8">
                                                     <controls:NavigationButton IsSelected="{Binding IsSelected}"
                                                                                 IsCollapsed="True"
-                                                                                BorderThickness="0" 
+                                                                                BorderThickness="0"
                                                                                 ToolTip.Tip="{Binding Label}"
                                                                                 Command="{Binding $parent[UserControl].((vm:SidebarViewModel)DataContext).NavigateCommand}"
                                                                                 CommandParameter="{Binding}">
-                                                        <controls:SvgIcon SvgPath="{Binding Icon, FallbackValue='avares://Mnemo.UI/Icons/Common/circle.svg'}" 
-                                                                          Width="20" Height="20"/>
+                                                        <controls:SvgIcon SvgPath="{Binding Icon, FallbackValue='avares://Mnemo.UI/Icons/Common/circle.svg'}"
+                                                                          Width="{DynamicResource IconSize.Sm}" Height="{DynamicResource IconSize.Sm}"/>
                                                     </controls:NavigationButton>
                                                     <Border Width="8" Height="8" CornerRadius="4"
                                                             Background="{DynamicResource AccentBrush}"
@@ -216,8 +262,3 @@
         </Border>
     </Grid>
 </UserControl>
-
-
-
-
-

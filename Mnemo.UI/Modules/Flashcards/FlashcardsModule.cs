@@ -41,7 +41,7 @@ public class FlashcardsModule : IModule
             "Flashcards",
             "flashcards",
             "avares://Mnemo.UI/Icons/Sidebar/flashcard.svg",
-            "Library",
+            "Modules",
             1,
             40,
             childRoutes: ["flashcard-deck", "flashcard-practice"]);

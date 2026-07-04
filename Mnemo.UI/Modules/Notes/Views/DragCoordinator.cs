@@ -78,7 +78,7 @@ public sealed class DragCoordinator : IDisposable
         _insertLine = new Rectangle
         {
             Height = 2,
-            Fill = ResolveBrush("AccentPrimaryBrush"),
+            Fill = ResolveBrush("AccentBrush"),
             IsVisible = false,
             IsHitTestVisible = false,
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -91,7 +91,7 @@ public sealed class DragCoordinator : IDisposable
         _folderHighlight = new Border
         {
             BorderThickness = new Thickness(1),
-            BorderBrush = ResolveBrush("AccentPrimaryBrush"),
+            BorderBrush = ResolveBrush("AccentBrush"),
             Background = new SolidColorBrush(Color.FromArgb(40, accent.R, accent.G, accent.B)),
             IsVisible = false,
             IsHitTestVisible = false
@@ -396,12 +396,12 @@ public sealed class DragCoordinator : IDisposable
 
     private Color TryResolveAccentColor()
     {
-        if (_overlay.TryGetResource("AccentPrimary", Theme, out var v))
+        if (_overlay.TryGetResource("Accent", Theme, out var v))
         {
             if (v is Color c) return c;
             if (v is SolidColorBrush sc) return sc.Color;
         }
-        if (Application.Current?.TryGetResource("AccentPrimary", Theme, out v) == true)
+        if (Application.Current?.TryGetResource("Accent", Theme, out v) == true)
         {
             if (v is Color c) return c;
             if (v is SolidColorBrush sc) return sc.Color;

@@ -1,16 +1,16 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Font Family Resources with proper avares paths -->
-    <FontFamily x:Key="Font.Regular">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-Regular.ttf#Lexend</FontFamily>
-    <FontFamily x:Key="Font.Light">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-Light.ttf#Lexend</FontFamily>
-    <FontFamily x:Key="Font.Medium">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-Medium.ttf#Lexend</FontFamily>
-    <FontFamily x:Key="Font.SemiBold">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-SemiBold.ttf#Lexend</FontFamily>
-    <FontFamily x:Key="Font.Bold">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-Bold.ttf#Lexend</FontFamily>
-    <FontFamily x:Key="Font.ExtraBold">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-ExtraBold.ttf#Lexend</FontFamily>
-    <FontFamily x:Key="Font.Monospace">Cascadia Mono, Consolas, Menlo, DejaVu Sans Mono, monospace</FontFamily>
-    
+    <FontFamily x:Key="Font.Regular">avares://Mnemo.UI/Themes/Fonts/Geist/Geist-Regular.ttf#Geist</FontFamily>
+    <FontFamily x:Key="Font.Light">avares://Mnemo.UI/Themes/Fonts/Geist/Geist-Light.ttf#Geist</FontFamily>
+    <FontFamily x:Key="Font.Medium">avares://Mnemo.UI/Themes/Fonts/Geist/Geist-Medium.ttf#Geist</FontFamily>
+    <FontFamily x:Key="Font.SemiBold">avares://Mnemo.UI/Themes/Fonts/Geist/Geist-SemiBold.ttf#Geist</FontFamily>
+    <FontFamily x:Key="Font.Bold">avares://Mnemo.UI/Themes/Fonts/Geist/Geist-Bold.ttf#Geist</FontFamily>
+    <FontFamily x:Key="Font.ExtraBold">avares://Mnemo.UI/Themes/Fonts/Geist/Geist-ExtraBold.ttf#Geist</FontFamily>
+    <FontFamily x:Key="Font.Monospace">avares://Mnemo.UI/Themes/Fonts/GeistMono/GeistMono-Regular.ttf#Geist Mono</FontFamily>
+
     <!-- Default font family for all controls with fallbacks -->
-    <FontFamily x:Key="DefaultFontFamily">avares://Mnemo.UI/Themes/Fonts/Lexend/Lexend-Regular.ttf#Lexend, Segoe UI, Arial, sans-serif</FontFamily>
+    <FontFamily x:Key="DefaultFontFamily">avares://Mnemo.UI/Themes/Fonts/Geist/Geist-Regular.ttf#Geist, Segoe UI, Arial, sans-serif</FontFamily>
     
     <!-- Math font for LaTeX rendering -->
     <FontFamily x:Key="MathFontFamily">avares://Mnemo.UI/Themes/Fonts/STIXTwoMath/STIXTwoMath-Regular.ttf#STIX Two Math</FontFamily>

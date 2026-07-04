@@ -27,7 +27,7 @@
                                     Maximum="{Binding Target}"
                                     Height="6"
                                     CornerRadius="3"
-                                    Foreground="{DynamicResource AccentPrimaryBrush}"
+                                    Foreground="{DynamicResource AccentBrush}"
                                     Background="{DynamicResource SidebarBorderBrush}"/>
                     </StackPanel>
                 </DataTemplate>

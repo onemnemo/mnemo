@@ -47,13 +47,13 @@
                 <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
             </Style>
             <Style Selector="^:checked">
-                <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                 <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundBrush}" />
             </Style>
             <Style Selector="^:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-                <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                 <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundBrush}" />
             </Style>
         </Style>

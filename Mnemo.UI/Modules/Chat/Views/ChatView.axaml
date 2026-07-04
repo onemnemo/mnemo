@@ -184,7 +184,7 @@
         </Style>
         <Style Selector="ToggleButton.ToolbarPill:checked /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
         </Style>
 
         <Style Selector="controls|ModernComboBox.PromptPill">
@@ -336,7 +336,7 @@
 
         <!-- Circular send / stop button -->
         <Style Selector="Button.SendCircle">
-            <Setter Property="Background" Value="{DynamicResource CardAccentBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="CornerRadius" Value="19"/>
             <Setter Property="Padding" Value="0"/>
@@ -379,7 +379,7 @@
                                           Width="20" Height="20"
                                           Color="{DynamicResource TextSecondaryBrush}"/>
                     </Button>
-                    <Button Background="{DynamicResource CardAccentBrush}"
+                    <Button Background="{DynamicResource AccentBrush}"
                             BorderThickness="0"
                             CornerRadius="17"
                             Width="34" Height="34"
@@ -401,7 +401,7 @@
                     <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" Margin="4,0,0,18">
                         <Border Grid.Column="0"
                                 Width="20" Height="20" CornerRadius="10"
-                                Background="{DynamicResource CardAccentBrush}"
+                                Background="{DynamicResource AccentBrush}"
                                 VerticalAlignment="Center">
                             <Border Width="9" Height="9" CornerRadius="4.5"
                                     BorderBrush="{DynamicResource AccentButtonIconBrush}"
@@ -414,7 +414,7 @@
                                    FontSize="12"
                                    LetterSpacing="2.5"
                                    FontFamily="{DynamicResource Font.Bold}"
-                                   Foreground="{DynamicResource CardAccentBrush}"
+                                   Foreground="{DynamicResource AccentBrush}"
                                    VerticalAlignment="Center"/>
                         <Button Grid.Column="3"
                                 Classes="ChatHistoryToggle"
@@ -557,7 +557,7 @@
                             <!-- Brand row -->
                             <StackPanel Orientation="Horizontal" Spacing="9" HorizontalAlignment="Left" Margin="4,0,0,20">
                                 <Border Width="18" Height="18" CornerRadius="9"
-                                        Background="{DynamicResource CardAccentBrush}"
+                                        Background="{DynamicResource AccentBrush}"
                                         VerticalAlignment="Center">
                                     <Border Width="8" Height="8" CornerRadius="4"
                                             BorderBrush="{DynamicResource AccentButtonIconBrush}"
@@ -568,7 +568,7 @@
                                            FontSize="11"
                                            LetterSpacing="2.5"
                                            FontFamily="{DynamicResource Font.Bold}"
-                                           Foreground="{DynamicResource CardAccentBrush}"
+                                           Foreground="{DynamicResource AccentBrush}"
                                            VerticalAlignment="Center"/>
                             </StackPanel>
 
@@ -679,7 +679,7 @@
                                                 ToolTip.Tip="{Binding AiStatusTooltip}">
                                             <StackPanel Orientation="Horizontal" Spacing="7">
                                                 <Border Width="12" Height="12" CornerRadius="6"
-                                                        Background="{DynamicResource CardAccentBrush}"
+                                                        Background="{DynamicResource AccentBrush}"
                                                         VerticalAlignment="Center">
                                                     <Border Width="6" Height="6" CornerRadius="3"
                                                             Background="{Binding AiStatusBrush}"
@@ -787,7 +787,7 @@
                                                 <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding !IsUser}" MinWidth="0">
                                                     <!-- Atlas avatar -->
                                                     <Border Grid.Column="0" Width="28" Height="28" CornerRadius="14"
-                                                            Background="{DynamicResource CardAccentBrush}"
+                                                            Background="{DynamicResource AccentBrush}"
                                                             Margin="0,2,14,0" VerticalAlignment="Top"
                                                             BoxShadow="0 2 6 -1 #26000000">
                                                         <Border Width="11" Height="11" CornerRadius="5.5"

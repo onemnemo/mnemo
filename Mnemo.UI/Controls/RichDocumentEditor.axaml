@@ -13,10 +13,10 @@
     <UserControl.Styles>
         <!-- Active alignment indicator for image panel buttons -->
         <Style Selector="Button.img-align.selected /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
         </Style>
         <Style Selector="Button.img-align.selected TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
             <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}" />
         </Style>
     </UserControl.Styles>

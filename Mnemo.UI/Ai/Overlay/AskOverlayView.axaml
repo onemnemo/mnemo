@@ -68,7 +68,7 @@
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                     <Border Grid.Column="0"
                             Width="20" Height="20" CornerRadius="10"
-                            Background="{DynamicResource CardAccentBrush}"
+                            Background="{DynamicResource AccentBrush}"
                             VerticalAlignment="Center"
                             Margin="0,0,9,0">
                         <Border Width="9" Height="9" CornerRadius="4.5"
@@ -82,7 +82,7 @@
                                FontSize="12"
                                LetterSpacing="2.5"
                                FontFamily="{DynamicResource Font.Bold}"
-                               Foreground="{DynamicResource CardAccentBrush}"/>
+                               Foreground="{DynamicResource AccentBrush}"/>
                     <Button Grid.Column="2"
                             Classes="AskActionButton"
                             Command="{Binding PopOutCommand}"
@@ -130,7 +130,7 @@
                                     <!-- Assistant -->
                                     <Grid ColumnDefinitions="Auto,*" MinWidth="0">
                                         <Border Grid.Column="0" Width="24" Height="24" CornerRadius="12"
-                                                Background="{DynamicResource CardAccentBrush}"
+                                                Background="{DynamicResource AccentBrush}"
                                                 Margin="0,2,10,0" VerticalAlignment="Top"
                                                 BoxShadow="0 2 6 -1 #26000000">
                                             <Border Width="10" Height="10" CornerRadius="5"
@@ -317,7 +317,7 @@
                         <Button Grid.Column="1"
                                 Command="{Binding SendCommand}"
                                 IsVisible="{Binding !IsBusy}"
-                                Background="{DynamicResource CardAccentBrush}"
+                                Background="{DynamicResource AccentBrush}"
                                 Foreground="{DynamicResource AccentButtonIconBrush}"
                                 Padding="8"
                                 CornerRadius="17"

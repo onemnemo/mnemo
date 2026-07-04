@@ -51,21 +51,8 @@
     <AvaloniaResource Include="Themes\**" />
     <AvaloniaResource Include="Languages\**" />
 
-    <!-- Icon resources, organized by folder -->
-    <AvaloniaResource Include="Icons\Common\*.svg" />
-    <AvaloniaResource Include="Icons\Toast\*.svg" />
-    <AvaloniaResource Include="Icons\SlashCommand\*.svg" />
-    <AvaloniaResource Include="Icons\FormattingToolbar\*.svg" />
-    <AvaloniaResource Include="Icons\Assets\*.svg" />
-    <AvaloniaResource Include="Icons\MindmapToolbar\*.svg" />
-    <AvaloniaResource Include="Icons\MindmapToolbar\EdgeTypes\*.svg" />
-    <AvaloniaResource Include="Icons\MindmapModeSwitcher\*.svg" />
-    <AvaloniaResource Include="Icons\States\*.svg" />
-    <AvaloniaResource Include="Icons\Editor\*.svg" />
-    <AvaloniaResource Include="Icons\Sidebar\*.svg" />
-    <AvaloniaResource Include="Icons\FindPanel\*.svg" />
-    <AvaloniaResource Include="Icons\Flashcard\**\*.svg" />
-    <AvaloniaResource Include="Icons\Flyout\**\*.svg" />
+    <!-- Icon resources: any folder under Icons/ is bundled automatically (see AppIcon) -->
+    <AvaloniaResource Include="Icons\**\*.svg" />
     <!-- Specific asset folders -->
     <AvaloniaResource Include="Assets\ProfilePictures\*.png" />
 

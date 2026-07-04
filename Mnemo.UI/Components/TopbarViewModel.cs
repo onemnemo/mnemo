@@ -1,3 +1,4 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -19,6 +20,10 @@ namespace Mnemo.UI.Components;
 
 public partial class TopbarViewModel : ViewModelBase
 {
+    private const string GamificationSettingKey = "App.EnableGamification";
+    private const string ProfilePictureSettingKey = "User.ProfilePicture";
+    private const string DefaultProfilePicturePath = "avares://Mnemo.UI/Assets/ProfilePictures/img2.png";
+
     private readonly ISettingsService _settingsService;
     private readonly IOverlayService _overlayService;
     private readonly IStatisticsManager _statistics;
@@ -28,8 +33,7 @@ public partial class TopbarViewModel : ViewModelBase
     private readonly IGlobalSearchService _globalSearchService;
     private readonly IToastService _toastService;
     private readonly IKeyMap _keyMap;
-
-    public ObservableCollection<TopbarButtonModel> Buttons { get; } = new();
+    private readonly ISidebarService _sidebarService;
 
     public ObservableCollection<NotificationFlyoutRowViewModel> RecentNotifications { get; } = new();
 
@@ -37,7 +41,11 @@ public partial class TopbarViewModel : ViewModelBase
     private bool _isGamificationEnabled;
 
     [ObservableProperty]
-    private string _profilePicturePath = "avares://Mnemo.UI/Assets/ProfilePictures/img2.png";
+    private string _profilePicturePath = DefaultProfilePicturePath;
+
+    /// <summary>Localized label of the current route, resolved from the sidebar registration (e.g. "Overview").</summary>
+    [ObservableProperty]
+    private string _currentPageTitle = string.Empty;
 
     /// <summary>Lifetime XP from <see cref="AppStatKinds.LifetimeTotals"/> (<c>total_xp</c>).</summary>
     [ObservableProperty]
@@ -59,7 +67,8 @@ public partial class TopbarViewModel : ViewModelBase
         ILocalizationService localization,
         IGlobalSearchService globalSearchService,
         IToastService toastService,
-        IKeyMap keyMap)
+        IKeyMap keyMap,
+        ISidebarService sidebarService)
     {
         _settingsService = settingsService;
         _overlayService = overlayService;
@@ -70,44 +79,84 @@ public partial class TopbarViewModel : ViewModelBase
         _globalSearchService = globalSearchService;
         _toastService = toastService;
         _keyMap = keyMap;
+        _sidebarService = sidebarService;
 
         _toastService.NotificationHistoryChanged += (_, _) => Dispatcher.UIThread.Post(RefreshRecentNotifications);
         RefreshRecentNotifications();
 
-        // Initial load
-        _isGamificationEnabled = _settingsService.GetAsync("App.EnableGamification", true).GetAwaiter().GetResult();
-        _profilePicturePath = _settingsService.GetAsync("User.ProfilePicture", "avares://Mnemo.UI/Assets/ProfilePictures/img2.png").GetAwaiter().GetResult();
         ApplyGamificationLocalizedDefaults();
+        RefreshCurrentPageTitle();
+        _ = LoadSettingsAsync();
         _ = RefreshGamificationFromAnalyticsAsync();
 
-        _navigation.Navigated += (_, _) => _ = RefreshGamificationFromAnalyticsAsync();
+        _navigation.Navigated += (_, _) =>
+        {
+            RefreshCurrentPageTitle();
+            _ = RefreshGamificationFromAnalyticsAsync();
+        };
         _localization.LanguageChanged += (_, _) =>
         {
             ApplyGamificationLocalizedDefaults();
             _ = RefreshGamificationFromAnalyticsAsync();
+            // Post so the sidebar service has re-localized its item labels first.
+            Dispatcher.UIThread.Post(RefreshCurrentPageTitle);
         };
 
         _keyMap.MergedDefinitionsChanged += (_, _) =>
             Dispatcher.UIThread.Post(RefreshGlobalSearchShortcutDisplay);
         RefreshGlobalSearchShortcutDisplay();
 
-        // Listen for changes
-        _settingsService.SettingChanged += (s, key) =>
+        _settingsService.SettingChanged += (_, key) =>
         {
-            if (key == "App.EnableGamification")
-            {
-                IsGamificationEnabled = _settingsService.GetAsync("App.EnableGamification", true).GetAwaiter().GetResult();
-            }
-            else if (key == "User.ProfilePicture")
-            {
-                ProfilePicturePath = _settingsService.GetAsync("User.ProfilePicture", "avares://Mnemo.UI/Assets/ProfilePictures/img2.png").GetAwaiter().GetResult();
-            }
+            if (key is GamificationSettingKey or ProfilePictureSettingKey)
+                _ = LoadSettingsAsync();
         };
     }
 
     public bool HasNotifications => RecentNotifications.Count > 0;
 
     public bool ShowsNotificationsEmpty => RecentNotifications.Count == 0;
+
+    private async Task LoadSettingsAsync()
+    {
+        try
+        {
+            var gamificationEnabled = await _settingsService.GetAsync(GamificationSettingKey, true).ConfigureAwait(false);
+            var profilePicture = await _settingsService.GetAsync(ProfilePictureSettingKey, DefaultProfilePicturePath).ConfigureAwait(false);
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                IsGamificationEnabled = gamificationEnabled;
+                ProfilePicturePath = string.IsNullOrWhiteSpace(profilePicture) ? DefaultProfilePicturePath : profilePicture;
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Topbar", "Loading topbar settings failed.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Resolves the topbar page label from the sidebar item owning the current route
+    /// (directly or via <see cref="SidebarItem.ChildRoutes"/>); falls back to the raw route.
+    /// </summary>
+    private void RefreshCurrentPageTitle()
+    {
+        var route = _navigation.CurrentRoute;
+        if (string.IsNullOrWhiteSpace(route))
+        {
+            CurrentPageTitle = string.Empty;
+            return;
+        }
+
+        var item = _sidebarService.Categories
+            .SelectMany(category => category.Items)
+            .FirstOrDefault(candidate =>
+                string.Equals(candidate.Route, route, StringComparison.OrdinalIgnoreCase) ||
+                candidate.ChildRoutes.Contains(route));
+
+        CurrentPageTitle = item?.Label ?? route;
+    }
 
     private void RefreshRecentNotifications()
     {
@@ -151,9 +200,9 @@ public partial class TopbarViewModel : ViewModelBase
                 GamificationStreakText = string.Format(_localization.T("GamificationStreakFormat", "Topbar"), streak);
             });
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
-            _logger?.Error("Topbar", "Loading gamification stats from analytics failed.", ex);
+            _logger.Error("Topbar", "Loading gamification stats from analytics failed.", ex);
             await Dispatcher.UIThread.InvokeAsync(ApplyGamificationLocalizedDefaults);
         }
     }
@@ -254,6 +303,3 @@ public partial class TopbarViewModel : ViewModelBase
         }, "GlobalSearch");
     }
 }
-
-
-

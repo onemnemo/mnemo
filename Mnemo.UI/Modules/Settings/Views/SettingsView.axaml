@@ -25,7 +25,7 @@
             <Style Selector="^:focus /template/ Border#PART_BorderElement">
                 <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
             </Style>
         </Style>
     </UserControl.Styles>
@@ -203,10 +203,10 @@
                                                 </Setter>
                                             </Style>
                                             <Style Selector="Border:pointerover">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                                             </Style>
                                             <Style Selector="Border.selected">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                                             </Style>
                                         </Border.Styles>
                                         <Image Source="{Binding IconPath, Converter={StaticResource PathToImageConverter}}" 
@@ -275,10 +275,10 @@
                                                 </Setter>
                                             </Style>
                                             <Style Selector="Border:pointerover">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                                             </Style>
                                             <Style Selector="Border.selected">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                                             </Style>
                                         </Border.Styles>
                                         <Border CornerRadius="6" ClipToBounds="True">
@@ -344,10 +344,10 @@
                                                 </Setter>
                                             </Style>
                                             <Style Selector="Border:pointerover">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                                             </Style>
                                             <Style Selector="Border.selected">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                                             </Style>
                                         </Border.Styles>
                                         <Border CornerRadius="19" ClipToBounds="True">
@@ -379,7 +379,7 @@
                             <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
                                 <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
                                 <Setter Property="BorderThickness" Value="1"/>
-                                <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                             </Style>
                         </TextBox.Styles>
                     </TextBox>
@@ -405,7 +405,7 @@
                             <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
                                 <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
                                 <Setter Property="BorderThickness" Value="1"/>
-                                <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                             </Style>
                         </TextBox.Styles>
                     </TextBox>

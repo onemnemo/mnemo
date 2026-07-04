@@ -72,7 +72,7 @@
             </Setter>
         </Style>
         <Style Selector="Border.deck-card:pointerover">
-            <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="BoxShadow" Value="0 18 36 -8 #46000000" />
         </Style>
         <Style Selector="Border.deck-card:pressed">
@@ -85,7 +85,7 @@
 
         <Style Selector="Border.deck-due-pill">
             <Setter Property="Background" Value="{DynamicResource WidgetBackgroundPrimaryBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Padding" Value="8,4" />
@@ -291,7 +291,7 @@
                                                                   Width="14" Height="14"
                                                                   HorizontalAlignment="Center"
                                                                   VerticalAlignment="Center"
-                                                                  Color="{DynamicResource CardAccentBrush}" />
+                                                                  Color="{DynamicResource AccentBrush}" />
                                             </Border>
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Name}" TextWrapping="Wrap"
@@ -313,11 +313,11 @@
                                                     VerticalAlignment="Top">
                                                 <StackPanel Orientation="Horizontal" Spacing="4">
                                                     <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/player-play.svg"
-                                                                      Width="12" Height="12" Color="{DynamicResource CardAccentBrush}" />
+                                                                      Width="12" Height="12" Color="{DynamicResource AccentBrush}" />
                                                     <TextBlock Text="{Binding DueBadgeText}"
                                                                FontSize="{DynamicResource FontSize.Caption}"
                                                                FontFamily="{DynamicResource Font.SemiBold}"
-                                                               Foreground="{DynamicResource CardAccentBrush}"
+                                                               Foreground="{DynamicResource AccentBrush}"
                                                                VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </Border>
@@ -439,7 +439,7 @@
                                             <ProgressBar Minimum="0" Maximum="100"
                                                          Value="{Binding RetentionPercent}"
                                                          Height="6" CornerRadius="3"
-                                                         Foreground="{DynamicResource CardAccentBrush}" />
+                                                         Foreground="{DynamicResource AccentBrush}" />
                                         </Button>
                                     </StackPanel>
 

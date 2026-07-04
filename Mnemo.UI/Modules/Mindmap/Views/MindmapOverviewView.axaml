@@ -46,7 +46,7 @@
             <Setter Property="Background" Value="Transparent"/>
         </Style>
         <Style Selector="RadioButton.ToggleViewItem:checked controls|SvgIcon">
-            <Setter Property="Color" Value="{DynamicResource CardAccentBrush}"/>
+            <Setter Property="Color" Value="{DynamicResource AccentBrush}"/>
         </Style>
         <Style Selector="RadioButton.ToggleViewItem:pointerover">
             <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
@@ -54,7 +54,7 @@
 
         <Style Selector="Border.CardHover:pointerover">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
         </Style>
         <Style Selector="Border.FeaturedCardHover:pointerover">
             <Setter Property="RenderTransform" Value="scale(1.02)"/>
@@ -163,9 +163,9 @@
                                         Classes="FeaturedCardHover">
                                         <Panel>
                                             <!-- Background Decoration -->
-                                            <Ellipse Width="180" Height="180" Fill="{DynamicResource CardAccentBrush}" 
+                                            <Ellipse Width="180" Height="180" Fill="{DynamicResource AccentBrush}" 
                                                      Opacity="0.04" Margin="-60,-60,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                                            <Ellipse Width="120" Height="120" Fill="{DynamicResource CardAccentBrush}" 
+                                            <Ellipse Width="120" Height="120" Fill="{DynamicResource AccentBrush}" 
                                                      Opacity="0.02" Margin="0,0,-40,-40" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
                                             
                                             <!-- Abstract Preview -->
@@ -179,7 +179,7 @@
                                                     <DataTemplate DataType="vm:EdgePreviewViewModel">
                                                         <Line StartPoint="{Binding StartPoint}" 
                                                               EndPoint="{Binding EndPoint}"
-                                                              Stroke="{DynamicResource CardAccentBrush}" StrokeThickness="1"/>
+                                                              Stroke="{DynamicResource AccentBrush}" StrokeThickness="1"/>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
@@ -191,7 +191,7 @@
                                                 </ItemsControl.ItemsPanel>
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate DataType="vm:NodePreviewViewModel">
-                                                        <Ellipse Width="4" Height="4" Fill="{DynamicResource CardAccentBrush}">
+                                                        <Ellipse Width="4" Height="4" Fill="{DynamicResource AccentBrush}">
                                                             <Ellipse.RenderTransform>
                                                                 <TranslateTransform X="{Binding X}" Y="{Binding Y}"/>
                                                             </Ellipse.RenderTransform>
@@ -347,7 +347,7 @@
                                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                                     <Border Width="40" Height="40" CornerRadius="{DynamicResource Radius.Md}" Background="{DynamicResource CardIconBackgroundBrush}">
                                                         <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chart-bubble.svg"
-                                                                          Width="20" Height="20" Color="{DynamicResource CardAccentBrush}"/>
+                                                                          Width="20" Height="20" Color="{DynamicResource AccentBrush}"/>
                                                     </Border>
                                                     <StackPanel VerticalAlignment="Center">
                                                          <TextBlock Text="{markup:T Ns=Mindmap, Key=MindmapLabel}" 
@@ -461,7 +461,7 @@
                                             <Grid ColumnDefinitions="48,*,150,170,40">
                                                 <Border Grid.Column="0" Width="40" Height="40" CornerRadius="{DynamicResource Radius.Md}" Background="{DynamicResource CardIconBackgroundBrush}">
                                                     <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chart-bubble.svg"
-                                                                      Width="20" Height="20" Color="{DynamicResource CardAccentBrush}"/>
+                                                                      Width="20" Height="20" Color="{DynamicResource AccentBrush}"/>
                                                 </Border>
     
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">

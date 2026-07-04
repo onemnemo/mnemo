@@ -18,7 +18,7 @@
             <Style Selector="^:focus">
                 <Setter Property="Foreground" Value="{DynamicResource TextControlForegroundFocusedBrush}" />
                 <Style Selector="^ /template/ Border#PART_BorderElement">
-                    <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                     <Setter Property="BorderThickness" Value="1.5"/>
                 </Style>
             </Style>

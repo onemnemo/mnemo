@@ -81,7 +81,7 @@
                                 CornerRadius="8"
                                 ToolTip.Tip="{markup:T Ns=Overview, Key=AddWidgetTooltip}">
                             <Path Data="M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6V13z" 
-                                  Fill="{DynamicResource AccentPrimaryBrush}"
+                                  Fill="{DynamicResource AccentBrush}"
                                   Stretch="Uniform"
                                   Width="14" Height="14"/>
                         </Button>
@@ -110,10 +110,10 @@
 
                 <!-- Ghost Widget Layer (binds to pixel values to avoid null GhostWidget binding errors) -->
                 <Canvas IsVisible="{Binding IsGhostVisible}" ZIndex="1">
-                    <Border Background="{DynamicResource CardAccentBrush}"
+                    <Border Background="{DynamicResource AccentBrush}"
                             Opacity="0.15"
                             CornerRadius="20"
-                            BorderBrush="{DynamicResource CardAccentBrush}"
+                            BorderBrush="{DynamicResource AccentBrush}"
                             BorderThickness="2"
                             Canvas.Left="{Binding GhostLeftPixels}"
                             Canvas.Top="{Binding GhostTopPixels}"
@@ -182,14 +182,14 @@
                             VerticalAlignment="Center"
                             Spacing="16"
                             Opacity="0.6">
-                    <Border Background="{DynamicResource CardAccentBrush}"
+                    <Border Background="{DynamicResource AccentBrush}"
                             Opacity="0.2"
                             Width="64" Height="64"
                             CornerRadius="16"
                             HorizontalAlignment="Center">
                         <ui:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/layout-grid.svg"
                                     Width="32" Height="32"
-                                    Color="{DynamicResource CardAccentBrush}"
+                                    Color="{DynamicResource AccentBrush}"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"/>
                     </Border>

@@ -10,6 +10,7 @@
                 <ResourceInclude Source="CornerRadiusConverters.axaml" />
                 <ResourceInclude Source="AdornerLayer.axaml" />
                 <ResourceInclude Source="Button.axaml" />
+                <ResourceInclude Source="AppButton.axaml" />
                 <ResourceInclude Source="RadioButton.axaml" />
                 <ResourceInclude Source="Expander.axaml" />
                 <ResourceInclude Source="ProgressBar.axaml" />

@@ -77,7 +77,7 @@
             </Setter>
         </Style>
         <Style Selector="ListBox.flashcard-deck-list ListBoxItem:selected Border.card-row-host">
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="BoxShadow" Value="0 4 14 0 #15000000" />
         </Style>
         <Style Selector="ListBox.flashcard-deck-list ListBoxItem:pointerover Border.card-row-host">
@@ -180,13 +180,13 @@
         <!-- Small derived "Cloze" chip shown only when the card's Front contains {{cN::…}} markers. -->
         <Style Selector="Border.fc-cloze-chip">
             <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="6,2" />
             <Setter Property="Background" Value="{DynamicResource WorkspaceBackgroundBrush}" />
         </Style>
         <Style Selector="Border.fc-cloze-chip TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="LetterSpacing" Value="0.4" />
             <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}" />
@@ -228,7 +228,7 @@
             <Setter Property="Opacity" Value="0.3" />
         </Style>
         <Style Selector="Border.retention-trend-baseline-segment.latest">
-            <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
             <Setter Property="Opacity" Value="0.8" />
         </Style>
         <Style Selector="Border.retention-trend-bar-fill">
@@ -239,7 +239,7 @@
             <Setter Property="Opacity" Value="0.5" />
         </Style>
         <Style Selector="Border.retention-trend-bar-fill.latest">
-            <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
             <Setter Property="Opacity" Value="1" />
         </Style>
         <Style Selector="TextBlock.retention-trend-empty-text">
@@ -273,7 +273,7 @@
                                 <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
                             </Style>
                             <Style Selector="Border:focus-within">
-                                <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                             </Style>
                         </Border.Styles>
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -442,7 +442,7 @@
                         <StackPanel Spacing="2" HorizontalAlignment="Center">
                             <TextBlock Text="{Binding DueTodayCount}"
                                        FontSize="28" FontFamily="{DynamicResource Font.Bold}"
-                                       Foreground="{DynamicResource AccentPrimaryBrush}" HorizontalAlignment="Center" />
+                                       Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
                             <TextBlock Text="{markup:T Ns=Flashcards, Key=MetricDueToday}"
                                        FontSize="{DynamicResource FontSize.Body.Small}"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
@@ -581,7 +581,7 @@
 
                                                 <StackPanel Grid.Column="3" VerticalAlignment="Center" MinWidth="76">
                                                     <TextBlock HorizontalAlignment="Right" FontFamily="{DynamicResource Font.SemiBold}"
-                                                               FontSize="{DynamicResource FontSize.Body.Small}" Foreground="{DynamicResource AccentPrimaryBrush}"
+                                                               FontSize="{DynamicResource FontSize.Body.Small}" Foreground="{DynamicResource AccentBrush}"
                                                                Text="{Binding LocalizedCardDueProxy, ElementName=root, FallbackValue='Due', TargetNullValue='Due'}"
                                                                IsVisible="{Binding DueDate, Converter={StaticResource FlashcardDueIsDueConverter}}" />
                                                     <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}"
@@ -686,10 +686,10 @@
                                                                     <TextBlock Text="[…]"
                                                                                FontSize="{DynamicResource FontSize.Body.Small}"
                                                                                FontFamily="{DynamicResource Font.SemiBold}"
-                                                                               Foreground="{DynamicResource AccentPrimaryBrush}" />
+                                                                               Foreground="{DynamicResource AccentBrush}" />
                                                                     <TextBlock Text="{markup:T Ns=Flashcards, Key=InsertCloze}"
                                                                                FontSize="{DynamicResource FontSize.Body.Small}"
-                                                                               Foreground="{DynamicResource AccentPrimaryBrush}" />
+                                                                               Foreground="{DynamicResource AccentBrush}" />
                                                                 </StackPanel>
                                                             </Button>
                                                             <Button Classes="ghost" Padding="10,6"
@@ -728,7 +728,7 @@
                             <controls:SvgIcon Grid.Column="0"
                                               SvgPath="avares://Mnemo.UI/Icons/Common/plus.svg"
                                               Width="18" Height="18"
-                                              Color="{DynamicResource AccentPrimaryBrush}"
+                                              Color="{DynamicResource AccentBrush}"
                                               VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1"
                                        Text="{markup:T Ns=Flashcards, Key=AddAnotherCard}"

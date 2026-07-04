@@ -19,7 +19,7 @@
             <controls:SvgIcon SvgPath="{TemplateBinding IconPath}"
                               Width="{DynamicResource IconSize.Lg}"
                               Height="{DynamicResource IconSize.Lg}"
-                              Color="{DynamicResource CardAccentBrush}"
+                              Color="{DynamicResource AccentBrush}"
                               HorizontalAlignment="Center"
                               VerticalAlignment="Center"/>
           </Border>

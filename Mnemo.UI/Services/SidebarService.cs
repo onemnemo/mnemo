@@ -19,8 +19,14 @@ public class SidebarService : ISidebarService, INotifyPropertyChanged
     private static readonly Dictionary<string, int> DefaultCategoryOrder = new(StringComparer.OrdinalIgnoreCase)
     {
         { "MainHub", 0 },
-        { "Library", 1 },
+        { "Modules", 1 },
         { "Ecosystem", 2 }
+    };
+
+    /// <summary>Category keys rendered in the sidebar footer (bottom, no section header) rather than the main nav list.</summary>
+    private static readonly HashSet<string> FooterCategoryKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Ecosystem"
     };
 
     private readonly List<(SidebarCategory category, string nameKey, string ns)> _categoryKeys = new();
@@ -83,7 +89,7 @@ public class SidebarService : ISidebarService, INotifyPropertyChanged
             var order = categoryOrder ??
                        (DefaultCategoryOrder.TryGetValue(categoryKey, out var defaultOrder) ? defaultOrder : int.MaxValue);
             var resolvedCategoryName = _localizationService.T(categoryKey, ns);
-            category = new SidebarCategory(resolvedCategoryName, order);
+            category = new SidebarCategory(resolvedCategoryName, order, FooterCategoryKeys.Contains(categoryKey));
             _categoryKeys.Add((category, categoryKey, ns));
 
             var insertIndex = Categories.Count;
@@ -119,6 +125,22 @@ public class SidebarService : ISidebarService, INotifyPropertyChanged
             }
         }
         category.Items.Insert(itemInsertIndex, item);
+    }
+
+    public void SetItemBadge(string route, string? badgeText)
+    {
+        var normalized = string.IsNullOrWhiteSpace(badgeText) ? null : badgeText;
+        foreach (var category in Categories)
+        {
+            foreach (var item in category.Items)
+            {
+                if (string.Equals(item.Route, route, StringComparison.OrdinalIgnoreCase))
+                {
+                    item.BadgeText = normalized;
+                    return;
+                }
+            }
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

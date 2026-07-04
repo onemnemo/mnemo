@@ -157,8 +157,6 @@ logs/
 .cursor/
 .vs/
 
-# Local Vertex / teacher dev credentials (not for source control)
-.temp-teacher/
+
 docs/
-training/
-tmp.build/
+lucid-icons/

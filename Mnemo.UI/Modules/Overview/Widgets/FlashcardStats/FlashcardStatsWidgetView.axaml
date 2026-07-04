@@ -17,7 +17,7 @@
             <Setter Property="HorizontalAlignment" Value="Center"/>
         </Style>
         <Style Selector="TextBlock.metric.active">
-            <Setter Property="Foreground" Value="{DynamicResource CardAccentBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
         </Style>
     </UserControl.Styles>
 

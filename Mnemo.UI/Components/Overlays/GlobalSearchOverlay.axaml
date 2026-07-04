@@ -9,7 +9,7 @@
   <UserControl.Resources>
     <DataTemplate x:Key="SearchItemTemplate" x:DataType="local:GlobalSearchItemViewModel">
       <Button BorderThickness="0"
-              BorderBrush="{DynamicResource CardAccentBrush}"
+              BorderBrush="{DynamicResource AccentBrush}"
               Padding="8,6"
               HorizontalAlignment="Stretch"
               HorizontalContentAlignment="Stretch"

@@ -1,120 +1,136 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:components="using:Mnemo.UI.Components"
-        xmlns:controls="using:Mnemo.UI.Controls"
-        xmlns:converters="using:Mnemo.UI.Converters"
-        xmlns:vm="using:Mnemo.UI.ViewModels"
-        xmlns:markup="using:Mnemo.UI.Markup"
-        x:Class="Mnemo.UI.Components.Topbar"
-        x:DataType="components:TopbarViewModel">
+             xmlns:components="using:Mnemo.UI.Components"
+             xmlns:controls="using:Mnemo.UI.Controls"
+             xmlns:converters="using:Mnemo.UI.Converters"
+             xmlns:markup="using:Mnemo.UI.Markup"
+             x:Class="Mnemo.UI.Components.Topbar"
+             x:DataType="components:TopbarViewModel">
     <UserControl.Resources>
         <converters:PathToImageConverter x:Key="PathToImageConverter"/>
     </UserControl.Resources>
-    <Border Background="{DynamicResource TopbarBackgroundBrush}"
-            BorderBrush="Transparent"
-            BorderThickness="0, 0, 0, 1"
-            Padding="10,8">
-        <Grid ColumnDefinitions="Auto,*" Margin="10">
-            <Button Background="Transparent"
+
+    <Border Height="{DynamicResource TopbarHeight}"
+            Background="{DynamicResource TopbarBackgroundBrush}"
+            BorderBrush="{DynamicResource TopbarBorderBrush}"
+            BorderThickness="0,0,0,0.8"
+            Padding="{DynamicResource TopbarPadding}">
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+
+            <!-- Current page label -->
+            <TextBlock Grid.Column="0"
+                       Text="{Binding CurrentPageTitle}"
+                       FontSize="12.5"
+                       Foreground="{DynamicResource TextTertiaryBrush}"
+                       VerticalAlignment="Center"
+                       Margin="0,0,14,0"/>
+
+            <!-- Global search trigger -->
+            <Button Grid.Column="1"
+                    Background="Transparent"
                     BorderThickness="0"
                     Padding="0"
-                    Command="{Binding OpenGlobalSearchCommand}">
+                    Command="{Binding OpenGlobalSearchCommand}"
+                    ToolTip.Tip="{markup:T Ns=Topbar, Key=SearchPlaceholder}">
                 <Button.Styles>
-                    <Style Selector="Button:pointerover Border#SearchButtonChrome">
-                        <Setter Property="Background" Value="{DynamicResource TopbarButtonBackgroundBrush}"/>
-                        <Setter Property="BorderBrush" Value="{DynamicResource IconsSeparationBarBrush}"/>
+                    <Style Selector="Button:pointerover Border#SearchChrome">
+                        <Setter Property="Background" Value="{DynamicResource SearchBarHoverBrush}"/>
                     </Style>
-                    <Style Selector="Button:pressed Border#SearchButtonChrome">
-                        <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
-                        <Setter Property="BorderBrush" Value="{DynamicResource IconsSeparationBarBrush}"/>
-                    </Style>
-                    <Style Selector="Button:pointerover TextBlock#SearchPlaceholderText">
-                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-                    </Style>
-                    <Style Selector="Button:pressed TextBlock#SearchPlaceholderText">
-                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-                    </Style>
-                    <Style Selector="Button:pointerover TextBlock#SearchShortcutText">
-                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-                    </Style>
-                    <Style Selector="Button:pressed TextBlock#SearchShortcutText">
-                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-                    </Style>
-                    <Style Selector="Button:pointerover Border#SearchShortcutBadge">
-                        <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
-                    </Style>
-                    <Style Selector="Button:pressed Border#SearchShortcutBadge">
-                        <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
-                    </Style>
-                    <Style Selector="Button:pointerover controls|SvgIcon#SearchIcon">
-                        <Setter Property="Color" Value="{DynamicResource TextSecondaryBrush}"/>
-                    </Style>
-                    <Style Selector="Button:pressed controls|SvgIcon#SearchIcon">
-                        <Setter Property="Color" Value="{DynamicResource TextSecondaryBrush}"/>
+                    <Style Selector="Button:pressed Border#SearchChrome">
+                        <Setter Property="Background" Value="{DynamicResource SearchBarHoverBrush}"/>
                     </Style>
                 </Button.Styles>
-                <Border Background="Transparent"
-                        BorderBrush="Transparent"
+                <Border x:Name="SearchChrome"
+                        Height="28"
+                        Width="{DynamicResource TopbarSearchWidth}"
+                        Background="{DynamicResource SearchBarBackgroundBrush}"
+                        BorderBrush="{DynamicResource SearchBarBorderBrush}"
                         BorderThickness="1"
-                        x:Name="SearchButtonChrome"
-                        CornerRadius="12"
-                        Height="34"
-                        Padding="10,0">
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" MinWidth="330">
-                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/search.svg"
-                                          x:Name="SearchIcon"
+                        CornerRadius="{DynamicResource SearchBarCornerRadius}"
+                        Padding="8,0">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <controls:AppIcon Grid.Column="0"
+                                          Icon="Common/search"
+                                          Width="13" Height="13"
                                           Color="{DynamicResource TextFadedBrush}"
-                                          Width="16"
-                                          Height="16"
-                                          VerticalAlignment="Center" />
+                                          VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="1"
-                                   x:Name="SearchPlaceholderText"
-                                   Text="{markup:T Ns=Topbar, Key=SearchPlaceholder}"
-                                   FontSize="{DynamicResource FontSize.Body.Small}"
-                                   Foreground="{DynamicResource TextFadedBrush}"
+                                   Text="{markup:T Ns=Topbar, Key=SearchLabel}"
+                                   FontSize="12.5"
+                                   Foreground="{DynamicResource SearchBarTextBrush}"
                                    VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis" />
+                                   TextTrimming="CharacterEllipsis"/>
                         <Border Grid.Column="2"
-                                x:Name="SearchShortcutBadge"
-                                Background="Transparent"
-                                BorderBrush="{DynamicResource IconsSeparationBarBrush}"
+                                Background="{DynamicResource SearchBarShortcutBackgroundBrush}"
+                                BorderBrush="{DynamicResource SearchBarBorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="8,2"
-                                VerticalAlignment="Center">
-                            <TextBlock x:Name="SearchShortcutText"
-                                       Text="{Binding GlobalSearchShortcutDisplay}"
-                                       FontSize="{DynamicResource FontSize.Caption}"
+                                CornerRadius="4"
+                                Padding="5,1"
+                                VerticalAlignment="Center"
+                                IsVisible="{Binding GlobalSearchShortcutDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <TextBlock Text="{Binding GlobalSearchShortcutDisplay}"
+                                       FontFamily="{DynamicResource Font.Monospace}"
+                                       FontSize="10"
                                        Foreground="{DynamicResource TextFadedBrush}"
-                                       VerticalAlignment="Center" />
+                                       VerticalAlignment="Center"/>
                         </Border>
                     </Grid>
                 </Border>
             </Button>
-            <StackPanel Grid.Column="1"
+
+            <!-- Right cluster: gamification, notifications, profile, window controls -->
+            <StackPanel Grid.Column="3"
                         Orientation="Horizontal"
                         Spacing="8"
-                        HorizontalAlignment="Right">
-                <Button Background="{DynamicResource TopbarButtonBackgroundBrush}" Foreground="{DynamicResource TopbarButtonForegroundBrush}" Height="34" Width="34" Padding="7" CornerRadius="19" BorderThickness="0">
-                    <Button.Flyout>
-                        <Flyout Placement="BottomEdgeAlignedRight" ShowMode="TransientWithDismissOnPointerMoveAway">
-                            <!-- No inner ScrollViewer: FlyoutPresenter template already wraps content in ScrollViewer.
-                                 No second Background/Border: presenter supplies rounded chrome; avoids square bleed in corners. -->
-                            <StackPanel MinWidth="300"
-                                        MaxWidth="380"
-                                        Margin="12,10"
-                                        Spacing="4">
+                        VerticalAlignment="Center">
+
+                <!-- Gamification XP & streak -->
+                <StackPanel Orientation="Horizontal"
+                            Spacing="10"
+                            VerticalAlignment="Center"
+                            Margin="0,0,4,0"
+                            IsVisible="{Binding IsGamificationEnabled}">
+                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                        <controls:AppIcon Icon="Assets/xp" Width="15" Height="15" PreserveSvgColors="True"/>
+                        <TextBlock Text="{Binding GamificationXpText}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextTertiaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                        <controls:AppIcon Icon="Assets/streak" Width="15" Height="15" PreserveSvgColors="True"/>
+                        <TextBlock Text="{Binding GamificationStreakText}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextTertiaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Notifications bell with unread dot -->
+                <Panel>
+                    <controls:AppButton Classes="ghost"
+                                        IconName="Common/bell"
+                                        Padding="5"
+                                        ToolTip.Tip="{markup:T Ns=Topbar, Key=NotificationsTitle}">
+                        <controls:AppButton.Flyout>
+                            <Flyout Placement="BottomEdgeAlignedRight" ShowMode="TransientWithDismissOnPointerMoveAway">
+                                <!-- No inner ScrollViewer: FlyoutPresenter template already wraps content in ScrollViewer.
+                                     No second Background/Border: presenter supplies rounded chrome; avoids square bleed in corners. -->
+                                <StackPanel MinWidth="300"
+                                            MaxWidth="380"
+                                            Margin="12,10"
+                                            Spacing="4">
                                     <TextBlock Text="{markup:T Ns=Topbar, Key=NotificationsTitle}"
                                                FontWeight="SemiBold"
                                                FontSize="{DynamicResource FontSize.Body.Small}"
                                                Foreground="{DynamicResource TextPrimaryBrush}"
-                                               Margin="4,2,4,6" />
+                                               Margin="4,2,4,6"/>
                                     <TextBlock Text="{markup:T Ns=Topbar, Key=NotificationsEmpty}"
                                                IsVisible="{Binding ShowsNotificationsEmpty}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                TextAlignment="Center"
                                                Margin="8,12"
-                                               TextWrapping="Wrap" />
+                                               TextWrapping="Wrap"/>
                                     <ItemsControl IsVisible="{Binding HasNotifications}"
                                                   ItemsSource="{Binding RecentNotifications}">
                                         <ItemsControl.ItemTemplate>
@@ -125,7 +141,7 @@
                                                         Background="Transparent">
                                                     <Border.Styles>
                                                         <Style Selector="Border:pointerover">
-                                                            <Setter Property="Background" Value="{DynamicResource NotificationFlyoutRowHoverBrush}" />
+                                                            <Setter Property="Background" Value="{DynamicResource NotificationFlyoutRowHoverBrush}"/>
                                                         </Style>
                                                     </Border.Styles>
                                                     <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
@@ -134,19 +150,19 @@
                                                                  Height="10"
                                                                  VerticalAlignment="Center"
                                                                  Margin="0,0,10,0"
-                                                                 Fill="{Binding TypeAccentBrush}" />
+                                                                 Fill="{Binding TypeAccentBrush}"/>
                                                         <TextBlock Grid.Column="1"
                                                                    Text="{Binding Title}"
                                                                    FontWeight="SemiBold"
                                                                    FontSize="{DynamicResource FontSize.Body.Small}"
                                                                    Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                   TextTrimming="CharacterEllipsis" />
+                                                                   TextTrimming="CharacterEllipsis"/>
                                                         <TextBlock Grid.Column="2"
                                                                    Text="{Binding TimeText}"
                                                                    FontSize="{DynamicResource FontSize.Caption}"
                                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                                    VerticalAlignment="Top"
-                                                                   Margin="8,0,0,0" />
+                                                                   Margin="8,0,0,0"/>
                                                         <TextBlock Grid.Row="1"
                                                                    Grid.Column="1"
                                                                    Grid.ColumnSpan="2"
@@ -154,69 +170,65 @@
                                                                    FontSize="{DynamicResource FontSize.Caption}"
                                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                                    TextWrapping="Wrap"
-                                                                   Margin="0,4,0,0" />
+                                                                   Margin="0,4,0,0"/>
                                                     </Grid>
                                                 </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                            </StackPanel>
-                        </Flyout>
-                    </Button.Flyout>
-                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/bell.svg" Color="{DynamicResource TopbarIconsBrush}" Width="20" Height="20" />
+                                </StackPanel>
+                            </Flyout>
+                        </controls:AppButton.Flyout>
+                    </controls:AppButton>
+                    <!-- Unread indicator; ring matches the bar surface so the dot reads as floating -->
+                    <Border Width="8" Height="8"
+                            CornerRadius="4"
+                            Background="{DynamicResource AccentBrush}"
+                            BorderBrush="{DynamicResource WorkspaceBackgroundBrush}"
+                            BorderThickness="1.5"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Margin="0,3,3,0"
+                            IsHitTestVisible="False"
+                            IsVisible="{Binding HasNotifications}"/>
+                </Panel>
+
+                <!-- Profile -->
+                <Button Background="Transparent"
+                        BorderThickness="0"
+                        Padding="2"
+                        Command="{Binding OpenProfileSettingsCommand}"
+                        ToolTip.Tip="{markup:T Ns=Topbar, Key=ProfileTooltip}">
+                    <Button.Styles>
+                        <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="Background" Value="Transparent"/>
+                        </Style>
+                    </Button.Styles>
+                    <Border Width="22" Height="22" CornerRadius="11" ClipToBounds="True">
+                        <Image Source="{Binding ProfilePicturePath, Converter={StaticResource PathToImageConverter}}"
+                               Stretch="UniformToFill"/>
+                    </Border>
                 </Button>
 
-                <!-- Gamification Topbar XP & Streak -->
-                <Border Background="{DynamicResource TopbarButtonBackgroundBrush}" 
-                        Padding="7" 
-                        CornerRadius="19" 
-                        BorderThickness="0" 
-                        IsVisible="{Binding IsGamificationEnabled}">
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2">
-                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Assets/xp.svg" Width="18" Height="18" PreserveSvgColors="True" />
-                            <TextBlock Text="{Binding GamificationXpText}" FontSize="{DynamicResource FontSize.Body.Small}" Foreground="{DynamicResource TextPrimaryBrush}" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Assets/streak.svg" Width="18" Height="18" PreserveSvgColors="True" />
-                            <TextBlock Text="{Binding GamificationStreakText}" FontSize="{DynamicResource FontSize.Body.Small}" Foreground="{DynamicResource TextPrimaryBrush}" />
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-
-                <Border Background="{DynamicResource TopbarButtonBackgroundBrush}" Padding="7" CornerRadius="19" BorderThickness="0">
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Button Background="Transparent" BorderThickness="0" Padding="0" Command="{Binding MinimizeCommand}">
-                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/square-rounded-minus.svg"
-                                             Color="{DynamicResource TopbarIconsBrush}"
-                                             Width="22" Height="22" />
-                        </Button>
-                        <Button Background="Transparent" BorderThickness="0" Padding="0" Command="{Binding MaximizeCommand}">
-                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/maximize.svg"
-                                             Color="{DynamicResource TopbarIconsBrush}"
-                                             Width="22" Height="22" />
-                        </Button>
-                        <Button Background="Transparent" BorderThickness="0" Padding="0" Command="{Binding CloseCommand}">
-                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/square-rounded-x.svg"
-                                             Color="{DynamicResource TopbarIconsBrush}"
-                                             Width="22" Height="22"/>
-                        </Button>
-                        <Button Background="Transparent"
-                                BorderThickness="0"
-                                Padding="0"
-                                Command="{Binding OpenProfileSettingsCommand}"
-                                ToolTip.Tip="{markup:T Ns=Topbar, Key=ProfileTooltip}">
-                            <Button.Styles>
-                                <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                </Style>
-                            </Button.Styles>
-                            <Image Source="{Binding ProfilePicturePath, Converter={StaticResource PathToImageConverter}}" Width="22" Height="22" />
-                        </Button>
-                    </StackPanel>
-                </Border>
+                <!-- Window controls -->
+                <StackPanel Orientation="Horizontal" Spacing="2" Margin="4,0,0,0">
+                    <controls:AppButton Classes="ghost"
+                                        IconName="Window/minimize"
+                                        Padding="5"
+                                        Command="{Binding MinimizeCommand}"
+                                        ToolTip.Tip="{markup:T Ns=Topbar, Key=MinimizeTooltip}"/>
+                    <controls:AppButton Classes="ghost"
+                                        IconName="Window/maximize"
+                                        Padding="5"
+                                        Command="{Binding MaximizeCommand}"
+                                        ToolTip.Tip="{markup:T Ns=Topbar, Key=MaximizeTooltip}"/>
+                    <controls:AppButton Classes="ghost"
+                                        IconName="Window/close"
+                                        Padding="5"
+                                        Command="{Binding CloseCommand}"
+                                        ToolTip.Tip="{markup:T Ns=Topbar, Key=CloseTooltip}"/>
+                </StackPanel>
             </StackPanel>
         </Grid>
     </Border>
 </UserControl>
-

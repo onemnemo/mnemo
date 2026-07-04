@@ -234,11 +234,11 @@
   },
   "Sidebar": {
     "MainHub": "Hauptbereich",
-    "Library": "Bibliothek",
+    "Modules": "Module",
     "Ecosystem": "Ökosystem",
     "Overview": "Übersicht",
     "Notes": "Notizen",
-    "Mindmap": "Mindmap",
+    "Mindmap": "Mindmaps",
     "Flashcards": "Karteikarten",
     "Settings": "Einstellungen",
     "AIChat": "KI-Chat",
@@ -569,13 +569,17 @@
     "NotificationsTitle": "Benachrichtigungen",
     "NotificationsEmpty": "Noch keine Benachrichtigungen.",
     "SearchPlaceholder": "Suche nach einem Lernstoff, Mindmap etc.",
+    "SearchLabel": "Suchen",
     "GlobalSearchOverlayHint": "Die globale Suche wird hier geoeffnet. Volle Ergebnisse und Aktionen folgen als Naechstes.",
     "GamificationXpFormat": "{0:N0} XP",
     "GamificationStreakFormat": "{0} Tage",
     "ConfirmExitTitle": "Beenden bestätigen",
     "ConfirmExitMessage": "Mnemo wirklich schließen?",
     "ConfirmExitButton": "Beenden",
-    "ProfileTooltip": "Profil & Einstellungen"
+    "ProfileTooltip": "Profil & Einstellungen",
+    "MinimizeTooltip": "Minimieren",
+    "MaximizeTooltip": "Maximieren",
+    "CloseTooltip": "Schließen"
   },
   "AddWidget": {
     "Title": "Widget hinzufügen",

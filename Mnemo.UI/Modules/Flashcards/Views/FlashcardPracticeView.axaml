@@ -123,7 +123,7 @@
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20"
                             IsVisible="{Binding ShowEmptyQueue}">
                     <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Flashcard/Practice/award.svg"
-                                      Width="64" Height="64" Color="{DynamicResource AccentPrimaryBrush}"
+                                      Width="64" Height="64" Color="{DynamicResource AccentBrush}"
                                       HorizontalAlignment="Center" Opacity="0.8"/>
                     <TextBlock Text="{markup:T Ns=Flashcards, Key=PracticeEmptyTitle}"
                                FontSize="{DynamicResource FontSize.Heading1}" FontFamily="{DynamicResource Font.Bold}"
@@ -140,7 +140,7 @@
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="24" MaxWidth="500"
                             IsVisible="{Binding ShowSummary}">
                     <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Flashcard/Practice/award.svg"
-                                      Width="64" Height="64" Color="{DynamicResource AccentPrimaryBrush}"
+                                      Width="64" Height="64" Color="{DynamicResource AccentBrush}"
                                       HorizontalAlignment="Center" Opacity="0.8"/>
                     <StackPanel Spacing="8">
                         <TextBlock Text="{markup:T Ns=Flashcards, Key=PracticeCompleteTitle}"
@@ -207,7 +207,7 @@
                                 BoxShadow="0 4 12 0 #1A000000">
                             <StackPanel Spacing="6">
                                 <TextBlock Text="{Binding GoodCount}" FontSize="30" FontFamily="{DynamicResource Font.Bold}"
-                                           HorizontalAlignment="Center" Foreground="{DynamicResource AccentPrimaryBrush}"/>
+                                           HorizontalAlignment="Center" Foreground="{DynamicResource AccentBrush}"/>
                                 <TextBlock Text="{markup:T Ns=Flashcards, Key=GradeGood}"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                            HorizontalAlignment="Center" FontFamily="{DynamicResource Font.SemiBold}"/>

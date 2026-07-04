@@ -28,7 +28,7 @@
           <!-- Content: Vertically Centered -->
           <StackPanel Grid.Row="0" Spacing="16" VerticalAlignment="Center">
             <Border Width="56" Height="56" CornerRadius="28"
-                    Background="{DynamicResource CardAccentBrush}"
+                    Background="{DynamicResource AccentBrush}"
                     VerticalAlignment="Center"
                     HorizontalAlignment="Left">
               <controls:SvgIcon SvgPath="avares://Mnemo.UI/Assets/Branding/logo_icon.svg"
@@ -56,19 +56,19 @@
             <!-- Step 1 -->
             <Ellipse Width="8" Height="8" Fill="{DynamicResource TextTertiaryBrush}"
                      IsVisible="{Binding !IsWelcomeStep}"/>
-            <Ellipse Width="8" Height="8" Fill="{DynamicResource CardAccentBrush}"
+            <Ellipse Width="8" Height="8" Fill="{DynamicResource AccentBrush}"
                      IsVisible="{Binding IsWelcomeStep}"/>
             
             <!-- Step 2 -->
             <Ellipse Width="8" Height="8" Fill="{DynamicResource TextTertiaryBrush}"
                      IsVisible="{Binding !IsLanguageStep}"/>
-            <Ellipse Width="8" Height="8" Fill="{DynamicResource CardAccentBrush}"
+            <Ellipse Width="8" Height="8" Fill="{DynamicResource AccentBrush}"
                      IsVisible="{Binding IsLanguageStep}"/>
             
             <!-- Step 3 -->
             <Ellipse Width="8" Height="8" Fill="{DynamicResource TextTertiaryBrush}"
                      IsVisible="{Binding !IsPersonalizationStep}"/>
-            <Ellipse Width="8" Height="8" Fill="{DynamicResource CardAccentBrush}"
+            <Ellipse Width="8" Height="8" Fill="{DynamicResource AccentBrush}"
                      IsVisible="{Binding IsPersonalizationStep}"/>
           </StackPanel>
         </Grid>
@@ -98,7 +98,7 @@
                         Background="{DynamicResource CardBackgroundSecondaryBrush}"
                         HorizontalAlignment="Center">
                   <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chart-bubble.svg"
-                                    Color="{DynamicResource CardAccentBrush}"
+                                    Color="{DynamicResource AccentBrush}"
                                     Width="56" Height="56"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"/>
@@ -155,7 +155,7 @@
                               <Setter Property="BorderBrush" Value="Transparent"/>
                             </Style>
                             <Style Selector="Border.selected">
-                              <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                              <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                             </Style>
                           </Border.Styles>
                           <Border CornerRadius="6" ClipToBounds="True" Margin="2">
@@ -192,7 +192,7 @@
                               <Setter Property="BorderBrush" Value="Transparent"/>
                             </Style>
                             <Style Selector="Border.selected">
-                              <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                              <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                             </Style>
                           </Border.Styles>
                           <Image Source="{Binding IconPath, Converter={StaticResource PathToImageConverter}}"
@@ -224,7 +224,7 @@
                               <Setter Property="BorderBrush" Value="Transparent"/>
                             </Style>
                             <Style Selector="Border.selected">
-                              <Setter Property="BorderBrush" Value="{DynamicResource CardAccentBrush}"/>
+                              <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                             </Style>
                           </Border.Styles>
                           <Image Source="{Binding ImagePath, Converter={StaticResource PathToImageConverter}}"

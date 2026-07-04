@@ -496,7 +496,7 @@ public sealed class SketchSvgView : Control
             "swatch3" => "WidgetIconBackground3",
             "swatch4" => "WidgetIconBackground4",
             "swatch5" => "WidgetIconBackground5",
-            "accent" => "CardAccent",
+            "accent" => "Accent",
             "background" => "WorkspaceBackground",
             "surface" => "CardBackgroundSecondary",
             "text" or "text.primary" => "TextPrimary",

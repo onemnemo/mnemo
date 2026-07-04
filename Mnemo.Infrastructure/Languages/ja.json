@@ -234,7 +234,7 @@
   },
   "Sidebar": {
     "MainHub": "メインハブ",
-    "Library": "ライブラリ",
+    "Modules": "モジュール",
     "Ecosystem": "エコシステム",
     "Overview": "概要",
     "Notes": "ノート",
@@ -575,13 +575,17 @@
     "NotificationsTitle": "通知",
     "NotificationsEmpty": "通知はまだありません。",
     "SearchPlaceholder": "レッスンやマインドマップなどを検索...",
+    "SearchLabel": "検索",
     "GlobalSearchOverlayHint": "グローバル検索はここに表示されます。結果一覧とアクションは次の更新で追加します。",
     "GamificationXpFormat": "{0:N0} XP",
     "GamificationStreakFormat": "{0}日連続",
     "ConfirmExitTitle": "終了の確認",
     "ConfirmExitMessage": "Mnemo を終了してもよろしいですか？",
     "ConfirmExitButton": "終了",
-    "ProfileTooltip": "プロフィールと設定"
+    "ProfileTooltip": "プロフィールと設定",
+    "MinimizeTooltip": "最小化",
+    "MaximizeTooltip": "最大化",
+    "CloseTooltip": "閉じる"
   },
   "AddWidget": {
     "Title": "ウィジェットを追加",

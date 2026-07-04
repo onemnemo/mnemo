@@ -54,7 +54,7 @@
                 Padding="0"
                 CornerRadius="24"
                 BorderThickness="0"
-                Background="{DynamicResource CardAccentBrush}"
+                Background="{DynamicResource AccentBrush}"
                 Foreground="{DynamicResource AccentButtonIconBrush}"
                 Command="{Binding OpenAssistantCommand}"
                 IsVisible="{Binding IsAssistantEnabled}"

@@ -6,6 +6,7 @@
     <SolidColorBrush x:Key="WorkspaceBackgroundBrush" Color="{DynamicResource WorkspaceBackground}"/>
     <SolidColorBrush x:Key="OverlayBackgroundBrush" Color="{DynamicResource OverlayBackground}"/>
     <SolidColorBrush x:Key="TopbarBackgroundBrush" Color="{DynamicResource TopbarBackground}"/>
+    <SolidColorBrush x:Key="TopbarBorderBrush" Color="{DynamicResource TopbarBorder}"/>
     
     <!-- Text Brushes -->
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{DynamicResource TextPrimary}"/>
@@ -102,7 +103,7 @@
     <SolidColorBrush x:Key="WidgetIconColor5Brush" Color="{DynamicResource WidgetIconColor5}"/>
     <SolidColorBrush x:Key="CardBackgroundPrimaryBrush" Color="{DynamicResource CardBackgroundPrimary}"/>
     <SolidColorBrush x:Key="CardBackgroundSecondaryBrush" Color="{DynamicResource CardBackgroundSecondary}"/>
-    <SolidColorBrush x:Key="CardAccentBrush" Color="{DynamicResource CardAccent}"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="{DynamicResource Accent}"/>
     <SolidColorBrush x:Key="QuickActionCardBackgroundBrush" Color="{DynamicResource QuickActionCardBackground}"/>
     <SolidColorBrush x:Key="CardIconBackgroundBrush" Color="{DynamicResource CardIconBackground}"/>
     <SolidColorBrush x:Key="LearnCardBackgroundBrush" Color="{DynamicResource LearnCardBackground}"/>
@@ -174,6 +175,7 @@
     <SolidColorBrush x:Key="AnswerCorrectBrush" Color="{DynamicResource AnswerCorrect}"/>
     <SolidColorBrush x:Key="AnswerWrongBrush" Color="{DynamicResource AnswerWrong}"/>
     <SolidColorBrush x:Key="SidebarLogoBrush" Color="{DynamicResource SidebarLogo}"/>
+    <SolidColorBrush x:Key="SidebarBadgeBackgroundBrush" Color="{DynamicResource SidebarBadgeBackground}"/>
 
     <!-- ToggleSwitch Brushes -->
     <SolidColorBrush x:Key="ToggleSwitchFillOffBrush" Color="{DynamicResource ToggleSwitchFillOff}"/>
@@ -441,7 +443,7 @@
     <SolidColorBrush x:Key="NavigationButtonForegroundSelectedBrush" Color="{DynamicResource NavigationButtonForegroundSelected}"/>
     <SolidColorBrush x:Key="NavigationButtonForegroundHoverBrush" Color="{DynamicResource NavigationButtonForegroundHover}"/>
     <SolidColorBrush x:Key="NavigationButtonForegroundPressedBrush" Color="{DynamicResource NavigationButtonForegroundPressed}"/>
-    <CornerRadius x:Key="SidebarButtonCornerRadius">20</CornerRadius>
+    <CornerRadius x:Key="SidebarButtonCornerRadius">6</CornerRadius>
     
     <!-- Navigation Button Icons -->
     <SolidColorBrush x:Key="NavigationButtonIconBrush" Color="{DynamicResource NavigationButtonIcon}"/>
@@ -471,8 +473,9 @@
     <SolidColorBrush x:Key="SearchBarTextHoverBrush" Color="{DynamicResource SearchBarTextHover}" />
     <SolidColorBrush x:Key="SearchBarTextBrush" Color="{DynamicResource SearchBarText}" />
     <SolidColorBrush x:Key="SearchBarTextDisabledBrush" Color="{DynamicResource SearchBarTextDisabled}" />
+    <SolidColorBrush x:Key="SearchBarShortcutBackgroundBrush" Color="{DynamicResource SearchBarShortcutBackground}" />
 
-    <CornerRadius x:Key="SearchBarCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="SearchBarCornerRadius">6</CornerRadius>
     <Thickness x:Key="SearchBarPadding">12,0</Thickness>
 
     <!-- Common Values -->
@@ -530,7 +533,6 @@
     <!-- Generic border / accent -->
     <SolidColorBrush x:Key="BorderBrush" Color="{DynamicResource Border}"/>
     <SolidColorBrush x:Key="QuoteLineBrush" Color="{DynamicResource QuoteLine}"/>
-    <SolidColorBrush x:Key="AccentPrimaryBrush" Color="{DynamicResource AccentPrimary}"/>
     <SolidColorBrush x:Key="BlockSelectionBrush" Color="{DynamicResource BlockSelectionBackground}"/>
     <!-- Mindmap -->
     <SolidColorBrush x:Key="MindmapNodeBorderBrush" Color="{DynamicResource MindmapNodeBorder}"/>

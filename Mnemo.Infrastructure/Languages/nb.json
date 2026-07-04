@@ -237,7 +237,7 @@
   },
   "Sidebar": {
     "MainHub": "Hovedhub",
-    "Library": "Bibliotek",
+    "Modules": "Moduler",
     "Ecosystem": "Økosystem",
     "Overview": "Oversikt",
     "Notes": "Notater",
@@ -578,13 +578,17 @@
     "NotificationsTitle": "Varsler",
     "NotificationsEmpty": "Ingen varsler ennå.",
     "SearchPlaceholder": "Søk etter en leksjon, et tankekart, osv.",
+    "SearchLabel": "Søk",
     "GlobalSearchOverlayHint": "Globalt sok aapnes her. Fullstendige resultater og handlinger kommer snart.",
     "GamificationXpFormat": "{0:N0} XP",
     "GamificationStreakFormat": "{0} dager",
     "ConfirmExitTitle": "Bekreft avslutt",
     "ConfirmExitMessage": "Er du sikker på at du vil lukke Mnemo?",
     "ConfirmExitButton": "Avslutt",
-    "ProfileTooltip": "Profil og innstillinger"
+    "ProfileTooltip": "Profil og innstillinger",
+    "MinimizeTooltip": "Minimer",
+    "MaximizeTooltip": "Maksimer",
+    "CloseTooltip": "Lukk"
   },
   "AddWidget": {
     "Title": "Legg til widget",

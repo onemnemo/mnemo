@@ -31,6 +31,10 @@ public partial class SidebarItem : ObservableObject
     [ObservableProperty]
     private bool _showUpdateBadge;
 
+    /// <summary>Optional count/label pill on the sidebar row (e.g. flashcards due count). Hidden when null/empty.</summary>
+    [ObservableProperty]
+    private string? _badgeText;
+
     public SidebarItem(string label, string route, string icon, int order = int.MaxValue, IEnumerable<string>? childRoutes = null)
     {
         _label = label;
@@ -51,9 +55,17 @@ public partial class SidebarCategory : ObservableObject
     public int Order { get; }
     public ObservableCollection<SidebarItem> Items { get; } = new();
 
-    public SidebarCategory(string name, int order = int.MaxValue)
+    /// <summary>
+    /// When true, this category renders in the sidebar footer (bottom, no section header),
+    /// alongside the Quick actions button — e.g. Settings. Otherwise it renders in the
+    /// main scrollable nav list with a section header.
+    /// </summary>
+    public bool IsFooter { get; }
+
+    public SidebarCategory(string name, int order = int.MaxValue, bool isFooter = false)
     {
         _name = name;
         Order = order;
+        IsFooter = isFooter;
     }
 }

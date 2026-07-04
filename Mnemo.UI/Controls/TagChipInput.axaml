@@ -37,7 +37,7 @@
             <Setter Property="MinHeight" Value="40" />
         </Style>
         <Style Selector="Border.tag-input-host:focus-within">
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
         </Style>
     </UserControl.Styles>
 

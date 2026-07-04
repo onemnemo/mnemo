@@ -59,9 +59,9 @@
                 <local:LayoutOverlayPanel x:Name="SelectionBoxOverlay" IsHitTestVisible="False" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                     <Border
                         x:Name="SelectionBoxBorder"
-                        Background="{DynamicResource AccentPrimaryBrush}"
+                        Background="{DynamicResource AccentBrush}"
                         Opacity="0.15"
-                        BorderBrush="{DynamicResource AccentPrimaryBrush}"
+                        BorderBrush="{DynamicResource AccentBrush}"
                         BorderThickness="1"
                         IsVisible="False"
                         IsHitTestVisible="False" />

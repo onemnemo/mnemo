@@ -187,7 +187,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         _insertLine = new Rectangle
         {
             Height = 2,
-            Fill = ResolveBrush("AccentPrimaryBrush"),
+            Fill = ResolveBrush("AccentBrush"),
             IsVisible = false,
             IsHitTestVisible = false,
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -199,7 +199,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         _folderHighlight = new Border
         {
             BorderThickness = new Thickness(1),
-            BorderBrush = ResolveBrush("AccentPrimaryBrush"),
+            BorderBrush = ResolveBrush("AccentBrush"),
             Background = new SolidColorBrush(Color.FromArgb(40, accent.R, accent.G, accent.B)),
             IsVisible = false,
             IsHitTestVisible = false
@@ -396,7 +396,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
 
     private Color TryResolveAccentColor()
     {
-        if (_overlay.TryGetResource("AccentPrimary", Theme, out var value))
+        if (_overlay.TryGetResource("Accent", Theme, out var value))
         {
             if (value is Color color)
                 return color;
@@ -404,7 +404,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
                 return brush.Color;
         }
 
-        if (Application.Current?.TryGetResource("AccentPrimary", Theme, out value) == true)
+        if (Application.Current?.TryGetResource("Accent", Theme, out value) == true)
         {
             if (value is Color color)
                 return color;

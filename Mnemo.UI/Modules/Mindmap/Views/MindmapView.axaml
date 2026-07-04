@@ -822,7 +822,7 @@
                     <!-- Viewport box -->
                     <Border Name="MinimapViewportBox"
                             Canvas.Left="0" Canvas.Top="0"
-                            BorderBrush="{DynamicResource AccentPrimaryBrush}"
+                            BorderBrush="{DynamicResource AccentBrush}"
                             BorderThickness="1"
                             CornerRadius="6"
                             Background="#10000000"
@@ -840,7 +840,7 @@
                                 Opacity="0.5">
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Color="{DynamicResource AccentPrimary}" Offset="0"/>
+                                    <GradientStop Color="{DynamicResource Accent}" Offset="0"/>
                                     <GradientStop Color="Transparent" Offset="1"/>
                                 </LinearGradientBrush>
                             </Border.Background>
@@ -860,9 +860,9 @@
 
             <!-- Selection Box -->
             <Border Name="SelectionBox" 
-                    Background="{DynamicResource AccentPrimaryBrush}" 
+                    Background="{DynamicResource AccentBrush}" 
                     Opacity="0.2" 
-                    BorderBrush="{DynamicResource AccentPrimaryBrush}" 
+                    BorderBrush="{DynamicResource AccentBrush}" 
                     BorderThickness="1" 
                     IsVisible="False" 
                     IsHitTestVisible="False"

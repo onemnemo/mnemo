@@ -46,6 +46,24 @@ public class SidebarViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Compact version label for the sidebar footer, e.g. "Alpha 0.6.5". The pre-release
+    /// suffix (e.g. "-dev") is trimmed; "Alpha" is the current release channel while the
+    /// app is on a 0.x version.
+    /// </summary>
+    public static string VersionDisplay
+    {
+        get
+        {
+            // Trim any pre-release ("-dev") or build-metadata ("+<hash>") suffix, keeping just "major.minor.patch".
+            var version = AppVersion.GetVersion();
+            var cut = version.IndexOfAny(['-', '+']);
+            if (cut >= 0)
+                version = version[..cut];
+            return $"Alpha {version}";
+        }
+    }
+
     private string _quickActionsShortcutDisplay = string.Empty;
 
     public string QuickActionsShortcutDisplay

@@ -27,7 +27,7 @@ public class BoolToSelectionBrushConverter : IMultiValueConverter
         var app = Avalonia.Application.Current;
         if (app?.Resources.TryGetResource("BlockSelectionBrush", ThemeVariant.Default, out var blockRes) == true && blockRes is IBrush blockBrush)
             return blockBrush;
-        if (app?.Resources.TryGetResource("AccentPrimaryBrush", ThemeVariant.Default, out var accentRes) == true && accentRes is IBrush themeBrush)
+        if (app?.Resources.TryGetResource("AccentBrush", ThemeVariant.Default, out var accentRes) == true && accentRes is IBrush themeBrush)
             return themeBrush;
         return new SolidColorBrush(new Color(128, 0, 120, 255)); // fallback
     }

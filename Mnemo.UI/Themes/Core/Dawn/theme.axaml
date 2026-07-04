@@ -4,7 +4,6 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://Mnemo.UI/Themes/Core/Dawn/Colors.axaml"/>
-                <ResourceInclude Source="avares://Mnemo.UI/Themes/Core/Dawn/Typography.axaml"/>
                 <ResourceInclude Source="avares://Mnemo.UI/Themes/Core/Dawn/Controls.axaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

@@ -6,6 +6,7 @@
     <Color x:Key="WorkspaceBackground">#171715</Color>
     <Color x:Key="OverlayBackground">#2e2e2c</Color>
     <Color x:Key="TopbarBackground">Transparent</Color>
+    <Color x:Key="TopbarBorder">#312e2d</Color>
     
     <!-- Text Colors -->
     <Color x:Key="TextPrimary">#FFFFFF</Color>
@@ -66,7 +67,7 @@
     <Color x:Key="WidgetIconColor5">#888888</Color>
     <Color x:Key="CardBackgroundPrimary">Transparent</Color>
     <Color x:Key="CardBackgroundSecondary">#312e2d</Color>
-    <Color x:Key="CardAccent">#e95b45</Color>
+    <Color x:Key="Accent">#e95b45</Color>
     <Color x:Key="QuickActionCardBackground">#464549</Color>
     <Color x:Key="LearnCardBackground">#312e2d</Color>
     <Color x:Key="LearnCardTitleColor">#CFCCCB</Color>
@@ -152,6 +153,7 @@
     <Color x:Key="AnswerCorrect">#6A295D</Color>
     <Color x:Key="AnswerWrong">#244D60</Color>
     <Color x:Key="SidebarLogo">#E95B45</Color>
+    <Color x:Key="SidebarBadgeBackground">#33E95B45</Color>
 
     <!-- ToggleSwitch -->
     <Color x:Key="ToggleSwitchFillOff">#464549</Color>
@@ -360,6 +362,7 @@
     <Color x:Key="SearchBarTextColor">#797573</Color>
     <Color x:Key="SearchBarBorder">#312e2d</Color>
     <Color x:Key="SearchBarHover">#464549</Color>
+    <Color x:Key="SearchBarShortcutBackground">#262423</Color>
     <Color x:Key="SearchBarDisabled">#1f1f1e</Color>
     <Color x:Key="SearchBarTextHover">#CFCCCB</Color>
     <Color x:Key="SearchBarText">#797573</Color>
@@ -413,8 +416,6 @@
     <Color x:Key="Border">#312e2d</Color>
     <!-- Block quote vertical line -->
     <Color x:Key="QuoteLine">#e95b45</Color>
-    <!-- Primary accent (icons, highlights) -->
-    <Color x:Key="AccentPrimary">#e95b45</Color>
     <!-- Mindmap -->
     <Color x:Key="MindmapNodeBorder">#e95b45</Color>
     <Color x:Key="MindmapNodeBorderHover">#FF6B55</Color>

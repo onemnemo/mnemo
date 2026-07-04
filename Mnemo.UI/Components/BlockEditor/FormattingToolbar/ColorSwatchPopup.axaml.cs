@@ -141,7 +141,7 @@ public partial class ColorSwatchPopup : UserControl
     private Control CreateSwatch(Color color, string swatchName, bool isSelected)
     {
         var defaultBorder = ResolveThemeBrush("ButtonBorderBrush");
-        var selectedBorder = ResolveThemeBrush("CardAccentBrush");
+        var selectedBorder = ResolveThemeBrush("AccentBrush");
 
         var shell = new Border
         {

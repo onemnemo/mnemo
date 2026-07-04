@@ -206,7 +206,7 @@
                                             VerticalAlignment="Top">
                                         <controls:SvgIcon SvgPath="{Binding Metadata.Icon}"
                                                           Width="22" Height="22"
-                                                          Color="{DynamicResource CardAccentBrush}"/>
+                                                          Color="{DynamicResource AccentBrush}"/>
                                     </Border>
 
                                     <!-- Title row -->
@@ -230,7 +230,7 @@
                                                 <TextBlock Text="{markup:T Ns=AddWidget, Key=PickBadge}"
                                                            FontSize="10"
                                                            FontFamily="{DynamicResource Font.SemiBold}"
-                                                           Foreground="{DynamicResource CardAccentBrush}"/>
+                                                           Foreground="{DynamicResource AccentBrush}"/>
                                             </Border>
                                         </StackPanel>
                                         <Button Grid.Column="1"
