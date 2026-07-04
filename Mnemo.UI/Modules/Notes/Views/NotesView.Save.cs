@@ -77,7 +77,9 @@ public partial class NotesView
         }
 
         editor.FlushPendingNoteSaveAsync = FlushEditorToSelectedNoteAsync;
-        editor.LoadBlocks(vm.GetBlocksForCurrentNote());
+        var blocksForNote = vm.GetBlocksForCurrentNote();
+        editor.LoadBlocks(blocksForNote);
+        vm.UpdateWordCount(blocksForNote);
 
         if (!_blocksChangedSubscribed)
         {

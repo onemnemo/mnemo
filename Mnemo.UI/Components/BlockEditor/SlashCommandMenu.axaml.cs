@@ -16,13 +16,15 @@ namespace Mnemo.UI.Components.BlockEditor;
 
 public class CommandItem
 {
-    /// <summary>Full avares path to the SVG icon (e.g. avares://Mnemo.UI/Icons/SlashCommand/letter-t.svg).</summary>
-    public string IconPath { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     /// <summary>Optional shortcut hint shown on the right (e.g. "#", "1.", "-").</summary>
     public string? Shortcut { get; set; }
     public BlockType BlockType { get; set; }
+    /// <summary>Visual group in the menu (0 = basic text blocks, 1 = inserts/media).</summary>
+    public int Group { get; set; }
+    /// <summary>Recomputed on every filter pass: true when this row starts a new group mid-list.</summary>
+    public bool ShowSeparatorAbove { get; set; }
 }
 
 public partial class SlashCommandMenu : UserControl
@@ -56,6 +58,7 @@ public partial class SlashCommandMenu : UserControl
     {
         _allCommandItems = InitializeCommandItems();
         _filteredCommandItems = new List<CommandItem>(_allCommandItems);
+        RefreshGroupSeparators(_filteredCommandItems);
         InitializeComponent();
         Loaded += OnLoaded;
     }
@@ -63,12 +66,11 @@ public partial class SlashCommandMenu : UserControl
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
         _commandListBox = this.FindControl<ListBox>("CommandListBox");
-        var closeMenuText = this.FindControl<TextBlock>("CloseMenuTextBlock");
-        if (closeMenuText != null)
+        var filterHintText = this.FindControl<TextBlock>("FilterHintTextBlock");
+        if (filterHintText != null)
         {
             var loc = (Application.Current as App)?.Services?.GetService(typeof(ILocalizationService)) as ILocalizationService;
-            string T(string key, string ns = "NotesEditor") => loc?.T(key, ns) ?? key;
-            closeMenuText.Text = T("CloseMenu");
+            filterHintText.Text = loc?.T("SlashMenuSearchPlaceholder", "NotesEditor") ?? "Type to filter";
         }
         EnsureItemsSourceSet();
         SyncSelectedIndex();
@@ -108,25 +110,24 @@ public partial class SlashCommandMenu : UserControl
         var loc = (Application.Current as App)?.Services?.GetService(typeof(ILocalizationService)) as ILocalizationService;
         string T(string key, string ns = "NotesEditor") => loc?.T(key, ns) ?? key;
 
-        const string iconBase = "avares://Mnemo.UI/Icons/SlashCommand/";
         return new List<CommandItem>
         {
-            new() { IconPath = iconBase + "letter-t.svg", Name = T("Text"), Description = T("TextDescription"), Shortcut = null, BlockType = BlockType.Text },
-            new() { IconPath = iconBase + "h-1.svg", Name = T("Heading1"), Description = T("Heading1Description"), Shortcut = "#", BlockType = BlockType.Heading1 },
-            new() { IconPath = iconBase + "h-2.svg", Name = T("Heading2"), Description = T("Heading2Description"), Shortcut = "##", BlockType = BlockType.Heading2 },
-            new() { IconPath = iconBase + "h-3.svg", Name = T("Heading3"), Description = T("Heading3Description"), Shortcut = "###", BlockType = BlockType.Heading3 },
-            new() { IconPath = iconBase + "h-3.svg", Name = T("Heading4"), Description = T("Heading4Description"), Shortcut = "####", BlockType = BlockType.Heading4 },
-            new() { IconPath = iconBase + "list.svg", Name = T("BulletList"), Description = T("BulletListDescription"), Shortcut = "-", BlockType = BlockType.BulletList },
-            new() { IconPath = iconBase + "list-numbers.svg", Name = T("NumberedList"), Description = T("NumberedListDescription"), Shortcut = "1.", BlockType = BlockType.NumberedList },
-            new() { IconPath = iconBase + "list-check.svg", Name = T("Checklist"), Description = T("ChecklistDescription"), Shortcut = "[]", BlockType = BlockType.Checklist },
-            new() { IconPath = iconBase + "quote.svg", Name = T("Quote"), Description = T("QuoteDescription"), Shortcut = "\"", BlockType = BlockType.Quote },
-            new() { IconPath = iconBase + "math-function.svg", Name = T("Code"), Description = T("CodeDescription"), Shortcut = null, BlockType = BlockType.Code },
-            new() { IconPath = iconBase + "sketch.svg", Name = T("Sketch"), Description = T("SketchDescription"), Shortcut = null, BlockType = BlockType.Sketch },
-            new() { IconPath = iconBase + "separator.svg", Name = T("Divider"), Description = T("DividerDescription"), Shortcut = "---", BlockType = BlockType.Divider },
-            new() { IconPath = "avares://Mnemo.UI/Icons/Sidebar/notes.svg", Name = T("Page"), Description = T("PageDescription"), Shortcut = null, BlockType = BlockType.Page },
-            new() { IconPath = "avares://Mnemo.UI/Icons/Editor/two-column.svg", Name = T("TwoColumn"), Description = T("TwoColumnDescription"), Shortcut = null, BlockType = BlockType.TwoColumn },
-            new() { IconPath = iconBase + "photo.svg", Name = T("Image"), Description = T("ImageDescription"), Shortcut = null, BlockType = BlockType.Image },
-            new() { IconPath = iconBase + "math-equation.svg", Name = T("Equation"), Description = T("EquationDescription"), Shortcut = null, BlockType = BlockType.Equation }
+            new() { Name = T("Text"), Description = T("TextDescription"), Shortcut = null, BlockType = BlockType.Text, Group = 0 },
+            new() { Name = T("Heading1"), Description = T("Heading1Description"), Shortcut = "#", BlockType = BlockType.Heading1, Group = 0 },
+            new() { Name = T("Heading2"), Description = T("Heading2Description"), Shortcut = "##", BlockType = BlockType.Heading2, Group = 0 },
+            new() { Name = T("Heading3"), Description = T("Heading3Description"), Shortcut = "###", BlockType = BlockType.Heading3, Group = 0 },
+            new() { Name = T("Heading4"), Description = T("Heading4Description"), Shortcut = "####", BlockType = BlockType.Heading4, Group = 0 },
+            new() { Name = T("BulletList"), Description = T("BulletListDescription"), Shortcut = "-", BlockType = BlockType.BulletList, Group = 0 },
+            new() { Name = T("NumberedList"), Description = T("NumberedListDescription"), Shortcut = "1.", BlockType = BlockType.NumberedList, Group = 0 },
+            new() { Name = T("Checklist"), Description = T("ChecklistDescription"), Shortcut = "[]", BlockType = BlockType.Checklist, Group = 0 },
+            new() { Name = T("Quote"), Description = T("QuoteDescription"), Shortcut = "\"", BlockType = BlockType.Quote, Group = 0 },
+            new() { Name = T("Code"), Description = T("CodeDescription"), Shortcut = null, BlockType = BlockType.Code, Group = 1 },
+            new() { Name = T("Sketch"), Description = T("SketchDescription"), Shortcut = null, BlockType = BlockType.Sketch, Group = 1 },
+            new() { Name = T("Divider"), Description = T("DividerDescription"), Shortcut = "---", BlockType = BlockType.Divider, Group = 1 },
+            new() { Name = T("Page"), Description = T("PageDescription"), Shortcut = null, BlockType = BlockType.Page, Group = 1 },
+            new() { Name = T("TwoColumn"), Description = T("TwoColumnDescription"), Shortcut = null, BlockType = BlockType.TwoColumn, Group = 1 },
+            new() { Name = T("Image"), Description = T("ImageDescription"), Shortcut = null, BlockType = BlockType.Image, Group = 1 },
+            new() { Name = T("Equation"), Description = T("EquationDescription"), Shortcut = "$$", BlockType = BlockType.Equation, Group = 1 }
         };
     }
 
@@ -153,6 +154,7 @@ public partial class SlashCommandMenu : UserControl
             if (string.IsNullOrEmpty(searchTerm))
             {
                 _filteredCommandItems = new List<CommandItem>(_allCommandItems);
+                RefreshGroupSeparators(_filteredCommandItems);
                 return;
             }
 
@@ -160,6 +162,14 @@ public partial class SlashCommandMenu : UserControl
                 .Where(item => IsMatch(item, searchTerm))
                 .ToList();
         }
+
+        RefreshGroupSeparators(_filteredCommandItems);
+    }
+
+    private static void RefreshGroupSeparators(List<CommandItem> items)
+    {
+        for (var i = 0; i < items.Count; i++)
+            items[i].ShowSeparatorAbove = i > 0 && items[i].Group != items[i - 1].Group;
     }
 
     private static bool IsMatch(CommandItem item, string normalizedSearchTerm)

@@ -364,6 +364,11 @@
     "ThinkingLabel": "Pensando"
   },
   "Notes": {
+    "SearchNotesPlaceholder": "Buscar notas",
+    "NoSearchResults": "No hay notas coincidentes",
+    "Saved": "Guardado",
+    "WordCountFormat": "{0} palabras",
+    "Index": "Índice",
     "NewNote": "Nueva nota",
     "Notes": "Notas",
     "ToggleSidebar": "Alternar barra lateral",
@@ -412,6 +417,14 @@
     "YearsAgo": "hace {0} años"
   },
   "NotesEditor": {
+    "Assist": "Asistente",
+    "BoldTooltip": "Negrita (Ctrl+B)",
+    "ItalicTooltip": "Cursiva (Ctrl+I)",
+    "UnderlineTooltip": "Subrayado (Ctrl+U)",
+    "StrikethroughTooltip": "Tachado",
+    "HighlightTooltip": "Resaltar",
+    "SubscriptTooltip": "Subíndice (Ctrl+,)",
+    "SuperscriptTooltip": "Superíndice (Ctrl+.)",
     "TypeSlashForCommands": "Escriba '/' para ver comandos...",
     "Heading1": "Encabezado 1",
     "Heading2": "Encabezado 2",

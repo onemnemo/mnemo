@@ -44,6 +44,8 @@ public partial class NotesViewModel
             NoteBreadcrumb.BuildForNote(null, _library.FoldersById);
             CreatedText = string.Empty;
             ModifiedText = string.Empty;
+            SaveStateText = string.Empty;
+            WordCountText = string.Empty;
             IsFavorite = false;
             SelectedNoteTitle = string.Empty;
             return;
@@ -59,5 +61,6 @@ public partial class NotesViewModel
         NoteBreadcrumb.BuildForNote(value, _library.FoldersById);
         CreatedText = FormatRelative(value.CreatedAt, "Created", "Notes");
         ModifiedText = FormatRelative(value.ModifiedAt, "LastModified", "Notes");
+        SaveStateText = FormatSaveState(value.ModifiedAt);
     }
 }

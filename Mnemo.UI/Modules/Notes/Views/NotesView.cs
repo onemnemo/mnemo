@@ -58,6 +58,7 @@ public partial class NotesView : UserControl
             vm.ClearHistoryOnNoteSwitch(_previousSelectedNote, vm.SelectedNote);
         _previousSelectedNote = (sender as NotesViewModel)?.SelectedNote;
 
+        CloseIndexPopover();
         ResetEditorView();
         FlushPendingSave();
         Dispatcher.UIThread.Post(() => LoadBlocksForCurrentNote(), DispatcherPriority.Loaded);
@@ -74,6 +75,8 @@ public partial class NotesView : UserControl
         SetupDragCoordinator();
         SetupEditorScrollPanAndGutter();
         SetupEditorCameraZoom();
+        SetupNoteIndex();
+        InitializeShortcutHints();
         WireKeybindHandlers();
     }
 
@@ -135,6 +138,7 @@ public partial class NotesView : UserControl
         TeardownSave();
         TeardownEditorScrollPanAndGutter();
         TeardownEditorCameraZoom();
+        TeardownNoteIndex();
 
         RemoveHandler(PointerMovedEvent, OnPanePointerMoved);
         RemoveHandler(PointerReleasedEvent, OnPanePointerReleased);

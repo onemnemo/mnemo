@@ -37,6 +37,17 @@ public partial class NoteTreeItemViewModel : ObservableObject
     public bool IsRenamableFolder => IsFolder && Folder != null;
 
     /// <summary>
+    /// Number of notes in this folder's subtree (folders themselves excluded). 0 for note rows.
+    /// Refreshed when direct children change; deeper moves rebuild the tree, which recreates rows.
+    /// </summary>
+    public int NoteCount => IsFolder ? CountNotes(this) : 0;
+
+    /// <summary>
+    /// True when this row is rendered in the Favourites section (shows the star glyph instead of indent).
+    /// </summary>
+    public bool IsFavouriteEntry { get; init; }
+
+    /// <summary>
     /// Display name for synthetic container nodes (e.g. "Uncategorized"); null for real folders/notes.
     /// </summary>
     private readonly string? _syntheticName;
@@ -98,6 +109,15 @@ public partial class NoteTreeItemViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsFolderEmpty));
         OnPropertyChanged(nameof(IsFolderWithChildren));
+        OnPropertyChanged(nameof(NoteCount));
+    }
+
+    private static int CountNotes(NoteTreeItemViewModel item)
+    {
+        var count = 0;
+        foreach (var child in item.Children)
+            count += child.IsFolder ? CountNotes(child) : 1;
+        return count;
     }
 
     partial void OnIsExpandedChanged(bool value)

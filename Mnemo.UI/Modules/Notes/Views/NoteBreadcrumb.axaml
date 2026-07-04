@@ -24,13 +24,12 @@
                         <DataTemplate DataType="vm:NoteBreadcrumbCrumbPieceVm">
                             <StackPanel Orientation="Horizontal" Spacing="0">
                                 <!-- Leading separator -->
-                                <controls:SvgIcon IsVisible="{Binding ShowLeadingSeparator}"
-                                                  SvgPath="avares://Mnemo.UI/Icons/Common/chevron-right.svg"
-                                                  Color="{DynamicResource TextTertiaryBrush}"
-                                                  Width="12"
-                                                  Height="12"
-                                                  VerticalAlignment="Center"
-                                                  Margin="4,0,4,0"/>
+                                <TextBlock IsVisible="{Binding ShowLeadingSeparator}"
+                                           Text="/"
+                                           Foreground="{DynamicResource TextDisabledBrush}"
+                                           FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                           VerticalAlignment="Center"
+                                           Margin="2,0,2,0"/>
 
                                 <!-- Clickable crumb -->
                                 <Button Content="{Binding Text}"
@@ -46,12 +45,19 @@
                                     <Button.Styles>
                                         <Style Selector="Button">
                                             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                                            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}"/>
+                                        </Style>
+                                        <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                            <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}"/>
                                         </Style>
                                         <Style Selector="Button:pointerover">
                                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                         </Style>
                                         <Style Selector="Button:disabled">
                                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                                        </Style>
+                                        <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+                                            <Setter Property="Background" Value="Transparent"/>
                                         </Style>
                                     </Button.Styles>
                                     <Button.Tag>
@@ -65,13 +71,12 @@
                         <DataTemplate DataType="vm:NoteBreadcrumbEllipsisPieceVm">
                             <StackPanel Orientation="Horizontal" Spacing="0">
                                 <!-- Leading separator -->
-                                <controls:SvgIcon IsVisible="{Binding ShowLeadingSeparator}"
-                                                  SvgPath="avares://Mnemo.UI/Icons/Common/chevron-right.svg"
-                                                  Color="{DynamicResource TextTertiaryBrush}"
-                                                  Width="12"
-                                                  Height="12"
-                                                  VerticalAlignment="Center"
-                                                  Margin="4,0,4,0"/>
+                                <TextBlock IsVisible="{Binding ShowLeadingSeparator}"
+                                           Text="/"
+                                           Foreground="{DynamicResource TextDisabledBrush}"
+                                           FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                           VerticalAlignment="Center"
+                                           Margin="2,0,2,0"/>
 
                                 <!-- Ellipsis button with flyout -->
                                 <Button Content="..."
@@ -81,8 +86,12 @@
                                         FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
                                         FontFamily="{DynamicResource Font.SemiBold}"
                                         Foreground="{DynamicResource TextSecondaryBrush}"
+                                        CornerRadius="{DynamicResource Radius.Sm}"
                                         Cursor="Hand">
                                     <Button.Styles>
+                                        <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                            <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}"/>
+                                        </Style>
                                         <Style Selector="Button:pointerover">
                                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                         </Style>

@@ -22,6 +22,63 @@
         <converters:BoolNegationConverter x:Key="BoolNegationConverter" />
     </UserControl.Resources>
 
+    <UserControl.Styles>
+        <!-- Quiet 26px icon button used in the pane header and the editor top bar -->
+        <Style Selector="Button.notes-icon-button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.notes-icon-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
+        </Style>
+        <Style Selector="Button.notes-icon-button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ButtonBackgroundPressedBrush}"/>
+        </Style>
+
+        <!-- Uppercase micro section label (FAVOURITES / MY NOTES) -->
+        <Style Selector="TextBlock.notes-section-label">
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="LetterSpacing" Value="1"/>
+            <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFadedBrush}"/>
+        </Style>
+
+        <!-- Dark floating index popover rows -->
+        <Style Selector="Button.index-entry">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="CornerRadius" Value="7"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        </Style>
+        <Style Selector="Button.index-entry:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource FloatingChromeHoverBrush}"/>
+        </Style>
+        <Style Selector="Button.index-entry.current /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource FloatingChromeActiveBrush}"/>
+        </Style>
+        <Style Selector="Button.index-entry TextBlock.index-number">
+            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeForegroundMutedBrush}"/>
+        </Style>
+        <Style Selector="Button.index-entry TextBlock.index-title">
+            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeForegroundBrush}"/>
+        </Style>
+        <Style Selector="Button.index-entry.current TextBlock.index-number">
+            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeAccentBrush}"/>
+        </Style>
+        <Style Selector="Button.index-entry.current TextBlock.index-title">
+            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeForegroundStrongBrush}"/>
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+        </Style>
+    </UserControl.Styles>
+
     <!-- DataTemplate for note/folder rows — used by TreeView ItemTemplate (drag-drop and folder icons in NoteTreeRow) -->
     <UserControl.DataTemplates>
         <DataTemplate DataType="vm:NoteTreeItemViewModel">
@@ -31,7 +88,7 @@
 
     <SplitView DisplayMode="Inline"
                IsPaneOpen="{Binding IsSidebarOpen}"
-               OpenPaneLength="280"
+               OpenPaneLength="248"
                CompactPaneLength="0"
                Background="Transparent"
                IsVisible="{Binding !IsLoading}"
@@ -43,10 +100,10 @@
                 <Grid ColumnDefinitions="*,Auto">
                     <!-- Panel stacks pane content + drag overlay canvas -->
                     <Panel Grid.Column="0">
-                    <Grid RowDefinitions="Auto,*" x:Name="SidebarPaneGrid">
+                    <Grid RowDefinitions="Auto,Auto,*,Auto" x:Name="SidebarPaneGrid">
                     <Grid.Resources>
                         <x:Double x:Key="TreeViewItemIndent">8</x:Double>
-                        <x:Double x:Key="TreeViewItemMinHeight">28</x:Double>
+                        <x:Double x:Key="TreeViewItemMinHeight">27</x:Double>
                     </Grid.Resources>
                     <Grid.Styles>
                         <Style Selector="controls|MnemoTreeViewItem /template/ Panel#PART_ExpandCollapseChevronContainer">
@@ -63,41 +120,74 @@
                             <Setter Property="MinWidth" Value="0"/>
                         </Style>
                     </Grid.Styles>
-                    <!-- Header -->
-                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,20,16,8">
+
+                    <!-- Header: title + quick actions -->
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="16,16,10,10">
                         <TextBlock Text="{markup:T Ns=Notes, Key=Notes}"
-                                   FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                   FontSize="15"
                                    FontFamily="{DynamicResource Font.SemiBold}"
                                    VerticalAlignment="Center"
-                                   Foreground="{DynamicResource NotesSectionHeaderForegroundBrush}"/>
-
-                        <!-- Collapse Button -->
-                        <Button Grid.Column="1" Command="{Binding ToggleSidebarCommand}"
-                                Background="Transparent" BorderThickness="0"
-                                Padding="6"
-                                Cursor="Hand" ToolTip.Tip="{markup:T Ns=Notes, Key=ToggleSidebar}">
-                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/layout-sidebar.svg"
-                                              Width="20" Height="20"
-                                              Color="{DynamicResource TextSecondaryBrush}"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <Button Grid.Column="1" Classes="notes-icon-button"
+                                Command="{Binding NewNoteCommand}"
+                                ToolTip.Tip="{markup:T Ns=Notes, Key=NewNote}">
+                            <controls:AppIcon Icon="Common/plus"
+                                              Width="{DynamicResource IconSize.Sm}" Height="{DynamicResource IconSize.Sm}"
+                                              Color="{DynamicResource TextTertiaryBrush}"/>
+                        </Button>
+                        <Button Grid.Column="2" Classes="notes-icon-button"
+                                Command="{Binding NewFolderCommand}"
+                                ToolTip.Tip="{markup:T Ns=Notes, Key=NewFolder}">
+                            <controls:AppIcon Icon="Common/folder-plus-corner"
+                                              Width="{DynamicResource IconSize.Sm}" Height="{DynamicResource IconSize.Sm}"
+                                              Color="{DynamicResource TextTertiaryBrush}"/>
+                        </Button>
+                        <Button Grid.Column="3" Classes="notes-icon-button"
+                                Command="{Binding ToggleSidebarCommand}"
+                                ToolTip.Tip="{markup:T Ns=Notes, Key=ToggleSidebar}">
+                            <controls:AppIcon Icon="Common/layout-sidebar"
+                                              Width="{DynamicResource IconSize.Sm}" Height="{DynamicResource IconSize.Sm}"
+                                              Color="{DynamicResource TextTertiaryBrush}"/>
                         </Button>
                     </Grid>
 
+                    <!-- Search -->
+                    <TextBox Grid.Row="1" x:Name="NotesSearchBox"
+                             Margin="12,0,12,6"
+                             Height="28" MinHeight="28"
+                             Padding="6,4"
+                             VerticalContentAlignment="Center"
+                             FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                             CornerRadius="7"
+                             Text="{Binding SearchText, Mode=TwoWay}"
+                             Watermark="{markup:T Ns=Notes, Key=SearchNotesPlaceholder}">
+                        <TextBox.InnerLeftContent>
+                            <controls:AppIcon Icon="Common/search"
+                                              Width="12" Height="12" Margin="8,0,0,0"
+                                              VerticalAlignment="Center"
+                                              Color="{DynamicResource TextFadedBrush}"/>
+                        </TextBox.InnerLeftContent>
+                        <TextBox.InnerRightContent>
+                            <TextBlock x:Name="SearchShortcutHint"
+                                       FontFamily="{DynamicResource Font.Monospace}"
+                                       FontSize="9.5"
+                                       Foreground="{DynamicResource TextFadedBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,9,0"/>
+                        </TextBox.InnerRightContent>
+                    </TextBox>
+
                     <!-- Content -->
-                    <ScrollViewer Grid.Row="1"
+                    <ScrollViewer Grid.Row="2"
                                   Classes="sidebar-scroll"
                                   x:Name="SidebarScrollViewer"
-                                  Margin="0,0,12,0"
+                                  Margin="0,0,8,0"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Margin="6,0,6,8" Spacing="4">
-                            <!-- Favorites -->
-                            <StackPanel IsVisible="{Binding FavouriteNotes.Count}">
-                                <TextBlock Text="{markup:T Ns=Notes, Key=Favourites}" 
-                                           Margin="4,4,4,2"
-                                           FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
-                                           FontFamily="{DynamicResource Font.SemiBold}"
-                                           Foreground="{DynamicResource TextTertiaryBrush}"/>
-                                <controls:MnemoTreeView ItemsSource="{Binding FavouriteNotes}"
+                        <Panel Margin="6,0,6,8">
+                            <!-- Search results (flat) -->
+                            <StackPanel IsVisible="{Binding IsSearching}">
+                                <controls:MnemoTreeView ItemsSource="{Binding SearchResults}"
                                           SelectedItem="{Binding SelectedTreeItem, Mode=TwoWay}"
                                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                           Background="Transparent" BorderThickness="0">
@@ -107,107 +197,138 @@
                                         </Style>
                                     </controls:MnemoTreeView.Styles>
                                 </controls:MnemoTreeView>
-                                <Rectangle Height="1" Fill="{DynamicResource NotesPaneDividerBrush}" Margin="2,6,2,6" Opacity="0.5"/>
+                                <TextBlock Text="{markup:T Ns=Notes, Key=NoSearchResults}"
+                                           IsVisible="{Binding HasNoSearchResults}"
+                                           FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                           Foreground="{DynamicResource TextFadedBrush}"
+                                           Margin="10,8,4,0"/>
                             </StackPanel>
 
-                            <!-- My Notes (Folders + Notes) -->
-                            <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="4,2,4,2">
-                                <TextBlock Text="{markup:T Ns=Notes, Key=MyNotes}"
-                                           FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
-                                           FontFamily="{DynamicResource Font.SemiBold}"
-                                           Foreground="{DynamicResource TextTertiaryBrush}"
-                                           VerticalAlignment="Center"/>
-                                <Button Grid.Column="1" Command="{Binding NewNoteCommand}"
-                                        Background="Transparent" BorderThickness="0" Padding="4" Margin="0,0,2,0"
-                                        Cursor="Hand" ToolTip.Tip="{markup:T Ns=Notes, Key=NewNote}">
-                                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/circle-plus.svg"
-                                                      Width="16" Height="16"
-                                                      Color="{DynamicResource TextTertiaryBrush}"/>
-                                </Button>
-                                <Button Grid.Column="2" Command="{Binding NewFolderCommand}"
-                                        Background="Transparent" BorderThickness="0" Padding="4"
-                                        Cursor="Hand" ToolTip.Tip="{markup:T Ns=Notes, Key=NewFolder}">
-                                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/folder-plus-corner.svg"
-                                                      Width="16" Height="16"
-                                                      Color="{DynamicResource TextTertiaryBrush}"/>
-                                </Button>
-                                <Button Grid.Column="3"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Padding="4"
-                                        Cursor="Hand"
-                                        Click="OnTransferClick"
-                                        Tag="transfer"
-                                        ToolTip.Tip="{markup:T Ns=Notes, Key=Transfer}">
-                                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Flyout/export.svg"
-                                                      Width="16" Height="16"
-                                                      Color="{DynamicResource TextTertiaryBrush}"/>
-                                </Button>
-                            </Grid>
-                            
-                            <!-- My Notes tree area (drop on tree or empty space below = move to root) -->
-                            <Border x:Name="MyNotesTreeArea" Background="Transparent" MinHeight="80">
-                                <controls:MnemoTreeView x:Name="MyNotesTreeView"
-                                          ItemsSource="{Binding RootTreeItems}"
-                                          SelectedItem="{Binding SelectedTreeItem, Mode=TwoWay}"
-                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                          Background="Transparent"
-                                          BorderThickness="0">
-                                    <controls:MnemoTreeView.Styles>
-                                        <Style Selector="controls|MnemoTreeViewItem">
-                                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                                            <Setter Property="ExpandOnHeaderClick" Value="False"/>
-                                        </Style>
-                                        <!-- Folders are not selectable: folder-item never shows selected appearance -->
-                                        <Style Selector="controls|MnemoTreeViewItem.folder-item:selected /template/ Border#PART_LayoutRoot">
-                                            <Setter Property="Background" Value="{DynamicResource TreeViewItemBackground}"/>
-                                            <Setter Property="BorderBrush" Value="{DynamicResource TreeViewItemBorderBrush}"/>
-                                        </Style>
-                                        <Style Selector="controls|MnemoTreeViewItem.folder-item:selected /template/ Border#PART_LayoutRoot > ContentPresenter#PART_HeaderPresenter">
-                                            <Setter Property="Foreground" Value="{DynamicResource TreeViewItemForeground}"/>
-                                        </Style>
-                                        <Style Selector="controls|MnemoTreeViewItem.folder-item:selected /template/ ContentPresenter#PART_HeaderPresenter TextBlock">
-                                            <Setter Property="Foreground" Value="{DynamicResource TreeViewItemForeground}"/>
-                                        </Style>
-                                        <Style Selector="controls|MnemoTreeViewItem.folder-item:selected /template/ ContentPresenter#PART_HeaderPresenter controls|SvgIcon">
-                                            <Setter Property="Color" Value="{DynamicResource TreeViewItemForeground}"/>
-                                        </Style>
-                                        <Style Selector="controls|MnemoTreeViewItem.folder-item:selected /template/ Border#PART_LayoutRoot:pointerover">
-                                            <Setter Property="Background" Value="{DynamicResource TreeViewItemBackgroundPointerOver}"/>
-                                            <Setter Property="BorderBrush" Value="{DynamicResource TreeViewItemBorderBrushPointerOver}"/>
-                                        </Style>
-                                        <Style Selector="controls|MnemoTreeViewItem.folder-item:selected /template/ Border#PART_LayoutRoot:pointerover > ContentPresenter#PART_HeaderPresenter">
-                                            <Setter Property="Foreground" Value="{DynamicResource TreeViewItemForegroundPointerOver}"/>
-                                        </Style>
-                                        <Style Selector="controls|MnemoTreeViewItem.folder-item:selected:pointerover /template/ ContentPresenter#PART_HeaderPresenter TextBlock">
-                                            <Setter Property="Foreground" Value="{DynamicResource TreeViewItemForegroundPointerOver}"/>
-                                        </Style>
-                                        <Style Selector="controls|MnemoTreeViewItem.folder-item:selected:pointerover /template/ ContentPresenter#PART_HeaderPresenter controls|SvgIcon">
-                                            <Setter Property="Color" Value="{DynamicResource TreeViewItemForegroundPointerOver}"/>
-                                        </Style>
-                                        <Style Selector="controls|MnemoTreeViewItem.folder-item:pressed:selected /template/ Border#PART_LayoutRoot">
-                                            <Setter Property="Background" Value="{DynamicResource TreeViewItemBackgroundPressed}"/>
-                                            <Setter Property="BorderBrush" Value="{DynamicResource TreeViewItemBorderBrushPressed}"/>
-                                        </Style>
-                                        <Style Selector="controls|MnemoTreeViewItem.folder-item:pressed:selected /template/ Border#PART_LayoutRoot > ContentPresenter#PART_HeaderPresenter">
-                                            <Setter Property="Foreground" Value="{DynamicResource TreeViewItemForegroundPressed}"/>
-                                        </Style>
-                                        <Style Selector="controls|MnemoTreeViewItem.folder-item:pressed:selected /template/ ContentPresenter#PART_HeaderPresenter TextBlock">
-                                            <Setter Property="Foreground" Value="{DynamicResource TreeViewItemForegroundPressed}"/>
-                                        </Style>
-                                        <Style Selector="controls|MnemoTreeViewItem.folder-item:pressed:selected /template/ ContentPresenter#PART_HeaderPresenter controls|SvgIcon">
-                                            <Setter Property="Color" Value="{DynamicResource TreeViewItemForegroundPressed}"/>
-                                        </Style>
-                                    </controls:MnemoTreeView.Styles>
-                                    <controls:MnemoTreeView.ItemTemplate>
-                                        <TreeDataTemplate DataType="vm:NoteTreeItemViewModel" ItemsSource="{Binding Children}">
-                                            <ContentPresenter Content="{Binding}"/>
-                                        </TreeDataTemplate>
-                                    </controls:MnemoTreeView.ItemTemplate>
-                                </controls:MnemoTreeView>
-                            </Border>
-                        </StackPanel>
+                            <!-- Library (favourites + tree) -->
+                            <StackPanel Spacing="0" IsVisible="{Binding !IsSearching}">
+                                <!-- Favourites -->
+                                <StackPanel IsVisible="{Binding FavouriteNotes.Count}">
+                                    <TextBlock Classes="notes-section-label"
+                                               Text="{markup:T Ns=Notes, Key=Favourites, Converter={x:Static converters:UpperCaseStringConverter.Instance}}"
+                                               Margin="10,8,4,5"/>
+                                    <controls:MnemoTreeView ItemsSource="{Binding FavouriteNotes}"
+                                              SelectedItem="{Binding SelectedTreeItem, Mode=TwoWay}"
+                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                              Background="Transparent" BorderThickness="0">
+                                        <controls:MnemoTreeView.Styles>
+                                            <Style Selector="controls|MnemoTreeViewItem">
+                                                <Setter Property="ExpandOnHeaderClick" Value="False"/>
+                                            </Style>
+                                        </controls:MnemoTreeView.Styles>
+                                    </controls:MnemoTreeView>
+                                </StackPanel>
+
+                                <!-- My Notes -->
+                                <Grid ColumnDefinitions="*,Auto" Margin="10,12,4,5">
+                                    <TextBlock Classes="notes-section-label"
+                                               Text="{markup:T Ns=Notes, Key=MyNotes, Converter={x:Static converters:UpperCaseStringConverter.Instance}}"
+                                               VerticalAlignment="Center"/>
+                                    <Button Grid.Column="1" Classes="notes-icon-button" Padding="3"
+                                            Click="OnTransferClick"
+                                            Tag="transfer"
+                                            ToolTip.Tip="{markup:T Ns=Notes, Key=Transfer}">
+                                        <controls:AppIcon Icon="Flyout/export"
+                                                          Width="13" Height="13"
+                                                          Color="{DynamicResource TextFadedBrush}"/>
+                                    </Button>
+                                </Grid>
+
+                                <!-- My Notes tree area (drop on tree or empty space below = move to root) -->
+                                <Border x:Name="MyNotesTreeArea" Background="Transparent" MinHeight="80">
+                                    <controls:MnemoTreeView x:Name="MyNotesTreeView"
+                                              ItemsSource="{Binding RootTreeItems}"
+                                              SelectedItem="{Binding SelectedTreeItem, Mode=TwoWay}"
+                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                              Background="Transparent"
+                                              BorderThickness="0">
+                                        <controls:MnemoTreeView.Styles>
+                                            <Style Selector="controls|MnemoTreeViewItem">
+                                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                                <Setter Property="ExpandOnHeaderClick" Value="False"/>
+                                            </Style>
+                                            <!-- Folders are not selectable: folder-item never shows selected appearance -->
+                                            <Style Selector="controls|MnemoTreeViewItem.folder-item:selected /template/ Border#PART_LayoutRoot">
+                                                <Setter Property="Background" Value="{DynamicResource TreeViewItemBackground}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource TreeViewItemBorderBrush}"/>
+                                            </Style>
+                                            <Style Selector="controls|MnemoTreeViewItem.folder-item:selected /template/ Border#PART_LayoutRoot > ContentPresenter#PART_HeaderPresenter">
+                                                <Setter Property="Foreground" Value="{DynamicResource TreeViewItemForeground}"/>
+                                            </Style>
+                                            <Style Selector="controls|MnemoTreeViewItem.folder-item:selected /template/ ContentPresenter#PART_HeaderPresenter TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource TreeViewItemForeground}"/>
+                                            </Style>
+                                            <Style Selector="controls|MnemoTreeViewItem.folder-item:selected /template/ ContentPresenter#PART_HeaderPresenter controls|SvgIcon">
+                                                <Setter Property="Color" Value="{DynamicResource TreeViewItemForeground}"/>
+                                            </Style>
+                                            <Style Selector="controls|MnemoTreeViewItem.folder-item:selected /template/ Border#PART_LayoutRoot:pointerover">
+                                                <Setter Property="Background" Value="{DynamicResource TreeViewItemBackgroundPointerOver}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource TreeViewItemBorderBrushPointerOver}"/>
+                                            </Style>
+                                            <Style Selector="controls|MnemoTreeViewItem.folder-item:selected /template/ Border#PART_LayoutRoot:pointerover > ContentPresenter#PART_HeaderPresenter">
+                                                <Setter Property="Foreground" Value="{DynamicResource TreeViewItemForegroundPointerOver}"/>
+                                            </Style>
+                                            <Style Selector="controls|MnemoTreeViewItem.folder-item:selected:pointerover /template/ ContentPresenter#PART_HeaderPresenter TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource TreeViewItemForegroundPointerOver}"/>
+                                            </Style>
+                                            <Style Selector="controls|MnemoTreeViewItem.folder-item:selected:pointerover /template/ ContentPresenter#PART_HeaderPresenter controls|SvgIcon">
+                                                <Setter Property="Color" Value="{DynamicResource TreeViewItemForegroundPointerOver}"/>
+                                            </Style>
+                                            <Style Selector="controls|MnemoTreeViewItem.folder-item:pressed:selected /template/ Border#PART_LayoutRoot">
+                                                <Setter Property="Background" Value="{DynamicResource TreeViewItemBackgroundPressed}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource TreeViewItemBorderBrushPressed}"/>
+                                            </Style>
+                                            <Style Selector="controls|MnemoTreeViewItem.folder-item:pressed:selected /template/ Border#PART_LayoutRoot > ContentPresenter#PART_HeaderPresenter">
+                                                <Setter Property="Foreground" Value="{DynamicResource TreeViewItemForegroundPressed}"/>
+                                            </Style>
+                                            <Style Selector="controls|MnemoTreeViewItem.folder-item:pressed:selected /template/ ContentPresenter#PART_HeaderPresenter TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource TreeViewItemForegroundPressed}"/>
+                                            </Style>
+                                            <Style Selector="controls|MnemoTreeViewItem.folder-item:pressed:selected /template/ ContentPresenter#PART_HeaderPresenter controls|SvgIcon">
+                                                <Setter Property="Color" Value="{DynamicResource TreeViewItemForegroundPressed}"/>
+                                            </Style>
+                                        </controls:MnemoTreeView.Styles>
+                                        <controls:MnemoTreeView.ItemTemplate>
+                                            <TreeDataTemplate DataType="vm:NoteTreeItemViewModel" ItemsSource="{Binding Children}">
+                                                <ContentPresenter Content="{Binding}"/>
+                                            </TreeDataTemplate>
+                                        </controls:MnemoTreeView.ItemTemplate>
+                                    </controls:MnemoTreeView>
+                                </Border>
+                            </StackPanel>
+                        </Panel>
                     </ScrollViewer>
+
+                    <!-- Footer: new note -->
+                    <Button Grid.Row="3" Classes="notes-icon-button"
+                            Margin="12,4,12,12"
+                            Padding="8,0"
+                            Height="28"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            Command="{Binding NewNoteCommand}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <controls:AppIcon Icon="Common/plus"
+                                              Width="12" Height="12"
+                                              VerticalAlignment="Center"
+                                              Color="{DynamicResource TextTertiaryBrush}"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{markup:T Ns=Notes, Key=NewNote}"
+                                       FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="7,0,0,0"/>
+                            <TextBlock Grid.Column="2" x:Name="NewNoteShortcutHint"
+                                       FontFamily="{DynamicResource Font.Monospace}"
+                                       FontSize="9.5"
+                                       Foreground="{DynamicResource TextFadedBrush}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                    </Button>
                 </Grid>
                 <!-- Drag overlay: ZIndex ensures it sits above everything in the pane; IsHitTestVisible=False so rows remain interactive -->
                 <Canvas x:Name="DragOverlayCanvas" IsHitTestVisible="False" ZIndex="999"/>
@@ -219,124 +340,243 @@
             </Border>
         </SplitView.Pane>
 
-        <ScrollViewer x:Name="EditorScrollViewer"
-                      IsVisible="{Binding !IsLoading}"
-                      HorizontalScrollBarVisibility="Auto"
-                      VerticalScrollBarVisibility="Auto"
-                      SizeChanged="OnEditorScrollViewerSizeChanged">
-            <!-- Scroll extent: outer width = max(viewport, zoomed doc) so narrow columns center without margin/extent mismatch. -->
-            <Border x:Name="EditorScrollWidthHost" Background="Transparent"
-                    HorizontalAlignment="Left" VerticalAlignment="Top">
-            <!-- Camera zoom host: editor lays out at normal width; only the scroll extent/render transform is scaled. -->
-            <views:EditorZoomHost x:Name="EditorZoomExtentHost"
-                                  HorizontalAlignment="Center" VerticalAlignment="Top"
-                                  ClipToBounds="False">
-                    <!--
-                      Vertical StackPanel between ScrollViewer and BlockEditor passes unbounded height to children
-                      and disables ItemsRepeater virtualization (Avalonia perf guide). Grid rows avoid that; a long
-                      scrollbar still reflects full document extent — virtualization only limits realized controls.
-                    -->
-                    <Grid x:Name="EditorDocumentPanel"
-                          Margin="32,24,32,32"
-                          HorizontalAlignment="Left" VerticalAlignment="Top"
-                          RenderTransformOrigin="0,0"
-                          MinWidth="0"
-                          RowDefinitions="Auto,*">
-                <!-- Top Bar with Sidebar Toggle and Breadcrumbs -->
-                <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="0,0,0,12">
-                    <Button Grid.Column="0" Command="{Binding ToggleSidebarCommand}"
+        <!-- Editor column: fixed top bar + scrolling canvas -->
+        <Grid RowDefinitions="Auto,*" IsVisible="{Binding !IsLoading}">
+
+            <!-- Breadcrumb bar -->
+            <Border Grid.Row="0" Height="44"
+                    BorderBrush="{DynamicResource DividerSubtleBrush}"
+                    BorderThickness="0,0,0,1">
+                <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,0">
+                    <Button Grid.Column="0" Classes="notes-icon-button"
+                            Command="{Binding ToggleSidebarCommand}"
                             IsVisible="{Binding !IsSidebarOpen}"
-                            Background="Transparent" BorderThickness="0"
-                            Padding="6" Margin="0,0,12,0"
-                            Cursor="Hand" ToolTip.Tip="{markup:T Ns=Notes, Key=ToggleSidebar}">
-                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/layout-sidebar.svg"
-                                          Width="20" Height="20"
-                                          Color="{DynamicResource TextSecondaryBrush}"/>
+                            Margin="0,0,8,0"
+                            ToolTip.Tip="{markup:T Ns=Notes, Key=ToggleSidebar}">
+                        <controls:AppIcon Icon="Common/layout-sidebar"
+                                          Width="{DynamicResource IconSize.Sm}" Height="{DynamicResource IconSize.Sm}"
+                                          Color="{DynamicResource TextTertiaryBrush}"/>
                     </Button>
 
                     <views:NoteBreadcrumb Grid.Column="1"
                                           DataContext="{Binding NoteBreadcrumb}"
                                           VerticalAlignment="Center"/>
-                </Grid>
 
-                <Grid Grid.Row="1" MinHeight="0" MinWidth="0">
-                <!-- Title, metadata, separator and content (visible when a note is selected) -->
-                <Grid IsVisible="{Binding SelectedNote, Converter={StaticResource NullToBoolConverter}}"
-                      MinWidth="0"
-                      RowDefinitions="Auto,Auto,Auto,*">
-                    <!-- Title row: PDF export + favorite -->
-                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,8">
-                        <TextBox Grid.Column="0" Text="{Binding SelectedNoteTitle, Mode=TwoWay}"
-                                 MinWidth="0"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                 ToolTip.Tip="{Binding SelectedNoteTitle}"
-                                 FontSize="{DynamicResource FontSize.Heading1}"
-                                 FontFamily="{DynamicResource Font.Bold}"
-                                 Foreground="{DynamicResource TextPrimaryBrush}"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 Padding="0"
-                                PlaceholderText="{markup:T Ns=Notes, Key=NoteTitlePlaceholder}"
-                                 x:Name="NoteTitleBox"/>
-                        <Button Grid.Column="1"
-                                Background="Transparent" BorderThickness="0" Padding="8,4"
-                                Cursor="Hand"
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2"
+                                IsVisible="{Binding SelectedNote, Converter={StaticResource NullToBoolConverter}}">
+                        <TextBlock Text="{Binding SaveStateText}"
+                                   FontFamily="{DynamicResource Font.Monospace}"
+                                   FontSize="10.5"
+                                   Foreground="{DynamicResource TextFadedBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,10,0"/>
+                        <Button Classes="notes-icon-button" Command="{Binding ToggleFavoriteCommand}"
+                                ToolTip.Tip="{markup:T Ns=Notes, Key=ToggleFavorite}">
+                            <Panel>
+                                <controls:AppIcon Icon="Common/star"
+                                                  Width="15" Height="15" Color="{DynamicResource TextTertiaryBrush}"
+                                                  IsVisible="{Binding IsFavorite, Converter={StaticResource BoolNegationConverter}}"/>
+                                <controls:AppIcon Icon="Common/star-filled"
+                                                  Width="15" Height="15" Color="{DynamicResource AccentBrush}"
+                                                  IsVisible="{Binding IsFavorite}"/>
+                            </Panel>
+                        </Button>
+                        <Button Classes="notes-icon-button"
                                 Click="OnExportPdfClick"
                                 ToolTip.Tip="{markup:T Ns=Notes, Key=ToolbarExportPdf}">
-                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Flyout/export.svg"
-                                              Width="22" Height="22"
+                            <controls:AppIcon Icon="Common/download"
+                                              Width="15" Height="15"
                                               Color="{DynamicResource TextTertiaryBrush}"/>
                         </Button>
-                        <Button Grid.Column="2" Command="{Binding ToggleFavoriteCommand}"
-                                Background="Transparent" BorderThickness="0" Padding="8,4"
-                                Cursor="Hand" ToolTip.Tip="{markup:T Ns=Notes, Key=ToggleFavorite}">
-                            <Grid>
-                                <controls:SvgIcon x:Name="StarOutline" SvgPath="avares://Mnemo.UI/Icons/Common/star.svg"
-                                                  Width="22" Height="22" Color="{DynamicResource TextTertiaryBrush}"
-                                                  IsVisible="{Binding IsFavorite, Converter={StaticResource BoolNegationConverter}}"/>
-                                <controls:SvgIcon x:Name="StarFilled" SvgPath="avares://Mnemo.UI/Icons/Common/star-filled.svg"
-                                                  Width="22" Height="22" Color="{DynamicResource Accent}"
-                                                  IsVisible="{Binding IsFavorite}"/>
-                            </Grid>
+                        <Button Classes="notes-icon-button"
+                                ToolTip.Tip="{markup:T Ns=Notes, Key=MoreActions}">
+                            <controls:AppIcon Icon="Common/ellipsis"
+                                              Width="15" Height="15"
+                                              Color="{DynamicResource TextTertiaryBrush}"/>
+                            <Button.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuItem Header="{markup:T Ns=Notes, Key=ToolbarExportPdf}" Click="OnExportPdfClick">
+                                        <MenuItem.Icon>
+                                            <controls:AppIcon Icon="Common/download" Width="16" Height="16"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="{markup:T Ns=Notes, Key=Transfer}" Click="OnTransferClick" Tag="transfer">
+                                        <MenuItem.Icon>
+                                            <controls:AppIcon Icon="Flyout/export" Width="16" Height="16"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                </MenuFlyout>
+                            </Button.Flyout>
                         </Button>
-                    </Grid>
-
-                    <!-- Created and last modified -->
-                    <TextBlock Grid.Row="1"
-                               FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
-                               Foreground="{DynamicResource TextTertiaryBrush}"
-                               Margin="0,0,0,16">
-                        <Run Text="{Binding CreatedText}"/>
-                        <Run Text=" • "/>
-                        <Run Text="{Binding ModifiedText}"/>
-                    </TextBlock>
-
-                    <!-- Separation line -->
-                    <Rectangle Grid.Row="2" Height="1"
-                               Fill="{DynamicResource NotesEditorSeparatorBrush}"
-                               Margin="0,0,0,24"/>
-
-                    <!-- Editable block content: negative margin so editor receives pointer events in page margins (drag-box start) -->
-                    <Grid Grid.Row="3" MinWidth="0" MinHeight="0">
-                        <blockEditor:BlockEditor x:Name="NoteBlockEditor" Margin="-32,0,-32,0"/>
-                    </Grid>
+                    </StackPanel>
                 </Grid>
-
-                <!-- Empty state when no note selected -->
-                <components:EmptyState Margin="0,48,0,0"
-                                       IconPath="avares://Mnemo.UI/Icons/Common/file-text.svg"
-                                       Title="{markup:T Ns=Notes, Key=NoNoteSelectedTitle}"
-                                       Description="{markup:T Ns=Notes, Key=NoNoteSelectedDescription}"
-                                       ActionText="{markup:T Ns=Notes, Key=NewNote}"
-                                       ActionCommand="{Binding NewNoteCommand}">
-                    <components:EmptyState.IsVisible>
-                        <Binding Path="SelectedNote" Converter="{StaticResource NullToBoolInvertedConverter}"/>
-                    </components:EmptyState.IsVisible>
-                </components:EmptyState>
-                </Grid>
-            </Grid>
-            </views:EditorZoomHost>
             </Border>
-        </ScrollViewer>
+
+            <!-- Canvas + floating index chip -->
+            <Panel Grid.Row="1">
+                <ScrollViewer x:Name="EditorScrollViewer"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto"
+                              SizeChanged="OnEditorScrollViewerSizeChanged">
+                    <!-- Scroll extent: outer width = max(viewport, zoomed doc) so narrow columns center without margin/extent mismatch. -->
+                    <Border x:Name="EditorScrollWidthHost" Background="Transparent"
+                            HorizontalAlignment="Left" VerticalAlignment="Top">
+                    <!-- Camera zoom host: editor lays out at normal width; only the scroll extent/render transform is scaled. -->
+                    <views:EditorZoomHost x:Name="EditorZoomExtentHost"
+                                          HorizontalAlignment="Center" VerticalAlignment="Top"
+                                          ClipToBounds="False">
+                            <!--
+                              Vertical StackPanel between ScrollViewer and BlockEditor passes unbounded height to children
+                              and disables ItemsRepeater virtualization (Avalonia perf guide). Grid rows avoid that; a long
+                              scrollbar still reflects full document extent — virtualization only limits realized controls.
+                            -->
+                            <Grid x:Name="EditorDocumentPanel"
+                                  Margin="32,32,32,32"
+                                  HorizontalAlignment="Left" VerticalAlignment="Top"
+                                  RenderTransformOrigin="0,0"
+                                  MinWidth="0"
+                                  RowDefinitions="*">
+                        <Grid MinHeight="0" MinWidth="0">
+                        <!-- Title, metadata and content (visible when a note is selected) -->
+                        <Grid IsVisible="{Binding SelectedNote, Converter={StaticResource NullToBoolConverter}}"
+                              MinWidth="0"
+                              RowDefinitions="Auto,Auto,*">
+                            <!-- Title -->
+                            <TextBox Grid.Row="0" Text="{Binding SelectedNoteTitle, Mode=TwoWay}"
+                                     MinWidth="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ToolTip.Tip="{Binding SelectedNoteTitle}"
+                                     FontSize="{DynamicResource FontSize.Heading1}"
+                                     FontFamily="{DynamicResource Font.Bold}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Padding="0"
+                                     Watermark="{markup:T Ns=Notes, Key=NoteTitlePlaceholder}"
+                                     x:Name="NoteTitleBox"/>
+
+                            <!-- Created · edited · word count -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="0,10,0,26">
+                                <StackPanel.Styles>
+                                    <Style Selector="TextBlock">
+                                        <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextFadedBrush}"/>
+                                    </Style>
+                                </StackPanel.Styles>
+                                <TextBlock Text="{Binding CreatedText}"/>
+                                <TextBlock Text="·"/>
+                                <TextBlock Text="{Binding ModifiedText}"/>
+                                <TextBlock Text="·" IsVisible="{Binding WordCountText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                <TextBlock Text="{Binding WordCountText}" IsVisible="{Binding WordCountText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                            </StackPanel>
+
+                            <!-- Editable block content: negative margin so editor receives pointer events in page margins (drag-box start) -->
+                            <Grid Grid.Row="2" MinWidth="0" MinHeight="0">
+                                <blockEditor:BlockEditor x:Name="NoteBlockEditor" Margin="-32,0,-32,0"/>
+                            </Grid>
+                        </Grid>
+
+                        <!-- Empty state when no note selected -->
+                        <components:EmptyState Margin="0,48,0,0"
+                                               IconPath="avares://Mnemo.UI/Icons/Common/file-text.svg"
+                                               Title="{markup:T Ns=Notes, Key=NoNoteSelectedTitle}"
+                                               Description="{markup:T Ns=Notes, Key=NoNoteSelectedDescription}"
+                                               ActionText="{markup:T Ns=Notes, Key=NewNote}"
+                                               ActionCommand="{Binding NewNoteCommand}">
+                            <components:EmptyState.IsVisible>
+                                <Binding Path="SelectedNote" Converter="{StaticResource NullToBoolInvertedConverter}"/>
+                            </components:EmptyState.IsVisible>
+                        </components:EmptyState>
+                        </Grid>
+                    </Grid>
+                    </views:EditorZoomHost>
+                    </Border>
+                </ScrollViewer>
+
+                <!-- Floating index chip + chapter popover (dark chrome) -->
+                <StackPanel HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                            Margin="16,0,0,14" Spacing="8"
+                            IsVisible="{Binding SelectedNote, Converter={StaticResource NullToBoolConverter}}">
+                    <Border x:Name="IndexPopover"
+                            IsVisible="False"
+                            Width="254"
+                            Background="{DynamicResource FloatingChromeBackgroundBrush}"
+                            CornerRadius="{DynamicResource Radius.Lg}"
+                            BoxShadow="0 16 40 0 #59000000"
+                            Padding="8">
+                        <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl x:Name="IndexItemsControl">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="1"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Classes="index-entry"
+                                                Classes.current="{Binding IsCurrent}"
+                                                Click="OnIndexEntryClick"
+                                                Tag="{Binding}">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <TextBlock Classes="index-number"
+                                                           Text="{Binding Number}"
+                                                           FontFamily="{DynamicResource Font.Monospace}"
+                                                           FontSize="10.5"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1" Classes="index-title"
+                                                           Text="{Binding Title}"
+                                                           FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center"
+                                                           Margin="9,0,0,0"/>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+
+                    <Button x:Name="IndexChipButton"
+                            Background="{DynamicResource FloatingChromeBackgroundBrush}"
+                            BorderThickness="0"
+                            CornerRadius="{DynamicResource Radius.Pill}"
+                            Height="30"
+                            Padding="12,0"
+                            Cursor="Hand"
+                            HorizontalAlignment="Left"
+                            Click="OnIndexChipClick">
+                        <Button.Styles>
+                            <Style Selector="Button#IndexChipButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                <Setter Property="Background" Value="{DynamicResource FloatingChromeBackgroundBrush}"/>
+                            </Style>
+                            <Style Selector="Button#IndexChipButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                                <Setter Property="Background" Value="{DynamicResource FloatingChromeBackgroundBrush}"/>
+                            </Style>
+                        </Button.Styles>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <controls:AppIcon Icon="Common/menu"
+                                              Width="12" Height="12"
+                                              VerticalAlignment="Center"
+                                              Color="{DynamicResource FloatingChromeForegroundBrush}"/>
+                            <TextBlock Text="{markup:T Ns=Notes, Key=Index}"
+                                       FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                       Foreground="{DynamicResource FloatingChromeForegroundBrush}"
+                                       VerticalAlignment="Center"/>
+                            <Border Width="1" Height="12"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource FloatingChromeDividerBrush}"/>
+                            <TextBlock x:Name="IndexPercentText"
+                                       Text="0%"
+                                       FontFamily="{DynamicResource Font.Monospace}"
+                                       FontSize="10.5"
+                                       Foreground="{DynamicResource FloatingChromeForegroundStrongBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Panel>
+        </Grid>
     </SplitView>
 </UserControl>

@@ -484,6 +484,20 @@
     <Color x:Key="NotesPaneDivider">#E8E6E0</Color>
     <Color x:Key="NotesEditorSeparator">#E8E6E0</Color>
 
+    <!-- Floating dark chrome: dark elevated surfaces that float over content
+         (inline formatting toolbar, slash command menu, note index chip/popover).
+         Deliberately dark even in light themes; overlays are white-alpha so they
+         work on any chrome background a theme picks. -->
+    <Color x:Key="FloatingChromeBackground">#232220</Color>
+    <Color x:Key="FloatingChromeForeground">#EAE8E4</Color>
+    <Color x:Key="FloatingChromeForegroundStrong">#F4F2EC</Color>
+    <Color x:Key="FloatingChromeForegroundMuted">#8B8880</Color>
+    <Color x:Key="FloatingChromeHover">#1AFFFFFF</Color>
+    <Color x:Key="FloatingChromeActive">#1FFFFFFF</Color>
+    <Color x:Key="FloatingChromePressed">#2EFFFFFF</Color>
+    <Color x:Key="FloatingChromeDivider">#24FFFFFF</Color>
+    <Color x:Key="FloatingChromeAccent">#C97A5D</Color>
+
     <!-- Code syntax highlighting (TextMate scopes → brushes in Controls.axaml) -->
     <Color x:Key="SyntaxCodeDefault">#1D1C1A</Color>
     <Color x:Key="SyntaxCodeKeyword">#6F42C1</Color>

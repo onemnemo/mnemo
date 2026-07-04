@@ -480,6 +480,17 @@
     <Color x:Key="NotesPaneDivider">#EADFCB</Color>
     <Color x:Key="NotesEditorSeparator">#EADFCB</Color>
 
+    <!-- Floating dark chrome (formatting toolbar, slash menu, index chip) -->
+    <Color x:Key="FloatingChromeBackground">#2B251E</Color>
+    <Color x:Key="FloatingChromeForeground">#F0EAE1</Color>
+    <Color x:Key="FloatingChromeForegroundStrong">#FAF5EC</Color>
+    <Color x:Key="FloatingChromeForegroundMuted">#978D80</Color>
+    <Color x:Key="FloatingChromeHover">#1AFFFFFF</Color>
+    <Color x:Key="FloatingChromeActive">#1FFFFFFF</Color>
+    <Color x:Key="FloatingChromePressed">#2EFFFFFF</Color>
+    <Color x:Key="FloatingChromeDivider">#24FFFFFF</Color>
+    <Color x:Key="FloatingChromeAccent">#E08568</Color>
+
     <!-- Code syntax highlighting -->
     <Color x:Key="SyntaxCodeDefault">#292524</Color>
     <Color x:Key="SyntaxCodeKeyword">#6B3FA0</Color>

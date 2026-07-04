@@ -150,16 +150,24 @@ public partial class InlineFormattingToolbar : UserControl
         var colorLabel = this.FindControl<TextBlock>("ColorLabel");
         if (colorLabel != null) colorLabel.Text = T("Color");
 
-        if (this.FindControl<Button>("ColorButton") is { } colorBtn)
-            ToolTip.SetTip(colorBtn, T("Color"));
-
-        if (this.FindControl<Button>("UnlinkButton") is { } linkBtn)
-            ToolTip.SetTip(linkBtn, T("LinkTooltip"));
-
-        if (this.FindControl<Button>("EquationButton") is { } eqBtn)
-            ToolTip.SetTip(eqBtn, T("EquationTooltip"));
+        SetLocalizedTooltip("ColorButton", T("Color"));
+        SetLocalizedTooltip("BoldButton", T("BoldTooltip"));
+        SetLocalizedTooltip("ItalicButton", T("ItalicTooltip"));
+        SetLocalizedTooltip("UnderlineButton", T("UnderlineTooltip"));
+        SetLocalizedTooltip("StrikethroughButton", T("StrikethroughTooltip"));
+        SetLocalizedTooltip("UnlinkButton", T("LinkTooltip"));
+        SetLocalizedTooltip("HighlightButton", T("HighlightTooltip"));
+        SetLocalizedTooltip("SubscriptButton", T("SubscriptTooltip"));
+        SetLocalizedTooltip("SuperscriptButton", T("SuperscriptTooltip"));
+        SetLocalizedTooltip("EquationButton", T("EquationTooltip"));
 
         Loaded -= OnLoaded;
+    }
+
+    private void SetLocalizedTooltip(string buttonName, string tip)
+    {
+        if (this.FindControl<Button>(buttonName) is { } btn)
+            ToolTip.SetTip(btn, tip);
     }
 
     private void OnAssistClick(object? sender, RoutedEventArgs e) { }

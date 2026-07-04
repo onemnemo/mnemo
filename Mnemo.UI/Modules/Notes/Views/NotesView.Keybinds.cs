@@ -43,6 +43,23 @@ public partial class NotesView
         {
             _dragCoordinator.CancelDrag();
             e.Handled = true;
+            return;
+        }
+
+        if (e.Handled || !IsKeyboardFocusWithinNotesView())
+            return;
+
+        if (IsPrimaryShortcut(e, Key.N) && DataContext is NotesViewModel vm)
+        {
+            e.Handled = true;
+            _ = vm.NewNoteCommand.ExecuteAsync(null);
+            return;
+        }
+
+        if (IsPrimaryShortcut(e, Key.P))
+        {
+            e.Handled = true;
+            FocusNotesSearch();
         }
     }
 

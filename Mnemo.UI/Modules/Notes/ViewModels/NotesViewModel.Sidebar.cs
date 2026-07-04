@@ -1,4 +1,7 @@
+using System;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mnemo.UI.Modules.Notes.Services;
 
@@ -6,8 +9,38 @@ namespace Mnemo.UI.Modules.Notes.ViewModels;
 
 public partial class NotesViewModel
 {
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
+    /// <summary>Flat note rows matching <see cref="SearchText"/>; shown instead of the tree while searching.</summary>
+    public ObservableCollection<NoteTreeItemViewModel> SearchResults { get; } = new();
+
+    public bool IsSearching => !string.IsNullOrWhiteSpace(SearchText);
+
+    public bool HasNoSearchResults => IsSearching && SearchResults.Count == 0;
+
     [RelayCommand]
     private void ToggleSidebar() => IsSidebarOpen = !IsSidebarOpen;
+
+    partial void OnSearchTextChanged(string value)
+    {
+        RefreshSearchResults();
+        OnPropertyChanged(nameof(IsSearching));
+        OnPropertyChanged(nameof(HasNoSearchResults));
+    }
+
+    private void RefreshSearchResults()
+    {
+        SearchResults.Clear();
+        if (!IsSearching) return;
+
+        var term = SearchText.Trim();
+        foreach (var item in AllNotesTreeItems)
+        {
+            if (item.Name.Contains(term, StringComparison.OrdinalIgnoreCase))
+                SearchResults.Add(item);
+        }
+    }
 
     private async Task UpdateEditorWidthAsync()
     {

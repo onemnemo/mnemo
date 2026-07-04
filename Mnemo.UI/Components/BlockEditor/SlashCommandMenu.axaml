@@ -3,21 +3,32 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Mnemo.UI.Components.BlockEditor"
-    xmlns:controls="using:Mnemo.UI.Controls"
     x:CompileBindings="True"
-    MinWidth="300"
+    MinWidth="268"
+    MaxWidth="320"
     MaxHeight="420">
     <Border
-        Background="{DynamicResource WorkspaceBackgroundBrush}"
-        BorderBrush="{DynamicResource ButtonBorderBrush}"
-        BorderThickness="1"
-        BoxShadow="0 8 24 0 #20000000, 0 2 8 0 #10000000"
-        CornerRadius="12"
-        Padding="0">
+        Background="{DynamicResource FloatingChromeBackgroundBrush}"
+        BoxShadow="0 12 32 0 #52000000"
+        CornerRadius="10"
+        Padding="6">
         <StackPanel>
+            <!-- Filter hint header -->
+            <Grid ColumnDefinitions="*,Auto" Margin="10,5,10,7">
+                <TextBlock
+                    x:Name="FilterHintTextBlock"
+                    FontSize="{DynamicResource FontSize.Caption}"
+                    Foreground="{DynamicResource FloatingChromeForegroundMutedBrush}" />
+                <TextBlock
+                    Grid.Column="1"
+                    Text="esc"
+                    FontFamily="{DynamicResource Font.Monospace}"
+                    FontSize="{DynamicResource FontSize.Caption}"
+                    Foreground="{DynamicResource FloatingChromeForegroundMutedBrush}" />
+            </Grid>
             <!-- Command list with keyboard-selectable items -->
             <ScrollViewer
-                MaxHeight="320"
+                MaxHeight="360"
                 VerticalScrollBarVisibility="Auto"
                 HorizontalScrollBarVisibility="Disabled">
                 <ListBox
@@ -26,7 +37,7 @@
                     Focusable="False"
                     Background="Transparent"
                     BorderThickness="0"
-                    Padding="6,4"
+                    Padding="0"
                     SelectionMode="Single">
                     <ListBox.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -35,75 +46,43 @@
                     </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="local:CommandItem">
-                            <Border
-                                x:Name="ItemBorder"
-                                Background="Transparent"
-                                CornerRadius="6"
-                                Cursor="Hand"
-                                Padding="8,5"
-                                PointerPressed="CommandItem_PointerPressed">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <!-- Icon -->
-                                    <Border
-                                        Width="32"
-                                        Height="32"
-                                        Background="{DynamicResource CardBackgroundSecondaryBrush}"
-                                        CornerRadius="6"
-                                        VerticalAlignment="Center">
-                                        <controls:SvgIcon
-                                            Width="18"
-                                            Height="18"
-                                            HorizontalAlignment="Center"
+                            <StackPanel Spacing="0">
+                                <!-- Group separator (rendered above the first item of a new group) -->
+                                <Border
+                                    Height="1"
+                                    Margin="4,5"
+                                    Background="{DynamicResource FloatingChromeDividerBrush}"
+                                    IsVisible="{Binding ShowSeparatorAbove}" />
+                                <Border
+                                    Classes="slash-row"
+                                    Height="30"
+                                    Padding="10,0"
+                                    CornerRadius="7"
+                                    Cursor="Hand"
+                                    Background="Transparent"
+                                    PointerPressed="CommandItem_PointerPressed">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock
+                                            Classes="slash-row-name"
                                             VerticalAlignment="Center"
-                                            SvgPath="{Binding IconPath}"
-                                            Color="{DynamicResource TextPrimaryBrush}" />
-                                    </Border>
-                                    <!-- Name (single line, ref image style) -->
-                                    <TextBlock
-                                        VerticalAlignment="Center"
-                                        FontSize="14"
-                                        Foreground="{DynamicResource TextPrimaryBrush}"
-                                        Text="{Binding Name}"
-                                        TextTrimming="CharacterEllipsis" />
-                                    <!-- Spacer -->
-                                    <Panel HorizontalAlignment="Stretch" IsHitTestVisible="False" />
-                                    <!-- Shortcut hint on the right -->
-                                    <TextBlock
-                                        VerticalAlignment="Center"
-                                        FontSize="12"
-                                        Foreground="{DynamicResource TextSecondaryBrush}"
-                                        Text="{Binding Shortcut}" />
-                                </StackPanel>
-                            </Border>
+                                            FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                            Foreground="{DynamicResource FloatingChromeForegroundBrush}"
+                                            Text="{Binding Name}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{DynamicResource Font.Monospace}"
+                                            FontSize="{DynamicResource FontSize.Caption}"
+                                            Foreground="{DynamicResource FloatingChromeForegroundMutedBrush}"
+                                            Text="{Binding Shortcut}" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
             </ScrollViewer>
-            <!-- Separator -->
-            <Border
-                Height="1"
-                Margin="12,0"
-                Background="{DynamicResource ButtonBorderBrush}"
-                Opacity="0.5" />
-            <!-- Close menu hint -->
-            <Border
-                Padding="12,8"
-                Cursor="Arrow"
-                Background="Transparent">
-                <StackPanel Orientation="Horizontal" Spacing="0">
-                    <TextBlock
-                        x:Name="CloseMenuTextBlock"
-                        VerticalAlignment="Center"
-                        FontSize="12"
-                        Foreground="{DynamicResource TextSecondaryBrush}" />
-                    <Panel HorizontalAlignment="Stretch" IsHitTestVisible="False" />
-                    <TextBlock
-                        VerticalAlignment="Center"
-                        FontSize="11"
-                        Foreground="{DynamicResource TextTertiaryBrush}"
-                        Text="esc" />
-                </StackPanel>
-            </Border>
         </StackPanel>
     </Border>
 </UserControl>

@@ -367,6 +367,11 @@
     "ThinkingLabel": "Tenker"
   },
   "Notes": {
+    "SearchNotesPlaceholder": "Søk i notater",
+    "NoSearchResults": "Ingen samsvarende notater",
+    "Saved": "Lagret",
+    "WordCountFormat": "{0} ord",
+    "Index": "Indeks",
     "NewNote": "Nytt notat",
     "Notes": "Notater",
     "ToggleSidebar": "Vis/skjul sidepanel",
@@ -415,6 +420,14 @@
     "YearsAgo": "{0} år siden"
   },
   "NotesEditor": {
+    "Assist": "Assistent",
+    "BoldTooltip": "Fet (Ctrl+B)",
+    "ItalicTooltip": "Kursiv (Ctrl+I)",
+    "UnderlineTooltip": "Understreking (Ctrl+U)",
+    "StrikethroughTooltip": "Gjennomstreking",
+    "HighlightTooltip": "Uthev",
+    "SubscriptTooltip": "Senket skrift (Ctrl+,)",
+    "SuperscriptTooltip": "Hevet skrift (Ctrl+.)",
     "TypeSlashForCommands": "Skriv '/' for kommandoer...",
     "Heading1": "Overskrift 1",
     "Heading2": "Overskrift 2",

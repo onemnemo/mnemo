@@ -6,74 +6,68 @@
     x:CompileBindings="False"
     Focusable="False">
     <Border
-        Background="{DynamicResource WorkspaceBackgroundBrush}"
-        BorderBrush="{DynamicResource ButtonBorderBrush}"
-        BorderThickness="1"
-        BoxShadow="0 4 16 0 #18000000, 0 1 4 0 #10000000"
-        CornerRadius="10"
-        Padding="4,3">
+        Background="{DynamicResource FloatingChromeBackgroundBrush}"
+        BoxShadow="0 8 24 0 #47000000"
+        CornerRadius="8"
+        Padding="4">
         <StackPanel Orientation="Horizontal" Spacing="1">
             <!-- Assist (placeholder — hidden until implemented) -->
             <Button
                 x:Name="AssistButton"
                 IsVisible="False"
                 Classes="FormattingToolbarButton FormattingToolbarAssist"
-                ToolTip.Tip="Assist"
                 Click="OnAssistClick">
                 <StackPanel Orientation="Horizontal" Spacing="5">
                     <controls:SvgIcon
                         Width="14" Height="14"
                         SvgPath="avares://Mnemo.UI/Icons/FormattingToolbar/sparkles.svg"
-                        Color="{DynamicResource AccentBrush}" />
+                        Color="{DynamicResource FloatingChromeAccentBrush}" />
                     <TextBlock
                         x:Name="AssistLabel"
-                        Text="Assist"
-                        FontSize="13"
+                        FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
                         VerticalAlignment="Center"
-                        Foreground="{DynamicResource TextPrimaryBrush}" />
+                        Foreground="{DynamicResource FloatingChromeForegroundBrush}" />
                 </StackPanel>
             </Button>
 
             <!-- Separator (hidden with Assist) -->
             <Border
                 IsVisible="False"
-                Width="1" Height="20" Margin="3,0"
-                Background="{DynamicResource ButtonBorderBrush}"
-                Opacity="0.5" />
+                Width="1" Height="16" Margin="3,0"
+                VerticalAlignment="Center"
+                Background="{DynamicResource FloatingChromeDividerBrush}" />
 
             <!-- Color dropdown -->
             <Button
                 x:Name="ColorButton"
                 Classes="FormattingToolbarButton"
-                ToolTip.Tip="Color"
                 Click="OnColorClick">
-                <StackPanel Orientation="Horizontal" Spacing="5">
+                <StackPanel Orientation="Horizontal" Spacing="6">
                     <Border
                         x:Name="ColorPreviewBackground"
-                        Width="18"
-                        Height="18"
-                        CornerRadius="3"
-                        Background="{DynamicResource WorkspaceBackgroundBrush}"
-                        BorderBrush="{DynamicResource ButtonBorderBrush}"
+                        Width="16"
+                        Height="16"
+                        CornerRadius="4"
+                        Background="{DynamicResource FloatingChromeBackgroundBrush}"
+                        BorderBrush="{DynamicResource FloatingChromeDividerBrush}"
                         BorderThickness="1">
                         <TextBlock
                             x:Name="ColorPreviewForeground"
                             Text="A"
-                            FontSize="11"
-                            FontWeight="SemiBold"
+                            FontSize="10"
+                            FontFamily="{DynamicResource Font.SemiBold}"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
-                            Foreground="{DynamicResource TextPrimaryBrush}" />
+                            Foreground="{DynamicResource FloatingChromeForegroundBrush}" />
                     </Border>
                     <TextBlock
                         x:Name="ColorLabel"
-                        Text="Color"
-                        FontSize="13"
+                        FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
                         VerticalAlignment="Center"
-                        Foreground="{DynamicResource TextPrimaryBrush}" />
+                        Foreground="{DynamicResource FloatingChromeForegroundBrush}" />
                     <Path
                         Data="M2,4 L6,8 L10,4"
-                        Stroke="{DynamicResource TextSecondaryBrush}"
+                        Stroke="{DynamicResource FloatingChromeForegroundMutedBrush}"
                         StrokeThickness="1.5"
                         StrokeLineCap="Round"
                         Width="10" Height="10"
@@ -83,42 +77,50 @@
             </Button>
 
             <!-- Separator -->
-            <Border Width="1" Height="20" Margin="3,0" Background="{DynamicResource ButtonBorderBrush}" Opacity="0.5" />
+            <Border Width="1" Height="16" Margin="3,0" VerticalAlignment="Center" Background="{DynamicResource FloatingChromeDividerBrush}" />
 
             <!-- Bold -->
             <Button
                 x:Name="BoldButton"
                 Classes="FormattingToolbarButton FormattingToolbarIcon"
-                ToolTip.Tip="Bold"
                 Click="OnBoldClick">
                 <controls:SvgIcon
-                    Width="16" Height="16"
+                    Width="15" Height="15"
                     SvgPath="avares://Mnemo.UI/Icons/FormattingToolbar/bold.svg"
-                    Color="{DynamicResource TextPrimaryBrush}" />
+                    Color="{DynamicResource FloatingChromeForegroundBrush}" />
             </Button>
 
             <!-- Italic -->
             <Button
                 x:Name="ItalicButton"
                 Classes="FormattingToolbarButton FormattingToolbarIcon"
-                ToolTip.Tip="Italic"
                 Click="OnItalicClick">
                 <controls:SvgIcon
-                    Width="16" Height="16"
+                    Width="15" Height="15"
                     SvgPath="avares://Mnemo.UI/Icons/FormattingToolbar/italic.svg"
-                    Color="{DynamicResource TextPrimaryBrush}" />
+                    Color="{DynamicResource FloatingChromeForegroundBrush}" />
             </Button>
 
             <!-- Underline -->
             <Button
                 x:Name="UnderlineButton"
                 Classes="FormattingToolbarButton FormattingToolbarIcon"
-                ToolTip.Tip="Underline"
                 Click="OnUnderlineClick">
                 <controls:SvgIcon
-                    Width="16" Height="16"
+                    Width="15" Height="15"
                     SvgPath="avares://Mnemo.UI/Icons/FormattingToolbar/underline.svg"
-                    Color="{DynamicResource TextPrimaryBrush}" />
+                    Color="{DynamicResource FloatingChromeForegroundBrush}" />
+            </Button>
+
+            <!-- Strikethrough -->
+            <Button
+                x:Name="StrikethroughButton"
+                Classes="FormattingToolbarButton FormattingToolbarIcon"
+                Click="OnStrikethroughClick">
+                <controls:SvgIcon
+                    Width="15" Height="15"
+                    SvgPath="avares://Mnemo.UI/Icons/FormattingToolbar/strikethrough.svg"
+                    Color="{DynamicResource FloatingChromeForegroundBrush}" />
             </Button>
 
             <!-- Link (add / remove) -->
@@ -127,33 +129,45 @@
                 Classes="FormattingToolbarButton FormattingToolbarIcon"
                 Click="OnUnlinkClick">
                 <controls:SvgIcon
-                    Width="16" Height="16"
+                    Width="15" Height="15"
                     SvgPath="avares://Mnemo.UI/Icons/Common/link.svg"
-                    Color="{DynamicResource TextPrimaryBrush}" />
-            </Button>
-
-            <!-- Strikethrough -->
-            <Button
-                x:Name="StrikethroughButton"
-                Classes="FormattingToolbarButton FormattingToolbarIcon"
-                ToolTip.Tip="Strikethrough"
-                Click="OnStrikethroughClick">
-                <controls:SvgIcon
-                    Width="16" Height="16"
-                    SvgPath="avares://Mnemo.UI/Icons/FormattingToolbar/strikethrough.svg"
-                    Color="{DynamicResource TextPrimaryBrush}" />
+                    Color="{DynamicResource FloatingChromeForegroundBrush}" />
             </Button>
 
             <!-- Highlight -->
             <Button
                 x:Name="HighlightButton"
                 Classes="FormattingToolbarButton FormattingToolbarIcon"
-                ToolTip.Tip="Highlight"
                 Click="OnHighlightClick">
                 <controls:SvgIcon
-                    Width="16" Height="16"
+                    Width="15" Height="15"
                     SvgPath="avares://Mnemo.UI/Icons/FormattingToolbar/highlighter.svg"
-                    Color="{DynamicResource TextPrimaryBrush}" />
+                    Color="{DynamicResource FloatingChromeForegroundBrush}" />
+            </Button>
+
+            <!-- Separator -->
+            <Border Width="1" Height="16" Margin="3,0" VerticalAlignment="Center" Background="{DynamicResource FloatingChromeDividerBrush}" />
+
+            <!-- Subscript -->
+            <Button
+                x:Name="SubscriptButton"
+                Classes="FormattingToolbarButton FormattingToolbarIcon"
+                Click="OnSubscriptClick">
+                <controls:SvgIcon
+                    Width="15" Height="15"
+                    SvgPath="avares://Mnemo.UI/Icons/FormattingToolbar/subscript.svg"
+                    Color="{DynamicResource FloatingChromeForegroundBrush}" />
+            </Button>
+
+            <!-- Superscript -->
+            <Button
+                x:Name="SuperscriptButton"
+                Classes="FormattingToolbarButton FormattingToolbarIcon"
+                Click="OnSuperscriptClick">
+                <controls:SvgIcon
+                    Width="15" Height="15"
+                    SvgPath="avares://Mnemo.UI/Icons/FormattingToolbar/superscript.svg"
+                    Color="{DynamicResource FloatingChromeForegroundBrush}" />
             </Button>
 
             <!-- Equation -->
@@ -163,35 +177,11 @@
                 Click="OnEquationClick">
                 <TextBlock
                     Text="Σ"
-                    FontSize="15"
-                    FontWeight="Bold"
+                    FontSize="13"
+                    FontFamily="{DynamicResource Font.Monospace}"
                     VerticalAlignment="Center"
                     HorizontalAlignment="Center"
-                    Foreground="{DynamicResource TextPrimaryBrush}" />
-            </Button>
-
-            <!-- Subscript -->
-            <Button
-                x:Name="SubscriptButton"
-                Classes="FormattingToolbarButton FormattingToolbarIcon"
-                ToolTip.Tip="Subscript (Ctrl+,)"
-                Click="OnSubscriptClick">
-                <controls:SvgIcon
-                    Width="16" Height="16"
-                    SvgPath="avares://Mnemo.UI/Icons/FormattingToolbar/subscript.svg"
-                    Color="{DynamicResource TextPrimaryBrush}" />
-            </Button>
-
-            <!-- Superscript -->
-            <Button
-                x:Name="SuperscriptButton"
-                Classes="FormattingToolbarButton FormattingToolbarIcon"
-                ToolTip.Tip="Superscript (Ctrl+.)"
-                Click="OnSuperscriptClick">
-                <controls:SvgIcon
-                    Width="16" Height="16"
-                    SvgPath="avares://Mnemo.UI/Icons/FormattingToolbar/superscript.svg"
-                    Color="{DynamicResource TextPrimaryBrush}" />
+                    Foreground="{DynamicResource FloatingChromeForegroundBrush}" />
             </Button>
         </StackPanel>
     </Border>

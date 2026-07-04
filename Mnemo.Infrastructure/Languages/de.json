@@ -364,6 +364,11 @@
     "ThinkingLabel": "Denkt nach"
   },
   "Notes": {
+    "SearchNotesPlaceholder": "Notizen durchsuchen",
+    "NoSearchResults": "Keine passenden Notizen",
+    "Saved": "Gespeichert",
+    "WordCountFormat": "{0} Wörter",
+    "Index": "Index",
     "NewNote": "Neue Notiz",
     "Notes": "Notizen",
     "ToggleSidebar": "Seitenleiste ein-/ausblenden",
@@ -412,6 +417,14 @@
     "YearsAgo": "{0} Jahre her"
   },
   "NotesEditor": {
+    "Assist": "Assistent",
+    "BoldTooltip": "Fett (Strg+B)",
+    "ItalicTooltip": "Kursiv (Strg+I)",
+    "UnderlineTooltip": "Unterstrichen (Strg+U)",
+    "StrikethroughTooltip": "Durchgestrichen",
+    "HighlightTooltip": "Hervorheben",
+    "SubscriptTooltip": "Tiefgestellt (Strg+,)",
+    "SuperscriptTooltip": "Hochgestellt (Strg+.)",
     "TypeSlashForCommands": "Typen Sie '/' für Befehle...",
     "Heading1": "Überschrift 1",
     "Heading2": "Überschrift 2",

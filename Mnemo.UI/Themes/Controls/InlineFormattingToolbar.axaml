@@ -3,24 +3,25 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     x:ClassModifier="internal">
 
+    <!-- Buttons inside the dark floating formatting toolbar -->
     <Style Selector="Button.FormattingToolbarButton">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="6,4" />
-        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="CornerRadius" Value="5" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="MinWidth" Value="0" />
-        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="MinHeight" Value="26" />
         <Setter Property="Focusable" Value="False" />
     </Style>
 
     <Style Selector="Button.FormattingToolbarButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource ListBoxItemBackgroundPointerOverBrush}" />
+        <Setter Property="Background" Value="{DynamicResource FloatingChromeHoverBrush}" />
     </Style>
 
     <Style Selector="Button.FormattingToolbarButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource SlashCommandItemBackgroundSelectedBrush}" />
+        <Setter Property="Background" Value="{DynamicResource FloatingChromePressedBrush}" />
     </Style>
 
     <Style Selector="Button.FormattingToolbarButton:disabled /template/ ContentPresenter#PART_ContentPresenter">
@@ -28,10 +29,14 @@
     </Style>
 
     <Style Selector="Button.FormattingToolbarIcon">
-        <Setter Property="Padding" Value="5,4" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Width" Value="26" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
 
     <Style Selector="Button.FormattingToolbarIcon.FormattingToolbarIconActive /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource SlashCommandItemBackgroundSelectedBrush}" />
+        <Setter Property="Background" Value="{DynamicResource FloatingChromeActiveBrush}" />
     </Style>
 </Styles>

@@ -54,6 +54,12 @@ public partial class NotesViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private int _deletedCount;
 
+    [ObservableProperty]
+    private string _saveStateText = string.Empty;
+
+    [ObservableProperty]
+    private string _wordCountText = string.Empty;
+
     public NoteBreadcrumbViewModel NoteBreadcrumb { get; }
     public NotesEditorSettings EditorSettings { get; } = new();
 
@@ -204,8 +210,45 @@ public partial class NotesViewModel : ViewModelBase, INavigationAware
             RefreshBreadcrumbText();
         }
         if (SelectedNote == note)
+        {
             ModifiedText = FormatRelative(note.ModifiedAt, "LastModified", "Notes");
+            SaveStateText = FormatSaveState(note.ModifiedAt);
+            if (blocks != null)
+                UpdateWordCount(blocks);
+        }
     }
+
+    /// <summary>Recomputes the word-count metadata line from the given document blocks.</summary>
+    public void UpdateWordCount(Block[]? blocks)
+    {
+        if (SelectedNote == null || blocks == null)
+        {
+            WordCountText = string.Empty;
+            return;
+        }
+
+        var count = CountWords(blocks);
+        WordCountText = string.Format(
+            _localizationService.T("WordCountFormat", "Notes"),
+            count.ToString("N0", System.Globalization.CultureInfo.CurrentCulture));
+    }
+
+    private static int CountWords(System.Collections.Generic.IEnumerable<Block> blocks)
+    {
+        var total = 0;
+        foreach (var block in blocks)
+        {
+            var content = block.Content;
+            if (!string.IsNullOrWhiteSpace(content))
+                total += content.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+            if (block.Children is { Count: > 0 })
+                total += CountWords(block.Children);
+        }
+        return total;
+    }
+
+    internal string FormatSaveState(DateTime modifiedAt) =>
+        $"{_localizationService.T("Saved", "Notes")} · {_dateDisplayService.FormatRelative(modifiedAt)}";
 
     public Block[] GetBlocksForCurrentNote() => _editor.GetBlocksForCurrentNote(SelectedNote);
 

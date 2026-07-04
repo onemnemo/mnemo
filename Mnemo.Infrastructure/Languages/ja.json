@@ -364,6 +364,11 @@
     "ThinkingLabel": "考え中"
   },
   "Notes": {
+    "SearchNotesPlaceholder": "ノートを検索",
+    "NoSearchResults": "一致するノートがありません",
+    "Saved": "保存済み",
+    "WordCountFormat": "{0} 語",
+    "Index": "目次",
     "NewNote": "新しいノート",
     "Notes": "ノート",
     "ToggleSidebar": "サイドバーの表示/非表示",
@@ -412,6 +417,14 @@
     "YearsAgo": "{0}年前"
   },
   "NotesEditor": {
+    "Assist": "アシスト",
+    "BoldTooltip": "太字 (Ctrl+B)",
+    "ItalicTooltip": "斜体 (Ctrl+I)",
+    "UnderlineTooltip": "下線 (Ctrl+U)",
+    "StrikethroughTooltip": "取り消し線",
+    "HighlightTooltip": "ハイライト",
+    "SubscriptTooltip": "下付き文字 (Ctrl+,)",
+    "SuperscriptTooltip": "上付き文字 (Ctrl+.)",
     "TypeSlashForCommands": "/でコマンドを入力...",
     "Heading1": "H1 (大見出し)",
     "Heading2": "H2 (中見出し)",

@@ -568,6 +568,17 @@
     <SolidColorBrush x:Key="NotesPaneDividerBrush" Color="{DynamicResource NotesPaneDivider}"/>
     <SolidColorBrush x:Key="NotesEditorSeparatorBrush" Color="{DynamicResource NotesEditorSeparator}"/>
 
+    <!-- Floating dark chrome (formatting toolbar, slash menu, index chip) -->
+    <SolidColorBrush x:Key="FloatingChromeBackgroundBrush" Color="{DynamicResource FloatingChromeBackground}"/>
+    <SolidColorBrush x:Key="FloatingChromeForegroundBrush" Color="{DynamicResource FloatingChromeForeground}"/>
+    <SolidColorBrush x:Key="FloatingChromeForegroundStrongBrush" Color="{DynamicResource FloatingChromeForegroundStrong}"/>
+    <SolidColorBrush x:Key="FloatingChromeForegroundMutedBrush" Color="{DynamicResource FloatingChromeForegroundMuted}"/>
+    <SolidColorBrush x:Key="FloatingChromeHoverBrush" Color="{DynamicResource FloatingChromeHover}"/>
+    <SolidColorBrush x:Key="FloatingChromeActiveBrush" Color="{DynamicResource FloatingChromeActive}"/>
+    <SolidColorBrush x:Key="FloatingChromePressedBrush" Color="{DynamicResource FloatingChromePressed}"/>
+    <SolidColorBrush x:Key="FloatingChromeDividerBrush" Color="{DynamicResource FloatingChromeDivider}"/>
+    <SolidColorBrush x:Key="FloatingChromeAccentBrush" Color="{DynamicResource FloatingChromeAccent}"/>
+
     <!-- Slider Brushes (keys must differ from Colors.axaml so SolidColorBrush.Color gets Color, not Brush) -->
     <SolidColorBrush x:Key="SliderTrackFillBrush" Color="{DynamicResource SliderTrackFill}"/>
     <SolidColorBrush x:Key="SliderTrackValueFillBrush" Color="{DynamicResource SliderTrackValueFill}"/>

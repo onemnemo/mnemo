@@ -133,7 +133,7 @@ public sealed class NotesLibrarySession
         {
             FavouriteNotes.Clear();
             foreach (var note in Notes.Where(n => n.IsFavorite && IsSidebarListedNote(n)).OrderByDescending(n => n.ModifiedAt))
-                FavouriteNotes.Add(new NoteTreeItemViewModel(note));
+                FavouriteNotes.Add(new NoteTreeItemViewModel(note) { IsFavouriteEntry = true });
         }
         finally
         {
