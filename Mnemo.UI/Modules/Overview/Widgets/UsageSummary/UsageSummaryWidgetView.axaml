@@ -10,6 +10,16 @@
 
     <StackPanel Spacing="14">
         <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="{Binding MetricLabel}"
+                       FontSize="12"
+                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBlock Grid.Column="1"
+                       Text="{Binding MetricValueDisplay}"
+                       FontSize="13"
+                       FontFamily="{DynamicResource Font.SemiBold}"
+                       Foreground="{DynamicResource AccentBrush}"/>
+        </Grid>
+        <Grid ColumnDefinitions="*,Auto">
             <TextBlock Text="{markup:T Ns=UsageSummary, Key=Launches}"
                        FontSize="12"
                        Foreground="{DynamicResource TextSecondaryBrush}"/>
@@ -30,7 +40,7 @@
                        Foreground="{DynamicResource TextPrimaryBrush}"/>
         </Grid>
         <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="{markup:T Ns=UsageSummary, Key=PracticeToday}"
+            <TextBlock Text="{Binding PracticeLabel}"
                        FontSize="12"
                        Foreground="{DynamicResource TextSecondaryBrush}"/>
             <TextBlock Grid.Column="1"
@@ -40,7 +50,7 @@
                        Foreground="{DynamicResource TextPrimaryBrush}"/>
         </Grid>
         <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="{markup:T Ns=UsageSummary, Key=NotesToday}"
+            <TextBlock Text="{Binding NotesEditorLabel}"
                        FontSize="12"
                        Foreground="{DynamicResource TextSecondaryBrush}"/>
             <TextBlock Grid.Column="1"
@@ -50,7 +60,7 @@
                        Foreground="{DynamicResource TextPrimaryBrush}"/>
         </Grid>
         <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="{markup:T Ns=UsageSummary, Key=FlashcardsToday}"
+            <TextBlock Text="{Binding FlashcardsLabel}"
                        FontSize="12"
                        Foreground="{DynamicResource TextSecondaryBrush}"/>
             <TextBlock Grid.Column="1"

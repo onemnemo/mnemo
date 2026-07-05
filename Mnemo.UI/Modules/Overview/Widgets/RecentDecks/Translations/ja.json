@@ -2,8 +2,11 @@
   "RecentDecks": {
     "Title": "最近使ったデッキ",
     "Description": "最近練習したフラッシュカードのセットを見る",
-    "GalleryDescription": "直近で学習したデッキへすぐ開けます。",
-    "TagDecks": "#デッキ",
-    "TagRecent": "#最近"
+    "EmptyWindow": "この期間に練習したデッキはありません",
+    "SettingDaysToShow": "表示する日数",
+    "SettingSortBy": "並べ替え",
+    "SettingSortByDate": "最終練習日",
+    "SettingSortByStudyCount": "練習回数",
+    "SettingLimit": "表示するデッキ数"
   }
 }

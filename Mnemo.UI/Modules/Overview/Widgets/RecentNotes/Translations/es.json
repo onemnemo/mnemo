@@ -2,10 +2,12 @@
   "RecentNotes": {
     "Title": "Notas recientes",
     "Description": "Notas que editó más recientemente",
-    "GalleryDescription": "Vuelva a las notas que tocó por última vez.",
-    "TagNotes": "#notas",
-    "TagRecent": "#reciente",
-    "Open": "Abrir",
-    "Untitled": "Sin título"
+    "Untitled": "Sin título",
+    "EmptyWindow": "No hay notas en este período",
+    "SettingDaysToShow": "Días a mostrar",
+    "SettingSortBy": "Ordenar por",
+    "SettingSortByDate": "Fecha de creación",
+    "SettingSortByModified": "Última edición",
+    "SettingLimit": "Número de notas"
   }
 }

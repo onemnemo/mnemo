@@ -3,16 +3,15 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vm="using:Mnemo.UI.Modules.Overview.Widgets.RecentNotes"
-             xmlns:controls="using:Mnemo.UI.Controls"
+             xmlns:markup="using:Mnemo.UI.Markup"
              mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="240"
              x:Class="Mnemo.UI.Modules.Overview.Widgets.RecentNotes.RecentNotesWidgetView"
              x:Name="Root"
              x:DataType="vm:RecentNotesWidgetViewModel"
              HorizontalAlignment="Stretch">
 
-    <Grid RowDefinitions="*" HorizontalAlignment="Stretch" MinWidth="0">
-        <ScrollViewer Grid.Row="0"
-                      HorizontalAlignment="Stretch"
+    <Grid HorizontalAlignment="Stretch" MinWidth="0">
+        <ScrollViewer HorizontalAlignment="Stretch"
                       HorizontalContentAlignment="Stretch"
                       VerticalContentAlignment="Top"
                       VerticalScrollBarVisibility="Hidden"
@@ -32,63 +31,56 @@
                 </ItemsControl.Styles>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="vm:RecentNoteRow">
-                        <Button Background="Transparent"
-                                BorderThickness="0"
-                                Padding="{DynamicResource ListRowPadding}"
-                                Margin="0,0,0,8"
-                                CornerRadius="{DynamicResource Radius.Md}"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Stretch"
-                                MinWidth="0"
-                                Cursor="Hand"
-                                Command="{Binding #Root.DataContext.OpenNoteCommand}"
-                                CommandParameter="{Binding NoteId}">
-                            <Button.Styles>
-                                <Style Selector="Button:pointerover /template/ ContentPresenter">
-                                    <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
-                                </Style>
-                            </Button.Styles>
-                            <Grid ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch" MinWidth="0">
-                                <Border Grid.Column="0"
-                                        Background="{DynamicResource CardIconBackgroundBrush}"
-                                        Width="36"
-                                        Height="36"
-                                        CornerRadius="{DynamicResource Radius.Md}"
-                                        Margin="0,0,12,0">
-                                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/file-description-filled.svg"
-                                                      Width="18" Height="18"
-                                                      Color="{DynamicResource AccentBrush}"
-                                                      HorizontalAlignment="Center"
-                                                      VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1"
-                                            VerticalAlignment="Center"
-                                            HorizontalAlignment="Stretch"
-                                            MinWidth="0"
-                                            Spacing="0">
-                                    <TextBlock Text="{Binding Title}"
+                        <!-- Flat row: title left, meta right, hairline above -->
+                        <Border BorderBrush="{DynamicResource DividerSubtleBrush}"
+                                BorderThickness="0,1,0,0">
+                            <Button Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="4,0"
+                                    MinHeight="34"
+                                    CornerRadius="{DynamicResource Radius.Sm}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    MinWidth="0"
+                                    Cursor="Hand"
+                                    Command="{Binding #Root.DataContext.OpenNoteCommand}"
+                                    CommandParameter="{Binding NoteId}">
+                                <Button.Styles>
+                                    <Style Selector="Button:pointerover /template/ ContentPresenter">
+                                        <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
+                                    </Style>
+                                </Button.Styles>
+                                <Grid ColumnDefinitions="*,Auto" HorizontalAlignment="Stretch" MinWidth="0">
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding Title}"
                                                FontSize="{DynamicResource FontSize.Body.Small}"
-                                               FontFamily="{DynamicResource Font.SemiBold}"
+                                               FontFamily="{DynamicResource Font.Medium}"
                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                               VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{Binding FolderLine}"
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding MetaText}"
                                                FontSize="{DynamicResource FontSize.Caption}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                               Margin="0,2,0,0"
+                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0,0,0"
                                                TextTrimming="CharacterEllipsis"/>
-                                </StackPanel>
-                                <TextBlock Grid.Column="2"
-                                           Text="{Binding ModifiedColumnText}"
-                                           FontSize="{DynamicResource FontSize.Caption}"
-                                           Foreground="{DynamicResource TextTertiaryBrush}"
-                                           VerticalAlignment="Center"
-                                           Margin="12,0,0,0"
-                                           TextTrimming="CharacterEllipsis"/>
-                            </Grid>
-                        </Button>
+                                </Grid>
+                            </Button>
+                        </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
+
+        <!-- Empty window state: no notes within the configured period -->
+        <TextBlock IsVisible="{Binding IsEmpty}"
+                   Text="{markup:T Ns=RecentNotes, Key=EmptyWindow}"
+                   FontSize="{DynamicResource FontSize.Body.Small}"
+                   Foreground="{DynamicResource TextTertiaryBrush}"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   TextAlignment="Center"/>
     </Grid>
 </UserControl>

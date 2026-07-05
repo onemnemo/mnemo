@@ -4,60 +4,81 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:Mnemo.UI.Modules.Overview.Widgets.FlashcardStats"
              xmlns:markup="using:Mnemo.UI.Markup"
-             mc:Ignorable="d" d:DesignWidth="240" d:DesignHeight="240"
+             mc:Ignorable="d" d:DesignWidth="440" d:DesignHeight="80"
              x:Class="Mnemo.UI.Modules.Overview.Widgets.FlashcardStats.FlashcardStatsWidgetView"
              x:DataType="vm:FlashcardStatsWidgetViewModel">
 
     <UserControl.Styles>
-        <!-- Secondary metrics: muted at zero, accent only when the metric is earned. -->
-        <Style Selector="TextBlock.metric">
-            <Setter Property="FontSize" Value="{DynamicResource FontSize.Heading5}"/>
+        <!-- Stat value: muted at zero, accent only when the metric is earned. -->
+        <Style Selector="TextBlock.stat-value">
+            <Setter Property="FontSize" Value="{DynamicResource FontSize.Heading4}"/>
             <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         </Style>
-        <Style Selector="TextBlock.metric.active">
+        <Style Selector="TextBlock.stat-value.active">
             <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.stat-label">
+            <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+        <Style Selector="Rectangle.stat-divider">
+            <Setter Property="Fill" Value="{DynamicResource DividerSubtleBrush}"/>
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="*,Auto">
-        <!-- Main Stats -->
-        <StackPanel Grid.Row="0"
-                    VerticalAlignment="Center"
-                    Spacing="8">
-            <TextBlock Text="{Binding TotalCardsPracticed}"
-                       FontSize="{DynamicResource FontSize.Stat.Hero}"
-                       FontFamily="{DynamicResource Font.Bold}"
-                       Foreground="{DynamicResource TextPrimaryBrush}"
-                       HorizontalAlignment="Center"/>
-            <TextBlock Text="{markup:T Ns=Overview, Key=CardsPracticed}"
-                       FontSize="{DynamicResource FontSize.Body.Small}"
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       HorizontalAlignment="Center"/>
-        </StackPanel>
-
-        <!-- Secondary Stats -->
-        <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="0,24,0,0">
-            <StackPanel Grid.Column="0" Spacing="4">
-                <TextBlock Classes="metric"
+    <Grid>
+        <!-- Wide: stat cells split by vertical hairlines -->
+        <Grid ColumnDefinitions="*,Auto,*,Auto,*"
+              VerticalAlignment="Center"
+              IsVisible="{Binding !IsNarrow}">
+            <StackPanel Grid.Column="0">
+                <TextBlock Classes="stat-value"
                            Classes.active="{Binding !!CardsToday}"
                            Text="{Binding CardsToday}"/>
-                <TextBlock Text="{markup:T Ns=Overview, Key=Today}"
-                           FontSize="{DynamicResource FontSize.Caption}"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
-                           HorizontalAlignment="Center"/>
+                <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=PracticedToday}"/>
             </StackPanel>
 
-            <StackPanel Grid.Column="1" Spacing="4">
-                <TextBlock Classes="metric"
+            <Rectangle Grid.Column="1" Classes="stat-divider" Width="1" Margin="14,2"/>
+
+            <StackPanel Grid.Column="2">
+                <TextBlock Classes="stat-value"
                            Classes.active="{Binding !!StudyStreak}"
                            Text="{Binding StudyStreak}"/>
-                <TextBlock Text="{markup:T Ns=Overview, Key=DayStreak}"
-                           FontSize="{DynamicResource FontSize.Caption}"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
-                           HorizontalAlignment="Center"/>
+                <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=Streak}"/>
+            </StackPanel>
+
+            <Rectangle Grid.Column="3" Classes="stat-divider" Width="1" Margin="14,2"/>
+
+            <StackPanel Grid.Column="4">
+                <TextBlock Classes="stat-value" Text="{Binding TotalCardsPracticed}"/>
+                <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=TotalPracticed}"/>
             </StackPanel>
         </Grid>
+
+        <!-- Narrow (1-column tile): stacked cells with horizontal hairlines -->
+        <StackPanel Spacing="10"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding IsNarrow}">
+            <StackPanel>
+                <TextBlock Classes="stat-value"
+                           Classes.active="{Binding !!CardsToday}"
+                           Text="{Binding CardsToday}"/>
+                <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=PracticedToday}"/>
+            </StackPanel>
+            <Rectangle Classes="stat-divider" Height="1"/>
+            <StackPanel>
+                <TextBlock Classes="stat-value"
+                           Classes.active="{Binding !!StudyStreak}"
+                           Text="{Binding StudyStreak}"/>
+                <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=Streak}"/>
+            </StackPanel>
+            <Rectangle Classes="stat-divider" Height="1"/>
+            <StackPanel>
+                <TextBlock Classes="stat-value" Text="{Binding TotalCardsPracticed}"/>
+                <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=TotalPracticed}"/>
+            </StackPanel>
+        </StackPanel>
     </Grid>
 </UserControl>

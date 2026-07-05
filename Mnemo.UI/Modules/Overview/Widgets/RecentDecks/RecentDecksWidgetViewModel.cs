@@ -1,10 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Models.Statistics;
+using Mnemo.Core.Models.Widgets;
 using Mnemo.Core.Services;
 using Mnemo.UI.Modules.Overview.ViewModels;
 
@@ -30,71 +34,56 @@ public partial class RecentDeckItem : ObservableObject
 }
 
 /// <summary>
-/// ViewModel for the Recent Decks widget.
+/// ViewModel for the Recent Decks widget. Settings: <c>days_to_show</c> window over the
+/// last-practiced date, <c>sort_by</c> ("date" = last practiced, "study_count" = total cards
+/// reviewed in the deck), and <c>limit</c>.
 /// </summary>
 public partial class RecentDecksWidgetViewModel : WidgetViewModelBase
 {
-    private const int MaxItems = 6;
-
-    private readonly IStatisticsManager _statistics;
-    private readonly IFlashcardDeckService _decks;
-    private readonly INavigationService _navigation;
-    private readonly ILoggerService _logger;
-    private readonly ILocalizationService _localization;
-    private readonly IDateDisplayService _dateDisplay;
-
-    public RecentDecksWidgetViewModel(
-        IStatisticsManager statistics,
-        IFlashcardDeckService decks,
-        INavigationService navigation,
-        ILoggerService logger,
-        ILocalizationService localization,
-        IDateDisplayService dateDisplay)
-    {
-        _statistics = statistics;
-        _decks = decks;
-        _navigation = navigation;
-        _logger = logger;
-        _localization = localization;
-        _dateDisplay = dateDisplay;
-    }
-
-    [RelayCommand]
-    private void OpenDeck(string? deckId)
-    {
-        if (string.IsNullOrWhiteSpace(deckId))
-            return;
-        _navigation.NavigateTo("flashcard-deck", new FlashcardDeckNavigationParameter(deckId.Trim()));
-    }
+    private readonly IWidgetContext _context;
 
     public ObservableCollection<RecentDeckItem> RecentDecks { get; } = new();
 
-    public override async Task InitializeAsync()
-    {
-        await base.InitializeAsync();
-        RecentDecks.Clear();
+    /// <summary>True after a load that produced no rows; drives the widget's empty message.</summary>
+    [ObservableProperty]
+    private bool _isEmpty;
 
+    public RecentDecksWidgetViewModel(WidgetManifest manifest, WidgetInstance instance, IWidgetContext context)
+        : base(manifest, instance)
+    {
+        _context = context;
+    }
+
+    public override async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
         try
         {
-            var summaries = await _statistics.QueryAsync(new StatisticsQuery
+            var daysToShow = GetIntSetting("days_to_show");
+            var sortBy = GetStringSetting("sort_by");
+            var limit = GetIntSetting("limit");
+            var cutoffUtc = DateTime.UtcNow.AddDays(-daysToShow);
+
+            var summaries = await _context.Statistics.QueryAsync(new StatisticsQuery
             {
                 Namespace = StatisticsNamespaces.Flashcards,
                 Kind = FlashcardStatKinds.DeckSummary,
-                Limit = 32,
+                Limit = 64,
                 OrderByUpdatedDescending = true
-            }).ConfigureAwait(false);
+            }, cancellationToken);
 
+            RecentDecks.Clear();
             if (!summaries.IsSuccess || summaries.Value == null || summaries.Value.Count == 0)
+            {
+                IsEmpty = true;
                 return;
+            }
 
-            var allDecks = (await _decks.ListDecksAsync().ConfigureAwait(false))
+            var allDecks = (await _context.Decks.ListDecksAsync(cancellationToken))
                 .ToDictionary(d => d.Id, StringComparer.Ordinal);
 
-            var added = 0;
+            var candidates = new List<(FlashcardDeck Deck, DateTime LastPracticed, long TotalReviewed)>();
             foreach (var record in summaries.Value)
             {
-                if (added >= MaxItems) break;
-
                 var deckId = record.Key.StartsWith("deck:", StringComparison.Ordinal)
                     ? record.Key["deck:".Length..]
                     : record.Key;
@@ -103,23 +92,50 @@ public partial class RecentDecksWidgetViewModel : WidgetViewModelBase
                     continue;
 
                 var lastPracticed = ReadDateTime(record, "last_practiced") ?? deck.LastStudied?.UtcDateTime ?? default;
+                if (lastPracticed == default || lastPracticed < cutoffUtc)
+                    continue;
+
+                candidates.Add((deck, lastPracticed, ReadInt(record, "total_reviewed")));
+            }
+
+            var ordered = string.Equals(sortBy, "study_count", StringComparison.Ordinal)
+                ? candidates.OrderByDescending(c => c.TotalReviewed).ThenByDescending(c => c.LastPracticed)
+                : candidates.OrderByDescending(c => c.LastPracticed);
+
+            foreach (var (deck, lastPracticed, _) in ordered.Take(limit))
+            {
                 var subject = deck.Tags?.Count > 0 ? deck.Tags[0] : string.Empty;
-                var cardsLine = $"{deck.Cards?.Count ?? 0} {_localization.T("cards", "Overview")}";
+                var cardsLine = $"{deck.Cards?.Count ?? 0} {_context.Localization.T("cards", "Overview")}";
 
                 RecentDecks.Add(new RecentDeckItem
                 {
-                    DeckId = deckId,
+                    DeckId = deck.Id,
                     Name = deck.Name,
                     MetaText = string.IsNullOrWhiteSpace(subject) ? cardsLine : $"{subject} • {cardsLine}",
-                    LastPracticedText = lastPracticed == default ? "—" : _dateDisplay.FormatSmart(lastPracticed)
+                    LastPracticedText = _context.DateDisplay.FormatSmart(lastPracticed)
                 });
-                added++;
             }
+
+            IsEmpty = RecentDecks.Count == 0;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            _logger?.Error("Overview", "Loading recent decks widget failed.", ex);
+            _context.Logger.Error("Overview", "Loading recent decks widget failed.", ex);
+            RecentDecks.Clear();
+            IsEmpty = true;
         }
+    }
+
+    [RelayCommand]
+    private void OpenDeck(string? deckId)
+    {
+        if (IsEditing || string.IsNullOrWhiteSpace(deckId))
+            return;
+        _context.Navigation.NavigateTo("flashcard-deck", new FlashcardDeckNavigationParameter(deckId.Trim()));
     }
 
     private static DateTime? ReadDateTime(StatisticsRecord record, string field)
@@ -127,5 +143,12 @@ public partial class RecentDecksWidgetViewModel : WidgetViewModelBase
         if (!record.Fields.TryGetValue(field, out var v)) return null;
         if (v.Type != StatValueType.DateTime) return null;
         return v.AsDateTime().UtcDateTime;
+    }
+
+    private static long ReadInt(StatisticsRecord record, string field)
+    {
+        return record.Fields.TryGetValue(field, out var v) && v.Type == StatValueType.Integer
+            ? v.AsInt()
+            : 0L;
     }
 }

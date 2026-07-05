@@ -1,8 +1,11 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Mnemo.Core.Models;
+using Mnemo.Core.Models.Widgets;
 using Mnemo.Core.Services;
 using Mnemo.UI.Modules.Overview.ViewModels;
 
@@ -16,75 +19,79 @@ public partial class RecentNoteRow : ObservableObject
     [ObservableProperty]
     private string _title = string.Empty;
 
-    /// <summary>Folder path or em dash when at library root.</summary>
+    /// <summary>Right-column meta: "Folder · date", or just the date for notes at the library root.</summary>
     [ObservableProperty]
-    private string _folderLine = string.Empty;
-
-    /// <summary>Right-column modified date, aligned with Recent Decks last-practiced column.</summary>
-    [ObservableProperty]
-    private string _modifiedColumnText = string.Empty;
+    private string _metaText = string.Empty;
 }
 
+/// <summary>
+/// ViewModel for the Recent Notes widget. Settings: <c>days_to_show</c> window,
+/// <c>sort_by</c> ("date" = created, "modified" = last edited), and <c>limit</c>.
+/// </summary>
 public partial class RecentNotesWidgetViewModel : WidgetViewModelBase
 {
-    private const int MaxItems = 6;
-
-    private readonly INoteService _notes;
-    private readonly INavigationService _navigation;
-    private readonly ILoggerService _logger;
-    private readonly ILocalizationService _localization;
-    private readonly IDateDisplayService _dateDisplay;
+    private readonly IWidgetContext _context;
 
     public ObservableCollection<RecentNoteRow> Items { get; } = new();
 
-    public RecentNotesWidgetViewModel(
-        INoteService notes,
-        INavigationService navigation,
-        ILoggerService logger,
-        ILocalizationService localization,
-        IDateDisplayService dateDisplay)
+    /// <summary>True after a load that produced no rows; drives the widget's empty message.</summary>
+    [ObservableProperty]
+    private bool _isEmpty;
+
+    public RecentNotesWidgetViewModel(WidgetManifest manifest, WidgetInstance instance, IWidgetContext context)
+        : base(manifest, instance)
     {
-        _notes = notes;
-        _navigation = navigation;
-        _logger = logger;
-        _localization = localization;
-        _dateDisplay = dateDisplay;
+        _context = context;
     }
 
-    public override async Task InitializeAsync()
+    public override async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        await base.InitializeAsync();
-        Items.Clear();
-
         try
         {
-            var list = (await _notes.GetAllNotesAsync().ConfigureAwait(false))
-                .OrderByDescending(n => n.ModifiedAt)
-                .Take(MaxItems)
+            var daysToShow = GetIntSetting("days_to_show");
+            var sortBy = GetStringSetting("sort_by");
+            var limit = GetIntSetting("limit");
+            var cutoffUtc = DateTime.UtcNow.AddDays(-daysToShow);
+            var sortByCreated = string.Equals(sortBy, "date", StringComparison.Ordinal);
+
+            var notes = await _context.Notes.GetAllNotesAsync();
+            var rows = notes
+                .Where(n => (sortByCreated ? n.CreatedAt : n.ModifiedAt) >= cutoffUtc)
+                .OrderByDescending(n => sortByCreated ? n.CreatedAt : n.ModifiedAt)
+                .Take(limit)
                 .ToList();
 
-            foreach (var n in list)
+            Items.Clear();
+            foreach (var n in rows)
             {
+                var date = _context.DateDisplay.FormatSmart(n.ModifiedAt);
                 Items.Add(new RecentNoteRow
                 {
                     NoteId = n.NoteId,
-                    Title = string.IsNullOrWhiteSpace(n.Title) ? _localization.T("Untitled", "RecentNotes") : n.Title.Trim(),
-                    FolderLine = string.IsNullOrWhiteSpace(n.FolderPath) ? "—" : n.FolderPath.Trim(),
-                    ModifiedColumnText = _dateDisplay.FormatSmart(n.ModifiedAt)
+                    Title = string.IsNullOrWhiteSpace(n.Title) ? _context.Localization.T("Untitled", "RecentNotes") : n.Title.Trim(),
+                    MetaText = string.IsNullOrWhiteSpace(n.FolderPath) ? date : $"{n.FolderPath.Trim()} · {date}"
                 });
             }
+
+            IsEmpty = Items.Count == 0;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            _logger.Error("Overview", "Recent notes widget failed to load.", ex);
+            _context.Logger.Error("Overview", "Recent notes widget failed to load.", ex);
+            Items.Clear();
+            IsEmpty = true;
         }
     }
 
     [RelayCommand]
     private void OpenNote(string? noteId)
     {
-        if (string.IsNullOrWhiteSpace(noteId))
+        if (IsEditing || string.IsNullOrWhiteSpace(noteId))
             return;
-        _navigation.NavigateTo("notes", noteId.Trim());
+        _context.Navigation.NavigateTo("notes", noteId.Trim());
     }
 }

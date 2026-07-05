@@ -2,8 +2,11 @@
   "RecentDecks": {
     "Title": "Recent Decks",
     "Description": "View your recently practiced flashcard decks",
-    "GalleryDescription": "Quick access to the decks you studied most recently.",
-    "TagDecks": "#decks",
-    "TagRecent": "#recent"
+    "EmptyWindow": "No decks practiced in this period",
+    "SettingDaysToShow": "Days to show",
+    "SettingSortBy": "Sort by",
+    "SettingSortByDate": "Last practiced",
+    "SettingSortByStudyCount": "Most practiced",
+    "SettingLimit": "Number of decks"
   }
 }

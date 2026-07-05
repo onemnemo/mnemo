@@ -2,11 +2,14 @@
   "StudyGoals": {
     "Title": "Lernziele",
     "Description": "Tägliche Lernziele und Fortschritt im Blick behalten",
-    "GalleryDescription": "Tagesfortschritt für Karten, Sitzungen und Lernminuten.",
-    "TagGoals": "#ziele",
-    "TagProgress": "#fortschritt",
     "CardsReviewed": "Wiederholte Karten",
     "SessionsCompleted": "Abgeschlossene Sitzungen",
-    "MinutesStudied": "Lernminuten"
+    "MinutesStudied": "Lernminuten",
+    "SettingGoalType": "Zielzeitraum",
+    "SettingGoalTypeDaily": "Täglich",
+    "SettingGoalTypeWeekly": "Wöchentlich",
+    "SettingMetric": "Primäre Kennzahl",
+    "SettingMetricCards": "Karten",
+    "SettingMetricMinutes": "Minuten"
   }
 }

@@ -68,6 +68,8 @@
     <Color x:Key="CardBackgroundPrimary">Transparent</Color>
     <Color x:Key="CardBackgroundSecondary">#FBF8F0</Color>
     <Color x:Key="Accent">#E9573F</Color>
+    <Color x:Key="AccentSubtleBackground">#1AE9573F</Color>
+    <Color x:Key="AccentBorderSubtle">#4DE9573F</Color>
     <Color x:Key="QuickActionCardBackground">#F5EFE3</Color>
     <Color x:Key="LearnCardBackground">#FBF8F0</Color>
     <Color x:Key="LearnCardTitleColor">#24201A</Color>

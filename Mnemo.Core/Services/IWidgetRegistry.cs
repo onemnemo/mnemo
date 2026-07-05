@@ -1,33 +1,20 @@
-using Mnemo.Core.Models.Widgets;
+using System.Collections.Generic;
 
 namespace Mnemo.Core.Services;
 
 /// <summary>
-/// Service for registering and querying available dashboard widgets.
+/// Registry of available widget types. Built-in modules register descriptors during startup
+/// (<see cref="IModule.RegisterWidgets"/>); the extension loader will register through the
+/// same seam. The widget library and the board resolve descriptors from here.
 /// </summary>
 public interface IWidgetRegistry
 {
-    /// <summary>
-    /// Registers a widget type with the registry.
-    /// </summary>
-    /// <param name="widget">The widget to register.</param>
-    void RegisterWidget(IWidget widget);
+    /// <summary>Registers a widget type. Throws when a descriptor with the same WidgetId already exists.</summary>
+    void Register(IWidgetDescriptor descriptor);
 
-    /// <summary>
-    /// Gets all registered widgets.
-    /// </summary>
-    IEnumerable<IWidget> GetAllWidgets();
+    /// <summary>All registered descriptors in registration order.</summary>
+    IReadOnlyList<IWidgetDescriptor> AvailableDescriptors { get; }
 
-    /// <summary>
-    /// Gets all widgets in a specific category.
-    /// </summary>
-    /// <param name="category">The category to filter by.</param>
-    IEnumerable<IWidget> GetWidgetsByCategory(WidgetCategory category);
-
-    /// <summary>
-    /// Gets a widget by its unique identifier.
-    /// </summary>
-    /// <param name="id">The widget ID.</param>
-    /// <returns>The widget, or null if not found.</returns>
-    IWidget? GetWidgetById(string id);
+    /// <summary>Resolves a descriptor by widget id, or null when unknown (e.g. uninstalled extension).</summary>
+    IWidgetDescriptor? GetDescriptor(string widgetId);
 }

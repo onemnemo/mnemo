@@ -2,8 +2,11 @@
   "RecentDecks": {
     "Title": "Mazos recientes",
     "Description": "Consulta tus mazos de tarjetas practicados recientemente",
-    "GalleryDescription": "Acceso rápido a los mazos que estudiaste más recientemente.",
-    "TagDecks": "#mazos",
-    "TagRecent": "#recientes"
+    "EmptyWindow": "No se practicaron mazos en este período",
+    "SettingDaysToShow": "Días a mostrar",
+    "SettingSortBy": "Ordenar por",
+    "SettingSortByDate": "Práctica más reciente",
+    "SettingSortByStudyCount": "Más practicados",
+    "SettingLimit": "Número de mazos"
   }
 }

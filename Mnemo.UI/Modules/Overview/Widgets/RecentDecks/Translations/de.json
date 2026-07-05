@@ -2,8 +2,11 @@
   "RecentDecks": {
     "Title": "Letzte Kartenstapel",
     "Description": "Anzeigen der zuletzt geübten Flashcard-Stapel",
-    "GalleryDescription": "Schnellzugriff auf die zuletzt geübten Stapel.",
-    "TagDecks": "#stapel",
-    "TagRecent": "#zuletzt"
+    "EmptyWindow": "Keine Stapel in diesem Zeitraum geübt",
+    "SettingDaysToShow": "Angezeigte Tage",
+    "SettingSortBy": "Sortieren nach",
+    "SettingSortByDate": "Zuletzt geübt",
+    "SettingSortByStudyCount": "Am meisten geübt",
+    "SettingLimit": "Anzahl der Stapel"
   }
 }

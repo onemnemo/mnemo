@@ -1,5 +1,3 @@
-using System.Reflection;
-using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services;
 using Mnemo.UI.Modules.Overview.ViewModels;
@@ -40,19 +38,11 @@ public class OverviewModule : IModule
 
     public void RegisterWidgets(IWidgetRegistry registry, IServiceProvider services)
     {
-        var stats = services.GetRequiredService<IStatisticsManager>();
-        var decks = services.GetRequiredService<IFlashcardDeckService>();
-        var notes = services.GetRequiredService<INoteService>();
-        var navigation = services.GetRequiredService<INavigationService>();
-        var logger = services.GetRequiredService<ILoggerService>();
-        var localization = services.GetRequiredService<ILocalizationService>();
-        var dateDisplay = services.GetRequiredService<IDateDisplayService>();
-
-        registry.RegisterWidget(new Widgets.FlashcardStats.FlashcardStatsWidget(stats, logger));
-        registry.RegisterWidget(new Widgets.RecentDecks.RecentDecksWidget(stats, decks, navigation, logger, localization, dateDisplay));
-        registry.RegisterWidget(new Widgets.StudyGoals.StudyGoalsWidget(stats, logger, localization));
-        registry.RegisterWidget(new Widgets.RecentNotes.RecentNotesWidget(notes, navigation, logger, localization, dateDisplay));
-        registry.RegisterWidget(new Widgets.UsageSummary.UsageSummaryWidget(stats, logger, localization));
+        // Descriptors are stateless; widgets receive their services through IWidgetContext at creation time.
+        registry.Register(new Widgets.FlashcardStats.FlashcardStatsWidgetDescriptor());
+        registry.Register(new Widgets.RecentDecks.RecentDecksWidgetDescriptor());
+        registry.Register(new Widgets.RecentNotes.RecentNotesWidgetDescriptor());
+        registry.Register(new Widgets.StudyGoals.StudyGoalsWidgetDescriptor());
+        registry.Register(new Widgets.UsageSummary.UsageSummaryWidgetDescriptor());
     }
 }
-

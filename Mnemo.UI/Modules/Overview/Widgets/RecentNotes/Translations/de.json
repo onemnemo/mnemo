@@ -2,10 +2,12 @@
   "RecentNotes": {
     "Title": "Aktuelle Notizen",
     "Description": "Zuletzt bearbeitete Notizen",
-    "GalleryDescription": "Schnell zurück zu den Notizen, die Sie zuletzt geändert haben.",
-    "TagNotes": "#notizen",
-    "TagRecent": "#aktuell",
-    "Open": "Öffnen",
-    "Untitled": "Ohne Titel"
+    "Untitled": "Ohne Titel",
+    "EmptyWindow": "Keine Notizen in diesem Zeitraum",
+    "SettingDaysToShow": "Angezeigte Tage",
+    "SettingSortBy": "Sortieren nach",
+    "SettingSortByDate": "Erstellungsdatum",
+    "SettingSortByModified": "Zuletzt bearbeitet",
+    "SettingLimit": "Anzahl der Notizen"
   }
 }

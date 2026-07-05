@@ -16,4 +16,7 @@ public interface IDateDisplayService
 
     /// <summary>Culture-native short date (e.g. "22.06.2026" for nb, "6/22/2026" for en-US).</summary>
     string FormatAbsolute(DateTime timestamp);
+
+    /// <summary>Weekday and date without the year for page headings (e.g. "Thursday, July 3"), culture-aware.</summary>
+    string FormatDayHeading(DateTime timestamp);
 }

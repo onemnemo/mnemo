@@ -1,7 +1,10 @@
 using System;
 using System.Globalization;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Mnemo.Core.Models.Statistics;
+using Mnemo.Core.Models.Widgets;
 using Mnemo.Core.Services;
 using Mnemo.UI.Modules.Overview.ViewModels;
 
@@ -14,8 +17,7 @@ namespace Mnemo.UI.Modules.Overview.Widgets.FlashcardStats;
 /// </summary>
 public partial class FlashcardStatsWidgetViewModel : WidgetViewModelBase
 {
-    private readonly IStatisticsManager _statistics;
-    private readonly ILoggerService _logger;
+    private readonly IWidgetContext _context;
 
     [ObservableProperty]
     private int _totalCardsPracticed;
@@ -26,36 +28,40 @@ public partial class FlashcardStatsWidgetViewModel : WidgetViewModelBase
     [ObservableProperty]
     private int _cardsToday;
 
-    public FlashcardStatsWidgetViewModel(IStatisticsManager statistics, ILoggerService logger)
+    public FlashcardStatsWidgetViewModel(WidgetManifest manifest, WidgetInstance instance, IWidgetContext context)
+        : base(manifest, instance)
     {
-        _statistics = statistics;
-        _logger = logger;
+        _context = context;
     }
 
-    public override async Task InitializeAsync()
+    public override async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        await base.InitializeAsync();
-
         try
         {
-            var totals = (await _statistics.GetAsync(
+            var totals = (await _context.Statistics.GetAsync(
                 StatisticsNamespaces.Flashcards,
                 FlashcardStatKinds.LifetimeTotals,
-                "all").ConfigureAwait(false)).Value;
+                "all",
+                cancellationToken)).Value;
 
             TotalCardsPracticed = (int)Math.Min(int.MaxValue, ReadInt(totals, "total_cards_practiced"));
             StudyStreak = (int)Math.Min(int.MaxValue, ReadInt(totals, "current_streak_days"));
 
             var dayKey = DateTimeOffset.UtcNow.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-            var today = (await _statistics.GetAsync(
+            var today = (await _context.Statistics.GetAsync(
                 StatisticsNamespaces.Flashcards,
                 FlashcardStatKinds.DailySummary,
-                dayKey).ConfigureAwait(false)).Value;
+                dayKey,
+                cancellationToken)).Value;
             CardsToday = (int)Math.Min(int.MaxValue, ReadInt(today, "cards_reviewed"));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            _logger?.Error("Overview", "Loading flashcard stats widget failed.", ex);
+            _context.Logger.Error("Overview", "Loading flashcard stats widget failed.", ex);
             TotalCardsPracticed = 0;
             StudyStreak = 0;
             CardsToday = 0;

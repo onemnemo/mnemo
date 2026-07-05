@@ -1,19 +1,26 @@
 {
   "UsageSummary": {
     "Title": "Nutzung",
-    "Description": "Starts, erstellte Notizen und heutige Bildschirmzeit",
-    "GalleryDescription": "Überblick: Sitzungen, Notizaktivität und heutige Nutzung.",
-    "TagUsage": "#nutzung",
-    "TagStats": "#statistik",
+    "Description": "Starts, erstellte Notizen und Bildschirmzeit",
     "Launches": "App-Starts (gesamt)",
     "NotesCreated": "Erstellte Notizen (gesamt)",
-    "PracticeToday": "Lern-Timer heute",
-    "NotesToday": "Notizen-Ansicht heute",
-    "FlashcardsToday": "Karteikarten-Ansicht heute",
-    "None": "—",
+    "CardsReviewedMetric": "Wiederholte Karten",
+    "TimeSpentMetric": "Verbrachte Zeit",
+    "Practice": "Lern-Timer",
+    "NotesEditor": "Notizen-Ansicht",
+    "FlashcardsArea": "Karteikarten-Ansicht",
+    "LabelWithPeriod": "{0} · {1} Tg.",
     "DurationSeconds": "{0}s",
     "DurationMinutes": "{0} Min.",
     "DurationHoursMinutes": "{0}h {1}m",
-    "DurationHours": "{0}h"
+    "DurationHours": "{0}h",
+    "SettingPeriod": "Zeitraum",
+    "SettingPeriod7": "Letzte 7 Tage",
+    "SettingPeriod14": "Letzte 14 Tage",
+    "SettingPeriod30": "Letzte 30 Tage",
+    "SettingPeriod90": "Letzte 90 Tage",
+    "SettingMetric": "Hauptkennzahl",
+    "SettingMetricReviews": "Wiederholte Karten",
+    "SettingMetricTime": "Verbrachte Zeit"
   }
 }

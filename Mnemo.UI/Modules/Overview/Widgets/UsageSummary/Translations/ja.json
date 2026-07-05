@@ -1,19 +1,26 @@
 {
   "UsageSummary": {
     "Title": "利用状況",
-    "Description": "起動回数、作成ノート数、本日の画面時間",
-    "GalleryDescription": "本日の利用の概要：セッション・ノート・画面時間。",
-    "TagUsage": "#利用",
-    "TagStats": "#統計",
+    "Description": "起動回数、作成ノート数、画面時間",
     "Launches": "アプリ起動（累計）",
     "NotesCreated": "作成ノート（累計）",
-    "PracticeToday": "本日の学習タイマー",
-    "NotesToday": "本日のノート画面",
-    "FlashcardsToday": "本日のフラッシュカード画面",
-    "None": "—",
+    "CardsReviewedMetric": "復習したカード",
+    "TimeSpentMetric": "利用時間",
+    "Practice": "学習タイマー",
+    "NotesEditor": "ノート画面",
+    "FlashcardsArea": "フラッシュカード画面",
+    "LabelWithPeriod": "{0}・{1}日",
     "DurationSeconds": "{0}秒",
     "DurationMinutes": "{0}分",
     "DurationHoursMinutes": "{0}時間{1}分",
-    "DurationHours": "{0}時間"
+    "DurationHours": "{0}時間",
+    "SettingPeriod": "期間",
+    "SettingPeriod7": "過去7日間",
+    "SettingPeriod14": "過去14日間",
+    "SettingPeriod30": "過去30日間",
+    "SettingPeriod90": "過去90日間",
+    "SettingMetric": "主要指標",
+    "SettingMetricReviews": "復習したカード",
+    "SettingMetricTime": "利用時間"
   }
 }

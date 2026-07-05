@@ -27,6 +27,7 @@ using Mnemo.Infrastructure.Services.ImportExport;
 using Mnemo.Infrastructure.Services.ImportExport.Adapters;
 using Mnemo.Infrastructure.Services.Spellcheck;
 using Mnemo.Infrastructure.Services.Search;
+using Mnemo.Infrastructure.Services.Widgets;
 using Mnemo.Core.Services.Search;
 using Atlas.Composition;
 using Atlas.Core;
@@ -216,6 +217,9 @@ public static class Bootstrapper
         
         services.AddSingleton<IFunctionRegistry, FunctionRegistry>();
         services.AddSingleton<IWidgetRegistry, WidgetRegistry>();
+        services.AddSingleton<IWidgetLayoutEngine, WidgetLayoutEngine>();
+        services.AddSingleton<IOverviewLayoutStore, OverviewLayoutStore>();
+        services.AddSingleton<IWidgetContext, WidgetContext>();
 
         // Statistics manager is shared by built-in modules, widgets, and extension tools.
         services.AddSingleton<IStatisticsManager, StatisticsManager>();

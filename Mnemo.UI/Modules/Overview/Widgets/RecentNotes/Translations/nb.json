@@ -2,10 +2,12 @@
   "RecentNotes": {
     "Title": "Nylige notater",
     "Description": "Notatene du redigerte sist",
-    "GalleryDescription": "Hopp tilbake til notatene du sist jobbet med.",
-    "TagNotes": "#notater",
-    "TagRecent": "#nylig",
-    "Open": "Åpne",
-    "Untitled": "Uten tittel"
+    "Untitled": "Uten tittel",
+    "EmptyWindow": "Ingen notater i denne perioden",
+    "SettingDaysToShow": "Dager som vises",
+    "SettingSortBy": "Sorter etter",
+    "SettingSortByDate": "Opprettelsesdato",
+    "SettingSortByModified": "Sist redigert",
+    "SettingLimit": "Antall notater"
   }
 }

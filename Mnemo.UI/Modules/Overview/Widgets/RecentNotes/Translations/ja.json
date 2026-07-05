@@ -2,10 +2,12 @@
   "RecentNotes": {
     "Title": "最近のノート",
     "Description": "最近編集したノート",
-    "GalleryDescription": "直近で触れたノートにすぐ戻れます。",
-    "TagNotes": "#ノート",
-    "TagRecent": "#最近",
-    "Open": "開く",
-    "Untitled": "無題"
+    "Untitled": "無題",
+    "EmptyWindow": "この期間にノートはありません",
+    "SettingDaysToShow": "表示する日数",
+    "SettingSortBy": "並べ替え",
+    "SettingSortByDate": "作成日",
+    "SettingSortByModified": "最終編集",
+    "SettingLimit": "表示するノート数"
   }
 }

@@ -1,130 +1,177 @@
+using System;
 using Avalonia;
-using Avalonia.Animation;
 using Avalonia.Controls;
-using Avalonia.Controls.Presenters;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.Media;
 using Avalonia.VisualTree;
-using Mnemo.Core.Models.Widgets;
 using Mnemo.UI.Modules.Overview.Controls;
 using Mnemo.UI.Modules.Overview.ViewModels;
 
 namespace Mnemo.UI.Modules.Overview.Views;
 
+/// <summary>
+/// Overview page. The code-behind is the drag controller for widget tiles: pointer capture
+/// must live here — on an element that survives reordering — because reordering the board
+/// recreates item containers, and hiding the dragged card would otherwise kill a capture
+/// held by the tile itself. All board mutations happen in <see cref="OverviewViewModel"/>.
+/// </summary>
 public partial class OverviewView : UserControl
 {
-    private TranslateTransform? _currentTransform;
-    
+    private const double DragThreshold = 4;
+    private const double GhostPointerOffset = 14;
+
+    private WidgetHostViewModel? _pressedHost;
+    private IPointer? _pointer;
+    private Point _pressPanelPosition;
+    private bool _isDragging;
+
     public OverviewView()
     {
         InitializeComponent();
+
+        // The items panel only exists after the ItemsControl applies its template, so the
+        // hint layer is wired on the first layout pass that has one.
+        BoardItems.LayoutUpdated += OnBoardLayoutUpdated;
     }
 
-    private void OnWidgetDragStarted(object? sender, VectorEventArgs e)
+    private void OnBoardLayoutUpdated(object? sender, EventArgs e)
     {
-        if (sender is WidgetContainer container && 
-            container.DataContext is DashboardWidgetViewModel widget &&
-            DataContext is OverviewViewModel vm)
-        {
-            _currentTransform = new TranslateTransform();
-            container.RenderTransform = _currentTransform;
-            // Bring to front
-            container.SetValue(Canvas.ZIndexProperty, 100);
+        if (BoardPanel is not { } panel)
+            return;
 
-            // Initial ghost update
-            var currentPos = vm.GridToPixels(widget.Position);
-            vm.UpdateGhostPosition(widget, currentPos.x, currentPos.y);
-            vm.IsGhostVisible = true;
+        BoardHints.Attach(panel);
+        BoardItems.LayoutUpdated -= OnBoardLayoutUpdated;
+    }
+
+    private OverviewViewModel? ViewModel => DataContext as OverviewViewModel;
+
+    private WidgetBoardPanel? BoardPanel => BoardItems.ItemsPanelRoot as WidgetBoardPanel;
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+
+        if (ViewModel is not { IsEditMode: true } || BoardPanel is null)
+            return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            return;
+        if (FindDraggedHost(e.Source) is not { } host)
+            return;
+
+        _pressedHost = host;
+        _pointer = e.Pointer;
+        _pressPanelPosition = e.GetPosition(BoardPanel);
+        _isDragging = false;
+
+        e.Pointer.Capture(this);
+        e.Handled = true;
+    }
+
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+
+        if (_pressedHost is not { } host || ViewModel is not { } vm || BoardPanel is not { } panel)
+            return;
+        if (!ReferenceEquals(e.Pointer, _pointer))
+            return;
+
+        var panelPosition = e.GetPosition(panel);
+        if (!_isDragging)
+        {
+            var delta = panelPosition - _pressPanelPosition;
+            if (Math.Abs(delta.X) <= DragThreshold && Math.Abs(delta.Y) <= DragThreshold)
+                return;
+
+            _isDragging = true;
+            vm.BeginDrag(host);
         }
+
+        var ghostPosition = e.GetPosition(BoardArea);
+        vm.UpdateGhostPosition(ghostPosition.X + GhostPointerOffset, ghostPosition.Y + GhostPointerOffset);
+        vm.UpdateDragTarget(panel.GetInsertionIndex(panelPosition));
+        e.Handled = true;
     }
 
-    private void OnWidgetDragDelta(object? sender, VectorEventArgs e)
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
-        if (sender is WidgetContainer container && 
-            _currentTransform != null &&
-            container.DataContext is DashboardWidgetViewModel widget &&
-            DataContext is OverviewViewModel vm)
+        base.OnPointerReleased(e);
+
+        if (_pressedHost is null || !ReferenceEquals(e.Pointer, _pointer))
+            return;
+
+        var wasDragging = _isDragging;
+        ResetDragState();
+
+        if (wasDragging)
         {
-            _currentTransform.X = e.Vector.X;
-            _currentTransform.Y = e.Vector.Y;
-
-            // Calculate new position relative to the grid
-            var currentPos = vm.GridToPixels(widget.Position);
-            var newX = currentPos.x + e.Vector.X;
-            var newY = currentPos.y + e.Vector.Y;
-
-            vm.UpdateGhostPosition(widget, newX, newY);
+            ViewModel?.CompleteDrag();
+            e.Handled = true;
         }
+
+        e.Pointer.Capture(null);
     }
 
-    private void OnWidgetDragCompleted(object? sender, VectorEventArgs e)
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
-        if (sender is WidgetContainer container &&
-            container.DataContext is DashboardWidgetViewModel widget &&
-            DataContext is OverviewViewModel vm)
-        {
-            // Find the ContentPresenter that hosts this item (so we can disable its position transition)
-            var contentPresenter = container.FindAncestorOfType<ContentPresenter>();
+        base.OnPointerCaptureLost(e);
 
-            // Disable position transition so the widget doesn't snap back to start then animate to end
-            Transitions? savedTransitions = null;
-            if (contentPresenter != null)
+        var wasDragging = _isDragging;
+        ResetDragState();
+
+        if (wasDragging)
+            ViewModel?.CancelDrag();
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && ViewModel is { IsEditMode: true } vm)
+        {
+            if (_isDragging)
             {
-                savedTransitions = contentPresenter.Transitions;
-                contentPresenter.Transitions = null;
+                var pointer = _pointer;
+                ResetDragState();
+                vm.CancelDrag();
+                pointer?.Capture(null);
+            }
+            else
+            {
+                vm.CancelEditCommand.Execute(null);
             }
 
-            // Reset ZIndex
-            container.SetValue(Canvas.ZIndexProperty, 10);
-
-            // Update position first (while transition is disabled), then clear transform
-            if (vm.IsGhostVisible && vm.GhostWidget != null)
-            {
-                var newGridPos = vm.GhostWidget.Position;
-
-                if (newGridPos.Column != widget.Position.Column || newGridPos.Row != widget.Position.Row)
-                {
-                    vm.TryMoveWidget(widget, newGridPos);
-                }
-            }
-
-            container.RenderTransform = null;
-            _currentTransform = null;
-
-            // Restore transition for future layout changes
-            if (contentPresenter != null && savedTransitions != null)
-            {
-                contentPresenter.Transitions = savedTransitions;
-            }
-
-            vm.IsGhostVisible = false;
-            vm.GhostLeftPixels = 0;
-            vm.GhostTopPixels = 0;
+            e.Handled = true;
+            return;
         }
+
+        base.OnKeyDown(e);
     }
 
-    private void OnWidgetDragCancelled(object? sender, RoutedEventArgs e)
+    private void ResetDragState()
     {
-        // Pointer capture was lost unexpectedly (e.g. window lost focus during drag).
-        // The WidgetContainer already cleared its own RenderTransform and called Widget.CancelDrag().
-        // We just need to hide the ghost and release the shared transform reference.
-        _currentTransform = null;
-
-        if (DataContext is OverviewViewModel vm)
-        {
-            vm.IsGhostVisible = false;
-            vm.GhostLeftPixels = 0;
-            vm.GhostTopPixels = 0;
-        }
+        _pressedHost = null;
+        _pointer = null;
+        _isDragging = false;
     }
 
-    private void OnWidgetRemoveRequested(object? sender, RoutedEventArgs e)
+    /// <summary>
+    /// Resolves a pointer-press source to the widget tile whose drag handle was pressed,
+    /// or null when the press landed anywhere else.
+    /// </summary>
+    private WidgetHostViewModel? FindDraggedHost(object? source)
     {
-        if (sender is WidgetContainer container && container.Widget != null && DataContext is OverviewViewModel vm)
+        var visual = source as Visual;
+        var withinHandle = false;
+
+        while (visual != null && visual != this)
         {
-            vm.RemoveWidget(container.Widget);
+            if (visual is Border { Name: WidgetHostView.DragHandleName })
+                withinHandle = true;
+
+            if (visual is WidgetHostView tile)
+                return withinHandle ? tile.DataContext as WidgetHostViewModel : null;
+
+            visual = visual.GetVisualParent();
         }
+
+        return null;
     }
 }

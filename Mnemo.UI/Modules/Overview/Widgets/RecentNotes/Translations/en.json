@@ -2,10 +2,12 @@
   "RecentNotes": {
     "Title": "Recent Notes",
     "Description": "Notes you edited most recently",
-    "GalleryDescription": "Jump back into the notes you touched last.",
-    "TagNotes": "#notes",
-    "TagRecent": "#recent",
-    "Open": "Open",
-    "Untitled": "Untitled"
+    "Untitled": "Untitled",
+    "EmptyWindow": "No notes in this period",
+    "SettingDaysToShow": "Days to show",
+    "SettingSortBy": "Sort by",
+    "SettingSortByDate": "Created date",
+    "SettingSortByModified": "Last edited",
+    "SettingLimit": "Number of notes"
   }
 }

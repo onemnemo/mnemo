@@ -2,11 +2,14 @@
   "StudyGoals": {
     "Title": "Study Goals",
     "Description": "Track your daily study goals and progress",
-    "GalleryDescription": "Daily progress for cards, sessions, and study minutes.",
-    "TagGoals": "#goals",
-    "TagProgress": "#progress",
     "CardsReviewed": "Cards reviewed",
     "SessionsCompleted": "Sessions completed",
-    "MinutesStudied": "Minutes studied"
+    "MinutesStudied": "Minutes studied",
+    "SettingGoalType": "Goal window",
+    "SettingGoalTypeDaily": "Daily",
+    "SettingGoalTypeWeekly": "Weekly",
+    "SettingMetric": "Primary metric",
+    "SettingMetricCards": "Cards",
+    "SettingMetricMinutes": "Minutes"
   }
 }

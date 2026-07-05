@@ -1,19 +1,26 @@
 {
   "UsageSummary": {
     "Title": "Usage",
-    "Description": "Launches, notes created, and time on screen today",
-    "GalleryDescription": "At-a-glance usage: sessions, notes activity, and screen time signals for today.",
-    "TagUsage": "#usage",
-    "TagStats": "#stats",
+    "Description": "Launches, notes created, and screen time",
     "Launches": "App launches (lifetime)",
     "NotesCreated": "Notes created (lifetime)",
-    "PracticeToday": "Study timer today",
-    "NotesToday": "Notes screen today",
-    "FlashcardsToday": "Flashcards screen today",
-    "None": "—",
+    "CardsReviewedMetric": "Cards reviewed",
+    "TimeSpentMetric": "Time spent",
+    "Practice": "Study timer",
+    "NotesEditor": "Notes screen",
+    "FlashcardsArea": "Flashcards screen",
+    "LabelWithPeriod": "{0} · {1}d",
     "DurationSeconds": "{0}s",
     "DurationMinutes": "{0} min",
     "DurationHoursMinutes": "{0}h {1}m",
-    "DurationHours": "{0}h"
+    "DurationHours": "{0}h",
+    "SettingPeriod": "Period",
+    "SettingPeriod7": "Last 7 days",
+    "SettingPeriod14": "Last 14 days",
+    "SettingPeriod30": "Last 30 days",
+    "SettingPeriod90": "Last 90 days",
+    "SettingMetric": "Headline metric",
+    "SettingMetricReviews": "Cards reviewed",
+    "SettingMetricTime": "Time spent"
   }
 }

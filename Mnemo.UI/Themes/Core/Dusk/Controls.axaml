@@ -104,6 +104,8 @@
     <SolidColorBrush x:Key="CardBackgroundPrimaryBrush" Color="{DynamicResource CardBackgroundPrimary}"/>
     <SolidColorBrush x:Key="CardBackgroundSecondaryBrush" Color="{DynamicResource CardBackgroundSecondary}"/>
     <SolidColorBrush x:Key="AccentBrush" Color="{DynamicResource Accent}"/>
+    <SolidColorBrush x:Key="AccentSubtleBackgroundBrush" Color="{DynamicResource AccentSubtleBackground}"/>
+    <SolidColorBrush x:Key="AccentBorderSubtleBrush" Color="{DynamicResource AccentBorderSubtle}"/>
     <SolidColorBrush x:Key="QuickActionCardBackgroundBrush" Color="{DynamicResource QuickActionCardBackground}"/>
     <SolidColorBrush x:Key="CardIconBackgroundBrush" Color="{DynamicResource CardIconBackground}"/>
     <SolidColorBrush x:Key="LearnCardBackgroundBrush" Color="{DynamicResource LearnCardBackground}"/>

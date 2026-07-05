@@ -2,11 +2,14 @@
   "StudyGoals": {
     "Title": "Metas de estudio",
     "Description": "Haz un seguimiento de tus objetivos y progreso diario",
-    "GalleryDescription": "Progreso diario de tarjetas, sesiones y minutos de estudio.",
-    "TagGoals": "#objetivos",
-    "TagProgress": "#progreso",
     "CardsReviewed": "Tarjetas repasadas",
     "SessionsCompleted": "Sesiones completadas",
-    "MinutesStudied": "Minutos de estudio"
+    "MinutesStudied": "Minutos de estudio",
+    "SettingGoalType": "Período del objetivo",
+    "SettingGoalTypeDaily": "Diario",
+    "SettingGoalTypeWeekly": "Semanal",
+    "SettingMetric": "Métrica principal",
+    "SettingMetricCards": "Tarjetas",
+    "SettingMetricMinutes": "Minutos"
   }
 }

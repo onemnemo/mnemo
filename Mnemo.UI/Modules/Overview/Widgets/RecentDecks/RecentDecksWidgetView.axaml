@@ -3,19 +3,15 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:Mnemo.UI.Modules.Overview.Widgets.RecentDecks"
-             xmlns:controls="using:Mnemo.UI.Controls"
+             xmlns:markup="using:Mnemo.UI.Markup"
              mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="240"
              x:Class="Mnemo.UI.Modules.Overview.Widgets.RecentDecks.RecentDecksWidgetView"
              x:Name="Root"
              x:DataType="vm:RecentDecksWidgetViewModel"
              HorizontalAlignment="Stretch">
 
-    <Grid RowDefinitions="*" HorizontalAlignment="Stretch" MinWidth="0">
-        <!-- Header removed to avoid duplication with WidgetContainer header -->
-        
-        <!-- Recent Decks List -->
-        <ScrollViewer Grid.Row="0"
-                      HorizontalAlignment="Stretch"
+    <Grid HorizontalAlignment="Stretch" MinWidth="0">
+        <ScrollViewer HorizontalAlignment="Stretch"
                       HorizontalContentAlignment="Stretch"
                       VerticalContentAlignment="Top"
                       VerticalScrollBarVisibility="Hidden"
@@ -35,69 +31,63 @@
                 </ItemsControl.Styles>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="vm:RecentDeckItem">
-                        <Button Background="Transparent"
-                                BorderThickness="0"
-                                Padding="{DynamicResource ListRowPadding}"
-                                Margin="0,0,0,8"
-                                CornerRadius="{DynamicResource Radius.Md}"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Stretch"
-                                MinWidth="0"
-                                Cursor="Hand"
-                                Command="{Binding #Root.DataContext.OpenDeckCommand}"
-                                CommandParameter="{Binding DeckId}">
-                            <Button.Styles>
-                                <Style Selector="Button:pointerover /template/ ContentPresenter">
-                                    <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
-                                </Style>
-                            </Button.Styles>
-
-                            <Grid ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch" MinWidth="0">
-                                <!-- Icon: tinted tile with accent glyph (list-row icon pattern) -->
-                                <Border Grid.Column="0"
-                                        Background="{DynamicResource CardIconBackgroundBrush}"
-                                        Width="36"
-                                        Height="36"
-                                        CornerRadius="{DynamicResource Radius.Md}"
-                                        Margin="0,0,12,0">
-                                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/book.svg"
-                                                      Width="18" Height="18"
-                                                      Color="{DynamicResource AccentBrush}"
-                                                      HorizontalAlignment="Center"
-                                                      VerticalAlignment="Center"/>
-                                </Border>
-
-                                <!-- Deck Info -->
-                                <StackPanel Grid.Column="1"
-                                            VerticalAlignment="Center"
-                                            HorizontalAlignment="Stretch"
-                                            MinWidth="0"
-                                            Spacing="0">
-                                    <TextBlock Text="{Binding Name}"
+                        <!-- Flat row: name · meta left, last-practiced right, hairline above -->
+                        <Border BorderBrush="{DynamicResource DividerSubtleBrush}"
+                                BorderThickness="0,1,0,0">
+                            <Button Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="4,0"
+                                    MinHeight="34"
+                                    CornerRadius="{DynamicResource Radius.Sm}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    MinWidth="0"
+                                    Cursor="Hand"
+                                    Command="{Binding #Root.DataContext.OpenDeckCommand}"
+                                    CommandParameter="{Binding DeckId}">
+                                <Button.Styles>
+                                    <Style Selector="Button:pointerover /template/ ContentPresenter">
+                                        <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
+                                    </Style>
+                                </Button.Styles>
+                                <Grid ColumnDefinitions="*,Auto,Auto" HorizontalAlignment="Stretch" MinWidth="0">
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding Name}"
                                                FontSize="{DynamicResource FontSize.Body.Small}"
-                                               FontFamily="{DynamicResource Font.SemiBold}"
+                                               FontFamily="{DynamicResource Font.Medium}"
                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                               VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{Binding MetaText}"
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding MetaText}"
                                                FontSize="{DynamicResource FontSize.Caption}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                               Margin="0,2,0,0"
+                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0,0,0"
                                                TextTrimming="CharacterEllipsis"/>
-                                </StackPanel>
-
-                                <!-- Last Practiced -->
-                                <TextBlock Grid.Column="2"
-                                           Text="{Binding LastPracticedText}"
-                                           FontSize="{DynamicResource FontSize.Caption}"
-                                           Foreground="{DynamicResource TextTertiaryBrush}"
-                                           VerticalAlignment="Center"
-                                           Margin="12,0,0,0"
-                                           TextTrimming="CharacterEllipsis"/>
-                            </Grid>
-                        </Button>
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding LastPracticedText}"
+                                               FontSize="{DynamicResource FontSize.Caption}"
+                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0,0,0"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </Button>
+                        </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
+
+        <!-- Empty window state: nothing practiced within the configured period -->
+        <TextBlock IsVisible="{Binding IsEmpty}"
+                   Text="{markup:T Ns=RecentDecks, Key=EmptyWindow}"
+                   FontSize="{DynamicResource FontSize.Body.Small}"
+                   Foreground="{DynamicResource TextTertiaryBrush}"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   TextAlignment="Center"/>
     </Grid>
 </UserControl>

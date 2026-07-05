@@ -69,6 +69,9 @@
     <Color x:Key="CardBackgroundSecondary">#F1F0EC</Color>
     <!-- Single per-theme accent (icons, highlights, primary CTA) -->
     <Color x:Key="Accent">#C64F33</Color>
+    <!-- Accent tint ramp: subtle fills (selected chips, tinted tiles) and soft borders -->
+    <Color x:Key="AccentSubtleBackground">#F8E9E4</Color>
+    <Color x:Key="AccentBorderSubtle">#DCC7BE</Color>
     <Color x:Key="QuickActionCardBackground">#EDECE6</Color>
     <Color x:Key="LearnCardBackground">#F1F0EC</Color>
     <Color x:Key="LearnCardTitleColor">#1D1C1A</Color>

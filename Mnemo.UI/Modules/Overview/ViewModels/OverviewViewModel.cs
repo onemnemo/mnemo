@@ -1,187 +1,601 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using Avalonia;
+using System.Globalization;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mnemo.Core.Models.Widgets;
 using Mnemo.Core.Services;
-using Mnemo.UI.Modules.Overview.Models;
 using Mnemo.UI.Modules.Overview.Views;
 using Mnemo.UI.ViewModels;
-using System.Threading;
 
 namespace Mnemo.UI.Modules.Overview.ViewModels;
 
 /// <summary>
-/// ViewModel for the Overview dashboard.
-/// Manages the grid layout, widget positions, and drag-and-drop behavior.
+/// ViewModel for the Overview dashboard: an ordered widget board packed by
+/// <see cref="IWidgetLayoutEngine"/>. Edit mode operates on the live board as a draft —
+/// entering edit snapshots the committed layout, Done persists the board, Cancel (or leaving
+/// the page) restores the snapshot. Placement is order + span only; positions are computed.
 /// </summary>
-public partial class OverviewViewModel : ViewModelBase, INavigationAware
+public partial class OverviewViewModel : ViewModelBase, INavigationAware, IWidgetBoardHost, IDisposable
 {
-    private const string LayoutStorageKey = "overview_dashboard_layout";
     private const string UserDisplayNameKey = "User.DisplayName";
-    private const string UserProfilePictureKey = "User.ProfilePicture";
+
+    private static readonly string[] DefaultWidgetIds =
+    [
+        "mnemo.flashcard-stats",
+        "mnemo.recent-decks",
+        "mnemo.recent-notes"
+    ];
 
     private readonly IWidgetRegistry _widgetRegistry;
+    private readonly IOverviewLayoutStore _layoutStore;
+    private readonly IWidgetContext _widgetContext;
+    private readonly IWidgetLayoutEngine _layoutEngine;
     private readonly IOverlayService _overlayService;
-    private readonly IStorageProvider _storage;
     private readonly ISettingsService _settingsService;
     private readonly ILocalizationService _localizationService;
+    private readonly IDateDisplayService _dateDisplayService;
     private readonly ILoggerService _logger;
 
-    // Ensures concurrent save requests cannot race each other.
-    // Each save snapshots Widgets at execution time so the last save always reflects the latest state.
+    // Serializes saves so a queued fire-and-forget save can never overwrite a newer one.
     private readonly SemaphoreSlim _saveSemaphore = new(1, 1);
 
-    /// <summary>
-    /// Gets the collection of active widgets on the dashboard.
-    /// </summary>
-    public ObservableCollection<DashboardWidgetViewModel> Widgets { get; } = new();
+    private readonly EventHandler _languageChangedHandler;
 
-    /// <summary>
-    /// Gets or sets whether edit mode is enabled (allows dragging).
-    /// </summary>
+    private OverviewLayout? _editSnapshot;
+    private WidgetHostViewModel? _draggedHost;
+    private int _dragOriginIndex = -1;
+    private string? _libraryOverlayId;
+    private WidgetLibraryViewModel? _libraryViewModel;
+    private bool _isDisposed;
+
+    /// <summary>Widget tiles in board order. Order in this collection is the persisted order.</summary>
+    public ObservableCollection<WidgetHostViewModel> Widgets { get; } = new();
+
+    /// <summary>Packing engine handed to the board panel; all placement math goes through it.</summary>
+    public IWidgetLayoutEngine LayoutEngine => _layoutEngine;
+
     [ObservableProperty]
     private bool _isEditMode;
 
-    /// <summary>
-    /// Gets the ghost widget used for drag-and-drop feedback.
-    /// </summary>
-    [ObservableProperty]
-    private DashboardWidgetViewModel? _ghostWidget;
-
-    /// <summary>
-    /// Gets or sets whether the ghost widget is visible.
-    /// </summary>
+    // Floating drag ghost (follows the pointer; the tile's own slot renders the drop affordance).
     [ObservableProperty]
     private bool _isGhostVisible;
 
-    /// <summary>
-    /// Gets or sets the ghost width in pixels (matches dragged widget size).
-    /// </summary>
     [ObservableProperty]
-    private double _ghostWidthPixels;
+    private double _ghostX;
 
-    /// <summary>
-    /// Gets or sets the ghost height in pixels (matches dragged widget size).
-    /// </summary>
     [ObservableProperty]
-    private double _ghostHeightPixels;
+    private double _ghostY;
 
-    /// <summary>
-    /// Gets or sets the ghost left position in pixels (avoids binding to GhostWidget when null).
-    /// </summary>
     [ObservableProperty]
-    private double _ghostLeftPixels;
+    private string _ghostTitle = string.Empty;
 
-    /// <summary>
-    /// Gets or sets the ghost top position in pixels (avoids binding to GhostWidget when null).
-    /// </summary>
     [ObservableProperty]
-    private double _ghostTopPixels;
+    private string _ghostSizeLabel = string.Empty;
 
-    /// <summary>
-    /// Gets the calculated width for each grid cell.
-    /// </summary>
-    public int GridCellWidth => OverviewGridConstants.CellWidth;
-
-    /// <summary>
-    /// Gets the calculated height for each grid cell.
-    /// </summary>
-    public int GridCellHeight => OverviewGridConstants.CellHeight;
-
-    /// <summary>
-    /// Gets the spacing between grid cells.
-    /// </summary>
-    public int GridSpacing => OverviewGridConstants.CellSpacing;
-
-    /// <summary>
-    /// Gets the user's display name for the greeting.
-    /// </summary>
     [ObservableProperty]
     private string _userName = string.Empty;
 
-    /// <summary>
-    /// Gets the user's profile picture path.
-    /// </summary>
-    [ObservableProperty]
-    private string _profilePicturePath = "avares://Mnemo.UI/Assets/ProfilePictures/img2.png";
 
-    /// <summary>
-    /// Gets the name to show in the greeting (user name or "there" when empty), trimmed.
-    /// </summary>
-    public string GreetingName => string.IsNullOrWhiteSpace(UserName) ? "there" : UserName.Trim();
-
-    /// <summary>
-    /// True after the dashboard layout (and widgets) have been loaded; used to avoid showing "empty" state while loading.
-    /// </summary>
+    /// <summary>True after the board has been loaded; avoids flashing the empty state during load.</summary>
     [ObservableProperty]
     private bool _isLayoutLoaded;
 
-    /// <summary>
-    /// True after the user profile (name, picture) has been loaded; used to avoid greeting flicker.
-    /// </summary>
+    /// <summary>True after the user profile has been loaded; avoids greeting flicker.</summary>
     [ObservableProperty]
     private bool _isProfileLoaded;
 
-    /// <summary>
-    /// True when layout is loaded and there are no widgets; only then show the empty state.
-    /// </summary>
-    public bool ShowEmptyState => IsLayoutLoaded && Widgets.Count == 0;
+    /// <summary>Show the empty state only when loaded, empty, and not editing.</summary>
+    public bool ShowEmptyState => IsLayoutLoaded && Widgets.Count == 0 && !IsEditMode;
 
     /// <summary>
-    /// Greeting text: shows "Hello…" while profile is loading, then "Hello, {name}!".
+    /// Time-of-day greeting, e.g. "Good evening, O. Malley". Uses the name-less variant when
+    /// no display name is set (natural in every language). Empty until the profile is loaded.
     /// </summary>
-    public string GreetingText => !IsProfileLoaded
-        ? _localizationService.T("HelloLoading", "Overview")
-        : string.Format(_localizationService.T("GreetingFormat", "Overview"), GreetingName);
+    public string GreetingText
+    {
+        get
+        {
+            if (!IsProfileLoaded)
+                return string.Empty;
 
-    public OverviewViewModel(IWidgetRegistry widgetRegistry, IOverlayService overlayService, IStorageProvider storage, ISettingsService settingsService, ILocalizationService localizationService, ILoggerService logger)
+            var key = DateTime.Now.Hour switch
+            {
+                >= 5 and < 12 => "GreetingMorning",
+                >= 12 and < 18 => "GreetingAfternoon",
+                _ => "GreetingEvening"
+            };
+
+            return string.IsNullOrWhiteSpace(UserName)
+                ? _localizationService.T(key + "Short", "Overview")
+                : string.Format(CultureInfo.CurrentCulture, _localizationService.T(key, "Overview"), UserName.Trim());
+        }
+    }
+
+    /// <summary>Today's date line under the greeting, e.g. "Thursday, July 3".</summary>
+    public string DateHeading => _dateDisplayService.FormatDayHeading(DateTime.Now);
+
+    public OverviewViewModel(
+        IWidgetRegistry widgetRegistry,
+        IOverviewLayoutStore layoutStore,
+        IWidgetContext widgetContext,
+        IWidgetLayoutEngine layoutEngine,
+        IOverlayService overlayService,
+        ISettingsService settingsService,
+        ILocalizationService localizationService,
+        IDateDisplayService dateDisplayService,
+        ILoggerService logger)
     {
         _widgetRegistry = widgetRegistry;
+        _layoutStore = layoutStore;
+        _widgetContext = widgetContext;
+        _layoutEngine = layoutEngine;
         _overlayService = overlayService;
-        _storage = storage;
         _settingsService = settingsService;
         _localizationService = localizationService;
+        _dateDisplayService = dateDisplayService;
         _logger = logger;
 
         _settingsService.SettingChanged += OnSettingChanged;
-        _localizationService.LanguageChanged += (_, _) => OnPropertyChanged(nameof(GreetingText));
+        _languageChangedHandler = (_, _) =>
+        {
+            OnPropertyChanged(nameof(GreetingText));
+            OnPropertyChanged(nameof(DateHeading));
+        };
+        _localizationService.LanguageChanged += _languageChangedHandler;
         Widgets.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowEmptyState));
-        RunAndLogAsync(LoadLayoutAsync(), "load dashboard layout");
+
+        RunAndLogAsync(LoadLayoutAsync(), "load overview layout");
         RunAndLogAsync(LoadUserProfileAsync(), "load user profile");
     }
 
-    /// <summary>
-    /// Reloads widget data when the user returns to Overview so statistics and lists stay current.
-    /// </summary>
+    /// <summary>Reloads widget data when the user returns to Overview so statistics stay current.</summary>
     public void OnNavigatedTo(object? parameter)
     {
-        RunAndLogAsync(RefreshWidgetsAsync(), "refresh dashboard widgets");
+        RunAndLogAsync(RefreshWidgetsAsync(), "refresh overview widgets");
+    }
+
+    // ----- Loading -----
+
+    private async Task LoadLayoutAsync()
+    {
+        var result = await _layoutStore.LoadAsync().ConfigureAwait(false);
+
+        await Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            if (!result.IsSuccess)
+            {
+                // Do not seed defaults over a load failure — that could clobber a real layout.
+                _logger.Error("Overview", $"Failed to load overview layout: {result.ErrorMessage}", result.Exception);
+                IsLayoutLoaded = true;
+                return;
+            }
+
+            var layout = result.Value;
+            var seededDefaults = layout == null;
+            layout ??= CreateDefaultLayout();
+
+            await PopulateBoardAsync(layout);
+            IsLayoutLoaded = true;
+
+            if (seededDefaults)
+                RunAndLogAsync(SaveBoardAsync(), "save default overview layout");
+        });
+    }
+
+    private OverviewLayout CreateDefaultLayout()
+    {
+        var layout = new OverviewLayout();
+        foreach (var widgetId in DefaultWidgetIds)
+        {
+            var manifest = _widgetRegistry.GetDescriptor(widgetId)?.Manifest;
+            if (manifest == null)
+                continue;
+
+            layout.Widgets.Add(new WidgetInstance
+            {
+                WidgetId = widgetId,
+                Size = manifest.DefaultSize,
+                Order = layout.Widgets.Count,
+                Settings = manifest.CreateDefaultSettings()
+            });
+        }
+
+        return layout;
+    }
+
+    /// <summary>Rebuilds the board from a layout. Must run on the UI thread.</summary>
+    private async Task PopulateBoardAsync(OverviewLayout layout)
+    {
+        DisposeHosts();
+        Widgets.Clear();
+
+        foreach (var instance in layout.Widgets.OrderBy(w => w.Order))
+        {
+            var host = await CreateHostAsync(instance.Clone());
+            host.IsEditMode = IsEditMode;
+            Widgets.Add(host);
+        }
+
+        foreach (var host in Widgets.ToList())
+            await InitializeHostContentAsync(host);
+    }
+
+    private async Task<WidgetHostViewModel> CreateHostAsync(WidgetInstance instance)
+    {
+        var descriptor = _widgetRegistry.GetDescriptor(instance.WidgetId);
+        if (descriptor == null)
+        {
+            _logger.Warning("Overview", $"No descriptor registered for widget '{instance.WidgetId}'; showing unavailable placeholder.");
+            return new WidgetHostViewModel(instance, null, null, this);
+        }
+
+        try
+        {
+            var content = await descriptor.CreateViewModelAsync(instance, _widgetContext);
+            return new WidgetHostViewModel(instance, descriptor.Manifest, content, this);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Overview", $"Creating widget '{instance.WidgetId}' failed; showing unavailable placeholder.", ex);
+            return new WidgetHostViewModel(instance, descriptor.Manifest, null, this);
+        }
+    }
+
+    private async Task InitializeHostContentAsync(WidgetHostViewModel host)
+    {
+        if (host.Content == null)
+            return;
+
+        try
+        {
+            await host.Content.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Overview", $"Initializing widget '{host.Instance.WidgetId}' failed.", ex);
+        }
     }
 
     private async Task RefreshWidgetsAsync()
     {
-        var snapshot = Widgets.ToList();
         await Dispatcher.UIThread.InvokeAsync(async () =>
         {
-            foreach (var widget in snapshot)
+            foreach (var host in Widgets.ToList())
             {
+                if (host.Content == null)
+                    continue;
+
                 try
                 {
-                    await widget.Content.InitializeAsync().ConfigureAwait(true);
+                    await host.Content.RefreshAsync();
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error("Overview", $"Failed to refresh widget '{widget.WidgetId}'.", ex);
+                    _logger.Error("Overview", $"Refreshing widget '{host.Instance.WidgetId}' failed.", ex);
                 }
             }
         });
     }
 
-    /// <summary>
-    /// Runs an async operation without blocking; logs any exception at the boundary.
-    /// </summary>
+    // ----- Persistence -----
+
+    private OverviewLayout BuildLayoutFromBoard()
+    {
+        var layout = new OverviewLayout();
+        for (var i = 0; i < Widgets.Count; i++)
+        {
+            var instance = Widgets[i].Instance.Clone();
+            instance.Order = i;
+            layout.Widgets.Add(instance);
+        }
+
+        return layout;
+    }
+
+    private async Task SaveBoardAsync()
+    {
+        await _saveSemaphore.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            // Snapshot on the UI thread so the layout reflects consistent, current state.
+            var layout = await Dispatcher.UIThread.InvokeAsync(BuildLayoutFromBoard);
+            var result = await _layoutStore.SaveAsync(layout).ConfigureAwait(false);
+            if (!result.IsSuccess)
+                _logger.Error("Overview", $"Failed to save overview layout: {result.ErrorMessage}", result.Exception);
+        }
+        finally
+        {
+            _saveSemaphore.Release();
+        }
+    }
+
+    // ----- Edit session (draft semantics) -----
+
+    [RelayCommand]
+    private void EnterEdit()
+    {
+        if (IsEditMode)
+            return;
+
+        _editSnapshot = BuildLayoutFromBoard();
+        IsEditMode = true;
+        SyncEditModeToWidgets();
+    }
+
+    [RelayCommand]
+    private void Done()
+    {
+        if (!IsEditMode)
+            return;
+
+        CancelDrag();
+        IsEditMode = false;
+        SyncEditModeToWidgets();
+        _editSnapshot = null;
+        CloseLibrary();
+        RunAndLogAsync(SaveBoardAsync(), "save overview layout");
+    }
+
+    [RelayCommand]
+    private void CancelEdit()
+    {
+        if (!IsEditMode)
+            return;
+
+        CancelDrag();
+        IsEditMode = false;
+        SyncEditModeToWidgets();
+        CloseLibrary();
+
+        var snapshot = _editSnapshot;
+        _editSnapshot = null;
+        if (snapshot != null)
+            RunAndLogAsync(PopulateBoardAsync(snapshot), "restore overview layout draft");
+    }
+
+    private void SyncEditModeToWidgets()
+    {
+        foreach (var host in Widgets)
+            host.IsEditMode = IsEditMode;
+    }
+
+    partial void OnIsEditModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowEmptyState));
+    }
+
+    partial void OnIsLayoutLoadedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowEmptyState));
+    }
+
+    // ----- Widget library -----
+
+    [RelayCommand]
+    private void OpenWidgetLibrary()
+    {
+        if (!IsEditMode)
+            EnterEdit();
+
+        if (_libraryOverlayId != null)
+            return;
+
+        var viewModel = new WidgetLibraryViewModel(_widgetRegistry, _localizationService, _overlayService, this);
+        var view = new WidgetLibraryView { DataContext = viewModel };
+
+        var options = new OverlayOptions
+        {
+            ShowBackdrop = false,
+            CloseOnOutsideClick = false,
+            CloseOnEscape = true,
+            HorizontalAlignment = "Right",
+            VerticalAlignment = "Stretch",
+            Margin = "16"
+        };
+
+        _libraryViewModel = viewModel;
+        _libraryOverlayId = _overlayService.CreateOverlay(view, options);
+        viewModel.OverlayId = _libraryOverlayId;
+        viewModel.Closed += OnLibraryClosed;
+    }
+
+    private void OnLibraryClosed(object? sender, EventArgs e)
+    {
+        _libraryOverlayId = null;
+        if (_libraryViewModel != null)
+        {
+            _libraryViewModel.Closed -= OnLibraryClosed;
+            _libraryViewModel.Detach();
+            _libraryViewModel = null;
+        }
+    }
+
+    private void CloseLibrary()
+    {
+        if (_libraryOverlayId != null)
+            _overlayService.CloseOverlay(_libraryOverlayId);
+    }
+
+    /// <summary>Adds a new instance of the given widget type with manifest defaults (library "Add").</summary>
+    public async Task AddWidgetAsync(WidgetManifest manifest)
+    {
+        var instance = new WidgetInstance
+        {
+            WidgetId = manifest.WidgetId,
+            Size = manifest.DefaultSize,
+            Order = Widgets.Count,
+            Settings = manifest.CreateDefaultSettings()
+        };
+
+        var host = await CreateHostAsync(instance);
+        host.IsEditMode = IsEditMode;
+        Widgets.Add(host);
+        await InitializeHostContentAsync(host);
+
+        if (!IsEditMode)
+            RunAndLogAsync(SaveBoardAsync(), "save overview layout");
+    }
+
+    // ----- IWidgetBoardHost -----
+
+    public void RequestRemove(WidgetHostViewModel host)
+    {
+        host.Content?.Dispose();
+        Widgets.Remove(host);
+
+        // In edit mode removal is part of the draft (persisted by Done, undone by Cancel);
+        // outside it (unavailable-widget placeholder) the removal commits immediately.
+        if (!IsEditMode)
+            RunAndLogAsync(SaveBoardAsync(), "save overview layout");
+    }
+
+    public void RequestResize(WidgetHostViewModel host, WidgetSize size)
+    {
+        if (host.Manifest == null || !host.Manifest.SupportedSizes.Contains(size))
+            return;
+
+        host.Size = size;
+
+        if (!IsEditMode)
+            RunAndLogAsync(SaveBoardAsync(), "save overview layout");
+    }
+
+    public async Task RequestConfigureAsync(WidgetHostViewModel host)
+    {
+        if (host.Manifest == null || host.Content is not IWidgetConfigurable configurable)
+            return;
+
+        var currentValues = await configurable.GetConfigAsync();
+        var viewModel = new WidgetConfigViewModel(
+            host.Manifest,
+            currentValues,
+            _localizationService,
+            applyAsync: async values =>
+            {
+                await configurable.SetConfigAsync(values);
+                foreach (var (key, value) in values)
+                    host.Instance.Settings[key] = value;
+
+                if (!IsEditMode)
+                    RunAndLogAsync(SaveBoardAsync(), "save overview layout");
+            });
+
+        var view = new WidgetConfigView { DataContext = viewModel };
+        var options = new OverlayOptions
+        {
+            ShowBackdrop = true,
+            CloseOnOutsideClick = true,
+            HorizontalAlignment = "Center",
+            VerticalAlignment = "Center"
+        };
+
+        var overlayId = _overlayService.CreateOverlay(view, options);
+        viewModel.AttachOverlay(_overlayService, overlayId);
+    }
+
+    // ----- Drag reordering (input translated by the view; decisions stay here + engine) -----
+
+    public void BeginDrag(WidgetHostViewModel host)
+    {
+        _draggedHost = host;
+        _dragOriginIndex = Widgets.IndexOf(host);
+        host.IsDragging = true;
+
+        GhostTitle = ResolveTitle(host);
+        GhostSizeLabel = host.SizeLabel;
+        IsGhostVisible = true;
+    }
+
+    /// <summary>Moves the dragged tile's slot to the insertion index computed from the pointer.</summary>
+    public void UpdateDragTarget(int insertionIndex)
+    {
+        if (_draggedHost == null)
+            return;
+
+        var currentIndex = Widgets.IndexOf(_draggedHost);
+        if (currentIndex < 0)
+            return;
+
+        insertionIndex = Math.Clamp(insertionIndex, 0, Widgets.Count - 1);
+        if (insertionIndex != currentIndex)
+            Widgets.Move(currentIndex, insertionIndex);
+    }
+
+    public void UpdateGhostPosition(double x, double y)
+    {
+        GhostX = x;
+        GhostY = y;
+    }
+
+    public void CompleteDrag()
+    {
+        if (_draggedHost != null)
+            _draggedHost.IsDragging = false;
+
+        _draggedHost = null;
+        _dragOriginIndex = -1;
+        IsGhostVisible = false;
+        // Order is part of the edit draft; Done persists it.
+    }
+
+    public void CancelDrag()
+    {
+        if (_draggedHost != null)
+        {
+            _draggedHost.IsDragging = false;
+            var currentIndex = Widgets.IndexOf(_draggedHost);
+            if (currentIndex >= 0 && _dragOriginIndex >= 0 && _dragOriginIndex < Widgets.Count && currentIndex != _dragOriginIndex)
+                Widgets.Move(currentIndex, _dragOriginIndex);
+        }
+
+        _draggedHost = null;
+        _dragOriginIndex = -1;
+        IsGhostVisible = false;
+    }
+
+    private string ResolveTitle(WidgetHostViewModel host)
+    {
+        if (host.Manifest == null)
+            return host.Instance.WidgetId;
+        return _localizationService.T(host.Manifest.DisplayNameKey, host.Manifest.TranslationNamespace);
+    }
+
+    // ----- Profile / greeting -----
+
+    private void OnSettingChanged(object? sender, string key)
+    {
+        if (key == UserDisplayNameKey)
+            RunAndLogAsync(LoadUserProfileAsync(), "reload user profile");
+    }
+
+    private async Task LoadUserProfileAsync()
+    {
+        var name = await _settingsService.GetAsync(UserDisplayNameKey, string.Empty).ConfigureAwait(false);
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            UserName = name ?? string.Empty;
+            IsProfileLoaded = true;
+            OnPropertyChanged(nameof(GreetingText));
+        });
+    }
+
+    partial void OnUserNameChanged(string value)
+    {
+        if (IsProfileLoaded)
+            OnPropertyChanged(nameof(GreetingText));
+    }
+
+    // ----- Plumbing -----
+
+    /// <summary>Runs an async operation without blocking; logs any exception at the boundary.</summary>
     private async void RunAndLogAsync(Task task, string context)
     {
         try
@@ -194,332 +608,22 @@ public partial class OverviewViewModel : ViewModelBase, INavigationAware
         }
     }
 
-    private void OnSettingChanged(object? sender, string key)
+    private void DisposeHosts()
     {
-        if (key == UserDisplayNameKey || key == UserProfilePictureKey)
-            _ = LoadUserProfileAsync();
+        foreach (var host in Widgets)
+            host.Content?.Dispose();
     }
 
-    private async Task LoadUserProfileAsync()
+    public void Dispose()
     {
-        var name = await _settingsService.GetAsync(UserDisplayNameKey, string.Empty).ConfigureAwait(false);
-        var pic = await _settingsService.GetAsync(UserProfilePictureKey, "avares://Mnemo.UI/Assets/ProfilePictures/img2.png").ConfigureAwait(false);
-        
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            UserName = name ?? string.Empty;
-            ProfilePicturePath = pic ?? "avares://Mnemo.UI/Assets/ProfilePictures/img2.png";
-            IsProfileLoaded = true;
-            OnPropertyChanged(nameof(GreetingName));
-            OnPropertyChanged(nameof(GreetingText));
-        });
-    }
-
-    partial void OnUserNameChanged(string value)
-    {
-        OnPropertyChanged(nameof(GreetingName));
-        if (IsProfileLoaded)
-            OnPropertyChanged(nameof(GreetingText));
-    }
-
-    partial void OnIsLayoutLoadedChanged(bool value)
-    {
-        OnPropertyChanged(nameof(ShowEmptyState));
-    }
-
-    /// <summary>
-    /// Loads the dashboard layout from storage and restores widgets (or adds defaults if empty).
-    /// </summary>
-    private async Task LoadLayoutAsync()
-    {
-        var result = await _storage.LoadAsync<List<DashboardLayoutEntry>>(LayoutStorageKey).ConfigureAwait(false);
-        await Dispatcher.UIThread.InvokeAsync(async () =>
-        {
-            if (result.IsSuccess && result.Value is { Count: > 0 } entries)
-            {
-                foreach (var e in entries)
-                {
-                    var widget = _widgetRegistry.GetWidgetById(e.WidgetId);
-                    if (widget == null)
-                        continue;
-
-                    var size = new WidgetSize(e.ColSpan, e.RowSpan);
-                    // Saved layouts may still use older defaults (e.g. recent-notes was colSpan 2).
-                    if (string.Equals(e.WidgetId, "recent-notes", StringComparison.Ordinal)
-                        && size.ColSpan < widget.Metadata.DefaultSize.ColSpan)
-                    {
-                        size = new WidgetSize(widget.Metadata.DefaultSize.ColSpan, size.RowSpan);
-                    }
-
-                    // Skip save during restore — we're reading the already-correct stored state.
-                    await AddWidgetAsync(e.WidgetId, new WidgetPosition(e.Column, e.Row), size, saveLayout: false).ConfigureAwait(false);
-                }
-            }
-            else
-            {
-                // No saved layout: add defaults and persist once when all are ready.
-                await AddDefaultWidgetsAsync().ConfigureAwait(false);
-                RunAndLogAsync(SaveLayoutAsync(), "save default dashboard layout");
-            }
-            IsLayoutLoaded = true;
-        }).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Adds default widgets when no saved layout exists.
-    /// </summary>
-    private async Task AddDefaultWidgetsAsync()
-    {
-        await AddWidgetAsync("flashcard-stats", new WidgetPosition(0, 0), saveLayout: false).ConfigureAwait(false);
-        await AddWidgetAsync("recent-decks", new WidgetPosition(2, 0), saveLayout: false).ConfigureAwait(false);
-        await AddWidgetAsync("recent-notes", new WidgetPosition(4, 0), saveLayout: false).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Persists the current widget layout to storage.
-    /// Serialized via <see cref="_saveSemaphore"/> so that concurrent fire-and-forget calls cannot
-    /// race each other and overwrite a newer save with an older snapshot.
-    /// Widgets are snapshotted on the UI thread at the point this save actually executes,
-    /// so a queued save always captures the most up-to-date state.
-    /// </summary>
-    private async Task SaveLayoutAsync()
-    {
-        await _saveSemaphore.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            // Snapshot Widgets on the UI thread so we always read consistent, up-to-date state.
-            var entries = await Dispatcher.UIThread.InvokeAsync(() =>
-                Widgets
-                    .Where(w => w.WidgetId != "ghost")
-                    .Select(w => new DashboardLayoutEntry(w.WidgetId, w.Position.Column, w.Position.Row, w.Size.ColSpan, w.Size.RowSpan))
-                    .ToList()
-            );
-
-            await _storage.SaveAsync(LayoutStorageKey, entries).ConfigureAwait(false);
-        }
-        finally
-        {
-            _saveSemaphore.Release();
-        }
-    }
-
-    /// <summary>
-    /// Adds a widget to the dashboard at the specified position and optional size (for restore; otherwise uses default).
-    /// Pass <paramref name="saveLayout"/> as <c>false</c> when restoring from storage to avoid redundant writes.
-    /// </summary>
-    public async Task AddWidgetAsync(string widgetId, WidgetPosition position, WidgetSize? size = null, bool saveLayout = true)
-    {
-        var widget = _widgetRegistry.GetWidgetById(widgetId);
-        if (widget == null)
+        if (_isDisposed)
             return;
+        _isDisposed = true;
 
-        var widgetSize = size ?? widget.Metadata.DefaultSize;
-
-        // Check if position is valid
-        if (!IsPositionValid(position, widgetSize))
-        {
-            // Find next available position
-            var availablePosition = FindNextAvailablePosition(widgetSize);
-            if (availablePosition == null)
-                return; // No space available
-
-            position = availablePosition.Value;
-        }
-
-        var content = widget.CreateViewModel();
-        var dashboardWidget = new DashboardWidgetViewModel(
-            widgetId,
-            widget.Metadata,
-            content,
-            position,
-            widgetSize);
-
-        dashboardWidget.IsEditMode = IsEditMode;
-        Widgets.Add(dashboardWidget);
-        await content.InitializeAsync().ConfigureAwait(false);
-        if (saveLayout)
-            RunAndLogAsync(SaveLayoutAsync(), "save dashboard layout");
-    }
-
-    /// <summary>
-    /// Removes a widget from the dashboard.
-    /// </summary>
-    public void RemoveWidget(DashboardWidgetViewModel widget)
-    {
-        widget.Content.Dispose();
-        Widgets.Remove(widget);
-        RunAndLogAsync(SaveLayoutAsync(), "save dashboard layout");
-    }
-
-    /// <summary>
-    /// Checks if a position is valid (no overlap and within bounds).
-    /// </summary>
-    public bool IsPositionValid(WidgetPosition position, WidgetSize size, DashboardWidgetViewModel? excludeWidget = null)
-    {
-        // Check bounds
-        if (position.Column < 0 || position.Row < 0)
-            return false;
-
-        if (position.Column + size.ColSpan > OverviewGridConstants.GridColumns)
-            return false;
-
-        // Check overlap with other widgets
-        foreach (var widget in Widgets)
-        {
-            if (widget == excludeWidget)
-                continue;
-
-            if (DoWidgetsOverlap(position, size, widget.Position, widget.Size))
-                return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Finds the next available position for a widget of the given size.
-    /// </summary>
-    public WidgetPosition? FindNextAvailablePosition(WidgetSize size)
-    {
-        // Simple algorithm: scan row by row, column by column
-        for (int row = 0; row < 100; row++) // Arbitrary max rows
-        {
-            for (int col = 0; col <= OverviewGridConstants.GridColumns - size.ColSpan; col++)
-            {
-                var position = new WidgetPosition(col, row);
-                if (IsPositionValid(position, size))
-                    return position;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Updates the ghost widget position based on drag coordinates.
-    /// </summary>
-    public void UpdateGhostPosition(DashboardWidgetViewModel draggedWidget, double x, double y)
-    {
-        var snappedPos = SnapToGrid(x, y);
-        
-        // Only update if position changed
-        if (GhostWidget == null || !GhostWidget.Position.Equals(snappedPos))
-        {
-            // Update ghost position
-            if (GhostWidget == null)
-            {
-                // Create a lightweight ghost if it doesn't exist (reuse the dragged widget's metadata/size)
-                GhostWidget = new DashboardWidgetViewModel(
-                    "ghost",
-                    draggedWidget.Metadata,
-                    null!, // No content needed for ghost
-                    snappedPos,
-                    draggedWidget.Size);
-            }
-            else
-            {
-                GhostWidget.Position = snappedPos;
-            }
-
-            // Keep ghost pixel size and position in sync (avoids binding to GhostWidget in XAML when null)
-            GhostWidthPixels = draggedWidget.Size.ColSpan * OverviewGridConstants.CellWidth + (draggedWidget.Size.ColSpan - 1) * OverviewGridConstants.CellSpacing;
-            GhostHeightPixels = draggedWidget.Size.RowSpan * OverviewGridConstants.CellHeight + (draggedWidget.Size.RowSpan - 1) * OverviewGridConstants.CellSpacing;
-            GhostLeftPixels = snappedPos.Column * (OverviewGridConstants.CellWidth + OverviewGridConstants.CellSpacing);
-            GhostTopPixels = snappedPos.Row * (OverviewGridConstants.CellHeight + OverviewGridConstants.CellSpacing);
-
-            IsGhostVisible = IsPositionValid(snappedPos, draggedWidget.Size, draggedWidget);
-        }
-    }
-
-    /// <summary>
-    /// Snaps a pixel coordinate to the nearest grid position.
-    /// </summary>
-    public WidgetPosition SnapToGrid(double x, double y)
-    {
-        int col = (int)Math.Round(x / (OverviewGridConstants.CellWidth + OverviewGridConstants.CellSpacing));
-        int row = (int)Math.Round(y / (OverviewGridConstants.CellHeight + OverviewGridConstants.CellSpacing));
-
-        // Clamp to valid range
-        col = Math.Max(0, Math.Min(col, OverviewGridConstants.GridColumns - 1));
-        row = Math.Max(0, row);
-
-        return new WidgetPosition(col, row);
-    }
-
-    /// <summary>
-    /// Converts a grid position to pixel coordinates.
-    /// </summary>
-    public (double x, double y) GridToPixels(WidgetPosition position)
-    {
-        double x = position.Column * (OverviewGridConstants.CellWidth + OverviewGridConstants.CellSpacing);
-        double y = position.Row * (OverviewGridConstants.CellHeight + OverviewGridConstants.CellSpacing);
-        return (x, y);
-    }
-
-    /// <summary>
-    /// Attempts to move a widget to a new position.
-    /// Returns true if successful, false if the position is invalid.
-    /// </summary>
-    public bool TryMoveWidget(DashboardWidgetViewModel widget, WidgetPosition newPosition)
-    {
-        if (IsPositionValid(newPosition, widget.Size, widget))
-        {
-            widget.Position = newPosition;
-            RunAndLogAsync(SaveLayoutAsync(), "save dashboard layout");
-            return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Checks if two widgets overlap.
-    /// </summary>
-    private bool DoWidgetsOverlap(WidgetPosition pos1, WidgetSize size1, WidgetPosition pos2, WidgetSize size2)
-    {
-        int x1 = pos1.Column;
-        int y1 = pos1.Row;
-        int x2 = x1 + size1.ColSpan;
-        int y2 = y1 + size1.RowSpan;
-
-        int x3 = pos2.Column;
-        int y3 = pos2.Row;
-        int x4 = x3 + size2.ColSpan;
-        int y4 = y3 + size2.RowSpan;
-
-        // Check if rectangles overlap
-        return !(x2 <= x3 || x4 <= x1 || y2 <= y3 || y4 <= y1);
-    }
-
-    [RelayCommand]
-    private void ToggleEditMode()
-    {
-        IsEditMode = !IsEditMode;
-        SyncEditModeToWidgets();
-    }
-
-    private void SyncEditModeToWidgets()
-    {
-        foreach (var w in Widgets)
-            w.IsEditMode = IsEditMode;
-    }
-
-    [RelayCommand]
-    private void AddWidget()
-    {
-        var vm = new AddWidgetViewModel(_widgetRegistry, _overlayService, this, _localizationService);
-        var view = new AddWidgetView { DataContext = vm };
-        
-        var options = new OverlayOptions
-        {
-             ShowBackdrop = true,
-             CloseOnOutsideClick = true,
-             HorizontalAlignment = "Center",
-             VerticalAlignment = "Center",
-             Margin = new Thickness(24)
-        };
-        
-        var id = _overlayService.CreateOverlay(view, options);
-        vm.OverlayId = id;
+        _settingsService.SettingChanged -= OnSettingChanged;
+        _localizationService.LanguageChanged -= _languageChangedHandler;
+        CloseLibrary();
+        DisposeHosts();
+        _saveSemaphore.Dispose();
     }
 }

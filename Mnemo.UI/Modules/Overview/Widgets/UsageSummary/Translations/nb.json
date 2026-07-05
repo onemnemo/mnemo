@@ -1,19 +1,26 @@
 {
   "UsageSummary": {
     "Title": "Bruk",
-    "Description": "Oppstarter, opprettede notater og tid på skjerm i dag",
-    "GalleryDescription": "Oversikt over bruk: økter, notataktivitet og skjermtid i dag.",
-    "TagUsage": "#bruk",
-    "TagStats": "#statistikk",
+    "Description": "Oppstarter, opprettede notater og skjermtid",
     "Launches": "App-oppstarter (totalt)",
     "NotesCreated": "Opprettede notater (totalt)",
-    "PracticeToday": "Studietimer i dag",
-    "NotesToday": "Notatskjerm i dag",
-    "FlashcardsToday": "Flashkort-skjerm i dag",
-    "None": "—",
+    "CardsReviewedMetric": "Kort gjennomgått",
+    "TimeSpentMetric": "Tid brukt",
+    "Practice": "Studietimer",
+    "NotesEditor": "Notatskjerm",
+    "FlashcardsArea": "Flashkort-skjerm",
+    "LabelWithPeriod": "{0} · {1}d",
     "DurationSeconds": "{0}s",
     "DurationMinutes": "{0} min",
     "DurationHoursMinutes": "{0}t {1}m",
-    "DurationHours": "{0}t"
+    "DurationHours": "{0}t",
+    "SettingPeriod": "Periode",
+    "SettingPeriod7": "Siste 7 dager",
+    "SettingPeriod14": "Siste 14 dager",
+    "SettingPeriod30": "Siste 30 dager",
+    "SettingPeriod90": "Siste 90 dager",
+    "SettingMetric": "Hovedmåltall",
+    "SettingMetricReviews": "Kort gjennomgått",
+    "SettingMetricTime": "Tid brukt"
   }
 }

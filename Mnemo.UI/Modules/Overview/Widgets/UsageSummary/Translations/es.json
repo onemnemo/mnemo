@@ -1,19 +1,26 @@
 {
   "UsageSummary": {
     "Title": "Uso",
-    "Description": "Inicios, notas creadas y tiempo en pantalla hoy",
-    "GalleryDescription": "Resumen de uso: sesiones, actividad en notas y tiempo hoy.",
-    "TagUsage": "#uso",
-    "TagStats": "#estadísticas",
+    "Description": "Inicios, notas creadas y tiempo en pantalla",
     "Launches": "Inicios de app (total)",
     "NotesCreated": "Notas creadas (total)",
-    "PracticeToday": "Temporizador de estudio hoy",
-    "NotesToday": "Pantalla de notas hoy",
-    "FlashcardsToday": "Pantalla de tarjetas hoy",
-    "None": "—",
+    "CardsReviewedMetric": "Tarjetas repasadas",
+    "TimeSpentMetric": "Tiempo dedicado",
+    "Practice": "Temporizador de estudio",
+    "NotesEditor": "Pantalla de notas",
+    "FlashcardsArea": "Pantalla de tarjetas",
+    "LabelWithPeriod": "{0} · {1}d",
     "DurationSeconds": "{0}s",
     "DurationMinutes": "{0} min",
     "DurationHoursMinutes": "{0}h {1}m",
-    "DurationHours": "{0}h"
+    "DurationHours": "{0}h",
+    "SettingPeriod": "Período",
+    "SettingPeriod7": "Últimos 7 días",
+    "SettingPeriod14": "Últimos 14 días",
+    "SettingPeriod30": "Últimos 30 días",
+    "SettingPeriod90": "Últimos 90 días",
+    "SettingMetric": "Métrica principal",
+    "SettingMetricReviews": "Tarjetas repasadas",
+    "SettingMetricTime": "Tiempo dedicado"
   }
 }

@@ -2,11 +2,14 @@
   "StudyGoals": {
     "Title": "学習目標",
     "Description": "1日の学習目標と進捗を追跡します",
-    "GalleryDescription": "カード・セッション・学習分数の1日の進捗。",
-    "TagGoals": "#目標",
-    "TagProgress": "#進捗",
     "CardsReviewed": "復習したカード",
     "SessionsCompleted": "完了したセッション",
-    "MinutesStudied": "学習時間（分）"
+    "MinutesStudied": "学習時間（分）",
+    "SettingGoalType": "目標期間",
+    "SettingGoalTypeDaily": "毎日",
+    "SettingGoalTypeWeekly": "毎週",
+    "SettingMetric": "主要指標",
+    "SettingMetricCards": "カード",
+    "SettingMetricMinutes": "分"
   }
 }

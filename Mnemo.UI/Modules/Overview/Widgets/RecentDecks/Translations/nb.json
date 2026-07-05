@@ -2,8 +2,11 @@
   "RecentDecks": {
     "Title": "Nylige dekk",
     "Description": "Se dekkene du sist har øvd på.",
-    "GalleryDescription": "Rask tilgang til dekkene du sist har øvd på.",
-    "TagDecks": "#dekk",
-    "TagRecent": "#nylig"
+    "EmptyWindow": "Ingen dekk øvd i denne perioden",
+    "SettingDaysToShow": "Dager som vises",
+    "SettingSortBy": "Sorter etter",
+    "SettingSortByDate": "Sist øvd",
+    "SettingSortByStudyCount": "Mest øvd",
+    "SettingLimit": "Antall dekk"
   }
 }
