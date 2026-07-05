@@ -1,7 +1,17 @@
 {
   "Notes": {
     "PdfExportTitle": "Exportar como PDF",
-    "PdfExportDescription": "Configura el diseño y previsualiza las páginas.",
+    "PdfExportDescription": "Configura el diseño y las opciones de renderizado",
+    "PdfTabGeneral": "General",
+    "PdfTabRendering": "Renderizado",
+    "PdfRenderHighlights": "Resaltados y colores",
+    "PdfRenderImages": "Imágenes y figuras",
+    "PdfRenderFlashcards": "Apéndice de tarjetas",
+    "PdfSavesToDownloads": "Se guarda en Descargas",
+    "PdfPreviousPage": "Página anterior",
+    "PdfNextPage": "Página siguiente",
+    "PdfPageCountOne": "{0} página",
+    "PdfPageCountMany": "{0} páginas",
     "PdfPaperSize": "Papel",
     "PdfPaperA4": "A4",
     "PdfPaperLetter": "Carta",

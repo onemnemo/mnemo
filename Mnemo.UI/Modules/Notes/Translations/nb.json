@@ -1,7 +1,17 @@
 {
   "Notes": {
     "PdfExportTitle": "Eksporter som PDF",
-    "PdfExportDescription": "Velg layout og forhåndsvis sider.",
+    "PdfExportDescription": "Velg layout og gjengivelsesvalg",
+    "PdfTabGeneral": "Generelt",
+    "PdfTabRendering": "Gjengivelse",
+    "PdfRenderHighlights": "Uthevinger og farger",
+    "PdfRenderImages": "Bilder og figurer",
+    "PdfRenderFlashcards": "Kortstokk-vedlegg",
+    "PdfSavesToDownloads": "Lagres i Nedlastinger",
+    "PdfPreviousPage": "Forrige side",
+    "PdfNextPage": "Neste side",
+    "PdfPageCountOne": "{0} side",
+    "PdfPageCountMany": "{0} sider",
     "PdfPaperSize": "Papir",
     "PdfPaperA4": "A4",
     "PdfPaperLetter": "Letter",

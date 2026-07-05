@@ -481,7 +481,7 @@
                         Cursor="Hand"
                         HorizontalAlignment="Left" VerticalAlignment="Bottom"
                         Margin="16,0,0,14"
-                        Opacity="0.28"
+                        Opacity="0.12"
                         Click="OnIndexChipClick"
                         PointerEntered="OnIndexChipPointerEntered"
                         PointerExited="OnIndexChipPointerExited"

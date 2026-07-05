@@ -492,7 +492,11 @@
     "EquationRenderError": "No se pudo renderizar la ecuación",
     "EquationTooltip": "Ecuación (Ctrl+Shift+E)",
     "NoSuggestions": "Sin sugerencias",
-    "AddWordToDictionary": "Agregar palabra al diccionario"
+    "AddWordToDictionary": "Agregar palabra al diccionario",
+    "TextColor": "COLOR DE TEXTO",
+    "BackgroundColor": "FONDO",
+    "ColorDefault": "Predeterminado",
+    "ColorNone": "Ninguno"
   },
   "Mindmap": {
     "Title": "Mapas mentales",

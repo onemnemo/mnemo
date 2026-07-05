@@ -119,7 +119,7 @@ public partial class SlashCommandMenu : UserControl
             new() { Name = T("Heading4"), Description = T("Heading4Description"), Shortcut = "####", BlockType = BlockType.Heading4, Group = 0 },
             new() { Name = T("BulletList"), Description = T("BulletListDescription"), Shortcut = "-", BlockType = BlockType.BulletList, Group = 0 },
             new() { Name = T("NumberedList"), Description = T("NumberedListDescription"), Shortcut = "1.", BlockType = BlockType.NumberedList, Group = 0 },
-            new() { Name = T("Checklist"), Description = T("ChecklistDescription"), Shortcut = "[]", BlockType = BlockType.Checklist, Group = 0 },
+            new() { Name = T("Todo"), Description = T("ChecklistDescription"), Shortcut = "[]", BlockType = BlockType.Checklist, Group = 0 },
             new() { Name = T("Quote"), Description = T("QuoteDescription"), Shortcut = "\"", BlockType = BlockType.Quote, Group = 0 },
             new() { Name = T("Code"), Description = T("CodeDescription"), Shortcut = null, BlockType = BlockType.Code, Group = 1 },
             new() { Name = T("Sketch"), Description = T("SketchDescription"), Shortcut = null, BlockType = BlockType.Sketch, Group = 1 },

@@ -500,9 +500,9 @@
     "NoSuggestions": "No suggestions",
     "AddWordToDictionary": "Add word to dictionary",
     "TextColor": "TEXT COLOR",
-    "BackgroundColor": "BACKGROUND COLOR",
-    "ColorModeHighlight": "Highlight",
-    "ColorPalette": "PALETTE"
+    "BackgroundColor": "BACKGROUND",
+    "ColorDefault": "Default",
+    "ColorNone": "None"
   },
   "Mindmap": {
     "Title": "Mindmaps",

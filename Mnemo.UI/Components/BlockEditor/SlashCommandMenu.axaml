@@ -4,9 +4,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Mnemo.UI.Components.BlockEditor"
     x:CompileBindings="True"
-    MinWidth="268"
-    MaxWidth="320"
-    MaxHeight="420">
+    MinWidth="288"
+    MaxWidth="340"
+    MaxHeight="348">
     <Border
         Background="{DynamicResource FloatingChromeBackgroundBrush}"
         BoxShadow="0 12 32 0 #52000000"
@@ -47,7 +47,8 @@
             </Grid>
             <!-- Command list with keyboard-selectable items -->
             <ScrollViewer
-                MaxHeight="360"
+                MaxHeight="300"
+                AllowAutoHide="True"
                 VerticalScrollBarVisibility="Auto"
                 HorizontalScrollBarVisibility="Disabled">
                 <ListBox
@@ -78,24 +79,31 @@
                                     Padding="10,0"
                                     CornerRadius="7"
                                     Cursor="Hand"
-                                    Background="Transparent"
                                     PointerPressed="CommandItem_PointerPressed">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <TextBlock
                                             Classes="slash-row-name"
                                             VerticalAlignment="Center"
-                                            FontFamily="{DynamicResource Font.Medium}"
                                             FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
                                             Foreground="{DynamicResource FloatingChromeForegroundBrush}"
                                             Text="{Binding Name}"
                                             TextTrimming="CharacterEllipsis" />
                                         <TextBlock
                                             Grid.Column="1"
+                                            Classes="slash-row-shortcut"
                                             VerticalAlignment="Center"
                                             FontFamily="{DynamicResource Font.Monospace}"
                                             FontSize="10.5"
                                             Foreground="{DynamicResource FloatingChromeForegroundMutedBrush}"
                                             Text="{Binding Shortcut}" />
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            Classes="slash-row-enter"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{DynamicResource Font.Monospace}"
+                                            FontSize="10.5"
+                                            Foreground="{DynamicResource FloatingChromeForegroundMutedBrush}"
+                                            Text="&#x23CE;" />
                                     </Grid>
                                 </Border>
                             </StackPanel>

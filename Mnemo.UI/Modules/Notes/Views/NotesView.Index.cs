@@ -31,7 +31,7 @@ public sealed class NoteIndexEntry
 /// </summary>
 public partial class NotesView
 {
-    private const double ChipIdleOpacity = 0.28;
+    private const double ChipIdleOpacity = 0.12;
     private const double ChipActiveOpacity = 1.0;
     private static readonly TimeSpan ChipFadeInDuration = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan ChipFadeOutDuration = TimeSpan.FromMilliseconds(250);

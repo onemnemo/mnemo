@@ -1,7 +1,17 @@
 {
   "Notes": {
     "PdfExportTitle": "Als PDF exportieren",
-    "PdfExportDescription": "Layout einstellen und Seiten in der Vorschau sehen.",
+    "PdfExportDescription": "Layout- und Render-Optionen einstellen",
+    "PdfTabGeneral": "Allgemein",
+    "PdfTabRendering": "Darstellung",
+    "PdfRenderHighlights": "Hervorhebungen & Farben",
+    "PdfRenderImages": "Bilder & Abbildungen",
+    "PdfRenderFlashcards": "Karteikarten-Anhang",
+    "PdfSavesToDownloads": "Wird in Downloads gespeichert",
+    "PdfPreviousPage": "Vorherige Seite",
+    "PdfNextPage": "Nächste Seite",
+    "PdfPageCountOne": "{0} Seite",
+    "PdfPageCountMany": "{0} Seiten",
     "PdfPaperSize": "Papier",
     "PdfPaperA4": "A4",
     "PdfPaperLetter": "Letter",

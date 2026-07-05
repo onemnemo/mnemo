@@ -29,6 +29,14 @@
         <Setter Property="Background" Value="Transparent" />
     </Style>
 
+    <!--
+      Default row fill lives in a style setter (not an inline Background on the Border),
+      otherwise the local value would outrank the :pointerover / :selected setters below
+      and no highlight would ever paint.
+    -->
+    <Style Selector="ListBox.SlashCommandListBox Border.slash-row">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
     <Style Selector="ListBox.SlashCommandListBox ListBoxItem:pointerover Border.slash-row">
         <Setter Property="Background" Value="{DynamicResource FloatingChromeHoverBrush}" />
     </Style>
@@ -41,5 +49,16 @@
     <Style Selector="ListBox.SlashCommandListBox ListBoxItem:selected TextBlock.slash-row-name">
         <Setter Property="Foreground" Value="{DynamicResource FloatingChromeForegroundStrongBrush}" />
         <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}" />
+    </Style>
+
+    <!-- The selected row swaps its markdown-alias hint for a return glyph (Enter applies it). -->
+    <Style Selector="ListBox.SlashCommandListBox ListBoxItem TextBlock.slash-row-enter">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="ListBox.SlashCommandListBox ListBoxItem:selected TextBlock.slash-row-enter">
+        <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="ListBox.SlashCommandListBox ListBoxItem:selected TextBlock.slash-row-shortcut">
+        <Setter Property="IsVisible" Value="False" />
     </Style>
 </Styles>

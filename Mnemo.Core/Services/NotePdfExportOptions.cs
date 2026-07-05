@@ -43,6 +43,12 @@ public sealed class NotePdfExportOptions
 
     public NotePdfPageNumberFormat PageNumberFormat { get; init; } = NotePdfPageNumberFormat.CurrentAndTotalPages;
 
+    /// <summary>Render inline highlights and text/background colors. When false the document renders monochrome.</summary>
+    public bool RenderColors { get; init; } = true;
+
+    /// <summary>Render image and sketch blocks. When false they are omitted from the document.</summary>
+    public bool RenderImages { get; init; } = true;
+
     /// <summary>DPI for preview rasterization only (<see cref="INotePdfExportService.GeneratePreviewPngPagesAsync"/>).</summary>
     public int PreviewRasterDpi { get; init; } = 120;
 

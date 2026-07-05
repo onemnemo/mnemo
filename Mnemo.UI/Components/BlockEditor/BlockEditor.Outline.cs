@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Mnemo.Core.Models;
 
 namespace Mnemo.UI.Components.BlockEditor;
@@ -42,9 +45,13 @@ public partial class BlockEditor
 
     public int TopLevelBlockCount => Blocks.Count;
 
+    /// <summary>Breathing room above a block scrolled to the top of the viewport.</summary>
+    private const double ScrollToBlockTopPadding = 24;
+
     /// <summary>
-    /// Brings the given block into view. Returns false when the block is missing or its
-    /// row is not realized (virtualized out) — callers can then scroll proportionally and retry.
+    /// Scrolls so the given block sits at the top of the viewport (index navigation).
+    /// Returns false when the block is missing or its row is not realized (virtualized
+    /// out) — callers can then scroll proportionally and retry.
     /// </summary>
     public bool ScrollToBlock(string blockId)
     {
@@ -56,7 +63,18 @@ public partial class BlockEditor
         if (editable == null)
             return false;
 
-        editable.BringIntoView();
+        var scroll = this.FindAncestorOfType<ScrollViewer>();
+        // TranslatePoint goes through the render transform chain, so camera zoom is accounted for.
+        var viewportPoint = scroll == null ? null : editable.TranslatePoint(new Point(0, 0), scroll);
+        if (scroll == null || viewportPoint == null)
+        {
+            editable.BringIntoView();
+            return true;
+        }
+
+        var targetY = scroll.Offset.Y + viewportPoint.Value.Y - ScrollToBlockTopPadding;
+        var scrollable = Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height);
+        scroll.Offset = scroll.Offset.WithY(Math.Clamp(targetY, 0, scrollable));
         return true;
     }
 }

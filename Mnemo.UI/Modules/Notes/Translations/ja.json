@@ -1,7 +1,17 @@
 {
   "Notes": {
     "PdfExportTitle": "PDFとして書き出す",
-    "PdfExportDescription": "レイアウトを設定し、ページをプレビューします。",
+    "PdfExportDescription": "レイアウトと描画オプションを設定します",
+    "PdfTabGeneral": "全般",
+    "PdfTabRendering": "描画",
+    "PdfRenderHighlights": "ハイライトと色",
+    "PdfRenderImages": "画像と図",
+    "PdfRenderFlashcards": "フラッシュカード付録",
+    "PdfSavesToDownloads": "ダウンロードに保存されます",
+    "PdfPreviousPage": "前のページ",
+    "PdfNextPage": "次のページ",
+    "PdfPageCountOne": "{0} ページ",
+    "PdfPageCountMany": "{0} ページ",
     "PdfPaperSize": "用紙",
     "PdfPaperA4": "A4",
     "PdfPaperLetter": "レター",

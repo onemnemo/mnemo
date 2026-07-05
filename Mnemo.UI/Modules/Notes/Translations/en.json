@@ -1,7 +1,17 @@
 {
   "Notes": {
     "PdfExportTitle": "Export as PDF",
-    "PdfExportDescription": "Configure layout and export options",
+    "PdfExportDescription": "Configure layout and render options",
+    "PdfTabGeneral": "General",
+    "PdfTabRendering": "Rendering",
+    "PdfRenderHighlights": "Highlights & colors",
+    "PdfRenderImages": "Images & figures",
+    "PdfRenderFlashcards": "Flashcards appendix",
+    "PdfSavesToDownloads": "Saves to your Downloads",
+    "PdfPreviousPage": "Previous page",
+    "PdfNextPage": "Next page",
+    "PdfPageCountOne": "{0} page",
+    "PdfPageCountMany": "{0} pages",
     "PdfPaperSize": "Paper",
     "PdfPaperA4": "A4",
     "PdfPaperLetter": "Letter",

@@ -155,6 +155,22 @@
         <Setter Property="Margin" Value="0,0,10,0" />
       </Style>
     </Style>
+
+    <!--
+      Floating: the open dropdown renders as dark floating chrome (same surface as the
+      slash menu / formatting toolbar), while the closed box stays a light input.
+      The box border switches to accent while open.
+    -->
+    <Style Selector="^.floating /template/ Border#PopupBorder">
+      <Setter Property="Background" Value="{DynamicResource FloatingChromeBackgroundBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="6" />
+      <Setter Property="BoxShadow" Value="0 12 32 0 #52000000" />
+    </Style>
+    <Style Selector="^.floating:dropdownopen /template/ Border#Background">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
       </ControlTheme>
     </ResourceDictionary>
   </Styles.Resources>
@@ -179,6 +195,35 @@
   <Style Selector="controls|ModernComboBox ComboBoxItem:selected:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundBrush}" />
     <Setter Property="Opacity" Value="0.9" />
+  </Style>
+
+  <!-- Floating variant rows: dark-chrome hover/selection instead of accent fill. -->
+  <Style Selector="controls|ModernComboBox.floating ComboBoxItem">
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="Padding" Value="11,6" />
+    <Setter Property="Foreground" Value="{DynamicResource FloatingChromeForegroundBrush}" />
+  </Style>
+  <Style Selector="controls|ModernComboBox.floating ComboBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource FloatingChromeHoverBrush}" />
+  </Style>
+  <Style Selector="controls|ModernComboBox.floating ComboBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource FloatingChromeActiveBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource FloatingChromeForegroundStrongBrush}" />
+  </Style>
+  <Style Selector="controls|ModernComboBox.floating ComboBoxItem:selected:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource FloatingChromeActiveBrush}" />
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+
+  <!--
+    Check glyph in floating dropdown rows: hidden everywhere (including the closed
+    selection box, which reuses the item template) except on the selected row.
+  -->
+  <Style Selector="controls|ModernComboBox.floating controls|AppIcon.floating-check">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="controls|ModernComboBox.floating ComboBoxItem:selected controls|AppIcon.floating-check">
+    <Setter Property="IsVisible" Value="True" />
   </Style>
 </Styles>
 

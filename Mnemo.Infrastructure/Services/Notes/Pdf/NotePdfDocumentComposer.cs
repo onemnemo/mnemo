@@ -273,7 +273,8 @@ internal static class NotePdfDocumentComposer
                 break;
             }
             case BlockType.Sketch:
-                ComposeSketch(column, block, body, options);
+                if (options.RenderImages)
+                    ComposeSketch(column, block, body, options);
                 break;
             case BlockType.Divider:
                 column.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
@@ -285,7 +286,8 @@ internal static class NotePdfDocumentComposer
                 break;
             }
             case BlockType.Image:
-                ComposeImage(column, block, options, latexImages);
+                if (options.RenderImages)
+                    ComposeImage(column, block, options, latexImages);
                 break;
             case BlockType.Text:
             default:
@@ -386,13 +388,20 @@ internal static class NotePdfDocumentComposer
         else if (mathFont)
             descriptor.FontFamily("Cambria Math", "STIX Two Math", "Latin Modern Math", "Times New Roman");
 
-        if (style.Highlight)
-            descriptor.BackgroundColor(Colors.Yellow.Lighten3);
-        if (TryResolveSpanColor(options.BackgroundSwatchHexByName, style.BackgroundColor, out var background))
-            descriptor.BackgroundColor(background);
-        if (TryResolveSpanColor(options.ForegroundSwatchHexByName, style.ForegroundColor, out var foreground))
-            descriptor.FontColor(foreground);
-        else if (!string.IsNullOrWhiteSpace(style.LinkUrl))
+        if (options.RenderColors)
+        {
+            if (style.Highlight)
+                descriptor.BackgroundColor(Colors.Yellow.Lighten3);
+            if (TryResolveSpanColor(options.BackgroundSwatchHexByName, style.BackgroundColor, out var background))
+                descriptor.BackgroundColor(background);
+            if (TryResolveSpanColor(options.ForegroundSwatchHexByName, style.ForegroundColor, out var foreground))
+            {
+                descriptor.FontColor(foreground);
+                return;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(style.LinkUrl))
             descriptor.FontColor(Colors.Blue.Medium);
     }
 

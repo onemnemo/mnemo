@@ -495,7 +495,11 @@
     "EquationRenderError": "Kunne ikke vise ligning",
     "EquationTooltip": "Ligning (Ctrl+Shift+E)",
     "NoSuggestions": "Ingen forslag",
-    "AddWordToDictionary": "Legg ord til ordbok"
+    "AddWordToDictionary": "Legg ord til ordbok",
+    "TextColor": "TEKSTFARGE",
+    "BackgroundColor": "BAKGRUNN",
+    "ColorDefault": "Standard",
+    "ColorNone": "Ingen"
   },
   "Mindmap": {
     "Title": "Tankekart",

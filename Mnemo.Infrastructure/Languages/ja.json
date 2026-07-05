@@ -492,7 +492,11 @@
     "EquationRenderError": "数式を表示できませんでした",
     "EquationTooltip": "数式 (Ctrl+Shift+E)",
     "NoSuggestions": "候補なし",
-    "AddWordToDictionary": "単語を辞書に追加"
+    "AddWordToDictionary": "単語を辞書に追加",
+    "TextColor": "文字色",
+    "BackgroundColor": "背景",
+    "ColorDefault": "デフォルト",
+    "ColorNone": "なし"
   },
   "Mindmap": {
     "Title": "マインドマップ",

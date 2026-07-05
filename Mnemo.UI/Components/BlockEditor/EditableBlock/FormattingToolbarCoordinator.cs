@@ -410,11 +410,11 @@ internal sealed class FormattingToolbarCoordinator
         _host._formatHandler?.Apply(kind, color);
     }
 
-    private void OnForegroundColorRequested(string hex)
-        => _host._formatHandler?.Apply(InlineFormatKind.ForegroundColor, hex);
+    private void OnForegroundColorRequested(string? colorOrSwatch)
+        => _host._formatHandler?.Apply(InlineFormatKind.ForegroundColor, colorOrSwatch);
 
-    private void OnBackgroundColorRequested(string hex)
-        => _host._formatHandler?.Apply(InlineFormatKind.BackgroundColor, hex);
+    private void OnBackgroundColorRequested(string? colorOrSwatch)
+        => _host._formatHandler?.Apply(InlineFormatKind.BackgroundColor, colorOrSwatch);
 
     private void OnEquationRequested()
         => _host._formatHandler?.ApplyInlineEquation();

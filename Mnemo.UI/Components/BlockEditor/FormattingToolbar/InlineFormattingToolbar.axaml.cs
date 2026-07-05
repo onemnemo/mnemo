@@ -26,11 +26,11 @@ public partial class InlineFormattingToolbar : UserControl
     /// <summary>Raised when a formatting action (Bold, Italic, etc.) is requested.</summary>
     public event Action<InlineFormatKind>? FormatRequested;
 
-    /// <summary>Raised when a text (foreground) color is selected from the color dropdown.</summary>
-    public event Action<string>? ForegroundColorRequested;
+    /// <summary>Raised when a text (foreground) color is selected from the color dropdown; null clears the color.</summary>
+    public event Action<string?>? ForegroundColorRequested;
 
-    /// <summary>Raised when a background color is selected from the color dropdown.</summary>
-    public event Action<string>? BackgroundColorRequested;
+    /// <summary>Raised when a background color is selected from the color dropdown; null clears the color.</summary>
+    public event Action<string?>? BackgroundColorRequested;
 
     /// <summary>Raised when the equation button is clicked (converts selection to inline equation).</summary>
     public event Action? EquationRequested;
@@ -202,7 +202,7 @@ public partial class InlineFormattingToolbar : UserControl
         _colorOverlayId = _overlayService.CreateOverlay(popup, options, "ColorSwatchPopup");
     }
 
-    private void OnTextColorSelected(string colorOrSwatch)
+    private void OnTextColorSelected(string? colorOrSwatch)
     {
         _lastInteractionUtc = DateTime.UtcNow;
         CloseColorPopup();
@@ -216,7 +216,7 @@ public partial class InlineFormattingToolbar : UserControl
         ForegroundColorRequested?.Invoke(colorOrSwatch);
     }
 
-    private void OnBackgroundColorSelected(string colorOrSwatch)
+    private void OnBackgroundColorSelected(string? colorOrSwatch)
     {
         _lastInteractionUtc = DateTime.UtcNow;
         CloseColorPopup();
