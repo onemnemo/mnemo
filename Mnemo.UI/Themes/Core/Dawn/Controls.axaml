@@ -396,8 +396,8 @@
     <!-- Flyout / MenuFlyout (Mnemo overlay theming) -->
     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{DynamicResource TooltipBackground}"/>
     <SolidColorBrush x:Key="FlyoutBorderThemeBrush" Color="{DynamicResource TooltipBorder}"/>
-    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{DynamicResource TooltipBackground}"/>
-    <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="{DynamicResource TooltipBorder}"/>
+    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{DynamicResource FloatingChromeBackground}"/>
+    <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="Transparent"/>
     <Thickness x:Key="MenuFlyoutPresenterBorderThemeThickness">1</Thickness>
     <Thickness x:Key="MenuFlyoutPresenterThemePadding">4,2</Thickness>
     <Thickness x:Key="FlyoutContentThemePadding">0</Thickness>
@@ -411,22 +411,22 @@
     <x:Double x:Key="HorizontalMenuFlyoutThemeMinWidth">0</x:Double>
 
     <!-- MenuItem / MenuFlyout rows (keys referenced by Themes/Controls/MenuItem.axaml, Menu.axaml) -->
-    <SolidColorBrush x:Key="MenuFlyoutItemBackground" Color="{DynamicResource ListBoxItemBackground}"/>
-    <SolidColorBrush x:Key="MenuFlyoutItemForeground" Color="{DynamicResource ListBoxItemForeground}"/>
-    <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="{DynamicResource MenuFlyoutItemRowHoverBackground}"/>
-    <SolidColorBrush x:Key="MenuFlyoutDangerItemBackgroundPointerOver" Color="{DynamicResource MenuFlyoutDangerRowHover}"/>
-    <SolidColorBrush x:Key="MenuFlyoutDangerItemBackgroundSelected" Color="{DynamicResource MenuFlyoutDangerRowSelected}"/>
-    <SolidColorBrush x:Key="MenuFlyoutDangerItemBackgroundPressed" Color="{DynamicResource MenuFlyoutDangerRowPressed}"/>
-    <SolidColorBrush x:Key="MenuFlyoutItemForegroundPointerOver" Color="{DynamicResource ListBoxItemForegroundPointerOver}"/>
-    <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="{DynamicResource ListBoxItemBackgroundPressed}"/>
-    <SolidColorBrush x:Key="MenuFlyoutItemForegroundPressed" Color="{DynamicResource ListBoxItemForegroundPressed}"/>
+    <SolidColorBrush x:Key="MenuFlyoutItemBackground" Color="Transparent"/>
+    <SolidColorBrush x:Key="MenuFlyoutItemForeground" Color="{DynamicResource FloatingChromeRowText}"/>
+    <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="{DynamicResource FloatingChromeHover}"/>
+    <SolidColorBrush x:Key="MenuFlyoutDangerItemBackgroundPointerOver" Color="{DynamicResource FloatingChromeDangerHover}"/>
+    <SolidColorBrush x:Key="MenuFlyoutDangerItemBackgroundSelected" Color="{DynamicResource FloatingChromeDangerHover}"/>
+    <SolidColorBrush x:Key="MenuFlyoutDangerItemBackgroundPressed" Color="{DynamicResource FloatingChromeDangerHover}"/>
+    <SolidColorBrush x:Key="MenuFlyoutItemForegroundPointerOver" Color="{DynamicResource FloatingChromeForegroundStrong}"/>
+    <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="{DynamicResource FloatingChromePressed}"/>
+    <SolidColorBrush x:Key="MenuFlyoutItemForegroundPressed" Color="{DynamicResource FloatingChromeForegroundStrong}"/>
     <SolidColorBrush x:Key="MenuFlyoutItemBackgroundDisabled" Color="Transparent"/>
-    <SolidColorBrush x:Key="MenuFlyoutItemForegroundDisabled" Color="{DynamicResource ListBoxItemForegroundDisabled}"/>
-    <SolidColorBrush x:Key="MenuFlyoutSubItemChevron" Color="{DynamicResource TextSecondary}"/>
-    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronPointerOver" Color="{DynamicResource TextSecondary}"/>
-    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronPressed" Color="{DynamicResource TextSecondary}"/>
-    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronDisabled" Color="{DynamicResource TextDisabled}"/>
-    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronSubMenuOpened" Color="{DynamicResource TextPrimary}"/>
+    <SolidColorBrush x:Key="MenuFlyoutItemForegroundDisabled" Color="{DynamicResource FloatingChromeForegroundMuted}"/>
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevron" Color="{DynamicResource FloatingChromeForegroundMuted}"/>
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronPointerOver" Color="{DynamicResource FloatingChromeRowText}"/>
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronPressed" Color="{DynamicResource FloatingChromeForegroundStrong}"/>
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronDisabled" Color="{DynamicResource FloatingChromeForegroundMuted}"/>
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronSubMenuOpened" Color="{DynamicResource FloatingChromeRowText}"/>
     <Thickness x:Key="MenuFlyoutItemChevronMargin">12,0,0,0</Thickness>
     <Thickness x:Key="MenuBarItemPadding">10,6,10,6</Thickness>
     <Thickness x:Key="HorizontalMenuFlyoutItemThemePaddingNarrow">8,6</Thickness>
@@ -578,6 +578,9 @@
     <SolidColorBrush x:Key="FloatingChromePressedBrush" Color="{DynamicResource FloatingChromePressed}"/>
     <SolidColorBrush x:Key="FloatingChromeDividerBrush" Color="{DynamicResource FloatingChromeDivider}"/>
     <SolidColorBrush x:Key="FloatingChromeAccentBrush" Color="{DynamicResource FloatingChromeAccent}"/>
+    <SolidColorBrush x:Key="FloatingChromeRowTextBrush" Color="{DynamicResource FloatingChromeRowText}"/>
+    <SolidColorBrush x:Key="FloatingChromeDangerBrush" Color="{DynamicResource FloatingChromeDanger}"/>
+    <SolidColorBrush x:Key="FloatingChromeDangerHoverBrush" Color="{DynamicResource FloatingChromeDangerHover}"/>
 
     <!-- Slider Brushes (keys must differ from Colors.axaml so SolidColorBrush.Color gets Color, not Brush) -->
     <SolidColorBrush x:Key="SliderTrackFillBrush" Color="{DynamicResource SliderTrackFill}"/>

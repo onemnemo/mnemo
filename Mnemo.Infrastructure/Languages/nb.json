@@ -399,6 +399,7 @@
     "Duplicate": "Dupliser",
     "ExportFormatMnemo": "Mnemo (.mnemo)",
     "ExportFormatMarkdown": "Markdown",
+    "ExportAsHeader": "EKSPORTER SOM",
     "ChooseExportFormat": "Velg format…",
     "ExportNoteOverlayTitle": "Eksporter notat",
     "ExportNoteOverlayDescription": "Velg eksportformat.",

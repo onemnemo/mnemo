@@ -402,6 +402,7 @@
     "Duplicate": "Duplicate",
     "ExportFormatMnemo": "Mnemo (.mnemo)",
     "ExportFormatMarkdown": "Markdown",
+    "ExportAsHeader": "EXPORT AS",
     "ChooseExportFormat": "Choose format…",
     "ExportNoteOverlayTitle": "Export note",
     "ExportNoteOverlayDescription": "Choose export format.",

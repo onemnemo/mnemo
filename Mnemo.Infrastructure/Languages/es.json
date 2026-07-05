@@ -396,6 +396,7 @@
     "Duplicate": "Duplicar",
     "ExportFormatMnemo": "Mnemo (.mnemo)",
     "ExportFormatMarkdown": "Markdown",
+    "ExportAsHeader": "EXPORTAR COMO",
     "ChooseExportFormat": "Elegir formato…",
     "ExportNoteOverlayTitle": "Exportar nota",
     "ExportNoteOverlayDescription": "Elija el formato de exportación.",

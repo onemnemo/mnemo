@@ -79,12 +79,13 @@
                                  Width="14" Height="14"/>
                <Button.Flyout>
                    <MenuFlyout>
-                       <MenuItem Header="{markup:T Ns=Notes, Key=NewNote}" Tag="{Binding}" Click="OnNewNoteClick"
+                       <MenuItem Classes="default" Header="{markup:T Ns=Notes, Key=NewNote}" Tag="{Binding}" Click="OnNewNoteClick"
                                  controls:MenuItemGestureHint.GestureHint="⌘N">
                            <MenuItem.Icon>
                                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Flyout/new.svg" Width="16" Height="16"/>
                            </MenuItem.Icon>
                        </MenuItem>
+                       <Separator />
                        <MenuItem Header="{markup:T Ns=Notes, Key=Rename}" Tag="{Binding}" Click="OnRenameClick"
                                  controls:MenuItemGestureHint.GestureHint="⏎">
                            <MenuItem.Icon>
@@ -102,6 +103,7 @@
                            <MenuItem.Icon>
                                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Flyout/export.svg" Width="16" Height="16"/>
                            </MenuItem.Icon>
+                           <MenuItem Classes="section-header" Header="{markup:T Ns=Notes, Key=ExportAsHeader}" />
                            <MenuItem Header="{markup:T Ns=Notes, Key=ExportFormatMnemo}"
                                      Tag="{Binding}"
                                      CommandParameter="notes.mnemo"
@@ -110,6 +112,7 @@
                                      Tag="{Binding}"
                                      CommandParameter="notes.markdown"
                                      Click="OnExportClick" />
+                           <Separator />
                            <MenuItem Header="{markup:T Ns=Notes, Key=ChooseExportFormat}"
                                      Tag="{Binding}"
                                      Click="OnExportClick" />

@@ -329,9 +329,6 @@
     <Color x:Key="TooltipBackground">#211b18</Color>
     <Color x:Key="TooltipForeground">#b3a89f</Color>
     <Color x:Key="TooltipBorder">#2c2520</Color>
-    <Color x:Key="MenuFlyoutDangerRowHover">#38201a</Color>
-    <Color x:Key="MenuFlyoutDangerRowSelected">#38201a</Color>
-    <Color x:Key="MenuFlyoutDangerRowPressed">#38201a</Color>
 
     <!-- Navigation Button -->
     <Color x:Key="NavigationButtonBackground">Transparent</Color>
@@ -507,11 +504,15 @@
     <Color x:Key="FloatingChromeForeground">#EDE6DE</Color>
     <Color x:Key="FloatingChromeForegroundStrong">#F8F2EA</Color>
     <Color x:Key="FloatingChromeForegroundMuted">#93877C</Color>
-    <Color x:Key="FloatingChromeHover">#1AFFFFFF</Color>
+    <Color x:Key="FloatingChromeHover">#14FFFFFF</Color>
     <Color x:Key="FloatingChromeActive">#1FFFFFFF</Color>
     <Color x:Key="FloatingChromePressed">#2EFFFFFF</Color>
-    <Color x:Key="FloatingChromeDivider">#24FFFFFF</Color>
+    <Color x:Key="FloatingChromeDivider">#1AFFFFFF</Color>
     <Color x:Key="FloatingChromeAccent">#ED8A72</Color>
+    <!-- Canonical actions-menu tones on the floating surface: quiet resting row text, warm destructive -->
+    <Color x:Key="FloatingChromeRowText">#D0C8BE</Color>
+    <Color x:Key="FloatingChromeDanger">#D9694A</Color>
+    <Color x:Key="FloatingChromeDangerHover">#1FD9694A</Color>
 
     <!-- Code syntax highlighting -->
     <Color x:Key="SyntaxCodeDefault">#f1ebe6</Color>

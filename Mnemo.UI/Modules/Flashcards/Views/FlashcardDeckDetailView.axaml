@@ -314,12 +314,6 @@
                                               Width="18" Height="18" Color="{DynamicResource TextSecondaryBrush}" />
                             <Button.Flyout>
                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                    <MenuItem Header="{markup:T Ns=Flashcards, Key=DeckSettings}" Command="{Binding OpenDeckSettingsCommand}">
-                                        <MenuItem.Icon>
-                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Flyout/settings.svg" Width="16" Height="16" />
-                                        </MenuItem.Icon>
-                                    </MenuItem>
-                                    <Separator />
                                     <MenuItem Header="{markup:T Ns=Flashcards, Key=RenameDeck}" Command="{Binding RenameDeckCommand}">
                                         <MenuItem.Icon>
                                             <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Flyout/rename.svg" Width="16" Height="16" />
@@ -336,6 +330,11 @@
                                         </MenuItem.Icon>
                                     </MenuItem>
                                     <Separator />
+                                    <MenuItem Header="{markup:T Ns=Flashcards, Key=DeckSettings}" Command="{Binding OpenDeckSettingsCommand}">
+                                        <MenuItem.Icon>
+                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Flyout/settings.svg" Width="16" Height="16" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
                                     <MenuItem Classes="danger" Header="{markup:T Ns=Flashcards, Key=DeleteDeck}" Command="{Binding DeleteDeckCommand}">
                                         <MenuItem.Icon>
                                             <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/trash.svg" Width="16" Height="16" />

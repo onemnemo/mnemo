@@ -38,11 +38,12 @@
     <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="{DynamicResource MenuFlyoutPresenterBorderThemeThickness}" />
-    <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}" />
+    <Setter Property="CornerRadius" Value="11" />
     <Setter Property="Focusable" Value="True" />
+    <Setter Property="MinWidth" Value="180" />
     <Setter Property="MaxWidth" Value="{DynamicResource FlyoutThemeMaxWidth}" />
     <Setter Property="MinHeight" Value="{DynamicResource MenuFlyoutThemeMinHeight}" />
-    <Setter Property="Padding" Value="{DynamicResource MenuFlyoutPresenterThemePadding}" />
+    <Setter Property="Padding" Value="6" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="WindowManagerAddShadowHint" Value="False" />
     <Setter Property="Template">
@@ -51,10 +52,12 @@
                 BorderBrush="{TemplateBinding BorderBrush}"
                 BorderThickness="{TemplateBinding BorderThickness}"
                 Padding="{TemplateBinding Padding}"
+                MinWidth="{TemplateBinding MinWidth}"
                 MaxWidth="{TemplateBinding MaxWidth}"
                 MinHeight="{TemplateBinding MinHeight}"
                 HorizontalAlignment="{TemplateBinding HorizontalAlignment}"
-                CornerRadius="{TemplateBinding CornerRadius}">
+                CornerRadius="{TemplateBinding CornerRadius}"
+                BoxShadow="0 16 44 0 #66000000">
           <ScrollViewer Theme="{StaticResource FluentMenuScrollViewer}">
             <ItemsPresenter Name="PART_ItemsPresenter"
                             ItemsPanel="{TemplateBinding ItemsPanel}"

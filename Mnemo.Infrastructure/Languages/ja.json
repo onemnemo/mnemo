@@ -396,6 +396,7 @@
     "Duplicate": "複製",
     "ExportFormatMnemo": "Mnemo (.mnemo)",
     "ExportFormatMarkdown": "Markdown",
+    "ExportAsHeader": "エクスポート形式",
     "ChooseExportFormat": "形式を選択…",
     "ExportNoteOverlayTitle": "ノートをエクスポート",
     "ExportNoteOverlayDescription": "エクスポート形式を選択してください。",
