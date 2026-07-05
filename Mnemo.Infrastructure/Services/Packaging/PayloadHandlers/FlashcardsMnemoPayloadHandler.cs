@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Mnemo.Core.Enums;
 using Mnemo.Core.Models;
+using Mnemo.Infrastructure.Common;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 
@@ -54,15 +56,26 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
         var folderMap = new Dictionary<string, string>(StringComparer.Ordinal);
 
         var result = new MnemoPayloadImportResult();
+        var policy = context.Options.ConflictPolicy;
+        var usedDeckNames = new HashSet<string>(existingDecks.Select(d => d.Name), StringComparer.OrdinalIgnoreCase);
 
         foreach (var folder in snapshot.Folders)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var imported = folder with { };
-            if (context.Options.DuplicateOnConflict && existingFolderIds.Contains(imported.Id))
+            if (existingFolderIds.Contains(imported.Id))
             {
-                imported = imported with { Id = Guid.NewGuid().ToString() };
-                result.DuplicatedCount++;
+                if (policy == ImportConflictPolicy.Skip)
+                {
+                    folderMap[folder.Id] = imported.Id;
+                    continue;
+                }
+
+                if (policy == ImportConflictPolicy.KeepBoth)
+                {
+                    imported = imported with { Id = Guid.NewGuid().ToString() };
+                    result.DuplicatedCount++;
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(imported.ParentId) && folderMap.TryGetValue(imported.ParentId, out var remappedParentId))
@@ -76,12 +89,26 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
         {
             cancellationToken.ThrowIfCancellationRequested();
             var imported = deck with { };
-            if (context.Options.DuplicateOnConflict && existingDeckIds.Contains(imported.Id))
+            if (existingDeckIds.Contains(imported.Id))
             {
-                imported = imported with { Id = Guid.NewGuid().ToString() };
-                result.DuplicatedCount++;
+                if (policy == ImportConflictPolicy.Skip)
+                {
+                    result.SkippedCount++;
+                    continue;
+                }
+
+                if (policy == ImportConflictPolicy.KeepBoth)
+                {
+                    imported = imported with
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Name = ImportNaming.NextAvailableName(imported.Name, usedDeckNames)
+                    };
+                    result.DuplicatedCount++;
+                }
             }
 
+            usedDeckNames.Add(imported.Name);
             if (!string.IsNullOrWhiteSpace(imported.FolderId) && folderMap.TryGetValue(imported.FolderId, out var remappedFolderId))
                 imported = imported with { FolderId = remappedFolderId };
 

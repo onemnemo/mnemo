@@ -61,12 +61,9 @@ public sealed class NotesMnemoFormatAdapter : IContentFormatAdapter
 
     public async Task<ImportExportResult> ImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
-        var duplicateOnConflict = GetBoolOption(request.Options, "DuplicateOnConflict", true);
-        var strictUnknown = GetBoolOption(request.Options, "StrictUnknownPayloads", false);
         var import = await _packageService.ImportAsync(request.FilePath, new MnemoPackageImportOptions
         {
-            DuplicateOnConflict = duplicateOnConflict,
-            StrictUnknownPayloads = strictUnknown,
+            ConflictPolicy = ImportExportOptionKeys.GetConflictPolicy(request.Options),
             PayloadTypes = ["notes"]
         }, cancellationToken).ConfigureAwait(false);
 
@@ -86,6 +83,12 @@ public sealed class NotesMnemoFormatAdapter : IContentFormatAdapter
         var payloadOptions = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         if (request.Payload is Note note)
             payloadOptions["notes.noteIds"] = new[] { note.NoteId };
+        else if (request.Payload is IEnumerable<string> noteIds)
+        {
+            var selected = noteIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
+            if (selected.Length > 0)
+                payloadOptions["notes.noteIds"] = selected;
+        }
 
         var export = await _packageService.ExportAsync(request.FilePath, new MnemoPackageExportOptions
         {
@@ -105,12 +108,5 @@ public sealed class NotesMnemoFormatAdapter : IContentFormatAdapter
             },
             ErrorMessage = export.IsSuccess ? null : export.ErrorMessage
         };
-    }
-
-    private static bool GetBoolOption(IReadOnlyDictionary<string, object?> options, string key, bool fallback)
-    {
-        if (options.TryGetValue(key, out var value) && value is bool b)
-            return b;
-        return fallback;
     }
 }

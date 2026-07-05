@@ -292,21 +292,26 @@
     <Color x:Key="ComboBoxItemForegroundDisabled">#D6D3D1</Color>             
 
     <!-- CheckBox -->
-    <Color x:Key="CheckBoxCheckBackgroundStroke">#A8A29E</Color>
-    <Color x:Key="CheckBoxCheckBackgroundStrokePointerOver">#78716C</Color>
-    <Color x:Key="CheckBoxCheckBackgroundStrokePressed">#57534E</Color>
-    <Color x:Key="CheckBoxCheckBackgroundStrokeDisabled">#D6D3D1</Color>
+    <Color x:Key="CheckBoxCheckBackgroundStroke">#D6D2C7</Color>
+    <Color x:Key="CheckBoxCheckBackgroundStrokePointerOver">#E9573F</Color>
+    <Color x:Key="CheckBoxCheckBackgroundStrokePressed">#C2431F</Color>
+    <Color x:Key="CheckBoxCheckBackgroundStrokeDisabled">#E7E4DC</Color>
     <Color x:Key="CheckBoxCheckBackgroundFill">#FFFFFF</Color>
-    <Color x:Key="CheckBoxCheckBackgroundFillPointerOver">#FBF8F0</Color>
-    <Color x:Key="CheckBoxCheckBackgroundFillPressed">#F5EFE3</Color>
+    <Color x:Key="CheckBoxCheckBackgroundFillPointerOver">#FDF1EE</Color>
+    <Color x:Key="CheckBoxCheckBackgroundFillPressed">#FBE3DC</Color>
     <Color x:Key="CheckBoxCheckBackgroundFillDisabled">#FBF8F0</Color>
-    <Color x:Key="CheckBoxCheckGlyphForeground">#E9573F</Color>
+    <Color x:Key="CheckBoxCheckedBackground">#E9573F</Color>
+    <Color x:Key="CheckBoxCheckedBackgroundPointerOver">#EE7057</Color>
+    <Color x:Key="CheckBoxCheckedBackgroundPressed">#C2431F</Color>
+    <Color x:Key="CheckBoxCheckedBackgroundDisabled">#E7E4DC</Color>
+    <Color x:Key="CheckBoxCheckGlyphForeground">#FFFFFF</Color>
     <Color x:Key="CheckBoxCheckGlyphForegroundIndeterminate">#E9573F</Color>
     <Color x:Key="CheckBoxCheckGlyphForegroundDisabled">#D6D3D1</Color>
     <Color x:Key="CheckBoxForeground">#24201A</Color>
     <Color x:Key="CheckBoxForegroundPointerOver">#24201A</Color>
     <Color x:Key="CheckBoxForegroundPressed">#24201A</Color>
     <Color x:Key="CheckBoxForegroundDisabled">#D6D3D1</Color>
+    <Color x:Key="CheckBoxForegroundChecked">#A8A29B</Color>
     
     <!-- ScrollBar -->
     <Color x:Key="ScrollBarBackground">#FBF8F0</Color>

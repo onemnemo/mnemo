@@ -46,19 +46,19 @@ public sealed class MindmapsMnemoFormatAdapter : IContentFormatAdapter
 
     public async Task<ImportExportResult> ImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
-        var duplicateOnConflict = GetBoolOption(request.Options, "DuplicateOnConflict", true);
-        var strictUnknown = GetBoolOption(request.Options, "StrictUnknownPayloads", false);
         var import = await _packageService.ImportAsync(request.FilePath, new MnemoPackageImportOptions
         {
-            DuplicateOnConflict = duplicateOnConflict,
-            StrictUnknownPayloads = strictUnknown,
+            ConflictPolicy = ImportExportOptionKeys.GetConflictPolicy(request.Options),
             PayloadTypes = ["mindmaps"]
         }, cancellationToken).ConfigureAwait(false);
 
         var importedCount = import.Value?.ImportedCountsByPayload.TryGetValue("mindmaps", out var importedMindmaps) == true
             ? importedMindmaps
             : 0;
-        var success = import.IsSuccess && import.Value != null && import.Value.Success && importedCount > 0;
+        var skippedCount = import.Value?.SkippedCountsByPayload.TryGetValue("mindmaps", out var skippedMindmaps) == true
+            ? skippedMindmaps
+            : 0;
+        var success = import.IsSuccess && import.Value != null && import.Value.Success && importedCount + skippedCount > 0;
 
         return new ImportExportResult
         {
@@ -99,12 +99,5 @@ public sealed class MindmapsMnemoFormatAdapter : IContentFormatAdapter
                 ["mindmaps"] = export.Value?.Entries.FirstOrDefault(e => string.Equals(e.PayloadType, "mindmaps", StringComparison.OrdinalIgnoreCase))?.ItemCount ?? 0
             }
         };
-    }
-
-    private static bool GetBoolOption(IReadOnlyDictionary<string, object?> options, string key, bool fallback)
-    {
-        if (options.TryGetValue(key, out var value) && value is bool b)
-            return b;
-        return fallback;
     }
 }

@@ -15,6 +15,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.UI.Components.Overlays;
+using Mnemo.UI.Components.Overlays.Transfer;
 using Mnemo.UI.Controls;
 using Mnemo.UI.Modules.Flashcards.ViewModels;
 using Mnemo.UI.Services;
@@ -363,64 +364,81 @@ public partial class FlashcardDeckDetailView : UserControl, INotifyPropertyChang
             return;
 
         var localization = services.GetService<ILocalizationService>();
+        if (localization == null)
+            return;
+
         var capabilities = coordinator.GetCapabilities("flashcards").Where(c => c.SupportsExport).ToArray();
-        var overlay = new TransferOverlay();
-        overlay.SetLocalizedChrome(
-            "TransferDeckOverlayTitle", "Flashcards",
-            "TransferOverlayDescription", "Flashcards",
-            "Export", "Flashcards",
-            "Cancel", "Common");
-        overlay.Initialize(capabilities, defaultImport: false);
-
-        var overlayId = overlayService.CreateOverlay(overlay, new OverlayOptions
+        var exportFormats = new List<TransferExportFormatOption>();
+        foreach (var capability in capabilities)
         {
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            ShowBackdrop = true,
-            CloseOnOutsideClick = true
-        }, "TransferOverlay");
+            var (nameKey, captionKey) = capability.FormatId switch
+            {
+                "flashcards.mnemo" => ("TransferFormatArchive", "TransferFormatCaptionArchive"),
+                "flashcards.csv" => ("TransferFormatCsv", "TransferFormatCaptionCsv"),
+                "flashcards.anki" => ("TransferFormatAnki", "TransferFormatCaptionAnki"),
+                _ => ((string?)null, (string?)null)
+            };
+            exportFormats.Add(new TransferExportFormatOption
+            {
+                FormatId = capability.FormatId,
+                ExtensionLabel = capability.Extensions.FirstOrDefault() ?? ".mnemo",
+                DisplayName = nameKey != null ? localization.T(nameKey, "Common") : capability.DisplayName,
+                Caption = captionKey != null ? localization.T(captionKey, "Common") : null,
+                Extensions = capability.Extensions
+            });
+        }
 
-        var tcs = new TaskCompletionSource<TransferOverlayResult?>();
-        overlay.OnResult = result =>
+        var choice = await TransferDialog.ShowAsync(overlayService, new TransferDialogContext
         {
-            overlayService.CloseOverlay(overlayId);
-            tcs.TrySetResult(result);
-        };
-
-        var selected = await tcs.Task.ConfigureAwait(true);
-        if (selected == null)
+            ContentType = "flashcards",
+            Direction = TransferDialogDirection.ExportOnly,
+            ImportTitle = localization.T("TransferExportDeckTitle", "Flashcards"),
+            ExportTitle = localization.T("TransferExportDeckTitle", "Flashcards"),
+            ExportSubtitle = string.IsNullOrWhiteSpace(_viewModel.DeckName)
+                ? null
+                : string.Format(localization.T("TransferFromFormat", "Flashcards"), _viewModel.DeckName),
+            ItemNounSingular = localization.T("TransferNounSingular", "Flashcards"),
+            ItemNounPlural = localization.T("TransferNounPlural", "Flashcards"),
+            ExportFormats = exportFormats,
+            Coordinator = coordinator
+        }).ConfigureAwait(true);
+        if (choice?.Format == null)
             return;
 
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel?.StorageProvider == null)
             return;
 
+        var extension = choice.Format.Extensions.FirstOrDefault() ?? ".mnemo";
         var suggestedName = string.IsNullOrWhiteSpace(_viewModel.DeckName) ? "deck" : SanitizeFileName(_viewModel.DeckName);
         var saveFile = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "Export deck",
-            SuggestedFileName = $"{suggestedName}{selected.Format.Extensions.FirstOrDefault() ?? ".mnemo"}",
-            DefaultExtension = selected.Format.Extensions.FirstOrDefault()?.TrimStart('.'),
-            FileTypeChoices = [new FilePickerFileType(selected.Format.DisplayName) { Patterns = selected.Format.Extensions.Select(ext => $"*{ext}").ToArray() }]
+            Title = localization.T("TransferExportDeckTitle", "Flashcards"),
+            SuggestedFileName = $"{suggestedName}{extension}",
+            DefaultExtension = extension.TrimStart('.'),
+            FileTypeChoices = [new FilePickerFileType(choice.Format.DisplayName) { Patterns = choice.Format.Extensions.Select(ext => $"*{ext}").ToArray() }]
         });
         if (saveFile == null)
             return;
 
+        // CSV resolves decks by id list; a bare string would silently export every deck.
+        object payload = choice.Format.FormatId == "flashcards.csv"
+            ? new[] { _viewModel.DeckId }
+            : _viewModel.DeckId;
         var export = await coordinator.ExportAsync(new ImportExportRequest
         {
             ContentType = "flashcards",
-            FormatId = selected.Format.FormatId,
+            FormatId = choice.Format.FormatId,
             FilePath = saveFile.Path.LocalPath,
-            Payload = _viewModel.DeckId
+            Payload = payload
         }).ConfigureAwait(true);
 
         var exportSucceeded = export.IsSuccess && export.Value is { Success: true };
-        var exportMessage = exportSucceeded
-            ? "Deck export finished."
-            : export.Value?.ErrorMessage ?? export.ErrorMessage ?? "Export failed.";
         await overlayService.CreateDialogAsync(
-            exportSucceeded ? "Export complete" : "Export failed",
-            exportMessage).ConfigureAwait(true);
+            exportSucceeded ? localization.T("ExportCompleteTitle", "Common") : localization.T("ExportFailedTitle", "Common"),
+            exportSucceeded
+                ? localization.T("TransferExportFinished", "Common")
+                : export.Value?.ErrorMessage ?? export.ErrorMessage ?? localization.T("TransferExportFailed", "Common")).ConfigureAwait(true);
     }
 
     private static string SanitizeFileName(string value)

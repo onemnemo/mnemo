@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -12,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.UI.Components.Overlays;
+using Mnemo.UI.Components.Overlays.Transfer;
 using Mnemo.UI.Controls;
 using Mnemo.UI.Modules.Notes.ViewModels;
 
@@ -325,64 +327,72 @@ public partial class NoteTreeRow : UserControl
         if (coordinator == null || overlayService == null)
             return;
 
-        var capabilities = coordinator.GetCapabilities("notes").Where(x => x.SupportsExport).ToArray();
+        if (localization == null)
+            return;
+
+        var exportFormats = new List<TransferExportFormatOption>();
+        foreach (var capability in coordinator.GetCapabilities("notes").Where(x => x.SupportsExport))
+        {
+            var (nameKey, captionKey) = capability.FormatId switch
+            {
+                "notes.markdown" => ("TransferFormatMarkdown", "TransferFormatCaptionMarkdown"),
+                "notes.mnemo" => ("TransferFormatArchive", "TransferFormatCaptionArchive"),
+                _ => ((string?)null, (string?)null)
+            };
+            exportFormats.Add(new TransferExportFormatOption
+            {
+                FormatId = capability.FormatId,
+                ExtensionLabel = capability.Extensions.FirstOrDefault() ?? ".mnemo",
+                DisplayName = nameKey != null ? localization.T(nameKey, "Common") : capability.DisplayName,
+                Caption = captionKey != null ? localization.T(captionKey, "Common") : null,
+                Extensions = capability.Extensions
+            });
+        }
+
         var requestedFormatId = (sender as MenuItem)?.CommandParameter as string;
-        TransferOverlayResult? selected = null;
+        TransferDialogResult? choice;
         if (!string.IsNullOrWhiteSpace(requestedFormatId))
         {
-            var preferred = capabilities.FirstOrDefault(x => string.Equals(x.FormatId, requestedFormatId, StringComparison.Ordinal));
+            var preferred = exportFormats.FirstOrDefault(x => string.Equals(x.FormatId, requestedFormatId, StringComparison.Ordinal));
             if (preferred == null)
             {
                 await overlayService.CreateDialogAsync(
-                    localization?.T("ExportFormatUnavailableTitle", "Notes") ?? "Export unavailable",
-                    localization?.T("ExportFormatUnavailableMessage", "Notes") ?? "This export format is not available right now.").ConfigureAwait(true);
+                    localization.T("ExportFormatUnavailableTitle", "Notes"),
+                    localization.T("ExportFormatUnavailableMessage", "Notes")).ConfigureAwait(true);
                 return;
             }
 
-            selected = new TransferOverlayResult
-            {
-                IsImport = false,
-                Format = preferred
-            };
+            choice = new TransferDialogResult { IsImport = false, Format = preferred };
         }
         else
         {
-            var overlay = new TransferOverlay();
-            overlay.SetLocalizedChrome(
-                "ExportNoteOverlayTitle", "Notes",
-                "ExportNoteOverlayDescription", "Notes",
-                "Export", "Notes",
-                "Cancel", "Common");
-            overlay.Initialize(capabilities, defaultImport: false);
-            var id = overlayService.CreateOverlay(overlay, new OverlayOptions
+            choice = await TransferDialog.ShowAsync(overlayService, new TransferDialogContext
             {
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                ShowBackdrop = true
-            }, "TransferOverlay");
-
-            var tcs = new TaskCompletionSource<TransferOverlayResult?>();
-            overlay.OnResult = result =>
-            {
-                overlayService.CloseOverlay(id);
-                tcs.TrySetResult(result);
-            };
-            selected = await tcs.Task.ConfigureAwait(true);
+                ContentType = "notes",
+                Direction = TransferDialogDirection.ExportOnly,
+                ImportTitle = localization.T("TransferExportNoteTitle", "Notes"),
+                ExportTitle = localization.T("TransferExportNoteTitle", "Notes"),
+                ExportSubtitle = string.Format(localization.T("TransferFromFormat", "Notes"), item.Name),
+                ItemNounSingular = localization.T("TransferNounSingular", "Notes"),
+                ItemNounPlural = localization.T("TransferNounPlural", "Notes"),
+                ExportFormats = exportFormats,
+                Coordinator = coordinator
+            }).ConfigureAwait(true);
         }
 
-        if (selected == null)
+        if (choice?.Format == null)
             return;
 
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel?.StorageProvider == null)
             return;
-        var ext = selected.Format.Extensions.FirstOrDefault() ?? ".mnemo";
+        var ext = choice.Format.Extensions.FirstOrDefault() ?? ".mnemo";
         var save = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = localization?.T("ExportNotePickerTitle", "Notes") ?? "Export note",
+            Title = localization.T("TransferExportNoteTitle", "Notes"),
             SuggestedFileName = $"{SanitizeFileName(item.Name)}{ext}",
             DefaultExtension = ext.TrimStart('.'),
-            FileTypeChoices = [new FilePickerFileType(selected.Format.DisplayName) { Patterns = selected.Format.Extensions.Select(e => $"*{e}").ToArray() }]
+            FileTypeChoices = [new FilePickerFileType(choice.Format.DisplayName) { Patterns = choice.Format.Extensions.Select(e => $"*{e}").ToArray() }]
         });
         if (save == null)
             return;
@@ -390,12 +400,16 @@ public partial class NoteTreeRow : UserControl
         var result = await coordinator.ExportAsync(new ImportExportRequest
         {
             ContentType = "notes",
-            FormatId = selected.Format.FormatId,
+            FormatId = choice.Format.FormatId,
             FilePath = save.Path.LocalPath,
             Payload = item.Note
         }).ConfigureAwait(true);
-        await overlayService.CreateDialogAsync(result.IsSuccess ? "Export complete" : "Export failed",
-            result.IsSuccess ? "Note exported." : result.ErrorMessage ?? "Export failed.").ConfigureAwait(true);
+        var succeeded = result.IsSuccess && result.Value is { Success: true };
+        await overlayService.CreateDialogAsync(
+            succeeded ? localization.T("ExportCompleteTitle", "Common") : localization.T("ExportFailedTitle", "Common"),
+            succeeded
+                ? localization.T("TransferExportFinished", "Common")
+                : result.Value?.ErrorMessage ?? result.ErrorMessage ?? localization.T("TransferExportFailed", "Common")).ConfigureAwait(true);
     }
 
     private TopLevel? _editTopLevel;

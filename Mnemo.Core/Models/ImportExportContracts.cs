@@ -1,6 +1,33 @@
 using System.Collections.Generic;
+using Mnemo.Core.Enums;
 
 namespace Mnemo.Core.Models;
+
+/// <summary>
+/// Well-known keys and parsing for <see cref="ImportExportRequest.Options"/>.
+/// </summary>
+public static class ImportExportOptionKeys
+{
+    public const string ConflictPolicy = "ConflictPolicy";
+
+    public const string TargetFolderId = "TargetFolderId";
+
+    public static ImportConflictPolicy GetConflictPolicy(IReadOnlyDictionary<string, object?> options)
+    {
+        if (options.TryGetValue(ConflictPolicy, out var value))
+        {
+            if (value is ImportConflictPolicy policy)
+                return policy;
+            if (value is string text && System.Enum.TryParse<ImportConflictPolicy>(text, ignoreCase: true, out var parsed))
+                return parsed;
+        }
+
+        return ImportConflictPolicy.KeepBoth;
+    }
+
+    public static string? GetStringOption(IReadOnlyDictionary<string, object?> options, string key) =>
+        options.TryGetValue(key, out var value) && value is string text && !string.IsNullOrWhiteSpace(text) ? text : null;
+}
 
 public sealed class ImportExportCapability
 {

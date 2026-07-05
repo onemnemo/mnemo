@@ -7,6 +7,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Services;
 using Mnemo.UI.Components.Overlays;
+using Mnemo.UI.Components.Overlays.Transfer;
 using Mnemo.UI.Modules.Mindmap.ViewModels;
 using System;
 using System.Collections.Generic;
@@ -32,75 +33,87 @@ public partial class MindmapOverviewView : UserControl
         var coordinator = services.GetService<IImportExportCoordinator>();
         var overlayService = services.GetService<IOverlayService>();
         var localization = services.GetService<ILocalizationService>();
-        if (coordinator == null || overlayService == null)
+        if (coordinator == null || overlayService == null || localization == null)
             return;
 
         var button = sender as Button;
         var startTransfer = string.Equals(button?.Tag?.ToString(), "transfer", StringComparison.OrdinalIgnoreCase);
-        var capabilities = coordinator.GetCapabilities("mindmaps");
-        var overlay = new TransferOverlay();
-        overlay.SetLocalizedChrome(
-            "TransferOverlayTitle", "Mindmap",
-            "TransferOverlayDescription", "Mindmap",
-            "Continue", "Common",
-            "Cancel", "Common");
-        overlay.Initialize(capabilities, startTransfer);
-        var overlayId = overlayService.CreateOverlay(overlay, new OverlayOptions
+        var context = new TransferDialogContext
         {
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            ShowBackdrop = true,
-            CloseOnOutsideClick = true
-        }, "TransferOverlay");
-
-        var tcs = new TaskCompletionSource<TransferOverlayResult?>();
-        overlay.OnResult = result =>
-        {
-            overlayService.CloseOverlay(overlayId);
-            tcs.TrySetResult(result);
+            ContentType = "mindmaps",
+            Direction = TransferDialogDirection.Both,
+            StartWithImport = startTransfer,
+            ImportTitle = localization.T("TransferImportTitle", "Mindmap"),
+            ExportTitle = localization.T("TransferExportTitle", "Mindmap"),
+            ItemNounSingular = localization.T("TransferNounSingular", "Mindmap"),
+            ItemNounPlural = localization.T("TransferNounPlural", "Mindmap"),
+            ConflictQuestion = localization.T("TransferConflictQuestion", "Mindmap"),
+            ImportCapabilities = coordinator.GetCapabilities("mindmaps").Where(c => c.SupportsImport).ToArray(),
+            ExportFormats = BuildMindmapExportFormats(coordinator, localization),
+            ExportScopes =
+            [
+                new TransferExportScopeOption
+                {
+                    ScopeId = "all",
+                    Label = localization.T("TransferScopeAllMindmaps", "Mindmap"),
+                    Count = vm.AllItems.Count
+                }
+            ],
+            Coordinator = coordinator
         };
-        var selected = await tcs.Task.ConfigureAwait(true);
-        if (selected == null)
+
+        var choice = await TransferDialog.ShowAsync(overlayService, context).ConfigureAwait(true);
+        if (choice == null)
             return;
 
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel?.StorageProvider == null)
-            return;
-
-        if (selected.IsImport)
+        if (choice.IsImport)
         {
-            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-            {
-                AllowMultiple = false,
-                Title = localization?.T("ImportMindmapsPickerTitle", "Mindmap") ?? "Import mindmaps",
-                FileTypeFilter = [new FilePickerFileType(selected.Format.DisplayName) { Patterns = selected.Format.Extensions.Select(ext => $"*{ext}").ToArray() }]
-            });
-            var file = files.FirstOrDefault();
-            if (file == null)
-                return;
-
-            var result = await coordinator.ImportAsync(new ImportExportRequest
-            {
-                ContentType = "mindmaps",
-                FormatId = selected.Format.FormatId,
-                FilePath = file.Path.LocalPath
-            }).ConfigureAwait(true);
-            var importSucceeded = result.IsSuccess && result.Value is { Success: true };
-            var importMessage = importSucceeded
-                ? localization?.T("ImportMindmapFinishedMessage", "Mindmap") ?? "Mindmap import finished."
-                : result.Value?.ErrorMessage ?? result.ErrorMessage ?? localization?.T("ImportMindmapGenericError", "Mindmap") ?? "Import failed.";
-            await overlayService.CreateDialogAsync(importSucceeded ? localization?.T("ImportCompleteTitle", "Common") ?? "Import complete" : localization?.T("ImportFailedTitle", "Common") ?? "Import failed", importMessage).ConfigureAwait(true);
-            if (importSucceeded)
+            var summary = await TransferImportRunner.RunAsync(coordinator, "mindmaps", choice).ConfigureAwait(true);
+            await TransferImportRunner.ShowSummaryAsync(overlayService, localization, context, summary).ConfigureAwait(true);
+            if (summary.AnySucceeded)
                 await vm.RefreshAsync().ConfigureAwait(true);
             return;
         }
 
+        await ExportMindmapsAsync(overlayService, localization, coordinator, choice, payload: null, suggestedName: "mindmaps").ConfigureAwait(true);
+    }
+
+    private static IReadOnlyList<TransferExportFormatOption> BuildMindmapExportFormats(IImportExportCoordinator coordinator, ILocalizationService localization)
+    {
+        return coordinator.GetCapabilities("mindmaps")
+            .Where(c => c.SupportsExport)
+            .Select(c => new TransferExportFormatOption
+            {
+                FormatId = c.FormatId,
+                ExtensionLabel = c.Extensions.FirstOrDefault() ?? ".mnemo",
+                DisplayName = c.FormatId == "mindmaps.mnemo" ? localization.T("TransferFormatArchive", "Common") : c.DisplayName,
+                Caption = c.FormatId == "mindmaps.mnemo" ? localization.T("TransferFormatCaptionArchive", "Common") : null,
+                Extensions = c.Extensions
+            })
+            .ToArray();
+    }
+
+    private async Task ExportMindmapsAsync(
+        IOverlayService overlayService,
+        ILocalizationService localization,
+        IImportExportCoordinator coordinator,
+        TransferDialogResult choice,
+        object? payload,
+        string suggestedName)
+    {
+        if (choice.Format == null)
+            return;
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.StorageProvider == null)
+            return;
+
+        var extension = choice.Format.Extensions.FirstOrDefault() ?? ".mnemo";
         var saveFile = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = localization?.T("ExportMindmapsPickerTitle", "Mindmap") ?? "Export mindmaps",
-            SuggestedFileName = $"mindmaps{selected.Format.Extensions.FirstOrDefault() ?? ".mnemo"}",
-            DefaultExtension = selected.Format.Extensions.FirstOrDefault()?.TrimStart('.'),
-            FileTypeChoices = [new FilePickerFileType(selected.Format.DisplayName) { Patterns = selected.Format.Extensions.Select(ext => $"*{ext}").ToArray() }]
+            Title = localization.T("TransferExportTitle", "Mindmap"),
+            SuggestedFileName = $"{suggestedName}{extension}",
+            DefaultExtension = extension.TrimStart('.'),
+            FileTypeChoices = [new FilePickerFileType(choice.Format.DisplayName) { Patterns = choice.Format.Extensions.Select(ext => $"*{ext}").ToArray() }]
         });
         if (saveFile == null)
             return;
@@ -108,14 +121,16 @@ public partial class MindmapOverviewView : UserControl
         var export = await coordinator.ExportAsync(new ImportExportRequest
         {
             ContentType = "mindmaps",
-            FormatId = selected.Format.FormatId,
-            FilePath = saveFile.Path.LocalPath
+            FormatId = choice.Format.FormatId,
+            FilePath = saveFile.Path.LocalPath,
+            Payload = payload
         }).ConfigureAwait(true);
         var exportSucceeded = export.IsSuccess && export.Value is { Success: true };
-        var exportMessage = exportSucceeded
-            ? localization?.T("ExportMindmapFinishedMessage", "Mindmap") ?? "Mindmap export finished."
-            : export.Value?.ErrorMessage ?? export.ErrorMessage ?? localization?.T("ExportMindmapGenericError", "Mindmap") ?? "Export failed.";
-        await overlayService.CreateDialogAsync(exportSucceeded ? localization?.T("ExportCompleteTitle", "Common") ?? "Export complete" : localization?.T("ExportFailedTitle", "Common") ?? "Export failed", exportMessage).ConfigureAwait(true);
+        await overlayService.CreateDialogAsync(
+            exportSucceeded ? localization.T("ExportCompleteTitle", "Common") : localization.T("ExportFailedTitle", "Common"),
+            exportSucceeded
+                ? localization.T("TransferExportFinished", "Common")
+                : export.Value?.ErrorMessage ?? export.ErrorMessage ?? localization.T("TransferExportFailed", "Common")).ConfigureAwait(true);
     }
 
     private async void OnMindmapDeleteClick(object? sender, RoutedEventArgs e)
@@ -206,54 +221,25 @@ public partial class MindmapOverviewView : UserControl
         var localization = services.GetService<ILocalizationService>();
         if (coordinator == null || overlayService == null)
             return;
-        var capabilities = coordinator.GetCapabilities("mindmaps").Where(c => c.SupportsExport).ToArray();
-        var overlay = new TransferOverlay();
-        overlay.SetLocalizedChrome(
-            "ExportSingleMindmapTitle", "Mindmap",
-            "ExportSingleMindmapDescription", "Mindmap",
-            "Export", "Mindmap",
-            "Cancel", "Common");
-        overlay.Initialize(capabilities, defaultImport: false);
-        var overlayId = overlayService.CreateOverlay(overlay, new OverlayOptions
-        {
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            ShowBackdrop = true,
-            CloseOnOutsideClick = true
-        }, "TransferOverlay");
-        var tcs = new TaskCompletionSource<TransferOverlayResult?>();
-        overlay.OnResult = result =>
-        {
-            overlayService.CloseOverlay(overlayId);
-            tcs.TrySetResult(result);
-        };
-        var selected = await tcs.Task.ConfigureAwait(true);
-        if (selected == null)
+        if (localization == null)
             return;
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel?.StorageProvider == null)
-            return;
-        var saveFile = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = localization?.T("ExportSingleMindmapPickerTitle", "Mindmap") ?? "Export mindmap",
-            SuggestedFileName = $"{SanitizeFileName(item.Name)}{selected.Format.Extensions.FirstOrDefault() ?? ".mnemo"}",
-            DefaultExtension = selected.Format.Extensions.FirstOrDefault()?.TrimStart('.'),
-            FileTypeChoices = [new FilePickerFileType(selected.Format.DisplayName) { Patterns = selected.Format.Extensions.Select(ext => $"*{ext}").ToArray() }]
-        });
-        if (saveFile == null)
-            return;
-        var export = await coordinator.ExportAsync(new ImportExportRequest
+
+        var choice = await TransferDialog.ShowAsync(overlayService, new TransferDialogContext
         {
             ContentType = "mindmaps",
-            FormatId = selected.Format.FormatId,
-            FilePath = saveFile.Path.LocalPath,
-            Payload = item.Id
+            Direction = TransferDialogDirection.ExportOnly,
+            ImportTitle = localization.T("TransferExportSingleTitle", "Mindmap"),
+            ExportTitle = localization.T("TransferExportSingleTitle", "Mindmap"),
+            ExportSubtitle = string.Format(localization.T("TransferFromFormat", "Mindmap"), item.Name),
+            ItemNounSingular = localization.T("TransferNounSingular", "Mindmap"),
+            ItemNounPlural = localization.T("TransferNounPlural", "Mindmap"),
+            ExportFormats = BuildMindmapExportFormats(coordinator, localization),
+            Coordinator = coordinator
         }).ConfigureAwait(true);
-        var exportSucceeded = export.IsSuccess && export.Value is { Success: true };
-        var exportMessage = exportSucceeded
-            ? localization?.T("ExportMindmapFinishedMessage", "Mindmap") ?? "Mindmap export finished."
-            : export.Value?.ErrorMessage ?? export.ErrorMessage ?? localization?.T("ExportMindmapGenericError", "Mindmap") ?? "Export failed.";
-        await overlayService.CreateDialogAsync(exportSucceeded ? localization?.T("ExportCompleteTitle", "Common") ?? "Export complete" : localization?.T("ExportFailedTitle", "Common") ?? "Export failed", exportMessage).ConfigureAwait(true);
+        if (choice == null)
+            return;
+
+        await ExportMindmapsAsync(overlayService, localization, coordinator, choice, payload: item.Id, suggestedName: SanitizeFileName(item.Name)).ConfigureAwait(true);
     }
 
     private static Mnemo.Core.Models.Mindmap.Mindmap CloneMindmap(Mnemo.Core.Models.Mindmap.Mindmap source, string title) =>

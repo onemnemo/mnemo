@@ -158,6 +158,7 @@ public sealed class MnemoPackageService : IMnemoPackageService
 
                 result.ImportedCountsByPayload[entry.PayloadType] = importResult.ImportedCount;
                 result.DuplicatedCountsByPayload[entry.PayloadType] = importResult.DuplicatedCount;
+                result.SkippedCountsByPayload[entry.PayloadType] = importResult.SkippedCount;
                 result.Warnings.AddRange(importResult.Warnings);
             }
 

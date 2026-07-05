@@ -1,0 +1,45 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        Segmented control on a recessed track. Usage:
+            <Border Classes="segment-track"><Grid|UniformGrid><Button Classes="segment [selected]" …
+        Selection is a class toggle ("selected") managed by the owning view.
+    -->
+    <Style Selector="Border.segment-track">
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+        <Setter Property="Padding" Value="3" />
+    </Style>
+
+    <Style Selector="Button.segment">
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <!-- Translucent white hover so the track tint shows through on any theme. -->
+    <Style Selector="Button.segment:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#8CFFFFFF" />
+    </Style>
+    <Style Selector="Button.segment.selected">
+        <Setter Property="Background" Value="{DynamicResource WorkspaceBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}" />
+    </Style>
+    <Style Selector="Button.segment.selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BoxShadow" Value="0 1 3 0 #14000000" />
+    </Style>
+    <Style Selector="Button.segment.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource WorkspaceBackgroundBrush}" />
+    </Style>
+    <Style Selector="Button.segment:disabled">
+        <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}" />
+        <Setter Property="Opacity" Value="0.6" />
+    </Style>
+</Styles>

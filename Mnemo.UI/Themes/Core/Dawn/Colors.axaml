@@ -294,20 +294,25 @@
     <Color x:Key="ComboBoxItemForegroundDisabled">#C9C6BE</Color>             
 
     <!-- CheckBox (visible on WorkspaceBackground #FFFFFF) -->
-    <Color x:Key="CheckBoxCheckBackgroundStroke">#9B978D</Color>
-    <Color x:Key="CheckBoxCheckBackgroundStrokePointerOver">#6B6862</Color>
-    <Color x:Key="CheckBoxCheckBackgroundStrokePressed">#524F49</Color>
-    <Color x:Key="CheckBoxCheckBackgroundStrokeDisabled">#C2BFB6</Color>
-    <Color x:Key="CheckBoxCheckBackgroundFill">#E7E5DF</Color>
-    <Color x:Key="CheckBoxCheckBackgroundFillPointerOver">#DCDAD3</Color>
-    <Color x:Key="CheckBoxCheckBackgroundFillPressed">#D5D3CB</Color>
-    <Color x:Key="CheckBoxCheckBackgroundFillDisabled">#EBEAE4</Color>
-    <Color x:Key="CheckBoxCheckGlyphForeground">#C64F33</Color>
+    <Color x:Key="CheckBoxCheckBackgroundStroke">#C9C5BB</Color>
+    <Color x:Key="CheckBoxCheckBackgroundStrokePointerOver">#C64F33</Color>
+    <Color x:Key="CheckBoxCheckBackgroundStrokePressed">#A8402A</Color>
+    <Color x:Key="CheckBoxCheckBackgroundStrokeDisabled">#E3E0D8</Color>
+    <Color x:Key="CheckBoxCheckBackgroundFill">#FFFFFF</Color>
+    <Color x:Key="CheckBoxCheckBackgroundFillPointerOver">#FBF3F0</Color>
+    <Color x:Key="CheckBoxCheckBackgroundFillPressed">#F5E5DF</Color>
+    <Color x:Key="CheckBoxCheckBackgroundFillDisabled">#F5F4F0</Color>
+    <Color x:Key="CheckBoxCheckedBackground">#C64F33</Color>
+    <Color x:Key="CheckBoxCheckedBackgroundPointerOver">#D66246</Color>
+    <Color x:Key="CheckBoxCheckedBackgroundPressed">#A8402A</Color>
+    <Color x:Key="CheckBoxCheckedBackgroundDisabled">#E3E0D8</Color>
+    <Color x:Key="CheckBoxCheckGlyphForeground">#FFFFFF</Color>
     <Color x:Key="CheckBoxCheckGlyphForegroundIndeterminate">#C64F33</Color>
     <Color x:Key="CheckBoxCheckGlyphForegroundDisabled">#C9C6BE</Color>
     <Color x:Key="CheckBoxForeground">#1D1C1A</Color>
     <Color x:Key="CheckBoxForegroundPointerOver">#1D1C1A</Color>
     <Color x:Key="CheckBoxForegroundPressed">#1D1C1A</Color>
+    <Color x:Key="CheckBoxForegroundChecked">#9C9891</Color>
     <Color x:Key="CheckBoxForegroundDisabled">#C9C6BE</Color>
     
     <!-- ScrollBar -->

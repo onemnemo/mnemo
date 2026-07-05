@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Mnemo.Core.Enums;
 
 namespace Mnemo.Core.Models;
 
@@ -18,7 +19,7 @@ public sealed class MnemoPackageImportOptions
 {
     public bool PreviewOnly { get; set; }
 
-    public bool DuplicateOnConflict { get; set; } = true;
+    public ImportConflictPolicy ConflictPolicy { get; set; } = ImportConflictPolicy.KeepBoth;
 
     public bool StrictUnknownPayloads { get; set; }
 
@@ -36,6 +37,8 @@ public sealed class MnemoPackageResult
     public Dictionary<string, int> ImportedCountsByPayload { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public Dictionary<string, int> DuplicatedCountsByPayload { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> SkippedCountsByPayload { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public List<string> Warnings { get; set; } = new();
 
@@ -56,6 +59,8 @@ public sealed class MnemoPayloadImportResult
     public int ImportedCount { get; set; }
 
     public int DuplicatedCount { get; set; }
+
+    public int SkippedCount { get; set; }
 
     public List<string> Warnings { get; set; } = new();
 }

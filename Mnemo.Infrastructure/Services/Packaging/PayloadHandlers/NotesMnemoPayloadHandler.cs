@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Mnemo.Core.Enums;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
@@ -55,15 +56,26 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
 
         var folderIdMap = new Dictionary<string, string>(StringComparer.Ordinal);
         var result = new MnemoPayloadImportResult();
+        var policy = context.Options.ConflictPolicy;
+        var usedTitles = new HashSet<string>(existingNotes.Values.Select(n => n.Title), StringComparer.OrdinalIgnoreCase);
 
         foreach (var folder in snapshot.Folders)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var imported = CloneFolder(folder);
-            if (context.Options.DuplicateOnConflict && existingFolders.ContainsKey(imported.FolderId))
+            if (existingFolders.ContainsKey(imported.FolderId))
             {
-                imported.FolderId = Guid.NewGuid().ToString();
-                result.DuplicatedCount++;
+                if (policy == ImportConflictPolicy.Skip)
+                {
+                    folderIdMap[folder.FolderId] = imported.FolderId;
+                    continue;
+                }
+
+                if (policy == ImportConflictPolicy.KeepBoth)
+                {
+                    imported.FolderId = Guid.NewGuid().ToString();
+                    result.DuplicatedCount++;
+                }
             }
 
             folderIdMap[folder.FolderId] = imported.FolderId;
@@ -79,12 +91,23 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         {
             cancellationToken.ThrowIfCancellationRequested();
             var imported = CloneNote(note);
-            if (context.Options.DuplicateOnConflict && existingNotes.ContainsKey(imported.NoteId))
+            if (existingNotes.ContainsKey(imported.NoteId))
             {
-                imported.NoteId = Guid.NewGuid().ToString();
-                result.DuplicatedCount++;
+                if (policy == ImportConflictPolicy.Skip)
+                {
+                    result.SkippedCount++;
+                    continue;
+                }
+
+                if (policy == ImportConflictPolicy.KeepBoth)
+                {
+                    imported.NoteId = Guid.NewGuid().ToString();
+                    imported.Title = ImportNaming.NextAvailableName(imported.Title, usedTitles);
+                    result.DuplicatedCount++;
+                }
             }
 
+            usedTitles.Add(imported.Title);
             if (!string.IsNullOrWhiteSpace(imported.FolderId) && folderIdMap.TryGetValue(imported.FolderId, out var remappedFolder))
                 imported.FolderId = remappedFolder;
 

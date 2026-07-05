@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Json;
+using Mnemo.Core.Enums;
 using Mnemo.Core.Models;
+using Mnemo.Infrastructure.Common;
 using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Services;
 
@@ -48,16 +50,32 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             : new HashSet<string>(StringComparer.Ordinal);
 
         var result = new MnemoPayloadImportResult();
+        var policy = context.Options.ConflictPolicy;
+        var usedTitles = new HashSet<string>(
+            existing.IsSuccess ? existing.Value?.Select(x => x.Title) ?? Enumerable.Empty<string>() : Enumerable.Empty<string>(),
+            StringComparer.OrdinalIgnoreCase);
+
         foreach (var mindmap in items)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var imported = CloneMindmap(mindmap);
-            if (context.Options.DuplicateOnConflict && existingIds.Contains(imported.Id))
+            if (existingIds.Contains(imported.Id))
             {
-                imported.Id = Guid.NewGuid().ToString();
-                result.DuplicatedCount++;
+                if (policy == ImportConflictPolicy.Skip)
+                {
+                    result.SkippedCount++;
+                    continue;
+                }
+
+                if (policy == ImportConflictPolicy.KeepBoth)
+                {
+                    imported.Id = Guid.NewGuid().ToString();
+                    imported.Title = ImportNaming.NextAvailableName(imported.Title, usedTitles);
+                    result.DuplicatedCount++;
+                }
             }
 
+            usedTitles.Add(imported.Title);
             var save = await _mindmapService.SaveMindmapAsync(imported).ConfigureAwait(false);
             if (!save.IsSuccess)
             {

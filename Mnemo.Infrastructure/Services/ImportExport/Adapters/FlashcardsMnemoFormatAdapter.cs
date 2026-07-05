@@ -46,12 +46,9 @@ public sealed class FlashcardsMnemoFormatAdapter : IContentFormatAdapter
 
     public async Task<ImportExportResult> ImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
-        var duplicateOnConflict = GetBoolOption(request.Options, "DuplicateOnConflict", true);
-        var strictUnknown = GetBoolOption(request.Options, "StrictUnknownPayloads", false);
         var import = await _packageService.ImportAsync(request.FilePath, new MnemoPackageImportOptions
         {
-            DuplicateOnConflict = duplicateOnConflict,
-            StrictUnknownPayloads = strictUnknown,
+            ConflictPolicy = ImportExportOptionKeys.GetConflictPolicy(request.Options),
             PayloadTypes = ["flashcards"]
         }, cancellationToken).ConfigureAwait(false);
 
@@ -101,12 +98,5 @@ public sealed class FlashcardsMnemoFormatAdapter : IContentFormatAdapter
                 ["flashcards"] = export.Value?.Entries.FirstOrDefault(e => string.Equals(e.PayloadType, "flashcards", StringComparison.OrdinalIgnoreCase))?.ItemCount ?? 0
             }
         };
-    }
-
-    private static bool GetBoolOption(IReadOnlyDictionary<string, object?> options, string key, bool fallback)
-    {
-        if (options.TryGetValue(key, out var value) && value is bool b)
-            return b;
-        return fallback;
     }
 }

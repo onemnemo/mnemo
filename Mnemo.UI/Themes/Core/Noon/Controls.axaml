@@ -350,6 +350,10 @@
     <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillPointerOverBrush" Color="{DynamicResource CheckBoxCheckBackgroundFillPointerOver}"/>
     <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillPressedBrush" Color="{DynamicResource CheckBoxCheckBackgroundFillPressed}"/>
     <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillDisabledBrush" Color="{DynamicResource CheckBoxCheckBackgroundFillDisabled}"/>
+    <SolidColorBrush x:Key="CheckBoxCheckedBackgroundBrush" Color="{DynamicResource CheckBoxCheckedBackground}"/>
+    <SolidColorBrush x:Key="CheckBoxCheckedBackgroundPointerOverBrush" Color="{DynamicResource CheckBoxCheckedBackgroundPointerOver}"/>
+    <SolidColorBrush x:Key="CheckBoxCheckedBackgroundPressedBrush" Color="{DynamicResource CheckBoxCheckedBackgroundPressed}"/>
+    <SolidColorBrush x:Key="CheckBoxCheckedBackgroundDisabledBrush" Color="{DynamicResource CheckBoxCheckedBackgroundDisabled}"/>
     <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundBrush" Color="{DynamicResource CheckBoxCheckGlyphForeground}"/>
     <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundIndeterminateBrush" Color="{DynamicResource CheckBoxCheckGlyphForegroundIndeterminate}"/>
     <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundDisabledBrush" Color="{DynamicResource CheckBoxCheckGlyphForegroundDisabled}"/>
@@ -357,6 +361,7 @@
     <SolidColorBrush x:Key="CheckBoxForegroundPointerOverBrush" Color="{DynamicResource CheckBoxForegroundPointerOver}"/>
     <SolidColorBrush x:Key="CheckBoxForegroundPressedBrush" Color="{DynamicResource CheckBoxForegroundPressed}"/>
     <SolidColorBrush x:Key="CheckBoxForegroundDisabledBrush" Color="{DynamicResource CheckBoxForegroundDisabled}"/>
+    <SolidColorBrush x:Key="CheckBoxForegroundCheckedBrush" Color="{DynamicResource CheckBoxForegroundChecked}"/>
     
     <!-- ScrollBar -->
     <x:Double x:Key="ScrollBarSize">8</x:Double>

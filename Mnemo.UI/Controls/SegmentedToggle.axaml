@@ -3,56 +3,62 @@
              xmlns:controls="using:Mnemo.UI.Controls"
              x:Name="Root"
              x:Class="Mnemo.UI.Controls.SegmentedToggle"
-             x:DataType="controls:SegmentedToggle"
-             SelectedForegroundBrush="{DynamicResource AccentButtonForegroundBrush}"
-             UnselectedForegroundBrush="{DynamicResource TextSecondaryBrush}">
+             x:DataType="controls:SegmentedToggle">
 
     <UserControl.Styles>
         <Style Selector="Button.segment">
+            <Setter Property="Height" Value="26"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="999"/>
-            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}"/>
+            <Setter Property="Padding" Value="12,0"/>
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
-            <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}"/>
+            <Setter Property="Cursor" Value="Hand"/>
         </Style>
 
-        <Style Selector="Button.segment:pointerover">
-            <Setter Property="Background" Value="#12000000"/>
+        <Style Selector="Button.segment TextBlock">
+            <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
         </Style>
 
+        <Style Selector="Button.segment controls|SvgIcon">
+            <Setter Property="Color" Value="{DynamicResource TextTertiaryBrush}"/>
+        </Style>
+
+        <!-- Translucent white hover so the track tint shows through on any theme. -->
         <Style Selector="Button.segment:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="#12000000"/>
+            <Setter Property="Background" Value="#8CFFFFFF"/>
         </Style>
 
-        <Style Selector="Button.segment.selected:pointerover">
-            <Setter Property="Background" Value="Transparent"/>
+        <Style Selector="Button.segment.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource WorkspaceBackgroundBrush}"/>
+            <Setter Property="BoxShadow" Value="0 1 3 0 #14000000"/>
         </Style>
 
         <Style Selector="Button.segment.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Background" Value="{DynamicResource WorkspaceBackgroundBrush}"/>
         </Style>
 
-        <Style Selector="Button.segment:pressed">
-            <Setter Property="RenderTransform" Value="scale(0.98)"/>
+        <Style Selector="Button.segment.selected TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+        </Style>
+
+        <Style Selector="Button.segment.selected controls|SvgIcon">
+            <Setter Property="Color" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+
+        <Style Selector="Button.segment:disabled">
+            <Setter Property="Opacity" Value="0.5"/>
         </Style>
     </UserControl.Styles>
 
-    <Border CornerRadius="999"
-            BorderBrush="{DynamicResource BorderBrush}"
-            BorderThickness="1"
+    <Border CornerRadius="{DynamicResource Radius.Md}"
             Background="{DynamicResource CardBackgroundSecondaryBrush}"
-            Padding="4"
-            MinHeight="46">
+            Padding="3">
 
-        <Grid ColumnDefinitions="*,*" ClipToBounds="True">
-
-            <!-- selected pill -->
-            <Border Grid.Column="{Binding #Root.SelectedIndex}"
-                    CornerRadius="999"
-                    Background="{DynamicResource AccentButtonBackgroundBrush}"
-                    BoxShadow="0 2 8 #22000000"/>
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="3">
 
             <Button Grid.Column="0"
                     Classes="segment"
@@ -60,10 +66,9 @@
                     IsEnabled="{Binding #Root.LeftIsEnabled}"
                     Command="{Binding #Root.LeftCommand}"
                     Click="OnLeftClicked">
-                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                    <controls:SvgIcon SvgPath="{Binding #Root.LeftIconPath}" Width="16" Height="16" Color="{Binding #Root.LeftForeground}"/>
-                    <TextBlock Text="{Binding #Root.LeftText}"
-                               Foreground="{Binding #Root.LeftForeground}"/>
+                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                    <controls:SvgIcon SvgPath="{Binding #Root.LeftIconPath}" Width="11" Height="11"/>
+                    <TextBlock Text="{Binding #Root.LeftText}"/>
                 </StackPanel>
             </Button>
 
@@ -73,10 +78,9 @@
                     IsEnabled="{Binding #Root.RightIsEnabled}"
                     Command="{Binding #Root.RightCommand}"
                     Click="OnRightClicked">
-                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                    <controls:SvgIcon SvgPath="{Binding #Root.RightIconPath}" Width="16" Height="16" Color="{Binding #Root.RightForeground}"/>
-                    <TextBlock Text="{Binding #Root.RightText}"
-                               Foreground="{Binding #Root.RightForeground}"/>
+                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                    <controls:SvgIcon SvgPath="{Binding #Root.RightIconPath}" Width="11" Height="11"/>
+                    <TextBlock Text="{Binding #Root.RightText}"/>
                 </StackPanel>
             </Button>
         </Grid>

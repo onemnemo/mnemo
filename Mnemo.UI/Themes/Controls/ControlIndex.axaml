@@ -86,6 +86,7 @@
     <StyleInclude Source="NavigationButton.axaml" />
     <StyleInclude Source="PageSearch.axaml" />
     <StyleInclude Source="ModernComboBox.axaml" />
+    <StyleInclude Source="Segmented.axaml" />
     <StyleInclude Source="SlashCommandMenu.axaml" />
     <StyleInclude Source="InlineFormattingToolbar.axaml" />
 </Styles>
