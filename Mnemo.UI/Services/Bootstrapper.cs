@@ -17,6 +17,7 @@ using Mnemo.Infrastructure.Services.AI;
 using Mnemo.Infrastructure.Services.Notes;
 using Mnemo.Infrastructure.Services.Notes.Pdf;
 using Mnemo.Infrastructure.Services.Flashcards;
+using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Services.Statistics;
 using Mnemo.Infrastructure.Services.TextShortcuts;
 using Mnemo.Infrastructure.Services.Keybinds;
@@ -188,6 +189,29 @@ public static class Bootstrapper
         services.AddSingleton<IFlashcardScheduler, BaselineFlashcardScheduler>();
         services.AddSingleton<IFlashcardSchedulerResolver, FlashcardSchedulerResolver>();
         services.AddSingleton<IFlashcardDeckService, PersistentFlashcardDeckService>();
+
+        // Relational flashcard store (rehaul): owned store, repositories, and blob→relational migrator.
+        // Registered alongside the legacy service; the UI is switched over in the UI milestones.
+        services.AddSingleton<IFlashcardStore, FlashcardStore>();
+        services.AddSingleton<IFolderRepository, FolderRepository>();
+        services.AddSingleton<IPresetRepository, PresetRepository>();
+        services.AddSingleton<IDeckRepository, DeckRepository>();
+        services.AddSingleton<ICardRepository, CardRepository>();
+        services.AddSingleton<IScheduleRepository, ScheduleRepository>();
+        services.AddSingleton<IReviewRepository, ReviewRepository>();
+        services.AddSingleton<ITestAttemptRepository, TestAttemptRepository>();
+        services.AddSingleton<IDailyStatsRepository, DailyStatsRepository>();
+        services.AddSingleton<IFlashcardStoreMigrator, FlashcardStoreMigrator>();
+
+        // FSRS-only scheduler for the new engine.
+        services.AddSingleton<IFsrsScheduler, FsrsScheduler>();
+
+        // Focused flashcard services over the relational store.
+        services.AddSingleton<IFlashcardLibraryService, FlashcardLibraryService>();
+        services.AddSingleton<IFlashcardCardService, FlashcardCardService>();
+        services.AddSingleton<IFlashcardStudyService, FlashcardStudyService>();
+        services.AddSingleton<IFlashcardPresetService, FlashcardPresetService>();
+        services.AddSingleton<IFlashcardStatsService, FlashcardStatsService>();
         services.AddSingleton<IMnemoPackageService, MnemoPackageService>();
         services.AddSingleton<IMnemoPayloadHandler, NotesMnemoPayloadHandler>();
         services.AddSingleton<IMnemoPayloadHandler, SettingsMnemoPayloadHandler>();

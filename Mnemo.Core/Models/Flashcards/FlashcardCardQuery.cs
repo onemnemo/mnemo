@@ -1,0 +1,51 @@
+namespace Mnemo.Core.Models.Flashcards;
+
+/// <summary>State filter for the deck view card table (matches the "State: Due" chip).</summary>
+public enum FlashcardCardStateFilter
+{
+    All = 0,
+    Due = 1,
+    New = 2,
+    Learning = 3,
+    Suspended = 4,
+    Flagged = 5
+}
+
+/// <summary>Sort key for the deck view card table.</summary>
+public enum FlashcardCardSort
+{
+    Due = 0,
+    Front = 1,
+    Type = 2,
+    Reps = 3,
+    Lapses = 4,
+    Created = 5
+}
+
+/// <summary>
+/// A paginated, filtered query over a single deck's cards. Backs the deck view (10b), which is
+/// always paged (e.g. "1–50 of 58") and never loads a whole deck at once.
+/// </summary>
+public sealed record FlashcardCardQuery(
+    string DeckId,
+    string? Text = null,
+    FlashcardCardStateFilter State = FlashcardCardStateFilter.All,
+    string? Tag = null,
+    FlashcardCardSort Sort = FlashcardCardSort.Due,
+    bool SortDescending = false,
+    int Offset = 0,
+    int Limit = 50);
+
+/// <summary>One page of cards (content + schedule) plus the total row count for the query.</summary>
+public sealed record FlashcardCardPage(
+    IReadOnlyList<FlashcardView> Items,
+    int TotalCount,
+    int Offset,
+    int Limit);
+
+/// <summary>Scope for full-text card search: whether suspended cards are included.</summary>
+public enum FlashcardSearchScope
+{
+    ActiveOnly = 0,
+    IncludeSuspended = 1
+}
