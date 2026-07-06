@@ -11,11 +11,11 @@ public static class OverviewBoardMetrics
     /// <summary>Maximum number of columns (wide layout).</summary>
     public const int MaxColumns = 4;
 
-    /// <summary>Height of one grid row in pixels.</summary>
-    public const double RowHeight = 112;
+    /// <summary>Height of one grid row in pixels (matches legacy 120px cell height).</summary>
+    public const double RowHeight = 120;
 
-    /// <summary>Gap between cells in pixels.</summary>
-    public const double Gap = 12;
+    /// <summary>Gap between cells in pixels (<see cref="Space.4"/>).</summary>
+    public const double Gap = 16;
 
     /// <summary>Responsive column count: 4 (wide) → 2 (medium) → 1 (narrow).</summary>
     public static int ColumnCountForWidth(double width) => width switch

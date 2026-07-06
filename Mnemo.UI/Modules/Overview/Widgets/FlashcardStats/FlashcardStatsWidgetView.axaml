@@ -31,7 +31,7 @@
     <Grid>
         <!-- Wide: stat cells split by vertical hairlines -->
         <Grid ColumnDefinitions="*,Auto,*,Auto,*"
-              VerticalAlignment="Center"
+              VerticalAlignment="Top"
               IsVisible="{Binding !IsNarrow}">
             <StackPanel Grid.Column="0">
                 <TextBlock Classes="stat-value"

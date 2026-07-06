@@ -19,7 +19,7 @@ public sealed class RecentDecksWidgetDescriptor : IWidgetDescriptor
         Category = WidgetCategory.Activity,
         IconUri = WidgetIconAvares.Uri("RecentDecks"),
         SupportedSizes = [new WidgetSize(2, 1), new WidgetSize(2, 2)],
-        DefaultSize = new WidgetSize(2, 2),
+        DefaultSize = new WidgetSize(2, 1),
         Settings =
         [
             new WidgetSettingSchema

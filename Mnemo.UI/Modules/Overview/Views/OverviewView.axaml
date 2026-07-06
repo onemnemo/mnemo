@@ -55,7 +55,7 @@
                             VerticalAlignment="Center">
                     <!-- Normal mode: Customize -->
                     <controls:AppButton Classes="secondary"
-                                        IconName="Common/layout-grid"
+                                        IconName="Common/dashboard-customize"
                                         Content="{markup:T Ns=Overview, Key=Customize}"
                                         Command="{Binding EnterEditCommand}"
                                         IsVisible="{Binding !IsEditMode}"/>
@@ -74,7 +74,7 @@
             </Grid>
 
             <!-- Widget board -->
-            <Grid x:Name="BoardArea" MinHeight="500">
+            <Grid x:Name="BoardArea">
                 <!-- Edit-mode grid hints, drawn behind the tiles at the panel's origin -->
                 <oc:WidgetBoardHintLayer x:Name="BoardHints"
                                          IsHitTestVisible="False"
@@ -82,6 +82,7 @@
                                          Foreground="{DynamicResource TextFadedBrush}"/>
 
                 <ItemsControl x:Name="BoardItems"
+                              VerticalAlignment="Top"
                               ItemsSource="{Binding Widgets}"
                               Classes="widget-board">
                     <ItemsControl.ItemsPanel>
@@ -96,6 +97,8 @@
                          ContentPresenter is not a direct visual child of the ItemsControl. -->
                     <ItemsControl.ItemContainerTheme>
                         <ControlTheme TargetType="ContentPresenter" x:DataType="vm:WidgetHostViewModel">
+                            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                            <Setter Property="VerticalAlignment" Value="Stretch"/>
                             <Setter Property="oc:WidgetBoardPanel.ColumnSpan" Value="{Binding Size.Columns}"/>
                             <Setter Property="oc:WidgetBoardPanel.RowSpan" Value="{Binding Size.Rows}"/>
                             <Setter Property="oc:WidgetBoardPanel.Column" Value="{Binding Column}"/>

@@ -25,11 +25,14 @@ public partial class OverviewViewModel : ViewModelBase, INavigationAware, IWidge
 {
     private const string UserDisplayNameKey = "User.DisplayName";
 
-    private static readonly string[] DefaultWidgetIds =
+    /// <summary>Fresh-board template: two 2×1 tiles on row 0, 2×2 + two 1×2 tiles on row 1.</summary>
+    private static readonly (string WidgetId, int Column, int Row, int Columns, int Rows)[] DefaultBoardTemplate =
     [
-        "mnemo.flashcard-stats",
-        "mnemo.recent-decks",
-        "mnemo.recent-notes"
+        ("mnemo.flashcard-stats", 0, 0, 2, 1),
+        ("mnemo.recent-decks", 2, 0, 2, 1),
+        ("mnemo.recent-notes", 0, 1, 2, 2),
+        ("mnemo.study-goals", 2, 1, 1, 2),
+        ("mnemo.usage-summary", 3, 1, 1, 2)
     ];
 
     private readonly IWidgetRegistry _widgetRegistry;
@@ -198,16 +201,19 @@ public partial class OverviewViewModel : ViewModelBase, INavigationAware, IWidge
     private OverviewLayout CreateDefaultLayout()
     {
         var layout = new OverviewLayout();
-        foreach (var widgetId in DefaultWidgetIds)
+        foreach (var (widgetId, column, row, columns, rows) in DefaultBoardTemplate)
         {
             var manifest = _widgetRegistry.GetDescriptor(widgetId)?.Manifest;
             if (manifest == null)
                 continue;
 
+            var size = manifest.NearestSupportedSize(new WidgetSize(columns, rows));
             layout.Widgets.Add(new WidgetInstance
             {
                 WidgetId = widgetId,
-                Size = manifest.DefaultSize,
+                Size = size,
+                Column = column,
+                Row = row,
                 Order = layout.Widgets.Count,
                 Settings = manifest.CreateDefaultSettings()
             });

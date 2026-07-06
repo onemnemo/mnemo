@@ -21,7 +21,7 @@ public class OverviewLayoutStoreTests
 
         _registry.Register(TestWidgetDescriptor.Create(
             "mnemo.recent-decks",
-            defaultSize: new WidgetSize(2, 2),
+            defaultSize: new WidgetSize(2, 1),
             supportedSizes: [new WidgetSize(2, 1), new WidgetSize(2, 2)]));
 
         _registry.Register(TestWidgetDescriptor.Create(

@@ -73,9 +73,10 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid>
+    <Grid VerticalAlignment="Stretch">
         <!-- Card chrome: hidden while this tile marks the drop slot during its own drag -->
         <Border x:Name="Card"
+                VerticalAlignment="Stretch"
                 Background="{DynamicResource CardBackgroundSecondaryBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
@@ -180,7 +181,7 @@
                 <!-- ===== View-mode header: widget title (+ remove for unavailable tiles) ===== -->
                 <Grid Grid.Row="0"
                       ColumnDefinitions="*,Auto"
-                      Margin="16,12,10,0"
+                      Margin="16,10,16,0"
                       IsVisible="{Binding !IsEditMode}">
                     <TextBlock Grid.Column="0"
                                VerticalAlignment="Center"
@@ -213,7 +214,8 @@
 
                 <!-- Widget content, resolved from the content ViewModel by the ViewLocator -->
                 <ContentControl Grid.Row="1"
-                                Margin="16,6,16,12"
+                                Margin="16,8,16,16"
+                                VerticalAlignment="Top"
                                 Content="{Binding Content}"
                                 IsVisible="{Binding !IsUnavailable}"/>
 
