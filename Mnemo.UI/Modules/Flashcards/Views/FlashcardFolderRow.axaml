@@ -14,7 +14,7 @@
             Cursor="Hand"
             HorizontalAlignment="Stretch"
             MinWidth="0">
-        <Grid ColumnDefinitions="*,56,56,56,96,70" MinWidth="0">
+        <Grid ColumnDefinitions="*,56,56,56,96,32" MinWidth="0">
             <!-- Chevron + folder icon + name -->
             <Grid Grid.Column="0"
                   ColumnDefinitions="*,Auto"

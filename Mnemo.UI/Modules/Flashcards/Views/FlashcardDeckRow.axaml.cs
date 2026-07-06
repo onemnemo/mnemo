@@ -118,8 +118,6 @@ public partial class FlashcardDeckRow : UserControl
 
     // --- Actions -----------------------------------------------------------
 
-    private void OnStudyClick(object? sender, RoutedEventArgs e) => Execute(vm => vm.StartReviewSessionCommand);
-
     private void OnOpenClick(object? sender, RoutedEventArgs e) => Execute(vm => vm.OpenDeckCommand);
 
     private void OnReviewClick(object? sender, RoutedEventArgs e) => Execute(vm => vm.StartReviewSessionCommand);

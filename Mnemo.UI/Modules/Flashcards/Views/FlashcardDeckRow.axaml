@@ -15,7 +15,7 @@
             Cursor="Hand"
             HorizontalAlignment="Stretch"
             MinWidth="0">
-        <Grid ColumnDefinitions="*,56,56,56,96,70" MinWidth="0">
+        <Grid ColumnDefinitions="*,56,56,56,96,32" MinWidth="0">
             <!-- Deck name + card count -->
             <Grid Grid.Column="0"
                   ColumnDefinitions="*,Auto"
@@ -72,19 +72,6 @@
                         Classes="row-actions"
                         Orientation="Horizontal" Spacing="4"
                         HorizontalAlignment="Right" VerticalAlignment="Center">
-                <Button Classes="deck-study"
-                        Click="OnStudyClick"
-                        ToolTip.Tip="{markup:T Ns=Flashcards, Key=SessionReviewStart}">
-                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                        <controls:AppIcon Icon="Common/player-play" Width="8" Height="8"
-                                          Color="{DynamicResource AccentButtonForegroundBrush}"
-                                          VerticalAlignment="Center" />
-                        <TextBlock Text="{markup:T Ns=Flashcards, Key=Study}"
-                                   FontFamily="{DynamicResource Font.Medium}"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
-
                 <Button x:Name="MoreButton" Classes="row-more"
                         ToolTip.Tip="{markup:T Ns=Flashcards, Key=DeckMenu}">
                     <controls:AppIcon Icon="Common/dots-vertical" Width="16" Height="16"

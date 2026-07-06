@@ -119,24 +119,6 @@
             <Setter Property="Background" Value="{DynamicResource ButtonBackgroundPointerOverBrush}" />
         </Style>
 
-        <!-- Compact accent Study pill -->
-        <Style Selector="Button.deck-study">
-            <Setter Property="Height" Value="24" />
-            <Setter Property="Padding" Value="9,0" />
-            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundBrush}" />
-            <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style Selector="Button.deck-study /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
-        </Style>
-        <Style Selector="Button.deck-study:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPressedBrush}" />
-        </Style>
-
         <!-- Column header labels -->
         <Style Selector="TextBlock.col-head">
             <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}" />
@@ -329,7 +311,7 @@
                         <!-- Column header -->
                         <Border Height="32" Padding="18,0"
                                 BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,56,56,56,96,70" MinWidth="0">
+                            <Grid ColumnDefinitions="*,56,56,56,96,32" MinWidth="0">
                                 <TextBlock Grid.Column="0" Classes="col-head" Text="{markup:T Ns=Flashcards, Key=ColDeck}" />
                                 <TextBlock Grid.Column="1" Classes="col-head num" Text="{markup:T Ns=Flashcards, Key=ColNew}" />
                                 <TextBlock Grid.Column="2" Classes="col-head num" Text="{markup:T Ns=Flashcards, Key=ColLearn}" />
@@ -356,7 +338,7 @@
 
                         <!-- Totals footer -->
                         <Border Height="34" Padding="18,0" Background="{DynamicResource WidgetBackgroundHoverBrush}">
-                            <Grid ColumnDefinitions="*,56,56,56,96,70" MinWidth="0">
+                            <Grid ColumnDefinitions="*,56,56,56,96,32" MinWidth="0">
                                 <TextBlock Grid.Column="0" Classes="col-head" Text="{markup:T Ns=Flashcards, Key=Total}" />
                                 <TextBlock Grid.Column="1" Classes="total-metric" Foreground="{DynamicResource FlashcardStateNewBrush}" Text="{Binding TotalNew}" />
                                 <TextBlock Grid.Column="2" Classes="total-metric" Foreground="{DynamicResource FlashcardStateLearningBrush}" Text="{Binding TotalLearn}" />
