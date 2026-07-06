@@ -90,7 +90,8 @@
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <oc:WidgetBoardPanel LayoutEngine="{Binding $parent[ItemsControl].((vm:OverviewViewModel)DataContext).LayoutEngine}"
-                                                 ShowEmptyCells="{Binding $parent[ItemsControl].((vm:OverviewViewModel)DataContext).IsEditMode}"/>
+                                                 ShowEmptyCells="{Binding $parent[ItemsControl].((vm:OverviewViewModel)DataContext).IsEditMode}"
+                                                 AnchorIndex="{Binding $parent[ItemsControl].((vm:OverviewViewModel)DataContext).DragAnchorIndex}"/>
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
 
@@ -100,6 +101,8 @@
                         <ControlTheme TargetType="ContentPresenter" x:DataType="vm:WidgetHostViewModel">
                             <Setter Property="oc:WidgetBoardPanel.ColumnSpan" Value="{Binding Size.Columns}"/>
                             <Setter Property="oc:WidgetBoardPanel.RowSpan" Value="{Binding Size.Rows}"/>
+                            <Setter Property="oc:WidgetBoardPanel.Column" Value="{Binding Column}"/>
+                            <Setter Property="oc:WidgetBoardPanel.Row" Value="{Binding Row}"/>
                         </ControlTheme>
                     </ItemsControl.ItemContainerTheme>
 
@@ -110,24 +113,36 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <!-- Drag ghost: compact floating chip following the pointer -->
+                <!-- Drag ghost: a tile-like floating proxy that follows the pointer, so the drag
+                     reads as carrying the widget itself -->
                 <Canvas IsHitTestVisible="False" IsVisible="{Binding IsGhostVisible}">
                     <Border Canvas.Left="{Binding GhostX}"
                             Canvas.Top="{Binding GhostY}"
                             Background="{DynamicResource FloatingChromeBackgroundBrush}"
-                            CornerRadius="{DynamicResource Radius.Md}"
-                            BoxShadow="{DynamicResource Elevation.2}"
-                            Padding="10,6">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            CornerRadius="{DynamicResource Radius.Lg}"
+                            BoxShadow="{DynamicResource Elevation.3}"
+                            Opacity="0.94"
+                            Padding="12,9"
+                            RenderTransform="scale(1.02)">
+                        <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                            <controls:AppIcon Icon="Common/grip-vertical"
+                                              Width="{DynamicResource IconSize.Sm}"
+                                              Height="{DynamicResource IconSize.Sm}"
+                                              Color="{DynamicResource FloatingChromeForegroundMutedBrush}"/>
                             <TextBlock Text="{Binding GhostTitle}"
                                        FontSize="{DynamicResource FontSize.Body.Small}"
                                        FontFamily="{DynamicResource Font.SemiBold}"
-                                       Foreground="{DynamicResource FloatingChromeForegroundStrongBrush}"/>
-                            <TextBlock Text="{Binding GhostSizeLabel}"
-                                       FontSize="{DynamicResource FontSize.Caption}"
-                                       FontFamily="{DynamicResource Font.Monospace}"
-                                       Foreground="{DynamicResource FloatingChromeForegroundMutedBrush}"
+                                       Foreground="{DynamicResource FloatingChromeForegroundStrongBrush}"
                                        VerticalAlignment="Center"/>
+                            <Border Background="{DynamicResource FloatingChromeHoverBrush}"
+                                    CornerRadius="{DynamicResource Radius.Sm}"
+                                    Padding="6,2"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="{Binding GhostSizeLabel}"
+                                           FontSize="{DynamicResource FontSize.Caption}"
+                                           FontFamily="{DynamicResource Font.Monospace}"
+                                           Foreground="{DynamicResource FloatingChromeForegroundMutedBrush}"/>
+                            </Border>
                         </StackPanel>
                     </Border>
                 </Canvas>

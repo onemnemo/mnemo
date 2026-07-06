@@ -88,7 +88,8 @@ public partial class OverviewView : UserControl
 
         var ghostPosition = e.GetPosition(BoardArea);
         vm.UpdateGhostPosition(ghostPosition.X + GhostPointerOffset, ghostPosition.Y + GhostPointerOffset);
-        vm.UpdateDragTarget(panel.GetInsertionIndex(panelPosition));
+        var (column, row) = panel.GetTargetCell(panelPosition);
+        vm.UpdateDragTarget(column, row);
         e.Handled = true;
     }
 

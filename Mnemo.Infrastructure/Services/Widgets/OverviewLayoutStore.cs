@@ -41,12 +41,14 @@ public sealed class OverviewLayoutStore : IOverviewLayoutStore
 
     private readonly IStorageProvider _storage;
     private readonly IWidgetRegistry _registry;
+    private readonly IWidgetLayoutEngine _layoutEngine;
     private readonly ILoggerService _logger;
 
-    public OverviewLayoutStore(IStorageProvider storage, IWidgetRegistry registry, ILoggerService logger)
+    public OverviewLayoutStore(IStorageProvider storage, IWidgetRegistry registry, IWidgetLayoutEngine layoutEngine, ILoggerService logger)
     {
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        _layoutEngine = layoutEngine ?? throw new ArgumentNullException(nameof(layoutEngine));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -89,6 +91,7 @@ public sealed class OverviewLayoutStore : IOverviewLayoutStore
         cancellationToken.ThrowIfCancellationRequested();
 
         layout.SchemaVersion = OverviewLayout.CurrentSchemaVersion;
+        SeedCoordinates(layout);
         NormalizeOrder(layout);
 
         return await _storage.SaveAsync(LayoutKey, layout).ConfigureAwait(false);
@@ -97,7 +100,10 @@ public sealed class OverviewLayoutStore : IOverviewLayoutStore
     private static bool IsKeyNotFound(Result result)
         => string.Equals(result.ErrorMessage, KeyNotFoundMessage, StringComparison.Ordinal);
 
-    /// <summary>Repairs a loaded layout: sizes snapped to supported ones, order normalized, settings non-null.</summary>
+    /// <summary>
+    /// Repairs a loaded layout: sizes snapped to supported ones, settings non-null, canonical
+    /// coordinates seeded for any pre-coords widget, then order re-derived from the resolved grid.
+    /// </summary>
     private OverviewLayout Normalize(OverviewLayout layout)
     {
         foreach (var instance in layout.Widgets)
@@ -111,8 +117,34 @@ public sealed class OverviewLayoutStore : IOverviewLayoutStore
                 instance.Size = new WidgetSize(1, 1);
         }
 
+        // Seed coordinates in the widgets' flow order so a pre-coords (schema ≤ 2) layout packs
+        // exactly as it did before free-grid placement shipped — the board looks identical on load.
+        layout.Widgets = layout.Widgets.OrderBy(w => w.Order).ToList();
+        SeedCoordinates(layout);
         NormalizeOrder(layout);
         return layout;
+    }
+
+    /// <summary>
+    /// Assigns canonical (4-column) coordinates to any widget still lacking them, keeping already
+    /// positioned widgets fixed. Uses <see cref="IWidgetLayoutEngine.Resolve"/> so unassigned
+    /// widgets drop into the first free cell (dense fill) without disturbing placed ones.
+    /// </summary>
+    private void SeedCoordinates(OverviewLayout layout)
+    {
+        if (layout.Widgets.Count == 0)
+            return;
+
+        var desired = layout.Widgets
+            .Select(w => new WidgetDesiredPlacement(w.Column, w.Row, w.Size))
+            .ToList();
+
+        var placements = _layoutEngine.Resolve(desired, MaxColumns);
+        for (var i = 0; i < layout.Widgets.Count; i++)
+        {
+            layout.Widgets[i].Column = placements[i].Column;
+            layout.Widgets[i].Row = placements[i].Row;
+        }
     }
 
     private OverviewLayout MigrateFromLegacy(IReadOnlyList<LegacyDashboardLayoutEntry> entries)
@@ -152,9 +184,14 @@ public sealed class OverviewLayoutStore : IOverviewLayoutStore
         return new WidgetSize(columns, rows);
     }
 
+    /// <summary>Normalizes <see cref="WidgetInstance.Order"/> to match the visual flow (row-major over the canonical grid).</summary>
     private static void NormalizeOrder(OverviewLayout layout)
     {
-        var ordered = layout.Widgets.OrderBy(w => w.Order).ToList();
+        var ordered = layout.Widgets
+            .OrderBy(w => w.Row)
+            .ThenBy(w => w.Column)
+            .ThenBy(w => w.Order)
+            .ToList();
         for (var i = 0; i < ordered.Count; i++)
             ordered[i].Order = i;
         layout.Widgets = ordered;

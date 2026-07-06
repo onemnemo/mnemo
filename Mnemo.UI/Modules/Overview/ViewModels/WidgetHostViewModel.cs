@@ -48,6 +48,14 @@ public partial class WidgetHostViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(SizeLabel))]
     private WidgetSize _size;
 
+    /// <summary>Canonical grid column; the panel binds this to place the tile. Writes through to <see cref="Instance"/>.</summary>
+    [ObservableProperty]
+    private int _column;
+
+    /// <summary>Canonical grid row; the panel binds this to place the tile. Writes through to <see cref="Instance"/>.</summary>
+    [ObservableProperty]
+    private int _row;
+
     [ObservableProperty]
     private bool _isEditMode;
 
@@ -64,6 +72,8 @@ public partial class WidgetHostViewModel : ObservableObject
         Content = content;
         _board = board;
         _size = instance.Size;
+        _column = instance.Column;
+        _row = instance.Row;
 
         var options = new List<WidgetSizeOptionViewModel>();
         if (manifest != null)
@@ -82,6 +92,10 @@ public partial class WidgetHostViewModel : ObservableObject
         foreach (var option in SizeOptions)
             option.IsSelected = option.Size == value;
     }
+
+    partial void OnColumnChanged(int value) => Instance.Column = value;
+
+    partial void OnRowChanged(int value) => Instance.Row = value;
 
     partial void OnIsEditModeChanged(bool value)
     {

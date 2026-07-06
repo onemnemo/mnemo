@@ -4,13 +4,14 @@ using System.Linq;
 namespace Mnemo.Core.Models.Widgets;
 
 /// <summary>
-/// Persisted overview board: an ordered list of widget instances plus schema metadata.
-/// Positions are never stored — the layout engine re-derives them from order + spans.
+/// Persisted overview board: a list of widget instances plus schema metadata. Each instance
+/// carries its canonical grid coordinates (<see cref="WidgetInstance.Column"/>/<see cref="WidgetInstance.Row"/>);
+/// the layout engine resolves overlaps and compacts narrow breakpoints from those.
 /// </summary>
 public sealed class OverviewLayout
 {
     /// <summary>Schema version written by the current code; bump when the shape changes.</summary>
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     /// <summary>Default profile identifier until multiple board profiles ship.</summary>
     public const string DefaultProfileId = "default";

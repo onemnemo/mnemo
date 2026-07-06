@@ -34,7 +34,7 @@ public class OverviewLayoutStoreTests
                 new WidgetSettingSchema { Key = "limit", LabelKey = "L", Type = WidgetSettingType.Range, DefaultValue = "5", Minimum = 1, Maximum = 10 }
             ]));
 
-        _store = new OverviewLayoutStore(_storage, _registry, new TestLogger());
+        _store = new OverviewLayoutStore(_storage, _registry, new WidgetLayoutEngine(), new TestLogger());
     }
 
     [Fact]
@@ -184,6 +184,54 @@ public class OverviewLayoutStoreTests
         Assert.Equal("mystery-widget", instance.WidgetId);
         Assert.Empty(instance.Settings);
         Assert.Equal(new WidgetSize(2, 1), instance.Size);
+    }
+
+    [Fact]
+    public async Task Load_PreCoordsLayout_SeedsCoordinatesMatchingDensePack()
+    {
+        // A stored layout from before free-grid placement: no Column/Row, so they default to -1.
+        _storage.Seed(LayoutKey,
+            """
+            {
+              "SchemaVersion": 2,
+              "ProfileId": "default",
+              "Widgets": [
+                {"WidgetId":"mnemo.flashcard-stats","Size":{"Columns":2,"Rows":1},"Order":0},
+                {"WidgetId":"mnemo.recent-decks","Size":{"Columns":2,"Rows":2},"Order":1},
+                {"WidgetId":"mnemo.recent-notes","Size":{"Columns":2,"Rows":2},"Order":2}
+              ]
+            }
+            """);
+
+        var result = await _store.LoadAsync();
+
+        Assert.True(result.IsSuccess);
+        var byId = result.Value!.Widgets.ToDictionary(w => w.WidgetId);
+
+        // Dense pack of [2×1, 2×2, 2×2] on a 4-column grid — identical to the pre-coords appearance.
+        Assert.Equal((0, 0), (byId["mnemo.flashcard-stats"].Column, byId["mnemo.flashcard-stats"].Row));
+        Assert.Equal((2, 0), (byId["mnemo.recent-decks"].Column, byId["mnemo.recent-decks"].Row));
+        Assert.Equal((0, 1), (byId["mnemo.recent-notes"].Column, byId["mnemo.recent-notes"].Row));
+    }
+
+    [Fact]
+    public async Task SaveThenLoad_PersistsCoordinatesAsSchemaV3()
+    {
+        var layout = new OverviewLayout
+        {
+            Widgets =
+            [
+                new WidgetInstance { WidgetId = "mnemo.flashcard-stats", Size = new WidgetSize(2, 1), Column = 2, Row = 1 }
+            ]
+        };
+        await _store.SaveAsync(layout);
+
+        var loaded = await _store.LoadAsync();
+
+        Assert.Equal(3, loaded.Value!.SchemaVersion);
+        var widget = Assert.Single(loaded.Value.Widgets);
+        Assert.Equal(2, widget.Column);
+        Assert.Equal(1, widget.Row);
     }
 
     [Fact]

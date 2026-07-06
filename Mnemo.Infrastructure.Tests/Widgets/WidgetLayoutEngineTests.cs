@@ -130,4 +130,94 @@ public class WidgetLayoutEngineTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => _engine.Pack([S(1, 1)], columnCount));
     }
+
+    // ----- Resolve (free-grid placement) -----
+
+    private static WidgetDesiredPlacement D(int column, int row, int columns, int rows)
+        => new(column, row, new WidgetSize(columns, rows));
+
+    [Fact]
+    public void Resolve_HonorsStoredCoordinates()
+    {
+        var placements = _engine.Resolve([D(2, 0, 2, 1), D(0, 1, 1, 1)], 4);
+
+        Assert.Equal(new WidgetPlacement(2, 0, 2, 1), placements[0]);
+        Assert.Equal(new WidgetPlacement(0, 1, 1, 1), placements[1]);
+    }
+
+    [Fact]
+    public void Resolve_LeavesGapAbove_NoUpwardCompaction()
+    {
+        // A lone tile placed in row 3 stays there — the empty rows above it are intentional.
+        var placements = _engine.Resolve([D(0, 3, 1, 1)], 4);
+
+        Assert.Equal(new WidgetPlacement(0, 3, 1, 1), placements[0]);
+    }
+
+    [Fact]
+    public void Resolve_Overlap_PushesLaterWidgetDown()
+    {
+        // Two tiles want the same cell; the second in processing order (by row/col) yields downward.
+        var placements = _engine.Resolve([D(0, 0, 2, 2), D(0, 0, 2, 1)], 4);
+
+        Assert.Equal(new WidgetPlacement(0, 0, 2, 2), placements[0]);
+        Assert.Equal(new WidgetPlacement(0, 2, 2, 1), placements[1]);
+    }
+
+    [Fact]
+    public void Resolve_Anchor_KeepsItsCellWhileOthersYield()
+    {
+        // The anchor (index 1) is dropped onto index 0's cell; the anchor wins, index 0 pushes down.
+        var placements = _engine.Resolve([D(0, 0, 2, 1), D(0, 0, 2, 1)], 4, anchorIndex: 1);
+
+        Assert.Equal(new WidgetPlacement(0, 0, 2, 1), placements[1]);
+        Assert.Equal(new WidgetPlacement(0, 1, 2, 1), placements[0]);
+    }
+
+    [Fact]
+    public void Resolve_UnassignedCoordinates_DropIntoFirstFreeCell()
+    {
+        // (-1,-1) means "unassigned": placed densely after the positioned widget.
+        var placements = _engine.Resolve([D(0, 0, 2, 1), D(-1, -1, 2, 1)], 4);
+
+        Assert.Equal(new WidgetPlacement(0, 0, 2, 1), placements[0]);
+        Assert.Equal(new WidgetPlacement(2, 0, 2, 1), placements[1]);
+    }
+
+    [Fact]
+    public void Resolve_ClampsColumnAndSpanToGrid()
+    {
+        // Column 3 with a 3-wide span cannot fit in a 4-column grid; the column clamps to 1.
+        var placements = _engine.Resolve([D(3, 0, 3, 1)], 4);
+
+        Assert.Equal(new WidgetPlacement(1, 0, 3, 1), placements[0]);
+    }
+
+    [Fact]
+    public void Resolve_PlacementsNeverOverlap()
+    {
+        var placements = _engine.Resolve(
+            [D(0, 0, 2, 2), D(1, 0, 2, 1), D(0, 0, 1, 1), D(3, 1, 1, 2), D(2, 2, 2, 1)], 4);
+
+        var occupied = new HashSet<(int Column, int Row)>();
+        foreach (var p in placements)
+        {
+            for (var r = p.Row; r < p.Row + p.RowSpan; r++)
+            {
+                for (var c = p.Column; c < p.Column + p.ColumnSpan; c++)
+                {
+                    Assert.True(occupied.Add((c, r)), $"Cell ({c},{r}) is occupied twice.");
+                    Assert.InRange(c, 0, 3);
+                }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Resolve_InvalidColumnCount_Throws(int columnCount)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => _engine.Resolve([D(0, 0, 1, 1)], columnCount));
+    }
 }

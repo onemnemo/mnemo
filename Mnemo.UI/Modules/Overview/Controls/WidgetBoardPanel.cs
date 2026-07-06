@@ -1,7 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Media.Transformation;
 using Avalonia.VisualTree;
 using Mnemo.Core.Models.Widgets;
 using Mnemo.Core.Services;
@@ -9,11 +14,15 @@ using Mnemo.Core.Services;
 namespace Mnemo.UI.Modules.Overview.Controls;
 
 /// <summary>
-/// Custom flow panel for the overview board. Derives the responsive column count from its
-/// width, reads each child's span from the attached properties, and delegates all packing to
-/// <see cref="IWidgetLayoutEngine"/> — the panel only converts placements to pixels, computes
-/// the edit-mode hint cells (drawn by <see cref="WidgetBoardHintLayer"/>, because
-/// <c>Panel.Render</c> is sealed), and offers pointer-to-insertion-index translation.
+/// Custom grid panel for the overview board. Derives the responsive column count from its width,
+/// reads each child's span and canonical coordinates from attached properties, and delegates
+/// placement to <see cref="IWidgetLayoutEngine"/>: at the widest breakpoint it honors stored
+/// coordinates (<see cref="IWidgetLayoutEngine.Resolve"/>, free-grid placement); at narrower
+/// breakpoints it flow-compacts (<see cref="IWidgetLayoutEngine.Pack"/>) so nothing is lost.
+/// The panel converts placements to pixels, animates tiles between layouts (FLIP, via a
+/// render-transform — never a layout property), computes edit-mode hint cells (drawn by
+/// <see cref="WidgetBoardHintLayer"/> because <c>Panel.Render</c> is sealed), and translates a
+/// pointer position to the grid cell under it for drag placement.
 /// </summary>
 public sealed class WidgetBoardPanel : Panel
 {
@@ -25,6 +34,14 @@ public sealed class WidgetBoardPanel : Panel
     public static readonly AttachedProperty<int> RowSpanProperty =
         AvaloniaProperty.RegisterAttached<WidgetBoardPanel, Control, int>("RowSpan", 1);
 
+    /// <summary>Canonical grid column of a child (-1 = unassigned), bound from the widget instance.</summary>
+    public static readonly AttachedProperty<int> ColumnProperty =
+        AvaloniaProperty.RegisterAttached<WidgetBoardPanel, Control, int>("Column", -1);
+
+    /// <summary>Canonical grid row of a child (-1 = unassigned), bound from the widget instance.</summary>
+    public static readonly AttachedProperty<int> RowProperty =
+        AvaloniaProperty.RegisterAttached<WidgetBoardPanel, Control, int>("Row", -1);
+
     /// <summary>Packing engine; injected via binding from the ViewModel.</summary>
     public static readonly StyledProperty<IWidgetLayoutEngine?> LayoutEngineProperty =
         AvaloniaProperty.Register<WidgetBoardPanel, IWidgetLayoutEngine?>(nameof(LayoutEngine));
@@ -33,16 +50,29 @@ public sealed class WidgetBoardPanel : Panel
     public static readonly StyledProperty<bool> ShowEmptyCellsProperty =
         AvaloniaProperty.Register<WidgetBoardPanel, bool>(nameof(ShowEmptyCells));
 
+    /// <summary>Index of the child being dragged (-1 = none): it keeps the cell it was dropped on.</summary>
+    public static readonly StyledProperty<int> AnchorIndexProperty =
+        AvaloniaProperty.Register<WidgetBoardPanel, int>(nameof(AnchorIndex), -1);
+
     private const double FallbackWidth = 1200;
+    private static readonly TimeSpan SlideDuration = TimeSpan.FromMilliseconds(200);
 
     private readonly List<Rect> _childRects = new();
     private readonly List<Rect> _hintCells = new();
+    // Last arranged rect per child, keyed by the container — drives the FLIP slide animation.
+    private readonly Dictionary<Control, Rect> _lastArranged = new();
+
+    private int _lastColumnCount = OverviewBoardMetrics.MaxColumns;
+    private double _lastCellWidth;
+    private int _lastRowExtent;
 
     static WidgetBoardPanel()
     {
-        AffectsMeasure<WidgetBoardPanel>(LayoutEngineProperty, ShowEmptyCellsProperty);
+        AffectsMeasure<WidgetBoardPanel>(LayoutEngineProperty, ShowEmptyCellsProperty, AnchorIndexProperty);
         ColumnSpanProperty.Changed.AddClassHandler<Control>((child, _) => InvalidateOwner(child));
         RowSpanProperty.Changed.AddClassHandler<Control>((child, _) => InvalidateOwner(child));
+        ColumnProperty.Changed.AddClassHandler<Control>((child, _) => InvalidateOwner(child));
+        RowProperty.Changed.AddClassHandler<Control>((child, _) => InvalidateOwner(child));
     }
 
     public static void SetColumnSpan(Control element, int value) => element.SetValue(ColumnSpanProperty, value);
@@ -50,6 +80,12 @@ public sealed class WidgetBoardPanel : Panel
 
     public static void SetRowSpan(Control element, int value) => element.SetValue(RowSpanProperty, value);
     public static int GetRowSpan(Control element) => element.GetValue(RowSpanProperty);
+
+    public static void SetColumn(Control element, int value) => element.SetValue(ColumnProperty, value);
+    public static int GetColumn(Control element) => element.GetValue(ColumnProperty);
+
+    public static void SetRow(Control element, int value) => element.SetValue(RowProperty, value);
+    public static int GetRow(Control element) => element.GetValue(RowProperty);
 
     public IWidgetLayoutEngine? LayoutEngine
     {
@@ -61,6 +97,12 @@ public sealed class WidgetBoardPanel : Panel
     {
         get => GetValue(ShowEmptyCellsProperty);
         set => SetValue(ShowEmptyCellsProperty, value);
+    }
+
+    public int AnchorIndex
+    {
+        get => GetValue(AnchorIndexProperty);
+        set => SetValue(AnchorIndexProperty, value);
     }
 
     /// <summary>Free 1×1 cells (panel coordinates) shown as dashed hints in edit mode; empty otherwise.</summary>
@@ -90,10 +132,30 @@ public sealed class WidgetBoardPanel : Panel
         var layout = ComputeLayout(finalSize.Width);
 
         _childRects.Clear();
+        var live = new HashSet<Control>();
         for (var i = 0; i < Children.Count; i++)
         {
-            Children[i].Arrange(layout.ChildRects[i]);
-            _childRects.Add(layout.ChildRects[i]);
+            var child = Children[i];
+            var rect = layout.ChildRects[i];
+            child.Arrange(rect);
+            _childRects.Add(rect);
+            live.Add(child);
+
+            // FLIP: if the tile moved since the last pass, jump it back to where it was and let a
+            // render-transform transition slide it into place. The dragged tile (anchor) is
+            // excluded — it is hidden and its floating ghost follows the pointer instead.
+            if (i == AnchorIndex)
+                child.RenderTransform = TransformOperations.Identity;
+            else if (_lastArranged.TryGetValue(child, out var previous))
+                AnimateSlide(child, previous, rect);
+            _lastArranged[child] = rect;
+        }
+
+        // Drop tracking for containers the ItemsControl recycled away.
+        if (_lastArranged.Count != live.Count)
+        {
+            foreach (var stale in _lastArranged.Keys.Where(c => !live.Contains(c)).ToList())
+                _lastArranged.Remove(stale);
         }
 
         RebuildHintCells(layout);
@@ -102,33 +164,58 @@ public sealed class WidgetBoardPanel : Panel
     }
 
     /// <summary>
-    /// Translates a pointer position (panel coordinates) into the index of the board slot it
-    /// hovers, for drag reordering. Falls back to the nearest cell center; empty board → 0.
+    /// FLIP step: the child is already arranged at <paramref name="newRect"/>. Snap it (without
+    /// animating) to its old offset, then animate the render-transform back to identity so it
+    /// glides to the new cell. Uses <see cref="TransformOperations"/> so the 200ms transition runs.
     /// </summary>
-    public int GetInsertionIndex(Point point)
+    private static void AnimateSlide(Control child, Rect oldRect, Rect newRect)
     {
-        if (_childRects.Count == 0)
-            return 0;
+        var dx = oldRect.X - newRect.X;
+        var dy = oldRect.Y - newRect.Y;
+        if (Math.Abs(dx) < 0.5 && Math.Abs(dy) < 0.5)
+            return;
 
-        var nearest = 0;
-        var nearestDistance = double.MaxValue;
-        for (var i = 0; i < _childRects.Count; i++)
+        child.Transitions ??= new Transitions
         {
-            if (_childRects[i].Contains(point))
-                return i;
-
-            var center = _childRects[i].Center;
-            var dx = center.X - point.X;
-            var dy = center.Y - point.Y;
-            var distance = dx * dx + dy * dy;
-            if (distance < nearestDistance)
+            new TransformOperationsTransition
             {
-                nearestDistance = distance;
-                nearest = i;
+                Property = RenderTransformProperty,
+                Duration = SlideDuration,
+                Easing = new CubicEaseOut()
             }
-        }
+        };
 
-        return nearest;
+        var invert = child.Transitions;
+        child.Transitions = null;
+        child.RenderTransform = Translate(dx, dy);
+        child.Transitions = invert;
+        child.RenderTransform = TransformOperations.Identity;
+    }
+
+    private static ITransform Translate(double x, double y)
+    {
+        var builder = new TransformOperations.Builder(1);
+        builder.AppendTranslate(x, y);
+        return builder.Build();
+    }
+
+    /// <summary>
+    /// Translates a pointer position (panel coordinates) into the grid cell under it, for drag
+    /// placement. Columns clamp to the active grid; rows clamp to one past the current extent so a
+    /// new bottom row is always reachable.
+    /// </summary>
+    public (int Column, int Row) GetTargetCell(Point point)
+    {
+        var gap = OverviewBoardMetrics.Gap;
+        var rowHeight = OverviewBoardMetrics.RowHeight;
+        var cellWidth = _lastCellWidth > 0 ? _lastCellWidth : FallbackWidth / _lastColumnCount;
+
+        var column = (int)Math.Floor(point.X / (cellWidth + gap));
+        var row = (int)Math.Floor(point.Y / (rowHeight + gap));
+
+        column = Math.Clamp(column, 0, _lastColumnCount - 1);
+        row = Math.Clamp(row, 0, _lastRowExtent);
+        return (column, row);
     }
 
     private readonly record struct BoardLayout(
@@ -162,23 +249,24 @@ public sealed class WidgetBoardPanel : Panel
             return new BoardLayout(rects, null, columnCount, cellWidth, extentHeight);
         }
 
-        var sizes = new WidgetSize[Children.Count];
-        for (var i = 0; i < Children.Count; i++)
-            sizes[i] = new WidgetSize(GetColumnSpan(Children[i]), GetRowSpan(Children[i]));
-
-        var placements = new WidgetPlacement[Children.Count];
-        var packed = engine.Pack(sizes, columnCount);
-        for (var i = 0; i < packed.Count; i++)
+        var placements = ComputePlacements(engine, columnCount);
+        var usedRows = 0;
+        for (var i = 0; i < placements.Length; i++)
         {
-            var p = packed[i];
+            var p = placements[i];
             var x = p.Column * (cellWidth + gap);
             var y = p.Row * (rowHeight + gap);
             var w = p.ColumnSpan * cellWidth + (p.ColumnSpan - 1) * gap;
             var h = p.RowSpan * rowHeight + (p.RowSpan - 1) * gap;
             rects[i] = new Rect(x, y, w, h);
-            placements[i] = p;
             extentHeight = Math.Max(extentHeight, y + h);
+            usedRows = Math.Max(usedRows, p.Row + p.RowSpan);
         }
+
+        _lastColumnCount = columnCount;
+        _lastCellWidth = cellWidth;
+        // One growth row below the content is always a valid drop target.
+        _lastRowExtent = usedRows;
 
         if (ShowEmptyCells)
         {
@@ -188,6 +276,58 @@ public sealed class WidgetBoardPanel : Panel
         }
 
         return new BoardLayout(rects, placements, columnCount, cellWidth, extentHeight);
+    }
+
+    /// <summary>
+    /// Placements in child order: honor stored coordinates at the widest breakpoint (free grid),
+    /// or flow-compact by canonical order at narrower ones so every tile stays visible.
+    /// </summary>
+    private WidgetPlacement[] ComputePlacements(IWidgetLayoutEngine engine, int columnCount)
+    {
+        if (Children.Count == 0)
+            return Array.Empty<WidgetPlacement>();
+
+        if (columnCount >= OverviewBoardMetrics.MaxColumns)
+        {
+            var desired = new WidgetDesiredPlacement[Children.Count];
+            for (var i = 0; i < Children.Count; i++)
+                desired[i] = new WidgetDesiredPlacement(
+                    GetColumn(Children[i]),
+                    GetRow(Children[i]),
+                    new WidgetSize(GetColumnSpan(Children[i]), GetRowSpan(Children[i])));
+
+            return engine.Resolve(desired, columnCount, AnchorIndex).ToArray();
+        }
+
+        // Narrow breakpoint: flow-compact in canonical (Row, Column) order — coordinates from the
+        // 4-column grid no longer fit, so the board collapses to a gap-free flow.
+        var order = Enumerable.Range(0, Children.Count)
+            .OrderBy(i => NormalizedRow(Children[i]))
+            .ThenBy(i => NormalizedColumn(Children[i]))
+            .ThenBy(i => i)
+            .ToArray();
+
+        var sizes = order
+            .Select(i => new WidgetSize(GetColumnSpan(Children[i]), GetRowSpan(Children[i])))
+            .ToList();
+
+        var packed = engine.Pack(sizes, columnCount);
+        var result = new WidgetPlacement[Children.Count];
+        for (var k = 0; k < order.Length; k++)
+            result[order[k]] = packed[k];
+        return result;
+    }
+
+    private static int NormalizedRow(Control child)
+    {
+        var row = GetRow(child);
+        return row < 0 ? int.MaxValue : row;
+    }
+
+    private static int NormalizedColumn(Control child)
+    {
+        var column = GetColumn(child);
+        return column < 0 ? int.MaxValue : column;
     }
 
     /// <summary>Collects the free 1×1 cells (packed rows + one growth row) shown as dashed hints in edit mode.</summary>
@@ -205,7 +345,7 @@ public sealed class WidgetBoardPanel : Panel
         var occupied = new bool[hintRows, layout.ColumnCount];
         foreach (var p in placements)
         {
-            for (var r = p.Row; r < p.Row + p.RowSpan; r++)
+            for (var r = p.Row; r < Math.Min(p.Row + p.RowSpan, hintRows); r++)
             {
                 for (var c = p.Column; c < Math.Min(p.Column + p.ColumnSpan, layout.ColumnCount); c++)
                     occupied[r, c] = true;

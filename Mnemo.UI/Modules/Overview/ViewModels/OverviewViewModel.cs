@@ -49,7 +49,8 @@ public partial class OverviewViewModel : ViewModelBase, INavigationAware, IWidge
 
     private OverviewLayout? _editSnapshot;
     private WidgetHostViewModel? _draggedHost;
-    private int _dragOriginIndex = -1;
+    private int _dragOriginColumn = -1;
+    private int _dragOriginRow = -1;
     private string? _libraryOverlayId;
     private WidgetLibraryViewModel? _libraryViewModel;
     private bool _isDisposed;
@@ -62,6 +63,11 @@ public partial class OverviewViewModel : ViewModelBase, INavigationAware, IWidge
 
     [ObservableProperty]
     private bool _isEditMode;
+
+    // Index of the tile being dragged (-1 = none); the board panel places it first so it keeps
+    // the cell it was dropped on while the others yield around it.
+    [ObservableProperty]
+    private int _dragAnchorIndex = -1;
 
     // Floating drag ghost (follows the pointer; the tile's own slot renders the drop affordance).
     [ObservableProperty]
@@ -505,7 +511,9 @@ public partial class OverviewViewModel : ViewModelBase, INavigationAware, IWidge
     public void BeginDrag(WidgetHostViewModel host)
     {
         _draggedHost = host;
-        _dragOriginIndex = Widgets.IndexOf(host);
+        _dragOriginColumn = host.Column;
+        _dragOriginRow = host.Row;
+        DragAnchorIndex = Widgets.IndexOf(host);
         host.IsDragging = true;
 
         GhostTitle = ResolveTitle(host);
@@ -513,19 +521,14 @@ public partial class OverviewViewModel : ViewModelBase, INavigationAware, IWidge
         IsGhostVisible = true;
     }
 
-    /// <summary>Moves the dragged tile's slot to the insertion index computed from the pointer.</summary>
-    public void UpdateDragTarget(int insertionIndex)
+    /// <summary>Places the dragged tile at the grid cell under the pointer; the panel resolves overlaps.</summary>
+    public void UpdateDragTarget(int column, int row)
     {
         if (_draggedHost == null)
             return;
 
-        var currentIndex = Widgets.IndexOf(_draggedHost);
-        if (currentIndex < 0)
-            return;
-
-        insertionIndex = Math.Clamp(insertionIndex, 0, Widgets.Count - 1);
-        if (insertionIndex != currentIndex)
-            Widgets.Move(currentIndex, insertionIndex);
+        _draggedHost.Column = column;
+        _draggedHost.Row = row;
     }
 
     public void UpdateGhostPosition(double x, double y)
@@ -540,9 +543,11 @@ public partial class OverviewViewModel : ViewModelBase, INavigationAware, IWidge
             _draggedHost.IsDragging = false;
 
         _draggedHost = null;
-        _dragOriginIndex = -1;
+        _dragOriginColumn = -1;
+        _dragOriginRow = -1;
+        DragAnchorIndex = -1;
         IsGhostVisible = false;
-        // Order is part of the edit draft; Done persists it.
+        // Coordinates are part of the edit draft; Done persists them.
     }
 
     public void CancelDrag()
@@ -550,13 +555,14 @@ public partial class OverviewViewModel : ViewModelBase, INavigationAware, IWidge
         if (_draggedHost != null)
         {
             _draggedHost.IsDragging = false;
-            var currentIndex = Widgets.IndexOf(_draggedHost);
-            if (currentIndex >= 0 && _dragOriginIndex >= 0 && _dragOriginIndex < Widgets.Count && currentIndex != _dragOriginIndex)
-                Widgets.Move(currentIndex, _dragOriginIndex);
+            _draggedHost.Column = _dragOriginColumn;
+            _draggedHost.Row = _dragOriginRow;
         }
 
         _draggedHost = null;
-        _dragOriginIndex = -1;
+        _dragOriginColumn = -1;
+        _dragOriginRow = -1;
+        DragAnchorIndex = -1;
         IsGhostVisible = false;
     }
 
