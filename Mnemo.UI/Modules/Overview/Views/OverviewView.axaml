@@ -87,9 +87,12 @@
                               Classes="widget-board">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <oc:WidgetBoardPanel LayoutEngine="{Binding $parent[ItemsControl].DataContext.LayoutEngine, FallbackValue={x:Null}}"
-                                                 ShowEmptyCells="{Binding $parent[ItemsControl].DataContext.IsEditMode, FallbackValue=False}"
-                                                 AnchorIndex="{Binding $parent[ItemsControl].DataContext.DragAnchorIndex, FallbackValue=-1}"/>
+                            <!-- LayoutEngine/ShowEmptyCells/AnchorIndex are pushed imperatively from
+                                 OverviewView's code-behind (see PushBoardPanelState): binding them
+                                 here through $parent[ItemsControl].DataContext logs a null-DataContext
+                                 binding error while the view is torn down on navigation, since this
+                                 panel outlives the ItemsControl's ambient DataContext during that swap. -->
+                            <oc:WidgetBoardPanel/>
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
 

@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -23,6 +24,7 @@ public partial class OverviewView : UserControl
     private IPointer? _pointer;
     private Point _pressPanelPosition;
     private bool _isDragging;
+    private OverviewViewModel? _wiredViewModel;
 
     public OverviewView()
     {
@@ -31,6 +33,40 @@ public partial class OverviewView : UserControl
         // The items panel only exists after the ItemsControl applies its template, so the
         // hint layer is wired on the first layout pass that has one.
         BoardItems.LayoutUpdated += OnBoardLayoutUpdated;
+
+        // LayoutEngine/ShowEmptyCells/AnchorIndex are pushed here rather than bound in XAML:
+        // a $parent[ItemsControl].DataContext binding logs a null-DataContext error while this
+        // view is torn down on navigation, since the panel outlives the ambient DataContext
+        // during that swap.
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (_wiredViewModel is { } previous)
+            previous.PropertyChanged -= OnViewModelPropertyChanged;
+
+        _wiredViewModel = ViewModel;
+        if (_wiredViewModel is { } current)
+            current.PropertyChanged += OnViewModelPropertyChanged;
+
+        PushBoardPanelState();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(OverviewViewModel.IsEditMode) or nameof(OverviewViewModel.DragAnchorIndex))
+            PushBoardPanelState();
+    }
+
+    private void PushBoardPanelState()
+    {
+        if (BoardPanel is not { } panel || ViewModel is not { } vm)
+            return;
+
+        panel.LayoutEngine = vm.LayoutEngine;
+        panel.ShowEmptyCells = vm.IsEditMode;
+        panel.AnchorIndex = vm.DragAnchorIndex;
     }
 
     private void OnBoardLayoutUpdated(object? sender, EventArgs e)
@@ -39,6 +75,7 @@ public partial class OverviewView : UserControl
             return;
 
         BoardHints.Attach(panel);
+        PushBoardPanelState();
         BoardItems.LayoutUpdated -= OnBoardLayoutUpdated;
     }
 

@@ -54,6 +54,12 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _profilePicturePath = "avares://Mnemo.UI/Assets/ProfilePictures/img2.png";
 
+    partial void OnProfilePicturePathChanged(string value)
+    {
+        foreach (var category in Categories)
+            category.NotifyProfilePicturePathChanged();
+    }
+
     public ObservableCollection<SettingsCategoryViewModel> Categories { get; } = new();
 
     /// <summary>Nav-pane groups; rebuilt together with <see cref="Categories"/>.</summary>
@@ -124,7 +130,7 @@ public partial class SettingsViewModel : ViewModelBase
             .ToList();
 
         var totalMatches = resultGroups.Sum(t => t.matches.Count);
-        var results = new SettingsCategoryViewModel(T("SearchResults"), SearchResultsCategoryId)
+        var results = new SettingsCategoryViewModel(T("SearchResults"), SearchResultsCategoryId, owner: this)
         {
             Subtitle = totalMatches > 0
                 ? string.Format(T("SearchResultsSubtitleFormat"), totalMatches, query)
@@ -262,7 +268,7 @@ public partial class SettingsViewModel : ViewModelBase
             finally { _suppressSearchFilter = false; }
         }
 
-        var account = new SettingsCategoryViewModel(T("Account"), "Account", SettingsNavSection.Account)
+        var account = new SettingsCategoryViewModel(T("Account"), "Account", SettingsNavSection.Account, this)
         {
             Subtitle = T("AccountSubtitle")
         };
@@ -271,7 +277,7 @@ public partial class SettingsViewModel : ViewModelBase
         profileGroup.Items.Add(new NameSettingViewModel(_settingsService, T("DisplayName"), T("DisplayNameDescription")));
         account.Groups.Add(profileGroup);
 
-        var general = new SettingsCategoryViewModel(T("General"), "General")
+        var general = new SettingsCategoryViewModel(T("General"), "General", owner: this)
         {
             Subtitle = T("GeneralSubtitle")
         };
@@ -305,7 +311,7 @@ public partial class SettingsViewModel : ViewModelBase
         general.Groups.Add(storageGroup);
         general.Groups.Add(expGroup);
 
-        var editor = new SettingsCategoryViewModel(T("Editor"), "Editor", SettingsNavSection.Modules)
+        var editor = new SettingsCategoryViewModel(T("Editor"), "Editor", SettingsNavSection.Modules, this)
         {
             Subtitle = T("EditorSubtitle")
         };
@@ -335,7 +341,7 @@ public partial class SettingsViewModel : ViewModelBase
         editor.Groups.Add(editorGroup);
         editor.Groups.Add(markdownGroup);
 
-        var aiTools = new SettingsCategoryViewModel(T("AITools"), "AITools", SettingsNavSection.Modules)
+        var aiTools = new SettingsCategoryViewModel(T("AITools"), "AITools", SettingsNavSection.Modules, this)
         {
             Subtitle = T("AIToolsSubtitle")
         };
@@ -414,7 +420,7 @@ public partial class SettingsViewModel : ViewModelBase
                 aiTools.StatusTagText = enableAiToggle.Value ? null : offLabel;
         };
 
-        var appearance = new SettingsCategoryViewModel(T("Appearance"), "Appearance")
+        var appearance = new SettingsCategoryViewModel(T("Appearance"), "Appearance", owner: this)
         {
             Subtitle = T("AppearanceSubtitle")
         };
@@ -425,7 +431,7 @@ public partial class SettingsViewModel : ViewModelBase
 
         appearance.Groups.Add(themeGroup);
 
-        var updatesCategory = new SettingsCategoryViewModel(T("UpdatesCategoryTitle"), "Updates")
+        var updatesCategory = new SettingsCategoryViewModel(T("UpdatesCategoryTitle"), "Updates", owner: this)
         {
             Subtitle = T("UpdatesSubtitle"),
             BadgeText = _updateOrchestrator.HasPendingUpdateBadge ? "1" : null
@@ -444,7 +450,7 @@ public partial class SettingsViewModel : ViewModelBase
             }));
         updatesCategory.Groups.Add(updatesGroup);
 
-        var mindmap = new SettingsCategoryViewModel(T("Mindmap"), "Mindmap", SettingsNavSection.Modules)
+        var mindmap = new SettingsCategoryViewModel(T("Mindmap"), "Mindmap", SettingsNavSection.Modules, this)
         {
             Subtitle = T("MindmapSubtitle")
         };
@@ -473,7 +479,7 @@ public partial class SettingsViewModel : ViewModelBase
 
         if (_developerMode)
         {
-            var developer = new SettingsCategoryViewModel("Developer", "Developer")
+            var developer = new SettingsCategoryViewModel("Developer", "Developer", owner: this)
             {
                 Subtitle = "Internal tools and experimental options for development builds."
             };

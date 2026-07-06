@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Mnemo.UI.ViewModels;
 
@@ -6,6 +7,8 @@ namespace Mnemo.UI.Modules.Settings.ViewModels;
 
 public partial class SettingsCategoryViewModel : ViewModelBase
 {
+    private readonly SettingsViewModel? _owner;
+
     [ObservableProperty] private string _name;
     [ObservableProperty] private bool _isSelected;
     /// <summary>Short count badge shown after the nav item (e.g. "1" pending update).</summary>
@@ -24,10 +27,21 @@ public partial class SettingsCategoryViewModel : ViewModelBase
 
     public ObservableCollection<SettingsGroupViewModel> Groups { get; } = new();
 
-    public SettingsCategoryViewModel(string name, string categoryId, SettingsNavSection section = SettingsNavSection.App)
+    // Proxied through the owning SettingsViewModel (rather than the nav item template binding
+    // "$parent[UserControl].DataContext.X") so navigating away from Settings — which briefly nulls
+    // the ambient DataContext while the view is torn down — never logs a null binding error.
+    public ICommand? SelectCommand => _owner?.SelectCategoryCommand;
+
+    public string? ProfilePicturePath => _owner?.ProfilePicturePath;
+
+    public SettingsCategoryViewModel(string name, string categoryId, SettingsNavSection section = SettingsNavSection.App, SettingsViewModel? owner = null)
     {
         _name = name;
         CategoryId = categoryId;
         Section = section;
+        _owner = owner;
     }
+
+    /// <summary>Owner calls this when its own <see cref="SettingsViewModel.ProfilePicturePath"/> changes.</summary>
+    public void NotifyProfilePicturePathChanged() => OnPropertyChanged(nameof(ProfilePicturePath));
 }
