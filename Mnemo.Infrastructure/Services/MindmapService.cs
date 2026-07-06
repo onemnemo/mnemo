@@ -14,6 +14,7 @@ public class MindmapService : IMindmapService
     private readonly ILoggerService _logger;
     private const string MindmapListKey = "mindmaps_list";
     private const string MindmapPrefix = "mindmap_";
+    private const string MindmapFoldersKey = "mindmap_folders";
 
     public MindmapService(IStorageProvider storage, ILoggerService logger)
     {
@@ -78,7 +79,9 @@ public class MindmapService : IMindmapService
         }
     }
 
-    public async Task<Result<Mindmap>> CreateMindmapAsync(string title)
+    public Task<Result<Mindmap>> CreateMindmapAsync(string title) => CreateMindmapAsync(title, null);
+
+    public async Task<Result<Mindmap>> CreateMindmapAsync(string title, string? folderId)
     {
         try
         {
@@ -86,7 +89,8 @@ public class MindmapService : IMindmapService
             {
                 Id = Guid.NewGuid().ToString(),
                 Title = title,
-                Version = 1
+                Version = 1,
+                FolderId = folderId
             };
 
             // Create root node
@@ -162,6 +166,82 @@ public class MindmapService : IMindmapService
         {
             _logger.Error("MindmapService", $"Failed to delete mindmap {id}", ex);
             return Result.Failure($"Failed to delete mindmap {id}", ex);
+        }
+    }
+
+    public async Task<Result<IReadOnlyList<MindmapFolder>>> GetFoldersAsync()
+    {
+        try
+        {
+            var result = await _storage.LoadAsync<List<MindmapFolder>>(MindmapFoldersKey).ConfigureAwait(false);
+            IReadOnlyList<MindmapFolder> folders = result.IsSuccess && result.Value != null
+                ? result.Value
+                : new List<MindmapFolder>();
+            return Result<IReadOnlyList<MindmapFolder>>.Success(folders);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("MindmapService", "Failed to load mindmap folders", ex);
+            return Result<IReadOnlyList<MindmapFolder>>.Failure("Failed to load mindmap folders", ex);
+        }
+    }
+
+    public async Task<Result> SaveFolderAsync(MindmapFolder folder)
+    {
+        try
+        {
+            var result = await _storage.LoadAsync<List<MindmapFolder>>(MindmapFoldersKey).ConfigureAwait(false);
+            var folders = result.Value ?? new List<MindmapFolder>();
+            var index = folders.FindIndex(f => string.Equals(f.Id, folder.Id, StringComparison.Ordinal));
+            if (index >= 0)
+                folders[index] = folder;
+            else
+                folders.Add(folder);
+
+            return await _storage.SaveAsync(MindmapFoldersKey, folders).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("MindmapService", $"Failed to save mindmap folder {folder.Id}", ex);
+            return Result.Failure("Failed to save mindmap folder", ex);
+        }
+    }
+
+    public async Task<Result> DeleteFolderAsync(string folderId)
+    {
+        try
+        {
+            var result = await _storage.LoadAsync<List<MindmapFolder>>(MindmapFoldersKey).ConfigureAwait(false);
+            var folders = result.Value ?? new List<MindmapFolder>();
+
+            // Lift direct child folders to root so the subtree isn't orphaned.
+            for (var i = 0; i < folders.Count; i++)
+            {
+                if (string.Equals(folders[i].ParentId, folderId, StringComparison.Ordinal))
+                    folders[i] = folders[i] with { ParentId = null };
+            }
+            folders.RemoveAll(f => string.Equals(f.Id, folderId, StringComparison.Ordinal));
+            var save = await _storage.SaveAsync(MindmapFoldersKey, folders).ConfigureAwait(false);
+            if (!save.IsSuccess)
+                return save;
+
+            // Maps directly inside the deleted folder fall back to root.
+            var allResult = await GetAllMindmapsAsync().ConfigureAwait(false);
+            if (allResult.IsSuccess && allResult.Value != null)
+            {
+                foreach (var map in allResult.Value.Where(m => string.Equals(m.FolderId, folderId, StringComparison.Ordinal)))
+                {
+                    map.FolderId = null;
+                    await SaveMindmapAsync(map).ConfigureAwait(false);
+                }
+            }
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("MindmapService", $"Failed to delete mindmap folder {folderId}", ex);
+            return Result.Failure("Failed to delete mindmap folder", ex);
         }
     }
 

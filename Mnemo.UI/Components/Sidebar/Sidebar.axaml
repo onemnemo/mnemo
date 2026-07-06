@@ -74,7 +74,7 @@
                                                                        HorizontalAlignment="Stretch"
                                                                        HorizontalContentAlignment="Stretch"
                                                                        ToolTip.Tip="{Binding Label}"
-                                                                       Command="{Binding $parent[UserControl].((vm:SidebarViewModel)DataContext).NavigateCommand}"
+                                                                       Command="{Binding $parent[UserControl].DataContext.NavigateCommand, FallbackValue={x:Null}}"
                                                                        CommandParameter="{Binding}">
                                                 <Grid ColumnDefinitions="Auto,*,Auto">
                                                     <controls:SvgIcon Grid.Column="0"
@@ -166,7 +166,7 @@
                                                                    HorizontalAlignment="Stretch"
                                                                    HorizontalContentAlignment="Left"
                                                                    ToolTip.Tip="{Binding Label}"
-                                                                   Command="{Binding $parent[UserControl].((vm:SidebarViewModel)DataContext).NavigateCommand}"
+                                                                   Command="{Binding $parent[UserControl].DataContext.NavigateCommand, FallbackValue={x:Null}}"
                                                                    CommandParameter="{Binding}">
                                             <StackPanel Orientation="Horizontal" Spacing="9">
                                                 <controls:SvgIcon SvgPath="{Binding Icon, FallbackValue='avares://Mnemo.UI/Icons/Common/circle.svg'}"
@@ -238,7 +238,7 @@
                                                                                 IsCollapsed="True"
                                                                                 BorderThickness="0"
                                                                                 ToolTip.Tip="{Binding Label}"
-                                                                                Command="{Binding $parent[UserControl].((vm:SidebarViewModel)DataContext).NavigateCommand}"
+                                                                                Command="{Binding $parent[UserControl].DataContext.NavigateCommand, FallbackValue={x:Null}}"
                                                                                 CommandParameter="{Binding}">
                                                         <controls:SvgIcon SvgPath="{Binding Icon, FallbackValue='avares://Mnemo.UI/Icons/Common/circle.svg'}"
                                                                           Width="{DynamicResource IconSize.Sm}" Height="{DynamicResource IconSize.Sm}"/>

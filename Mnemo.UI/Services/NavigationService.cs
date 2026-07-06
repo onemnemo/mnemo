@@ -146,6 +146,11 @@ public class NavigationService : INavigationService, INotifyPropertyChanged
             var previousRoute = _history.Count > 0 ? _history.Peek() : null;
             var previousVm = CurrentViewModel;
 
+            if (previousVm is INavigationAware previousAware)
+            {
+                previousAware.OnNavigatedFrom();
+            }
+
             var keyMap = _serviceProvider.GetService<IKeyMap>();
             keyMap?.SetActiveRoute(route, RouteKeybindNamespaces.ForRoute(route));
             keyMap?.OnNavigationChanged();

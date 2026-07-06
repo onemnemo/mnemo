@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,9 +19,80 @@ namespace Mnemo.UI.Modules.Mindmap.Views;
 
 public partial class MindmapOverviewView : UserControl
 {
+    private static readonly DataFormat<string> MapIdFormat =
+        DataFormat.CreateStringApplicationFormat("mnemo-mindmap-id");
+    private const double DragThreshold = 6;
+    private Point _pressOrigin;
+    private MindmapItemViewModel? _dragCandidate;
+    private PointerPressedEventArgs? _pressArgs;
+
     public MindmapOverviewView()
     {
         InitializeComponent();
+    }
+
+    // --- Drag a map card onto a folder to nest it -------------------------
+
+    private void OnMapCardPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Control { DataContext: MindmapItemViewModel item } control &&
+            e.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
+        {
+            _dragCandidate = item;
+            _pressOrigin = e.GetPosition(this);
+            _pressArgs = e;
+        }
+    }
+
+    private async void OnMapCardPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_dragCandidate is null || _pressArgs is null || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            return;
+
+        var delta = e.GetPosition(this) - _pressOrigin;
+        if (System.Math.Abs(delta.X) < DragThreshold && System.Math.Abs(delta.Y) < DragThreshold)
+            return;
+
+        var transfer = new DataTransfer();
+        transfer.Add(DataTransferItem.Create(MapIdFormat, _dragCandidate.Id));
+        var pressArgs = _pressArgs;
+        _dragCandidate = null;
+        _pressArgs = null;
+        await DragDrop.DoDragDropAsync(pressArgs, transfer, DragDropEffects.Move);
+    }
+
+    private void OnMapCardPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        _dragCandidate = null;
+        _pressArgs = null;
+    }
+
+    private void OnFolderDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = e.DataTransfer.Contains(MapIdFormat) ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void OnFolderDrop(object? sender, DragEventArgs e)
+    {
+        if (DataContext is not MindmapOverviewViewModel vm ||
+            sender is not Control { DataContext: MindmapFolderItemViewModel folder })
+            return;
+        var mapId = e.DataTransfer.TryGetValue(MapIdFormat);
+        if (!string.IsNullOrEmpty(mapId))
+            await vm.MoveMapToFolderAsync(mapId, folder.Id);
+        e.Handled = true;
+    }
+
+    private async void OnCrumbDrop(object? sender, DragEventArgs e)
+    {
+        if (DataContext is not MindmapOverviewViewModel vm ||
+            sender is not Control { DataContext: MindmapBreadcrumbSegment segment })
+            return;
+        var mapId = e.DataTransfer.TryGetValue(MapIdFormat);
+        if (!string.IsNullOrEmpty(mapId))
+            await vm.MoveMapToFolderAsync(mapId, segment.Id);
+        e.Handled = true;
     }
 
     private async void OnTransferClick(object? sender, RoutedEventArgs e)

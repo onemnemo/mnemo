@@ -43,6 +43,27 @@ public partial class SettingsGroupViewModel : ViewModelBase
                 ? MasterToggle.Description
                 : string.Format(_hiddenSummaryFormat, Items.Count(item => item is not SettingsSubheaderViewModel));
 
+    // Proxy the master row's bindable members through the group itself (rather than
+    // letting the view bind "MasterToggle.X" directly) so plain groups — where
+    // MasterToggle is null and the master row markup is simply hidden, not absent —
+    // never dereference a null path.
+    public string? MasterTitle => MasterToggle?.Title;
+
+    public bool MasterToggleValue
+    {
+        get => MasterToggle?.Value ?? false;
+        set
+        {
+            if (MasterToggle != null)
+                MasterToggle.Value = value;
+        }
+    }
+
+    public bool MasterToggleInteractionEnabled => MasterToggle?.IsInteractionEnabled ?? false;
+
+    /// <summary>Same null-safety rationale as <see cref="MasterTitle"/>, for the off-state notice.</summary>
+    public string? OffNoticeDescription => OffNotice?.Description;
+
     public SettingsGroupViewModel(string name)
     {
         _name = name;
@@ -63,5 +84,6 @@ public partial class SettingsGroupViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsContentVisible));
         OnPropertyChanged(nameof(IsOffNoticeVisible));
         OnPropertyChanged(nameof(MasterDescription));
+        OnPropertyChanged(nameof(MasterToggleValue));
     }
 }

@@ -13,4 +13,10 @@ public class Mindmap
     public List<MindmapEdge> Edges { get; set; } = new();
     public MindmapLayout Layout { get; set; } = new();
     public DateTime? ModifiedAt { get; set; }
+
+    /// <summary>Owning folder in the library, or <c>null</c> when the map lives at the root.</summary>
+    public string? FolderId { get; set; }
+
+    /// <summary>Flashcard deck ids linked to this map; their due counts surface as a library badge.</summary>
+    public List<string> LinkedDeckIds { get; set; } = new();
 }

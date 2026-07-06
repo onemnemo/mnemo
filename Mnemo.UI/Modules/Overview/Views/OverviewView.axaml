@@ -87,9 +87,9 @@
                               Classes="widget-board">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <oc:WidgetBoardPanel LayoutEngine="{Binding $parent[ItemsControl].((vm:OverviewViewModel)DataContext).LayoutEngine}"
-                                                 ShowEmptyCells="{Binding $parent[ItemsControl].((vm:OverviewViewModel)DataContext).IsEditMode}"
-                                                 AnchorIndex="{Binding $parent[ItemsControl].((vm:OverviewViewModel)DataContext).DragAnchorIndex}"/>
+                            <oc:WidgetBoardPanel LayoutEngine="{Binding $parent[ItemsControl].DataContext.LayoutEngine, FallbackValue={x:Null}}"
+                                                 ShowEmptyCells="{Binding $parent[ItemsControl].DataContext.IsEditMode, FallbackValue=False}"
+                                                 AnchorIndex="{Binding $parent[ItemsControl].DataContext.DragAnchorIndex, FallbackValue=-1}"/>
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
 

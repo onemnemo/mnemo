@@ -22,7 +22,7 @@
             <DataTemplate DataType="models:BreadcrumbItem" x:DataType="models:BreadcrumbItem">
                 <StackPanel Orientation="Horizontal" Spacing="0">
                     <Button Content="{Binding Title}"
-                            Command="{Binding $parent[UserControl].((ui:BreadcrumbViewModel)DataContext).NavigationService.NavigateToBreadcrumb}"
+                            Command="{Binding $parent[UserControl].DataContext.NavigationService.NavigateToBreadcrumb, FallbackValue={x:Null}}"
                             CommandParameter="{Binding}"
                             Background="Transparent"
                             BorderThickness="0"

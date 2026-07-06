@@ -10,8 +10,14 @@ public interface IMindmapService
     Task<Result<IEnumerable<Mindmap>>> GetAllMindmapsAsync();
     Task<Result<Mindmap>> GetMindmapAsync(string id);
     Task<Result<Mindmap>> CreateMindmapAsync(string title);
+    Task<Result<Mindmap>> CreateMindmapAsync(string title, string? folderId);
     Task<Result> SaveMindmapAsync(Mindmap mindmap);
     Task<Result> DeleteMindmapAsync(string id);
+
+    // Folders
+    Task<Result<IReadOnlyList<MindmapFolder>>> GetFoldersAsync();
+    Task<Result> SaveFolderAsync(MindmapFolder folder);
+    Task<Result> DeleteFolderAsync(string folderId);
 
     // Graph operations
     Task<Result<MindmapNode>> AddNodeAsync(string mindmapId, string nodeType, IMindmapNodeContent content, double x, double y);

@@ -1,31 +1,56 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Services;
 using Mnemo.UI.Components.Overlays;
 using Mnemo.UI.Modules.Mindmap.Services;
 using Mnemo.UI.ViewModels;
+using MindmapModel = Mnemo.Core.Models.Mindmap.Mindmap;
 
 namespace Mnemo.UI.Modules.Mindmap.ViewModels;
 
-public partial class MindmapOverviewViewModel : ViewModelBase
+/// <summary>Column the library grid is ordered by.</summary>
+public enum MindmapSortMode
 {
+    Recent,
+    Name,
+    Nodes
+}
+
+/// <summary>
+/// Library home for mindmaps: a finder-style grid of folders and maps with drill-in
+/// navigation, a "jump back in" strip, and linked-deck due badges bridging to Flashcards.
+/// </summary>
+public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
+{
+    private const int RecentCount = 3;
+
     private readonly IMindmapService _mindmapService;
+    private readonly IFlashcardDeckService _deckService;
     private readonly INavigationService _navigation;
     private readonly IOverlayService _overlay;
     private readonly ILoggerService _logger;
     private readonly IDateDisplayService _dateDisplay;
+    private readonly ILocalizationService _localization;
+
+    // Raw loaded data (source of truth for structural queries).
+    private List<MindmapModel> _maps = new();
+    private List<MindmapFolder> _folders = new();
+    private Dictionary<string, MindmapItemViewModel> _itemsById = new(StringComparer.Ordinal);
 
     [ObservableProperty]
     private string _searchText = string.Empty;
 
     [ObservableProperty]
-    private bool _isGridView;
+    private bool _isGridView = true;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -36,91 +61,184 @@ public partial class MindmapOverviewViewModel : ViewModelBase
     [ObservableProperty]
     private bool _showNoResultsState;
 
-    public ObservableCollection<MindmapItemViewModel> FrequentlyUsedItems { get; } = new();
-    public ObservableCollection<MindmapItemViewModel> AllItems { get; } = new();
-    public ObservableCollection<MindmapItemViewModel> FilteredItems { get; } = new();
+    /// <summary>Current folder id being viewed; null means the library root.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFolderView))]
+    [NotifyPropertyChangedFor(nameof(IsRootView))]
+    private string? _currentFolderId;
 
-    public ICommand ToggleViewCommand { get; }
+    public bool IsRootView => CurrentFolderId is null;
+    public bool IsFolderView => CurrentFolderId is not null;
+
+    [ObservableProperty]
+    private string _currentFolderName = string.Empty;
+
+    /// <summary>Page/folder subtitle line (counts + due + updated).</summary>
+    [ObservableProperty]
+    private string _headerCountLine = string.Empty;
+
+    [ObservableProperty]
+    private bool _showRecent;
+
+    [ObservableProperty]
+    private string _mapsHeaderLabel = string.Empty;
+
+    [ObservableProperty]
+    private int _mapsHeaderCount;
+
+    [ObservableProperty]
+    private string _searchPlaceholder = string.Empty;
+
+    /// <summary>Label for the dashed new-map tile (folder-aware).</summary>
+    [ObservableProperty]
+    private string _newTileLabel = string.Empty;
+
+    [ObservableProperty]
+    private MindmapSortMode _sortMode = MindmapSortMode.Recent;
+
+    [ObservableProperty]
+    private string _sortLabel = string.Empty;
+
+    /// <summary>Maps surfaced in the "jump back in" strip (root only).</summary>
+    public ObservableCollection<MindmapItemViewModel> RecentItems { get; } = new();
+
+    /// <summary>Folder tiles then map tiles (plus a dashed new-map tile inside a folder).</summary>
+    public ObservableCollection<object> GridItems { get; } = new();
+
+    /// <summary>Clickable folder path shown in folder view.</summary>
+    public ObservableCollection<MindmapBreadcrumbSegment> Breadcrumbs { get; } = new();
+
     public ICommand CreateCommand { get; }
+    public ICommand CreateFolderCommand { get; }
     public ICommand OpenMindmapCommand { get; }
-    public ICommand DeleteMindmapCommand { get; }
+    public ICommand OpenFolderCommand { get; }
+    public ICommand NavigateToFolderCommand { get; }
+    public ICommand NavigateUpCommand { get; }
+    public ICommand SetSortCommand { get; }
+    public ICommand RenameFolderCommand { get; }
+    public ICommand DeleteFolderCommand { get; }
+    public ICommand RenameCurrentFolderCommand { get; }
+    public ICommand DeleteCurrentFolderCommand { get; }
+
+    // Convenience for the code-behind transfer/export handlers.
+    public IReadOnlyList<MindmapItemViewModel> AllItems => _itemsById.Values.ToList();
 
     public MindmapOverviewViewModel(
         IMindmapService mindmapService,
+        IFlashcardDeckService deckService,
         INavigationService navigation,
         IOverlayService overlay,
         ILoggerService logger,
-        IDateDisplayService dateDisplay)
+        IDateDisplayService dateDisplay,
+        ILocalizationService localization)
     {
         _mindmapService = mindmapService;
+        _deckService = deckService;
         _navigation = navigation;
         _overlay = overlay;
         _logger = logger;
         _dateDisplay = dateDisplay;
+        _localization = localization;
 
-        ToggleViewCommand = new RelayCommand(() => IsGridView = !IsGridView);
-        CreateCommand = new RelayCommand(CreateNewMindmap);
+        CreateCommand = new AsyncRelayCommand(CreateNewMindmapAsync);
+        CreateFolderCommand = new AsyncRelayCommand(CreateNewFolderAsync);
         OpenMindmapCommand = new RelayCommand<MindmapItemViewModel>(OpenMindmap);
-        DeleteMindmapCommand = new AsyncRelayCommand<MindmapItemViewModel>(DeleteMindmapAsync);
+        OpenFolderCommand = new RelayCommand<MindmapFolderItemViewModel>(OpenFolder);
+        NavigateToFolderCommand = new RelayCommand<string?>(NavigateToFolder);
+        NavigateUpCommand = new RelayCommand(NavigateUp);
+        SetSortCommand = new RelayCommand<string?>(SetSort);
+        RenameFolderCommand = new AsyncRelayCommand<MindmapFolderItemViewModel?>(RenameFolderAsync);
+        DeleteFolderCommand = new AsyncRelayCommand<MindmapFolderItemViewModel?>(DeleteFolderAsync);
+        RenameCurrentFolderCommand = new AsyncRelayCommand(RenameCurrentFolderAsync);
+        DeleteCurrentFolderCommand = new AsyncRelayCommand(DeleteCurrentFolderAsync);
 
-        AllItems.CollectionChanged += (_, _) => ApplySearchFilter();
-        _ = LoadMindmapsAsync();
+        UpdateSortLabel();
+        _ = LoadAsync();
     }
 
-    partial void OnSearchTextChanged(string value) => ApplySearchFilter();
+    public void OnNavigatedTo(object? parameter) => _ = LoadAsync();
 
-    private void ApplySearchFilter()
+    public void OnNavigatedFrom()
     {
-        var query = SearchText?.Trim() ?? string.Empty;
-        FilteredItems.Clear();
-        var source = string.IsNullOrEmpty(query)
-            ? AllItems
-            : AllItems.Where(i => i.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
-        foreach (var item in source)
-            FilteredItems.Add(item);
-
-        ShowEmptyState = AllItems.Count == 0;
-        ShowNoResultsState = AllItems.Count > 0 && FilteredItems.Count == 0;
+        GridItems.Clear();
+        RecentItems.Clear();
+        Breadcrumbs.Clear();
     }
 
-    private async Task LoadMindmapsAsync()
+    partial void OnSearchTextChanged(string value) => RebuildView();
+
+    partial void OnSortModeChanged(MindmapSortMode value)
+    {
+        UpdateSortLabel();
+        RebuildView();
+    }
+
+    public Task RefreshAsync() => LoadAsync();
+
+    // --- Loading -----------------------------------------------------------
+
+    private async Task LoadAsync()
     {
         if (IsLoading) return;
         IsLoading = true;
-
         try
         {
-            var result = await _mindmapService.GetAllMindmapsAsync();
-            if (result.IsSuccess && result.Value != null)
+            var mapsResult = await _mindmapService.GetAllMindmapsAsync().ConfigureAwait(false);
+            var foldersResult = await _mindmapService.GetFoldersAsync().ConfigureAwait(false);
+            var decks = await _deckService.ListDecksAsync().ConfigureAwait(false);
+
+            var maps = (mapsResult.IsSuccess && mapsResult.Value != null
+                ? mapsResult.Value
+                : Enumerable.Empty<MindmapModel>()).ToList();
+            var folders = (foldersResult.IsSuccess && foldersResult.Value != null
+                ? foldersResult.Value
+                : Array.Empty<MindmapFolder>()).ToList();
+
+            var now = DateTimeOffset.UtcNow;
+            var duePerDeck = decks.ToDictionary(d => d.Id, d => CountDue(d, now), StringComparer.Ordinal);
+
+            var folderNamesById = folders.ToDictionary(f => f.Id, f => f.Name, StringComparer.Ordinal);
+
+            var itemsById = new Dictionary<string, MindmapItemViewModel>(StringComparer.Ordinal);
+            foreach (var map in maps)
             {
-                var viewModels = result.Value.Select(m =>
+                var due = map.LinkedDeckIds
+                    .Where(id => duePerDeck.ContainsKey(id))
+                    .Sum(id => duePerDeck[id]);
+                var lastModified = map.ModifiedAt is DateTime dt ? _dateDisplay.FormatSmart(dt) : "—";
+                var folderName = map.FolderId != null && folderNamesById.TryGetValue(map.FolderId, out var fn) ? fn : null;
+
+                var item = new MindmapItemViewModel
                 {
-                    var vm = new MindmapItemViewModel
-                    {
-                        Id = m.Id,
-                        Name = m.Title,
-                        NodeCount = m.Nodes.Count,
-                        EdgeCount = m.Edges.Count,
-                        LastModified = m.ModifiedAt is DateTime dt ? _dateDisplay.FormatSmart(dt) : "—"
-                    };
-                    MindmapPreviewBuilder.PopulatePreviews(vm, m);
-                    return vm;
-                }).ToList();
-
-                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    AllItems.Clear();
-                    FrequentlyUsedItems.Clear();
-
-                    foreach (var vm in viewModels)
-                        AllItems.Add(vm);
-
-                    foreach (var m in AllItems.Take(4))
-                        FrequentlyUsedItems.Add(m);
-
-                    ApplySearchFilter();
-                });
+                    Id = map.Id,
+                    Name = map.Title,
+                    FolderId = map.FolderId,
+                    NodeCount = map.Nodes.Count,
+                    EdgeCount = map.Edges.Count,
+                    LastModified = lastModified,
+                    MetaLine = string.Format(CultureInfo.CurrentCulture, T("MapMetaFormat"), map.Nodes.Count, lastModified),
+                    ContextLine = folderName is null
+                        ? lastModified
+                        : string.Format(CultureInfo.CurrentCulture, T("MapContextFormat"), folderName, lastModified),
+                    LayoutLabel = LayoutLabelFor(map.Layout?.Algorithm),
+                    DueCount = due,
+                    DueLabel = string.Format(CultureInfo.CurrentCulture, T("DueCountFormat"), due),
+                };
+                MindmapPreviewBuilder.PopulatePreviews(item, map);
+                itemsById[map.Id] = item;
             }
+
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _maps = maps;
+                _folders = folders;
+                _itemsById = itemsById;
+                RebuildView();
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", "Failed to load mindmap library", ex);
         }
         finally
         {
@@ -128,77 +246,395 @@ public partial class MindmapOverviewViewModel : ViewModelBase
         }
     }
 
-    public Task RefreshAsync() => LoadMindmapsAsync();
+    // --- View rebuild ------------------------------------------------------
+
+    private void RebuildView()
+    {
+        var term = SearchText.Trim();
+        var searching = term.Length > 0;
+        bool Matches(string name) => !searching || name.Contains(term, StringComparison.OrdinalIgnoreCase);
+
+        var knownFolderIds = _folders.Select(f => f.Id).ToHashSet(StringComparer.Ordinal);
+
+        // Folders at this level.
+        var levelFolders = _folders
+            .Where(f => string.Equals(f.ParentId, CurrentFolderId, StringComparison.Ordinal))
+            .OrderBy(f => f.Order)
+            .ThenBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Where(f => Matches(f.Name))
+            .Select(BuildFolderItem)
+            .ToList();
+
+        // Maps at this level (orphans whose folder no longer exists surface at root).
+        var levelMaps = _maps
+            .Where(m => string.Equals(NormalizeFolder(m.FolderId, knownFolderIds), CurrentFolderId, StringComparison.Ordinal))
+            .Where(m => Matches(m.Title))
+            .Select(m => _itemsById[m.Id])
+            .ToList();
+        levelMaps = SortMaps(levelMaps).ToList();
+
+        GridItems.Clear();
+        foreach (var folder in levelFolders)
+            GridItems.Add(folder);
+        foreach (var map in levelMaps)
+            GridItems.Add(map);
+        if (IsFolderView && !searching)
+            GridItems.Add(MindmapNewTilePlaceholder.Instance);
+
+        // Jump back in (root, not searching).
+        RecentItems.Clear();
+        if (IsRootView && !searching)
+        {
+            foreach (var map in _maps
+                         .OrderByDescending(m => m.ModifiedAt ?? DateTime.MinValue)
+                         .Take(RecentCount))
+            {
+                if (_itemsById.TryGetValue(map.Id, out var item))
+                    RecentItems.Add(item);
+            }
+        }
+        ShowRecent = RecentItems.Count > 0;
+
+        UpdateHeader(levelFolders, levelMaps, knownFolderIds);
+        UpdateBreadcrumb();
+
+        var hasAnything = _maps.Count > 0 || _folders.Count > 0;
+        ShowEmptyState = !hasAnything;
+        ShowNoResultsState = hasAnything && searching && GridItems.Count == 0;
+
+        SearchPlaceholder = IsFolderView
+            ? string.Format(CultureInfo.CurrentCulture, T("SearchInFolder"), CurrentFolderName)
+            : T("SearchMindmaps");
+    }
+
+    private void UpdateHeader(
+        IReadOnlyList<MindmapFolderItemViewModel> levelFolders,
+        IReadOnlyList<MindmapItemViewModel> levelMaps,
+        HashSet<string> knownFolderIds)
+    {
+        if (IsRootView)
+        {
+            CurrentFolderName = string.Empty;
+            MapsHeaderLabel = T("AllMaps");
+            MapsHeaderCount = _maps.Count;
+            var folderCount = _folders.Count;
+            HeaderCountLine = string.Format(CultureInfo.CurrentCulture, T("RootCountFormat"), _maps.Count, folderCount);
+            NewTileLabel = T("NewMap");
+            return;
+        }
+
+        var folder = _folders.FirstOrDefault(f => string.Equals(f.Id, CurrentFolderId, StringComparison.Ordinal));
+        CurrentFolderName = folder?.Name ?? string.Empty;
+        MapsHeaderLabel = T("MapsLabel");
+        NewTileLabel = string.Format(CultureInfo.CurrentCulture, T("NewMapInFolder"), CurrentFolderName);
+
+        var directMaps = _maps.Count(m => string.Equals(m.FolderId, CurrentFolderId, StringComparison.Ordinal));
+        MapsHeaderCount = directMaps;
+
+        var subtreeMapIds = SubtreeMapIds(CurrentFolderId!);
+        var subtreeMapCount = subtreeMapIds.Count;
+        var subtreeDue = subtreeMapIds.Sum(id => _itemsById.TryGetValue(id, out var it) ? it.DueCount : 0);
+        var updated = _maps
+            .Where(m => subtreeMapIds.Contains(m.Id) && m.ModifiedAt.HasValue)
+            .Select(m => m.ModifiedAt!.Value)
+            .DefaultIfEmpty()
+            .Max();
+        var updatedText = updated == default ? "—" : _dateDisplay.FormatSmart(updated);
+
+        HeaderCountLine = subtreeDue > 0
+            ? string.Format(CultureInfo.CurrentCulture, T("FolderHeaderDueFormat"), subtreeMapCount, subtreeDue, updatedText)
+            : string.Format(CultureInfo.CurrentCulture, T("FolderHeaderFormat"), subtreeMapCount, updatedText);
+    }
+
+    private void UpdateBreadcrumb()
+    {
+        Breadcrumbs.Clear();
+        if (IsRootView)
+            return;
+
+        var byId = _folders.ToDictionary(f => f.Id, StringComparer.Ordinal);
+        var chain = new List<MindmapBreadcrumbSegment>();
+        var current = CurrentFolderId;
+        var guard = 0;
+        while (current != null && byId.TryGetValue(current, out var folder) && guard++ < 64)
+        {
+            chain.Insert(0, new MindmapBreadcrumbSegment(folder.Id, folder.Name));
+            current = folder.ParentId;
+        }
+        chain.Insert(0, new MindmapBreadcrumbSegment(null, T("Title")));
+        foreach (var seg in chain)
+            Breadcrumbs.Add(seg);
+    }
+
+    private MindmapFolderItemViewModel BuildFolderItem(MindmapFolder folder)
+    {
+        var subtreeIds = SubtreeMapIds(folder.Id);
+        var due = subtreeIds.Sum(id => _itemsById.TryGetValue(id, out var it) ? it.DueCount : 0);
+
+        DateTime newest = default;
+        MindmapItemViewModel? newestItem = null;
+        foreach (var map in _maps.Where(m => subtreeIds.Contains(m.Id)))
+        {
+            var mod = map.ModifiedAt ?? DateTime.MinValue;
+            if (mod >= newest && _itemsById.TryGetValue(map.Id, out var it))
+            {
+                newest = mod;
+                newestItem = it;
+            }
+        }
+
+        var updatedText = newest == default ? "—" : _dateDisplay.FormatSmart(newest);
+        var vm = new MindmapFolderItemViewModel
+        {
+            Id = folder.Id,
+            Name = folder.Name,
+            ParentId = folder.ParentId,
+            MapCount = subtreeIds.Count,
+            DueCount = due,
+            MetaLine = string.Format(CultureInfo.CurrentCulture, T("FolderMetaFormat"), subtreeIds.Count, updatedText),
+        };
+        if (newestItem != null)
+            MindmapPreviewBuilder.CopyPreviewTo(newestItem, vm);
+        return vm;
+    }
+
+    /// <summary>All map ids inside a folder's subtree (direct + nested).</summary>
+    private HashSet<string> SubtreeMapIds(string folderId)
+    {
+        var folderIds = new HashSet<string>(StringComparer.Ordinal) { folderId };
+        var queue = new Queue<string>();
+        queue.Enqueue(folderId);
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            foreach (var child in _folders.Where(f => string.Equals(f.ParentId, current, StringComparison.Ordinal)))
+            {
+                if (folderIds.Add(child.Id))
+                    queue.Enqueue(child.Id);
+            }
+        }
+        return _maps
+            .Where(m => m.FolderId != null && folderIds.Contains(m.FolderId))
+            .Select(m => m.Id)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static string? NormalizeFolder(string? folderId, HashSet<string> knownFolderIds) =>
+        folderId != null && knownFolderIds.Contains(folderId) ? folderId : null;
+
+    private IEnumerable<MindmapItemViewModel> SortMaps(IEnumerable<MindmapItemViewModel> maps) => SortMode switch
+    {
+        MindmapSortMode.Name => maps.OrderBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase),
+        MindmapSortMode.Nodes => maps.OrderByDescending(m => m.NodeCount).ThenBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase),
+        _ => maps // Recent: _maps is already newest-first via id lookup ordering below
+            .OrderByDescending(m => MapModified(m.Id)).ThenBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase)
+    };
+
+    private DateTime MapModified(string id) =>
+        _maps.FirstOrDefault(m => string.Equals(m.Id, id, StringComparison.Ordinal))?.ModifiedAt ?? DateTime.MinValue;
+
+    // --- Navigation --------------------------------------------------------
 
     private void OpenMindmap(MindmapItemViewModel? item)
     {
-        if (item != null)
+        if (item != null && !string.IsNullOrEmpty(item.Id))
             _navigation.NavigateTo("mindmap-detail", item.Id);
     }
 
-    private async Task DeleteMindmapAsync(MindmapItemViewModel? item)
+    private void OpenFolder(MindmapFolderItemViewModel? folder)
     {
-        if (item == null) return;
+        if (folder == null || string.IsNullOrEmpty(folder.Id))
+            return;
+        CurrentFolderId = folder.Id;
+        SearchText = string.Empty;
+        RebuildView();
+    }
 
-        var result = await _overlay.CreateDialogAsync(
-            "Delete Mindmap",
-            $"Are you sure you want to delete '{item.Name}'?",
-            "Delete",
-            "Cancel",
-            severity: DialogSeverity.Destructive);
+    private void NavigateToFolder(string? folderId)
+    {
+        CurrentFolderId = folderId;
+        SearchText = string.Empty;
+        RebuildView();
+    }
 
-        if (result == "Delete")
+    private void NavigateUp()
+    {
+        if (IsRootView)
+            return;
+        var folder = _folders.FirstOrDefault(f => string.Equals(f.Id, CurrentFolderId, StringComparison.Ordinal));
+        NavigateToFolder(folder?.ParentId);
+    }
+
+    private void SetSort(string? mode)
+    {
+        if (Enum.TryParse<MindmapSortMode>(mode, ignoreCase: true, out var parsed))
+            SortMode = parsed;
+    }
+
+    private void UpdateSortLabel()
+    {
+        var key = SortMode switch
         {
-            var deleteResult = await _mindmapService.DeleteMindmapAsync(item.Id);
-            if (deleteResult.IsSuccess)
-            {
-                await LoadMindmapsAsync();
-                _logger.Info("Mindmap", $"Deleted mindmap: {item.Name}");
-            }
+            MindmapSortMode.Name => "SortName",
+            MindmapSortMode.Nodes => "SortNodes",
+            _ => "SortRecent"
+        };
+        SortLabel = string.Format(CultureInfo.CurrentCulture, T("SortLabelFormat"), T(key));
+    }
+
+    // --- Mutations ---------------------------------------------------------
+
+    private async Task CreateNewMindmapAsync()
+    {
+        var name = await PromptForNameAsync(T("CreateMindmapTitle"), T("NewMindmap")).ConfigureAwait(true);
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+
+        try
+        {
+            var result = await _mindmapService.CreateMindmapAsync(name, CurrentFolderId).ConfigureAwait(true);
+            if (result.IsSuccess && result.Value != null)
+                _navigation.NavigateTo("mindmap-detail", result.Value.Id);
             else
-            {
-                await _overlay.CreateDialogAsync("Error", $"Failed to delete: {deleteResult.ErrorMessage}");
-            }
+                await _overlay.CreateDialogAsync(T("ErrorTitle"), result.ErrorMessage ?? T("CreateFailed")).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", "Failed to create mindmap", ex);
         }
     }
 
-    private void CreateNewMindmap()
+    private async Task CreateNewFolderAsync()
     {
-        var inputOverlay = new InputDialogOverlay
+        var name = await PromptForNameAsync(T("CreateFolderTitle"), T("NewFolderName")).ConfigureAwait(true);
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+
+        var order = _folders
+            .Where(f => string.Equals(f.ParentId, CurrentFolderId, StringComparison.Ordinal))
+            .Select(f => f.Order)
+            .DefaultIfEmpty(-1)
+            .Max() + 1;
+        var folder = new MindmapFolder(Guid.NewGuid().ToString("n"), name.Trim(), CurrentFolderId, order);
+        var save = await _mindmapService.SaveFolderAsync(folder).ConfigureAwait(true);
+        if (save.IsSuccess)
+            await LoadAsync().ConfigureAwait(true);
+    }
+
+    private async Task RenameFolderAsync(MindmapFolderItemViewModel? folderItem)
+    {
+        if (folderItem == null || string.IsNullOrEmpty(folderItem.Id))
+            return;
+        var existing = _folders.FirstOrDefault(f => string.Equals(f.Id, folderItem.Id, StringComparison.Ordinal));
+        if (existing == null)
+            return;
+
+        var name = await PromptForNameAsync(T("RenameFolderTitle"), existing.Name).ConfigureAwait(true);
+        var trimmed = name?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed) || string.Equals(trimmed, existing.Name, StringComparison.Ordinal))
+            return;
+
+        var save = await _mindmapService.SaveFolderAsync(existing with { Name = trimmed }).ConfigureAwait(true);
+        if (save.IsSuccess)
+            await LoadAsync().ConfigureAwait(true);
+    }
+
+    private async Task DeleteFolderAsync(MindmapFolderItemViewModel? folderItem)
+    {
+        if (folderItem == null || string.IsNullOrEmpty(folderItem.Id))
+            return;
+
+        var confirm = await _overlay.CreateDialogAsync(
+            T("DeleteFolderTitle"),
+            string.Format(CultureInfo.CurrentCulture, T("DeleteFolderConfirm"), folderItem.Name),
+            T("Delete"),
+            T("Cancel"),
+            severity: DialogSeverity.Destructive).ConfigureAwait(true);
+        if (!string.Equals(confirm, T("Delete"), StringComparison.Ordinal))
+            return;
+
+        var result = await _mindmapService.DeleteFolderAsync(folderItem.Id).ConfigureAwait(true);
+        if (result.IsSuccess)
+            await LoadAsync().ConfigureAwait(true);
+    }
+
+    private async Task RenameCurrentFolderAsync()
+    {
+        var folder = _folders.FirstOrDefault(f => string.Equals(f.Id, CurrentFolderId, StringComparison.Ordinal));
+        if (folder == null)
+            return;
+        await RenameFolderAsync(new MindmapFolderItemViewModel { Id = folder.Id, Name = folder.Name }).ConfigureAwait(true);
+    }
+
+    private async Task DeleteCurrentFolderAsync()
+    {
+        var folder = _folders.FirstOrDefault(f => string.Equals(f.Id, CurrentFolderId, StringComparison.Ordinal));
+        if (folder == null)
+            return;
+        var parentId = folder.ParentId;
+        await DeleteFolderAsync(new MindmapFolderItemViewModel { Id = folder.Id, Name = folder.Name }).ConfigureAwait(true);
+        NavigateToFolder(parentId);
+    }
+
+    /// <summary>Moves a map into a folder (or to root when <paramref name="folderId"/> is null).</summary>
+    public async Task MoveMapToFolderAsync(string mapId, string? folderId)
+    {
+        if (string.IsNullOrWhiteSpace(mapId))
+            return;
+        var existing = await _mindmapService.GetMindmapAsync(mapId).ConfigureAwait(true);
+        if (!existing.IsSuccess || existing.Value == null)
+            return;
+        if (string.Equals(existing.Value.FolderId, folderId, StringComparison.Ordinal))
+            return;
+
+        existing.Value.FolderId = folderId;
+        var save = await _mindmapService.SaveMindmapAsync(existing.Value).ConfigureAwait(true);
+        if (save.IsSuccess)
+            await LoadAsync().ConfigureAwait(true);
+    }
+
+    public IReadOnlyList<MindmapFolder> Folders => _folders;
+
+    // --- Helpers -----------------------------------------------------------
+
+    private async Task<string?> PromptForNameAsync(string title, string initialValue)
+    {
+        var input = new InputDialogOverlay
         {
-            Title = "Create New Mindmap",
-            Placeholder = "Enter mindmap name...",
-            InputValue = "New Mindmap",
-            ConfirmText = "Create",
-            CancelText = "Cancel"
+            Title = title,
+            Placeholder = T("NamePlaceholder"),
+            InputValue = initialValue,
+            ConfirmText = T("Save"),
+            CancelText = T("Cancel")
         };
-
-        var options = new OverlayOptions
-        {
-            ShowBackdrop = true,
-            CloseOnOutsideClick = true
-        };
-
-        var id = _overlay.CreateOverlay(inputOverlay, options);
-
-        inputOverlay.OnResult = async (result) =>
+        var id = _overlay.CreateOverlay(input, new OverlayOptions { ShowBackdrop = true, CloseOnOutsideClick = true });
+        var tcs = new TaskCompletionSource<string?>();
+        input.OnResult = result =>
         {
             _overlay.CloseOverlay(id);
-
-            if (string.IsNullOrWhiteSpace(result)) return;
-
-            try
-            {
-                var createResult = await _mindmapService.CreateMindmapAsync(result);
-                if (createResult.IsSuccess && createResult.Value != null)
-                    _navigation.NavigateTo("mindmap-detail", createResult.Value.Id);
-                else
-                    await _overlay.CreateDialogAsync("Error", $"Failed to create: {createResult.ErrorMessage}");
-            }
-            catch (Exception ex)
-            {
-                _logger.Error("Mindmap", "Failed to create mindmap", ex);
-            }
+            tcs.TrySetResult(result);
         };
+        return await tcs.Task.ConfigureAwait(true);
     }
+
+    private string LayoutLabelFor(string? algorithm) => algorithm switch
+    {
+        LayoutAlgorithms.Radial => T("LayoutRadial"),
+        LayoutAlgorithms.TreeVertical or LayoutAlgorithms.TreeHorizontal => T("LayoutTree"),
+        _ => T("LayoutFree")
+    };
+
+    private static int CountDue(FlashcardDeck deck, DateTimeOffset now)
+    {
+        var count = 0;
+        foreach (var card in deck.Cards)
+        {
+            var state = card.FsrsState ?? ((card.ReviewCount ?? 0) <= 0 ? FlashcardFsrsState.New : FlashcardFsrsState.Review);
+            if (state == FlashcardFsrsState.New || card.DueDate <= now)
+                count++;
+        }
+        return count;
+    }
+
+    private string T(string key) => _localization.T(key, "Mindmap");
 }

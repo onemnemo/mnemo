@@ -135,7 +135,7 @@
                                 <DataTemplate DataType="vm:WidgetSizeOptionViewModel">
                                     <Button Classes="size-chip"
                                             Classes.selected="{Binding IsSelected}"
-                                            Command="{Binding $parent[ItemsControl].((vm:WidgetHostViewModel)DataContext).SelectSizeCommand}"
+                                            Command="{Binding $parent[ItemsControl].DataContext.SelectSizeCommand, FallbackValue={x:Null}}"
                                             CommandParameter="{Binding}">
                                         <TextBlock Text="{Binding Label}"/>
                                     </Button>
