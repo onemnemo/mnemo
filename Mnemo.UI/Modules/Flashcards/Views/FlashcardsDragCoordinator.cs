@@ -74,7 +74,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         pointer.Capture(_root);
     }
 
-    public void BeginDeckDrag(FlashcardDeckRowViewModel deck, Border sourceCard, IPointer pointer)
+    public void BeginDeckDrag(FlashcardDeckRowViewModel deck, Control sourceCard, IPointer pointer)
     {
         if (IsDragging || string.IsNullOrWhiteSpace(deck.Id))
             return;
@@ -268,10 +268,10 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         });
         Grid.SetColumn(row.Children[1], 1);
 
-        return CreateGhostContainer(row, sourceRow.Bounds.Width > 0 ? sourceRow.Bounds.Width : 220);
+        return CreateGhostContainer(row, 220);
     }
 
-    private Border CreateDeckGhost(FlashcardDeckRowViewModel deck, Border sourceCard)
+    private Border CreateDeckGhost(FlashcardDeckRowViewModel deck, Control sourceCard)
     {
         var row = new Grid
         {
@@ -298,7 +298,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         });
         Grid.SetColumn(row.Children[1], 1);
 
-        return CreateGhostContainer(row, sourceCard.Bounds.Width > 0 ? sourceCard.Bounds.Width : 280);
+        return CreateGhostContainer(row, 240);
     }
 
     private Border CreateGhostContainer(Control content, double width)

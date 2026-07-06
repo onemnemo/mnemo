@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mnemo.Core.Models.Flashcards;
@@ -8,55 +9,102 @@ using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Flashcards.ViewModels;
 
+/// <summary>Column the deck tree is ordered by.</summary>
+public enum FlashcardSortMode
+{
+    Due,
+    Name,
+    Retention,
+    Cards
+}
+
 /// <summary>
-/// Library view: folders, filters, search, and deck list.
+/// Library home: a single unified tree of folders and decks with per-state metrics,
+/// an aggregate study summary, sorting, and drag organization.
 /// </summary>
 public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
 {
-    /// <summary>Filter token for due-only decks (used by the library sidebar).</summary>
-    public const string DueFilterToken = "__due__";
     private const string RootFolderKey = "__root__";
-    private const string FlashcardsSidebarOpenKey = "Flashcards.SidebarOpen";
+
+    /// <summary>Rough pace used only for the "about N min" study estimate (~11 cards/min).</summary>
+    private const double CardsPerMinuteEstimate = 11d;
 
     private readonly IFlashcardDeckService _deckService;
     private readonly INavigationService _navigation;
     private readonly IOverlayService _overlay;
     private readonly ILocalizationService _localization;
-    private readonly ISettingsService _settingsService;
+
     private IReadOnlyList<FlashcardDeck> _loadedDecks = Array.Empty<FlashcardDeck>();
     private IReadOnlyList<FlashcardFolder> _loadedFolders = Array.Empty<FlashcardFolder>();
-    private bool _sidebarStateLoaded;
+
+    private readonly record struct DeckStats(int New, int Learn, int ReviewDue, int Total, int Retention)
+    {
+        public int DueToday => New + Learn + ReviewDue;
+    }
+
+    private Dictionary<string, DeckStats> _statsByDeck = new(StringComparer.Ordinal);
 
     [ObservableProperty]
     private string _searchText = string.Empty;
 
-    /// <summary>
-    /// Selected folder id, <see cref="DueFilterKey"/> for due-only, or <c>null</c> for all decks.
-    /// </summary>
     [ObservableProperty]
-    private string? _selectedFolderId;
-
-    [ObservableProperty]
-    private bool _isSidebarOpen = true;
+    private FlashcardSortMode _sortMode = FlashcardSortMode.Due;
 
     /// <summary>True when the library has no decks at all (first-run state).</summary>
     [ObservableProperty]
     private bool _showEmptyState;
 
-    /// <summary>True when decks exist but the current folder/search filter matches none.</summary>
+    /// <summary>True when decks exist but the current search matches none.</summary>
     [ObservableProperty]
     private bool _showNoResultsState;
 
-    public ObservableCollection<FlashcardFolder> Folders { get; } = new();
-    public ObservableCollection<FlashcardFolderItemViewModel> FolderTreeItems { get; } = new();
-    public ObservableCollection<FlashcardFolderItemViewModel> FlatFolderItems { get; } = new();
+    [ObservableProperty]
+    private bool _hasDueToday;
 
-    public ObservableCollection<FlashcardDeckRowViewModel> FilteredDecks { get; } = new();
+    /// <summary>True when the deck tree has at least one visible row.</summary>
+    [ObservableProperty]
+    private bool _showTree;
+
+    // --- Page head ---
+    [ObservableProperty]
+    private string _headerSummaryText = string.Empty;
+
+    // --- Study bar ---
+    [ObservableProperty]
+    private string _dueHeadlineText = string.Empty;
+    [ObservableProperty]
+    private string _dueDecksText = string.Empty;
+    [ObservableProperty]
+    private string _dueMinutesText = string.Empty;
+    [ObservableProperty]
+    private string _dueNewText = string.Empty;
+    [ObservableProperty]
+    private string _dueLearnText = string.Empty;
+    [ObservableProperty]
+    private string _dueReviewText = string.Empty;
+
+    // --- Totals footer ---
+    [ObservableProperty]
+    private int _totalNew;
+    [ObservableProperty]
+    private int _totalLearn;
+    [ObservableProperty]
+    private int _totalDue;
+    [ObservableProperty]
+    private string _totalRetentionText = string.Empty;
+
+    [ObservableProperty]
+    private string _sortModeLabel = string.Empty;
+
+    /// <summary>Persisted folder tree (survives expansion toggles); rebuilt only on data reload.</summary>
+    private readonly ObservableCollection<FlashcardFolderItemViewModel> _folderTree = new();
+
+    /// <summary>Flattened, ordered, visibility-filtered rows (folders + decks) for the tree control.</summary>
+    public ObservableCollection<object> LibraryRows { get; } = new();
 
     public IAsyncRelayCommand RefreshCommand { get; }
 
     public IRelayCommand<FlashcardDeckRowViewModel?> OpenDeckCommand { get; }
-
     public IRelayCommand<FlashcardDeckRowViewModel?> StartReviewSessionCommand { get; }
     public IRelayCommand<FlashcardDeckRowViewModel?> StartQuickSessionCommand { get; }
     public IRelayCommand<FlashcardDeckRowViewModel?> StartCramSessionCommand { get; }
@@ -67,167 +115,361 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
     public IAsyncRelayCommand CreateDeckCommand { get; }
     public IAsyncRelayCommand CreateFolderCommand { get; }
 
-    public IRelayCommand SelectAllDecksCommand { get; }
+    public IRelayCommand<string?> SetSortCommand { get; }
+    public IRelayCommand ToggleExpandCollapseAllCommand { get; }
 
-    public IRelayCommand SelectDueDecksCommand { get; }
+    public IRelayCommand StudyAllCommand { get; }
+    public IRelayCommand OpenCustomSessionCommand { get; }
 
-    public IRelayCommand<string?> SelectFolderCommand { get; }
     public IAsyncRelayCommand<FlashcardFolderItemViewModel?> RenameFolderCommand { get; }
     public IAsyncRelayCommand<FlashcardFolderItemViewModel?> DeleteFolderCommand { get; }
-
-    public IRelayCommand ToggleSidebarCommand { get; }
 
     public FlashcardsViewModel(
         IFlashcardDeckService deckService,
         INavigationService navigation,
         IOverlayService overlay,
-        ILocalizationService localization,
-        ISettingsService settingsService)
+        ILocalizationService localization)
     {
         _deckService = deckService;
         _navigation = navigation;
         _overlay = overlay;
         _localization = localization;
-        _settingsService = settingsService;
 
         RefreshCommand = new AsyncRelayCommand(LoadDecksAsync);
         OpenDeckCommand = new RelayCommand<FlashcardDeckRowViewModel?>(OpenDeck);
-        StartReviewSessionCommand = new RelayCommand<FlashcardDeckRowViewModel?>(StartReviewSession);
-        StartQuickSessionCommand = new RelayCommand<FlashcardDeckRowViewModel?>(StartQuickSession);
-        StartCramSessionCommand = new RelayCommand<FlashcardDeckRowViewModel?>(StartCramSession);
-        StartTestSessionCommand = new RelayCommand<FlashcardDeckRowViewModel?>(StartTestSession);
+        StartReviewSessionCommand = new RelayCommand<FlashcardDeckRowViewModel?>(r => StartSession(r, FlashcardSessionType.Review));
+        StartQuickSessionCommand = new RelayCommand<FlashcardDeckRowViewModel?>(r => StartSession(r, FlashcardSessionType.Quick));
+        StartCramSessionCommand = new RelayCommand<FlashcardDeckRowViewModel?>(r => StartSession(r, FlashcardSessionType.Cram));
+        StartTestSessionCommand = new RelayCommand<FlashcardDeckRowViewModel?>(r => StartSession(r, FlashcardSessionType.Test));
         OpenDeckSettingsCommand = new AsyncRelayCommand<FlashcardDeckRowViewModel?>(OpenDeckSettingsAsync);
         DeleteDeckCommand = new AsyncRelayCommand<FlashcardDeckRowViewModel?>(DeleteDeckAsync);
         CreateDeckCommand = new AsyncRelayCommand(CreateDeckAsync);
         CreateFolderCommand = new AsyncRelayCommand(CreateFolderAsync);
-        SelectAllDecksCommand = new RelayCommand(SelectAllDecks);
-        SelectDueDecksCommand = new RelayCommand(SelectDueFilter);
-        ToggleSidebarCommand = new RelayCommand(ToggleSidebar);
-        SelectFolderCommand = new RelayCommand<string?>(id =>
-        {
-            if (!string.IsNullOrEmpty(id))
-                SelectFolder(id);
-        });
+        SetSortCommand = new RelayCommand<string?>(SetSort);
+        ToggleExpandCollapseAllCommand = new RelayCommand(ToggleExpandCollapseAll);
+        StudyAllCommand = new RelayCommand(StudyAll);
+        OpenCustomSessionCommand = new RelayCommand(OpenCustomSession);
         RenameFolderCommand = new AsyncRelayCommand<FlashcardFolderItemViewModel?>(RenameFolderAsync);
         DeleteFolderCommand = new AsyncRelayCommand<FlashcardFolderItemViewModel?>(DeleteFolderAsync);
 
+        UpdateSortLabel();
         _ = LoadDecksAsync();
     }
 
-    public void OnNavigatedTo(object? parameter)
+    public void OnNavigatedTo(object? parameter) => _ = LoadDecksAsync();
+
+    partial void OnSearchTextChanged(string value) => Recompute();
+
+    partial void OnSortModeChanged(FlashcardSortMode value)
     {
-        _ = LoadDecksAsync();
-    }
-
-    partial void OnSearchTextChanged(string value) => ApplyFilter();
-
-    partial void OnSelectedFolderIdChanged(string? value) => ApplyFilter();
-
-    partial void OnIsSidebarOpenChanged(bool value)
-    {
-        if (_sidebarStateLoaded)
-            _ = _settingsService.SetAsync(FlashcardsSidebarOpenKey, value);
+        UpdateSortLabel();
+        Recompute();
     }
 
     private async Task LoadDecksAsync()
     {
         var folders = await _deckService.ListFoldersAsync().ConfigureAwait(false);
         var decks = await _deckService.ListDecksAsync().ConfigureAwait(false);
-        var sidebarOpen = await _settingsService.GetAsync(FlashcardsSidebarOpenKey, true).ConfigureAwait(false);
 
         _loadedDecks = decks;
         _loadedFolders = folders;
 
         await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
         {
-            _sidebarStateLoaded = false;
-            IsSidebarOpen = sidebarOpen;
-            _sidebarStateLoaded = true;
-
-            Folders.Clear();
-            foreach (var f in folders)
-                Folders.Add(f);
-
             RebuildFolderTree();
-
-            ApplyFilter();
+            Recompute();
         });
     }
 
-    private void ApplyFilter()
+    // --- Stats -------------------------------------------------------------
+
+    private static FlashcardFsrsState ResolveState(Flashcard card) =>
+        card.FsrsState ?? ((card.ReviewCount ?? 0) <= 0 ? FlashcardFsrsState.New : FlashcardFsrsState.Review);
+
+    private static DeckStats ComputeStats(FlashcardDeck deck, DateTimeOffset now)
+    {
+        var newCount = 0;
+        var learn = 0;
+        var reviewDue = 0;
+        foreach (var card in deck.Cards)
+        {
+            var state = ResolveState(card);
+            if (state == FlashcardFsrsState.New)
+            {
+                newCount++;
+            }
+            else if (card.DueDate <= now)
+            {
+                if (state == FlashcardFsrsState.Learning || state == FlashcardFsrsState.Relearning)
+                    learn++;
+                else
+                    reviewDue++;
+            }
+        }
+
+        return new DeckStats(newCount, learn, reviewDue, deck.Cards.Count, deck.RetentionScore);
+    }
+
+    // --- Rebuild -----------------------------------------------------------
+
+    private void Recompute()
     {
         var now = DateTimeOffset.UtcNow;
-        IEnumerable<FlashcardDeck> query = _loadedDecks;
+        _statsByDeck = _loadedDecks.ToDictionary(d => d.Id, d => ComputeStats(d, now), StringComparer.Ordinal);
 
-        if (SelectedFolderId == DueFilterToken)
-            query = query.Where(d => d.Cards.Any(c => c.DueDate <= now));
-        else if (!string.IsNullOrEmpty(SelectedFolderId))
-        {
-            var folderIds = GetSelectedFolderFamily(SelectedFolderId);
-            query = query.Where(d => d.FolderId != null && folderIds.Contains(d.FolderId));
-        }
+        var term = SearchText.Trim();
+        var searching = term.Length > 0;
+        bool Matches(FlashcardDeck d) => !searching || d.Name.Contains(term, StringComparison.OrdinalIgnoreCase);
 
-        if (!string.IsNullOrWhiteSpace(SearchText))
-        {
-            var q = SearchText.Trim();
-            query = query.Where(d => d.Name.Contains(q, StringComparison.OrdinalIgnoreCase));
-        }
+        var decksByFolder = _loadedDecks
+            .GroupBy(d => d.FolderId ?? RootFolderKey, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
+        var knownFolderIds = _loadedFolders.Select(f => f.Id).ToHashSet(StringComparer.Ordinal);
 
-        FilteredDecks.Clear();
-        foreach (var d in query.OrderBy(d => d.Name))
-        {
-            var due = d.Cards.Count(c => c.DueDate <= now);
-            var dueBadge = due > 0
-                ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
-                    _localization.T("DueCountFormat", "Flashcards"), due)
-                : string.Empty;
-            var lastLine = d.LastStudied.HasValue
-                ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
-                    _localization.T("DeckLastStudiedFormat", "Flashcards"),
-                    d.LastStudied.Value.ToLocalTime().ToString("d", System.Globalization.CultureInfo.CurrentCulture))
-                : _localization.T("DeckNeverStudied", "Flashcards");
-            var cardCountLine = string.Format(System.Globalization.CultureInfo.CurrentCulture,
-                _localization.T("DeckCardCountFormat", "Flashcards"), d.Cards.Count);
+        // Folder aggregates roll up every descendant deck (independent of search filter).
+        foreach (var folder in _folderTree)
+            ApplyFolderAggregates(folder, decksByFolder);
 
-            FilteredDecks.Add(new FlashcardDeckRowViewModel
-            {
-                Id = d.Id,
-                Name = d.Name,
-                DueCount = due,
-                TotalCards = d.Cards.Count,
-                RetentionScore = d.RetentionScore,
-                FolderId = d.FolderId,
-                DueBadgeText = dueBadge,
-                CardCountLine = cardCountLine,
-                LastStudiedLine = lastLine
-            });
-        }
+        LibraryRows.Clear();
+        foreach (var root in _folderTree)
+            AddFolderRows(root, decksByFolder, searching, Matches);
+
+        var rootDecks = decksByFolder.TryGetValue(RootFolderKey, out var direct)
+            ? direct.Where(d => d.FolderId is null || !knownFolderIds.Contains(d.FolderId))
+            : Enumerable.Empty<FlashcardDeck>();
+        // Decks whose folder no longer exists surface at root too.
+        var orphaned = _loadedDecks.Where(d => d.FolderId != null && !knownFolderIds.Contains(d.FolderId));
+        foreach (var deck in SortDecks(rootDecks.Concat(orphaned).Distinct()).Where(Matches))
+            LibraryRows.Add(CreateDeckRow(deck, depth: 0));
+
+        UpdateSummary(Matches);
 
         ShowEmptyState = _loadedDecks.Count == 0;
-        ShowNoResultsState = _loadedDecks.Count > 0 && FilteredDecks.Count == 0;
+        ShowNoResultsState = _loadedDecks.Count > 0 && LibraryRows.Count == 0;
+        ShowTree = LibraryRows.Count > 0;
     }
+
+    private void AddFolderRows(
+        FlashcardFolderItemViewModel folder,
+        IReadOnlyDictionary<string, List<FlashcardDeck>> decksByFolder,
+        bool searching,
+        Func<FlashcardDeck, bool> matches)
+    {
+        if (searching && !SubtreeHasMatch(folder, decksByFolder, matches))
+            return;
+
+        LibraryRows.Add(folder);
+
+        var expanded = searching || folder.IsExpanded;
+        if (!expanded)
+            return;
+
+        foreach (var child in folder.Children)
+            AddFolderRows(child, decksByFolder, searching, matches);
+
+        if (decksByFolder.TryGetValue(folder.Id, out var decks))
+        {
+            foreach (var deck in SortDecks(decks).Where(matches))
+                LibraryRows.Add(CreateDeckRow(deck, folder.Depth + 1));
+        }
+    }
+
+    private bool SubtreeHasMatch(
+        FlashcardFolderItemViewModel folder,
+        IReadOnlyDictionary<string, List<FlashcardDeck>> decksByFolder,
+        Func<FlashcardDeck, bool> matches)
+    {
+        if (decksByFolder.TryGetValue(folder.Id, out var decks) && decks.Any(matches))
+            return true;
+        return folder.Children.Any(child => SubtreeHasMatch(child, decksByFolder, matches));
+    }
+
+    private DeckStats ApplyFolderAggregates(
+        FlashcardFolderItemViewModel folder,
+        IReadOnlyDictionary<string, List<FlashcardDeck>> decksByFolder)
+    {
+        var sum = new DeckStats(0, 0, 0, 0, 0);
+        var deckCount = 0;
+
+        if (decksByFolder.TryGetValue(folder.Id, out var decks))
+        {
+            foreach (var deck in decks)
+            {
+                if (!_statsByDeck.TryGetValue(deck.Id, out var s))
+                    continue;
+                sum = new DeckStats(sum.New + s.New, sum.Learn + s.Learn, sum.ReviewDue + s.ReviewDue, 0, 0);
+                deckCount++;
+            }
+        }
+
+        foreach (var child in folder.Children)
+        {
+            var childSum = ApplyFolderAggregates(child, decksByFolder);
+            sum = new DeckStats(sum.New + childSum.New, sum.Learn + childSum.Learn, sum.ReviewDue + childSum.ReviewDue, 0, 0);
+            deckCount += child.DeckCount;
+        }
+
+        folder.NewCount = sum.New;
+        folder.LearnCount = sum.Learn;
+        folder.ReviewDueCount = sum.ReviewDue;
+        folder.DeckCount = deckCount;
+        folder.DeckCountLabel = string.Format(CultureInfo.CurrentCulture, _localization.T("DeckCountFormat", "Flashcards"), deckCount);
+        return sum;
+    }
+
+    private FlashcardDeckRowViewModel CreateDeckRow(FlashcardDeck deck, int depth)
+    {
+        var s = _statsByDeck.TryGetValue(deck.Id, out var stats) ? stats : new DeckStats(0, 0, 0, deck.Cards.Count, deck.RetentionScore);
+        return new FlashcardDeckRowViewModel
+        {
+            Id = deck.Id,
+            Name = deck.Name,
+            FolderId = deck.FolderId,
+            Depth = depth,
+            NewCount = s.New,
+            LearnCount = s.Learn,
+            ReviewDueCount = s.ReviewDue,
+            TotalCards = s.Total,
+            RetentionScore = s.Retention,
+            CardCountLine = string.Format(CultureInfo.CurrentCulture, _localization.T("DeckCardCountFormat", "Flashcards"), s.Total)
+        };
+    }
+
+    private IEnumerable<FlashcardDeck> SortDecks(IEnumerable<FlashcardDeck> decks) => SortMode switch
+    {
+        FlashcardSortMode.Name => decks.OrderBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase),
+        FlashcardSortMode.Retention => decks.OrderByDescending(d => d.RetentionScore).ThenBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase),
+        FlashcardSortMode.Cards => decks.OrderByDescending(d => d.Cards.Count).ThenBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase),
+        _ => decks.OrderByDescending(d => Due(d)).ThenBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase)
+    };
+
+    private int Due(FlashcardDeck deck) => _statsByDeck.TryGetValue(deck.Id, out var s) ? s.DueToday : 0;
+
+    private void UpdateSummary(Func<FlashcardDeck, bool> matches)
+    {
+        var visible = _loadedDecks.Where(matches).ToList();
+        var newTotal = 0;
+        var learnTotal = 0;
+        var reviewTotal = 0;
+        var weightedRetention = 0d;
+        var cardTotal = 0;
+        var deckTotal = 0;
+        var totalCardsAll = 0;
+        var dueDecks = 0;
+
+        foreach (var deck in visible)
+        {
+            if (!_statsByDeck.TryGetValue(deck.Id, out var s))
+                continue;
+            newTotal += s.New;
+            learnTotal += s.Learn;
+            reviewTotal += s.ReviewDue;
+            weightedRetention += (double)s.Retention * Math.Max(1, s.Total);
+            cardTotal += Math.Max(1, s.Total);
+            totalCardsAll += s.Total;
+            deckTotal++;
+            if (s.DueToday > 0)
+                dueDecks++;
+        }
+
+        var dueTotal = newTotal + learnTotal + reviewTotal;
+        HasDueToday = dueTotal > 0;
+
+        var minutes = Math.Max(1, (int)Math.Round(dueTotal / CardsPerMinuteEstimate, MidpointRounding.AwayFromZero));
+        DueHeadlineText = string.Format(CultureInfo.CurrentCulture, _localization.T("DueTodayCountFormat", "Flashcards"), dueTotal);
+        DueDecksText = string.Format(CultureInfo.CurrentCulture, _localization.T("DeckCountFormat", "Flashcards"), dueDecks);
+        DueMinutesText = string.Format(CultureInfo.CurrentCulture, _localization.T("EstimatedMinutesFormat", "Flashcards"), minutes);
+        DueNewText = string.Format(CultureInfo.CurrentCulture, _localization.T("SummaryNewFormat", "Flashcards"), newTotal);
+        DueLearnText = string.Format(CultureInfo.CurrentCulture, _localization.T("SummaryLearnFormat", "Flashcards"), learnTotal);
+        DueReviewText = string.Format(CultureInfo.CurrentCulture, _localization.T("SummaryReviewFormat", "Flashcards"), reviewTotal);
+
+        TotalNew = newTotal;
+        TotalLearn = learnTotal;
+        TotalDue = reviewTotal;
+        var overallRetention = cardTotal > 0 ? (int)Math.Round(weightedRetention / cardTotal, MidpointRounding.AwayFromZero) : 0;
+        TotalRetentionText = $"{overallRetention}%";
+
+        HeaderSummaryText = string.Format(
+            CultureInfo.CurrentCulture,
+            _localization.T("DeckCountCardCountFormat", "Flashcards"),
+            deckTotal,
+            totalCardsAll.ToString("#,##0", CultureInfo.CurrentCulture));
+    }
+
+    private void UpdateSortLabel()
+    {
+        var key = SortMode switch
+        {
+            FlashcardSortMode.Name => "SortName",
+            FlashcardSortMode.Retention => "SortRetention",
+            FlashcardSortMode.Cards => "SortCards",
+            _ => "SortDue"
+        };
+        SortModeLabel = string.Format(CultureInfo.CurrentCulture, _localization.T("SortLabelFormat", "Flashcards"), _localization.T(key, "Flashcards"));
+    }
+
+    private void SetSort(string? mode)
+    {
+        if (Enum.TryParse<FlashcardSortMode>(mode, ignoreCase: true, out var parsed))
+            SortMode = parsed;
+    }
+
+    private void ToggleExpandCollapseAll()
+    {
+        var anyCollapsed = false;
+        WalkFolders(_folderTree, f => anyCollapsed |= !f.IsExpanded);
+        WalkFolders(_folderTree, f => f.IsExpanded = anyCollapsed);
+        Recompute();
+    }
+
+    public void ToggleFolderExpanded(FlashcardFolderItemViewModel folder)
+    {
+        folder.IsExpanded = !folder.IsExpanded;
+        Recompute();
+    }
+
+    private static void WalkFolders(IEnumerable<FlashcardFolderItemViewModel> folders, Action<FlashcardFolderItemViewModel> action)
+    {
+        foreach (var folder in folders)
+        {
+            action(folder);
+            WalkFolders(folder.Children, action);
+        }
+    }
+
+    // --- Study bar (interim single-deck wiring) ----------------------------
+
+    private FlashcardDeck? MostDueDeck() => _loadedDecks
+        .Where(d => Due(d) > 0)
+        .OrderByDescending(Due)
+        .ThenBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase)
+        .FirstOrDefault();
+
+    private void StudyAll()
+    {
+        var deck = MostDueDeck();
+        if (deck is null)
+            return;
+        var config = new FlashcardSessionConfig(FlashcardSessionType.Review, deck.Id, null, null, false, null);
+        _navigation.NavigateTo("flashcard-practice", new FlashcardPracticeNavigationParameter(deck.Id, config));
+    }
+
+    private void OpenCustomSession()
+    {
+        var deck = MostDueDeck();
+        if (deck is null)
+            return;
+        _navigation.NavigateTo("flashcard-deck", new FlashcardDeckNavigationParameter(deck.Id));
+    }
+
+    // --- Deck actions ------------------------------------------------------
 
     private void OpenDeck(FlashcardDeckRowViewModel? row)
     {
         if (row == null || string.IsNullOrEmpty(row.Id))
             return;
-
         _navigation.NavigateTo("flashcard-deck", new FlashcardDeckNavigationParameter(row.Id));
     }
-
-    private void StartReviewSession(FlashcardDeckRowViewModel? row) =>
-        StartSession(row, FlashcardSessionType.Review);
-
-    private void StartQuickSession(FlashcardDeckRowViewModel? row)
-    {
-        StartSession(row, FlashcardSessionType.Quick);
-    }
-
-    private void StartCramSession(FlashcardDeckRowViewModel? row) =>
-        StartSession(row, FlashcardSessionType.Cram);
-
-    private void StartTestSession(FlashcardDeckRowViewModel? row) =>
-        StartSession(row, FlashcardSessionType.Test);
 
     private void StartSession(FlashcardDeckRowViewModel? row, FlashcardSessionType sessionType)
     {
@@ -251,7 +493,7 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
         var deck = new FlashcardDeck(
             id,
             name,
-            GetSelectedFolderForCreate(),
+            null,
             null,
             Array.Empty<string>(),
             null,
@@ -264,14 +506,6 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
         _navigation.NavigateTo("flashcard-deck", new FlashcardDeckNavigationParameter(id));
     }
 
-    public void SelectAllDecks() => SelectedFolderId = null;
-
-    public void SelectDueFilter() => SelectedFolderId = DueFilterToken;
-
-    public void SelectFolder(string folderId) => SelectedFolderId = folderId;
-
-    public void ToggleSidebar() => IsSidebarOpen = !IsSidebarOpen;
-
     public async Task MoveDeckToFolderAsync(string deckId, string targetFolderId)
     {
         if (string.IsNullOrWhiteSpace(deckId) || string.IsNullOrWhiteSpace(targetFolderId))
@@ -280,7 +514,6 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
         var existing = _loadedDecks.FirstOrDefault(d => string.Equals(d.Id, deckId, StringComparison.Ordinal));
         if (existing is null)
             return;
-
         if (string.Equals(existing.FolderId, targetFolderId, StringComparison.Ordinal))
             return;
 
@@ -360,6 +593,8 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
         await LoadDecksAsync().ConfigureAwait(false);
     }
 
+    // --- Folder actions ----------------------------------------------------
+
     public async Task MoveFolderAsync(string sourceFolderId, string targetFolderId, bool dropIntoFolder, bool insertAfterTarget)
     {
         if (string.IsNullOrWhiteSpace(sourceFolderId) || string.IsNullOrWhiteSpace(targetFolderId))
@@ -369,9 +604,7 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
 
         var source = _loadedFolders.FirstOrDefault(f => string.Equals(f.Id, sourceFolderId, StringComparison.Ordinal));
         var target = _loadedFolders.FirstOrDefault(f => string.Equals(f.Id, targetFolderId, StringComparison.Ordinal));
-        if (source is null)
-            return;
-        if (target is null)
+        if (source is null || target is null)
             return;
 
         if (dropIntoFolder)
@@ -423,16 +656,15 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
 
     private async Task CreateFolderAsync()
     {
-        var parentId = GetSelectedFolderForCreate();
         var order = _loadedFolders
-            .Where(f => string.Equals(f.ParentId, parentId, StringComparison.Ordinal))
+            .Where(f => f.ParentId is null)
             .Select(f => f.Order)
             .DefaultIfEmpty(-1)
             .Max() + 1;
         var folder = new FlashcardFolder(
             Guid.NewGuid().ToString("n"),
             _localization.T("NewFolderName", "Flashcards"),
-            parentId,
+            null,
             order);
         await _deckService.SaveFolderAsync(folder).ConfigureAwait(false);
         await LoadDecksAsync().ConfigureAwait(false);
@@ -471,7 +703,7 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
         if (folder is null)
             return;
 
-        // Match notes behavior: direct children are lifted to root when parent folder is deleted.
+        // Direct children are lifted to root when the parent folder is deleted (matches notes behavior).
         var rootOrderStart = _loadedFolders
             .Where(f => f.ParentId is null && !string.Equals(f.Id, folderId, StringComparison.Ordinal))
             .Select(f => f.Order)
@@ -493,46 +725,7 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
             await _deckService.SaveDeckAsync(deck with { FolderId = null }).ConfigureAwait(false);
 
         await _deckService.DeleteFolderAsync(folderId).ConfigureAwait(false);
-
-        if (string.Equals(SelectedFolderId, folderId, StringComparison.Ordinal) ||
-            (!string.IsNullOrWhiteSpace(SelectedFolderId) && IsDescendantFolder(SelectedFolderId!, folderId)))
-        {
-            SelectedFolderId = null;
-        }
-
         await LoadDecksAsync().ConfigureAwait(false);
-    }
-
-    private string? GetSelectedFolderForCreate()
-    {
-        if (string.IsNullOrEmpty(SelectedFolderId) || SelectedFolderId == DueFilterToken)
-            return null;
-        return SelectedFolderId;
-    }
-
-    private HashSet<string> GetSelectedFolderFamily(string selectedFolderId)
-    {
-        var childrenByParent = _loadedFolders
-            .GroupBy(f => f.ParentId, StringComparer.Ordinal)
-            .ToDictionary(
-                g => g.Key ?? RootFolderKey,
-                g => g.Select(f => f.Id).ToArray(),
-                StringComparer.Ordinal);
-        var result = new HashSet<string>(StringComparer.Ordinal);
-        var queue = new Queue<string>();
-        queue.Enqueue(selectedFolderId);
-        while (queue.Count > 0)
-        {
-            var current = queue.Dequeue();
-            if (!result.Add(current))
-                continue;
-            if (!childrenByParent.TryGetValue(current, out var children))
-                continue;
-            foreach (var child in children)
-                queue.Enqueue(child);
-        }
-
-        return result;
     }
 
     private bool IsDescendantFolder(string candidateFolderId, string ancestorFolderId)
@@ -574,8 +767,16 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
 
     private void RebuildFolderTree()
     {
-        FolderTreeItems.Clear();
-        FlatFolderItems.Clear();
+        // Preserve expansion state across reloads so a save/move doesn't collapse the tree.
+        var expandedIds = new HashSet<string>(StringComparer.Ordinal);
+        WalkFolders(_folderTree, f =>
+        {
+            if (f.IsExpanded)
+                expandedIds.Add(f.Id);
+        });
+        var hadFolders = _folderTree.Count > 0;
+
+        _folderTree.Clear();
         var byParent = _loadedFolders
             .GroupBy(f => f.ParentId, StringComparer.Ordinal)
             .ToDictionary(
@@ -583,31 +784,26 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
                 g => g.OrderBy(f => f.Order).ThenBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase).ToArray(),
                 StringComparer.Ordinal);
 
-        AddFolderChildren(FolderTreeItems, byParent, RootFolderKey, 0);
-        foreach (var root in FolderTreeItems)
-            FlattenFolderTree(root, FlatFolderItems);
+        AddFolderChildren(_folderTree, byParent, RootFolderKey, 0, id => !hadFolders || expandedIds.Contains(id));
     }
 
     private static void AddFolderChildren(
         ICollection<FlashcardFolderItemViewModel> target,
         IReadOnlyDictionary<string, FlashcardFolder[]> byParent,
         string parentId,
-        int depth)
+        int depth,
+        Func<string, bool> isExpanded)
     {
         if (!byParent.TryGetValue(parentId, out var folders))
             return;
         foreach (var folder in folders)
         {
-            var vm = new FlashcardFolderItemViewModel(folder.Id, folder.Name, folder.ParentId, folder.Order, depth);
+            var vm = new FlashcardFolderItemViewModel(folder.Id, folder.Name, folder.ParentId, folder.Order, depth)
+            {
+                IsExpanded = isExpanded(folder.Id)
+            };
             target.Add(vm);
-            AddFolderChildren(vm.Children, byParent, folder.Id, depth + 1);
+            AddFolderChildren(vm.Children, byParent, folder.Id, depth + 1, isExpanded);
         }
-    }
-
-    private static void FlattenFolderTree(FlashcardFolderItemViewModel source, ICollection<FlashcardFolderItemViewModel> target)
-    {
-        target.Add(source);
-        foreach (var child in source.Children)
-            FlattenFolderTree(child, target);
     }
 }

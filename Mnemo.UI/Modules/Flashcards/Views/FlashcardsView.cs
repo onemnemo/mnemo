@@ -3,11 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
-using CommunityToolkit.Mvvm.Input;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.UI.Modules.Flashcards.ViewModels;
 using System;
-using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,125 +17,15 @@ using System.Collections.Generic;
 
 namespace Mnemo.UI.Modules.Flashcards.Views;
 
-public partial class FlashcardsView : UserControl, INotifyPropertyChanged
+public partial class FlashcardsView : UserControl
 {
-    private const double DragStartThreshold = 5.0;
-
-    public new event PropertyChangedEventHandler? PropertyChanged;
-
-    public IRelayCommand<FlashcardDeckRowViewModel?>? StartReviewSessionCommandProxy => (DataContext as FlashcardsViewModel)?.StartReviewSessionCommand;
-    public IRelayCommand<FlashcardDeckRowViewModel?>? StartQuickSessionCommandProxy => (DataContext as FlashcardsViewModel)?.StartQuickSessionCommand;
-    public IRelayCommand<FlashcardDeckRowViewModel?>? StartCramSessionCommandProxy => (DataContext as FlashcardsViewModel)?.StartCramSessionCommand;
-    public IRelayCommand<FlashcardDeckRowViewModel?>? StartTestSessionCommandProxy => (DataContext as FlashcardsViewModel)?.StartTestSessionCommand;
-    public IRelayCommand<FlashcardDeckRowViewModel?>? OpenDeckCommandProxy => (DataContext as FlashcardsViewModel)?.OpenDeckCommand;
-    public IAsyncRelayCommand<FlashcardDeckRowViewModel?>? OpenDeckSettingsCommandProxy => (DataContext as FlashcardsViewModel)?.OpenDeckSettingsCommand;
-    public IAsyncRelayCommand<FlashcardDeckRowViewModel?>? DeleteDeckCommandProxy => (DataContext as FlashcardsViewModel)?.DeleteDeckCommand;
-
-    private Border? _dragArmedDeckBorder;
-    private Point _dragArmedDeckPoint;
     internal FlashcardsDragCoordinator? _dragCoordinator;
 
     public FlashcardsView()
     {
         InitializeComponent();
-        DataContextChanged += OnDataContextChanged;
         AddHandler(PointerMovedEvent, OnRootPointerMoved, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, OnRootPointerReleased, RoutingStrategies.Tunnel);
-    }
-
-    private void OnDataContextChanged(object? sender, EventArgs e)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StartReviewSessionCommandProxy)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StartQuickSessionCommandProxy)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StartCramSessionCommandProxy)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StartTestSessionCommandProxy)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(OpenDeckCommandProxy)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(OpenDeckSettingsCommandProxy)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DeleteDeckCommandProxy)));
-    }
-
-    private void OnDeckCardPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is not Border border || DataContext is not FlashcardsViewModel)
-            return;
-
-        if (border.DataContext is not FlashcardDeckRowViewModel row)
-            return;
-
-        if (!e.GetCurrentPoint(border).Properties.IsLeftButtonPressed)
-            return;
-        if (e.Source is StyledElement source)
-        {
-            StyledElement? current = source;
-            while (current is not null)
-            {
-                if (current is Button)
-                    return;
-                current = current.Parent as StyledElement;
-            }
-        }
-
-        _dragArmedDeckBorder = border;
-        _dragArmedDeckPoint = e.GetPosition(border);
-        e.Pointer.Capture(border);
-
-        e.Handled = true;
-    }
-
-    private void OnDeckCardPointerMoved(object? sender, PointerEventArgs e)
-    {
-        if (sender is not Border border)
-            return;
-        if (!ReferenceEquals(_dragArmedDeckBorder, border))
-            return;
-        if (border.DataContext is not FlashcardDeckRowViewModel row || string.IsNullOrWhiteSpace(row.Id))
-            return;
-        if (!e.GetCurrentPoint(border).Properties.IsLeftButtonPressed)
-            return;
-
-        var current = e.GetPosition(border);
-        var delta = current - _dragArmedDeckPoint;
-        if (Math.Abs(delta.X) < DragStartThreshold && Math.Abs(delta.Y) < DragStartThreshold)
-            return;
-
-        e.Pointer.Capture(null);
-        _dragArmedDeckBorder = null;
-        EnsureDragCoordinator();
-        _dragCoordinator?.BeginDeckDrag(row, border, e.Pointer);
-    }
-
-    private void OnDeckCardPointerReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (sender is not Border border || DataContext is not FlashcardsViewModel vm)
-            return;
-
-        e.Pointer.Capture(null);
-        if (!ReferenceEquals(_dragArmedDeckBorder, border))
-            return;
-
-        _dragArmedDeckBorder = null;
-
-        if (border.DataContext is not FlashcardDeckRowViewModel row)
-            return;
-        if (e.Source is StyledElement source && IsEventFromButton(source))
-            return;
-
-        if (vm.OpenDeckCommand.CanExecute(row))
-            vm.OpenDeckCommand.Execute(row);
-        e.Handled = true;
-    }
-
-    private static bool IsEventFromButton(StyledElement source)
-    {
-        StyledElement? current = source;
-        while (current is not null)
-        {
-            if (current is Button)
-                return true;
-            current = current.Parent as StyledElement;
-        }
-
-        return false;
     }
 
     private void EnsureDragCoordinator()
@@ -149,6 +37,18 @@ public partial class FlashcardsView : UserControl, INotifyPropertyChanged
             return;
 
         _dragCoordinator = new FlashcardsDragCoordinator(overlay, this);
+    }
+
+    public void InitiateFolderDrag(FlashcardFolderItemViewModel item, FlashcardFolderRow row, IPointer pointer)
+    {
+        EnsureDragCoordinator();
+        _dragCoordinator?.BeginFolderDrag(item, row, pointer);
+    }
+
+    public void InitiateDeckDrag(FlashcardDeckRowViewModel deck, FlashcardDeckRow row, IPointer pointer)
+    {
+        EnsureDragCoordinator();
+        _dragCoordinator?.BeginDeckDrag(deck, row, pointer);
     }
 
     private void OnRootPointerMoved(object? sender, PointerEventArgs e)
@@ -187,11 +87,7 @@ public partial class FlashcardsView : UserControl, INotifyPropertyChanged
         }
     }
 
-    public void InitiateFolderDrag(FlashcardFolderItemViewModel item, FlashcardFolderRow row, IPointer pointer)
-    {
-        EnsureDragCoordinator();
-        _dragCoordinator?.BeginFolderDrag(item, row, pointer);
-    }
+    // --- Transfer (page-level import/export) -------------------------------
 
     private async void OnTransferClick(object? sender, RoutedEventArgs e)
     {
@@ -206,9 +102,10 @@ public partial class FlashcardsView : UserControl, INotifyPropertyChanged
         if (coordinator == null || overlayService == null || localization == null)
             return;
 
-        var button = sender as Button;
+        var button = sender as Control;
         var startTransfer = string.Equals(button?.Tag?.ToString(), "transfer", StringComparison.OrdinalIgnoreCase);
-        var filteredDeckIds = vm.FilteredDecks
+        var filteredDeckIds = vm.LibraryRows
+            .OfType<FlashcardDeckRowViewModel>()
             .Where(deck => !string.IsNullOrWhiteSpace(deck.Id))
             .Select(deck => deck.Id!)
             .Distinct(StringComparer.Ordinal)
@@ -247,10 +144,7 @@ public partial class FlashcardsView : UserControl, INotifyPropertyChanged
             var summary = await TransferImportRunner.RunAsync(coordinator, "flashcards", choice).ConfigureAwait(true);
             await TransferImportRunner.ShowSummaryAsync(overlayService, localization, context, summary).ConfigureAwait(true);
             if (summary.AnySucceeded)
-            {
-                vm.SelectAllDecks();
                 await vm.RefreshCommand.ExecuteAsync(null);
-            }
             return;
         }
 
@@ -359,12 +253,11 @@ public partial class FlashcardsView : UserControl, INotifyPropertyChanged
                 : export.Value?.ErrorMessage ?? export.ErrorMessage ?? localization.T("TransferExportFailed", "Common")).ConfigureAwait(true);
     }
 
-    private async void OnDeckRenameClick(object? sender, RoutedEventArgs e)
+    // --- Per-deck actions (invoked from FlashcardDeckRow overflow menu) -----
+
+    public async Task RenameDeckAsync(FlashcardDeckRowViewModel row)
     {
-        if (sender is not Control { Tag: FlashcardDeckRowViewModel row })
-            return;
-        var app = Application.Current as App;
-        var services = app?.Services;
+        var services = (Application.Current as App)?.Services;
         if (services == null || DataContext is not FlashcardsViewModel vm)
             return;
         var overlayService = services.GetService<IOverlayService>();
@@ -397,12 +290,9 @@ public partial class FlashcardsView : UserControl, INotifyPropertyChanged
         await vm.RefreshCommand.ExecuteAsync(null);
     }
 
-    private async void OnDeckDuplicateClick(object? sender, RoutedEventArgs e)
+    public async Task DuplicateDeckAsync(FlashcardDeckRowViewModel row)
     {
-        if (sender is not Control { Tag: FlashcardDeckRowViewModel row })
-            return;
-        var app = Application.Current as App;
-        var services = app?.Services;
+        var services = (Application.Current as App)?.Services;
         if (services == null || DataContext is not FlashcardsViewModel vm)
             return;
         var deckService = services.GetService<IFlashcardDeckService>();
@@ -422,29 +312,22 @@ public partial class FlashcardsView : UserControl, INotifyPropertyChanged
         await vm.RefreshCommand.ExecuteAsync(null);
     }
 
-    private async void OnDeckExportClick(object? sender, RoutedEventArgs e)
+    public async Task ExportDeckAsync(FlashcardDeckRowViewModel row, string? requestedFormatId)
     {
-        if (sender is not Control { Tag: FlashcardDeckRowViewModel row })
-            return;
-        var app = Application.Current as App;
-        var services = app?.Services;
+        var services = (Application.Current as App)?.Services;
         if (services == null || DataContext is not FlashcardsViewModel vm)
             return;
         var coordinator = services.GetService<IImportExportCoordinator>();
         var overlayService = services.GetService<IOverlayService>();
         var deckService = services.GetService<IFlashcardDeckService>();
-        if (coordinator == null || overlayService == null || deckService == null)
-            return;
         var localization = services.GetService<ILocalizationService>();
+        if (coordinator == null || overlayService == null || deckService == null || localization == null)
+            return;
         var deck = await deckService.GetDeckByIdAsync(row.Id).ConfigureAwait(true);
         if (deck == null)
             return;
 
-        if (localization == null)
-            return;
-
         var exportFormats = BuildFlashcardsExportFormats(coordinator, localization, includeSingleDeckFormats: true);
-        var requestedFormatId = (sender as MenuItem)?.CommandParameter as string;
         TransferDialogResult? choice;
         if (!string.IsNullOrWhiteSpace(requestedFormatId))
         {

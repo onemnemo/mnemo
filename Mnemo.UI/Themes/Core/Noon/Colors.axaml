@@ -553,4 +553,9 @@
     <Color x:Key="OutlineButtonBorderPointerOver">#DCCEB4</Color>
     <Color x:Key="OutlineButtonBorderPressed">#DCCEB4</Color>
     <Color x:Key="OutlineButtonBorderDisabled">#F5EFE3</Color>
+
+    <!-- Flashcard study-state metrics (New / Learning columns; Due reuses Accent) -->
+    <Color x:Key="FlashcardStateNew">#4A7CD6</Color>
+    <Color x:Key="FlashcardStateLearning">#B8762B</Color>
+    <Color x:Key="FlashcardRetentionHigh">#3D7A4F</Color>
 </ResourceDictionary>

@@ -45,9 +45,6 @@ public partial class FlashcardFolderRow : UserControl
         AddHandler(PointerMovedEvent, OnPointerMoved, RoutingStrategies.Bubble);
         AddHandler(PointerReleasedEvent, OnPointerReleased, RoutingStrategies.Bubble);
         AddHandler(PointerCaptureLostEvent, OnPointerCaptureLost, RoutingStrategies.Bubble);
-
-        RowBorder.PointerEntered += OnRowPointerEntered;
-        RowBorder.PointerExited += OnRowPointerExited;
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -57,8 +54,6 @@ public partial class FlashcardFolderRow : UserControl
         RemoveHandler(PointerReleasedEvent, OnPointerReleased);
         RemoveHandler(PointerCaptureLostEvent, OnPointerCaptureLost);
 
-        RowBorder.PointerEntered -= OnRowPointerEntered;
-        RowBorder.PointerExited -= OnRowPointerExited;
         StopGlobalEditListener();
         base.OnDetachedFromVisualTree(e);
     }
@@ -126,7 +121,7 @@ public partial class FlashcardFolderRow : UserControl
         if (DataContext is FlashcardFolderItemViewModel item && _dragArmed)
         {
             var viewModel = FindViewModel();
-            viewModel?.SelectFolder(item.Id);
+            viewModel?.ToggleFolderExpanded(item);
         }
 
         e.Pointer.Capture(null);
@@ -138,22 +133,6 @@ public partial class FlashcardFolderRow : UserControl
     {
         _dragArmed = false;
         _armedPointer = null;
-    }
-
-    private void OnRowPointerEntered(object? sender, PointerEventArgs e)
-    {
-        if (FindFlashcardsView()?._dragCoordinator?.IsDragging == true)
-            return;
-
-        MoreButton.Opacity = 1.0;
-    }
-
-    private void OnRowPointerExited(object? sender, PointerEventArgs e)
-    {
-        if (FindFlashcardsView()?._dragCoordinator?.IsDragging == true)
-            return;
-
-        MoreButton.Opacity = 0.0;
     }
 
     private bool IsPointerOnMoreButton(PointerEventArgs e)

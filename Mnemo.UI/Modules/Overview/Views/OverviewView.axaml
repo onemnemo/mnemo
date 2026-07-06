@@ -47,9 +47,6 @@
                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                    VerticalAlignment="Center"/>
                     </StackPanel>
-                    <TextBlock Text="{markup:T Ns=Overview, Key=EditingHint}"
-                               FontSize="{DynamicResource FontSize.Caption}"
-                               Foreground="{DynamicResource TextTertiaryBrush}"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"

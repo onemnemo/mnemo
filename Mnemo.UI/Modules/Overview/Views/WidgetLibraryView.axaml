@@ -97,16 +97,12 @@
         <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
             <!-- Header -->
             <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
-                <StackPanel Grid.Column="0" Spacing="2">
-                    <TextBlock Text="{markup:T Ns=WidgetLibrary, Key=Title}"
-                               FontSize="{DynamicResource FontSize.Heading5}"
-                               FontFamily="{DynamicResource Font.SemiBold}"
-                               Foreground="{DynamicResource TextPrimaryBrush}"/>
-                    <TextBlock Text="{markup:T Ns=WidgetLibrary, Key=Subtitle}"
-                               FontSize="{DynamicResource FontSize.Caption}"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               TextWrapping="Wrap"/>
-                </StackPanel>
+                <TextBlock Grid.Column="0"
+                           Text="{markup:T Ns=WidgetLibrary, Key=Title}"
+                           FontSize="{DynamicResource FontSize.Heading5}"
+                           FontFamily="{DynamicResource Font.SemiBold}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           VerticalAlignment="Center"/>
                 <Button Grid.Column="1"
                         Background="Transparent"
                         BorderThickness="0"

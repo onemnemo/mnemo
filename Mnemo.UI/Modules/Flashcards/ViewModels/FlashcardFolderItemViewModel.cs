@@ -30,6 +30,38 @@ public partial class FlashcardFolderItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isExpanded = true;
 
+    /// <summary>Number of decks nested anywhere beneath this folder.</summary>
+    [ObservableProperty]
+    private int _deckCount;
+
+    /// <summary>Localized "n decks" label.</summary>
+    [ObservableProperty]
+    private string _deckCountLabel = string.Empty;
+
+    /// <summary>Aggregated new-card count across all descendant decks.</summary>
+    [ObservableProperty]
+    private int _newCount;
+
+    /// <summary>Aggregated due learning-card count across all descendant decks.</summary>
+    [ObservableProperty]
+    private int _learnCount;
+
+    /// <summary>Aggregated due review-card count across all descendant decks.</summary>
+    [ObservableProperty]
+    private int _reviewDueCount;
+
+    public bool HasNew => NewCount > 0;
+
+    public bool HasLearn => LearnCount > 0;
+
+    public bool HasDue => ReviewDueCount > 0;
+
+    partial void OnNewCountChanged(int value) => OnPropertyChanged(nameof(HasNew));
+
+    partial void OnLearnCountChanged(int value) => OnPropertyChanged(nameof(HasLearn));
+
+    partial void OnReviewDueCountChanged(int value) => OnPropertyChanged(nameof(HasDue));
+
     public void UpdatePlacement(string? parentId, int order)
     {
         ParentId = parentId;

@@ -306,7 +306,6 @@
     "GreetingEvening": "Good evening, {0}",
     "GreetingEveningShort": "Good evening",
     "EditingTitle": "Editing overview",
-    "EditingHint": "Drag to rearrange · resize with the size chips",
     "PracticedToday": "Practiced today",
     "Streak": "Streak",
     "TotalPracticed": "Total practiced",
@@ -675,7 +674,6 @@
   },
   "WidgetLibrary": {
     "Title": "Widget library",
-    "Subtitle": "Installed widgets — tap Add to place them on the grid.",
     "SearchPlaceholder": "Search installed widgets",
     "BuiltInSection": "BUILT-IN",
     "ExtensionsSection": "FROM EXTENSIONS",

@@ -304,7 +304,6 @@
     "GreetingEvening": "Buenas noches, {0}",
     "GreetingEveningShort": "Buenas noches",
     "EditingTitle": "Editando la vista general",
-    "EditingHint": "Arrastra para reordenar · cambia el tamaño con los chips",
     "PracticedToday": "Practicadas hoy",
     "Streak": "Racha",
     "TotalPracticed": "Total practicadas",
@@ -669,7 +668,6 @@
   },
   "WidgetLibrary": {
     "Title": "Biblioteca de widgets",
-    "Subtitle": "Widgets instalados — pulsa Añadir para colocarlos en la cuadrícula.",
     "SearchPlaceholder": "Buscar widgets instalados",
     "BuiltInSection": "INTEGRADOS",
     "ExtensionsSection": "DE EXTENSIONES",

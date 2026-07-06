@@ -304,7 +304,6 @@
     "GreetingEvening": "Guten Abend, {0}",
     "GreetingEveningShort": "Guten Abend",
     "EditingTitle": "Übersicht bearbeiten",
-    "EditingHint": "Ziehen zum Anordnen · Größe über die Chips ändern",
     "PracticedToday": "Heute geübt",
     "Streak": "Serie",
     "TotalPracticed": "Insgesamt geübt",
@@ -663,7 +662,6 @@
   },
   "WidgetLibrary": {
     "Title": "Widget-Bibliothek",
-    "Subtitle": "Installierte Widgets — mit „Hinzufügen“ auf dem Raster platzieren.",
     "SearchPlaceholder": "Installierte Widgets durchsuchen",
     "BuiltInSection": "INTEGRIERT",
     "ExtensionsSection": "AUS ERWEITERUNGEN",

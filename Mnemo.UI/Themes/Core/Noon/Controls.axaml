@@ -630,4 +630,9 @@
     <SolidColorBrush x:Key="OutlineButtonBorderPointerOverBrush" Color="{DynamicResource OutlineButtonBorderPointerOver}"/>
     <SolidColorBrush x:Key="OutlineButtonBorderPressedBrush" Color="{DynamicResource OutlineButtonBorderPressed}"/>
     <SolidColorBrush x:Key="OutlineButtonBorderDisabledBrush" Color="{DynamicResource OutlineButtonBorderDisabled}"/>
+
+    <!-- Flashcard study-state metrics -->
+    <SolidColorBrush x:Key="FlashcardStateNewBrush" Color="{DynamicResource FlashcardStateNew}"/>
+    <SolidColorBrush x:Key="FlashcardStateLearningBrush" Color="{DynamicResource FlashcardStateLearning}"/>
+    <SolidColorBrush x:Key="FlashcardRetentionHighBrush" Color="{DynamicResource FlashcardRetentionHigh}"/>
 </ResourceDictionary>

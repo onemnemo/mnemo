@@ -304,7 +304,6 @@
     "GreetingEvening": "こんばんは、{0}さん",
     "GreetingEveningShort": "こんばんは",
     "EditingTitle": "オーバービューを編集中",
-    "EditingHint": "ドラッグで並べ替え · サイズはチップで変更",
     "PracticedToday": "今日の学習",
     "Streak": "連続日数",
     "TotalPracticed": "累計学習",
@@ -669,7 +668,6 @@
   },
   "WidgetLibrary": {
     "Title": "ウィジェットライブラリ",
-    "Subtitle": "インストール済みのウィジェット — 「追加」でグリッドに配置します。",
     "SearchPlaceholder": "インストール済みウィジェットを検索",
     "BuiltInSection": "内蔵",
     "ExtensionsSection": "拡張機能から",

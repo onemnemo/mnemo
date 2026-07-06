@@ -307,7 +307,6 @@
     "GreetingEvening": "God kveld, {0}",
     "GreetingEveningShort": "God kveld",
     "EditingTitle": "Redigerer oversikten",
-    "EditingHint": "Dra for å flytte · endre størrelse med chipene",
     "PracticedToday": "Øvd i dag",
     "Streak": "Rekke",
     "TotalPracticed": "Totalt øvd",
@@ -672,7 +671,6 @@
   },
   "WidgetLibrary": {
     "Title": "Widget-bibliotek",
-    "Subtitle": "Installerte widgets — trykk Legg til for å plassere dem på rutenettet.",
     "SearchPlaceholder": "Søk i installerte widgets",
     "BuiltInSection": "INNEBYGD",
     "ExtensionsSection": "FRA UTVIDELSER",

@@ -5,90 +5,94 @@
              xmlns:markup="using:Mnemo.UI.Markup"
              xmlns:vm="using:Mnemo.UI.Modules.Flashcards.ViewModels"
              x:Class="Mnemo.UI.Modules.Flashcards.Views.FlashcardFolderRow"
-             x:DataType="vm:FlashcardFolderItemViewModel">
-    <UserControl.Resources>
-        <converters:IntToLeftIndentConverter x:Key="IndentConverter" />
-    </UserControl.Resources>
-
-    <UserControl.Styles>
-        <Style Selector="Border.folder-row">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="1" />
-        </Style>
-        <Style Selector="Border.folder-row:pointerover">
-            <Setter Property="Background" Value="{DynamicResource WidgetBackgroundPrimaryBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-        </Style>
-        <Style Selector="Button.folder-row-more">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="4" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Opacity" Value="0" />
-        </Style>
-        <Style Selector="Button.folder-row-more:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource ButtonBackgroundPointerOverBrush}" />
-        </Style>
-    </UserControl.Styles>
+             x:DataType="vm:FlashcardFolderItemViewModel"
+             x:CompileBindings="True"
+             HorizontalAlignment="Stretch">
 
     <Border x:Name="RowBorder"
-            Classes="folder-row"
-            Margin="{Binding Depth, Converter={x:Static converters:IntToLeftIndentConverter.Instance}}"
-            Padding="12,8"
-            CornerRadius="10"
-            Cursor="Hand">
-        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-            <controls:SvgIcon Grid.Column="0"
-                              SvgPath="avares://Mnemo.UI/Icons/Common/folder.svg"
-                              Width="18" Height="18"
-                              VerticalAlignment="Center"
-                              Color="{DynamicResource TextSecondaryBrush}" />
+            Classes="tree-row folder-row"
+            Cursor="Hand"
+            HorizontalAlignment="Stretch"
+            MinWidth="0">
+        <Grid ColumnDefinitions="*,56,56,56,96,70" MinWidth="0">
+            <!-- Chevron + folder icon + name -->
+            <Grid Grid.Column="0"
+                  ColumnDefinitions="*,Auto"
+                  MinWidth="0"
+                  VerticalAlignment="Center"
+                  Margin="{Binding Depth, Converter={x:Static converters:IntToLeftIndentConverter.Instance}}">
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            MinWidth="0"
+                            VerticalAlignment="Center">
+                    <Panel Width="10" VerticalAlignment="Center">
+                        <controls:AppIcon Icon="Common/chevron-right" Width="9" Height="9"
+                                          Color="{DynamicResource TextFadedBrush}"
+                                          IsVisible="{Binding !IsExpanded}" />
+                        <controls:AppIcon Icon="Common/chevron-down" Width="9" Height="9"
+                                          Color="{DynamicResource TextFadedBrush}"
+                                          IsVisible="{Binding IsExpanded}" />
+                    </Panel>
+                    <controls:AppIcon Icon="Common/folder" Width="14" Height="14"
+                                      Color="{DynamicResource TextFadedBrush}"
+                                      VerticalAlignment="Center" />
+                    <TextBlock x:Name="FolderNameTextBlock"
+                               Text="{Binding Name}"
+                               Classes="folder-name"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding Name}"
+                               MinWidth="0" />
+                    <TextBox x:Name="FolderNameTextBox"
+                             IsVisible="False"
+                             Text="{Binding Name, Mode=TwoWay}"
+                             VerticalAlignment="Center"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Padding="0"
+                             LostFocus="OnNameEditLostFocus"
+                             KeyDown="OnNameEditKeyDown" />
+                </StackPanel>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding DeckCountLabel}"
+                           Classes="row-sub"
+                           VerticalAlignment="Center"
+                           Margin="8,0,0,0" />
+            </Grid>
 
-            <TextBlock Grid.Column="1"
-                       x:Name="FolderNameTextBlock"
-                       Text="{Binding Name}"
-                       VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis"
-                       ToolTip.Tip="{Binding Name}" />
+            <!-- Aggregated metric columns -->
+            <TextBlock Grid.Column="1" Classes="metric new" Classes.zero="{Binding !HasNew}" Text="{Binding NewCount}" />
+            <TextBlock Grid.Column="2" Classes="metric learn" Classes.zero="{Binding !HasLearn}" Text="{Binding LearnCount}" />
+            <TextBlock Grid.Column="3" Classes="metric due" Classes.zero="{Binding !HasDue}" Text="{Binding ReviewDueCount}" />
 
-            <TextBox Grid.Column="1"
-                     x:Name="FolderNameTextBox"
-                     IsVisible="False"
-                     Text="{Binding Name, Mode=TwoWay}"
-                     VerticalAlignment="Center"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     Padding="0"
-                     LostFocus="OnNameEditLostFocus"
-                     KeyDown="OnNameEditKeyDown" />
+            <!-- Retention column intentionally empty for folders -->
 
-            <Button Grid.Column="2"
-                    x:Name="MoreButton"
-                    Classes="folder-row-more"
-                    ToolTip.Tip="{markup:T Ns=Flashcards, Key=FolderActions}">
-                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/dots-vertical-filled.svg"
-                                  Width="16" Height="16"
-                                  Color="{DynamicResource TextSecondaryBrush}" />
-                <Button.Flyout>
-                    <MenuFlyout>
-                        <MenuItem Header="{markup:T Ns=Flashcards, Key=RenameFolder}"
-                                  Click="OnRenameClick">
-                            <MenuItem.Icon>
-                                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Flyout/rename.svg" Width="16" Height="16" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                        <Separator />
-                        <MenuItem Classes="danger"
-                                  Header="{markup:T Ns=Flashcards, Key=DeleteFolder}"
-                                  Click="OnDeleteClick">
-                            <MenuItem.Icon>
-                                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/trash.svg" Width="16" Height="16" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                    </MenuFlyout>
-                </Button.Flyout>
-            </Button>
+            <!-- Row actions (revealed on hover) -->
+            <StackPanel Grid.Column="5" Classes="row-actions"
+                        Orientation="Horizontal" Spacing="4"
+                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button x:Name="MoreButton" Classes="row-more"
+                        ToolTip.Tip="{markup:T Ns=Flashcards, Key=FolderActions}">
+                    <controls:AppIcon Icon="Common/dots-vertical" Width="16" Height="16"
+                                      Color="{DynamicResource TextFadedBrush}" />
+                    <Button.Flyout>
+                        <MenuFlyout>
+                            <MenuItem Header="{markup:T Ns=Flashcards, Key=RenameFolder}" Click="OnRenameClick">
+                                <MenuItem.Icon>
+                                    <controls:AppIcon Icon="Flyout/rename" Width="16" Height="16" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator />
+                            <MenuItem Classes="danger" Header="{markup:T Ns=Flashcards, Key=DeleteFolder}" Click="OnDeleteClick">
+                                <MenuItem.Icon>
+                                    <controls:AppIcon Icon="Common/trash" Width="16" Height="16" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
         </Grid>
     </Border>
 </UserControl>
