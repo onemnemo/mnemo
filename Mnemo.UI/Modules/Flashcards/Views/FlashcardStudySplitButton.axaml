@@ -34,15 +34,6 @@
             <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPressedBrush}" />
         </Style>
 
-        <!-- Chevron segment sits a shade darker than the primary segment at rest, so the two
-             segments read as a single split button instead of one flat block. -->
-        <Style Selector="Button.study-chevron /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPressedBrush}" />
-        </Style>
-        <Style Selector="Button.study-chevron:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPressedBrush}" />
-        </Style>
-
         <!-- Only the outer corners round (6 = Radius.Sm); the shared edge between segments stays
              square so the pill reads as one continuous shape, not two overlapping rounded rects. -->
         <Style Selector="Button.study-primary /template/ ContentPresenter">
@@ -93,7 +84,7 @@
                     Click="OnPrimaryClick"
                     ToolTip.Tip="{markup:T Ns=Flashcards, Key=StudyStartReviewTooltip}">
                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <controls:AppIcon Icon="Common/play" Classes="study-icon" Color="{DynamicResource AccentButtonForegroundBrush}" />
+                    <controls:AppIcon Icon="Common/play-filled" Classes="study-icon" Color="{DynamicResource AccentButtonForegroundBrush}" />
                     <TextBlock Classes="study-label" Text="{markup:T Ns=Flashcards, Key=Study}"
                                Foreground="{DynamicResource AccentButtonForegroundBrush}"
                                FontFamily="{DynamicResource Font.Medium}"
@@ -101,8 +92,8 @@
                 </StackPanel>
             </Button>
 
-            <!-- 1px divider between segments -->
-            <Border Grid.Column="1" Width="1" Background="{StaticResource StudySplitButtonDividerBrush}" Margin="0,5" />
+            <!-- 1px full-height divider between segments -->
+            <Border Grid.Column="1" Width="1" Background="{StaticResource StudySplitButtonDividerBrush}" />
 
             <!-- Chevron: opens the 12b flyout -->
             <Button x:Name="ChevronButton"

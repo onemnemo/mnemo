@@ -14,6 +14,7 @@ using Mnemo.Core.Models.Statistics;
 using Mnemo.Core.Services;
 using Mnemo.Core.Services.Keybinds;
 using Mnemo.Core.Services.Search;
+using Mnemo.UI.Services;
 using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Components;
@@ -34,8 +35,18 @@ public partial class TopbarViewModel : ViewModelBase
     private readonly IToastService _toastService;
     private readonly IKeyMap _keyMap;
     private readonly ISidebarService _sidebarService;
+    private readonly ITopbarTrailService _trail;
+
+    /// <summary>Route of the sidebar item owning the current page; target of the module crumb.</summary>
+    private string? _currentModuleRoute;
 
     public ObservableCollection<NotificationFlyoutRowViewModel> RecentNotifications { get; } = new();
+
+    /// <summary>
+    /// The topbar trail: the module label plus any crumbs the current page published via
+    /// <see cref="ITopbarTrailService"/>. Falls back to the lone module label.
+    /// </summary>
+    public ObservableCollection<TopbarCrumbViewModel> Crumbs { get; } = new();
 
     [ObservableProperty]
     private bool _isGamificationEnabled;
@@ -68,7 +79,8 @@ public partial class TopbarViewModel : ViewModelBase
         IGlobalSearchService globalSearchService,
         IToastService toastService,
         IKeyMap keyMap,
-        ISidebarService sidebarService)
+        ISidebarService sidebarService,
+        ITopbarTrailService trail)
     {
         _settingsService = settingsService;
         _overlayService = overlayService;
@@ -80,7 +92,9 @@ public partial class TopbarViewModel : ViewModelBase
         _toastService = toastService;
         _keyMap = keyMap;
         _sidebarService = sidebarService;
+        _trail = trail;
 
+        _trail.TrailChanged += (_, _) => Dispatcher.UIThread.Post(RebuildCrumbs);
         _toastService.NotificationHistoryChanged += (_, _) => Dispatcher.UIThread.Post(RefreshRecentNotifications);
         RefreshRecentNotifications();
 
@@ -146,6 +160,8 @@ public partial class TopbarViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(route))
         {
             CurrentPageTitle = string.Empty;
+            _currentModuleRoute = null;
+            RebuildCrumbs();
             return;
         }
 
@@ -156,6 +172,36 @@ public partial class TopbarViewModel : ViewModelBase
                 candidate.ChildRoutes.Contains(route));
 
         CurrentPageTitle = item?.Label ?? route;
+        _currentModuleRoute = item?.Route;
+        RebuildCrumbs();
+    }
+
+    /// <summary>
+    /// Rebuilds the topbar trail: the module label first (a link back to the module root while a
+    /// trail is shown), then the page-published crumbs, the last of which is the current page.
+    /// </summary>
+    private void RebuildCrumbs()
+    {
+        Crumbs.Clear();
+        if (string.IsNullOrEmpty(CurrentPageTitle))
+            return;
+
+        var trail = _trail.Crumbs;
+        var moduleRoute = _currentModuleRoute;
+        var moduleCommand = trail.Count > 0 && !string.IsNullOrEmpty(moduleRoute)
+            ? new RelayCommand(() => _navigation.NavigateTo(moduleRoute))
+            : null;
+        Crumbs.Add(new TopbarCrumbViewModel(CurrentPageTitle, isLast: trail.Count == 0, moduleCommand));
+
+        for (var i = 0; i < trail.Count; i++)
+        {
+            var crumb = trail[i];
+            var isLast = i == trail.Count - 1;
+            var command = !isLast && crumb.Route is { } crumbRoute
+                ? new RelayCommand(() => _navigation.NavigateTo(crumbRoute, crumb.Parameter))
+                : null;
+            Crumbs.Add(new TopbarCrumbViewModel(crumb.Title, isLast, command));
+        }
     }
 
     private void RefreshRecentNotifications()

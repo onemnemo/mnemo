@@ -10,6 +10,33 @@
         <converters:PathToImageConverter x:Key="PathToImageConverter"/>
     </UserControl.Resources>
 
+    <UserControl.Styles>
+        <!-- Trail crumbs: parent crumbs are quiet links, the current page reads as primary text.
+             12.5px matches the topbar's established label size (known token gap, see Findings). -->
+        <Style Selector="Button.crumb-link">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.crumb-link:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+        <Style Selector="Button.crumb-link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="TextBlock.crumb-text">
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.crumb-text.current">
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
     <Border Height="{DynamicResource TopbarHeight}"
             Background="{DynamicResource TopbarBackgroundBrush}"
             BorderBrush="{DynamicResource TopbarBorderBrush}"
@@ -17,13 +44,38 @@
             Padding="{DynamicResource TopbarPadding}">
         <Grid ColumnDefinitions="Auto,Auto,*,Auto">
 
-            <!-- Current page label -->
-            <TextBlock Grid.Column="0"
-                       Text="{Binding CurrentPageTitle}"
-                       FontSize="12.5"
-                       Foreground="{DynamicResource TextTertiaryBrush}"
-                       VerticalAlignment="Center"
-                       Margin="0,0,14,0"/>
+            <!-- Current page trail: module label plus any page-published crumbs -->
+            <ItemsControl Grid.Column="0"
+                          ItemsSource="{Binding Crumbs}"
+                          VerticalAlignment="Center"
+                          Margin="0,0,14,0">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="8"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="components:TopbarCrumbViewModel">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button Classes="crumb-link"
+                                    IsVisible="{Binding IsNavigable}"
+                                    Command="{Binding NavigateCommand}"
+                                    Content="{Binding Title}"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock Classes="crumb-text"
+                                       Classes.current="{Binding IsLast}"
+                                       IsVisible="{Binding !IsNavigable}"
+                                       Text="{Binding Title}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="/"
+                                       FontSize="12.5"
+                                       Foreground="{DynamicResource TextDisabledBrush}"
+                                       VerticalAlignment="Center"
+                                       IsVisible="{Binding !IsLast}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
             <!-- Global search trigger -->
             <Button Grid.Column="1"

@@ -16,18 +16,20 @@
         </TextBox>
     -->
     <Style Selector="TextBox.page-search">
-        <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
-        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Background" Value="{DynamicResource WorkspaceBackgroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}"/>
         <Setter Property="Padding" Value="8,0"/>
         <Setter Property="Height" Value="38"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <!-- Constant 1px border; only the brush changes on hover/focus (no layout jump) -->
         <Style Selector="^:pointerover /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource WorkspaceBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ButtonBorderPointerOverBrush}"/>
         </Style>
         <Style Selector="^:focus /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="{DynamicResource WorkspaceBackgroundBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
         </Style>
     </Style>

@@ -20,6 +20,7 @@ public class CoreUIModule : IModule
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<SidebarViewModel>();
         services.AddTransient<TopbarViewModel>();
+        services.AddSingleton<ITopbarTrailService, TopbarTrailService>();
 
         // Centralized AI assistant: one engine, reachable anywhere via the Ask overlay.
         services.AddSingleton<IAssistantOverlayService, AssistantOverlayService>();

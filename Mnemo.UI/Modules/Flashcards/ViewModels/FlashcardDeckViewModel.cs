@@ -11,6 +11,7 @@ using CommunityToolkit.Mvvm.Input;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.UI.Components.Overlays;
+using Mnemo.UI.Services;
 using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Flashcards.ViewModels;
@@ -66,9 +67,14 @@ public partial class FlashcardDeckViewModel : ViewModelBase, INavigationAware, I
     private readonly IOverlayService _overlay;
     private readonly ILocalizationService _localization;
     private readonly IDateDisplayService _dates;
+    private readonly ITopbarTrailService _trail;
 
     private string _deckId = string.Empty;
     public string DeckId => _deckId;
+
+    /// <summary>Deck's folder (null = root), feeding the topbar trail "folder / deck" crumbs.</summary>
+    private string? _folderId;
+    private string? _folderName;
 
     /// <summary>Cancels an in-flight page load when the query changes (one CTS per load).</summary>
     private CancellationTokenSource? _loadCts;
@@ -269,7 +275,8 @@ public partial class FlashcardDeckViewModel : ViewModelBase, INavigationAware, I
         INavigationService navigation,
         IOverlayService overlay,
         ILocalizationService localization,
-        IDateDisplayService dates)
+        IDateDisplayService dates,
+        ITopbarTrailService trail)
     {
         _cardService = cardService;
         _library = library;
@@ -278,6 +285,7 @@ public partial class FlashcardDeckViewModel : ViewModelBase, INavigationAware, I
         _overlay = overlay;
         _localization = localization;
         _dates = dates;
+        _trail = trail;
 
         GoBackCommand = new RelayCommand(() => _navigation.NavigateTo("flashcards"));
         AddCardsCommand = new RelayCommand(AddCards);
@@ -357,9 +365,12 @@ public partial class FlashcardDeckViewModel : ViewModelBase, INavigationAware, I
 
         var due = await _study.GetDueCountsAsync(_deckId).ConfigureAwait(false);
 
+        _folderId = summary.Header.FolderId;
+
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             DeckName = summary.Header.Name;
+            UpdateTrail();
             TotalCardsText = string.Format(
                 CultureInfo.CurrentCulture, _localization.T("DeckCardCountFormat", "Flashcards"), summary.TotalCards);
             NewCount = due.New;
@@ -368,7 +379,7 @@ public partial class FlashcardDeckViewModel : ViewModelBase, INavigationAware, I
             ActiveCards = summary.ActiveCards;
             RetentionPercent = Math.Clamp(summary.RetentionPercent, 0, 100);
             RetentionText = string.Create(CultureInfo.CurrentCulture, $"{RetentionPercent}%");
-            RetentionFillWidth = 44d * RetentionPercent / 100d;
+            RetentionFillWidth = 30d * RetentionPercent / 100d;
             LastStudiedText = summary.Header.LastStudied is { } studied
                 ? string.Format(
                     CultureInfo.CurrentCulture,
@@ -381,6 +392,22 @@ public partial class FlashcardDeckViewModel : ViewModelBase, INavigationAware, I
         });
     }
 
+    /// <summary>
+    /// Publishes the topbar trail ("folder / deck" after the module label). Runs after the async
+    /// loads because the trail service clears itself on every navigation.
+    /// </summary>
+    private void UpdateTrail()
+    {
+        if (string.IsNullOrEmpty(DeckName))
+            return;
+
+        var crumbs = new List<TopbarTrailCrumb>(2);
+        if (!string.IsNullOrEmpty(_folderName))
+            crumbs.Add(new TopbarTrailCrumb(_folderName));
+        crumbs.Add(new TopbarTrailCrumb(DeckName));
+        _trail.SetTrail(crumbs);
+    }
+
     private async Task LoadMenuDataAsync()
     {
         var folders = await _library.ListFoldersAsync().ConfigureAwait(false);
@@ -389,6 +416,9 @@ public partial class FlashcardDeckViewModel : ViewModelBase, INavigationAware, I
 
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
+            _folderName = folders.FirstOrDefault(f => string.Equals(f.Id, _folderId, StringComparison.Ordinal))?.Name;
+            UpdateTrail();
+
             FolderMenuItems.Clear();
             FolderMenuItems.Add(new FlashcardFolderMenuItem(null, _localization.T("MoveToRoot", "Flashcards")));
             foreach (var folder in folders.OrderBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase))
@@ -935,6 +965,10 @@ public partial class FlashcardDeckViewModel : ViewModelBase, INavigationAware, I
             .DefaultIfEmpty(-1)
             .Max() + 1;
         await _library.MoveDeckAsync(_deckId, target.FolderId, sortOrder).ConfigureAwait(false);
+
+        _folderId = target.FolderId;
+        _folderName = target.FolderId is null ? null : target.Name;
+        await Dispatcher.UIThread.InvokeAsync(UpdateTrail);
     }
 
     private void OpenReviewSettings() => ReviewSettingsRequested?.Invoke();

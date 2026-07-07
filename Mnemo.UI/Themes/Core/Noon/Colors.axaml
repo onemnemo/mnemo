@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="https://github.com/avaloniaui"
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Background Colors -->
     <Color x:Key="SidebarBackground">#FBF8F0</Color>
@@ -307,7 +307,6 @@
     <Color x:Key="CheckBoxCheckedBackgroundPressed">#C2431F</Color>
     <Color x:Key="CheckBoxCheckedBackgroundDisabled">#E7E4DC</Color>
     <Color x:Key="CheckBoxCheckGlyphForeground">#FFFFFF</Color>
-    <Color x:Key="CheckBoxCheckGlyphForegroundIndeterminate">#E9573F</Color>
     <Color x:Key="CheckBoxCheckGlyphForegroundDisabled">#D6D3D1</Color>
     <Color x:Key="CheckBoxForeground">#24201A</Color>
     <Color x:Key="CheckBoxForegroundPointerOver">#24201A</Color>

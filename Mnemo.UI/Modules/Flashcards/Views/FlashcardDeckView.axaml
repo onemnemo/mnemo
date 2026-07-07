@@ -42,12 +42,6 @@
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
-        <Style Selector="TextBlock.substat-dot">
-            <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFadedBrush}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="6,0" />
-        </Style>
 
         <!-- Icon button (back chevron, ⋯ menu) topbar-style -->
         <Style Selector="Button.icon-btn">
@@ -178,13 +172,15 @@
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
         </Style>
-        <Style Selector="Border.add-filter-chip">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
-            <Setter Property="Height" Value="26" />
-            <Setter Property="VerticalAlignment" Value="Center" />
+        <!-- Dashed pill outline (Border has no dash support; Rectangle carries the stroke) -->
+        <Style Selector="Rectangle.add-filter-dash">
+            <Setter Property="Stroke" Value="{DynamicResource TextDisabledBrush}" />
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="StrokeDashArray" Value="3,3" />
+            <Setter Property="RadiusX" Value="13" />
+            <Setter Property="RadiusY" Value="13" />
+            <Setter Property="Fill" Value="Transparent" />
+            <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
         <Style Selector="Button.add-filter-btn">
             <Setter Property="Background" Value="Transparent" />
@@ -193,14 +189,24 @@
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
         </Style>
+        <Style Selector="Button.add-filter-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ButtonBackgroundPointerOverBrush}" />
+        </Style>
 
-        <!-- Pagination -->
+        <!-- Pagination (table footer strip pinned to the bottom of the card) -->
+        <Style Selector="Border.pager-footer">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Background" Value="{DynamicResource WidgetBackgroundHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DividerSubtleBrush}" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+        </Style>
         <Style Selector="Button.pager">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Width" Value="28" />
-            <Setter Property="Height" Value="28" />
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="22" />
             <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
@@ -272,27 +278,33 @@
                                    FontSize="{DynamicResource FontSize.Heading3}"
                                    FontFamily="{DynamicResource Font.SemiBold}"
                                    TextTrimming="CharacterEllipsis" />
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
                             <TextBlock Classes="substat" Text="{Binding TotalCardsText}" />
-                            <TextBlock Classes="substat-dot" Text="·" IsVisible="{Binding HasLearning}" />
-                            <TextBlock Classes="substat learn" Text="{Binding LearningCount}" IsVisible="{Binding HasLearning}" />
-                            <TextBlock Classes="substat learn" Text="{markup:T Ns=Flashcards, Key=DeckStatLearningSuffix}"
-                                       Margin="3,0,0,0" IsVisible="{Binding HasLearning}" />
-                            <TextBlock Classes="substat-dot" Text="·" IsVisible="{Binding HasDue}" />
-                            <TextBlock Classes="substat due" Text="{Binding DueCount}" IsVisible="{Binding HasDue}" />
-                            <TextBlock Classes="substat due" Text="{markup:T Ns=Flashcards, Key=DeckStatDueSuffix}"
-                                       Margin="3,0,0,0" IsVisible="{Binding HasDue}" />
-                            <TextBlock Classes="substat-dot" Text="·" />
-                            <TextBlock Classes="substat" Text="{markup:T Ns=Flashcards, Key=DeckRetentionLabel}" />
-                            <!-- Mini retention bar -->
-                            <Border Width="44" Height="4" CornerRadius="2" ClipToBounds="True" Margin="7,0,7,0"
-                                    Background="{DynamicResource WidgetBackgroundPrimaryBrush}" VerticalAlignment="Center">
-                                <Border HorizontalAlignment="Left" CornerRadius="2"
-                                        Background="{DynamicResource FlashcardRetentionHighBrush}"
-                                        Width="{Binding RetentionFillWidth}" />
-                            </Border>
-                            <TextBlock Classes="substat-mono" Text="{Binding RetentionText}" />
-                            <TextBlock Classes="substat-dot" Text="·" />
+
+                            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+                                        IsVisible="{Binding HasLearning}">
+                                <TextBlock Classes="substat learn" Text="{Binding LearningCount}" />
+                                <TextBlock Classes="substat learn" Text="{markup:T Ns=Flashcards, Key=DeckStatLearningSuffix}" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+                                        IsVisible="{Binding HasDue}">
+                                <TextBlock Classes="substat due" Text="{Binding DueCount}" />
+                                <TextBlock Classes="substat due" Text="{markup:T Ns=Flashcards, Key=DeckStatDueSuffix}" />
+                            </StackPanel>
+
+                            <!-- Retention: label + mini bar + percent -->
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <TextBlock Classes="substat" Text="{markup:T Ns=Flashcards, Key=DeckRetentionLabel}" />
+                                <Border Width="30" Height="3" CornerRadius="2" ClipToBounds="True"
+                                        Background="{DynamicResource WidgetBackgroundPrimaryBrush}" VerticalAlignment="Center">
+                                    <Border HorizontalAlignment="Left" CornerRadius="2"
+                                            Background="{DynamicResource FlashcardRetentionHighBrush}"
+                                            Width="{Binding RetentionFillWidth}" />
+                                </Border>
+                                <TextBlock Classes="substat-mono" Text="{Binding RetentionText}" />
+                            </StackPanel>
+
                             <TextBlock Classes="substat" Text="{Binding LastStudiedText}" />
                         </StackPanel>
                     </StackPanel>
@@ -300,7 +312,7 @@
                     <!-- Right actions -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
                                 VerticalAlignment="Top" Margin="0,2,0,0">
-                        <controls:AppButton Classes="secondary"
+                        <controls:AppButton Classes="outline"
                                             IconName="Common/plus"
                                             IconSize="14"
                                             Command="{Binding AddCardsCommand}"
@@ -308,11 +320,12 @@
                         <views:FlashcardStudySplitButton DeckId="{Binding DeckId}"
                                                           DueCount="{Binding DueTodayCount}"
                                                           AllCount="{Binding ActiveCards}" />
-                        <Button Classes="icon-btn"
-                                ToolTip.Tip="{markup:T Ns=Flashcards, Key=DeckMenu}">
-                            <controls:AppIcon Icon="Common/dots-vertical" Width="18" Height="18"
-                                              Color="{DynamicResource TextSecondaryBrush}" />
-                            <Button.Flyout>
+                        <controls:AppButton Classes="outline"
+                                            IconName="Common/ellipsis"
+                                            IconSize="16"
+                                            Width="32" Height="32" Padding="0"
+                                            ToolTip.Tip="{markup:T Ns=Flashcards, Key=DeckMenu}">
+                            <controls:AppButton.Flyout>
                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
                                     <MenuItem Header="{markup:T Ns=Flashcards, Key=RenameDeck}"
                                               Command="{Binding RenameDeckCommand}">
@@ -361,8 +374,8 @@
                                         </MenuItem.Icon>
                                     </MenuItem>
                                 </MenuFlyout>
-                            </Button.Flyout>
-                        </Button>
+                            </controls:AppButton.Flyout>
+                        </controls:AppButton>
                     </StackPanel>
                 </Grid>
 
@@ -406,7 +419,8 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <Border Classes="add-filter-chip">
+                        <Panel Height="26" VerticalAlignment="Center">
+                            <Rectangle Classes="add-filter-dash" />
                             <Button Classes="add-filter-btn">
                                 <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
                                     <controls:AppIcon Icon="Common/plus" Width="11" Height="11"
@@ -444,7 +458,7 @@
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
-                        </Border>
+                        </Panel>
                     </StackPanel>
 
                     <!-- N of M cards (filtered) -->
@@ -457,15 +471,13 @@
             </StackPanel>
 
             <!-- ===== Body ===== -->
-            <Grid Grid.Row="1" Margin="40,14,40,0">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" Padding="0,0,0,32">
-                    <StackPanel Spacing="12">
+            <Grid Grid.Row="1" Margin="40,14,40,24">
 
-                        <!-- Card table -->
-                        <Border Classes="surface-card" ClipToBounds="True" IsVisible="{Binding ShowTable}">
-                            <StackPanel>
+                <!-- Card table fills the body height: header pinned top, rows scroll, pager pinned bottom -->
+                <Border Classes="surface-card" ClipToBounds="True" IsVisible="{Binding ShowTable}">
+                    <Grid RowDefinitions="Auto,*,Auto">
                                 <!-- Column header -->
-                                <Border Height="34" Padding="14,0"
+                                <Border Grid.Row="0" Height="34" Padding="14,0"
                                         BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="0,0,0,1">
                                     <Grid ColumnDefinitions="28,*,90,140,80,64" MinWidth="0">
                                         <CheckBox Grid.Column="0"
@@ -491,7 +503,8 @@
                                     </Grid>
                                 </Border>
 
-                                <!-- Rows -->
+                                <!-- Rows scroll within the card so header + pager stay pinned -->
+                                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
                                 <ItemsControl ItemsSource="{Binding Cards}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:FlashcardCardRowViewModel">
@@ -596,41 +609,42 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                            </StackPanel>
-                        </Border>
+                                </ScrollViewer>
 
-                        <!-- Pagination footer -->
-                        <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ShowPagination}">
-                            <TextBlock Grid.Column="0" Classes="cell-muted" Text="{Binding PageRangeText}" VerticalAlignment="Center" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                <Button Classes="pager" Command="{Binding PreviousPageCommand}">
-                                    <controls:AppIcon Icon="Common/chevron-left" Width="14" Height="14"
-                                                      Color="{DynamicResource TextSecondaryBrush}" />
-                                </Button>
-                                <Button Classes="pager" Command="{Binding NextPageCommand}">
-                                    <controls:AppIcon Icon="Common/chevron-right" Width="14" Height="14"
-                                                      Color="{DynamicResource TextSecondaryBrush}" />
-                                </Button>
-                            </StackPanel>
-                        </Grid>
+                                <!-- Pagination footer pinned to the bottom of the card -->
+                                <Border Grid.Row="2" Classes="pager-footer" IsVisible="{Binding ShowPagination}">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Classes="cell-muted" Text="{Binding PageRangeText}" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                            <Button Classes="pager" Command="{Binding PreviousPageCommand}">
+                                                <controls:AppIcon Icon="Common/chevron-left" Width="14" Height="14"
+                                                                  Color="{DynamicResource TextSecondaryBrush}" />
+                                            </Button>
+                                            <Button Classes="pager" Command="{Binding NextPageCommand}">
+                                                <controls:AppIcon Icon="Common/chevron-right" Width="14" Height="14"
+                                                                  Color="{DynamicResource TextSecondaryBrush}" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                    </Grid>
+                </Border>
 
-                        <!-- First-run empty -->
-                        <components:EmptyState IsVisible="{Binding ShowEmptyState}"
-                                               IconPath="avares://Mnemo.UI/Icons/Common/book.svg"
-                                               Title="{markup:T Ns=Flashcards, Key=DeckEmptyTitle}"
-                                               Description="{markup:T Ns=Flashcards, Key=DeckEmptyDescription}"
-                                               ActionText="{markup:T Ns=Flashcards, Key=DeckAddCards}"
-                                               ActionCommand="{Binding AddCardsCommand}"
-                                               Margin="0,48,0,0" />
+                <!-- First-run empty -->
+                <components:EmptyState IsVisible="{Binding ShowEmptyState}"
+                                       IconPath="avares://Mnemo.UI/Icons/Common/book.svg"
+                                       Title="{markup:T Ns=Flashcards, Key=DeckEmptyTitle}"
+                                       Description="{markup:T Ns=Flashcards, Key=DeckEmptyDescription}"
+                                       ActionText="{markup:T Ns=Flashcards, Key=DeckAddCards}"
+                                       ActionCommand="{Binding AddCardsCommand}"
+                                       VerticalAlignment="Center" />
 
-                        <!-- No results -->
-                        <components:EmptyState IsVisible="{Binding ShowNoResultsState}"
-                                               IconPath="avares://Mnemo.UI/Icons/Common/search.svg"
-                                               Title="{markup:T Ns=Flashcards, Key=NoResultsTitle}"
-                                               Description="{markup:T Ns=Flashcards, Key=DeckNoResultsDescription}"
-                                               Margin="0,48,0,0" />
-                    </StackPanel>
-                </ScrollViewer>
+                <!-- No results -->
+                <components:EmptyState IsVisible="{Binding ShowNoResultsState}"
+                                       IconPath="avares://Mnemo.UI/Icons/Common/search.svg"
+                                       Title="{markup:T Ns=Flashcards, Key=NoResultsTitle}"
+                                       Description="{markup:T Ns=Flashcards, Key=DeckNoResultsDescription}"
+                                       VerticalAlignment="Center" />
 
                 <!-- Loading overlay -->
                 <Border IsVisible="{Binding IsLoading}"
