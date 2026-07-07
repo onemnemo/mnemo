@@ -37,7 +37,6 @@ public partial class MainWindow : Window
         var editorDispatch = app.Services.GetRequiredService<IEditorKeybindDispatch>();
         var blockEditorClipboard = app.Services.GetRequiredService<IBlockEditorClipboardKeybindDispatch>();
         var mindmapDispatch = app.Services.GetRequiredService<IMindmapKeybindDispatch>();
-        var flashcardDispatch = app.Services.GetRequiredService<IFlashcardKeybindDispatch>();
         var notesEditorDispatch = app.Services.GetRequiredService<INotesEditorViewDispatch>();
         var overlayService = app.Services.GetRequiredService<IOverlayService>();
         var assistant = app.Services.GetRequiredService<IAssistantOverlayService>();
@@ -92,8 +91,6 @@ public partial class MainWindow : Window
         router.RegisterHandler("mindmap.add-child", () => mindmapDispatch.AddChild());
         router.RegisterHandler("mindmap.enter", () => mindmapDispatch.Enter());
         router.RegisterHandler("mindmap.edit-edge-label", () => mindmapDispatch.EditEdgeLabel());
-        router.RegisterHandler("flashcard.save-and-new", flashcardDispatch.TrySaveAndAddCard);
-        router.RegisterHandler("flashcard.wrap-cloze", flashcardDispatch.TryWrapClozeDeletion);
         router.RegisterHandler("editor.reset-view", () => notesEditorDispatch.TryResetEditorView());
     }
 

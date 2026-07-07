@@ -34,7 +34,7 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
     private const int RecentCount = 3;
 
     private readonly IMindmapService _mindmapService;
-    private readonly IFlashcardDeckService _deckService;
+    private readonly IFlashcardStudyService _studyService;
     private readonly INavigationService _navigation;
     private readonly IOverlayService _overlay;
     private readonly ILoggerService _logger;
@@ -125,7 +125,7 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
 
     public MindmapOverviewViewModel(
         IMindmapService mindmapService,
-        IFlashcardDeckService deckService,
+        IFlashcardStudyService studyService,
         INavigationService navigation,
         IOverlayService overlay,
         ILoggerService logger,
@@ -133,7 +133,7 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
         ILocalizationService localization)
     {
         _mindmapService = mindmapService;
-        _deckService = deckService;
+        _studyService = studyService;
         _navigation = navigation;
         _overlay = overlay;
         _logger = logger;
@@ -185,7 +185,6 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
         {
             var mapsResult = await _mindmapService.GetAllMindmapsAsync().ConfigureAwait(false);
             var foldersResult = await _mindmapService.GetFoldersAsync().ConfigureAwait(false);
-            var decks = await _deckService.ListDecksAsync().ConfigureAwait(false);
 
             var maps = (mapsResult.IsSuccess && mapsResult.Value != null
                 ? mapsResult.Value
@@ -194,8 +193,11 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
                 ? foldersResult.Value
                 : Array.Empty<MindmapFolder>()).ToList();
 
-            var now = DateTimeOffset.UtcNow;
-            var duePerDeck = decks.ToDictionary(d => d.Id, d => CountDue(d, now), StringComparer.Ordinal);
+            var linkedDeckIds = maps
+                .SelectMany(m => m.LinkedDeckIds)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            var duePerDeck = await GetDuePerDeckAsync(linkedDeckIds).ConfigureAwait(false);
 
             var folderNamesById = folders.ToDictionary(f => f.Id, f => f.Name, StringComparer.Ordinal);
 
@@ -624,16 +626,36 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
         _ => T("LayoutFree")
     };
 
-    private static int CountDue(FlashcardDeck deck, DateTimeOffset now)
+    /// <summary>
+    /// Due badge count per linked deck: <see cref="FlashcardDueCounts.Total"/> (new + learning + due
+    /// review), the closest equivalent to the legacy per-card scan (New cards, plus Review cards
+    /// whose due date had passed). Missing/errored decks are treated as zero due.
+    /// </summary>
+    private async Task<Dictionary<string, int>> GetDuePerDeckAsync(IReadOnlyList<string> deckIds)
     {
-        var count = 0;
-        foreach (var card in deck.Cards)
+        var result = new Dictionary<string, int>(StringComparer.Ordinal);
+        if (deckIds.Count == 0)
+            return result;
+
+        var tasks = deckIds.Select(async id =>
         {
-            var state = card.FsrsState ?? ((card.ReviewCount ?? 0) <= 0 ? FlashcardFsrsState.New : FlashcardFsrsState.Review);
-            if (state == FlashcardFsrsState.New || card.DueDate <= now)
-                count++;
-        }
-        return count;
+            try
+            {
+                var counts = await _studyService.GetDueCountsAsync(id).ConfigureAwait(false);
+                return (Id: id, Due: counts.Total);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Mindmap", $"Failed to load due counts for deck '{id}'", ex);
+                return (Id: id, Due: 0);
+            }
+        });
+
+        var pairs = await Task.WhenAll(tasks).ConfigureAwait(false);
+        foreach (var (id, due) in pairs)
+            result[id] = due;
+
+        return result;
     }
 
     private string T(string key) => _localization.T(key, "Mindmap");

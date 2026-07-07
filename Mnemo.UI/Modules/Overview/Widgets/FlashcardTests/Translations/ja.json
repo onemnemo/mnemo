@@ -1,0 +1,12 @@
+{
+  "FlashcardTests": {
+    "Title": "テスト",
+    "Description": "直近でテストしたデッキのスコアと推移",
+    "GalleryDescription": "最新のテストスコア、前回との差分、直近10回分の推移。",
+    "Subtitle": "テストスコア",
+    "BestScoreFormat": "最高 {0}%",
+    "EmptyState": "まだテストがありません",
+    "TagTest": "#テスト",
+    "TagScore": "#スコア"
+  }
+}

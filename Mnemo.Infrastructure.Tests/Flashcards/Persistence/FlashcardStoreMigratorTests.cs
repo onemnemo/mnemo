@@ -1,7 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+using Mnemo.Core.Enums;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Tests.Widgets;
 using Xunit;
@@ -98,6 +102,81 @@ public sealed class FlashcardStoreMigratorTests
 
         var decks = await h.Store.ReadAsync((c, ct) => h.Decks.ListHeadersAsync(c, ct));
         Assert.Empty(decks);
+    }
+
+    [Fact]
+    public async Task Migrate_ConvertsEmbeddedImageTokens_IntoAttachments_AndStripsTokenText()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"mnemo_migrate_img_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var imagePath = Path.Combine(tempDir, "cell.png");
+            await File.WriteAllBytesAsync(imagePath, new byte[512]);
+            var missingPath = Path.Combine(tempDir, "missing.png");
+
+            await using var h = new FlashcardStoreHarness();
+            var storage = new InMemoryStorageProvider();
+            var now = DateTimeOffset.UtcNow;
+            var blob = BuildLegacyBlobWithImageTokens(now, imagePath, missingPath);
+            await storage.SaveAsync(LegacyKey, blob);
+
+            var logger = new CapturingLogger();
+            var migrator = new FlashcardStoreMigrator(h.Store, storage, h.Presets, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, logger);
+            await migrator.MigrateAsync();
+
+            var card = await h.Store.ReadAsync((c, ct) => h.Cards.GetAsync(c, "c1", ct));
+            Assert.NotNull(card);
+            Assert.DoesNotContain("![", card!.Front);
+            Assert.Equal("What is this cell?", card.Front);
+            // Missing-file token stays inline on the back.
+            Assert.Contains("![alt](" + missingPath + ")", card.Back);
+
+            var attachment = Assert.Single(card.Attachments);
+            Assert.Equal(FlashcardAttachment.FrontSide, attachment.Side);
+            Assert.Equal("cell.png", attachment.DisplayName);
+            Assert.Equal(512, attachment.SizeBytes);
+            Assert.Equal("a cell", attachment.Caption);
+
+            Assert.Contains(logger.Warnings, w => w.Contains(missingPath));
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { /* best effort */ }
+        }
+    }
+
+    private static object BuildLegacyBlobWithImageTokens(DateTimeOffset now, string imagePath, string missingPath)
+    {
+        var c1 = new
+        {
+            Id = "c1", DeckId = "d1",
+            Front = $"What is this cell?\n![a cell]({imagePath}){{align=center}}",
+            Back = $"Unit of life ![alt]({missingPath})",
+            Type = 0, Tags = Array.Empty<string>(),
+            DueDate = now, Stability = (double?)null, Difficulty = (double?)null,
+            ReviewCount = (int?)null, LapseCount = (int?)null, LastReviewedAt = (DateTimeOffset?)null,
+            FsrsState = (int?)null
+        };
+        var d1 = new { Id = "d1", Name = "Biology", FolderId = (string?)null, Description = (string?)null, Tags = Array.Empty<string>(), LastStudied = (DateTimeOffset?)null, Cards = new[] { c1 }, SchedulingAlgorithm = 1 };
+
+        return new
+        {
+            Folders = Array.Empty<object>(),
+            Decks = new object[] { d1 },
+            SessionHistory = Array.Empty<object>()
+        };
+    }
+
+    private sealed class CapturingLogger : ILoggerService
+    {
+        public List<string> Warnings { get; } = new();
+
+        public void Log(LogLevel level, string category, string message, Exception? exception = null)
+        {
+            if (level == LogLevel.Warning)
+                Warnings.Add(message);
+        }
     }
 
     private static FlashcardStoreMigrator CreateMigrator(FlashcardStoreHarness h, InMemoryStorageProvider storage) =>

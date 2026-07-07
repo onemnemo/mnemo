@@ -9,11 +9,11 @@ namespace Mnemo.Core.Services;
 public interface IFlashcardCardService
 {
     Task<FlashcardCardPage> ListCardsAsync(FlashcardCardQuery query, CancellationToken cancellationToken = default);
-    Task<FlashcardEntity?> GetCardAsync(string cardId, CancellationToken cancellationToken = default);
+    Task<Flashcard?> GetCardAsync(string cardId, CancellationToken cancellationToken = default);
 
-    Task<FlashcardEntity> CreateCardAsync(FlashcardCardDraft draft, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<FlashcardEntity>> CreateCardsAsync(string deckId, IReadOnlyList<FlashcardCardDraft> drafts, CancellationToken cancellationToken = default);
-    Task UpdateCardAsync(FlashcardEntity card, CancellationToken cancellationToken = default);
+    Task<Flashcard> CreateCardAsync(FlashcardCardDraft draft, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Flashcard>> CreateCardsAsync(string deckId, IReadOnlyList<FlashcardCardDraft> drafts, CancellationToken cancellationToken = default);
+    Task UpdateCardAsync(Flashcard card, CancellationToken cancellationToken = default);
 
     Task DeleteCardsAsync(IReadOnlyList<string> cardIds, CancellationToken cancellationToken = default);
     Task MoveCardsAsync(IReadOnlyList<string> cardIds, string targetDeckId, CancellationToken cancellationToken = default);
@@ -22,7 +22,7 @@ public interface IFlashcardCardService
     Task AddTagAsync(IReadOnlyList<string> cardIds, string tag, CancellationToken cancellationToken = default);
 
     /// <summary>FTS5 search ranked by relevance then recency; suspended excluded unless the scope asks.</summary>
-    Task<IReadOnlyList<FlashcardEntity>> SearchAsync(string query, FlashcardSearchScope scope, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Flashcard>> SearchAsync(string query, FlashcardSearchScope scope, CancellationToken cancellationToken = default);
 
     /// <summary>Maximum image attachments allowed per side of a card.</summary>
     const int MaxAttachmentsPerSide = 3;

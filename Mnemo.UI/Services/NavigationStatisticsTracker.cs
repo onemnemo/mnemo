@@ -82,15 +82,17 @@ public sealed class NavigationStatisticsTracker
     private static void MapRoute(string route, long seconds, out long practice, out long notes, out long flashcardsModule)
     {
         practice = notes = flashcardsModule = 0;
-        if (string.Equals(route, "flashcard-practice", StringComparison.Ordinal))
-        {
-            practice += seconds;
-            flashcardsModule += seconds;
-            return;
-        }
         if (string.Equals(route, "notes", StringComparison.Ordinal))
         {
             notes += seconds;
+            return;
+        }
+        // "flashcard-session" (review/cram) and "flashcard-test" are active recall time and count
+        // as practice; other flashcard routes (library, deck browsing) count as general module time.
+        if (string.Equals(route, "flashcard-session", StringComparison.Ordinal) ||
+            string.Equals(route, "flashcard-test", StringComparison.Ordinal))
+        {
+            practice += seconds;
             return;
         }
         if (route.StartsWith("flashcard", StringComparison.Ordinal))

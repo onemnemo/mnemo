@@ -1,0 +1,12 @@
+{
+  "FlashcardMemory": {
+    "Title": "Memory",
+    "Description": "True retention from Review sessions, weighted across all decks",
+    "GalleryDescription": "30-day retention with a 14-day trend from your most-reviewed deck.",
+    "Subtitle": "Review sessions only",
+    "RetentionLabel": "30-day retention",
+    "EmptyState": "No reviews yet",
+    "TagMemory": "#memory",
+    "TagRetention": "#retention"
+  }
+}

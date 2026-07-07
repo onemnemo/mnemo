@@ -10,8 +10,11 @@ public interface IWidgetContext
     /// <summary>Read access to recorded statistics (practice activity, usage).</summary>
     IStatisticsManager Statistics { get; }
 
-    /// <summary>Read access to flashcard decks.</summary>
-    IFlashcardDeckService Decks { get; }
+    /// <summary>Read access to flashcard deck summaries (counts only, never full card lists).</summary>
+    IFlashcardLibraryService Decks { get; }
+
+    /// <summary>Read access to the three isolated flashcard stat buckets (Memory retention + Test scores).</summary>
+    IFlashcardStatsService Stats { get; }
 
     /// <summary>Read access to notes.</summary>
     INoteService Notes { get; }

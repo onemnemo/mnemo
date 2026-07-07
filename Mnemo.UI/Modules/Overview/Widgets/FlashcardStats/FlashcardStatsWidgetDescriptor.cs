@@ -6,7 +6,10 @@ using Mnemo.Core.Services;
 namespace Mnemo.UI.Modules.Overview.Widgets.FlashcardStats;
 
 /// <summary>
-/// Descriptor for the Flashcard Statistics widget: lifetime totals, streak, and today's count.
+/// Descriptor for the flashcard <b>Activity</b> widget: reps, minutes, sessions and streak,
+/// counted across all study modes. Isolated from the Memory
+/// (retention) and Test (score) buckets. Manifest id kept as <c>mnemo.flashcard-stats</c> so
+/// existing board layouts survive the rename.
 /// </summary>
 public sealed class FlashcardStatsWidgetDescriptor : IWidgetDescriptor
 {

@@ -112,16 +112,22 @@ public sealed class FlashcardStoreMigrator : IFlashcardStoreMigrator
                             ? new FlashcardSourceInfo(s.SourceType, s.SourceId, s.DisplayLabel)
                             : null;
 
-                        await _cards.UpsertAsync(conn, tx, new FlashcardEntity(
+                        // Convert legacy embedded image tokens (`![alt](path){align=...}`) into
+                        // attachment records so no downstream renderer needs to regex-parse card text.
+                        var conversion = FlashcardImageTokenConverter.Convert(card.Id, card.Front, card.Back);
+                        foreach (var warning in conversion.Warnings)
+                            _logger.Warning("Flashcards", warning.Message);
+
+                        await _cards.UpsertAsync(conn, tx, new Flashcard(
                             Id: card.Id,
                             DeckId: deck.Id,
                             Type: (FlashcardType)card.Type,
-                            Front: card.Front ?? string.Empty,
-                            Back: card.Back ?? string.Empty,
+                            Front: conversion.CleanFront,
+                            Back: conversion.CleanBack,
                             Tags: card.Tags ?? Array.Empty<string>(),
                             State: FlashcardCardState.Active,
                             IsFlagged: false,
-                            Attachments: Array.Empty<FlashcardAttachment>(),
+                            Attachments: conversion.Attachments,
                             SourceInfo: source,
                             FrontBlocks: null,
                             BackBlocks: null,

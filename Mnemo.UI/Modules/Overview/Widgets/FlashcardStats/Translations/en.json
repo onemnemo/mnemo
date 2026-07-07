@@ -1,8 +1,11 @@
 {
   "FlashcardStats": {
-    "Title": "Flashcard Stats",
-    "Description": "View your flashcard practice statistics and study streak",
+    "Title": "Activity",
+    "Description": "Cards practiced, minutes studied, and streak across all study modes",
     "GalleryDescription": "Practice totals, streaks, and recent review momentum.",
+    "Subtitle": "All study modes",
+    "MinutesToday": "Minutes today",
+    "SessionsToday": "Sessions today",
     "TagStats": "#stats",
     "TagStreak": "#streak"
   }

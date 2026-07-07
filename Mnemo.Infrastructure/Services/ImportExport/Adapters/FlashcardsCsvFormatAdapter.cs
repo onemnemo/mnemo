@@ -7,11 +7,20 @@ namespace Mnemo.Infrastructure.Services.ImportExport.Adapters;
 
 public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
 {
-    private readonly IFlashcardDeckService _deckService;
+    private const int CardPageSize = 200;
 
-    public FlashcardsCsvFormatAdapter(IFlashcardDeckService deckService)
+    private readonly IFlashcardLibraryService _library;
+    private readonly IFlashcardCardService _cards;
+    private readonly IFlashcardPresetService _presets;
+
+    public FlashcardsCsvFormatAdapter(
+        IFlashcardLibraryService library,
+        IFlashcardCardService cards,
+        IFlashcardPresetService presets)
     {
-        _deckService = deckService;
+        _library = library;
+        _cards = cards;
+        _presets = presets;
     }
 
     public string ContentType => "flashcards";
@@ -46,7 +55,8 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
             };
         }
 
-        var cards = new List<Flashcard>();
+        // New cards created via the store arrive FSRS-new and due now; the CSV carries content only.
+        var drafts = new List<FlashcardCardDraft>();
         for (var i = 1; i < lines.Length; i++)
         {
             if (string.IsNullOrWhiteSpace(lines[i]))
@@ -55,33 +65,25 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
             if (parts.Count < 2)
                 continue;
 
-            cards.Add(new Flashcard(
-                Id: Guid.NewGuid().ToString(),
+            drafts.Add(new FlashcardCardDraft(
                 DeckId: string.Empty,
+                Type: FlashcardType.Classic,
                 Front: parts[0],
                 Back: parts[1],
-                Type: FlashcardType.Classic,
                 Tags: Array.Empty<string>(),
-                DueDate: DateTimeOffset.UtcNow,
-                Stability: null,
-                Difficulty: null,
-                Retrievability: null));
+                Attachments: Array.Empty<FlashcardAttachment>()));
         }
 
-        var deck = new FlashcardDeck(
-            Id: Guid.NewGuid().ToString(),
-            Name: Path.GetFileNameWithoutExtension(request.FilePath),
-            FolderId: null,
-            Description: "Imported from CSV",
-            Tags: Array.Empty<string>(),
-            LastStudied: null,
-            RetentionScore: 0,
-            Cards: cards,
-            SchedulingAlgorithm: FlashcardSchedulingAlgorithm.Fsrs);
+        var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
+        var deck = await _library.CreateDeckAsync(
+            Path.GetFileNameWithoutExtension(request.FilePath),
+            folderId: null,
+            presetId: preset.Id,
+            cancellationToken).ConfigureAwait(false);
 
-        var rebasedCards = cards.Select(c => c with { DeckId = deck.Id }).ToArray();
-        deck = deck with { Cards = rebasedCards };
-        await _deckService.SaveDeckAsync(deck, cancellationToken).ConfigureAwait(false);
+        var created = drafts.Count > 0
+            ? await _cards.CreateCardsAsync(deck.Id, drafts, cancellationToken).ConfigureAwait(false)
+            : Array.Empty<Flashcard>();
 
         return new ImportExportResult
         {
@@ -91,43 +93,42 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
             ProcessedCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
             {
                 ["decks"] = 1,
-                ["flashcards"] = rebasedCards.Length
+                ["flashcards"] = created.Count
             }
         };
     }
 
     public async Task<ImportExportResult> ExportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
+        var summaries = await _library.ListDecksAsync(cancellationToken).ConfigureAwait(false);
+        var selectedIds = ResolveSelectedDeckIds(request.Payload);
+
         var sb = new StringBuilder();
         int exportedCards;
-        if (request.Payload is FlashcardDeck deck)
+        if (selectedIds is { Count: 1 })
         {
+            // Single-deck export: two-column front/back layout (matches the historical single-deck shape).
+            var deckId = selectedIds.First();
             sb.AppendLine("front,back");
-            foreach (var card in deck.Cards)
-                sb.AppendLine($"{EscapeCsv(card.Front)},{EscapeCsv(card.Back)}");
-            exportedCards = deck.Cards.Count;
+            exportedCards = await AppendCardsAsync(
+                deckId,
+                (front, back) => sb.AppendLine($"{EscapeCsv(front)},{EscapeCsv(back)}"),
+                cancellationToken).ConfigureAwait(false);
         }
         else
         {
             sb.AppendLine("deck,front,back");
-            var decks = await _deckService.ListDecksAsync(cancellationToken).ConfigureAwait(false);
-            if (request.Payload is IEnumerable<string> deckIds)
-            {
-                var idSet = new HashSet<string>(
-                    deckIds.Where(id => !string.IsNullOrWhiteSpace(id)),
-                    StringComparer.Ordinal);
-                if (idSet.Count > 0)
-                    decks = decks.Where(currentDeck => idSet.Contains(currentDeck.Id)).ToArray();
-            }
+            var decks = selectedIds is { Count: > 0 }
+                ? summaries.Where(d => selectedIds.Contains(d.Id))
+                : summaries;
 
             exportedCards = 0;
-            foreach (var currentDeck in decks)
+            foreach (var deck in decks)
             {
-                foreach (var card in currentDeck.Cards)
-                {
-                    sb.AppendLine($"{EscapeCsv(currentDeck.Name)},{EscapeCsv(card.Front)},{EscapeCsv(card.Back)}");
-                    exportedCards++;
-                }
+                exportedCards += await AppendCardsAsync(
+                    deck.Id,
+                    (front, back) => sb.AppendLine($"{EscapeCsv(deck.Name)},{EscapeCsv(front)},{EscapeCsv(back)}"),
+                    cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -139,6 +140,48 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
             FormatId = FormatId,
             ProcessedCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["flashcards"] = exportedCards }
         };
+    }
+
+    private async Task<int> AppendCardsAsync(string deckId, Action<string, string> append, CancellationToken cancellationToken)
+    {
+        var offset = 0;
+        var written = 0;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var page = await _cards.ListCardsAsync(
+                new FlashcardCardQuery(deckId, Offset: offset, Limit: CardPageSize),
+                cancellationToken).ConfigureAwait(false);
+            foreach (var view in page.Items)
+            {
+                append(view.Card.Front, view.Card.Back);
+                written++;
+            }
+
+            offset += page.Items.Count;
+            if (page.Items.Count == 0 || offset >= page.TotalCount)
+                break;
+        }
+
+        return written;
+    }
+
+    private static HashSet<string>? ResolveSelectedDeckIds(object? payload)
+    {
+        switch (payload)
+        {
+            case FlashcardDeckSummary summary when !string.IsNullOrWhiteSpace(summary.Id):
+                return new HashSet<string>(new[] { summary.Id }, StringComparer.Ordinal);
+            case FlashcardDeckHeader header when !string.IsNullOrWhiteSpace(header.Id):
+                return new HashSet<string>(new[] { header.Id }, StringComparer.Ordinal);
+            case string id when !string.IsNullOrWhiteSpace(id):
+                return new HashSet<string>(new[] { id }, StringComparer.Ordinal);
+            case IEnumerable<string> ids:
+                var set = new HashSet<string>(ids.Where(v => !string.IsNullOrWhiteSpace(v)), StringComparer.Ordinal);
+                return set.Count > 0 ? set : null;
+            default:
+                return null;
+        }
     }
 
     private static string EscapeCsv(string value)

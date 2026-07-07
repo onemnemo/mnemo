@@ -1,0 +1,12 @@
+{
+  "FlashcardMemory": {
+    "Title": "Hukommelse",
+    "Description": "Faktisk retensjon fra gjennomgangsøkter, vektet på tvers av alle stabler",
+    "GalleryDescription": "30-dagers retensjon med en 14-dagers trend fra stabelen du har gjennomgått mest.",
+    "Subtitle": "Kun gjennomgangsøkter",
+    "RetentionLabel": "30-dagers retensjon",
+    "EmptyState": "Ingen gjennomganger ennå",
+    "TagMemory": "#hukommelse",
+    "TagRetention": "#retensjon"
+  }
+}

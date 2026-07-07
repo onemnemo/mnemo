@@ -11,22 +11,28 @@ using Mnemo.UI.Modules.Overview.ViewModels;
 namespace Mnemo.UI.Modules.Overview.Widgets.FlashcardStats;
 
 /// <summary>
-/// ViewModel for the Flashcard Statistics widget. Reads the lifetime totals + today's daily
-/// summary from <see cref="IStatisticsManager"/>; falls back to zero values when the user
-/// has not yet practiced (empty state, never throws).
+/// ViewModel for the flashcard <b>Activity</b> widget: reps/minutes/streak, counted across ALL
+/// study modes (Review, Cram, Test alike). This is deliberately isolated from the Memory
+/// (retention) and Test (score) buckets. It never reads or writes FSRS/test data, only the
+/// mode-agnostic effort counters that
+/// <see cref="Mnemo.Infrastructure.Services.Statistics.StatisticsRecorder.RecordFlashcardActivityAsync"/>
+/// writes. Falls back to zero values when the user has not yet practiced (empty state, never throws).
 /// </summary>
 public partial class FlashcardStatsWidgetViewModel : WidgetViewModelBase
 {
     private readonly IWidgetContext _context;
 
     [ObservableProperty]
-    private int _totalCardsPracticed;
+    private int _cardsToday;
+
+    [ObservableProperty]
+    private int _minutesToday;
+
+    [ObservableProperty]
+    private int _sessionsToday;
 
     [ObservableProperty]
     private int _studyStreak;
-
-    [ObservableProperty]
-    private int _cardsToday;
 
     public FlashcardStatsWidgetViewModel(WidgetManifest manifest, WidgetInstance instance, IWidgetContext context)
         : base(manifest, instance)
@@ -44,7 +50,6 @@ public partial class FlashcardStatsWidgetViewModel : WidgetViewModelBase
                 "all",
                 cancellationToken)).Value;
 
-            TotalCardsPracticed = (int)Math.Min(int.MaxValue, ReadInt(totals, "total_cards_practiced"));
             StudyStreak = (int)Math.Min(int.MaxValue, ReadInt(totals, "current_streak_days"));
 
             var dayKey = DateTimeOffset.UtcNow.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -54,6 +59,8 @@ public partial class FlashcardStatsWidgetViewModel : WidgetViewModelBase
                 dayKey,
                 cancellationToken)).Value;
             CardsToday = (int)Math.Min(int.MaxValue, ReadInt(today, "cards_reviewed"));
+            MinutesToday = (int)Math.Min(int.MaxValue, ReadInt(today, "minutes_studied"));
+            SessionsToday = (int)Math.Min(int.MaxValue, ReadInt(today, "sessions_completed"));
         }
         catch (OperationCanceledException)
         {
@@ -61,10 +68,11 @@ public partial class FlashcardStatsWidgetViewModel : WidgetViewModelBase
         }
         catch (Exception ex)
         {
-            _context.Logger.Error("Overview", "Loading flashcard stats widget failed.", ex);
-            TotalCardsPracticed = 0;
-            StudyStreak = 0;
+            _context.Logger.Error("Overview", "Loading flashcard activity widget failed.", ex);
             CardsToday = 0;
+            MinutesToday = 0;
+            SessionsToday = 0;
+            StudyStreak = 0;
         }
     }
 

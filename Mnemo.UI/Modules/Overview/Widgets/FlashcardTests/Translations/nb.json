@@ -1,0 +1,12 @@
+{
+  "FlashcardTests": {
+    "Title": "Test",
+    "Description": "Poengsum og trend for stabelen du sist testet",
+    "GalleryDescription": "Siste testresultat, endring fra forrige forsøk og en trend over 10 forsøk.",
+    "Subtitle": "Testresultater",
+    "BestScoreFormat": "{0}% beste",
+    "EmptyState": "Ingen tester ennå",
+    "TagTest": "#test",
+    "TagScore": "#poengsum"
+  }
+}

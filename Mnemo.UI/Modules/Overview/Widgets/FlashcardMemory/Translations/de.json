@@ -1,0 +1,12 @@
+{
+  "FlashcardMemory": {
+    "Title": "Gedächtnis",
+    "Description": "Tatsächliche Merkfähigkeit aus Wiederholungssitzungen, gewichtet über alle Decks",
+    "GalleryDescription": "30-Tage-Merkfähigkeit mit 14-Tage-Trend Ihres meistgeübten Decks.",
+    "Subtitle": "Nur Wiederholungssitzungen",
+    "RetentionLabel": "30-Tage-Merkfähigkeit",
+    "EmptyState": "Noch keine Wiederholungen",
+    "TagMemory": "#gedächtnis",
+    "TagRetention": "#merkfähigkeit"
+  }
+}

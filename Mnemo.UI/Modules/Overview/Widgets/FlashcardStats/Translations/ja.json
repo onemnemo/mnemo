@@ -1,8 +1,11 @@
 {
   "FlashcardStats": {
-    "Title": "フラッシュカード統計",
-    "Description": "フラッシュカード練習の統計情報と勉強ストレートを見る",
+    "Title": "アクティビティ",
+    "Description": "すべての学習モードにおける練習カード数、学習時間、連続記録",
     "GalleryDescription": "練習の合計、ストリーク、直近の復習の勢いを一覧できます。",
+    "Subtitle": "すべての学習モード",
+    "MinutesToday": "今日の学習時間",
+    "SessionsToday": "今日のセッション数",
     "TagStats": "#統計",
     "TagStreak": "#ストリーク"
   }

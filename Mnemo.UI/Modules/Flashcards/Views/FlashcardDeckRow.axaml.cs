@@ -120,18 +120,10 @@ public partial class FlashcardDeckRow : UserControl
 
     private void OnOpenClick(object? sender, RoutedEventArgs e) => Execute(vm => vm.OpenDeckCommand);
 
-    private void OnReviewClick(object? sender, RoutedEventArgs e) => Execute(vm => vm.StartReviewSessionCommand);
-
-    private void OnQuickClick(object? sender, RoutedEventArgs e) => Execute(vm => vm.StartQuickSessionCommand);
-
-    private void OnCramClick(object? sender, RoutedEventArgs e) => Execute(vm => vm.StartCramSessionCommand);
-
-    private void OnTestClick(object? sender, RoutedEventArgs e) => Execute(vm => vm.StartTestSessionCommand);
-
     private void OnSettingsClick(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is FlashcardDeckRowViewModel row && FindViewModel() is { } vm && vm.OpenDeckSettingsCommand.CanExecute(row))
-            vm.OpenDeckSettingsCommand.Execute(row);
+        if (DataContext is FlashcardDeckRowViewModel row && FindFlashcardsView() is { } view)
+            view.OpenDeckSettings(row);
     }
 
     private void OnDeleteClick(object? sender, RoutedEventArgs e)
@@ -144,12 +136,6 @@ public partial class FlashcardDeckRow : UserControl
     {
         if (DataContext is FlashcardDeckRowViewModel row && FindFlashcardsView() is { } view)
             await view.RenameDeckAsync(row);
-    }
-
-    private async void OnDuplicateClick(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is FlashcardDeckRowViewModel row && FindFlashcardsView() is { } view)
-            await view.DuplicateDeckAsync(row);
     }
 
     private async void OnExportClick(object? sender, RoutedEventArgs e)

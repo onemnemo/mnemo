@@ -255,23 +255,38 @@ public partial class FlashcardsView : UserControl
 
     // --- Per-deck actions (invoked from FlashcardDeckRow overflow menu) -----
 
+    public void OpenDeckSettings(FlashcardDeckRowViewModel row)
+    {
+        if (row is null || string.IsNullOrWhiteSpace(row.Id))
+            return;
+        var services = (Application.Current as App)?.Services;
+        if (services == null)
+            return;
+        var overlayService = services.GetService<IOverlayService>();
+        if (overlayService == null)
+            return;
+
+        FlashcardReviewSettingsOverlay.Open(overlayService, services, row.Id, row.Name);
+    }
+
     public async Task RenameDeckAsync(FlashcardDeckRowViewModel row)
     {
         var services = (Application.Current as App)?.Services;
         if (services == null || DataContext is not FlashcardsViewModel vm)
             return;
         var overlayService = services.GetService<IOverlayService>();
-        var deckService = services.GetService<IFlashcardDeckService>();
-        if (overlayService == null || deckService == null)
+        var library = services.GetService<IFlashcardLibraryService>();
+        var localization = services.GetService<ILocalizationService>();
+        if (overlayService == null || library == null || localization == null)
             return;
 
         var input = new InputDialogOverlay
         {
-            Title = "Rename deck",
-            Placeholder = "Deck name",
+            Title = localization.T("RenameDeck", "Flashcards"),
+            Placeholder = localization.T("DeckNamePlaceholder", "Flashcards"),
             InputValue = row.Name,
-            ConfirmText = "Save",
-            CancelText = "Cancel"
+            ConfirmText = localization.T("Save", "Common"),
+            CancelText = localization.T("Cancel", "Common")
         };
         var id = overlayService.CreateOverlay(input, new OverlayOptions { ShowBackdrop = true, CloseOnOutsideClick = true });
         var tcs = new TaskCompletionSource<string?>();
@@ -283,32 +298,10 @@ public partial class FlashcardsView : UserControl
         var newName = (await tcs.Task.ConfigureAwait(true) ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(newName) || string.Equals(newName, row.Name, StringComparison.Ordinal))
             return;
-        var deck = await deckService.GetDeckByIdAsync(row.Id).ConfigureAwait(true);
-        if (deck == null)
+        var summary = await library.GetDeckAsync(row.Id).ConfigureAwait(true);
+        if (summary == null)
             return;
-        await deckService.SaveDeckAsync(deck with { Name = newName }).ConfigureAwait(true);
-        await vm.RefreshCommand.ExecuteAsync(null);
-    }
-
-    public async Task DuplicateDeckAsync(FlashcardDeckRowViewModel row)
-    {
-        var services = (Application.Current as App)?.Services;
-        if (services == null || DataContext is not FlashcardsViewModel vm)
-            return;
-        var deckService = services.GetService<IFlashcardDeckService>();
-        if (deckService == null)
-            return;
-        var deck = await deckService.GetDeckByIdAsync(row.Id).ConfigureAwait(true);
-        if (deck == null)
-            return;
-        var copy = deck with
-        {
-            Id = Guid.NewGuid().ToString("n"),
-            Name = $"{deck.Name} Copy",
-            Cards = deck.Cards.Select(card => card with { Id = Guid.NewGuid().ToString("n") }).ToArray(),
-            LastStudied = null
-        };
-        await deckService.SaveDeckAsync(copy).ConfigureAwait(true);
+        await library.SaveDeckAsync(summary.Header with { Name = newName }).ConfigureAwait(true);
         await vm.RefreshCommand.ExecuteAsync(null);
     }
 
@@ -319,11 +312,11 @@ public partial class FlashcardsView : UserControl
             return;
         var coordinator = services.GetService<IImportExportCoordinator>();
         var overlayService = services.GetService<IOverlayService>();
-        var deckService = services.GetService<IFlashcardDeckService>();
+        var library = services.GetService<IFlashcardLibraryService>();
         var localization = services.GetService<ILocalizationService>();
-        if (coordinator == null || overlayService == null || deckService == null || localization == null)
+        if (coordinator == null || overlayService == null || library == null || localization == null)
             return;
-        var deck = await deckService.GetDeckByIdAsync(row.Id).ConfigureAwait(true);
+        var deck = await library.GetDeckAsync(row.Id).ConfigureAwait(true);
         if (deck == null)
             return;
 
@@ -361,8 +354,9 @@ public partial class FlashcardsView : UserControl
         if (choice?.Format == null)
             return;
 
-        object payload = choice.Format.FormatId == "flashcards.csv" ? deck : deck.Id;
-        await ExportFlashcardsAsync(overlayService, localization, coordinator, choice, payload, SanitizeFileName(deck.Name)).ConfigureAwait(true);
+        // All format adapters resolve a deck id string (or summary/header) to the deck's cards; the
+        // deck id is the single portable payload for every format including CSV.
+        await ExportFlashcardsAsync(overlayService, localization, coordinator, choice, deck.Id, SanitizeFileName(deck.Name)).ConfigureAwait(true);
         await vm.RefreshCommand.ExecuteAsync(null);
     }
 

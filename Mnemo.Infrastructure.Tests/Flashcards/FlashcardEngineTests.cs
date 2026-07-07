@@ -161,6 +161,84 @@ public sealed class FlashcardEngineTests
         Assert.Equal(0, reviews); // review row removed
     }
 
+    [Fact]
+    public async Task StudyService_RejectsTestMode()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var deckId = await h.SeedDeckAsync();
+        var study = Study(h);
+
+        // Test drives its own typed-practice queue; the FSRS session must refuse it.
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            study.StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Test)));
+    }
+
+    [Fact]
+    public async Task Test_RecordsExactlyOneAttempt_AndLeavesFsrsUnchanged()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var deckId = await h.SeedDeckAsync();
+        await AddReviewCardAsync(h, deckId, "a");
+
+        var scheduleBefore = (await h.Store.ReadAsync((c, ct) => h.Schedules.GetAsync(c, "a", ct)))!;
+        var reviewsBefore = await h.Store.ReadAsync((c, ct) => h.Reviews.CountForDeckAsync(c, deckId, ct));
+
+        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts);
+        var startedAt = DateTimeOffset.UtcNow.AddMinutes(-3);
+        // (GotIt*1 + Close*0.5) / CardsTested * 100 = (2 + 0.5) / 4 * 100 = 62.5
+        var attempt = new FlashcardTestAttempt(
+            Guid.NewGuid().ToString("N"), deckId, startedAt, DateTimeOffset.UtcNow,
+            CardsTested: 4, GotItCount: 2, CloseCount: 1, MissedCount: 1, ScorePct: 62.5);
+
+        await stats.RecordTestAttemptAsync(attempt);
+
+        // FSRS state is byte-for-byte untouched.
+        var scheduleAfter = (await h.Store.ReadAsync((c, ct) => h.Schedules.GetAsync(c, "a", ct)))!;
+        var reviewsAfter = await h.Store.ReadAsync((c, ct) => h.Reviews.CountForDeckAsync(c, deckId, ct));
+        Assert.Equal(scheduleBefore.DueDate, scheduleAfter.DueDate);
+        Assert.Equal(scheduleBefore.Reps, scheduleAfter.Reps);
+        Assert.Equal(scheduleBefore.Lapses, scheduleAfter.Lapses);
+        Assert.Equal(scheduleBefore.FsrsState, scheduleAfter.FsrsState);
+        Assert.Equal(reviewsBefore, reviewsAfter);
+
+        // Exactly one test-attempt row, with the score preserved.
+        var recorded = await h.Store.ReadAsync((c, ct) => h.TestAttempts.GetRecentAsync(c, deckId, 50, ct));
+        Assert.Single(recorded);
+        Assert.Equal(62.5, recorded[0].ScorePct, 3);
+
+        // The summary reflects the single attempt (first attempt → no previous).
+        var summary = await stats.GetTestSummaryAsync(deckId);
+        Assert.True(summary.HasAttempts);
+        Assert.Equal(1, summary.AttemptCount);
+        Assert.Null(summary.DeltaVsPrevious);
+        Assert.Equal(62.5, summary.BestScorePct, 3);
+    }
+
+    [Fact]
+    public async Task Test_SecondAttempt_ExposesDeltaVsPrevious()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var deckId = await h.SeedDeckAsync();
+        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts);
+        var now = DateTimeOffset.UtcNow;
+
+        await stats.RecordTestAttemptAsync(new FlashcardTestAttempt(
+            "t1", deckId, now.AddMinutes(-20), now.AddMinutes(-19), 4, 2, 0, 2, 50.0));
+        await stats.RecordTestAttemptAsync(new FlashcardTestAttempt(
+            "t2", deckId, now.AddMinutes(-2), now.AddMinutes(-1), 4, 3, 0, 1, 75.0));
+
+        var summary = await stats.GetTestSummaryAsync(deckId);
+        Assert.Equal(2, summary.AttemptCount);
+        Assert.Equal(75.0, summary.LatestScorePct, 3);
+        Assert.Equal(50.0, summary.PreviousScorePct);
+        Assert.Equal(25.0, summary.DeltaVsPrevious!.Value, 3);
+        Assert.Equal(75.0, summary.BestScorePct, 3);
+
+        // Trend is chronological (oldest first) for the sparkline.
+        var trend = await stats.GetTestTrendAsync(deckId, 10);
+        Assert.Equal(new[] { 50.0, 75.0 }, trend.Select(a => a.ScorePct));
+    }
+
     private static FlashcardStudyService Study(FlashcardStoreHarness h) =>
         new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler());
 

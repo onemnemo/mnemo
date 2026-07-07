@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Mnemo.UI.Modules.Overview.Widgets.FlashcardTests"
+             xmlns:markup="using:Mnemo.UI.Markup"
+             xmlns:controls="using:Mnemo.UI.Controls"
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="100"
+             x:Class="Mnemo.UI.Modules.Overview.Widgets.FlashcardTests.FlashcardTestsWidgetView"
+             x:DataType="vm:FlashcardTestsWidgetViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.delta-up">
+            <Setter Property="Foreground" Value="{DynamicResource ToastAccentSuccessBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.delta-down">
+            <Setter Property="Foreground" Value="{DynamicResource FloatingChromeDangerBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.delta-none">
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid>
+        <StackPanel Spacing="10" IsVisible="{Binding !IsEmpty}">
+            <!-- Bucket label: this widget shows Test scores only, isolated from Memory/Activity. -->
+            <TextBlock Text="{markup:T Ns=FlashcardTests, Key=Subtitle}"
+                       FontSize="{DynamicResource FontSize.Caption}"
+                       Foreground="{DynamicResource TextTertiaryBrush}"
+                       TextWrapping="Wrap"/>
+
+            <Grid ColumnDefinitions="Auto,*">
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding DeckName}"
+                               FontSize="{DynamicResource FontSize.Caption}"
+                               FontFamily="{DynamicResource Font.Medium}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock FontSize="{DynamicResource FontSize.Heading3}"
+                               FontFamily="{DynamicResource Font.SemiBold}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Text="{Binding LatestScorePercent, StringFormat={}{0}%}"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,2,0,0">
+                        <TextBlock Classes="delta-up" IsVisible="{Binding IsTrendUp}"
+                                   Text="{Binding DeltaPercent, StringFormat=▲ {0}%}"
+                                   FontSize="{DynamicResource FontSize.Caption}"/>
+                        <TextBlock Classes="delta-down" IsVisible="{Binding IsTrendDown}"
+                                   Text="{Binding DeltaPercent, StringFormat=▼ {0}%}"
+                                   FontSize="{DynamicResource FontSize.Caption}"/>
+                        <TextBlock Classes="delta-none" IsVisible="{Binding IsTrendNone}"
+                                   Text="—"
+                                   FontSize="{DynamicResource FontSize.Caption}"/>
+                    </StackPanel>
+
+                    <TextBlock FontSize="{DynamicResource FontSize.Caption}"
+                               Foreground="{DynamicResource TextTertiaryBrush}"
+                               Margin="0,2,0,0"
+                               Text="{Binding BestScoreDisplay}"/>
+                </StackPanel>
+
+                <!-- 2x1+: sparkline of the last 10 attempts -->
+                <controls:TrendSparkline Grid.Column="1"
+                                          Values="{Binding TrendValues}"
+                                          Height="46"
+                                          Margin="16,0,0,0"
+                                          IsVisible="{Binding !IsNarrow}"
+                                          LineBrush="{DynamicResource AccentBrush}"
+                                          DotBrush="{DynamicResource AccentBrush}"/>
+            </Grid>
+        </StackPanel>
+
+        <!-- Empty state: no tests recorded yet in any deck -->
+        <TextBlock IsVisible="{Binding IsEmpty}"
+                   Text="{markup:T Ns=FlashcardTests, Key=EmptyState}"
+                   FontSize="{DynamicResource FontSize.Body.Small}"
+                   Foreground="{DynamicResource TextTertiaryBrush}"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   TextAlignment="Center"/>
+    </Grid>
+</UserControl>

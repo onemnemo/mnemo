@@ -6,7 +6,6 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Models;
-using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Updates;
@@ -182,16 +181,8 @@ public static class Bootstrapper
         services.AddSingleton<INoteFolderService, NoteFolderService>();
         services.AddSingleton<INotePdfLatexImageRenderer, NotePdfLatexImageRenderer>();
         services.AddSingleton<INotePdfExportService, NotePdfExportService>();
-        services.AddSingleton(FlashcardFsrsParameters.Default);
-        services.AddSingleton<IFlashcardScheduler, FsrsFlashcardScheduler>();
-        services.AddSingleton<IFlashcardScheduler, Sm2FlashcardScheduler>();
-        services.AddSingleton<IFlashcardScheduler, LeitnerFlashcardScheduler>();
-        services.AddSingleton<IFlashcardScheduler, BaselineFlashcardScheduler>();
-        services.AddSingleton<IFlashcardSchedulerResolver, FlashcardSchedulerResolver>();
-        services.AddSingleton<IFlashcardDeckService, PersistentFlashcardDeckService>();
 
         // Relational flashcard store (rehaul): owned store, repositories, and blob→relational migrator.
-        // Registered alongside the legacy service; the UI is switched over in the UI milestones.
         services.AddSingleton<IFlashcardStore, FlashcardStore>();
         services.AddSingleton<IFolderRepository, FolderRepository>();
         services.AddSingleton<IPresetRepository, PresetRepository>();
@@ -292,8 +283,6 @@ public static class Bootstrapper
         services.AddSingleton<IEditorKeybindDispatch, EditorKeybindDispatch>();
         services.AddSingleton<IBlockEditorClipboardKeybindDispatch, BlockEditorClipboardKeybindDispatch>();
         services.AddSingleton<IMindmapKeybindDispatch, MindmapKeybindDispatch>();
-        services.AddSingleton<IFlashcardDeckKeybindContext, FlashcardDeckKeybindContext>();
-        services.AddSingleton<IFlashcardKeybindDispatch, FlashcardKeybindDispatch>();
 
         var buildSpSw = Stopwatch.StartNew();
         var serviceProvider = services.BuildServiceProvider();
@@ -305,6 +294,27 @@ public static class Bootstrapper
         perf.RecordTiming("Startup", "BuildServiceProvider", buildSpMs);
         using (perf.Measure("Startup", "Bootstrapper.pre-window"))
             perf.CaptureMemorySnapshot("after BuildServiceProvider");
+
+        // One-shot legacy→relational flashcard import. This MUST complete before any consumer of the
+        // new relational services performs its first read (the library page, overview widgets, and
+        // search all resolve after Build() returns and NavigateTo runs), so it is awaited here rather
+        // than fired-and-forgotten. The migrator initializes the store schema itself and is idempotent
+        // (backup-key guard), so a real import happens only once; every later launch is a fast no-op.
+        // The store uses ConfigureAwait(false) throughout, so blocking the startup thread cannot
+        // deadlock. Any failure is logged and swallowed here: the schema still initialized, so the user
+        // sees an empty library rather than a dead app, and the legacy blob is left intact for retry.
+        using (perf.Measure("Startup", "FlashcardStoreMigration"))
+        {
+            try
+            {
+                serviceProvider.GetRequiredService<IFlashcardStoreMigrator>()
+                    .MigrateAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                logger.Error("Bootstrapper", "Flashcard store migration failed during startup.", ex);
+            }
+        }
 
         // Welcome-note seed: runs once on fresh install, fire-and-forget so DB I/O doesn't block startup.
         _ = Task.Run(async () =>

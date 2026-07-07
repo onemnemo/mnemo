@@ -81,7 +81,7 @@ public partial class RecentDecksWidgetViewModel : WidgetViewModelBase
             var allDecks = (await _context.Decks.ListDecksAsync(cancellationToken))
                 .ToDictionary(d => d.Id, StringComparer.Ordinal);
 
-            var candidates = new List<(FlashcardDeck Deck, DateTime LastPracticed, long TotalReviewed)>();
+            var candidates = new List<(FlashcardDeckSummary Deck, DateTime LastPracticed, long TotalReviewed)>();
             foreach (var record in summaries.Value)
             {
                 var deckId = record.Key.StartsWith("deck:", StringComparison.Ordinal)
@@ -91,7 +91,7 @@ public partial class RecentDecksWidgetViewModel : WidgetViewModelBase
                 if (!allDecks.TryGetValue(deckId, out var deck))
                     continue;
 
-                var lastPracticed = ReadDateTime(record, "last_practiced") ?? deck.LastStudied?.UtcDateTime ?? default;
+                var lastPracticed = ReadDateTime(record, "last_practiced") ?? deck.Header.LastStudied?.UtcDateTime ?? default;
                 if (lastPracticed == default || lastPracticed < cutoffUtc)
                     continue;
 
@@ -104,8 +104,8 @@ public partial class RecentDecksWidgetViewModel : WidgetViewModelBase
 
             foreach (var (deck, lastPracticed, _) in ordered.Take(limit))
             {
-                var subject = deck.Tags?.Count > 0 ? deck.Tags[0] : string.Empty;
-                var cardsLine = $"{deck.Cards?.Count ?? 0} {_context.Localization.T("cards", "Overview")}";
+                var subject = deck.Header.Tags?.Count > 0 ? deck.Header.Tags[0] : string.Empty;
+                var cardsLine = $"{deck.TotalCards} {_context.Localization.T("cards", "Overview")}";
 
                 RecentDecks.Add(new RecentDeckItem
                 {

@@ -16,7 +16,6 @@ public static class RouteKeybindNamespaces
             "mindmap-detail" => "mindmap",
             "flashcards" => null,
             "flashcard-deck" => "editor",
-            "flashcard-practice" => null,
             "settings" => "settings",
             "chat" => "chat",
             _ => route

@@ -1,8 +1,11 @@
 {
   "FlashcardStats": {
-    "Title": "Estadísticas de tarjetas",
-    "Description": "Consulta tus estadísticas de práctica y racha de estudio",
+    "Title": "Actividad",
+    "Description": "Tarjetas practicadas, minutos estudiados y racha en todos los modos de estudio",
     "GalleryDescription": "Totales de práctica, rachas e impulso reciente de repaso.",
+    "Subtitle": "Todos los modos de estudio",
+    "MinutesToday": "Minutos hoy",
+    "SessionsToday": "Sesiones hoy",
     "TagStats": "#estadísticas",
     "TagStreak": "#racha"
   }

@@ -109,6 +109,20 @@
             <Setter Property="Opacity" Value="1" />
         </Style>
 
+        <!-- Scrim behind the row actions: occludes the retention column while the study split
+             button + ⋯ are revealed, so they don't have to squeeze into the 32px menu-only slot. -->
+        <Style Selector="Border.row-actions-scrim">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.12" Easing="CubicEaseOut" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.tree-row:pointerover Border.row-actions-scrim">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+
         <Style Selector="Button.row-more">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -233,36 +247,25 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Study bar -->
+                <!-- Study bar (informational: due-today summary only, no session actions) -->
                 <Border Classes="surface-card" Padding="18,13" IsVisible="{Binding HasDueToday}">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18">
-                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding DueHeadlineText}"
-                                       FontFamily="{DynamicResource Font.SemiBold}"
-                                       FontSize="{DynamicResource FontSize.Body.Small}" />
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Classes="due-context" Text="{Binding DueDecksText}" />
-                                <TextBlock Classes="due-context" Text="  ·  " />
-                                <TextBlock Classes="due-context" Text="{Binding DueMinutesText}" />
-                                <TextBlock Classes="due-context" Text="  ·  " />
-                                <TextBlock Classes="due-seg new" Text="{Binding DueNewText}" />
-                                <TextBlock Classes="due-context" Text=", " />
-                                <TextBlock Classes="due-seg learn" Text="{Binding DueLearnText}" />
-                                <TextBlock Classes="due-context" Text=", " />
-                                <TextBlock Classes="due-seg review" Text="{Binding DueReviewText}" />
-                            </StackPanel>
+                    <StackPanel Spacing="2" HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding DueHeadlineText}"
+                                   FontFamily="{DynamicResource Font.SemiBold}"
+                                   FontSize="{DynamicResource FontSize.Body.Small}"
+                                   HorizontalAlignment="Right" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock Classes="due-context" Text="{Binding DueDecksText}" />
+                            <TextBlock Classes="due-context" Text="  ·  " />
+                            <TextBlock Classes="due-context" Text="{Binding DueMinutesText}" />
+                            <TextBlock Classes="due-context" Text="  ·  " />
+                            <TextBlock Classes="due-seg new" Text="{Binding DueNewText}" />
+                            <TextBlock Classes="due-context" Text=", " />
+                            <TextBlock Classes="due-seg learn" Text="{Binding DueLearnText}" />
+                            <TextBlock Classes="due-context" Text=", " />
+                            <TextBlock Classes="due-seg review" Text="{Binding DueReviewText}" />
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <controls:AppButton Classes="outline"
-                                                Command="{Binding OpenCustomSessionCommand}"
-                                                Content="{markup:T Ns=Flashcards, Key=CustomSession}" />
-                            <controls:AppButton Classes="accent"
-                                                IconName="Common/player-play"
-                                                IconSize="12"
-                                                Command="{Binding StudyAllCommand}"
-                                                Content="{markup:T Ns=Flashcards, Key=StudyAll}" />
-                        </StackPanel>
-                    </Grid>
+                    </StackPanel>
                 </Border>
 
                 <!-- Tree toolbar -->

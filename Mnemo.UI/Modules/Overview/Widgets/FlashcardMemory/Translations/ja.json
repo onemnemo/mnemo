@@ -1,0 +1,12 @@
+{
+  "FlashcardMemory": {
+    "Title": "記憶",
+    "Description": "復習セッションから算出した実際の定着率(全デッキの加重平均)",
+    "GalleryDescription": "30日間の定着率と、最も復習したデッキの14日間の推移。",
+    "Subtitle": "復習セッションのみ",
+    "RetentionLabel": "30日間の定着率",
+    "EmptyState": "まだ復習がありません",
+    "TagMemory": "#記憶",
+    "TagRetention": "#定着率"
+  }
+}

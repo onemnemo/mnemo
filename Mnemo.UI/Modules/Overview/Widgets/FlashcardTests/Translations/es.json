@@ -1,0 +1,12 @@
+{
+  "FlashcardTests": {
+    "Title": "Test",
+    "Description": "Puntuación y tendencia de tu mazo evaluado más recientemente",
+    "GalleryDescription": "Última puntuación de test, delta frente al intento anterior y una tendencia de 10 intentos.",
+    "Subtitle": "Puntuaciones de test",
+    "BestScoreFormat": "{0}% mejor",
+    "EmptyState": "Aún no hay tests",
+    "TagTest": "#test",
+    "TagScore": "#puntuación"
+  }
+}

@@ -46,14 +46,14 @@ internal sealed class FlashcardStoreHarness : IAsyncDisposable
     }
 
     /// <summary>Inserts a card + its schedule atomically.</summary>
-    public Task AddCardAsync(FlashcardEntity card, FlashcardSchedule schedule, CancellationToken ct = default) =>
+    public Task AddCardAsync(Flashcard card, FlashcardSchedule schedule, CancellationToken ct = default) =>
         Store.WriteAsync(async (conn, tx, token) =>
         {
             await Cards.InsertAsync(conn, tx, card, token);
             await Schedules.UpsertAsync(conn, tx, schedule, token);
         }, ct);
 
-    public static FlashcardEntity Card(string id, string deckId, string front, string back,
+    public static Flashcard Card(string id, string deckId, string front, string back,
         FlashcardCardState state = FlashcardCardState.Active, FlashcardType type = FlashcardType.Classic) =>
         new(id, deckId, type, front, back, Array.Empty<string>(), state, false,
             Array.Empty<FlashcardAttachment>(), null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);

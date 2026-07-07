@@ -28,57 +28,86 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid>
-        <!-- Wide: stat cells split by vertical hairlines -->
-        <Grid ColumnDefinitions="*,Auto,*,Auto,*"
-              VerticalAlignment="Top"
-              IsVisible="{Binding !IsNarrow}">
-            <StackPanel Grid.Column="0">
-                <TextBlock Classes="stat-value"
-                           Classes.active="{Binding !!CardsToday}"
-                           Text="{Binding CardsToday}"/>
-                <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=PracticedToday}"/>
-            </StackPanel>
+    <StackPanel Spacing="10">
+        <!-- Bucket label: this widget counts ALL study modes (Review, Cram, Test alike) — the
+             three stat buckets (Memory / Test / Activity) must never be visually ambiguous. -->
+        <TextBlock Text="{markup:T Ns=FlashcardStats, Key=Subtitle}"
+                   FontSize="{DynamicResource FontSize.Caption}"
+                   Foreground="{DynamicResource TextTertiaryBrush}"
+                   TextWrapping="Wrap"/>
 
-            <Rectangle Grid.Column="1" Classes="stat-divider" Width="1" Margin="14,2"/>
+        <Grid>
+            <!-- Wide: stat cells split by vertical hairlines -->
+            <Grid ColumnDefinitions="*,Auto,*,Auto,*,Auto,*"
+                  VerticalAlignment="Top"
+                  IsVisible="{Binding !IsNarrow}">
+                <StackPanel Grid.Column="0">
+                    <TextBlock Classes="stat-value"
+                               Classes.active="{Binding !!CardsToday}"
+                               Text="{Binding CardsToday}"/>
+                    <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=PracticedToday}"/>
+                </StackPanel>
 
-            <StackPanel Grid.Column="2">
-                <TextBlock Classes="stat-value"
-                           Classes.active="{Binding !!StudyStreak}"
-                           Text="{Binding StudyStreak}"/>
-                <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=Streak}"/>
-            </StackPanel>
+                <Rectangle Grid.Column="1" Classes="stat-divider" Width="1" Margin="14,2"/>
 
-            <Rectangle Grid.Column="3" Classes="stat-divider" Width="1" Margin="14,2"/>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Classes="stat-value"
+                               Classes.active="{Binding !!MinutesToday}"
+                               Text="{Binding MinutesToday}"/>
+                    <TextBlock Classes="stat-label" Text="{markup:T Ns=FlashcardStats, Key=MinutesToday}"/>
+                </StackPanel>
 
-            <StackPanel Grid.Column="4">
-                <TextBlock Classes="stat-value" Text="{Binding TotalCardsPracticed}"/>
-                <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=TotalPracticed}"/>
+                <Rectangle Grid.Column="3" Classes="stat-divider" Width="1" Margin="14,2"/>
+
+                <StackPanel Grid.Column="4">
+                    <TextBlock Classes="stat-value"
+                               Classes.active="{Binding !!SessionsToday}"
+                               Text="{Binding SessionsToday}"/>
+                    <TextBlock Classes="stat-label" Text="{markup:T Ns=FlashcardStats, Key=SessionsToday}"/>
+                </StackPanel>
+
+                <Rectangle Grid.Column="5" Classes="stat-divider" Width="1" Margin="14,2"/>
+
+                <StackPanel Grid.Column="6">
+                    <TextBlock Classes="stat-value"
+                               Classes.active="{Binding !!StudyStreak}"
+                               Text="{Binding StudyStreak}"/>
+                    <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=Streak}"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Narrow (1-column tile): stacked cells with horizontal hairlines -->
+            <StackPanel Spacing="10"
+                        VerticalAlignment="Center"
+                        IsVisible="{Binding IsNarrow}">
+                <StackPanel>
+                    <TextBlock Classes="stat-value"
+                               Classes.active="{Binding !!CardsToday}"
+                               Text="{Binding CardsToday}"/>
+                    <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=PracticedToday}"/>
+                </StackPanel>
+                <Rectangle Classes="stat-divider" Height="1"/>
+                <StackPanel>
+                    <TextBlock Classes="stat-value"
+                               Classes.active="{Binding !!MinutesToday}"
+                               Text="{Binding MinutesToday}"/>
+                    <TextBlock Classes="stat-label" Text="{markup:T Ns=FlashcardStats, Key=MinutesToday}"/>
+                </StackPanel>
+                <Rectangle Classes="stat-divider" Height="1"/>
+                <StackPanel>
+                    <TextBlock Classes="stat-value"
+                               Classes.active="{Binding !!SessionsToday}"
+                               Text="{Binding SessionsToday}"/>
+                    <TextBlock Classes="stat-label" Text="{markup:T Ns=FlashcardStats, Key=SessionsToday}"/>
+                </StackPanel>
+                <Rectangle Classes="stat-divider" Height="1"/>
+                <StackPanel>
+                    <TextBlock Classes="stat-value"
+                               Classes.active="{Binding !!StudyStreak}"
+                               Text="{Binding StudyStreak}"/>
+                    <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=Streak}"/>
+                </StackPanel>
             </StackPanel>
         </Grid>
-
-        <!-- Narrow (1-column tile): stacked cells with horizontal hairlines -->
-        <StackPanel Spacing="10"
-                    VerticalAlignment="Center"
-                    IsVisible="{Binding IsNarrow}">
-            <StackPanel>
-                <TextBlock Classes="stat-value"
-                           Classes.active="{Binding !!CardsToday}"
-                           Text="{Binding CardsToday}"/>
-                <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=PracticedToday}"/>
-            </StackPanel>
-            <Rectangle Classes="stat-divider" Height="1"/>
-            <StackPanel>
-                <TextBlock Classes="stat-value"
-                           Classes.active="{Binding !!StudyStreak}"
-                           Text="{Binding StudyStreak}"/>
-                <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=Streak}"/>
-            </StackPanel>
-            <Rectangle Classes="stat-divider" Height="1"/>
-            <StackPanel>
-                <TextBlock Classes="stat-value" Text="{Binding TotalCardsPracticed}"/>
-                <TextBlock Classes="stat-label" Text="{markup:T Ns=Overview, Key=TotalPracticed}"/>
-            </StackPanel>
-        </StackPanel>
-    </Grid>
+    </StackPanel>
 </UserControl>

@@ -554,6 +554,8 @@
     <Color x:Key="FlashcardStateNew">#7BA6E8</Color>
     <Color x:Key="FlashcardStateLearning">#D9A05A</Color>
     <Color x:Key="FlashcardRetentionHigh">#6BB585</Color>
+    <!-- Hover/pressed shade for the green "Got it" test grade (reuses the retention-high semantic). -->
+    <Color x:Key="FlashcardRetentionHighHover">#5CA576</Color>
 </ResourceDictionary>
 
 

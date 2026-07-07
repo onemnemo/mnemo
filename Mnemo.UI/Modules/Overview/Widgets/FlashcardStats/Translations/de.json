@@ -1,8 +1,11 @@
 {
   "FlashcardStats": {
-    "Title": "Karteikarten-Statistiken",
-    "Description": "Hier sehen Sie Ihre Statistiken zur Karteikartenübung sowie Ihren Lernstreik",
+    "Title": "Aktivität",
+    "Description": "Geübte Karten, Lernminuten und Serie über alle Lernmodi hinweg",
     "GalleryDescription": "Übungssummen, Serien und aktuelle Wiederholungsdynamik.",
+    "Subtitle": "Alle Lernmodi",
+    "MinutesToday": "Minuten heute",
+    "SessionsToday": "Sitzungen heute",
     "TagStats": "#statistik",
     "TagStreak": "#serie"
   }

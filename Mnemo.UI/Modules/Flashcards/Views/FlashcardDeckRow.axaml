@@ -4,6 +4,7 @@
              xmlns:converters="using:Mnemo.UI.Converters"
              xmlns:markup="using:Mnemo.UI.Markup"
              xmlns:vm="using:Mnemo.UI.Modules.Flashcards.ViewModels"
+             xmlns:views="using:Mnemo.UI.Modules.Flashcards.Views"
              x:Class="Mnemo.UI.Modules.Flashcards.Views.FlashcardDeckRow"
              x:DataType="vm:FlashcardDeckRowViewModel"
              x:CompileBindings="True"
@@ -67,65 +68,61 @@
                 <TextBlock Text="{Binding RetentionText}" Classes="retention-text" VerticalAlignment="Center" />
             </StackPanel>
 
-            <!-- Row actions (revealed on hover) -->
-            <StackPanel Grid.Column="5" x:Name="Actions"
-                        Classes="row-actions"
-                        Orientation="Horizontal" Spacing="4"
-                        HorizontalAlignment="Right" VerticalAlignment="Center">
-                <Button x:Name="MoreButton" Classes="row-more"
-                        ToolTip.Tip="{markup:T Ns=Flashcards, Key=DeckMenu}">
-                    <controls:AppIcon Icon="Common/dots-vertical" Width="16" Height="16"
-                                      Color="{DynamicResource TextFadedBrush}" />
-                    <Button.Flyout>
-                        <MenuFlyout Placement="BottomEdgeAlignedRight">
-                            <MenuItem Header="{markup:T Ns=Flashcards, Key=OpenDeck}" Click="OnOpenClick">
-                                <MenuItem.Icon>
-                                    <controls:AppIcon Icon="Flyout/open" Width="16" Height="16" />
-                                </MenuItem.Icon>
-                            </MenuItem>
-                            <MenuItem Header="{markup:T Ns=Flashcards, Key=Practice}">
-                                <MenuItem.Icon>
-                                    <controls:AppIcon Icon="Flyout/practice" Width="16" Height="16" />
-                                </MenuItem.Icon>
-                                <MenuItem Header="{markup:T Ns=Flashcards, Key=SessionReview}" Click="OnReviewClick" />
-                                <MenuItem Header="{markup:T Ns=Flashcards, Key=SessionQuick}" Click="OnQuickClick" />
-                                <MenuItem Header="{markup:T Ns=Flashcards, Key=SessionCram}" Click="OnCramClick" />
-                                <MenuItem Header="{markup:T Ns=Flashcards, Key=SessionTest}" Click="OnTestClick" />
-                            </MenuItem>
-                            <MenuItem Header="{markup:T Ns=Flashcards, Key=RenameDeck}" Click="OnRenameClick">
-                                <MenuItem.Icon>
-                                    <controls:AppIcon Icon="Flyout/rename" Width="16" Height="16" />
-                                </MenuItem.Icon>
-                            </MenuItem>
-                            <MenuItem Header="{markup:T Ns=Flashcards, Key=DuplicateDeck}" Click="OnDuplicateClick">
-                                <MenuItem.Icon>
-                                    <controls:AppIcon Icon="Flyout/duplicate" Width="16" Height="16" />
-                                </MenuItem.Icon>
-                            </MenuItem>
-                            <MenuItem Header="{markup:T Ns=Flashcards, Key=Export}" Click="OnExportClick">
-                                <MenuItem.Icon>
-                                    <controls:AppIcon Icon="Flyout/export" Width="16" Height="16" />
-                                </MenuItem.Icon>
-                                <MenuItem Header="{markup:T Ns=Flashcards, Key=ExportFormatMnemo}" CommandParameter="flashcards.mnemo" Click="OnExportClick" />
-                                <MenuItem Header="{markup:T Ns=Flashcards, Key=ExportFormatAnki}" CommandParameter="flashcards.anki" Click="OnExportClick" />
-                                <MenuItem Header="{markup:T Ns=Flashcards, Key=ExportFormatCsv}" CommandParameter="flashcards.csv" Click="OnExportClick" />
-                                <MenuItem Header="{markup:T Ns=Flashcards, Key=ChooseFormat}" Click="OnExportClick" />
-                            </MenuItem>
-                            <MenuItem Header="{markup:T Ns=Settings, Key=Title}" Click="OnSettingsClick">
-                                <MenuItem.Icon>
-                                    <controls:AppIcon Icon="Flyout/settings" Width="16" Height="16" />
-                                </MenuItem.Icon>
-                            </MenuItem>
-                            <Separator />
-                            <MenuItem Classes="danger" Header="{markup:T Ns=Flashcards, Key=DeleteDeck}" Click="OnDeleteClick">
-                                <MenuItem.Icon>
-                                    <controls:AppIcon Icon="Common/trash" Width="16" Height="16" />
-                                </MenuItem.Icon>
-                            </MenuItem>
-                        </MenuFlyout>
-                    </Button.Flyout>
-                </Button>
-            </StackPanel>
+            <!-- Row actions (revealed on hover) — overlays the retention column so the compact split
+                 button + ⋯ have room without widening every row. -->
+            <Border Grid.Column="4" Grid.ColumnSpan="2"
+                    Classes="row-actions-scrim"
+                    Background="{DynamicResource WidgetBackgroundHoverBrush}">
+                <StackPanel x:Name="Actions"
+                            Classes="row-actions"
+                            Orientation="Horizontal" Spacing="6"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Margin="0,0,4,0">
+                    <views:FlashcardStudySplitButton DeckId="{Binding Id}"
+                                                      DueCount="{Binding DueToday}"
+                                                      AllCount="{Binding ActiveCards}"
+                                                      Compact="True" />
+                    <Button x:Name="MoreButton" Classes="row-more"
+                            ToolTip.Tip="{markup:T Ns=Flashcards, Key=DeckMenu}">
+                        <controls:AppIcon Icon="Common/dots-vertical" Width="16" Height="16"
+                                          Color="{DynamicResource TextFadedBrush}" />
+                        <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                <MenuItem Header="{markup:T Ns=Flashcards, Key=OpenDeck}" Click="OnOpenClick">
+                                    <MenuItem.Icon>
+                                        <controls:AppIcon Icon="Flyout/open" Width="16" Height="16" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="{markup:T Ns=Flashcards, Key=RenameDeck}" Click="OnRenameClick">
+                                    <MenuItem.Icon>
+                                        <controls:AppIcon Icon="Flyout/rename" Width="16" Height="16" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="{markup:T Ns=Flashcards, Key=Export}" Click="OnExportClick">
+                                    <MenuItem.Icon>
+                                        <controls:AppIcon Icon="Flyout/export" Width="16" Height="16" />
+                                    </MenuItem.Icon>
+                                    <MenuItem Header="{markup:T Ns=Flashcards, Key=ExportFormatMnemo}" CommandParameter="flashcards.mnemo" Click="OnExportClick" />
+                                    <MenuItem Header="{markup:T Ns=Flashcards, Key=ExportFormatAnki}" CommandParameter="flashcards.anki" Click="OnExportClick" />
+                                    <MenuItem Header="{markup:T Ns=Flashcards, Key=ExportFormatCsv}" CommandParameter="flashcards.csv" Click="OnExportClick" />
+                                    <MenuItem Header="{markup:T Ns=Flashcards, Key=ChooseFormat}" Click="OnExportClick" />
+                                </MenuItem>
+                                <MenuItem Header="{markup:T Ns=Flashcards, Key=ReviewSettingsMenu}" Click="OnSettingsClick">
+                                    <MenuItem.Icon>
+                                        <controls:AppIcon Icon="Flyout/settings" Width="16" Height="16" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <Separator />
+                                <MenuItem Classes="danger" Header="{markup:T Ns=Flashcards, Key=DeleteDeck}" Click="OnDeleteClick">
+                                    <MenuItem.Icon>
+                                        <controls:AppIcon Icon="Common/trash" Width="16" Height="16" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                </StackPanel>
+            </Border>
         </Grid>
     </Border>
 </UserControl>

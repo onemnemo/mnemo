@@ -1,9 +1,12 @@
 {
   "FlashcardStats": {
-    "Title": "Flashkort statistikk",
-    "Description": "Se dine statistikker for flashkortpraksis og studiestreak",
+    "Title": "Aktivitet",
+    "Description": "Øvde kort, studieminutter og rekke på tvers av alle studiemoduser",
     "GalleryDescription": "Praksistotalt, streaker og nylig gjennomgåelsesdynamikk.",
+    "Subtitle": "Alle studiemoduser",
+    "MinutesToday": "Minutter i dag",
+    "SessionsToday": "Økter i dag",
     "TagStats": "#statistikk",
-    "TagStreak": "#streak"
+    "TagStreak": "#serier"
   }
 }

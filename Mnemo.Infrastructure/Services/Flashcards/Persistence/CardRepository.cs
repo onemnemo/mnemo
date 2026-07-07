@@ -19,8 +19,8 @@ public readonly record struct FlashcardDeckCardCounts(int Total, int Active, int
 /// </summary>
 public interface ICardRepository
 {
-    Task<FlashcardEntity?> GetAsync(SqliteConnection conn, string cardId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<FlashcardEntity>> ListByDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
+    Task<Flashcard?> GetAsync(SqliteConnection conn, string cardId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Flashcard>> ListByDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
     Task<FlashcardDeckCardCounts> GetCountsAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
     Task<FlashcardCardPage> GetPageAsync(SqliteConnection conn, FlashcardCardQuery query, DateTimeOffset now, CancellationToken cancellationToken);
 
@@ -29,15 +29,15 @@ public interface ICardRepository
     /// states and/or a due cutoff, ordered by due date, capped at <paramref name="limit"/>.
     /// </summary>
     Task<IReadOnlyList<FlashcardView>> GetActiveViewsAsync(SqliteConnection conn, string deckId, IReadOnlyList<int>? fsrsStates, DateTimeOffset? dueOnOrBefore, int limit, CancellationToken cancellationToken);
-    Task<IReadOnlyList<FlashcardEntity>> SearchAsync(SqliteConnection conn, string text, FlashcardSearchScope scope, int limit, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Flashcard>> SearchAsync(SqliteConnection conn, string text, FlashcardSearchScope scope, int limit, CancellationToken cancellationToken);
 
-    Task InsertAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardEntity card, CancellationToken cancellationToken);
+    Task InsertAsync(SqliteConnection conn, SqliteTransaction tx, Flashcard card, CancellationToken cancellationToken);
 
     /// <summary>Insert-or-update by id (migration path). Uses ON CONFLICT DO UPDATE — never REPLACE,
     /// so the 1:1 scheduling row is not cascade-deleted.</summary>
-    Task UpsertAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardEntity card, CancellationToken cancellationToken);
+    Task UpsertAsync(SqliteConnection conn, SqliteTransaction tx, Flashcard card, CancellationToken cancellationToken);
 
-    Task UpdateAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardEntity card, CancellationToken cancellationToken);
+    Task UpdateAsync(SqliteConnection conn, SqliteTransaction tx, Flashcard card, CancellationToken cancellationToken);
     Task DeleteManyAsync(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<string> cardIds, CancellationToken cancellationToken);
     Task MoveManyAsync(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<string> cardIds, string targetDeckId, DateTimeOffset now, CancellationToken cancellationToken);
     Task SetSuspendedAsync(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<string> cardIds, bool suspended, DateTimeOffset now, CancellationToken cancellationToken);
@@ -54,7 +54,7 @@ public sealed class CardRepository : ICardRepository
     private const string ScheduleColumns =
         "s.CardId, s.DueDate, s.Stability, s.Difficulty, s.Reps, s.Lapses, s.FsrsState, s.LearningStepIndex, s.LastReviewedAt";
 
-    public async Task<FlashcardEntity?> GetAsync(SqliteConnection conn, string cardId, CancellationToken cancellationToken)
+    public async Task<Flashcard?> GetAsync(SqliteConnection conn, string cardId, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardCards c WHERE c.Id = $id LIMIT 1;";
@@ -63,12 +63,12 @@ public sealed class CardRepository : ICardRepository
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? ReadCard(reader, 0) : null;
     }
 
-    public async Task<IReadOnlyList<FlashcardEntity>> ListByDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Flashcard>> ListByDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardCards c WHERE c.DeckId = $deck ORDER BY c.CreatedAt;";
         cmd.Parameters.AddWithValue("$deck", deckId);
-        var list = new List<FlashcardEntity>();
+        var list = new List<Flashcard>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             list.Add(ReadCard(reader, 0));
@@ -199,10 +199,10 @@ public sealed class CardRepository : ICardRepository
         return list;
     }
 
-    public async Task<IReadOnlyList<FlashcardEntity>> SearchAsync(SqliteConnection conn, string text, FlashcardSearchScope scope, int limit, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Flashcard>> SearchAsync(SqliteConnection conn, string text, FlashcardSearchScope scope, int limit, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(text))
-            return Array.Empty<FlashcardEntity>();
+            return Array.Empty<Flashcard>();
 
         await using var cmd = conn.CreateCommand();
         var stateClause = scope == FlashcardSearchScope.IncludeSuspended ? string.Empty : "AND c.State = 0";
@@ -217,14 +217,14 @@ public sealed class CardRepository : ICardRepository
             """;
         cmd.Parameters.AddWithValue("$q", BuildFtsQuery(text));
         cmd.Parameters.AddWithValue("$limit", Math.Max(1, limit));
-        var list = new List<FlashcardEntity>();
+        var list = new List<Flashcard>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             list.Add(ReadCard(reader, 0));
         return list;
     }
 
-    public async Task InsertAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardEntity card, CancellationToken cancellationToken)
+    public async Task InsertAsync(SqliteConnection conn, SqliteTransaction tx, Flashcard card, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
@@ -239,7 +239,7 @@ public sealed class CardRepository : ICardRepository
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task UpsertAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardEntity card, CancellationToken cancellationToken)
+    public async Task UpsertAsync(SqliteConnection conn, SqliteTransaction tx, Flashcard card, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
@@ -258,7 +258,7 @@ public sealed class CardRepository : ICardRepository
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task UpdateAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardEntity card, CancellationToken cancellationToken)
+    public async Task UpdateAsync(SqliteConnection conn, SqliteTransaction tx, Flashcard card, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
@@ -336,7 +336,7 @@ public sealed class CardRepository : ICardRepository
         return string.Join(" AND ", terms.Select(t => "\"" + t.Replace("\"", "\"\"") + "\" *"));
     }
 
-    private static void BindCard(SqliteCommand cmd, FlashcardEntity card)
+    private static void BindCard(SqliteCommand cmd, Flashcard card)
     {
         var now = card.UpdatedAt == default ? DateTimeOffset.UtcNow : card.UpdatedAt;
         cmd.Parameters.AddWithValue("$id", card.Id);
@@ -355,7 +355,7 @@ public sealed class CardRepository : ICardRepository
         cmd.Parameters.AddWithValue("$updated", FlashcardSqlMap.Ts(now));
     }
 
-    private static FlashcardEntity ReadCard(SqliteDataReader reader, int offset)
+    private static Flashcard ReadCard(SqliteDataReader reader, int offset)
     {
         var sourceType = FlashcardSqlMap.ReadStringN(reader, offset + 9);
         var sourceId = FlashcardSqlMap.ReadStringN(reader, offset + 10);
@@ -364,7 +364,7 @@ public sealed class CardRepository : ICardRepository
             ? new FlashcardSourceInfo(sourceType, sourceId, sourceLabel)
             : null;
 
-        return new FlashcardEntity(
+        return new Flashcard(
             Id: reader.GetString(offset + 0),
             DeckId: reader.GetString(offset + 1),
             Type: (FlashcardType)reader.GetInt32(offset + 2),

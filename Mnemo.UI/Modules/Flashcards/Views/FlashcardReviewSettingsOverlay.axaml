@@ -1,0 +1,361 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Mnemo.UI.Modules.Flashcards.ViewModels"
+             xmlns:controls="using:Mnemo.UI.Controls"
+             xmlns:components="using:Mnemo.UI.Components"
+             mc:Ignorable="d" d:DesignWidth="856" d:DesignHeight="560"
+             x:Class="Mnemo.UI.Modules.Flashcards.Views.FlashcardReviewSettingsOverlay"
+             x:DataType="vm:FlashcardReviewSettingsViewModel"
+             x:CompileBindings="True"
+             Focusable="True"
+             Width="856"
+             x:Name="Root">
+
+    <UserControl.Styles>
+        <!-- Uppercase micro-label above each section / pane -->
+        <Style Selector="TextBlock.rs-section-label">
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="LetterSpacing" Value="1"/>
+            <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFadedBrush}"/>
+        </Style>
+
+        <!-- Preset row: name left, muted mono deck count right; selected = raised sidebar-style background -->
+        <Style Selector="Border.rs-preset-row">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.rs-preset-row:pointerover">
+            <Setter Property="Background" Value="{DynamicResource NavigationButtonBackgroundHoverBrush}"/>
+        </Style>
+        <Style Selector="Border.rs-preset-row.selected">
+            <Setter Property="Background" Value="{DynamicResource NavigationButtonBackgroundSelectedBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.rs-preset-name">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+        <Style Selector="Border.rs-preset-row.selected TextBlock.rs-preset-name">
+            <Setter Property="Foreground" Value="{DynamicResource NavigationButtonForegroundSelectedBrush}"/>
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+        </Style>
+        <Style Selector="TextBlock.rs-preset-count">
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Monospace}"/>
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFadedBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Quiet "+ New preset" affordance -->
+        <Style Selector="Border.rs-new-preset-row">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.rs-new-preset-row:pointerover">
+            <Setter Property="Background" Value="{DynamicResource NavigationButtonBackgroundHoverBrush}"/>
+        </Style>
+
+        <!-- Mono learning-steps textbox with an inline error state -->
+        <Style Selector="TextBox.rs-mono-input">
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Monospace}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Width" Value="120"/>
+            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBox.rs-mono-input.error /template/ Border#PART_BorderElement">
+            <Setter Property="BorderBrush" Value="{DynamicResource DestructiveButtonColorBrush}"/>
+        </Style>
+        <Style Selector="TextBox.rs-mono-input.error:focus /template/ Border#PART_BorderElement">
+            <Setter Property="BorderBrush" Value="{DynamicResource DestructiveButtonColorBrush}"/>
+        </Style>
+
+        <!-- Compact +/- stepper -->
+        <Style Selector="NumericUpDown.rs-stepper">
+            <Setter Property="Width" Value="120"/>
+            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Monospace}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style Selector="TextBlock.rs-retention-value">
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Monospace}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Border CornerRadius="{DynamicResource Radius.Lg}"
+            BorderThickness="1"
+            BorderBrush="{DynamicResource BorderBrush}"
+            Background="{DynamicResource OverlayBackgroundBrush}"
+            BoxShadow="0 16 40 0 #38000000"
+            ClipToBounds="True">
+        <Grid RowDefinitions="Auto,*,Auto">
+
+            <!-- Header -->
+            <Border Grid.Row="0"
+                    BorderThickness="0,0,0,1"
+                    BorderBrush="{DynamicResource DividerSubtleBrush}"
+                    Padding="20,14">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2">
+                        <TextBlock Text="{Binding TitleText}"
+                                   FontSize="{DynamicResource FontSize.Body.Small}"
+                                   FontFamily="{DynamicResource Font.SemiBold}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock Text="{Binding DeckName}"
+                                   IsVisible="{Binding HasDeckContext}"
+                                   FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                   Foreground="{DynamicResource TextTertiaryBrush}"/>
+                    </StackPanel>
+                    <controls:AppButton Grid.Column="1"
+                                        x:Name="CloseButton"
+                                        Classes="ghost"
+                                        IconName="Common/x"
+                                        IconSize="14"
+                                        Width="28" Height="28"
+                                        Padding="0"
+                                        VerticalAlignment="Top"
+                                        Click="OnCloseClick"/>
+                </Grid>
+            </Border>
+
+            <!-- Body: presets | details -->
+            <Grid Grid.Row="1" ColumnDefinitions="210,*">
+
+                <!-- Left pane: presets -->
+                <Border Grid.Column="0"
+                        Background="{DynamicResource SidebarBackgroundBrush}"
+                        BorderThickness="0,0,1,0"
+                        BorderBrush="{DynamicResource DividerSubtleBrush}">
+                    <Grid RowDefinitions="Auto,*,Auto" Margin="10,14,10,12">
+                        <TextBlock Grid.Row="0"
+                                   Classes="rs-section-label"
+                                   Text="{Binding PresetsLabel}"
+                                   Margin="6,0,6,8"/>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Spacing="2">
+                                <ItemsControl ItemsSource="{Binding Presets}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:FlashcardPresetItemViewModel">
+                                            <Border Classes="rs-preset-row"
+                                                    Classes.selected="{Binding IsSelected}"
+                                                    Padding="8,0"
+                                                    Tag="{Binding}"
+                                                    PointerPressed="OnPresetRowPointerPressed"
+                                                    DoubleTapped="OnPresetRowDoubleTapped">
+                                                <Border.ContextFlyout>
+                                                    <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                                        <MenuItem Header="{Binding #Root.((vm:FlashcardReviewSettingsViewModel)DataContext).RenameText}"
+                                                                  Command="{Binding #Root.((vm:FlashcardReviewSettingsViewModel)DataContext).BeginRenameCommand}"
+                                                                  CommandParameter="{Binding}">
+                                                            <MenuItem.Icon>
+                                                                <controls:AppIcon Icon="Flyout/rename" Width="16" Height="16"/>
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
+                                                        <Separator/>
+                                                        <MenuItem Classes="danger"
+                                                                  Header="{Binding #Root.((vm:FlashcardReviewSettingsViewModel)DataContext).DeleteText}"
+                                                                  Command="{Binding #Root.((vm:FlashcardReviewSettingsViewModel)DataContext).DeletePresetCommand}"
+                                                                  CommandParameter="{Binding}"
+                                                                  IsEnabled="{Binding CanDelete}">
+                                                            <MenuItem.Icon>
+                                                                <controls:AppIcon Icon="Common/trash" Width="16" Height="16"/>
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
+                                                    </MenuFlyout>
+                                                </Border.ContextFlyout>
+
+                                                <Panel>
+                                                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding !IsRenaming}">
+                                                        <TextBlock Grid.Column="0" Classes="rs-preset-name" Text="{Binding Name}"/>
+                                                        <TextBlock Grid.Column="1" Classes="rs-preset-count" Text="{Binding DeckCountLabel}" Margin="8,0,0,0"/>
+                                                    </Grid>
+
+                                                    <TextBox Text="{Binding RenameText}"
+                                                             IsVisible="{Binding IsRenaming}"
+                                                             FontSize="13"
+                                                             Padding="4,0"
+                                                             MinHeight="24"
+                                                             VerticalContentAlignment="Center"
+                                                             VerticalAlignment="Center"
+                                                             Name="RenameBox"
+                                                             AttachedToVisualTree="OnRenameBoxAttached"
+                                                             KeyDown="OnRenameBoxKeyDown"
+                                                             LostFocus="OnRenameBoxLostFocus"/>
+                                                </Panel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <Border Classes="rs-new-preset-row"
+                                        Padding="8,0"
+                                        Margin="0,4,0,0"
+                                        PointerPressed="OnNewPresetPointerPressed">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <controls:AppIcon Icon="Common/plus" Width="12" Height="12" Color="{DynamicResource TextFadedBrush}"/>
+                                        <TextBlock Text="{Binding NewPresetLabel}"
+                                                   FontSize="12.5"
+                                                   Foreground="{DynamicResource TextFadedBrush}"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <TextBlock Grid.Row="2"
+                                   Text="{Binding EditingNoteText}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextFadedBrush}"
+                                   TextWrapping="Wrap"
+                                   LineHeight="15"
+                                   Margin="6,10,6,0"/>
+                    </Grid>
+                </Border>
+
+                <!-- Right pane: details -->
+                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Border Padding="24,6,24,10">
+                        <StackPanel>
+
+                            <!-- Daily limits -->
+                            <TextBlock Classes="rs-section-label" Text="{Binding DailyLimitsLabel}" Margin="0,12,0,2"/>
+                            <StackPanel>
+                                <components:SettingsRow Title="{Binding NewPerDayTitle}">
+                                    <components:SettingsRow.RightContent>
+                                        <NumericUpDown Classes="rs-stepper"
+                                                       Minimum="0" Maximum="999"
+                                                       Value="{Binding NewPerDay}"/>
+                                    </components:SettingsRow.RightContent>
+                                </components:SettingsRow>
+                                <components:SettingsRow Title="{Binding MaxReviewsTitle}" ShowDivider="False">
+                                    <components:SettingsRow.RightContent>
+                                        <NumericUpDown Classes="rs-stepper"
+                                                       Minimum="0" Maximum="9999"
+                                                       Value="{Binding MaxReviewsPerDay}"/>
+                                    </components:SettingsRow.RightContent>
+                                </components:SettingsRow>
+                            </StackPanel>
+
+                            <!-- Scheduling -->
+                            <TextBlock Classes="rs-section-label" Text="{Binding SchedulingLabel}" Margin="0,20,0,2"/>
+                            <StackPanel>
+                                <components:SettingsRow Title="{Binding AlgorithmTitle}">
+                                    <components:SettingsRow.RightContent>
+                                        <controls:ModernComboBox Classes="compact"
+                                                                 ItemsSource="{Binding AlgorithmOptions}"
+                                                                 SelectedItem="{Binding SelectedAlgorithmOption}"
+                                                                 MinWidth="130"/>
+                                    </components:SettingsRow.RightContent>
+                                </components:SettingsRow>
+                                <components:SettingsRow Title="{Binding RetentionTitle}" Description="{Binding RetentionDescription}">
+                                    <components:SettingsRow.RightContent>
+                                        <StackPanel Orientation="Horizontal" Spacing="10" Width="220">
+                                            <Slider Minimum="80" Maximum="97"
+                                                    Value="{Binding DesiredRetentionPercent}"
+                                                    TickFrequency="1"
+                                                    IsSnapToTickEnabled="True"
+                                                    Width="150"
+                                                    VerticalAlignment="Center"/>
+                                            <TextBlock Classes="rs-retention-value" Text="{Binding DesiredRetentionLabel}" Width="36"/>
+                                        </StackPanel>
+                                    </components:SettingsRow.RightContent>
+                                </components:SettingsRow>
+                                <components:SettingsRow Title="{Binding LearningStepsTitle}" Description="{Binding LearningStepsDescription}" ShowDivider="False">
+                                    <components:SettingsRow.RightContent>
+                                        <TextBox Classes="rs-mono-input"
+                                                 Classes.error="{Binding HasLearningStepsError}"
+                                                 Text="{Binding LearningStepsText}"/>
+                                    </components:SettingsRow.RightContent>
+                                </components:SettingsRow>
+                            </StackPanel>
+
+                            <!-- Session -->
+                            <TextBlock Classes="rs-section-label" Text="{Binding SessionLabel}" Margin="0,20,0,2"/>
+                            <StackPanel>
+                                <components:SettingsRow Title="{Binding ShuffleTitle}">
+                                    <components:SettingsRow.RightContent>
+                                        <ToggleSwitch IsChecked="{Binding ShuffleOrder}"/>
+                                    </components:SettingsRow.RightContent>
+                                </components:SettingsRow>
+                                <components:SettingsRow Title="{Binding BuryTitle}" Description="{Binding BuryDescription}">
+                                    <components:SettingsRow.RightContent>
+                                        <ToggleSwitch IsChecked="{Binding BuryRelated}" IsEnabled="False"/>
+                                    </components:SettingsRow.RightContent>
+                                </components:SettingsRow>
+                                <components:SettingsRow Title="{Binding AutoRevealTitle}" ShowDivider="False">
+                                    <components:SettingsRow.RightContent>
+                                        <controls:ModernComboBox Classes="compact"
+                                                                 ItemsSource="{Binding AutoRevealOptions}"
+                                                                 SelectedItem="{Binding SelectedAutoRevealOption}"
+                                                                 MinWidth="130">
+                                            <controls:ModernComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:FlashcardAutoRevealOption">
+                                                    <TextBlock Text="{Binding Label}"/>
+                                                </DataTemplate>
+                                            </controls:ModernComboBox.ItemTemplate>
+                                        </controls:ModernComboBox>
+                                    </components:SettingsRow.RightContent>
+                                </components:SettingsRow>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+            </Grid>
+
+            <!-- Footer -->
+            <Border Grid.Row="2"
+                    BorderThickness="0,1,0,0"
+                    BorderBrush="{DynamicResource DividerSubtleBrush}"
+                    Padding="20,12">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <controls:AppButton Grid.Column="0"
+                                        Classes="ghost"
+                                        Content="{Binding RestoreDefaultsText}"
+                                        Command="{Binding RestoreDefaultsCommand}"
+                                        Padding="0"
+                                        FontSize="12.5"/>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                        <controls:AppButton Classes="outline"
+                                            Content="{Binding CancelText}"
+                                            Height="34"
+                                            Padding="16,0"
+                                            Click="OnCloseClick"/>
+                        <controls:AppButton Classes="accent"
+                                            Content="{Binding SaveText}"
+                                            Height="34"
+                                            Padding="18,0"
+                                            Command="{Binding SaveCommand}"
+                                            IsEnabled="{Binding CanSave}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

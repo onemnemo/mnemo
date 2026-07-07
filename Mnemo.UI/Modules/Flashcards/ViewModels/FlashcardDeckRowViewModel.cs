@@ -21,6 +21,9 @@ public sealed class FlashcardDeckRowViewModel
 
     public int TotalCards { get; init; }
 
+    /// <summary>Non-suspended cards — the pool Cram's "All cards" scope draws from.</summary>
+    public int ActiveCards { get; init; }
+
     public int RetentionScore { get; init; }
 
     /// <summary>Cards in the <c>New</c> state.</summary>

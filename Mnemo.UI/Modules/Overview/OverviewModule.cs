@@ -15,6 +15,8 @@ public class OverviewModule : IModule
     {
         var assembly = typeof(OverviewModule).Assembly;
         registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.FlashcardStats.Translations"));
+        registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.FlashcardMemory.Translations"));
+        registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.FlashcardTests.Translations"));
         registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.RecentDecks.Translations"));
         registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.StudyGoals.Translations"));
         registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.RecentNotes.Translations"));
@@ -40,6 +42,8 @@ public class OverviewModule : IModule
     {
         // Descriptors are stateless; widgets receive their services through IWidgetContext at creation time.
         registry.Register(new Widgets.FlashcardStats.FlashcardStatsWidgetDescriptor());
+        registry.Register(new Widgets.FlashcardMemory.FlashcardMemoryWidgetDescriptor());
+        registry.Register(new Widgets.FlashcardTests.FlashcardTestsWidgetDescriptor());
         registry.Register(new Widgets.RecentDecks.RecentDecksWidgetDescriptor());
         registry.Register(new Widgets.RecentNotes.RecentNotesWidgetDescriptor());
         registry.Register(new Widgets.StudyGoals.StudyGoalsWidgetDescriptor());

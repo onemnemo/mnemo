@@ -31,10 +31,10 @@ public sealed class FlashcardCardService : IFlashcardCardService
         return _store.ReadAsync((conn, ct) => _cards.GetPageAsync(conn, query, DateTimeOffset.UtcNow, ct), cancellationToken);
     }
 
-    public Task<FlashcardEntity?> GetCardAsync(string cardId, CancellationToken cancellationToken = default) =>
+    public Task<Flashcard?> GetCardAsync(string cardId, CancellationToken cancellationToken = default) =>
         _store.ReadAsync((conn, ct) => _cards.GetAsync(conn, cardId, ct), cancellationToken);
 
-    public async Task<FlashcardEntity> CreateCardAsync(FlashcardCardDraft draft, CancellationToken cancellationToken = default)
+    public async Task<Flashcard> CreateCardAsync(FlashcardCardDraft draft, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
         var now = DateTimeOffset.UtcNow;
@@ -47,7 +47,7 @@ public sealed class FlashcardCardService : IFlashcardCardService
         return card;
     }
 
-    public async Task<IReadOnlyList<FlashcardEntity>> CreateCardsAsync(string deckId, IReadOnlyList<FlashcardCardDraft> drafts, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Flashcard>> CreateCardsAsync(string deckId, IReadOnlyList<FlashcardCardDraft> drafts, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(drafts);
         var now = DateTimeOffset.UtcNow;
@@ -63,7 +63,7 @@ public sealed class FlashcardCardService : IFlashcardCardService
         return cards;
     }
 
-    public Task UpdateCardAsync(FlashcardEntity card, CancellationToken cancellationToken = default)
+    public Task UpdateCardAsync(Flashcard card, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(card);
         ValidateAttachments(card.Attachments);
@@ -102,13 +102,13 @@ public sealed class FlashcardCardService : IFlashcardCardService
         }, cancellationToken);
     }
 
-    public Task<IReadOnlyList<FlashcardEntity>> SearchAsync(string query, FlashcardSearchScope scope, CancellationToken cancellationToken = default) =>
+    public Task<IReadOnlyList<Flashcard>> SearchAsync(string query, FlashcardSearchScope scope, CancellationToken cancellationToken = default) =>
         _store.ReadAsync((conn, ct) => _cards.SearchAsync(conn, query, scope, SearchLimit, ct), cancellationToken);
 
-    private static FlashcardEntity FromDraft(FlashcardCardDraft draft, DateTimeOffset now)
+    private static Flashcard FromDraft(FlashcardCardDraft draft, DateTimeOffset now)
     {
         ValidateAttachments(draft.Attachments);
-        return new FlashcardEntity(
+        return new Flashcard(
             Id: Guid.NewGuid().ToString("N"),
             DeckId: draft.DeckId,
             Type: draft.Type,

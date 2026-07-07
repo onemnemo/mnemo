@@ -1,0 +1,12 @@
+{
+  "FlashcardMemory": {
+    "Title": "Memoria",
+    "Description": "Retención real de las sesiones de repaso, ponderada entre todos los mazos",
+    "GalleryDescription": "Retención de 30 días con una tendencia de 14 días de tu mazo más repasado.",
+    "Subtitle": "Solo sesiones de repaso",
+    "RetentionLabel": "Retención de 30 días",
+    "EmptyState": "Aún no hay repasos",
+    "TagMemory": "#memoria",
+    "TagRetention": "#retención"
+  }
+}

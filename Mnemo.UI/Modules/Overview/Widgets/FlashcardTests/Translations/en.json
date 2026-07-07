@@ -1,0 +1,12 @@
+{
+  "FlashcardTests": {
+    "Title": "Test",
+    "Description": "Your most recently tested deck's score and trend",
+    "GalleryDescription": "Latest test score, delta vs. last attempt, and a 10-attempt trend.",
+    "Subtitle": "Test scores",
+    "BestScoreFormat": "{0}% best",
+    "EmptyState": "No tests yet",
+    "TagTest": "#test",
+    "TagScore": "#score"
+  }
+}

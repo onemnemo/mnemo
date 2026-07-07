@@ -226,13 +226,13 @@ public sealed class KeyMapServiceTests
     }
 
     [Fact]
-    public void LocalChord_FlashcardSaveAndNew_Matches_OnFlashcardDeckRoute()
+    public void LocalChord_EditorNamespaceAction_Matches_OnEditorScopedRoute()
     {
         var logger = new TestLogger();
         var repo = new FakeKeybindRepository();
         var def = new KeybindActionDefinition
         {
-            ActionId = "flashcard.save-and-new",
+            ActionId = "editor.local-chord",
             Namespace = "editor",
             Scope = KeybindScope.Local,
             Enabled = true,
@@ -250,17 +250,17 @@ public sealed class KeyMapServiceTests
         var input = new KeybindPhysicalInput(KeybindModifierMask.Primary, "Enter");
         var r = sut.ProcessLocalKeyDown(input, DateTime.UtcNow, SequenceSwallowMode.SwallowOnPrefixAdvance);
         Assert.True(r.CompletedAction);
-        Assert.Equal("flashcard.save-and-new", r.ActionId);
+        Assert.Equal("editor.local-chord", r.ActionId);
     }
 
     [Fact]
-    public void LocalChord_Flashcard_DoesNotMatch_OnFlashcardsLibraryRoute()
+    public void LocalChord_EditorNamespaceAction_DoesNotMatch_OnUnscopedRoute()
     {
         var logger = new TestLogger();
         var repo = new FakeKeybindRepository();
         var def = new KeybindActionDefinition
         {
-            ActionId = "flashcard.save-and-new",
+            ActionId = "editor.local-chord",
             Namespace = "editor",
             Scope = KeybindScope.Local,
             Enabled = true,

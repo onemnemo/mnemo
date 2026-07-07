@@ -630,6 +630,7 @@
     <SolidColorBrush x:Key="FlashcardStateNewBrush" Color="{DynamicResource FlashcardStateNew}"/>
     <SolidColorBrush x:Key="FlashcardStateLearningBrush" Color="{DynamicResource FlashcardStateLearning}"/>
     <SolidColorBrush x:Key="FlashcardRetentionHighBrush" Color="{DynamicResource FlashcardRetentionHigh}"/>
+    <SolidColorBrush x:Key="FlashcardRetentionHighHoverBrush" Color="{DynamicResource FlashcardRetentionHighHover}"/>
 </ResourceDictionary>
 
 

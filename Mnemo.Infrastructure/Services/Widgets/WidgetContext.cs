@@ -10,7 +10,8 @@ namespace Mnemo.Infrastructure.Services.Widgets;
 public sealed class WidgetContext : IWidgetContext
 {
     public IStatisticsManager Statistics { get; }
-    public IFlashcardDeckService Decks { get; }
+    public IFlashcardLibraryService Decks { get; }
+    public IFlashcardStatsService Stats { get; }
     public INoteService Notes { get; }
     public INavigationService Navigation { get; }
     public IOverlayService Overlays { get; }
@@ -20,7 +21,8 @@ public sealed class WidgetContext : IWidgetContext
 
     public WidgetContext(
         IStatisticsManager statistics,
-        IFlashcardDeckService decks,
+        IFlashcardLibraryService decks,
+        IFlashcardStatsService stats,
         INoteService notes,
         INavigationService navigation,
         IOverlayService overlays,
@@ -30,6 +32,7 @@ public sealed class WidgetContext : IWidgetContext
     {
         Statistics = statistics ?? throw new ArgumentNullException(nameof(statistics));
         Decks = decks ?? throw new ArgumentNullException(nameof(decks));
+        Stats = stats ?? throw new ArgumentNullException(nameof(stats));
         Notes = notes ?? throw new ArgumentNullException(nameof(notes));
         Navigation = navigation ?? throw new ArgumentNullException(nameof(navigation));
         Overlays = overlays ?? throw new ArgumentNullException(nameof(overlays));

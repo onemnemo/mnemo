@@ -11,11 +11,11 @@ namespace Mnemo.Infrastructure.Services.Search;
 
 public sealed class DecksSearchProvider : ISearchProvider
 {
-    private readonly IFlashcardDeckService _flashcardDeckService;
+    private readonly IFlashcardLibraryService _flashcardLibraryService;
 
-    public DecksSearchProvider(IFlashcardDeckService flashcardDeckService)
+    public DecksSearchProvider(IFlashcardLibraryService flashcardLibraryService)
     {
-        _flashcardDeckService = flashcardDeckService;
+        _flashcardLibraryService = flashcardLibraryService;
     }
 
     public string ProviderId => "decks";
@@ -25,26 +25,19 @@ public sealed class DecksSearchProvider : ISearchProvider
 
     public async Task<IReadOnlyList<SearchResultItem>> SearchAsync(SearchQuery query, CancellationToken cancellationToken)
     {
-        var decks = await _flashcardDeckService.ListDecksAsync(cancellationToken).ConfigureAwait(false);
+        var decks = await _flashcardLibraryService.ListDecksAsync(cancellationToken).ConfigureAwait(false);
         var results = new List<SearchResultItem>();
 
         foreach (var deck in decks)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var haystack = $"{deck.Name}\n{deck.Description}\n{string.Join(' ', deck.Tags)}";
+            var haystack = $"{deck.Name}\n{deck.Header.Description}\n{string.Join(' ', deck.Header.Tags)}";
             var titleExact = string.Equals(deck.Name, query.Text, System.StringComparison.OrdinalIgnoreCase);
             var titleStartsWith = deck.Name.StartsWith(query.Text, System.StringComparison.OrdinalIgnoreCase);
             var titleContains = deck.Name.Contains(query.Text, System.StringComparison.OrdinalIgnoreCase);
-            var matchedCards = deck.Cards
-                .Where(card => TextSearchMatch.MatchTokens(
-                    $"{card.Front}\n{card.Back}\n{string.Join(' ', card.Tags)}",
-                    query.Tokens,
-                    query.MatchAllTokens,
-                    query.Fuzzy))
-                .ToList();
 
-            var hasAnyMatch = titleExact || titleStartsWith || titleContains || matchedCards.Count > 0 ||
+            var hasAnyMatch = titleExact || titleStartsWith || titleContains ||
                               TextSearchMatch.MatchTokens(haystack, query.Tokens, query.MatchAllTokens, query.Fuzzy);
             if (!hasAnyMatch)
             {
@@ -52,17 +45,16 @@ public sealed class DecksSearchProvider : ISearchProvider
             }
 
             var subtitle = BuildSubtitle(deck);
-            var score = ComputeDeckScore(deck, matchedCards.Count, query);
-            var preview = BuildPreview(deck, matchedCards);
-            var resultType = matchedCards.Count > 0 ? SearchResultType.DeckCardSummary : SearchResultType.Deck;
+            var score = ComputeDeckScore(deck, query);
+            var preview = string.IsNullOrWhiteSpace(deck.Header.Description) ? null : deck.Header.Description;
 
             results.Add(new SearchResultItem
             {
                 Id = deck.Id,
-                Type = resultType,
+                Type = SearchResultType.Deck,
                 ProviderId = ProviderId,
                 Title = deck.Name,
-                Subtitle = matchedCards.Count > 0 ? $"{matchedCards.Count} matching cards" : subtitle,
+                Subtitle = subtitle,
                 Preview = preview,
                 GroupName = GroupDisplayName,
                 GroupId = deck.Id,
@@ -81,18 +73,18 @@ public sealed class DecksSearchProvider : ISearchProvider
         return results;
     }
 
-    private static string? BuildSubtitle(FlashcardDeck deck)
+    private static string? BuildSubtitle(FlashcardDeckSummary deck)
     {
-        var cardCount = deck.Cards.Count;
-        if (deck.Tags.Count == 0)
+        var cardCount = deck.TotalCards;
+        if (deck.Header.Tags.Count == 0)
         {
             return $"{cardCount} cards";
         }
 
-        return $"{cardCount} cards - {string.Join(", ", deck.Tags)}";
+        return $"{cardCount} cards - {string.Join(", ", deck.Header.Tags)}";
     }
 
-    private static double ComputeDeckScore(FlashcardDeck deck, int matchedCardCount, SearchQuery query)
+    private static double ComputeDeckScore(FlashcardDeckSummary deck, SearchQuery query)
     {
         var score = 0d;
         var queryText = query.Text;
@@ -109,36 +101,17 @@ public sealed class DecksSearchProvider : ISearchProvider
             score += 0.6;
         }
 
-        if (!string.IsNullOrWhiteSpace(deck.Description) &&
-            deck.Description.Contains(queryText, System.StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(deck.Header.Description) &&
+            deck.Header.Description.Contains(queryText, System.StringComparison.OrdinalIgnoreCase))
         {
             score += 0.2;
         }
 
-        if (deck.Tags.Any(tag => tag.Contains(queryText, System.StringComparison.OrdinalIgnoreCase)))
+        if (deck.Header.Tags.Any(tag => tag.Contains(queryText, System.StringComparison.OrdinalIgnoreCase)))
         {
             score += 0.15;
         }
 
-        score += System.Math.Min(0.75, matchedCardCount * 0.06);
         return System.Math.Clamp(score, 0d, 1.8d);
-    }
-
-    private static string? BuildPreview(FlashcardDeck deck, IReadOnlyList<Flashcard> matchedCards)
-    {
-        if (matchedCards.Count > 0)
-        {
-            var samples = matchedCards
-                .Select(card => card.Front)
-                .Where(front => !string.IsNullOrWhiteSpace(front))
-                .Take(3)
-                .ToArray();
-            if (samples.Length > 0)
-            {
-                return string.Join(", ", samples);
-            }
-        }
-
-        return string.IsNullOrWhiteSpace(deck.Description) ? null : deck.Description;
     }
 }

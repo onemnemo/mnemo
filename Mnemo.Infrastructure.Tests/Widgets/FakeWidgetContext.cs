@@ -7,15 +7,20 @@ using Mnemo.Core.Services;
 namespace Mnemo.Infrastructure.Tests.Widgets;
 
 /// <summary>
-/// Minimal <see cref="IWidgetContext"/> for widget ViewModel tests: notes are seedable,
-/// localization echoes keys, statistics are empty, and UI affordances are inert.
+/// Minimal <see cref="IWidgetContext"/> for widget ViewModel tests: notes, decks, statistics
+/// records, and the three flashcard stat buckets (<see cref="Stats"/>) are all seedable;
+/// localization echoes keys; UI affordances are inert no-ops.
 /// </summary>
 internal sealed class FakeWidgetContext : IWidgetContext
 {
     public FakeNoteService NoteService { get; } = new();
 
-    public IStatisticsManager Statistics { get; } = new EmptyStatisticsManager();
-    public IFlashcardDeckService Decks { get; } = new EmptyDeckService();
+    public FakeStatisticsManager StatisticsManager { get; } = new();
+    public IStatisticsManager Statistics => StatisticsManager;
+    public FakeDeckLibraryService DeckLibraryService { get; } = new();
+    public IFlashcardLibraryService Decks => DeckLibraryService;
+    public FakeFlashcardStatsService StatsService { get; } = new();
+    public IFlashcardStatsService Stats => StatsService;
     public INoteService Notes => NoteService;
     public INavigationService Navigation { get; } = new NoOpNavigationService();
     public IOverlayService Overlays { get; } = new NoOpOverlayService();
@@ -77,24 +82,76 @@ internal sealed class FakeWidgetContext : IWidgetContext
             => Task.FromResult<string?>(null);
     }
 
-    private sealed class EmptyDeckService : IFlashcardDeckService
+    /// <summary>Seedable <see cref="IFlashcardLibraryService"/>: <see cref="DecksToReturn"/> backs <see cref="ListDecksAsync"/>.</summary>
+    internal sealed class FakeDeckLibraryService : IFlashcardLibraryService
     {
-        public Task<IReadOnlyList<FlashcardDeck>> ListDecksAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<FlashcardDeck>>([]);
+        public List<FlashcardDeckSummary> DecksToReturn { get; } = new();
+
         public Task<IReadOnlyList<FlashcardFolder>> ListFoldersAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<FlashcardFolder>>([]);
+        public Task<IReadOnlyList<FlashcardDeckSummary>> ListDecksAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<FlashcardDeckSummary>>(DecksToReturn);
+        public Task<FlashcardDeckSummary?> GetDeckAsync(string deckId, CancellationToken cancellationToken = default)
+            => Task.FromResult(DecksToReturn.FirstOrDefault(d => d.Id == deckId));
         public Task SaveFolderAsync(FlashcardFolder folder, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<FlashcardDeck?> GetDeckByIdAsync(string deckId, CancellationToken cancellationToken = default) => Task.FromResult<FlashcardDeck?>(null);
-        public Task SaveDeckAsync(FlashcardDeck deck, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task RecordSessionOutcomeAsync(FlashcardSessionResult sessionResult, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<IReadOnlyList<FlashcardRetentionTrendPoint>> GetDeckRetentionTrendAsync(string deckId, int days = 14, CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<FlashcardRetentionTrendPoint>>([]);
+        public Task<FlashcardDeckHeader> CreateDeckAsync(string name, string? folderId = null, string? presetId = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(new FlashcardDeckHeader(Guid.NewGuid().ToString("n"), folderId, presetId ?? string.Empty, name, null, [], 0, null));
+        public Task SaveDeckAsync(FlashcardDeckHeader deck, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task MoveDeckAsync(string deckId, string? folderId, int sortOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task ReorderAsync(IReadOnlyList<FlashcardOrderEntry> entries, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<bool> DeleteDeckAsync(string deckId, CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task<bool> DeleteFolderAsync(string folderId, CancellationToken cancellationToken = default) => Task.FromResult(false);
     }
 
-    private sealed class EmptyStatisticsManager : IStatisticsManager
+    /// <summary>
+    /// Seedable <see cref="IFlashcardStatsService"/> for widget VM tests: retention/trend/test data
+    /// per deck id, defaulting to "no data" when a deck was never seeded.
+    /// </summary>
+    internal sealed class FakeFlashcardStatsService : IFlashcardStatsService
     {
+        public Dictionary<string, int> RetentionByDeck { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, IReadOnlyList<FlashcardRetentionTrendPoint>> RetentionTrendByDeck { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, FlashcardTestSummary> TestSummaryByDeck { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, IReadOnlyList<FlashcardTestAttempt>> TestTrendByDeck { get; } = new(StringComparer.Ordinal);
+        public List<FlashcardTestAttempt> RecordedAttempts { get; } = new();
+
+        public Task<int> GetTrueRetentionAsync(string deckId, int windowDays = 30, CancellationToken cancellationToken = default)
+            => Task.FromResult(RetentionByDeck.TryGetValue(deckId, out var v) ? v : 0);
+
+        public Task<IReadOnlyList<FlashcardRetentionTrendPoint>> GetRetentionTrendAsync(string deckId, int days = 14, CancellationToken cancellationToken = default)
+            => Task.FromResult(RetentionTrendByDeck.TryGetValue(deckId, out var v) ? v : (IReadOnlyList<FlashcardRetentionTrendPoint>)[]);
+
+        public Task RecordTestAttemptAsync(FlashcardTestAttempt attempt, CancellationToken cancellationToken = default)
+        {
+            RecordedAttempts.Add(attempt);
+            return Task.CompletedTask;
+        }
+
+        public Task<FlashcardTestSummary> GetTestSummaryAsync(string deckId, CancellationToken cancellationToken = default)
+            => Task.FromResult(TestSummaryByDeck.TryGetValue(deckId, out var v) ? v : FlashcardTestSummary.None);
+
+        public Task<IReadOnlyList<FlashcardTestAttempt>> GetTestTrendAsync(string deckId, int lastN = 20, CancellationToken cancellationToken = default)
+            => Task.FromResult(TestTrendByDeck.TryGetValue(deckId, out var v) ? v : (IReadOnlyList<FlashcardTestAttempt>)[]);
+    }
+
+    /// <summary>
+    /// Seedable <see cref="IStatisticsManager"/>: <see cref="Seed"/> stores a record's fields so
+    /// <see cref="GetAsync"/> can return it; everything else behaves as an inert no-op, matching
+    /// widget tests that only ever read (never write) through this surface.
+    /// </summary>
+    internal sealed class FakeStatisticsManager : IStatisticsManager
+    {
+        private readonly Dictionary<(string Ns, string Kind, string Key), StatisticsRecord> _records = new();
+
+        public void Seed(string ns, string kind, string key, IReadOnlyDictionary<string, StatValue> fields)
+            => _records[(ns, kind, key)] = new StatisticsRecord
+            {
+                Namespace = ns,
+                Kind = kind,
+                Key = key,
+                Fields = fields
+            };
+
         public Task<Result<StatisticsRecord>> CreateAsync(StatisticsRecordWrite write, CancellationToken cancellationToken = default)
             => Task.FromResult(Result<StatisticsRecord>.Failure("Not supported in tests."));
         public Task<Result<StatisticsRecord>> UpdateAsync(StatisticsRecordWrite write, StatisticsFieldMergeMode mergeMode = StatisticsFieldMergeMode.Merge, long? expectedVersion = null, CancellationToken cancellationToken = default)
@@ -102,9 +159,9 @@ internal sealed class FakeWidgetContext : IWidgetContext
         public Task<Result<StatisticsRecord>> UpsertAsync(StatisticsRecordWrite write, StatisticsFieldMergeMode mergeMode = StatisticsFieldMergeMode.Merge, CancellationToken cancellationToken = default)
             => Task.FromResult(Result<StatisticsRecord>.Failure("Not supported in tests."));
         public Task<Result<bool>> ExistsAsync(string ns, string kind, string key, CancellationToken cancellationToken = default)
-            => Task.FromResult(Result<bool>.Success(false));
+            => Task.FromResult(Result<bool>.Success(_records.ContainsKey((ns, kind, key))));
         public Task<Result<StatisticsRecord?>> GetAsync(string ns, string kind, string key, CancellationToken cancellationToken = default)
-            => Task.FromResult(Result<StatisticsRecord?>.Success(null));
+            => Task.FromResult(Result<StatisticsRecord?>.Success(_records.TryGetValue((ns, kind, key), out var record) ? record : null));
         public Task<Result<IReadOnlyDictionary<string, StatValue>?>> GetFieldsAsync(string ns, string kind, string key, IReadOnlyList<string> fieldNames, CancellationToken cancellationToken = default)
             => Task.FromResult(Result<IReadOnlyDictionary<string, StatValue>?>.Success(null));
         public Task<Result> DeleteAsync(string ns, string kind, string key, CancellationToken cancellationToken = default)

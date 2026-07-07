@@ -1,4 +1,5 @@
 using Mnemo.Core.Models;
+using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 
 namespace Mnemo.Infrastructure.Services.ImportExport.Adapters;
@@ -66,11 +67,13 @@ public sealed class FlashcardsMnemoFormatAdapter : IContentFormatAdapter
     public async Task<ImportExportResult> ExportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
         var payloadOptions = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        if (request.Payload is Mnemo.Core.Models.Flashcards.FlashcardDeck deck)
-            payloadOptions["flashcards.deckIds"] = new[] { deck.Id };
-        if (request.Payload is string deckId && !string.IsNullOrWhiteSpace(deckId))
+        if (request.Payload is FlashcardDeckSummary summary && !string.IsNullOrWhiteSpace(summary.Id))
+            payloadOptions["flashcards.deckIds"] = new[] { summary.Id };
+        else if (request.Payload is FlashcardDeckHeader header && !string.IsNullOrWhiteSpace(header.Id))
+            payloadOptions["flashcards.deckIds"] = new[] { header.Id };
+        else if (request.Payload is string deckId && !string.IsNullOrWhiteSpace(deckId))
             payloadOptions["flashcards.deckIds"] = new[] { deckId };
-        if (request.Payload is IEnumerable<string> deckIds)
+        else if (request.Payload is IEnumerable<string> deckIds)
         {
             var filteredDeckIds = deckIds
                 .Where(id => !string.IsNullOrWhiteSpace(id))

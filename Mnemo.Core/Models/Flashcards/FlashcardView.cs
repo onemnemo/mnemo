@@ -5,5 +5,5 @@ namespace Mnemo.Core.Models.Flashcards;
 /// deck view can consume both without juggling two objects.
 /// </summary>
 public sealed record FlashcardView(
-    FlashcardEntity Card,
+    Flashcard Card,
     FlashcardSchedule Schedule);

@@ -18,6 +18,7 @@ namespace Mnemo.Infrastructure.Services.ImportExport.Adapters;
 public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 {
     private const char UnitSeparator = '\u001f';
+    private const int CardPageSize = 200;
     private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
     private static readonly Regex ClozeRegex = new(@"\{\{c\d+::", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ImageTagRegex = new(@"<img\s+[^>]*src\s*=\s*['""](?<src>[^'""]+)['""][^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -26,12 +27,20 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     private static readonly Regex AllTagsRegex = new(@"<[^>]+>", RegexOptions.Compiled);
     private static readonly Regex InlineTagRegex = new(@"</?(b|strong|i|em|u|s|strike)>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    private readonly IFlashcardDeckService _deckService;
+    private readonly IFlashcardLibraryService _library;
+    private readonly IFlashcardCardService _cards;
+    private readonly IFlashcardPresetService _presets;
     private readonly IImageAssetService _imageAssetService;
 
-    public FlashcardsAnkiFormatAdapter(IFlashcardDeckService deckService, IImageAssetService imageAssetService)
+    public FlashcardsAnkiFormatAdapter(
+        IFlashcardLibraryService library,
+        IFlashcardCardService cards,
+        IFlashcardPresetService presets,
+        IImageAssetService imageAssetService)
     {
-        _deckService = deckService;
+        _library = library;
+        _cards = cards;
+        _presets = presets;
         _imageAssetService = imageAssetService;
     }
 
@@ -87,7 +96,6 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             var mediaMap = await ReadMediaMapAsync(opened.TempDirectory, cancellationToken).ConfigureAwait(false);
             var notes = await ReadNotesAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
             var cards = await ReadCardsAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
-            var revlog = await ReadRevlogStatsAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
             foreach (var note in notes.Values)
             {
                 if (collectionInfo.Models.TryGetValue(note.ModelId, out var modelName))
@@ -99,6 +107,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 .OrderBy(g => g.Key)
                 .ToArray();
 
+            var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
+
             foreach (var deckGroup in decksByDid)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -106,8 +116,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 var deckName = collectionInfo.Decks.TryGetValue(deckGroup.Key, out var n) && !string.IsNullOrWhiteSpace(n)
                     ? n
                     : $"Imported Deck {deckGroup.Key}";
-                var deckId = Guid.NewGuid().ToString();
-                var deckCards = new List<Flashcard>();
+                var drafts = new List<FlashcardCardDraft>();
 
                 foreach (var cardRow in deckGroup)
                 {
@@ -118,61 +127,41 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     var frontHtml = fields.Length > 0 ? fields[0] : string.Empty;
                     var backHtml = fields.Length > 1 ? fields[1] : string.Empty;
 
-                    var frontBlocks = await ConvertHtmlToBlocksAsync(frontHtml, opened.TempDirectory, mediaMap, warnings, cancellationToken).ConfigureAwait(false);
-                    var backBlocks = await ConvertHtmlToBlocksAsync(backHtml, opened.TempDirectory, mediaMap, warnings, cancellationToken).ConfigureAwait(false);
-                    var frontText = ToPlainText(frontHtml);
-                    var backText = ToPlainText(backHtml);
+                    // Content-only: front/back/tags/type/media. Anki scheduling is intentionally dropped;
+                    // imported cards arrive FSRS-new (due now) via the card service. Images become
+                    // FlashcardAttachments (up to 3 per side); the block pipeline no longer emits image
+                    // blocks — the canonical body is the text field, attachments render as framed figures.
+                    var front = await BuildSideAsync(
+                        frontHtml, FlashcardAttachment.FrontSide, opened.TempDirectory, mediaMap, warnings, cancellationToken).ConfigureAwait(false);
+                    var back = await BuildSideAsync(
+                        backHtml, FlashcardAttachment.BackSide, opened.TempDirectory, mediaMap, warnings, cancellationToken).ConfigureAwait(false);
 
-                    var reviewCount = cardRow.Reps;
-                    if (revlog.TryGetValue(cardRow.Id, out var revlogStats))
-                    {
-                        reviewCount = Math.Max(reviewCount, revlogStats.ReviewCount);
-                    }
+                    var attachments = front.Attachments.Count == 0 && back.Attachments.Count == 0
+                        ? (IReadOnlyList<FlashcardAttachment>)Array.Empty<FlashcardAttachment>()
+                        : front.Attachments.Concat(back.Attachments).ToArray();
 
-                    var flashcard = new Flashcard(
-                        Id: Guid.NewGuid().ToString(),
-                        DeckId: deckId,
-                        Front: frontText,
-                        Back: backText,
-                        Type: DetectType(frontText, frontHtml, note.ModelName),
+                    drafts.Add(new FlashcardCardDraft(
+                        DeckId: string.Empty,
+                        Type: DetectType(front.Text, frontHtml, note.ModelName),
+                        Front: front.Text,
+                        Back: back.Text,
                         Tags: ParseTags(note.Tags),
-                        DueDate: ComputeDueDate(collectionInfo.CollectionCreatedAt, cardRow),
-                        Stability: cardRow.IntervalDays > 0 ? cardRow.IntervalDays : null,
-                        Difficulty: FactorToDifficulty(cardRow.Factor),
-                        Retrievability: null,
+                        Attachments: attachments,
                         SourceInfo: null,
-                        FrontBlocks: frontBlocks,
-                        BackBlocks: backBlocks,
-                        ReviewCount: reviewCount,
-                        LapseCount: cardRow.Lapses,
-                        LeitnerBox: null,
-                        LastReviewedAt: cardRow.LastModifiedAt,
-                        FsrsState: null);
-
-                    deckCards.Add(flashcard);
+                        FrontBlocks: front.Blocks,
+                        BackBlocks: back.Blocks));
                 }
 
-                if (deckCards.Count == 0)
+                if (drafts.Count == 0)
                     continue;
 
-                var deck = new FlashcardDeck(
-                    Id: deckId,
-                    Name: deckName,
-                    FolderId: null,
-                    Description: "Imported from Anki package",
-                    Tags: Array.Empty<string>(),
-                    LastStudied: deckCards
-                        .Where(c => c.LastReviewedAt.HasValue)
-                        .OrderByDescending(c => c.LastReviewedAt)
-                        .Select(c => c.LastReviewedAt)
-                        .FirstOrDefault(),
-                    RetentionScore: 0,
-                    Cards: deckCards,
-                    SchedulingAlgorithm: FlashcardSchedulingAlgorithm.Fsrs);
-
-                await _deckService.SaveDeckAsync(deck, cancellationToken).ConfigureAwait(false);
+                var deck = await _library.CreateDeckAsync(deckName, folderId: null, presetId: preset.Id, cancellationToken).ConfigureAwait(false);
+                await _library.SaveDeckAsync(
+                    deck with { Description = "Imported from Anki package" },
+                    cancellationToken).ConfigureAwait(false);
+                var created = await _cards.CreateCardsAsync(deck.Id, drafts, cancellationToken).ConfigureAwait(false);
                 importedDecks++;
-                importedCards += deckCards.Count;
+                importedCards += created.Count;
             }
 
             return new ImportExportResult
@@ -262,7 +251,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                             var flds = $"{frontHtml}{UnitSeparator}{backHtml}";
                             var sfld = card.Front;
                             var csum = ComputeChecksum(card.Front);
-                            var dueData = ToAnkiScheduling(card, crt);
+                            // Content-only export: no scheduling round-trip. Every card ships as an Anki "new" card.
+                            var dueData = NewCardScheduling;
 
                             await InsertNoteAsync(connection, nid, guid, modelId, mod, tags, flds, sfld, csum, cancellationToken).ConfigureAwait(false);
                             await InsertCardAsync(connection, cid, nid, did, mod, dueData, cancellationToken).ConfigureAwait(false);
@@ -328,6 +318,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     }
 
     private static long BasicModelId => 1_608_194_021_001L;
+
+    /// <summary>Anki scheduling for a fresh "new" card — the only state a content-only export emits.</summary>
+    private static AnkiDueData NewCardScheduling => new(Type: 0, Queue: 0, Due: 0, Interval: 0, Factor: 2500, Reps: 0, Lapses: 0);
 
     private static async Task<OpenedApkg> OpenApkgAsync(string apkgPath, CancellationToken cancellationToken)
     {
@@ -446,31 +439,26 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return cards;
     }
 
-    private static async Task<Dictionary<long, RevlogStats>> ReadRevlogStatsAsync(SqliteConnection connection, CancellationToken cancellationToken)
-    {
-        var stats = new Dictionary<long, RevlogStats>();
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT cid, COUNT(1), SUM(CASE WHEN ease = 1 THEN 1 ELSE 0 END) FROM revlog GROUP BY cid";
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            var cardId = reader.GetInt64(0);
-            var reviewCount = reader.IsDBNull(1) ? 0 : reader.GetInt32(1);
-            var againCount = reader.IsDBNull(2) ? 0 : reader.GetInt32(2);
-            stats[cardId] = new RevlogStats(reviewCount, againCount);
-        }
-
-        return stats;
-    }
-
-    private async Task<IReadOnlyList<Block>> ConvertHtmlToBlocksAsync(
+    /// <summary>
+    /// Extracts one side's text, image-free rich blocks, and image attachments from Anki field HTML.
+    /// The first <see cref="IFlashcardCardService.MaxAttachmentsPerSide"/> images become
+    /// <see cref="FlashcardAttachment"/>s (files copied via <see cref="IImageAssetService"/>); any
+    /// overflow images are appended to the text as inline <c>![alt](path)</c> markdown tokens (kept
+    /// visible by the persistence-layer converter, never silently dropped) with a logged warning.
+    /// The block pipeline no longer emits image blocks — attachments are the model for card media.
+    /// </summary>
+    private async Task<SideContent> BuildSideAsync(
         string html,
+        string side,
         string tempDirectory,
         IReadOnlyDictionary<string, string> mediaMap,
         ICollection<string> warnings,
         CancellationToken cancellationToken)
     {
         var blocks = new List<Block>();
+        var attachments = new List<FlashcardAttachment>();
+        var overflowTokens = new List<string>();
+
         var normalized = NormalizeHtmlLineBreaks(html);
         foreach (var line in normalized.Split('\n'))
         {
@@ -504,22 +492,38 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     continue;
                 }
 
-                var blockId = Guid.NewGuid().ToString("N");
-                var copied = await _imageAssetService.ImportAndCopyAsync(resolvedMediaPath, blockId, cancellationToken).ConfigureAwait(false);
+                var attachmentId = Guid.NewGuid().ToString("N");
+                var copied = await _imageAssetService.ImportAndCopyAsync(resolvedMediaPath, attachmentId, cancellationToken).ConfigureAwait(false);
                 if (!copied.IsSuccess || string.IsNullOrWhiteSpace(copied.Value))
                 {
                     warnings.Add($"Failed to import media '{src}': {copied.ErrorMessage ?? "unknown error"}");
                     continue;
                 }
 
-                blocks.Add(new Block
+                var displayName = Path.GetFileName(src);
+                if (string.IsNullOrWhiteSpace(displayName))
+                    displayName = Path.GetFileName(copied.Value!);
+
+                if (attachments.Count < IFlashcardCardService.MaxAttachmentsPerSide)
                 {
-                    Id = blockId,
-                    Type = BlockType.Image,
-                    Payload = new ImagePayload(copied.Value),
-                    Spans = new List<InlineSpan> { InlineSpan.Plain(string.Empty) },
-                    Order = blocks.Count
-                });
+                    long sizeBytes = 0;
+                    try { sizeBytes = new FileInfo(copied.Value!).Length; } catch (IOException) { }
+
+                    attachments.Add(new FlashcardAttachment(
+                        Id: attachmentId,
+                        Side: side,
+                        FilePath: copied.Value!,
+                        DisplayName: displayName,
+                        SizeBytes: sizeBytes,
+                        Caption: null));
+                }
+                else
+                {
+                    // Beyond the 3-per-side cap: keep the image visible as an inline markdown token
+                    // rather than dropping it. Warn so the user knows overflow landed in the text.
+                    overflowTokens.Add($"![{displayName}]({copied.Value})");
+                    warnings.Add($"Card side '{side}' exceeded {IFlashcardCardService.MaxAttachmentsPerSide} images; '{displayName}' was appended to the text as an inline token.");
+                }
             }
         }
 
@@ -534,7 +538,14 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             });
         }
 
-        return blocks;
+        var text = ToPlainText(html);
+        if (overflowTokens.Count > 0)
+        {
+            var overflow = string.Join("\n", overflowTokens);
+            text = string.IsNullOrEmpty(text) ? overflow : $"{text}\n{overflow}";
+        }
+
+        return new SideContent(text, blocks, attachments);
     }
 
     private static List<InlineSpan> ParseInlineSpans(string htmlText)
@@ -638,48 +649,64 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return FlashcardType.Classic;
     }
 
-    private static DateTimeOffset ComputeDueDate(DateTimeOffset collectionCreatedAt, CardRow card)
+    private async Task<List<AnkiExportDeck>> ResolveDecksToExportAsync(ImportExportRequest request, CancellationToken cancellationToken)
     {
-        if (card.Type == 2 && card.IntervalDays > 0)
-            return collectionCreatedAt.Date.AddDays(card.Due);
-        if (card.Type == 1 || card.Type == 3)
-            return DateTimeOffset.UtcNow;
-        if (card.Type == 0)
-            return DateTimeOffset.UtcNow;
-        return DateTimeOffset.UtcNow;
-    }
+        var summaries = await _library.ListDecksAsync(cancellationToken).ConfigureAwait(false);
+        var selectedIds = ResolveSelectedDeckIds(request.Payload);
+        var selected = selectedIds is { Count: > 0 }
+            ? summaries.Where(s => selectedIds.Contains(s.Id))
+            : summaries;
 
-    private static double? FactorToDifficulty(int factor)
-    {
-        if (factor <= 0)
-            return null;
-        var clamped = Math.Clamp(factor, 1300, 3000);
-        return (3000d - clamped) / 1700d;
-    }
-
-    private async Task<List<FlashcardDeck>> ResolveDecksToExportAsync(ImportExportRequest request, CancellationToken cancellationToken)
-    {
-        if (request.Payload is FlashcardDeck singleDeck)
-            return [singleDeck];
-        if (request.Payload is string deckId && !string.IsNullOrWhiteSpace(deckId))
+        var result = new List<AnkiExportDeck>();
+        foreach (var summary in selected)
         {
-            var found = await _deckService.GetDeckByIdAsync(deckId, cancellationToken).ConfigureAwait(false);
-            return found is null ? new List<FlashcardDeck>() : [found];
+            var cards = await LoadExportCardsAsync(summary.Id, cancellationToken).ConfigureAwait(false);
+            result.Add(new AnkiExportDeck(summary.Id, summary.Name, summary.Header.Description, cards));
         }
-        if (request.Payload is IEnumerable<string> deckIds)
+
+        return result;
+    }
+
+    private async Task<List<AnkiExportCard>> LoadExportCardsAsync(string deckId, CancellationToken cancellationToken)
+    {
+        var cards = new List<AnkiExportCard>();
+        var offset = 0;
+        while (true)
         {
-            var idSet = new HashSet<string>(
-                deckIds.Where(id => !string.IsNullOrWhiteSpace(id)),
-                StringComparer.Ordinal);
-            if (idSet.Count > 0)
+            cancellationToken.ThrowIfCancellationRequested();
+            var page = await _cards.ListCardsAsync(
+                new FlashcardCardQuery(deckId, Offset: offset, Limit: CardPageSize),
+                cancellationToken).ConfigureAwait(false);
+            foreach (var view in page.Items)
             {
-                var allDecks = await _deckService.ListDecksAsync(cancellationToken).ConfigureAwait(false);
-                return allDecks.Where(deck => idSet.Contains(deck.Id)).ToList();
+                var card = view.Card;
+                cards.Add(new AnkiExportCard(card.Id, card.Front, card.Back, card.Tags, card.FrontBlocks, card.BackBlocks));
             }
+
+            offset += page.Items.Count;
+            if (page.Items.Count == 0 || offset >= page.TotalCount)
+                break;
         }
 
-        var decks = await _deckService.ListDecksAsync(cancellationToken).ConfigureAwait(false);
-        return decks.ToList();
+        return cards;
+    }
+
+    private static HashSet<string>? ResolveSelectedDeckIds(object? payload)
+    {
+        switch (payload)
+        {
+            case FlashcardDeckSummary summary when !string.IsNullOrWhiteSpace(summary.Id):
+                return new HashSet<string>(new[] { summary.Id }, StringComparer.Ordinal);
+            case FlashcardDeckHeader header when !string.IsNullOrWhiteSpace(header.Id):
+                return new HashSet<string>(new[] { header.Id }, StringComparer.Ordinal);
+            case string id when !string.IsNullOrWhiteSpace(id):
+                return new HashSet<string>(new[] { id }, StringComparer.Ordinal);
+            case IEnumerable<string> ids:
+                var set = new HashSet<string>(ids.Where(v => !string.IsNullOrWhiteSpace(v)), StringComparer.Ordinal);
+                return set.Count > 0 ? set : null;
+            default:
+                return null;
+        }
     }
 
     private static async Task CreateSchemaAsync(string dbPath, CancellationToken cancellationToken)
@@ -763,7 +790,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static string BuildDeckJson(IReadOnlyList<FlashcardDeck> decks, long nowMs)
+    private static string BuildDeckJson(IReadOnlyList<AnkiExportDeck> decks, long nowMs)
     {
         var mod = nowMs / 1000;
         var map = new Dictionary<string, object?>(StringComparer.Ordinal);
@@ -989,22 +1016,6 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static AnkiDueData ToAnkiScheduling(Flashcard card, long collectionCrtDay)
-    {
-        var factor = card.Difficulty is double d
-            ? (int)Math.Round(3000d - Math.Clamp(d, 0d, 1d) * 1700d, MidpointRounding.AwayFromZero)
-            : 2500;
-        var reps = Math.Max(0, card.ReviewCount ?? 0);
-        var lapses = Math.Max(0, card.LapseCount ?? 0);
-        if (reps == 0)
-            return new AnkiDueData(Type: 0, Queue: 0, Due: 0, Interval: 0, Factor: factor, Reps: reps, Lapses: lapses);
-
-        var intervalDays = Math.Max(1, (int)Math.Round(card.Stability ?? Math.Max(1d, (card.DueDate - DateTimeOffset.UtcNow).TotalDays), MidpointRounding.AwayFromZero));
-        var collectionCreatedAt = ParseCollectionCreatedAt(collectionCrtDay);
-        var dueDaysFromCrt = (int)Math.Round((card.DueDate.UtcDateTime.Date - collectionCreatedAt.UtcDateTime.Date).TotalDays, MidpointRounding.AwayFromZero);
-        return new AnkiDueData(Type: 2, Queue: 2, Due: dueDaysFromCrt, Interval: intervalDays, Factor: factor, Reps: reps, Lapses: lapses);
-    }
-
     private static string BuildFieldHtml(
         string plain,
         IReadOnlyList<Block>? blocks,
@@ -1164,6 +1175,12 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         }
     }
 
+    /// <summary>One imported card side: canonical text, image-free rich blocks, and image attachments.</summary>
+    private sealed record SideContent(
+        string Text,
+        IReadOnlyList<Block> Blocks,
+        IReadOnlyList<FlashcardAttachment> Attachments);
+
     private sealed record CollectionInfo(
         DateTimeOffset CollectionCreatedAt,
         IReadOnlyDictionary<long, string> Decks,
@@ -1187,8 +1204,6 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         int Lapses,
         DateTimeOffset LastModifiedAt);
 
-    private sealed record RevlogStats(int ReviewCount, int AgainCount);
-
     private sealed record AnkiDueData(
         int Type,
         int Queue,
@@ -1197,4 +1212,16 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         int Factor,
         int Reps,
         int Lapses);
+
+    /// <summary>Content-only projection of a deck assembled from the relational store for export.</summary>
+    private sealed record AnkiExportDeck(string Id, string Name, string? Description, IReadOnlyList<AnkiExportCard> Cards);
+
+    /// <summary>Content-only projection of a card for export (no scheduling fields).</summary>
+    private sealed record AnkiExportCard(
+        string Id,
+        string Front,
+        string Back,
+        IReadOnlyList<string> Tags,
+        IReadOnlyList<Block>? FrontBlocks,
+        IReadOnlyList<Block>? BackBlocks);
 }
