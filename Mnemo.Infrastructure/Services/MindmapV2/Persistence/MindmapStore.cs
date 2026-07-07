@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -196,6 +197,120 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         return hits;
     }
 
+    // ---- Library organization (folders, folder membership, linked decks) ------------------------
+
+    public async Task<IReadOnlyList<MindmapLibraryEntry>> GetLibraryAsync(CancellationToken cancellationToken = default)
+    {
+        await InitializeAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT Doc, FolderId, LinkedDecksJson FROM Mindmaps;";
+
+        var entries = new List<MindmapLibraryEntry>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var document = MindmapDocumentSerializer.Deserialize(reader.GetString(0));
+            if (document is null)
+                continue;
+
+            entries.Add(new MindmapLibraryEntry
+            {
+                Document = document,
+                FolderId = reader.IsDBNull(1) ? null : reader.GetString(1),
+                LinkedDeckIds = ParseDeckIds(reader.GetString(2)),
+            });
+        }
+
+        return entries;
+    }
+
+    public async Task<IReadOnlyList<MindmapFolder>> GetFoldersAsync(CancellationToken cancellationToken = default)
+    {
+        await InitializeAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT Id, Name, ParentId, SortOrder FROM MindmapFolders ORDER BY SortOrder;";
+
+        var folders = new List<MindmapFolder>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            folders.Add(new MindmapFolder(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.GetInt32(3)));
+        }
+
+        return folders;
+    }
+
+    public Task SaveFolderAsync(MindmapFolder folder, CancellationToken cancellationToken = default) =>
+        WriteAsync(async (writer, tx) =>
+        {
+            await using var cmd = writer.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = """
+                INSERT INTO MindmapFolders (Id, ParentId, Name, SortOrder)
+                VALUES ($id, $parent, $name, $order)
+                ON CONFLICT(Id) DO UPDATE SET
+                    ParentId = excluded.ParentId,
+                    Name = excluded.Name,
+                    SortOrder = excluded.SortOrder;
+                """;
+            cmd.Parameters.AddWithValue("$id", folder.Id);
+            cmd.Parameters.AddWithValue("$parent", (object?)folder.ParentId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$name", folder.Name);
+            cmd.Parameters.AddWithValue("$order", folder.Order);
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }, cancellationToken);
+
+    public Task DeleteFolderAsync(string id, CancellationToken cancellationToken = default) =>
+        WriteAsync(async (writer, tx) =>
+        {
+            // Subfolders cascade (FK); maps keep their now-dangling FolderId and surface at the root.
+            await using var cmd = writer.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "DELETE FROM MindmapFolders WHERE Id = $id;";
+            cmd.Parameters.AddWithValue("$id", id);
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }, cancellationToken);
+
+    public Task SetFolderAsync(string mapId, string? folderId, CancellationToken cancellationToken = default) =>
+        WriteAsync(async (writer, tx) =>
+        {
+            await using var cmd = writer.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "UPDATE Mindmaps SET FolderId = $folder WHERE Id = $id;";
+            cmd.Parameters.AddWithValue("$id", mapId);
+            cmd.Parameters.AddWithValue("$folder", (object?)folderId ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }, cancellationToken);
+
+    private static IReadOnlyList<string> ParseDeckIds(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return Array.Empty<string>();
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(json) ?? (IReadOnlyList<string>)Array.Empty<string>();
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
     private static async Task ApplySearchDeltaAsync(
         SqliteConnection writer, SqliteTransaction tx, string mapId, MindmapSearchDelta delta, CancellationToken cancellationToken)
     {
@@ -278,9 +393,10 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
     private static async Task ApplyPragmasAsync(SqliteConnection connection, bool isWriter, CancellationToken cancellationToken)
     {
         await using var cmd = connection.CreateCommand();
+        // foreign_keys must be on per connection so MindmapFolders' ON DELETE CASCADE fires.
         cmd.CommandText = isWriter
-            ? "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;"
-            : "PRAGMA busy_timeout=5000;";
+            ? "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;"
+            : "PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;";
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -293,11 +409,40 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         if (version >= MindmapStoreSchema.TargetVersion)
             return;
 
+        // v1 → v2: add the library columns to an existing Mindmaps table (the folders table and any
+        // fresh table already carry them via CreateSql). Guarded so re-runs are safe.
+        if (!await ColumnExistsAsync(writer, "Mindmaps", "FolderId", cancellationToken).ConfigureAwait(false))
+            await ExecuteAsync(writer, MindmapStoreSchema.AddFolderIdColumnSql, cancellationToken).ConfigureAwait(false);
+        if (!await ColumnExistsAsync(writer, "Mindmaps", "LinkedDecksJson", cancellationToken).ConfigureAwait(false))
+            await ExecuteAsync(writer, MindmapStoreSchema.AddLinkedDecksColumnSql, cancellationToken).ConfigureAwait(false);
+
         await using var insert = writer.CreateCommand();
         insert.CommandText = "INSERT OR IGNORE INTO MindmapSchemaVersion (Version, AppliedAt) VALUES ($v, $at);";
         insert.Parameters.AddWithValue("$v", MindmapStoreSchema.TargetVersion);
         insert.Parameters.AddWithValue("$at", DateTimeOffset.UtcNow.ToString(DateFormat, CultureInfo.InvariantCulture));
         await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<bool> ColumnExistsAsync(SqliteConnection connection, string table, string column, CancellationToken cancellationToken)
+    {
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = $"PRAGMA table_info({table});";
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            // table_info column 1 is the column name.
+            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static async Task ExecuteAsync(SqliteConnection connection, string sql, CancellationToken cancellationToken)
+    {
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = sql;
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

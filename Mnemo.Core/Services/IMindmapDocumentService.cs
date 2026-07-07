@@ -25,6 +25,7 @@ public interface IMindmapDocumentService
         IReadOnlyList<MindmapNodeSpec>? outline = null,
         string? layoutAlgorithm = null,
         string? templateId = null,
+        string? folderId = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Load the full document. Dangling edges are pruned in-memory on load.</summary>
@@ -46,4 +47,20 @@ public interface IMindmapDocumentService
         long expectedRevision,
         IReadOnlyList<MindmapEditOp> ops,
         CancellationToken cancellationToken = default);
+
+    // ---- Library organization (folders + folder membership) -------------------------------------
+
+    /// <summary>Loads every map's full document plus its library metadata, for the library/overview page.</summary>
+    Task<Result<IReadOnlyList<MindmapLibraryEntry>>> GetLibraryAsync(CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyList<MindmapFolder>>> GetFoldersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Creates or updates a folder.</summary>
+    Task<Result> SaveFolderAsync(MindmapFolder folder, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes a folder; subfolders cascade and its maps orphan to the library root.</summary>
+    Task<Result> DeleteFolderAsync(string folderId, CancellationToken cancellationToken = default);
+
+    /// <summary>Moves a map into a folder, or to the root when <paramref name="folderId"/> is null.</summary>
+    Task<Result> MoveToFolderAsync(string mapId, string? folderId, CancellationToken cancellationToken = default);
 }

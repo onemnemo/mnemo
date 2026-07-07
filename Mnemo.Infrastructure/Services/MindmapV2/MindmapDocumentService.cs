@@ -39,6 +39,7 @@ public sealed class MindmapDocumentService : IMindmapDocumentService
         IReadOnlyList<MindmapNodeSpec>? outline = null,
         string? layoutAlgorithm = null,
         string? templateId = null,
+        string? folderId = null,
         CancellationToken cancellationToken = default)
     {
         try
@@ -64,6 +65,8 @@ public sealed class MindmapDocumentService : IMindmapDocumentService
             const long initialRevision = 1;
             var document = working.Materialize(initialRevision, now);
             await _store.SaveAsync(document, working.BuildSearchDelta(fullReplace: true), cancellationToken).ConfigureAwait(false);
+            if (!string.IsNullOrEmpty(folderId))
+                await _store.SetFolderAsync(document.Id, folderId, cancellationToken).ConfigureAwait(false);
             _changeLog.Record(document.Id, initialRevision, working.ChangeTouchedIds);
             return document;
         }
@@ -121,6 +124,76 @@ public sealed class MindmapDocumentService : IMindmapDocumentService
         {
             _logger.Error("Mindmap", $"Failed to delete mindmap '{id}'.", ex);
             return Result.Failure($"Failed to delete mindmap '{id}'.", ex);
+        }
+    }
+
+    public async Task<Result<IReadOnlyList<MindmapLibraryEntry>>> GetLibraryAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var entries = await _store.GetLibraryAsync(cancellationToken).ConfigureAwait(false);
+            return Result<IReadOnlyList<MindmapLibraryEntry>>.Success(entries);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", "Failed to load mindmap library.", ex);
+            return Result<IReadOnlyList<MindmapLibraryEntry>>.Failure("Failed to load mindmap library.", ex);
+        }
+    }
+
+    public async Task<Result<IReadOnlyList<MindmapFolder>>> GetFoldersAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var folders = await _store.GetFoldersAsync(cancellationToken).ConfigureAwait(false);
+            return Result<IReadOnlyList<MindmapFolder>>.Success(folders);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", "Failed to load mindmap folders.", ex);
+            return Result<IReadOnlyList<MindmapFolder>>.Failure("Failed to load mindmap folders.", ex);
+        }
+    }
+
+    public async Task<Result> SaveFolderAsync(MindmapFolder folder, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _store.SaveFolderAsync(folder, cancellationToken).ConfigureAwait(false);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", $"Failed to save mindmap folder '{folder.Id}'.", ex);
+            return Result.Failure("Failed to save mindmap folder.", ex);
+        }
+    }
+
+    public async Task<Result> DeleteFolderAsync(string folderId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _store.DeleteFolderAsync(folderId, cancellationToken).ConfigureAwait(false);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", $"Failed to delete mindmap folder '{folderId}'.", ex);
+            return Result.Failure("Failed to delete mindmap folder.", ex);
+        }
+    }
+
+    public async Task<Result> MoveToFolderAsync(string mapId, string? folderId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _store.SetFolderAsync(mapId, folderId, cancellationToken).ConfigureAwait(false);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", $"Failed to move mindmap '{mapId}'.", ex);
+            return Result.Failure("Failed to move mindmap.", ex);
         }
     }
 
