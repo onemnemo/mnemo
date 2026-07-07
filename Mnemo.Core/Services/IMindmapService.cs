@@ -1,37 +1,70 @@
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Mindmap;
 
 namespace Mnemo.Core.Services;
 
+/// <summary>
+/// Schema v2 mindmap service: document lifecycle plus the single batch-first mutation entry point that
+/// backs both UI gestures and AI tool ops. The surface is derived from the tool op table — there is no
+/// method that does not serve an op or a document-lifecycle need.
+/// </summary>
+/// <remarks>
+/// All mutation flows through <see cref="ApplyAsync"/> so invariants (forest/cycle/cascade) are enforced
+/// in exactly one place and every change is an atomic, revisioned batch.
+/// </remarks>
 public interface IMindmapService
 {
-    Task<Result<IEnumerable<Mindmap>>> GetAllMindmapsAsync();
-    Task<Result<Mindmap>> GetMindmapAsync(string id);
-    Task<Result<Mindmap>> CreateMindmapAsync(string title);
-    Task<Result<Mindmap>> CreateMindmapAsync(string title, string? folderId);
-    Task<Result> SaveMindmapAsync(Mindmap mindmap);
-    Task<Result> DeleteMindmapAsync(string id);
+    /// <summary>Create a new map, optionally seeded from a nested outline in one call (<c>create_mindmap</c>).</summary>
+    Task<Result<MindmapDocument>> CreateAsync(
+        string title,
+        IReadOnlyList<MindmapNodeSpec>? outline = null,
+        string? layoutAlgorithm = null,
+        string? templateId = null,
+        string? folderId = null,
+        CancellationToken cancellationToken = default);
 
-    // Folders
-    Task<Result<IReadOnlyList<MindmapFolder>>> GetFoldersAsync();
-    Task<Result> SaveFolderAsync(MindmapFolder folder);
-    Task<Result> DeleteFolderAsync(string folderId);
+    /// <summary>Load the full document. Dangling edges are pruned in-memory on load.</summary>
+    Task<Result<MindmapDocument>> GetAsync(string id, CancellationToken cancellationToken = default);
 
-    // Graph operations
-    Task<Result<MindmapNode>> AddNodeAsync(string mindmapId, string nodeType, IMindmapNodeContent content, double x, double y);
-    Task<Result> RemoveNodeAsync(string mindmapId, string nodeId);
-    Task<Result<MindmapEdge>> AddEdgeAsync(string mindmapId, string fromId, string toId, MindmapEdgeKind kind, string? label = null, string? type = null);
-    Task<Result> RemoveEdgeAsync(string mindmapId, string edgeId);
-    Task<Result> UpdateEdgeLabelAsync(string mindmapId, string edgeId, string? label);
-    Task<Result> UpdateEdgeKindAsync(string mindmapId, string edgeId, MindmapEdgeKind kind);
-    Task<Result> UpdateEdgeTypeAsync(string mindmapId, string edgeId, string type);
-    Task<Result> UpdateNodeContentAsync(string mindmapId, string nodeId, IMindmapNodeContent content);
-    Task<Result> UpdateNodeLayoutAsync(string mindmapId, string nodeId, double x, double y, double? width = null, double? height = null);
-    Task<Result> UpdateNodeStyleAsync(string mindmapId, string nodeId, IReadOnlyDictionary<string, string?> styleUpdates);
-    Task<Result> UpdateLayoutAlgorithmAsync(string mindmapId, string algorithm);
+    /// <summary>List document headers (title, revision, modified) without deserializing full documents.</summary>
+    Task<Result<IReadOnlyList<MindmapDocumentSummary>>> ListAsync(CancellationToken cancellationToken = default);
 
-    // Integrity
-    bool WouldCreateCycle(Mindmap mindmap, string fromId, string toId);
+    Task<Result> DeleteAsync(string id, CancellationToken cancellationToken = default);
+
+    /// <summary>Renames a map (document title), bumping its revision.</summary>
+    Task<Result<MindmapDocument>> RenameAsync(string id, string title, CancellationToken cancellationToken = default);
+
+    /// <summary>Duplicates a map into a new document with regenerated element/edge ids.</summary>
+    Task<Result<MindmapDocument>> DuplicateAsync(string id, string newTitle, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Apply an atomic edit batch against the document at <paramref name="expectedRevision"/>. Structural
+    /// invariants are enforced here; the batch either fully applies (bumping the revision) or fully fails
+    /// with a precise error. A stale-but-non-contending revision is rebased server-side; genuine
+    /// contention returns <see cref="MindmapEditErrorCode.RevConflict"/>.
+    /// </summary>
+    Task<Result<MindmapEditResult>> ApplyAsync(
+        string mapId,
+        long expectedRevision,
+        IReadOnlyList<MindmapEditOp> ops,
+        CancellationToken cancellationToken = default);
+
+    // ---- Library organization (folders + folder membership) -------------------------------------
+
+    /// <summary>Loads every map's full document plus its library metadata, for the library/overview page.</summary>
+    Task<Result<IReadOnlyList<MindmapLibraryEntry>>> GetLibraryAsync(CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyList<MindmapFolder>>> GetFoldersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Creates or updates a folder.</summary>
+    Task<Result> SaveFolderAsync(MindmapFolder folder, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes a folder; subfolders cascade and its maps orphan to the library root.</summary>
+    Task<Result> DeleteFolderAsync(string folderId, CancellationToken cancellationToken = default);
+
+    /// <summary>Moves a map into a folder, or to the root when <paramref name="folderId"/> is null.</summary>
+    Task<Result> MoveToFolderAsync(string mapId, string? folderId, CancellationToken cancellationToken = default);
 }

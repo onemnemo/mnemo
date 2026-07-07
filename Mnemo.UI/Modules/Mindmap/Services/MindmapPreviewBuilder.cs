@@ -1,13 +1,16 @@
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Media;
+using Mnemo.Core.Models.Mindmap;
 using Mnemo.UI.Modules.Mindmap.ViewModels;
-using MindmapModel = Mnemo.Core.Models.Mindmap.Mindmap;
 
 namespace Mnemo.UI.Modules.Mindmap.Services;
 
 /// <summary>
-/// Builds scaled node/edge previews for mindmap library cards.
+/// Builds scaled node/edge thumbnails for mindmap library cards from a schema v2 document. Because P2
+/// has no layout engine yet, positions are derived here from the hierarchy with a simple tidy-tree
+/// placement (root → right, children stacked), independent of stored coordinates — so previews look
+/// right even before any layout has run.
 /// </summary>
 public static class MindmapPreviewBuilder
 {
@@ -18,68 +21,67 @@ public static class MindmapPreviewBuilder
     private const double RootSize = 14;
     private const int MaxDots = 4;
 
-    public static void PopulatePreviews(MindmapItemViewModel item, MindmapModel mindmap)
+    public static void PopulatePreviews(MindmapItemViewModel item, MindmapDocument document)
     {
         item.NodePreviews.Clear();
         item.EdgePreviews.Clear();
         item.AccentDots.Clear();
 
-        if (mindmap.Layout?.Nodes == null || mindmap.Layout.Nodes.Count == 0)
+        var nodeIds = document.Elements
+            .Where(e => e.Kind == ElementKind.Node)
+            .Select(e => e.Id)
+            .ToHashSet();
+        if (nodeIds.Count == 0)
             return;
 
-        var nodesById = mindmap.Nodes.ToDictionary(n => n.Id, n => n);
-        var layoutNodes = mindmap.Layout.Nodes.Values.ToList();
-        double minX = layoutNodes.Min(n => n.X);
-        double maxX = layoutNodes.Max(n => n.X);
-        double minY = layoutNodes.Min(n => n.Y);
-        double maxY = layoutNodes.Max(n => n.Y);
+        var hierarchy = document.Edges.Where(e => e.Kind == EdgeKind.Hierarchy && nodeIds.Contains(e.FromId) && nodeIds.Contains(e.ToId)).ToList();
+        var childrenOf = hierarchy.GroupBy(e => e.FromId).ToDictionary(g => g.Key, g => g.Select(e => e.ToId).ToList());
+        var hasParent = hierarchy.Select(e => e.ToId).ToHashSet();
+        var roots = nodeIds.Where(id => !hasParent.Contains(id)).ToList();
 
-        double width = maxX - minX;
-        double height = maxY - minY;
+        var positions = ComputeLayout(roots, childrenOf);
+        var colorIndex = ComputeBranchColors(roots, childrenOf);
 
-        double scaleX = width > 0 ? (TargetWidth - Padding * 2) / width : 1;
-        double scaleY = height > 0 ? (TargetHeight - Padding * 2) / height : 1;
+        double minX = positions.Values.Min(p => p.X);
+        double maxX = positions.Values.Max(p => p.X);
+        double minY = positions.Values.Min(p => p.Y);
+        double maxY = positions.Values.Max(p => p.Y);
+        double scaleX = maxX > minX ? (TargetWidth - Padding * 2) / (maxX - minX) : 1;
+        double scaleY = maxY > minY ? (TargetHeight - Padding * 2) / (maxY - minY) : 1;
         double scale = System.Math.Min(scaleX, scaleY);
 
-        var dotColors = new List<IBrush>();
-        var index = 0;
-        foreach (var (nodeId, layout) in mindmap.Layout.Nodes)
-        {
-            var isRoot = string.Equals(nodeId, mindmap.RootNodeId, System.StringComparison.Ordinal);
-            nodesById.TryGetValue(nodeId, out var node);
-            var color = isRoot
-                ? MindmapPreviewPalette.Root
-                : MindmapPreviewPalette.Resolve(node?.Style.GetValueOrDefault("color"), index);
+        double Screen(double v, double min) => (v - min) * scale + Padding;
 
+        var dotColors = new List<IBrush>();
+        foreach (var (id, p) in positions)
+        {
+            var isRoot = roots.Contains(id);
+            var color = isRoot ? MindmapPreviewPalette.Root : MindmapPreviewPalette.Branch(colorIndex.GetValueOrDefault(id, 0));
             item.NodePreviews.Add(new NodePreviewViewModel
             {
-                X = (layout.X - minX) * scale + Padding,
-                Y = (layout.Y - minY) * scale + Padding,
+                X = Screen(p.X, minX),
+                Y = Screen(p.Y, minY),
                 Size = isRoot ? RootSize : NodeSize,
                 Fill = color
             });
-
             if (!isRoot && dotColors.Count < MaxDots)
                 dotColors.Add(color);
-            index++;
         }
 
-        // Ensure the accent dots always lead with the root/primary tone.
         item.AccentDots.Add(MindmapPreviewPalette.Root);
         foreach (var c in dotColors.Take(MaxDots - 1))
             item.AccentDots.Add(c);
 
-        foreach (var edge in mindmap.Edges)
+        foreach (var edge in hierarchy)
         {
-            if (mindmap.Layout.Nodes.TryGetValue(edge.FromId, out var source) &&
-                mindmap.Layout.Nodes.TryGetValue(edge.ToId, out var target))
+            if (positions.TryGetValue(edge.FromId, out var s) && positions.TryGetValue(edge.ToId, out var t))
             {
                 item.EdgePreviews.Add(new EdgePreviewViewModel
                 {
-                    X1 = (source.X - minX) * scale + Padding,
-                    Y1 = (source.Y - minY) * scale + Padding,
-                    X2 = (target.X - minX) * scale + Padding,
-                    Y2 = (target.Y - minY) * scale + Padding
+                    X1 = Screen(s.X, minX),
+                    Y1 = Screen(s.Y, minY),
+                    X2 = Screen(t.X, minX),
+                    Y2 = Screen(t.Y, minY)
                 });
             }
         }
@@ -94,5 +96,61 @@ public static class MindmapPreviewBuilder
             target.NodePreviews.Add(n);
         foreach (var e in source.EdgePreviews)
             target.EdgePreviews.Add(e);
+    }
+
+    private static Dictionary<string, (double X, double Y)> ComputeLayout(
+        List<string> roots, Dictionary<string, List<string>> childrenOf)
+    {
+        var positions = new Dictionary<string, (double X, double Y)>();
+        double leaf = 0;
+
+        void Place(string id, int depth)
+        {
+            var kids = childrenOf.GetValueOrDefault(id);
+            if (kids is null || kids.Count == 0)
+            {
+                positions[id] = (depth, leaf);
+                leaf += 1;
+                return;
+            }
+
+            foreach (var kid in kids)
+                Place(kid, depth + 1);
+            var ys = kids.Select(k => positions[k].Y).ToList();
+            positions[id] = (depth, (ys.Min() + ys.Max()) / 2);
+        }
+
+        foreach (var root in roots)
+        {
+            Place(root, 0);
+            leaf += 1; // gap between separate trees
+        }
+
+        return positions;
+    }
+
+    private static Dictionary<string, int> ComputeBranchColors(
+        List<string> roots, Dictionary<string, List<string>> childrenOf)
+    {
+        var colors = new Dictionary<string, int>();
+        var branch = 0;
+        foreach (var root in roots)
+        {
+            foreach (var child in childrenOf.GetValueOrDefault(root) ?? new List<string>())
+            {
+                var current = branch++;
+                var stack = new Stack<string>();
+                stack.Push(child);
+                while (stack.Count > 0)
+                {
+                    var node = stack.Pop();
+                    colors[node] = current;
+                    foreach (var grandchild in childrenOf.GetValueOrDefault(node) ?? new List<string>())
+                        stack.Push(grandchild);
+                }
+            }
+        }
+
+        return colors;
     }
 }

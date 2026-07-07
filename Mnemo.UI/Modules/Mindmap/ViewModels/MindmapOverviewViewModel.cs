@@ -13,7 +13,6 @@ using Mnemo.Core.Services;
 using Mnemo.UI.Components.Overlays;
 using Mnemo.UI.Modules.Mindmap.Services;
 using Mnemo.UI.ViewModels;
-using MindmapModel = Mnemo.Core.Models.Mindmap.Mindmap;
 
 namespace Mnemo.UI.Modules.Mindmap.ViewModels;
 
@@ -26,8 +25,9 @@ public enum MindmapSortMode
 }
 
 /// <summary>
-/// Library home for mindmaps: a finder-style grid of folders and maps with drill-in
-/// navigation, a "jump back in" strip, and linked-deck due badges bridging to Flashcards.
+/// Library home for mindmaps: a finder-style grid of folders and maps with drill-in navigation, a
+/// "jump back in" strip, and linked-deck due badges bridging to Flashcards. Runs on the schema v2
+/// <see cref="IMindmapService"/> library surface (folders + folder membership as row metadata).
 /// </summary>
 public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
 {
@@ -42,7 +42,7 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
     private readonly ILocalizationService _localization;
 
     // Raw loaded data (source of truth for structural queries).
-    private List<MindmapModel> _maps = new();
+    private List<MindmapLibraryEntry> _maps = new();
     private List<MindmapFolder> _folders = new();
     private Dictionary<string, MindmapItemViewModel> _itemsById = new(StringComparer.Ordinal);
 
@@ -183,12 +183,12 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
         IsLoading = true;
         try
         {
-            var mapsResult = await _mindmapService.GetAllMindmapsAsync().ConfigureAwait(false);
+            var mapsResult = await _mindmapService.GetLibraryAsync().ConfigureAwait(false);
             var foldersResult = await _mindmapService.GetFoldersAsync().ConfigureAwait(false);
 
             var maps = (mapsResult.IsSuccess && mapsResult.Value != null
                 ? mapsResult.Value
-                : Enumerable.Empty<MindmapModel>()).ToList();
+                : Enumerable.Empty<MindmapLibraryEntry>()).ToList();
             var folders = (foldersResult.IsSuccess && foldersResult.Value != null
                 ? foldersResult.Value
                 : Array.Empty<MindmapFolder>()).ToList();
@@ -202,27 +202,28 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
             var folderNamesById = folders.ToDictionary(f => f.Id, f => f.Name, StringComparer.Ordinal);
 
             var itemsById = new Dictionary<string, MindmapItemViewModel>(StringComparer.Ordinal);
-            foreach (var map in maps)
+            foreach (var entry in maps)
             {
-                var due = map.LinkedDeckIds
+                var map = entry.Document;
+                var due = entry.LinkedDeckIds
                     .Where(id => duePerDeck.ContainsKey(id))
                     .Sum(id => duePerDeck[id]);
-                var lastModified = map.ModifiedAt is DateTime dt ? _dateDisplay.FormatSmart(dt) : "—";
-                var folderName = map.FolderId != null && folderNamesById.TryGetValue(map.FolderId, out var fn) ? fn : null;
+                var lastModified = _dateDisplay.FormatSmart(map.ModifiedAt);
+                var folderName = entry.FolderId != null && folderNamesById.TryGetValue(entry.FolderId, out var fn) ? fn : null;
 
                 var item = new MindmapItemViewModel
                 {
                     Id = map.Id,
                     Name = map.Title,
-                    FolderId = map.FolderId,
-                    NodeCount = map.Nodes.Count,
+                    FolderId = entry.FolderId,
+                    NodeCount = map.Elements.Count,
                     EdgeCount = map.Edges.Count,
                     LastModified = lastModified,
-                    MetaLine = string.Format(CultureInfo.CurrentCulture, T("MapMetaFormat"), map.Nodes.Count, lastModified),
+                    MetaLine = string.Format(CultureInfo.CurrentCulture, T("MapMetaFormat"), map.Elements.Count, lastModified),
                     ContextLine = folderName is null
                         ? lastModified
                         : string.Format(CultureInfo.CurrentCulture, T("MapContextFormat"), folderName, lastModified),
-                    LayoutLabel = LayoutLabelFor(map.Layout?.Algorithm),
+                    LayoutLabel = LayoutLabelFor(map.Clusters.FirstOrDefault()?.LayoutAlgorithm),
                     DueCount = due,
                     DueLabel = string.Format(CultureInfo.CurrentCulture, T("DueCountFormat"), due),
                 };
@@ -270,8 +271,8 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
         // Maps at this level (orphans whose folder no longer exists surface at root).
         var levelMaps = _maps
             .Where(m => string.Equals(NormalizeFolder(m.FolderId, knownFolderIds), CurrentFolderId, StringComparison.Ordinal))
-            .Where(m => Matches(m.Title))
-            .Select(m => _itemsById[m.Id])
+            .Where(m => Matches(m.Document.Title))
+            .Select(m => _itemsById[m.Document.Id])
             .ToList();
         levelMaps = SortMaps(levelMaps).ToList();
 
@@ -288,10 +289,10 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
         if (IsRootView && !searching)
         {
             foreach (var map in _maps
-                         .OrderByDescending(m => m.ModifiedAt ?? DateTime.MinValue)
+                         .OrderByDescending(m => m.Document.ModifiedAt)
                          .Take(RecentCount))
             {
-                if (_itemsById.TryGetValue(map.Id, out var item))
+                if (_itemsById.TryGetValue(map.Document.Id, out var item))
                     RecentItems.Add(item);
             }
         }
@@ -337,8 +338,8 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
         var subtreeMapCount = subtreeMapIds.Count;
         var subtreeDue = subtreeMapIds.Sum(id => _itemsById.TryGetValue(id, out var it) ? it.DueCount : 0);
         var updated = _maps
-            .Where(m => subtreeMapIds.Contains(m.Id) && m.ModifiedAt.HasValue)
-            .Select(m => m.ModifiedAt!.Value)
+            .Where(m => subtreeMapIds.Contains(m.Document.Id))
+            .Select(m => m.Document.ModifiedAt)
             .DefaultIfEmpty()
             .Max();
         var updatedText = updated == default ? "—" : _dateDisplay.FormatSmart(updated);
@@ -375,10 +376,10 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
 
         DateTime newest = default;
         MindmapItemViewModel? newestItem = null;
-        foreach (var map in _maps.Where(m => subtreeIds.Contains(m.Id)))
+        foreach (var map in _maps.Where(m => subtreeIds.Contains(m.Document.Id)))
         {
-            var mod = map.ModifiedAt ?? DateTime.MinValue;
-            if (mod >= newest && _itemsById.TryGetValue(map.Id, out var it))
+            var mod = map.Document.ModifiedAt;
+            if (mod >= newest && _itemsById.TryGetValue(map.Document.Id, out var it))
             {
                 newest = mod;
                 newestItem = it;
@@ -417,7 +418,7 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
         }
         return _maps
             .Where(m => m.FolderId != null && folderIds.Contains(m.FolderId))
-            .Select(m => m.Id)
+            .Select(m => m.Document.Id)
             .ToHashSet(StringComparer.Ordinal);
     }
 
@@ -428,12 +429,12 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
     {
         MindmapSortMode.Name => maps.OrderBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase),
         MindmapSortMode.Nodes => maps.OrderByDescending(m => m.NodeCount).ThenBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase),
-        _ => maps // Recent: _maps is already newest-first via id lookup ordering below
+        _ => maps
             .OrderByDescending(m => MapModified(m.Id)).ThenBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase)
     };
 
     private DateTime MapModified(string id) =>
-        _maps.FirstOrDefault(m => string.Equals(m.Id, id, StringComparison.Ordinal))?.ModifiedAt ?? DateTime.MinValue;
+        _maps.FirstOrDefault(m => string.Equals(m.Document.Id, id, StringComparison.Ordinal))?.Document.ModifiedAt ?? DateTime.MinValue;
 
     // --- Navigation --------------------------------------------------------
 
@@ -494,7 +495,7 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
 
         try
         {
-            var result = await _mindmapService.CreateMindmapAsync(name, CurrentFolderId).ConfigureAwait(true);
+            var result = await _mindmapService.CreateAsync(name, folderId: CurrentFolderId).ConfigureAwait(true);
             if (result.IsSuccess && result.Value != null)
                 _navigation.NavigateTo("mindmap-detail", result.Value.Id);
             else
@@ -584,15 +585,12 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
     {
         if (string.IsNullOrWhiteSpace(mapId))
             return;
-        var existing = await _mindmapService.GetMindmapAsync(mapId).ConfigureAwait(true);
-        if (!existing.IsSuccess || existing.Value == null)
-            return;
-        if (string.Equals(existing.Value.FolderId, folderId, StringComparison.Ordinal))
+        var entry = _maps.FirstOrDefault(m => string.Equals(m.Document.Id, mapId, StringComparison.Ordinal));
+        if (entry != null && string.Equals(entry.FolderId, folderId, StringComparison.Ordinal))
             return;
 
-        existing.Value.FolderId = folderId;
-        var save = await _mindmapService.SaveMindmapAsync(existing.Value).ConfigureAwait(true);
-        if (save.IsSuccess)
+        var move = await _mindmapService.MoveToFolderAsync(mapId, folderId).ConfigureAwait(true);
+        if (move.IsSuccess)
             await LoadAsync().ConfigureAwait(true);
     }
 
@@ -611,15 +609,14 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
 
     private string LayoutLabelFor(string? algorithm) => algorithm switch
     {
-        LayoutAlgorithms.Radial => T("LayoutRadial"),
-        LayoutAlgorithms.TreeVertical or LayoutAlgorithms.TreeHorizontal => T("LayoutTree"),
+        MindmapLayoutAlgorithms.Radial => T("LayoutRadial"),
+        MindmapLayoutAlgorithms.TreeRight or MindmapLayoutAlgorithms.TreeDown => T("LayoutTree"),
         _ => T("LayoutFree")
     };
 
     /// <summary>
     /// Due badge count per linked deck: <see cref="FlashcardDueCounts.Total"/> (new + learning + due
-    /// review), the closest equivalent to the legacy per-card scan (New cards, plus Review cards
-    /// whose due date had passed). Missing/errored decks are treated as zero due.
+    /// review). Missing/errored decks are treated as zero due.
     /// </summary>
     private async Task<Dictionary<string, int>> GetDuePerDeckAsync(IReadOnlyList<string> deckIds)
     {

@@ -104,12 +104,7 @@ public static class Bootstrapper
         services.AddSingleton<ISkillInjectionOverrideStore, SkillInjectionOverrideStore>();
         services.AddSingleton<SkillDiscoveryToolService>();
         services.AddSingleton<SettingsToolService>();
-        services.AddSingleton(sp => new MindmapToolService(
-            sp.GetRequiredService<IMindmapService>(),
-            sp.GetRequiredService<IMindmapLayoutService>(),
-            sp.GetRequiredService<INavigationService>(),
-            sp.GetRequiredService<IMainThreadDispatcher>(),
-            sp.GetService<INoteService>()));
+        // Mindmap AI tools return on the v2 command layer in P6.
         services.AddSingleton<IToolDispatcher, ToolDispatcher>();
 
         // ── Conversation memory (in-process UI state only) ────────────────────
@@ -206,7 +201,6 @@ public static class Bootstrapper
         services.AddSingleton<IMnemoPackageService, MnemoPackageService>();
         services.AddSingleton<IMnemoPayloadHandler, NotesMnemoPayloadHandler>();
         services.AddSingleton<IMnemoPayloadHandler, SettingsMnemoPayloadHandler>();
-        services.AddSingleton<IMnemoPayloadHandler, MindmapsMnemoPayloadHandler>();
         services.AddSingleton<IMnemoPayloadHandler, FlashcardsMnemoPayloadHandler>();
         services.AddSingleton<IImportExportCoordinator, ImportExportCoordinator>();
         services.AddSingleton<IContentFormatAdapter, NotesMnemoFormatAdapter>();
@@ -214,7 +208,6 @@ public static class Bootstrapper
         services.AddSingleton<IContentFormatAdapter, FlashcardsMnemoFormatAdapter>();
         services.AddSingleton<IContentFormatAdapter, FlashcardsCsvFormatAdapter>();
         services.AddSingleton<IContentFormatAdapter, FlashcardsAnkiFormatAdapter>();
-        services.AddSingleton<IContentFormatAdapter, MindmapsMnemoFormatAdapter>();
 
         // 2. Register UI-specific Services
         services.AddSingleton<IThemeService, ThemeService>();

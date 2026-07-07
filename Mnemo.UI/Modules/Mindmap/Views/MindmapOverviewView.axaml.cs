@@ -218,7 +218,7 @@ public partial class MindmapOverviewView : UserControl
         var confirm = await overlayService.CreateDialogAsync("Delete Mindmap", $"Are you sure you want to delete '{item.Name}'?", "Delete", "Cancel", confirmIconName: "Common/trash", severity: DialogSeverity.Destructive).ConfigureAwait(true);
         if (!string.Equals(confirm, "Delete", StringComparison.Ordinal))
             return;
-        var deleted = await mindmapService.DeleteMindmapAsync(item.Id).ConfigureAwait(true);
+        var deleted = await mindmapService.DeleteAsync(item.Id).ConfigureAwait(true);
         await overlayService.CreateDialogAsync(deleted.IsSuccess ? "Deleted" : "Delete failed",
             deleted.IsSuccess ? "Mindmap deleted." : deleted.ErrorMessage ?? "Delete failed.").ConfigureAwait(true);
         if (deleted.IsSuccess)
@@ -244,11 +244,7 @@ public partial class MindmapOverviewView : UserControl
             confirmIconName: "Common/pencil").ConfigureAwait(true) ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(newName) || string.Equals(newName, item.Name, StringComparison.Ordinal))
             return;
-        var existing = await mindmapService.GetMindmapAsync(item.Id).ConfigureAwait(true);
-        if (!existing.IsSuccess || existing.Value == null)
-            return;
-        existing.Value.Title = newName;
-        var saved = await mindmapService.SaveMindmapAsync(existing.Value).ConfigureAwait(true);
+        var saved = await mindmapService.RenameAsync(item.Id, newName).ConfigureAwait(true);
         if (saved.IsSuccess)
             await vm.RefreshAsync().ConfigureAwait(true);
     }
@@ -262,11 +258,7 @@ public partial class MindmapOverviewView : UserControl
         var mindmapService = services?.GetService<IMindmapService>();
         if (mindmapService == null)
             return;
-        var existing = await mindmapService.GetMindmapAsync(item.Id).ConfigureAwait(true);
-        if (!existing.IsSuccess || existing.Value == null)
-            return;
-        var copy = CloneMindmap(existing.Value, $"{existing.Value.Title} Copy");
-        var saved = await mindmapService.SaveMindmapAsync(copy).ConfigureAwait(true);
+        var saved = await mindmapService.DuplicateAsync(item.Id, $"{item.Name} Copy").ConfigureAwait(true);
         if (saved.IsSuccess)
             await vm.RefreshAsync().ConfigureAwait(true);
     }
@@ -304,9 +296,6 @@ public partial class MindmapOverviewView : UserControl
 
         await ExportMindmapsAsync(overlayService, localization, coordinator, choice, payload: item.Id, suggestedName: SanitizeFileName(item.Name)).ConfigureAwait(true);
     }
-
-    private static Mnemo.Core.Models.Mindmap.Mindmap CloneMindmap(Mnemo.Core.Models.Mindmap.Mindmap source, string title) =>
-        Mnemo.Core.Models.Mindmap.MindmapDuplicate.WithNewId(source, title);
 
     private static string SanitizeFileName(string value)
     {

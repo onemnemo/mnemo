@@ -1,873 +1,102 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mnemo.UI.Modules.Mindmap.ViewModels"
+             xmlns:markup="using:Mnemo.UI.Markup"
+             mc:Ignorable="d"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="using:Mnemo.UI.Modules.Mindmap.ViewModels"
-             xmlns:local="using:Mnemo.UI.Modules.Mindmap"
-             xmlns:markup="using:Mnemo.UI.Markup"
-             xmlns:converters="using:Mnemo.UI.Converters"
-             xmlns:controls="using:Mnemo.UI.Controls"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Mnemo.UI.Modules.Mindmap.Views.MindmapView"
-             x:DataType="vm:MindmapViewModel"
-             x:Name="MindmapViewControl">
+             x:CompileBindings="True"
+             x:DataType="vm:MindmapViewModel">
 
-    <UserControl.Styles>
-        <Style Selector="TextBox.node-editor">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="MinWidth" Value="0"/>
-            <Setter Property="TextAlignment" Value="Center"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <!-- Keep centered so nodes can auto-size up to MaxWidth, instead of always stretching to MaxWidth -->
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-        </Style>
-        <Style Selector="TextBox.node-editor:focus /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
+    <Grid RowDefinitions="Auto,*">
 
-        <!-- Node Hover/Selected States -->
-        <Style Selector="Border.node-container:pointerover">
-            <Setter Property="Background" Value="{DynamicResource MindmapNodeBackgroundHoverBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource MindmapNodeBorderHoverBrush}"/>
-            <Setter Property="BoxShadow" Value="{DynamicResource MindmapNodeBoxShadowHover}"/>
-        </Style>
-        <Style Selector="Border.node-container.selected">
-            <Setter Property="BorderBrush" Value="{DynamicResource MindmapNodeBorderSelectedBrush}"/>
-            <Setter Property="BorderThickness" Value="2.5"/>
-            <Setter Property="BoxShadow" Value="{DynamicResource MindmapNodeBoxShadowSelected}"/>
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
-        </Style>
-        <Style Selector="Border.node-container.selected:pointerover">
-            <Setter Property="Background" Value="{DynamicResource MindmapNodeBackgroundHoverBrush}"/>
-        </Style>
+        <!-- Top bar -->
+        <Border Grid.Row="0" Height="44" Background="{DynamicResource WorkspaceBackgroundBrush}"
+                BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="0,0,0,1">
+            <Grid Margin="10,0,12,0" ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+                <Button Grid.Column="0" Classes="ghost" Click="OnBackClick"
+                        Name="BackButton" Padding="6" Background="Transparent" BorderThickness="0">
+                    <PathIcon Width="14" Height="14" Foreground="{DynamicResource TextSecondaryBrush}"
+                              Data="M9 4 L4.5 8 L9 12"/>
+                </Button>
+                <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center"
+                           FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
 
-        <!-- Toolbar -->
-        <Style Selector="Border#UnifiedToolbar Button.toolbar-tab">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource MindmapToolbarLabelBrush}"/>
-        </Style>
-        <Style Selector="Border#UnifiedToolbar Button.toolbar-tab.selected">
-            <Setter Property="Background" Value="{DynamicResource MindmapToolbarTabActiveBackgroundBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource MindmapToolbarTabActiveForegroundBrush}"/>
-        </Style>
-        <Style Selector="Border#UnifiedToolbar Button.toolbar-tab:pointerover">
-            <Setter Property="Foreground" Value="{DynamicResource MindmapToolbarTabActiveForegroundBrush}"/>
-        </Style>
-        <Style Selector="Border#UnifiedToolbar Button.toolbar-tab:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource MindmapToolbarButtonHoverBrush}"/>
-            <Setter Property="CornerRadius" Value="7"/>
-        </Style>
-        <Style Selector="Border#UnifiedToolbar Button.toolbar-tab.selected:pointerover">
-            <Setter Property="Foreground" Value="{DynamicResource MindmapToolbarTabActiveForegroundBrush}"/>
-        </Style>
-        <Style Selector="Border#UnifiedToolbar Button.toolbar-tab.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource MindmapToolbarButtonHoverBrush}"/>
-        </Style>
-        <Style Selector="Border#UnifiedToolbar Button.toolbar-action:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource MindmapToolbarButtonHoverBrush}"/>
-            <Setter Property="CornerRadius" Value="8"/>
-        </Style>
-        <Style Selector="Border#UndoRedoPanel Button.toolbar-action:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource MindmapToolbarButtonHoverBrush}"/>
-            <Setter Property="CornerRadius" Value="8"/>
-        </Style>
-        <Style Selector="Border#UnifiedToolbar Button.toolbar-tab .toolbar-tab-icon" x:SetterTargetType="controls:SvgIcon">
-            <Setter Property="Color" Value="{DynamicResource MindmapToolbarIcon}"/>
-        </Style>
-        <Style Selector="Border#UnifiedToolbar Button.toolbar-tab.selected .toolbar-tab-icon" x:SetterTargetType="controls:SvgIcon">
-            <Setter Property="Color" Value="{DynamicResource MindmapToolbarTabActiveForeground}"/>
-        </Style>
-        <Style Selector="Border#UnifiedToolbar Button.toolbar-tab:pointerover .toolbar-tab-icon" x:SetterTargetType="controls:SvgIcon">
-            <Setter Property="Color" Value="{DynamicResource MindmapToolbarTabActiveForeground}"/>
-        </Style>
-        <Style Selector="Border#UnifiedToolbar Button.toolbar-shape.selected">
-            <Setter Property="Background" Value="{DynamicResource MindmapToolbarTabActiveBackgroundBrush}"/>
-        </Style>
-        <Style Selector="Border#UnifiedToolbar Button.toolbar-shape:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource MindmapToolbarButtonHoverBrush}"/>
-            <Setter Property="CornerRadius" Value="8"/>
-        </Style>
-        <!-- Mindmap mode switcher (Edit | Preview) - theme brushes only -->
-        <Style Selector="Button.mode-switcher-segment">
-            <Setter Property="Background" Value="{DynamicResource MindmapModeSwitcherInactiveBackgroundBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource MindmapModeSwitcherInactiveForegroundBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-        <Style Selector="Button.mode-switcher-segment.mode-switcher-first">
-            <Setter Property="BorderThickness" Value="0,0,1,0"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource MindmapModeSwitcherBorderBrush}"/>
-        </Style>
-        <Style Selector="Button.mode-switcher-segment.selected">
-            <Setter Property="Background" Value="{DynamicResource MindmapModeSwitcherActiveBackgroundBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource MindmapModeSwitcherActiveForegroundBrush}"/>
-        </Style>
-        <Style Selector="Button.mode-switcher-segment .mode-switcher-icon" x:SetterTargetType="controls:SvgIcon">
-            <Setter Property="Color" Value="{DynamicResource MindmapModeSwitcherInactiveForegroundBrush}"/>
-        </Style>
-        <Style Selector="Button.mode-switcher-segment.selected .mode-switcher-icon" x:SetterTargetType="controls:SvgIcon">
-            <Setter Property="Color" Value="{DynamicResource MindmapModeSwitcherActiveForegroundBrush}"/>
-        </Style>
-    </UserControl.Styles>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ZoomLabel}" FontFamily="{DynamicResource MonoFontFamily}"
+                               FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Button Grid.Column="4" Name="RecenterButton" Classes="ghost" Padding="6"
+                        Background="Transparent" BorderThickness="0" Command="{Binding RecenterCommand}"
+                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=Recenter}">
+                    <PathIcon Width="14" Height="14" Foreground="{DynamicResource TextSecondaryBrush}"
+                              Data="M8 3 A5 5 0 1 1 3.5 5.5 M3 3 V6 H6"/>
+                </Button>
+            </Grid>
+        </Border>
 
-    <UserControl.Resources>
-        <local:MindmapContentToTextConverter x:Key="MindmapContentToTextConverter"/>
-        <local:NodeToCenterPointConverter x:Key="NodeToCenterPointConverter"/>
-        <local:EdgeKindToStrokeDashArrayConverter x:Key="EdgeKindToStrokeDashArrayConverter"/>
-        <local:EdgeTypeToStrokeDashArrayConverter x:Key="EdgeTypeToStrokeDashArrayConverter"/>
-        <local:EdgeTypeToOpacityConverter x:Key="EdgeTypeToOpacityConverter"/>
-        <local:EdgeTypeEqualsConverter x:Key="EdgeTypeEqualsConverter"/>
-        <local:EdgeTypeInConverter x:Key="EdgeTypeInConverter"/>
-        <converters:BoolNegationConverter x:Key="BoolNegationConverter"/>
-        <converters:StringToBrushWithFallbackConverter x:Key="MindmapColorToBrushConverter"/>
-        <local:MindmapMinSizeConverter x:Key="MindmapMinSizeConverter"/>
-        <local:DoubleToCornerRadiusConverter x:Key="DoubleToCornerRadiusConverter"/>
-        <local:EdgeKindToDisplayNameConverter x:Key="EdgeKindToDisplayNameConverter"/>
-        <local:MinimapVisibilityToDisplayConverter x:Key="MinimapVisibilityToDisplayConverter"/>
-        <local:BoolAndConverter x:Key="BoolAndConverter"/>
-        <local:MinimapHiddenVisibilityConverter x:Key="MinimapHiddenVisibilityConverter"/>
-        <local:PreviewOrUnselectedConverter x:Key="PreviewOrUnselectedConverter"/>
-        <local:NotNullToBoolConverter x:Key="NotNullToBoolConverter"/>
-        <local:SelectedEdgeToTooltipConverter x:Key="SelectedEdgeToTooltipConverter"/>
-        <converters:BoolToDoubleConverter x:Key="BoolToDoubleConverter"/>
-        <converters:NullableDoubleToNaNConverter x:Key="NullableDoubleToNaNConverter"/>
-        <local:CollapseChevronConverter x:Key="CollapseChevronConverter"/>
-        <local:CollapseTooltipConverter x:Key="CollapseTooltipConverter"/>
-
-        <!-- Node Templates -->
-        <DataTemplate x:Key="TextNodeTemplate" DataType="vm:NodeViewModel">
-            <Border Name="NodeBorder"
-                    Classes="node-container"
-                    Classes.selected="{Binding IsSelected}"
-                    Background="{DynamicResource CardBackgroundSecondaryBrush}"
-                    BorderThickness="1.5"
-                    CornerRadius="{Binding CornerRadius, Converter={StaticResource DoubleToCornerRadiusConverter}}"
-                    MaxWidth="{Binding NodeMaxOuterWidth}"
-                    MinWidth="{Binding EffectiveMinSize, Converter={StaticResource MindmapMinSizeConverter}, ConverterParameter=80}"
-                    MinHeight="{Binding EffectiveMinSize, Converter={StaticResource MindmapMinSizeConverter}, ConverterParameter=40}"
-                    Padding="12,6"
-                    Cursor="Hand"
-                    BoxShadow="{DynamicResource MindmapNodeBoxShadow}">
-                <Border.Styles>
-                    <Style Selector="Border#NodeBorder">
-                        <Setter Property="BorderBrush" Value="{Binding Color, Converter={StaticResource MindmapColorToBrushConverter}, ConverterParameter=MindmapToolbarNodeColorSwatchOneBrush}"/>
-                    </Style>
-                    <Style Selector="Border#NodeBorder.selected">
-                        <Setter Property="BorderBrush" Value="{DynamicResource MindmapNodeBorderSelectedBrush}"/>
-                        <Setter Property="BorderThickness" Value="2.5"/>
-                        <Setter Property="BoxShadow" Value="{DynamicResource MindmapNodeBoxShadowSelected}"/>
-                    </Style>
-                    <Style Selector="Border#NodeBorder:pointerover">
-                        <Setter Property="Background" Value="{DynamicResource MindmapNodeBackgroundHoverBrush}"/>
-                        <Setter Property="BorderBrush" Value="{DynamicResource MindmapNodeBorderHoverBrush}"/>
-                        <Setter Property="BoxShadow" Value="{DynamicResource MindmapNodeBoxShadowHover}"/>
-                    </Style>
-                    <Style Selector="Border#NodeBorder.selected:pointerover">
-                        <Setter Property="Background" Value="{DynamicResource MindmapNodeBackgroundHoverBrush}"/>
-                        <Setter Property="BorderBrush" Value="{DynamicResource MindmapNodeBorderSelectedBrush}"/>
-                    </Style>
-                </Border.Styles>
-                <Grid ColumnDefinitions="*,Auto">
-                    <TextBox Text="{Binding Text}"
-                             Classes="node-editor"
-                             BorderThickness="0"
-                             Background="Transparent"
-                             Foreground="{DynamicResource TextPrimaryBrush}"
-                             Grid.Column="0"
-                             VerticalAlignment="Center"
-                             TextWrapping="WrapWithOverflow"
-                             AcceptsReturn="True"
-                             FontSize="14"
-                             FontWeight="Medium"
-                             LostFocus="OnNodeTextBoxLostFocus"
-                             TextChanged="OnNodeTextBoxTextChanged"
-                             IsHitTestVisible="{Binding IsSelected}">
-                        <TextBox.IsReadOnly>
-                            <MultiBinding Converter="{StaticResource PreviewOrUnselectedConverter}">
-                                <Binding ElementName="MindmapViewControl" Path="DataContext.IsPreviewMode" FallbackValue="False"/>
-                                <Binding Path="IsSelected"/>
-                            </MultiBinding>
-                        </TextBox.IsReadOnly>
-                    </TextBox>
-                    <!-- Collapse/expand toggle — only visible when this node has hierarchy children -->
-                    <Button Grid.Column="1"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Bottom"
-                            Margin="2,0,4,2"
-                            Width="18" Height="18"
-                            Padding="0"
-                            CornerRadius="9"
-                            Background="{DynamicResource CardBackgroundSecondaryBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1"
-                            IsVisible="{Binding HasChildren}"
-                            Command="{Binding $parent[UserControl].DataContext.ToggleCollapseCommand}"
-                            CommandParameter="{Binding}"
-                            Cursor="Hand"
-                            ToolTip.Tip="{Binding IsCollapsed, Converter={StaticResource CollapseTooltipConverter}}">
-                        <controls:SvgIcon Width="11" Height="11"
-                                          Color="{DynamicResource TextSecondaryBrush}"
-                                          SvgPath="{Binding IsCollapsed, Converter={StaticResource CollapseChevronConverter}}"/>
-                    </Button>
-                </Grid>
-            </Border>
-        </DataTemplate>
-    </UserControl.Resources>
-
-    <Grid RowDefinitions="*">
-        <!-- Mindmap Canvas Area -->
-    <Panel Grid.Row="0" Background="{DynamicResource WorkspaceBackgroundBrush}">
-        <Panel Background="Transparent" 
-               Name="MainCanvas"
-               ClipToBounds="True"
-               Focusable="True"
-               PointerPressed="OnCanvasPointerPressed"
-               PointerMoved="OnNodePointerMoved"
-               PointerReleased="OnNodePointerReleased"
-               PointerExited="OnCanvasPointerExited"
-               KeyDown="OnMindmapKeyDown">
-
-            <!-- Mindmap only (grid + content); toolbar/minimap/mode switcher are siblings below -->
-            <Panel Name="MindmapContentOnly" Background="{DynamicResource WorkspaceBackgroundBrush}">
-            <!-- Background Grid -->
-            <Canvas Name="GridCanvas" Background="Transparent" IsHitTestVisible="False">
+        <!-- Canvas -->
+        <Border Grid.Row="1" Name="CanvasHost" ClipToBounds="True"
+                Background="{DynamicResource WorkspaceBackgroundBrush}">
+            <Canvas Name="World">
                 <Canvas.RenderTransform>
-                    <MatrixTransform />
+                    <MatrixTransform Matrix="{Binding CanvasTransform}"/>
                 </Canvas.RenderTransform>
+
+                <!-- Edges -->
+                <ItemsControl ItemsSource="{Binding Edges}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><Canvas/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:MindmapEdgeItem">
+                            <Line StartPoint="{Binding Start}" EndPoint="{Binding End}"
+                                  Stroke="{DynamicResource BorderBrush}" StrokeThickness="1.5"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Nodes -->
+                <ItemsControl ItemsSource="{Binding Nodes}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><Canvas/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.Styles>
+                        <Style Selector="ContentPresenter" x:DataType="vm:MindmapNodeItem">
+                            <Setter Property="Canvas.Left" Value="{Binding X}"/>
+                            <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                        </Style>
+                    </ItemsControl.Styles>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:MindmapNodeItem">
+                            <Border Width="{Binding Width}" Height="{Binding Height}"
+                                    CornerRadius="10" BorderThickness="1.5"
+                                    Classes.selected="{Binding IsSelected}"
+                                    Classes.root="{Binding IsRoot}"
+                                    Background="{DynamicResource CardBackgroundSecondaryBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}">
+                                <Border.Styles>
+                                    <Style Selector="Border.selected">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                    </Style>
+                                    <Style Selector="Border.root">
+                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+                                    </Style>
+                                    <Style Selector="Border.root > TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundBrush}"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </Style>
+                                </Border.Styles>
+                                <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Margin="10,0" MaxWidth="112"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </Canvas>
-
-            <Panel Name="TransformCanvas" Background="Transparent" ClipToBounds="False" RenderTransformOrigin="0,0">
-                <Panel.RenderTransform>
-                    <MatrixTransform />
-                </Panel.RenderTransform>
-                
-                    <!-- Edges (drawn under nodes) -->
-                    <ItemsControl ItemsSource="{Binding Edges}" ClipToBounds="False" IsHitTestVisible="False">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <Canvas Background="Transparent" ClipToBounds="False"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:EdgeViewModel">
-                                <Canvas IsVisible="{Binding IsHidden, Converter={StaticResource BoolNegationConverter}}">
-                                    <!-- Main stroke -->
-                                    <Path Stroke="{Binding Color, Converter={StaticResource MindmapColorToBrushConverter}, ConverterParameter=MindmapEdgeStrokeBrush}"
-                                          StrokeThickness="1.5"
-                                          Opacity="{Binding Type, Converter={StaticResource EdgeTypeToOpacityConverter}}"
-                                          StrokeDashArray="{Binding Type, Converter={StaticResource EdgeTypeToStrokeDashArrayConverter}}">
-                                        <Path.Data>
-                                            <PathGeometry>
-                                                <PathFigure StartPoint="{Binding VisualStartPoint}" IsClosed="False">
-                                                    <BezierSegment Point1="{Binding ControlPoint1}"
-                                                                   Point2="{Binding ControlPoint2}"
-                                                                   Point3="{Binding VisualEndPoint}"/>
-                                                </PathFigure>
-                                            </PathGeometry>
-                                        </Path.Data>
-                                    </Path>
-                                    <!-- Double: second parallel line -->
-                                    <Path Stroke="{Binding Color, Converter={StaticResource MindmapColorToBrushConverter}, ConverterParameter=MindmapEdgeStrokeBrush}"
-                                          StrokeThickness="1.5" StrokeDashArray="{Binding Type, Converter={StaticResource EdgeTypeToStrokeDashArrayConverter}}"
-                                          Opacity="{Binding Type, Converter={StaticResource EdgeTypeToOpacityConverter}}"
-                                          IsVisible="{Binding Type, Converter={StaticResource EdgeTypeEqualsConverter}, ConverterParameter=double}">
-                                        <Path.Data>
-                                            <PathGeometry>
-                                                <PathFigure StartPoint="{Binding VisualOffsetStartPoint}" IsClosed="False">
-                                                    <BezierSegment Point1="{Binding OffsetControlPoint1}"
-                                                                   Point2="{Binding OffsetControlPoint2}"
-                                                                   Point3="{Binding VisualOffsetEndPoint}"/>
-                                                </PathFigure>
-                                            </PathGeometry>
-                                        </Path.Data>
-                                    </Path>
-                                </Canvas>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <!-- Edge hit areas and labels (under nodes so nodes remain draggable) -->
-                    <ItemsControl Name="EdgeHitLayer" ItemsSource="{Binding Edges}" ClipToBounds="False"
-                                 IsHitTestVisible="{Binding IsEditingEnabled}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <Canvas Background="Transparent" ClipToBounds="False"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:EdgeViewModel">
-                                <Canvas IsVisible="{Binding IsHidden, Converter={StaticResource BoolNegationConverter}}">
-                                    <Path Stroke="Transparent" StrokeThickness="12" IsHitTestVisible="True">
-                                        <Path.Data>
-                                            <PathGeometry>
-                                                <PathFigure StartPoint="{Binding StartPoint}" IsClosed="False">
-                                                    <BezierSegment Point1="{Binding ControlPoint1}"
-                                                                   Point2="{Binding ControlPoint2}"
-                                                                   Point3="{Binding EndPoint}"/>
-                                                </PathFigure>
-                                            </PathGeometry>
-                                        </Path.Data>
-                                    </Path>
-                                    <Border Name="EdgeLabelBorder"
-                                            Opacity="{Binding IsLabelHighlighted, Converter={StaticResource BoolToDoubleConverter}, ConverterParameter='1|0.75'}"
-                                            Canvas.Left="{Binding CenterPoint.X}" Canvas.Top="{Binding CenterPoint.Y}"
-                                            RenderTransformOrigin="0.5,0.5"
-                                            Background="{DynamicResource CardBackgroundSecondaryBrush}"
-                                            BorderBrush="{DynamicResource BorderBrush}"
-                                            BorderThickness="1" CornerRadius="4"
-                                            MinWidth="60" MinHeight="22" Padding="6,2">
-                                        <Border.IsVisible>
-                                            <MultiBinding Converter="{StaticResource BoolAndConverter}">
-                                                <Binding Path="Label" Converter="{StaticResource NotNullToBoolConverter}"/>
-                                                <Binding ElementName="MindmapViewControl" Path="DataContext.ShowEdgeLabels" FallbackValue="True"/>
-                                            </MultiBinding>
-                                        </Border.IsVisible>
-                                        <Border.RenderTransform>
-                                            <TranslateTransform X="-30" Y="-11"/>
-                                        </Border.RenderTransform>
-                                        <Border.Transitions>
-                                            <Transitions>
-                                                <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="LinearEasing"/>
-                                            </Transitions>
-                                        </Border.Transitions>
-                                        <TextBox Name="EdgeLabelBox"
-                                                 Text="{Binding Label}"
-                                                 Background="Transparent" BorderThickness="0"
-                                                 Foreground="{DynamicResource TextPrimaryBrush}"
-                                                 FontSize="11" MinWidth="48" MinHeight="18"
-                                                 LostFocus="OnEdgeLabelLostFocus"/>
-                                    </Border>
-                                </Canvas>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <ItemsControl ItemsSource="{Binding Nodes}" ClipToBounds="False"
-                                 IsHitTestVisible="{Binding IsEditingEnabled}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <Canvas Background="Transparent" ClipToBounds="False"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.Styles>
-                            <Style Selector="ItemsControl > ContentPresenter" x:DataType="vm:NodeViewModel">
-                                <Setter Property="Canvas.Left" Value="{Binding X}"/>
-                                <Setter Property="Canvas.Top" Value="{Binding Y}"/>
-                            </Style>
-                        </ItemsControl.Styles>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:NodeViewModel">
-                                <ContentControl Content="{Binding}" 
-                                                ContentTemplate="{StaticResource TextNodeTemplate}"
-                                                Width="{Binding Width, Converter={StaticResource NullableDoubleToNaNConverter}}"
-                                                Height="{Binding Height, Converter={StaticResource NullableDoubleToNaNConverter}}"
-                                                IsVisible="{Binding IsHidden, Converter={StaticResource BoolNegationConverter}}"
-                                                PointerPressed="OnNodePointerPressed"
-                                                PointerMoved="OnNodePointerMoved"
-                                                PointerReleased="OnNodePointerReleased"
-                                                PointerEntered="OnNodePointerEnter"
-                                                PointerExited="OnNodePointerLeave"
-                                                SizeChanged="OnNodeSizeChanged"
-                                                Background="Transparent"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <!-- Bidirect arrow heads (above nodes so start arrow is visible) -->
-                    <ItemsControl ItemsSource="{Binding Edges}" ClipToBounds="False" IsHitTestVisible="False">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <Canvas Background="Transparent" ClipToBounds="False"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:EdgeViewModel">
-                                <Canvas IsVisible="{Binding IsHidden, Converter={StaticResource BoolNegationConverter}}">
-                                    <Polygon Points="{Binding ArrowStartPoints}"
-                                             Fill="{Binding Color, Converter={StaticResource MindmapColorToBrushConverter}, ConverterParameter=MindmapEdgeStrokeBrush}"
-                                             Opacity="{Binding Type, Converter={StaticResource EdgeTypeToOpacityConverter}}"
-                                             IsVisible="{Binding Type, Converter={StaticResource EdgeTypeEqualsConverter}, ConverterParameter=bidirect}"/>
-                                    <Polygon Points="{Binding ArrowEndPoints}"
-                                             Fill="{Binding Color, Converter={StaticResource MindmapColorToBrushConverter}, ConverterParameter=MindmapEdgeStrokeBrush}"
-                                             Opacity="{Binding Type, Converter={StaticResource EdgeTypeToOpacityConverter}}"
-                                             IsVisible="{Binding Type, Converter={StaticResource EdgeTypeInConverter}, ConverterParameter=bidirect;arrow}"/>
-                                </Canvas>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </Panel>
-            </Panel>
-            </Panel>
-
-            <!-- Undo / Redo (top left), hidden in Preview mode -->
-            <Border Name="UndoRedoPanel" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="16"
-                    IsVisible="{Binding IsToolbarVisible}"
-                    Background="{DynamicResource MindmapToolbarPanelBackgroundBrush}"
-                    BorderBrush="{DynamicResource MindmapToolbarBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="4"
-                    BoxShadow="{DynamicResource MindmapToolbarBoxShadow}">
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                    <Button Command="{Binding UndoCommand}" Classes="toolbar-action" ToolTip.Tip="{markup:T Ns=Mindmap, Key=UndoTooltip}" Width="36" Height="36" Padding="0" CornerRadius="8" IsEnabled="{Binding CanUndo}">
-                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chevron-left.svg" Width="18" Height="18" Color="{DynamicResource MindmapToolbarIcon}"/>
-                    </Button>
-                    <Button Command="{Binding RedoCommand}" Classes="toolbar-action" ToolTip.Tip="{markup:T Ns=Mindmap, Key=RedoTooltip}" Width="36" Height="36" Padding="0" CornerRadius="8" IsEnabled="{Binding CanRedo}">
-                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chevron-right.svg" Width="18" Height="18" Color="{DynamicResource MindmapToolbarIcon}"/>
-                    </Button>
-                </StackPanel>
-            </Border>
-
-            <!-- Mode switcher: Edit | Preview (top right), theme brushes only -->
-            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="16"
-                    Background="Transparent"
-                    BorderBrush="{DynamicResource MindmapModeSwitcherBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="4">
-                <StackPanel Orientation="Horizontal" Spacing="2">
-                    <Button Command="{Binding SetMindmapModeCommand}" CommandParameter="Edit"
-                            Classes="mode-switcher-segment mode-switcher-first"
-                            Classes.selected="{Binding IsEditMode}"
-                            Padding="8,4" CornerRadius="6" MinWidth="0"
-                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=Edit}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <controls:SvgIcon Classes="mode-switcher-icon" SvgPath="avares://Mnemo.UI/Icons/MindmapModeSwitcher/pencil.svg" Width="16" Height="16"/>
-                            <TextBlock Text="{markup:T Ns=Mindmap, Key=Edit}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button Command="{Binding SetMindmapModeCommand}" CommandParameter="Preview"
-                            Classes="mode-switcher-segment"
-                            Classes.selected="{Binding IsPreviewMode}"
-                            Padding="8,4" CornerRadius="6" MinWidth="0"
-                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=Preview}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <controls:SvgIcon Classes="mode-switcher-icon" SvgPath="avares://Mnemo.UI/Icons/MindmapModeSwitcher/eye.svg" Width="16" Height="16"/>
-                            <TextBlock Text="{markup:T Ns=Mindmap, Key=Preview}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-            </Border>
-
-            <!-- Unified Toolbar: Edit | Style | View -->
-            <Border Name="UnifiedToolbar" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="16"
-                    IsVisible="{Binding IsToolbarVisible}"
-                    Background="{DynamicResource MindmapToolbarPanelBackgroundBrush}"
-                    BorderBrush="{DynamicResource MindmapToolbarBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12" Padding="0"
-                    BoxShadow="{DynamicResource MindmapToolbarBoxShadow}">
-                <StackPanel Spacing="0" MinWidth="200">
-                    <!-- Tabs: Edit | Style | View -->
-                    <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" CornerRadius="11,11,0,0" Padding="6,6,6,0">
-                        <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                            <Button Command="{Binding SetToolbarCategoryCommand}" CommandParameter="Edit" Classes="toolbar-tab"
-                                    Classes.selected="{Binding IsEditTab}"
-                                    MinWidth="0" Height="34" Padding="12,0" CornerRadius="7"
-                                    ToolTip.Tip="{markup:T Ns=Mindmap, Key=Edit}"
-                                    VerticalAlignment="Center">
-                                <TextBlock Text="{markup:T Ns=Mindmap, Key=Edit}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                            </Button>
-                            <Button Command="{Binding SetToolbarCategoryCommand}" CommandParameter="Style" Classes="toolbar-tab"
-                                    Classes.selected="{Binding IsStyleTab}"
-                                    MinWidth="0" Height="34" Padding="12,0" CornerRadius="7"
-                                    ToolTip.Tip="{markup:T Ns=Mindmap, Key=Style}"
-                                    VerticalAlignment="Center">
-                                <TextBlock Text="{markup:T Ns=Mindmap, Key=Style}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                            </Button>
-                            <Button Command="{Binding SetToolbarCategoryCommand}" CommandParameter="View" Classes="toolbar-tab"
-                                    Classes.selected="{Binding IsViewTab}"
-                                    MinWidth="0" Height="34" Padding="12,0" CornerRadius="7"
-                                    ToolTip.Tip="{markup:T Ns=Mindmap, Key=View}"
-                                    VerticalAlignment="Center">
-                                <TextBlock Text="{markup:T Ns=Mindmap, Key=View}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                            </Button>
-                        </StackPanel>
-                    </Border>
-                    <!-- Edit tab: TOOLS, then LAYOUT -->
-                    <StackPanel Spacing="0" Margin="0" IsVisible="{Binding IsEditTab}">
-                        <!-- TOOLS -->
-                        <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" Margin="8,8,8,0" Padding="8,6" CornerRadius="8">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{markup:T Ns=Mindmap, Key=Tools}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource MindmapToolbarLabelBrush}" LetterSpacing="0.5"/>
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <Button Command="{Binding AddNodeCommand}" Classes="toolbar-action" ToolTip.Tip="{markup:T Ns=Mindmap, Key=AddNodeTooltip}" Width="36" Height="36" Padding="0" CornerRadius="8">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/circle-plus.svg" Width="18" Height="18" Color="{DynamicResource MindmapToolbarIcon}"/>
-                                    </Button>
-                                    <Button Command="{Binding ConnectSelectedCommand}" Classes="toolbar-action" ToolTip.Tip="{markup:T Ns=Mindmap, Key=ConnectSelectedTooltip}" Width="36" Height="36" Padding="0" CornerRadius="8">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/link.svg" Width="18" Height="18" Color="{DynamicResource MindmapToolbarIcon}"/>
-                                    </Button>
-                                    <Button Command="{Binding DetachSelectedCommand}" Classes="toolbar-action" ToolTip.Tip="{markup:T Ns=Mindmap, Key=DetachSelectedTooltip}" Width="36" Height="36" Padding="0" CornerRadius="8">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/link-off.svg" Width="18" Height="18" Color="{DynamicResource MindmapToolbarIcon}"/>
-                                    </Button>
-                                    <Button Command="{Binding DeleteSelectedCommand}" Classes="Danger" ToolTip.Tip="{markup:T Ns=Mindmap, Key=DeleteSelectedTooltip}" Width="36" Height="36" Padding="0" CornerRadius="8">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/x.svg" Width="18" Height="18" Color="{DynamicResource DestructiveButtonColor}"/>
-                                    </Button>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                        <!-- LAYOUT -->
-                        <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" Margin="8,8,8,8" Padding="8,6" CornerRadius="8">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{markup:T Ns=Mindmap, Key=Layout}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource MindmapToolbarLabelBrush}" LetterSpacing="0.5"/>
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <Button Command="{Binding SetLayoutAlgorithmCommand}" CommandParameter="TreeVertical" Classes="toolbar-tab" Classes.selected="{Binding IsLayoutTreeVertical}"
-                                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=LayoutTreeVertical}" Height="44" MinWidth="52" Padding="8,0" CornerRadius="8">
-                                        <StackPanel Spacing="2" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <controls:SvgIcon Classes="toolbar-tab-icon" SvgPath="avares://Mnemo.UI/Icons/MindmapToolbar/tree-v.svg" Width="18" Height="18" HorizontalAlignment="Center"/>
-                                            <TextBlock Text="{markup:T Ns=Mindmap, Key=TreeV}" FontSize="10" Foreground="{DynamicResource MindmapToolbarTabActiveForegroundBrush}"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Command="{Binding SetLayoutAlgorithmCommand}" CommandParameter="TreeHorizontal" Classes="toolbar-tab" Classes.selected="{Binding IsLayoutTreeHorizontal}"
-                                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=LayoutTreeHorizontal}" Height="44" MinWidth="52" Padding="8,0" CornerRadius="8">
-                                        <StackPanel Spacing="2" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <controls:SvgIcon Classes="toolbar-tab-icon" SvgPath="avares://Mnemo.UI/Icons/MindmapToolbar/tree-h.svg" Width="18" Height="18" HorizontalAlignment="Center"/>
-                                            <TextBlock Text="{markup:T Ns=Mindmap, Key=TreeH}" FontSize="10" Foreground="{DynamicResource MindmapToolbarTabActiveForegroundBrush}"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Command="{Binding SetLayoutAlgorithmCommand}" CommandParameter="Radial" Classes="toolbar-tab" Classes.selected="{Binding IsLayoutRadial}"
-                                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=LayoutRadial}" Height="44" MinWidth="52" Padding="8,0" CornerRadius="8">
-                                        <StackPanel Spacing="2" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <controls:SvgIcon Classes="toolbar-tab-icon" SvgPath="avares://Mnemo.UI/Icons/MindmapToolbar/radial.svg" Width="18" Height="18" HorizontalAlignment="Center"/>
-                                            <TextBlock Text="{markup:T Ns=Mindmap, Key=LayoutRadial}" FontSize="10" Foreground="{DynamicResource MindmapToolbarTabActiveForegroundBrush}"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                    <!-- Style tab -->
-                    <StackPanel Spacing="0" Margin="0" IsVisible="{Binding IsStyleTab}">
-                        <!-- TOOLS -->
-                        <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" Margin="8,8,8,0" Padding="8,6" CornerRadius="8">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{markup:T Ns=Mindmap, Key=Tools}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource MindmapToolbarLabelBrush}" LetterSpacing="0.5"/>
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <Button Command="{Binding AddNodeCommand}" Classes="toolbar-action" ToolTip.Tip="{markup:T Ns=Mindmap, Key=AddNodeTooltip}" Width="36" Height="36" Padding="0" CornerRadius="8">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/circle-plus.svg" Width="18" Height="18" Color="{DynamicResource MindmapToolbarIcon}"/>
-                                    </Button>
-                                    <Button Command="{Binding ConnectSelectedCommand}" Classes="toolbar-action" ToolTip.Tip="{markup:T Ns=Mindmap, Key=ConnectSelectedTooltip}" Width="36" Height="36" Padding="0" CornerRadius="8">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/link.svg" Width="18" Height="18" Color="{DynamicResource MindmapToolbarIcon}"/>
-                                    </Button>
-                                    <Button Command="{Binding DetachSelectedCommand}" Classes="toolbar-action" ToolTip.Tip="{markup:T Ns=Mindmap, Key=DetachSelectedTooltip}" Width="36" Height="36" Padding="0" CornerRadius="8">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/link-off.svg" Width="18" Height="18" Color="{DynamicResource MindmapToolbarIcon}"/>
-                                    </Button>
-                                    <Button Command="{Binding DeleteSelectedCommand}" Classes="Danger" ToolTip.Tip="{markup:T Ns=Mindmap, Key=DeleteSelectedTooltip}" Width="36" Height="36" Padding="0" CornerRadius="8">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/x.svg" Width="18" Height="18" Color="{DynamicResource DestructiveButtonColor}"/>
-                                    </Button>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                        <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" Margin="8,8,8,0" Padding="8,6" CornerRadius="8">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{markup:T Ns=Mindmap, Key=Color}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource MindmapToolbarLabelBrush}" LetterSpacing="0.5"/>
-                                <WrapPanel>
-                            <Button Command="{Binding SetSelectedNodesColorCommand}" CommandParameter="{x:Null}" ToolTip.Tip="{markup:T Ns=Mindmap, Key=Swatch1}" Width="24" Height="24" Padding="0" Margin="0,0,4,4" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                                <Rectangle Width="14" Height="14" RadiusX="2" RadiusY="2" Fill="{DynamicResource MindmapToolbarNodeColorSwatchOneBrush}"/>
-                            </Button>
-                            <Button Command="{Binding SetSelectedNodesColorCommand}" CommandParameter="#e95b45" Width="24" Height="24" Padding="0" Margin="0,0,4,4" ToolTip.Tip="{markup:T Ns=Mindmap, Key=Swatch2}" BorderThickness="0" CornerRadius="4">
-                                <Rectangle Width="16" Height="16" RadiusX="2" RadiusY="2" Fill="{DynamicResource MindmapToolbarNodeColorSwatchTwoBrush}"/>
-                            </Button>
-                            <Button Command="{Binding SetSelectedNodesColorCommand}" CommandParameter="#2686C2" Width="24" Height="24" Padding="0" Margin="0,0,4,4" ToolTip.Tip="{markup:T Ns=Mindmap, Key=Swatch3}" BorderThickness="0" CornerRadius="4">
-                                <Rectangle Width="16" Height="16" RadiusX="2" RadiusY="2" Fill="{DynamicResource MindmapToolbarNodeColorSwatchThreeBrush}"/>
-                            </Button>
-                            <Button Command="{Binding SetSelectedNodesColorCommand}" CommandParameter="#6DA861" Width="24" Height="24" Padding="0" Margin="0,0,4,4" ToolTip.Tip="{markup:T Ns=Mindmap, Key=Swatch4}" BorderThickness="0" CornerRadius="4">
-                                <Rectangle Width="16" Height="16" RadiusX="2" RadiusY="2" Fill="{DynamicResource MindmapToolbarNodeColorSwatchFourBrush}"/>
-                            </Button>
-                            <Button Command="{Binding SetSelectedNodesColorCommand}" CommandParameter="#EAB308" Width="24" Height="24" Padding="0" Margin="0,0,4,4" ToolTip.Tip="{markup:T Ns=Mindmap, Key=Swatch5}" BorderThickness="0" CornerRadius="4">
-                                <Rectangle Width="16" Height="16" RadiusX="2" RadiusY="2" Fill="{DynamicResource MindmapToolbarNodeColorSwatchFiveBrush}"/>
-                            </Button>
-                            <Button Command="{Binding SetSelectedNodesColorCommand}" CommandParameter="#886ce4" Width="24" Height="24" Padding="0" Margin="0,0,4,4" ToolTip.Tip="{markup:T Ns=Mindmap, Key=Swatch6}" BorderThickness="0" CornerRadius="4">
-                                <Rectangle Width="16" Height="16" RadiusX="2" RadiusY="2" Fill="{DynamicResource MindmapToolbarNodeColorSwatchSixBrush}"/>
-                            </Button>
-                        </WrapPanel>
-                            </StackPanel>
-                        </Border>
-                        <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" Margin="8,8,8,0" Padding="8,6" CornerRadius="8">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{markup:T Ns=Mindmap, Key=NodeShape}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource MindmapToolbarLabelBrush}" LetterSpacing="0.5"/>
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                            <Button Command="{Binding SetSelectedNodesShapeCommand}" CommandParameter="rectangle" Classes="toolbar-shape" Classes.selected="{Binding IsShapeRectangle}" ToolTip.Tip="{markup:T Ns=Mindmap, Key=Rectangle}" Width="36" Height="36" Padding="0" CornerRadius="8">
-                                <Border Width="20" Height="14" CornerRadius="0" BorderBrush="{DynamicResource MindmapToolbarIconBrush}" BorderThickness="1.5" Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}"/>
-                            </Button>
-                            <Button Command="{Binding SetSelectedNodesShapeCommand}" CommandParameter="pill" Classes="toolbar-shape" Classes.selected="{Binding IsShapePill}" ToolTip.Tip="{markup:T Ns=Mindmap, Key=Pill}" Width="36" Height="36" Padding="0" CornerRadius="8">
-                                <Border Width="24" Height="14" CornerRadius="7" BorderBrush="{DynamicResource MindmapToolbarIconBrush}" BorderThickness="1.5" Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}"/>
-                            </Button>
-                            <Button Command="{Binding SetSelectedNodesShapeCommand}" CommandParameter="circle" Classes="toolbar-shape" Classes.selected="{Binding IsShapeCircle}" ToolTip.Tip="{markup:T Ns=Mindmap, Key=Circle}" Width="36" Height="36" Padding="0" CornerRadius="8">
-                                <Ellipse Width="18" Height="18" Stroke="{DynamicResource MindmapToolbarIconBrush}" StrokeThickness="1.5" Fill="{DynamicResource MindmapToolbarSectionBackgroundBrush}"/>
-                            </Button>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                        <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" Margin="8,8,8,0" Padding="8,6" CornerRadius="8"
-                                IsEnabled="{Binding SelectedEdge, Converter={StaticResource NotNullToBoolConverter}}"
-                                ToolTip.Tip="{Binding SelectedEdge, Converter={StaticResource SelectedEdgeToTooltipConverter}}"
-                                ToolTip.ShowOnDisabled="True">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{markup:T Ns=Mindmap, Key=EdgeType}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource MindmapToolbarLabelBrush}" LetterSpacing="0.5"/>
-                                <Grid ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="6">
-                                    <Button Grid.Row="0" Grid.Column="0" Command="{Binding SetSelectedEdgeTypeCommand}" CommandParameter="solid" Classes="toolbar-tab" Classes.selected="{Binding IsEdgeTypeSolid}"
-                                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeSolidTooltip}" Height="48" MinWidth="48" Padding="6" CornerRadius="8">
-                                        <controls:SvgIcon Classes="toolbar-tab-icon" SvgPath="avares://Mnemo.UI/Icons/MindmapToolbar/EdgeTypes/solid.svg" Width="26" Height="18" HorizontalAlignment="Center"/>
-                                    </Button>
-                                    <Button Grid.Row="0" Grid.Column="1" Command="{Binding SetSelectedEdgeTypeCommand}" CommandParameter="dashed" Classes="toolbar-tab" Classes.selected="{Binding IsEdgeTypeDashed}"
-                                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeDashedTooltip}" Height="48" MinWidth="48" Padding="6" CornerRadius="8">
-                                        <controls:SvgIcon Classes="toolbar-tab-icon" SvgPath="avares://Mnemo.UI/Icons/MindmapToolbar/EdgeTypes/dashed.svg" Width="26" Height="18" HorizontalAlignment="Center"/>
-                                    </Button>
-                                    <Button Grid.Row="0" Grid.Column="2" Command="{Binding SetSelectedEdgeTypeCommand}" CommandParameter="dotted" Classes="toolbar-tab" Classes.selected="{Binding IsEdgeTypeDotted}"
-                                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeDottedTooltip}" Height="48" MinWidth="48" Padding="6" CornerRadius="8">
-                                        <controls:SvgIcon Classes="toolbar-tab-icon" SvgPath="avares://Mnemo.UI/Icons/MindmapToolbar/EdgeTypes/dotted.svg" Width="26" Height="18" HorizontalAlignment="Center"/>
-                                    </Button>
-                                    <Button Grid.Row="1" Grid.Column="0" Command="{Binding SetSelectedEdgeTypeCommand}" CommandParameter="double" Classes="toolbar-tab" Classes.selected="{Binding IsEdgeTypeDouble}"
-                                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeDoubleTooltip}" Height="48" MinWidth="48" Padding="6" CornerRadius="8">
-                                        <controls:SvgIcon Classes="toolbar-tab-icon" SvgPath="avares://Mnemo.UI/Icons/MindmapToolbar/EdgeTypes/double.svg" Width="26" Height="18" HorizontalAlignment="Center"/>
-                                    </Button>
-                                    <Button Grid.Row="1" Grid.Column="1" Command="{Binding SetSelectedEdgeTypeCommand}" CommandParameter="arrow" Classes="toolbar-tab" Classes.selected="{Binding IsEdgeTypeArrow}"
-                                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeArrowTooltip}" Height="48" MinWidth="48" Padding="6" CornerRadius="8">
-                                        <controls:SvgIcon Classes="toolbar-tab-icon" SvgPath="avares://Mnemo.UI/Icons/MindmapToolbar/EdgeTypes/arrow.svg" Width="26" Height="18" HorizontalAlignment="Center"/>
-                                    </Button>
-                                    <Button Grid.Row="1" Grid.Column="2" Command="{Binding SetSelectedEdgeTypeCommand}" CommandParameter="bidirect" Classes="toolbar-tab" Classes.selected="{Binding IsEdgeTypeBidirect}"
-                                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeBidirectTooltip}" Height="48" MinWidth="48" Padding="6" CornerRadius="8">
-                                        <controls:SvgIcon Classes="toolbar-tab-icon" SvgPath="avares://Mnemo.UI/Icons/MindmapToolbar/EdgeTypes/bidirect.svg" Width="26" Height="18" HorizontalAlignment="Center"/>
-                                    </Button>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-                        <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" Margin="8,8,8,8" Padding="8,6" CornerRadius="8">
-                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <TextBlock Text="{markup:T Ns=Mindmap, Key=ShowEdgeLabels}" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource MindmapToolbarLabelBrush}"/>
-                                <ToggleSwitch IsChecked="{Binding ShowEdgeLabels}" OffContent="{x:Null}" OnContent="{x:Null}"/>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                    <!-- View tab -->
-                    <StackPanel Spacing="0" Margin="0" IsVisible="{Binding IsViewTab}">
-                        <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" Margin="8,8,8,0" Padding="8,6" CornerRadius="8">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{markup:T Ns=Mindmap, Key=Zoom}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource MindmapToolbarLabelBrush}" LetterSpacing="0.5"/>
-                                <Slider Name="ZoomSlider" Minimum="0.1" Maximum="5" Value="{Binding ZoomLevel}" Width="144" HorizontalAlignment="Stretch"/>
-                            </StackPanel>
-                        </Border>
-                        <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" Margin="8,8,8,0" Padding="8,6" CornerRadius="8">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{markup:T Ns=Mindmap, Key=MinimapSetting}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource MindmapToolbarLabelBrush}" LetterSpacing="0.5"/>
-                                <StackPanel Orientation="Horizontal" Spacing="2">
-                                    <Button Command="{Binding SetMinimapVisibilityCommand}" CommandParameter="Off" Classes="toolbar-tab" Classes.selected="{Binding IsMinimapOff}" MinWidth="0" Height="34" Padding="10,0" CornerRadius="7" ToolTip.Tip="{markup:T Ns=Mindmap, Key=MinimapOff}" VerticalContentAlignment="Center">
-                                        <TextBlock Text="{markup:T Ns=Mindmap, Key=MinimapOff}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                    </Button>
-                                    <Button Command="{Binding SetMinimapVisibilityCommand}" CommandParameter="Auto" Classes="toolbar-tab" Classes.selected="{Binding IsMinimapAuto}" MinWidth="0" Height="34" Padding="10,0" CornerRadius="7" ToolTip.Tip="{markup:T Ns=Mindmap, Key=MinimapAuto}" VerticalContentAlignment="Center">
-                                        <TextBlock Text="{markup:T Ns=Mindmap, Key=MinimapAuto}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                    </Button>
-                                    <Button Command="{Binding SetMinimapVisibilityCommand}" CommandParameter="On" Classes="toolbar-tab" Classes.selected="{Binding IsMinimapOn}" MinWidth="0" Height="34" Padding="10,0" CornerRadius="7" ToolTip.Tip="{markup:T Ns=Mindmap, Key=MinimapOn}" VerticalContentAlignment="Center">
-                                        <TextBlock Text="{markup:T Ns=Mindmap, Key=MinimapOn}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                    </Button>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                        <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" Margin="8,8,8,0" Padding="8,6" CornerRadius="8">
-                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <TextBlock Text="Show collapsed nodes" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource MindmapToolbarLabelBrush}"/>
-                                <ToggleSwitch IsChecked="{Binding ShowCollapsedNodesOnMinimap}" OffContent="{x:Null}" OnContent="{x:Null}"/>
-                            </StackPanel>
-                        </Border>
-                        <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" Margin="8,8,8,0" Padding="8,6" CornerRadius="8">
-                            <StackPanel Spacing="6">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{markup:T Ns=Mindmap, Key=ExportMap}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource MindmapToolbarLabelBrush}" LetterSpacing="0.5"
-                                               IsVisible="{Binding HasSelectedNodes, Converter={StaticResource BoolNegationConverter}}"/>
-                                    <TextBlock Text="{markup:T Ns=Mindmap, Key=ExportSelection}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource MindmapToolbarLabelBrush}" LetterSpacing="0.5"
-                                               IsVisible="{Binding HasSelectedNodes}"/>
-                                </StackPanel>
-                                <CheckBox IsChecked="{Binding ExportPngTransparentBackground}" Content="{markup:T Ns=Mindmap, Key=ExportTransparentBackground}"
-                                          FontSize="11" Foreground="{DynamicResource MindmapToolbarLabelBrush}" VerticalAlignment="Center"/>
-                                <Button Command="{Binding ExportAsPngCommand}" Classes="toolbar-action" MinWidth="0" Height="36" Padding="12,0" CornerRadius="8" ToolTip.Tip="{markup:T Ns=Mindmap, Key=Png}" VerticalContentAlignment="Center">
-                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/MindmapToolbar/download.svg" Width="18" Height="18" Color="{DynamicResource MindmapToolbarIcon}"/>
-                                        <TextBlock Text="{markup:T Ns=Mindmap, Key=Png}" FontSize="12" Foreground="{DynamicResource MindmapToolbarLabelBrush}" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
-                        </Border>
-                        <Border Background="{DynamicResource MindmapToolbarSectionBackgroundBrush}" Margin="8,8,8,8" Padding="8,6" CornerRadius="8">
-                            <StackPanel Spacing="6">
-                                <Button Command="{Binding RecenterCommand}" Classes="toolbar-action" ToolTip.Tip="{markup:T Ns=Mindmap, Key=FitToScreenTooltip}" MinWidth="144" Height="36" Padding="12,0" HorizontalAlignment="Stretch">
-                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/MindmapToolbar/capture.svg" Width="18" Height="18" Color="{DynamicResource MindmapToolbarIcon}"/>
-                                        <TextBlock Text="{markup:T Ns=Mindmap, Key=FitToScreen}" FontSize="12" Foreground="{DynamicResource MindmapToolbarLabelBrush}" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
-            <!-- Minimap -->
-            <Border Name="MinimapBorder" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="20"
-                    Background="{DynamicResource CardBackgroundSecondaryBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    BoxShadow="{DynamicResource MindmapToolbarBoxShadow}"
-                    Width="240" Height="170"
-                    ClipToBounds="True"
-                    Opacity="0">
-                <Border.Transitions>
-                    <Transitions>
-                        <DoubleTransition Property="Opacity" Duration="0:0:0.3" Easing="LinearEasing"/>
-                    </Transitions>
-                </Border.Transitions>
-
-                <Canvas Name="MinimapPanel" ClipToBounds="True" Background="Transparent"
-                       HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                       PointerPressed="OnMinimapPointerPressed"
-                       PointerMoved="OnMinimapPointerMoved"
-                       PointerReleased="OnMinimapPointerReleased"
-                       SizeChanged="OnMinimapSizeChanged">
-
-                    <Panel Name="MinimapTransformPanel" ClipToBounds="False" RenderTransformOrigin="0,0"
-                           Canvas.Left="0" Canvas.Top="0">
-                        <Panel.RenderTransform>
-                            <MatrixTransform />
-                        </Panel.RenderTransform>
-
-                        <!-- Dot-grid background texture -->
-                        <Canvas Width="240" Height="170" IsHitTestVisible="False">
-                            <Canvas.Background>
-                                <VisualBrush TileMode="Tile"
-                                             SourceRect="0,0,12,12"
-                                             DestinationRect="0,0,12,12">
-                                    <VisualBrush.Visual>
-                                        <Canvas Width="12" Height="12">
-                                            <Ellipse Width="1.4" Height="1.4"
-                                                     Fill="{DynamicResource BorderBrush}"
-                                                     Opacity="0.5"
-                                                     Canvas.Left="0.3" Canvas.Top="0.3"/>
-                                        </Canvas>
-                                    </VisualBrush.Visual>
-                                </VisualBrush>
-                            </Canvas.Background>
-                        </Canvas>
-
-                        <!-- Edges -->
-                        <ItemsControl ItemsSource="{Binding Edges}" ClipToBounds="False">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <Canvas Background="Transparent" ClipToBounds="False"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:EdgeViewModel">
-                                    <Path Stroke="{Binding Color, Converter={StaticResource MindmapColorToBrushConverter}, ConverterParameter=MindmapEdgeStrokeBrush}"
-                                          StrokeThickness="3" StrokeLineCap="Round"
-                                          Opacity="{Binding Type, Converter={StaticResource EdgeTypeToOpacityConverter}}"
-                                          StrokeDashArray="{Binding Type, Converter={StaticResource EdgeTypeToStrokeDashArrayConverter}}"
-                                          IsHitTestVisible="False">
-                                        <Path.IsVisible>
-                                            <MultiBinding Converter="{StaticResource MinimapHiddenVisibilityConverter}">
-                                                <Binding Path="IsHidden"/>
-                                                <Binding ElementName="MindmapViewControl" Path="ShowCollapsedNodesOnMinimapBinding"/>
-                                            </MultiBinding>
-                                        </Path.IsVisible>
-                                        <Path.Data>
-                                            <PathGeometry>
-                                                <PathFigure StartPoint="{Binding VisualStartPoint}" IsClosed="False">
-                                                    <BezierSegment Point1="{Binding ControlPoint1}"
-                                                                   Point2="{Binding ControlPoint2}"
-                                                                   Point3="{Binding VisualEndPoint}"/>
-                                                </PathFigure>
-                                            </PathGeometry>
-                                        </Path.Data>
-                                    </Path>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <!-- Nodes -->
-                        <ItemsControl ItemsSource="{Binding Nodes}" ClipToBounds="False">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <Canvas Background="Transparent" ClipToBounds="False"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.Styles>
-                                <Style Selector="ItemsControl > ContentPresenter" x:DataType="vm:NodeViewModel">
-                                    <Setter Property="Canvas.Left" Value="{Binding X}"/>
-                                    <Setter Property="Canvas.Top" Value="{Binding Y}"/>
-                                </Style>
-                            </ItemsControl.Styles>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:NodeViewModel">
-                                    <Border Width="{Binding ActualWidth}"
-                                            Height="{Binding ActualHeight}"
-                                            Background="{Binding Color, Converter={StaticResource MindmapColorToBrushConverter}, ConverterParameter=MindmapToolbarNodeColorSwatchOneBrush}"
-                                            CornerRadius="{Binding CornerRadius, Converter={StaticResource DoubleToCornerRadiusConverter}}"
-                                            Opacity="0.85"
-                                            IsHitTestVisible="False">
-                                        <Border.IsVisible>
-                                            <MultiBinding Converter="{StaticResource MinimapHiddenVisibilityConverter}">
-                                                <Binding Path="IsHidden"/>
-                                                <Binding ElementName="MindmapViewControl" Path="ShowCollapsedNodesOnMinimapBinding"/>
-                                            </MultiBinding>
-                                        </Border.IsVisible>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </Panel>
-
-                    <!-- Viewport box -->
-                    <Border Name="MinimapViewportBox"
-                            Canvas.Left="0" Canvas.Top="0"
-                            BorderBrush="{DynamicResource AccentBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Background="#10000000"
-                            BoxShadow="0 0 0 1 #18000000, 0 2 8 0 #20000000"
-                            IsHitTestVisible="False"
-                            RenderTransformOrigin="0,0">
-                        <Border.RenderTransform>
-                            <TranslateTransform/>
-                        </Border.RenderTransform>
-                        <!-- Top accent strip -->
-                        <Border VerticalAlignment="Top"
-                                Height="3"
-                                CornerRadius="6 6 0 0"
-                                Margin="-1 -1 -1 0"
-                                Opacity="0.5">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Color="{DynamicResource Accent}" Offset="0"/>
-                                    <GradientStop Color="Transparent" Offset="1"/>
-                                </LinearGradientBrush>
-                            </Border.Background>
-                        </Border>
-                    </Border>
-
-                    <!-- "Minimap" label -->
-                    <TextBlock Canvas.Left="10" Canvas.Bottom="8"
-                               Text="{markup:T Ns=Mindmap, Key=Minimap}"
-                               FontSize="8"
-                               FontWeight="SemiBold"
-                               LetterSpacing="1.2"
-                               Foreground="{DynamicResource TextTertiaryBrush}"
-                               IsHitTestVisible="False"/>
-                </Canvas>
-            </Border>
-
-            <!-- Selection Box -->
-            <Border Name="SelectionBox" 
-                    Background="{DynamicResource AccentBrush}" 
-                    Opacity="0.2" 
-                    BorderBrush="{DynamicResource AccentBrush}" 
-                    BorderThickness="1" 
-                    IsVisible="False" 
-                    IsHitTestVisible="False"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"/>
-        </Panel>
+        </Border>
     </Grid>
 </UserControl>

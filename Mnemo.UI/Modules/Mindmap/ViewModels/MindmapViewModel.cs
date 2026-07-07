@@ -1,277 +1,121 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
+using System.Globalization;
+using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Input;
+using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Mnemo.Core.Enums;
 using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Services;
-using LayoutAlgorithms = Mnemo.Core.Models.Mindmap.LayoutAlgorithms;
 using Mnemo.UI.Modules.Mindmap.Services;
 using Mnemo.UI.ViewModels;
-using MindmapModel = Mnemo.Core.Models.Mindmap.Mindmap;
 
 namespace Mnemo.UI.Modules.Mindmap.ViewModels;
 
+/// <summary>
+/// Editor view model for a single schema v2 mindmap (route <c>mindmap-detail</c>). Loads the document,
+/// projects its node elements + hierarchy edges into bindable canvas items, and drives structural edits
+/// through the one command layer (<see cref="IMindmapService.ApplyAsync"/>) so every gesture is an atomic,
+/// revisioned op batch.
+/// </summary>
+/// <remarks>
+/// P2 foundation slice: rendering is a straightforward canvas projection (virtualized custom-draw + quadtree
+/// is the tracked next step); undo/redo and clipboard are stubbed pending the op-inverse history.
+/// </remarks>
 public partial class MindmapViewModel : ViewModelBase, INavigationAware
 {
-    private const string MinimapOverridesKey = "Mindmap.MinimapVisibilityOverrides";
-    private const string MinimapShowCollapsedKey = "Mindmap.MinimapShowCollapsedNodes";
+    private readonly IMindmapService _service;
+    private readonly INavigationService _navigation;
+    private readonly ILoggerService _logger;
+    private readonly ILocalizationService? _localization;
 
-    private readonly IMindmapService _mindmapService;
-    private readonly MindmapEditorSession _session;
-    private readonly MindmapEditorHistory _history;
-    private readonly MindmapGraphMutator _mutator;
-    private readonly MindmapEdgeHoverState _hover;
-    private readonly ISettingsService? _settingsService;
-    private readonly IOverlayService? _overlayService;
-    private readonly ILocalizationService? _localizationService;
-    private readonly ILoggerService? _logger;
+    private readonly MindmapCamera _camera = new();
+    private MindmapDocument? _document;
 
-    private string _globalMinimapDefault = "Auto";
-    private string? _localMinimapOverride;
-
-    [ObservableProperty] private string _title = "Mindmap";
-    [ObservableProperty] private bool _isLoading;
-    [ObservableProperty] private string _toolbarCategory = "Edit";
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsEditMode))]
-    [NotifyPropertyChangedFor(nameof(IsPreviewMode))]
-    [NotifyPropertyChangedFor(nameof(IsToolbarVisible))]
-    [NotifyPropertyChangedFor(nameof(IsEditingEnabled))]
-    private string _mindmapMode = "Edit";
-    [ObservableProperty] private double _zoomLevel = 1.0;
-    [ObservableProperty] private bool _showEdgeLabels = true;
-    [ObservableProperty] private bool _showCollapsedNodesOnMinimap;
-    [ObservableProperty] private bool _exportPngTransparentBackground;
+    private string _mapId = string.Empty;
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLayoutTreeVertical))]
-    [NotifyPropertyChangedFor(nameof(IsLayoutTreeHorizontal))]
-    [NotifyPropertyChangedFor(nameof(IsLayoutRadial))]
-    private string _selectedLayoutAlgorithm = LayoutAlgorithms.TreeVertical;
+    private string _title = string.Empty;
 
-    public bool IsEditMode => MindmapMode == "Edit";
-    public bool IsPreviewMode => MindmapMode == "Preview";
-    public bool IsToolbarVisible => !IsPreviewMode;
-    public bool IsEditingEnabled => !IsPreviewMode;
-    public bool CanUndo => _history.CanUndo;
-    public bool CanRedo => _history.CanRedo;
-    public bool SuppressRecenterOnNextCollectionChange { get; set; }
+    [ObservableProperty]
+    private long _revision;
 
-    public ObservableCollection<NodeViewModel> Nodes => _session.Nodes;
-    public ObservableCollection<EdgeViewModel> Edges => _session.Edges;
-    public MindmapCanvasSettings CanvasSettings { get; } = new();
+    [ObservableProperty]
+    private bool _isLoading;
 
-    public ICommand AddNodeCommand { get; }
-    public ICommand DeleteSelectedCommand { get; }
-    public ICommand ConnectSelectedCommand { get; }
-    public ICommand DetachSelectedCommand { get; }
-    public ICommand SetLayoutAlgorithmCommand { get; }
+    [ObservableProperty]
+    private bool _isEditingEnabled = true;
+
+    [ObservableProperty]
+    private Matrix _canvasTransform = Matrix.Identity;
+
+    [ObservableProperty]
+    private string _zoomLabel = "100%";
+
+    [ObservableProperty]
+    private MindmapNodeItem? _selectedNode;
+
+    /// <summary>Edge selection is not yet wired in the foundation slice; kept for the keybind contract.</summary>
+    public object? SelectedEdge { get; set; }
+
+    public ObservableCollection<MindmapNodeItem> Nodes { get; } = new();
+    public ObservableCollection<MindmapEdgeItem> Edges { get; } = new();
+
     public ICommand RecenterCommand { get; }
-    public ICommand SetSelectedNodesColorCommand { get; }
-    public ICommand SetSelectedNodesShapeCommand { get; }
-    public ICommand SetSelectedEdgeKindCommand { get; }
-    public ICommand SetSelectedEdgeTypeCommand { get; }
-    public ICommand SetMinimapVisibilityCommand { get; }
-    public ICommand SetToolbarCategoryCommand { get; }
-    public ICommand SetMindmapModeCommand { get; }
-    public ICommand ExportAsPngCommand { get; }
-    public ICommand UndoCommand { get; }
-    public ICommand RedoCommand { get; }
-    public ICommand ToggleCollapseCommand { get; }
-
-    public event EventHandler? RecenterRequested;
-    public event Action<EdgeViewModel>? FocusEdgeLabelRequested;
-    public event EventHandler? ExportRequested;
+    public ICommand DeleteSelectedCommand { get; }
 
     public MindmapViewModel(
-        IMindmapService mindmapService,
-        MindmapEditorSession session,
-        MindmapEditorHistory history,
-        MindmapGraphMutator mutator,
-        MindmapEdgeHoverState hover,
-        ISettingsService? settingsService = null,
-        IOverlayService? overlayService = null,
-        ILocalizationService? localizationService = null,
-        ILoggerService? logger = null)
+        IMindmapService service,
+        INavigationService navigation,
+        ILoggerService logger,
+        ILocalizationService? localization = null)
     {
-        _mindmapService = mindmapService;
-        _session = session;
-        _history = history;
-        _mutator = mutator;
-        _hover = hover;
-        _settingsService = settingsService;
-        _overlayService = overlayService;
-        _localizationService = localizationService;
+        _service = service;
+        _navigation = navigation;
         _logger = logger;
+        _localization = localization;
 
-        _session.SetNodePropertyHandler(OnNodePropertyChanged);
-        _history.ConfigureRestore(RestoreMindmapStateAsync);
-        _history.StateChanged += OnHistoryStateChanged;
-
-        if (_settingsService != null)
-        {
-            _settingsService.SettingChanged += OnSettingsChanged;
-            _ = RefreshCanvasSettingsAsync();
-        }
-
-        AddNodeCommand = new AsyncRelayCommand(() => AddNodeAsync());
-        DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync);
-        ConnectSelectedCommand = new AsyncRelayCommand(ConnectSelectedAsync);
-        DetachSelectedCommand = new AsyncRelayCommand(DetachSelectedAsync);
-        SetLayoutAlgorithmCommand = new AsyncRelayCommand<string?>(SetLayoutAlgorithmAsync);
-        RecenterCommand = new RelayCommand(() => RecenterRequested?.Invoke(this, EventArgs.Empty));
-        SetSelectedNodesColorCommand = new RelayCommand<string?>(SetSelectedNodesColor);
-        SetSelectedNodesShapeCommand = new RelayCommand<string?>(SetSelectedNodesShape);
-        SetSelectedEdgeKindCommand = new RelayCommand<MindmapEdgeKind?>(SetSelectedEdgeKind);
-        SetSelectedEdgeTypeCommand = new RelayCommand<string?>(SetSelectedEdgeType);
-        SetMinimapVisibilityCommand = new RelayCommand<string?>(SetMinimapVisibility);
-        SetToolbarCategoryCommand = new RelayCommand<string?>(c => { if (!string.IsNullOrEmpty(c)) ToolbarCategory = c; });
-        SetMindmapModeCommand = new RelayCommand<string?>(c => { if (!string.IsNullOrEmpty(c)) MindmapMode = c; });
-        ExportAsPngCommand = new RelayCommand(() => ExportRequested?.Invoke(this, EventArgs.Empty));
-        UndoCommand = new AsyncRelayCommand(UndoAsync, () => CanUndo);
-        RedoCommand = new AsyncRelayCommand(RedoAsync, () => CanRedo);
-        ToggleCollapseCommand = new AsyncRelayCommand<NodeViewModel?>(ToggleCollapseAsync);
-    }
-
-    private MindmapEditorDefaults EditorDefaults => new(
-        DefaultNodeColor, DefaultNodeShape, DefaultEdgeKind, DefaultEdgeType);
-
-    private void OnHistoryStateChanged()
-    {
-        OnPropertyChanged(nameof(CanUndo));
-        OnPropertyChanged(nameof(CanRedo));
-        (UndoCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
-        (RedoCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
-    }
-
-    private async Task RestoreMindmapStateAsync(MindmapModel m)
-    {
-        SelectedLayoutAlgorithm = _session.Refresh(m);
-        Title = m.Title;
-        SuppressRecenterOnNextCollectionChange = true;
-        await _mindmapService.SaveMindmapAsync(m);
-    }
-
-    public async Task UndoAsync()
-    {
-        if (!_history.CanUndo) return;
-        await _history.UndoAsync();
-    }
-
-    public async Task RedoAsync()
-    {
-        if (!_history.CanRedo) return;
-        await _history.RedoAsync();
-    }
-
-    public string Translate(string key, string ns, string fallback) =>
-        _localizationService?.T(key, ns) ?? fallback;
-
-    public async Task ShowExportErrorAsync(string message)
-    {
-        if (_overlayService == null) return;
-        var title = Translate("ExportFailedTitle", "Mindmap", "Export failed");
-        await _overlayService.CreateDialogAsync(title, message).ConfigureAwait(true);
-    }
-
-    public void LogExportWarning(Exception ex) =>
-        _logger?.Log(LogLevel.Warning, nameof(MindmapViewModel), "PNG export failed", ex);
-
-    partial void OnShowCollapsedNodesOnMinimapChanged(bool value)
-    {
-        if (_settingsService == null) return;
-        _ = _settingsService.SetAsync(MinimapShowCollapsedKey, value);
-    }
-
-    partial void OnToolbarCategoryChanged(string value)
-    {
-        OnPropertyChanged(nameof(IsEditTab));
-        OnPropertyChanged(nameof(IsStyleTab));
-        OnPropertyChanged(nameof(IsViewTab));
-    }
-
-    partial void OnSelectedLayoutAlgorithmChanged(string value)
-    {
-        if (_session.Current == null || string.IsNullOrEmpty(value)) return;
-        if (_session.Current.Layout.Algorithm == value) return;
-        _session.Current.Layout.Algorithm = value;
-        _ = _mindmapService.UpdateLayoutAlgorithmAsync(_session.Current.Id, value);
-    }
-
-    private void OnSettingsChanged(object? sender, string key)
-    {
-        if (key.StartsWith("Mindmap.Grid", StringComparison.Ordinal) || key == "Mindmap.ModifierBehaviour")
-            _ = RefreshCanvasSettingsAsync();
-        else if (key == "Mindmap.MinimapVisibility")
-            _ = RefreshGlobalMinimapSettingAsync();
-        else if (key == "Mindmap.MinimapShowCollapsedNodes")
-            _ = RefreshGlobalMinimapShowCollapsedNodesSettingAsync();
-    }
-
-    public async Task RefreshCanvasSettingsAsync()
-    {
-        if (_settingsService == null) return;
-
-        CanvasSettings.GridType = await _settingsService.GetAsync("Mindmap.GridType", "Dotted").ConfigureAwait(false);
-        CanvasSettings.ModifierBehaviour = await _settingsService.GetAsync("Mindmap.ModifierBehaviour", "Selecting").ConfigureAwait(false);
-
-        var sizeStr = await _settingsService.GetAsync("Mindmap.GridSize", "40").ConfigureAwait(false);
-        var dotSizeStr = await _settingsService.GetAsync("Mindmap.GridDotSize", "1.5").ConfigureAwait(false);
-        var opacityStr = await _settingsService.GetAsync("Mindmap.GridOpacity", "0.2").ConfigureAwait(false);
-
-        if (double.TryParse(sizeStr, System.Globalization.CultureInfo.InvariantCulture, out var size))
-            CanvasSettings.GridSpacing = size;
-        if (double.TryParse(dotSizeStr, System.Globalization.CultureInfo.InvariantCulture, out var dotSize))
-            CanvasSettings.GridDotSize = dotSize;
-        if (double.TryParse(opacityStr, System.Globalization.CultureInfo.InvariantCulture, out var opacity))
-            CanvasSettings.GridOpacity = opacity;
+        RecenterCommand = new RelayCommand(Recenter);
+        DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, () => SelectedNode is not null);
     }
 
     public void OnNavigatedTo(object? parameter)
     {
-        if (_settingsService != null)
-        {
-            _ = LoadMinimapSettingAsync();
-            _ = RefreshCanvasSettingsAsync();
-        }
-
-        if (parameter is string id)
-            _ = LoadMindmapAsync(id);
-        else
-            _ = LoadInitialMindmapAsync();
+        if (parameter is string id && !string.IsNullOrEmpty(id))
+            _ = LoadAsync(id);
     }
 
-    private async Task LoadMinimapSettingAsync()
+    public void OnNavigatedFrom()
     {
-        if (_settingsService == null) return;
-        var mode = await _settingsService.GetAsync("Mindmap.MinimapVisibility", "Auto").ConfigureAwait(false);
-        if (mode != null) _globalMinimapDefault = mode;
-        ShowCollapsedNodesOnMinimap = await _settingsService.GetAsync(MinimapShowCollapsedKey, false).ConfigureAwait(false);
-        if (_session.Current == null && _localMinimapOverride == null)
-            NotifyMinimapVisibilityChanged();
+        Nodes.Clear();
+        Edges.Clear();
     }
 
-    public async Task RefreshGlobalMinimapShowCollapsedNodesSettingAsync()
-    {
-        if (_settingsService == null) return;
-        ShowCollapsedNodesOnMinimap = await _settingsService.GetAsync(MinimapShowCollapsedKey, false).ConfigureAwait(false);
-    }
+    // --- Loading / projection ----------------------------------------------
 
-    private async Task LoadInitialMindmapAsync()
+    private async Task LoadAsync(string id)
     {
         IsLoading = true;
         try
         {
-            var mindmapsResult = await _mindmapService.GetAllMindmapsAsync();
-            if (mindmapsResult.IsSuccess && mindmapsResult.Value != null && mindmapsResult.Value.Any())
-                await LoadMindmapAsync(mindmapsResult.Value.First().Id);
-            else
+            var result = await _service.GetAsync(id).ConfigureAwait(true);
+            if (!result.IsSuccess || result.Value is null)
             {
-                var createResult = await _mindmapService.CreateMindmapAsync("My First Mindmap");
-                if (createResult.IsSuccess && createResult.Value != null)
-                    await LoadMindmapAsync(createResult.Value.Id);
+                _logger.Error("Mindmap", $"Failed to open mindmap '{id}': {result.ErrorMessage}");
+                return;
             }
+
+            MapId = id;
+            ApplyDocument(result.Value);
+            Recenter();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", $"Failed to open mindmap '{id}'.", ex);
         }
         finally
         {
@@ -279,206 +123,238 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         }
     }
 
-    public async Task LoadMindmapAsync(string id)
+    private async Task ReloadAsync(string? selectId = null)
     {
-        var result = await _mindmapService.GetMindmapAsync(id);
-        if (!result.IsSuccess || result.Value == null) return;
-
-        bool isNewMindmap = _session.Current?.Id != id;
-        if (isNewMindmap)
-            _history.Clear();
-
-        SelectedLayoutAlgorithm = _session.Refresh(result.Value);
-        Title = result.Value.Title;
-
-        if (_settingsService != null)
+        var result = await _service.GetAsync(MapId).ConfigureAwait(true);
+        if (result.IsSuccess && result.Value is not null)
         {
-            var overrides = await _settingsService.GetAsync(MinimapOverridesKey, new Dictionary<string, string>()).ConfigureAwait(false)
-                ?? new Dictionary<string, string>();
-            _localMinimapOverride = overrides.TryGetValue(id, out var saved) ? saved : null;
-        }
-        else
-            _localMinimapOverride = null;
-
-        NotifyMinimapVisibilityChanged();
-    }
-
-    private async Task AddNodeAsync()
-    {
-        try
-        {
-            await _mutator.AddNodeAsync(EditorDefaults, Nodes.Where(n => n.IsSelected).ToList());
-        }
-        catch (Exception ex)
-        {
-            _logger?.Error(nameof(MindmapViewModel), "Failed to add node", ex);
+            ApplyDocument(result.Value);
+            if (selectId is not null)
+                Select(Nodes.FirstOrDefault(n => n.Id == selectId));
         }
     }
 
-    public async Task DeleteSelectedAsync() =>
-        await _mutator.DeleteSelectedAsync(Nodes.Where(n => n.IsSelected).ToList());
-
-    private async Task ConnectSelectedAsync() =>
-        await _mutator.ConnectSelectedAsync(EditorDefaults, Nodes.Where(n => n.IsSelected).ToList());
-
-    private async Task DetachSelectedAsync() =>
-        await _mutator.DetachSelectedAsync(Nodes.Where(n => n.IsSelected).ToList());
-
-    public void CopySelection()
+    private void ApplyDocument(MindmapDocument document)
     {
-        try
-        {
-            _mutator.CopySelection(Nodes.Where(n => n.IsSelected).ToList());
-        }
-        catch (Exception ex)
-        {
-            _logger?.Error(nameof(MindmapViewModel), "Failed to copy selection", ex);
-        }
-    }
+        _document = document;
+        Title = document.Title;
+        Revision = document.Revision;
 
-    public async Task PasteAsync()
-    {
-        try
+        var positions = MindmapTreeLayout.ComputePositions(document);
+        var nodeElements = document.Elements.Where(e => e.Kind == ElementKind.Node).ToList();
+        var hasParent = document.Edges
+            .Where(e => e.Kind == EdgeKind.Hierarchy)
+            .Select(e => e.ToId)
+            .ToHashSet();
+
+        var items = new Dictionary<string, MindmapNodeItem>();
+        Nodes.Clear();
+        foreach (var element in nodeElements)
         {
-            var newIds = await _mutator.PasteAsync(EditorDefaults, FirstSelectedNode, Nodes.FirstOrDefault());
-            if (newIds.Count > 0)
+            var pos = positions.GetValueOrDefault(element.Id);
+            var item = new MindmapNodeItem
             {
-                foreach (var node in Nodes)
-                    node.IsSelected = newIds.Contains(node.Id);
+                Id = element.Id,
+                X = pos.X,
+                Y = pos.Y,
+                Text = NodeText(element.Content),
+                IsRoot = !hasParent.Contains(element.Id),
+            };
+            items[element.Id] = item;
+            Nodes.Add(item);
+        }
+
+        Edges.Clear();
+        foreach (var edge in document.Edges.Where(e => e.Kind == EdgeKind.Hierarchy))
+        {
+            if (items.TryGetValue(edge.FromId, out var from) && items.TryGetValue(edge.ToId, out var to))
+            {
+                Edges.Add(new MindmapEdgeItem
+                {
+                    Id = edge.Id,
+                    Start = new Point(from.CenterX, from.CenterY),
+                    End = new Point(to.CenterX, to.CenterY),
+                });
             }
         }
-        catch (Exception ex)
-        {
-            _logger?.Error(nameof(MindmapViewModel), "Failed to paste nodes", ex);
-        }
+
+        SelectedNode = null;
     }
 
-    public async Task DuplicateSelectionAsync()
+    private static string NodeText(IElementContent content) => content switch
     {
-        try
-        {
-            await _mutator.DuplicateSelectionAsync(EditorDefaults, Nodes.Where(n => n.IsSelected).ToList());
-        }
-        catch (Exception ex)
-        {
-            _logger?.Error(nameof(MindmapViewModel), "Failed to duplicate nodes", ex);
-        }
+        TextContent t => t.Text,
+        TaskContent task => task.Text,
+        CodeContent code => code.Source,
+        LinkContent link => link.Title ?? link.Url,
+        MathContent math => math.Latex,
+        _ => string.Empty,
+    };
+
+    // --- Selection ---------------------------------------------------------
+
+    public void Select(MindmapNodeItem? node)
+    {
+        foreach (var n in Nodes)
+            n.IsSelected = ReferenceEquals(n, node);
+        SelectedNode = node;
+        ((AsyncRelayCommand)DeleteSelectedCommand).NotifyCanExecuteChanged();
     }
+
+    public void ClearHoverState()
+    {
+        // No hover feedback in the foundation slice.
+    }
+
+    // --- Camera ------------------------------------------------------------
+
+    public void PanBy(double screenDx, double screenDy)
+    {
+        _camera.PanByScreenDelta(screenDx, screenDy);
+        SyncCamera();
+    }
+
+    public void ZoomAt(Point screenAnchor, double factor)
+    {
+        if (_camera.TryZoomAt(screenAnchor, factor))
+            SyncCamera();
+    }
+
+    private void Recenter()
+    {
+        if (Nodes.Count == 0)
+            return;
+        var cx = Nodes.Average(n => n.CenterX);
+        var cy = Nodes.Average(n => n.CenterY);
+        _camera.CenterOnContentPoint(new Point(cx, cy), 800, 500);
+        SyncCamera();
+    }
+
+    private void SyncCamera()
+    {
+        CanvasTransform = _camera.Transform;
+        ZoomLabel = string.Format(CultureInfo.InvariantCulture, "{0:0}%", _camera.Scale * 100);
+    }
+
+    public Point ScreenToContent(Point screen) => _camera.ScreenToContent(screen);
+
+    // --- Structural edits (op batches) -------------------------------------
 
     public async Task AddChildNodeAsync()
     {
-        try
+        if (SelectedNode is null)
         {
-            if (FirstSelectedNode == null) return;
-            await _mutator.AddChildNodeAsync(EditorDefaults, FirstSelectedNode);
+            await AddRootAsync().ConfigureAwait(true);
+            return;
         }
-        catch (Exception ex)
+
+        await ApplyAsync(new AddNodesOp
         {
-            _logger?.Error(nameof(MindmapViewModel), "Failed to add child node", ex);
-        }
+            Under = SelectedNode.Id,
+            Nodes = new[] { new MindmapNodeSpec { Ref = "new", Text = T("NewNode") } },
+        }, selectRef: "new").ConfigureAwait(true);
     }
 
     public async Task AddSiblingNodeAsync()
     {
-        try
+        if (SelectedNode is null || _document is null)
         {
-            if (FirstSelectedNode == null) return;
-            await _mutator.AddSiblingNodeAsync(EditorDefaults, FirstSelectedNode);
-        }
-        catch (Exception ex)
-        {
-            _logger?.Error(nameof(MindmapViewModel), "Failed to add sibling node", ex);
-        }
-    }
-
-    public async Task UpdateNodeTextAsync(NodeViewModel node, string text) =>
-        await _mutator.UpdateNodeTextAsync(node, text);
-
-    public MindmapModel? CaptureMoveSnapshot() => _mutator.CaptureMoveSnapshot();
-
-    public async Task UpdateNodesPositionAsync(MindmapModel before, IReadOnlyList<(NodeViewModel node, double x, double y)> moves) =>
-        await _mutator.UpdateNodesPositionAsync(before, moves);
-
-    public async Task UpdateNodePositionAsync(NodeViewModel node, double x, double y)
-    {
-        if (_session.Current == null) return;
-        var before = _history.Snapshot(_session.Current);
-        await _mutator.UpdateNodesPositionAsync(before, new[] { (node, x, y) });
-    }
-
-    private async Task SetLayoutAlgorithmAsync(string? algorithmId)
-    {
-        if (_session.Current == null || string.IsNullOrEmpty(algorithmId) || !LayoutAlgorithmIds.Contains(algorithmId))
+            await AddRootAsync().ConfigureAwait(true);
             return;
-        SelectedLayoutAlgorithm = algorithmId;
-        await _mutator.ApplyLayoutAsync();
+        }
+
+        var parentEdge = _document.Edges.FirstOrDefault(e => e.Kind == EdgeKind.Hierarchy && e.ToId == SelectedNode.Id);
+        await ApplyAsync(new AddNodesOp
+        {
+            Under = parentEdge?.FromId,
+            After = parentEdge is null ? null : SelectedNode.Id,
+            Nodes = new[] { new MindmapNodeSpec { Ref = "new", Text = T("NewNode") } },
+        }, selectRef: "new").ConfigureAwait(true);
     }
 
-    private async Task ToggleCollapseAsync(NodeViewModel? node)
+    public async Task CreateNodeAtAsync(Point contentPoint)
+    {
+        await ApplyAsync(new AddNodesOp
+        {
+            Nodes = new[] { new MindmapNodeSpec { Ref = "new", Text = T("NewNode"), X = contentPoint.X, Y = contentPoint.Y } },
+        }, selectRef: "new").ConfigureAwait(true);
+    }
+
+    private Task AddRootAsync() => ApplyAsync(new AddNodesOp
+    {
+        Nodes = new[] { new MindmapNodeSpec { Ref = "new", Text = T("NewNode") } },
+    }, selectRef: "new");
+
+    public async Task MoveNodeAsync(string nodeId, Point contentPosition)
+    {
+        await ApplyAsync(new MoveOp { Id = nodeId, X = contentPosition.X, Y = contentPosition.Y }, selectRef: null).ConfigureAwait(true);
+    }
+
+    private async Task DeleteSelectedAsync()
+    {
+        if (SelectedNode is null)
+            return;
+        await ApplyAsync(new DeleteOp { Ids = new[] { SelectedNode.Id } }, selectRef: null).ConfigureAwait(true);
+    }
+
+    private async Task ApplyAsync(MindmapEditOp op, string? selectRef)
     {
         try
         {
-            if (node == null) return;
-            await _mutator.ToggleCollapseAsync(node);
-        }
-        catch (Exception ex)
-        {
-            _logger?.Error(nameof(MindmapViewModel), "Failed to toggle node collapse", ex);
-        }
-    }
-
-    public async void EdgeClicked(EdgeViewModel edge)
-    {
-        try
-        {
-            if (_session.Current == null) return;
-            SelectedEdge = edge;
-            if (edge.Label == null)
+            var result = await _service.ApplyAsync(MapId, Revision, new[] { op }).ConfigureAwait(true);
+            if (!result.IsSuccess || result.Value is null)
             {
-                ShowEdgeLabels = true;
-                await _mutator.AddEdgeLabelAsync(edge);
+                _logger.Error("Mindmap", $"Edit failed on '{MapId}': {result.ErrorMessage}");
+                return;
             }
+            if (!result.Value.Success)
+            {
+                _logger.Warning("Mindmap", $"Edit rejected on '{MapId}': {result.Value.Error?.Code} {result.Value.Error?.Message}");
+                return;
+            }
+
+            var newId = selectRef is not null ? result.Value.CreatedIds.GetValueOrDefault(selectRef) : null;
+            await ReloadAsync(newId).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
-            _logger?.Error(nameof(MindmapViewModel), "Failed to process edge click", ex);
+            _logger.Error("Mindmap", $"Edit threw on '{MapId}'.", ex);
         }
+    }
+
+    // --- Keybind-contract stubs (implemented in the next P2 push) ----------
+
+    public Task UndoAsync()
+    {
+        _logger.Info("Mindmap", "Undo is not yet implemented (P2 op-inverse history pending).");
+        return Task.CompletedTask;
+    }
+
+    public Task RedoAsync()
+    {
+        _logger.Info("Mindmap", "Redo is not yet implemented (P2 op-inverse history pending).");
+        return Task.CompletedTask;
+    }
+
+    public void CopySelection() =>
+        _logger.Info("Mindmap", "Copy is not yet implemented (P2 clipboard pending).");
+
+    public Task PasteAsync()
+    {
+        _logger.Info("Mindmap", "Paste is not yet implemented (P2 clipboard pending).");
+        return Task.CompletedTask;
+    }
+
+    public Task DuplicateSelectionAsync()
+    {
+        _logger.Info("Mindmap", "Duplicate-selection is not yet implemented (P2 clipboard pending).");
+        return Task.CompletedTask;
     }
 
     public void BeginEditSelectedEdgeLabel()
     {
-        if (SelectedEdge == null || !IsEditingEnabled) return;
-        EdgeClicked(SelectedEdge);
-        FocusEdgeLabelRequested?.Invoke(SelectedEdge);
+        // Edge labels are not edited here.
     }
 
-    public async void CommitEdgeLabel(EdgeViewModel edge)
-    {
-        try
-        {
-            await _mutator.CommitEdgeLabelAsync(edge);
-        }
-        catch (Exception ex)
-        {
-            _logger?.Error(nameof(MindmapViewModel), "Failed to commit edge label", ex);
-        }
-    }
-
-    public void SetHoveredEdge(string? edgeId) => _hover.SetHoveredEdge(edgeId);
-    public void SetHoveredNode(string nodeId, bool hovered) => _hover.SetHoveredNode(nodeId, hovered);
-    public void ClearHoverState() => _hover.Clear();
-
-    private void OnNodePropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(NodeViewModel.IsSelected))
-        {
-            OnPropertyChanged(nameof(FirstSelectedNode));
-            OnPropertyChanged(nameof(HasSelectedNodes));
-            NotifyEffectiveStyleChanged();
-        }
-        else if (e.PropertyName is nameof(NodeViewModel.Color) or nameof(NodeViewModel.Shape))
-        {
-            NotifyEffectiveStyleChanged();
-        }
-    }
+    private string T(string key) => _localization?.T(key, "Mindmap") ?? key;
 }
