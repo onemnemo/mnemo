@@ -20,23 +20,20 @@
     </UserControl.Resources>
 
     <UserControl.Styles>
-        <!-- Library cards: quiet surface, shadow lift on hover (no border-thickness change). -->
+        <!-- Library cards: quiet surface, shadow-only lift on hover (no border). -->
         <Style Selector="Border.lib-card">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="CornerRadius" Value="{DynamicResource Radius.Lg}"/>
             <Setter Property="BoxShadow" Value="{DynamicResource Elevation.1}"/>
             <Setter Property="Transitions">
                 <Transitions>
                     <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.16" Easing="CubicEaseOut"/>
-                    <BrushTransition Property="BorderBrush" Duration="0:0:0.16" Easing="CubicEaseOut"/>
                 </Transitions>
             </Setter>
         </Style>
         <Style Selector="Button:pointerover Border.lib-card">
             <Setter Property="BoxShadow" Value="{DynamicResource Elevation.2}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderSubtleBrush}"/>
         </Style>
 
         <!-- Card buttons strip stock chrome so the card is the visible surface. -->
@@ -152,21 +149,35 @@
             <Setter Property="VerticalAlignment" Value="Top"/>
         </Style>
 
-        <!-- Dashed "new" tile -->
+        <!-- Dashed "new" tile: Border carries background/radius; Rectangle overlay carries the dashed stroke (Border has no dash support) -->
         <Style Selector="Border.new-tile">
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1.5"/>
             <Setter Property="CornerRadius" Value="{DynamicResource Radius.Lg}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Transitions">
                 <Transitions>
-                    <BrushTransition Property="BorderBrush" Duration="0:0:0.16" Easing="CubicEaseOut"/>
+                    <BrushTransition Property="Background" Duration="0:0:0.16" Easing="CubicEaseOut"/>
                 </Transitions>
             </Setter>
         </Style>
         <Style Selector="Button.card-host:pointerover Border.new-tile">
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
             <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Rectangle.new-tile-dash">
+            <Setter Property="Stroke" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="StrokeThickness" Value="1.5"/>
+            <Setter Property="StrokeDashArray" Value="4,4"/>
+            <Setter Property="RadiusX" Value="12"/>
+            <Setter Property="RadiusY" Value="12"/>
+            <Setter Property="Fill" Value="Transparent"/>
+            <Setter Property="IsHitTestVisible" Value="False"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Stroke" Duration="0:0:0.16" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.card-host:pointerover Rectangle.new-tile-dash">
+            <Setter Property="Stroke" Value="{DynamicResource AccentBrush}"/>
         </Style>
 
         <!-- Section eyebrow -->
@@ -203,7 +214,7 @@
                     Command="{Binding $parent[UserControl].DataContext.OpenFolderCommand, FallbackValue={x:Null}}"
                     CommandParameter="{Binding}"
                     Margin="0,0,18,18">
-                <Border Classes="lib-card" ClipToBounds="True"
+                <Border Classes="lib-card" ClipToBounds="True" MinHeight="210"
                         DragDrop.AllowDrop="True"
                         DragDrop.DragOver="OnFolderDragOver"
                         DragDrop.Drop="OnFolderDrop">
@@ -289,7 +300,7 @@
                     Command="{Binding $parent[UserControl].DataContext.OpenMindmapCommand, FallbackValue={x:Null}}"
                     CommandParameter="{Binding}"
                     Margin="0,0,18,18">
-                <Border Classes="lib-card" ClipToBounds="True"
+                <Border Classes="lib-card" ClipToBounds="True" MinHeight="210"
                         PointerPressed="OnMapCardPointerPressed"
                         PointerMoved="OnMapCardPointerMoved"
                         PointerReleased="OnMapCardPointerReleased">
@@ -382,7 +393,9 @@
             <Button Classes="card-host"
                     Command="{Binding $parent[UserControl].DataContext.CreateCommand, FallbackValue={x:Null}}"
                     Margin="0,0,18,18">
-                <Border Classes="new-tile" MinHeight="180">
+                <Panel MinHeight="210">
+                    <Border Classes="new-tile"/>
+                    <Rectangle Classes="new-tile-dash"/>
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="9">
                         <Border Width="34" Height="34" CornerRadius="{DynamicResource Radius.Md}"
                                 Background="{DynamicResource CardBackgroundSecondaryBrush}">
@@ -393,7 +406,7 @@
                                    FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
                                    Foreground="{DynamicResource TextSecondaryBrush}"/>
                     </StackPanel>
-                </Border>
+                </Panel>
             </Button>
         </DataTemplate>
     </UserControl.DataTemplates>
@@ -661,15 +674,17 @@
                         <DataTemplate DataType="vm:MindmapNewTilePlaceholder">
                             <Button Classes="card-host"
                                     Command="{Binding $parent[UserControl].DataContext.CreateCommand, FallbackValue={x:Null}}">
-                                <Border Classes="new-tile" Padding="12">
-                                    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                                <Panel>
+                                    <Border Classes="new-tile"/>
+                                    <Rectangle Classes="new-tile-dash"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" Margin="12">
                                         <controls:AppIcon Icon="Common/plus" Width="16" Height="16" Color="{DynamicResource AccentBrush}"/>
                                         <TextBlock Text="{Binding $parent[UserControl].DataContext.NewTileLabel, FallbackValue=''}"
                                                    VerticalAlignment="Center"
                                                    FontFamily="{DynamicResource Font.Medium}" FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"/>
                                     </StackPanel>
-                                </Border>
+                                </Panel>
                             </Button>
                         </DataTemplate>
                     </ItemsControl.DataTemplates>
