@@ -90,16 +90,6 @@
             <Setter Property="BorderBrush" Value="{DynamicResource DestructiveButtonColorBrush}"/>
         </Style>
 
-        <!-- Compact +/- stepper -->
-        <Style Selector="NumericUpDown.rs-stepper">
-            <Setter Property="Width" Value="120"/>
-            <Setter Property="MinHeight" Value="30"/>
-            <Setter Property="FontFamily" Value="{DynamicResource Font.Monospace}"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-        </Style>
-
         <Style Selector="TextBlock.rs-retention-value">
             <Setter Property="FontFamily" Value="{DynamicResource Font.Monospace}"/>
             <Setter Property="FontSize" Value="13"/>
@@ -249,14 +239,14 @@
                             <StackPanel>
                                 <components:SettingsRow Title="{Binding NewPerDayTitle}">
                                     <components:SettingsRow.RightContent>
-                                        <NumericUpDown Classes="rs-stepper"
+                                        <NumericUpDown Theme="{StaticResource AppStepper}"
                                                        Minimum="0" Maximum="999"
                                                        Value="{Binding NewPerDay}"/>
                                     </components:SettingsRow.RightContent>
                                 </components:SettingsRow>
                                 <components:SettingsRow Title="{Binding MaxReviewsTitle}" ShowDivider="False">
                                     <components:SettingsRow.RightContent>
-                                        <NumericUpDown Classes="rs-stepper"
+                                        <NumericUpDown Theme="{StaticResource AppStepper}"
                                                        Minimum="0" Maximum="9999"
                                                        Value="{Binding MaxReviewsPerDay}"/>
                                     </components:SettingsRow.RightContent>

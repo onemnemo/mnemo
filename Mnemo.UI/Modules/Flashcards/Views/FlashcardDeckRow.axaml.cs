@@ -26,15 +26,6 @@ public partial class FlashcardDeckRow : UserControl
         InitializeComponent();
     }
 
-    public Rect GetBoundsInVisual(Visual targetVisual)
-    {
-        var transform = this.TransformToVisual(targetVisual);
-        if (transform == null)
-            return new Rect();
-
-        return new Rect(transform.Value.Transform(new Point(0, 0)), Bounds.Size);
-    }
-
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);

@@ -36,6 +36,7 @@
                 <ResourceInclude Source="MenuFlyoutPresenter.axaml" />
                 <ResourceInclude Source="NotificationCard.axaml" />
                 <ResourceInclude Source="NumericUpDown.axaml" />
+                <ResourceInclude Source="AppStepper.axaml" />
                 <ResourceInclude Source="PopupRoot.axaml" />
                 <ResourceInclude Source="PathIcon.axaml" />
                 <ResourceInclude Source="RepeatButton.axaml" />

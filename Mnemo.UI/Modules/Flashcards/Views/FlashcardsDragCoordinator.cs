@@ -37,6 +37,8 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         bool IsRootTarget,
         FolderDropMode FolderMode);
 
+    private static readonly Cursor GrabbingCursor = new(StandardCursorType.SizeAll);
+
     private readonly Canvas _overlay;
     private readonly Control _root;
     private readonly Control? _treeSurface;
@@ -51,6 +53,14 @@ public sealed class FlashcardsDragCoordinator : IDisposable
     private bool _isRootTarget;
     private FolderDropMode _folderDropMode;
     private Vector _ghostPointerOffset;
+
+    // A drop only commits once the pointer has travelled past this distance from where the drag began.
+    // Below it, the gesture is treated as an accidental nudge and cancelled, so a stray flick never
+    // relocates an item (and dragging back near the origin is a natural "never mind").
+    private const double CommitDistance = 24.0;
+    private bool _hasDragOrigin;
+    private Point _dragOrigin;
+    private Point _lastPointer;
 
     public FlashcardsDragCoordinator(Canvas overlay, Control root, Control? treeSurface = null)
     {
@@ -98,8 +108,16 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         if (!IsDragging || _ghost == null)
             return;
 
-        PositionGhost(e.GetPosition(_overlay));
-        ResolveDropTarget(e.GetPosition(_overlay));
+        var position = e.GetPosition(_overlay);
+        if (!_hasDragOrigin)
+        {
+            _dragOrigin = position;
+            _hasDragOrigin = true;
+        }
+        _lastPointer = position;
+
+        PositionGhost(position);
+        ResolveDropTarget(position);
     }
 
     public DragDropResult? CompleteDrag(IPointer? pointer = null)
@@ -110,15 +128,33 @@ public sealed class FlashcardsDragCoordinator : IDisposable
             return null;
         }
 
+        // Ignore drops that never travelled far enough to be intentional — this is the guard against
+        // a click or tiny slip silently relocating a deck/folder to root.
+        var travelled = _hasDragOrigin ? Distance(_dragOrigin, _lastPointer) : 0;
+        if (travelled < CommitDistance)
+        {
+            Cleanup(pointer);
+            return null;
+        }
+
         var result = new DragDropResult(_sourceKind, _sourceId, _targetFolderId, _isRootTarget, _folderDropMode);
         Cleanup(pointer);
         return result;
+    }
+
+    private static double Distance(Point a, Point b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        return Math.Sqrt((dx * dx) + (dy * dy));
     }
 
     public void CancelDrag(IPointer? pointer = null)
     {
         Cleanup(pointer);
     }
+
+    private readonly record struct RowInfo(Control Control, Rect Bounds, bool IsFolder, string? FolderId, int Depth);
 
     private void ResolveDropTarget(Point pointerOnOverlay)
     {
@@ -127,63 +163,141 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         _folderDropMode = FolderDropMode.None;
         HideIndicators();
 
-        var rows = CollectVisibleFolderRows();
-        foreach (var row in rows)
+        var rows = CollectRows();
+        var hitIndex = rows.FindIndex(r => r.Bounds.Contains(pointerOnOverlay));
+
+        if (hitIndex < 0)
         {
-            if (row.DataContext is not FlashcardFolderItemViewModel folder)
-                continue;
-            if (_sourceKind == DragSourceKind.Folder && string.Equals(folder.Id, _sourceId, StringComparison.Ordinal))
-                continue;
-
-            var rowBounds = row.GetBoundsInVisual(_overlay);
-            if (!rowBounds.Contains(pointerOnOverlay))
-                continue;
-
-            _targetFolderId = folder.Id;
-
-            if (_sourceKind == DragSourceKind.Deck)
-            {
-                _folderDropMode = FolderDropMode.DropIntoFolder;
-                ShowFolderHighlight(rowBounds);
-                return;
-            }
-
-            var rowHeight = Math.Max(rowBounds.Height, 1.0);
-            var relative = (pointerOnOverlay.Y - rowBounds.Top) / rowHeight;
-            if (relative < 0.25)
-            {
-                _folderDropMode = FolderDropMode.InsertAbove;
-                ShowInsertLine(rowBounds.Top, rowBounds.Left, rowBounds.Width);
-            }
-            else if (relative > 0.75)
-            {
-                _folderDropMode = FolderDropMode.InsertBelow;
-                ShowInsertLine(rowBounds.Bottom, rowBounds.Left, rowBounds.Width);
-            }
-            else
-            {
-                _folderDropMode = FolderDropMode.DropIntoFolder;
-                ShowFolderHighlight(rowBounds);
-            }
-
+            // Over the tree surface but not any row (header, footer, gaps below the last item) -> root.
+            if (IsOverTreeSurface(pointerOnOverlay))
+                SetRootTarget();
             return;
         }
 
-        // Not over any specific row — hovering the tree surface itself (e.g. the totals footer, or
-        // any gap around the rows) moves the dragged item to the root level.
-        if (_treeSurface != null)
+        var hit = rows[hitIndex];
+
+        if (_sourceKind == DragSourceKind.Folder)
+            ResolveFolderDrop(rows, hitIndex, hit, pointerOnOverlay);
+        else
+            ResolveDeckDrop(rows, hitIndex, hit);
+    }
+
+    private void ResolveDeckDrop(List<RowInfo> rows, int hitIndex, RowInfo hit)
+    {
+        // A deck lands *inside* whichever folder owns the row under the pointer. Hovering a folder's own
+        // row, or any of its nested child rows, all resolve to that folder — so the whole folder block is
+        // one big drop target. A row that belongs to no folder (root-level deck) resolves to root.
+        if (hit.IsFolder)
         {
-            var surfaceBounds = GetBoundsInVisual(_treeSurface, _overlay);
-            if (surfaceBounds.Contains(pointerOnOverlay))
-            {
-                _isRootTarget = true;
-                var nearTop = pointerOnOverlay.Y - surfaceBounds.Top < surfaceBounds.Height / 2;
-                if (nearTop)
-                    ShowInsertLine(surfaceBounds.Top, surfaceBounds.Left, surfaceBounds.Width);
-                else
-                    ShowInsertLine(surfaceBounds.Bottom, surfaceBounds.Left, surfaceBounds.Width);
-            }
+            _targetFolderId = hit.FolderId;
+            _folderDropMode = FolderDropMode.DropIntoFolder;
+            ShowFolderHighlight(ComputeSubtreeBounds(rows, hitIndex));
+            return;
         }
+
+        if (string.IsNullOrWhiteSpace(hit.FolderId))
+        {
+            SetRootTarget();
+            return;
+        }
+
+        TargetOwningFolder(rows, hit.FolderId);
+    }
+
+    private void ResolveFolderDrop(List<RowInfo> rows, int hitIndex, RowInfo hit, Point pointerOnOverlay)
+    {
+        // Over a child row of some folder: treat it as "drop into that owning folder".
+        if (!hit.IsFolder)
+        {
+            if (string.IsNullOrWhiteSpace(hit.FolderId))
+                SetRootTarget();
+            else
+                TargetOwningFolder(rows, hit.FolderId);
+            return;
+        }
+
+        // Can't drop a folder onto itself.
+        if (string.Equals(hit.FolderId, _sourceId, StringComparison.Ordinal))
+            return;
+
+        _targetFolderId = hit.FolderId;
+
+        var rowBounds = hit.Bounds;
+        var rowHeight = Math.Max(rowBounds.Height, 1.0);
+        var relative = (pointerOnOverlay.Y - rowBounds.Top) / rowHeight;
+        if (relative < 0.25)
+        {
+            _folderDropMode = FolderDropMode.InsertAbove;
+            ShowInsertLine(rowBounds.Top, rowBounds.Left, rowBounds.Width);
+        }
+        else if (relative > 0.75)
+        {
+            _folderDropMode = FolderDropMode.InsertBelow;
+            ShowInsertLine(rowBounds.Bottom, rowBounds.Left, rowBounds.Width);
+        }
+        else
+        {
+            _folderDropMode = FolderDropMode.DropIntoFolder;
+            ShowFolderHighlight(ComputeSubtreeBounds(rows, hitIndex));
+        }
+    }
+
+    private void TargetOwningFolder(List<RowInfo> rows, string folderId)
+    {
+        _targetFolderId = folderId;
+        _folderDropMode = FolderDropMode.DropIntoFolder;
+        var folderIndex = rows.FindIndex(r => r.IsFolder && string.Equals(r.FolderId, folderId, StringComparison.Ordinal));
+        if (folderIndex >= 0)
+            ShowFolderHighlight(ComputeSubtreeBounds(rows, folderIndex));
+    }
+
+    private void SetRootTarget()
+    {
+        _isRootTarget = true;
+        if (_treeSurface == null)
+            return;
+
+        var surfaceBounds = GetBoundsInVisual(_treeSurface, _overlay);
+        ShowInsertLine(surfaceBounds.Bottom - 1, surfaceBounds.Left, surfaceBounds.Width);
+    }
+
+    private bool IsOverTreeSurface(Point pointerOnOverlay) =>
+        _treeSurface != null && GetBoundsInVisual(_treeSurface, _overlay).Contains(pointerOnOverlay);
+
+    private static Rect ComputeSubtreeBounds(List<RowInfo> rows, int folderIndex)
+    {
+        var folder = rows[folderIndex];
+        var union = folder.Bounds;
+        for (var j = folderIndex + 1; j < rows.Count; j++)
+        {
+            if (rows[j].Depth <= folder.Depth)
+                break;
+            union = union.Union(rows[j].Bounds);
+        }
+        return union;
+    }
+
+    private List<RowInfo> CollectRows()
+    {
+        var result = new List<RowInfo>();
+        CollectRowsRecursive(_root, result);
+        return result;
+    }
+
+    private void CollectRowsRecursive(Visual visual, List<RowInfo> result)
+    {
+        switch (visual)
+        {
+            case FlashcardFolderRow folderRow when folderRow.DataContext is FlashcardFolderItemViewModel folder:
+                result.Add(new RowInfo(folderRow, GetBoundsInVisual(folderRow, _overlay), true, folder.Id, folder.Depth));
+                return;
+            case FlashcardDeckRow deckRow when deckRow.DataContext is FlashcardDeckRowViewModel deck:
+                result.Add(new RowInfo(deckRow, GetBoundsInVisual(deckRow, _overlay), false, deck.FolderId, deck.Depth));
+                return;
+        }
+
+        foreach (var child in visual.GetVisualChildren())
+            CollectRowsRecursive(child, result);
     }
 
     private static Rect GetBoundsInVisual(Visual visual, Visual targetVisual)
@@ -340,25 +454,6 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         };
     }
 
-    private List<FlashcardFolderRow> CollectVisibleFolderRows()
-    {
-        var result = new List<FlashcardFolderRow>();
-        CollectRowsRecursive(_root, result);
-        return result;
-    }
-
-    private static void CollectRowsRecursive(Visual visual, List<FlashcardFolderRow> result)
-    {
-        if (visual is FlashcardFolderRow row)
-        {
-            result.Add(row);
-            return;
-        }
-
-        foreach (var child in visual.GetVisualChildren())
-            CollectRowsRecursive(child, result);
-    }
-
     private void Cleanup(IPointer? pointer)
     {
         if (_sourceControl != null)
@@ -379,6 +474,9 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         _folderHighlight = null;
         _targetFolderId = null;
         _isRootTarget = false;
+        _hasDragOrigin = false;
+        _dragOrigin = default;
+        _lastPointer = default;
         _folderDropMode = FolderDropMode.None;
         _sourceKind = DragSourceKind.None;
         _sourceId = null;

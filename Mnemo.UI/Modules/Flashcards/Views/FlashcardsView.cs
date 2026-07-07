@@ -26,6 +26,16 @@ public partial class FlashcardsView : UserControl
         InitializeComponent();
         AddHandler(PointerMovedEvent, OnRootPointerMoved, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, OnRootPointerReleased, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, OnRootKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    private void OnRootKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && _dragCoordinator?.IsDragging == true)
+        {
+            _dragCoordinator.CancelDrag();
+            e.Handled = true;
+        }
     }
 
     private void EnsureDragCoordinator()
@@ -387,6 +397,7 @@ public partial class FlashcardsView : UserControl
     {
         RemoveHandler(PointerMovedEvent, OnRootPointerMoved);
         RemoveHandler(PointerReleasedEvent, OnRootPointerReleased);
+        RemoveHandler(KeyDownEvent, OnRootKeyDown);
         _dragCoordinator?.Dispose();
         _dragCoordinator = null;
         base.OnDetachedFromVisualTree(e);

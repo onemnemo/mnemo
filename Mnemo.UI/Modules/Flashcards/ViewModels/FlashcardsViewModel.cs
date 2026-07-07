@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
+using Mnemo.UI.Components.Overlays;
 using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Flashcards.ViewModels;
@@ -430,11 +432,38 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
 
     private async Task CreateDeckAsync()
     {
-        var name = _localization.T("DefaultDeckName", "Flashcards");
+        var name = await PromptForDeckNameAsync().ConfigureAwait(true);
+        if (name is null)
+            return;
+
         var preset = await _presets.GetOrCreateStandardAsync().ConfigureAwait(false);
         var header = await _library.CreateDeckAsync(name, folderId: null, presetId: preset.Id).ConfigureAwait(false);
         await LoadDecksAsync().ConfigureAwait(false);
         _navigation.NavigateTo("flashcard-deck", new FlashcardDeckNavigationParameter(header.Id));
+    }
+
+    /// <summary>Shows the name-input dialog for a new deck. Returns the trimmed name, or null if cancelled.</summary>
+    private async Task<string?> PromptForDeckNameAsync()
+    {
+        var input = new InputDialogOverlay
+        {
+            Title = _localization.T("NewDeck", "Flashcards"),
+            Placeholder = _localization.T("DeckNamePlaceholder", "Flashcards"),
+            InputValue = _localization.T("DefaultDeckName", "Flashcards"),
+            ConfirmText = _localization.T("Create", "Common"),
+            CancelText = _localization.T("Cancel", "Common")
+        };
+
+        var id = _overlay.CreateOverlay(input, new OverlayOptions { ShowBackdrop = true, CloseOnOutsideClick = true });
+        var tcs = new TaskCompletionSource<string?>();
+        input.OnResult = value =>
+        {
+            _overlay.CloseOverlay(id);
+            tcs.TrySetResult(value);
+        };
+
+        var result = (await tcs.Task.ConfigureAwait(true))?.Trim();
+        return string.IsNullOrWhiteSpace(result) ? null : result;
     }
 
     public async Task MoveDeckToFolderAsync(string deckId, string? targetFolderId)

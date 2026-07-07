@@ -1,0 +1,168 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    x:ClassModifier="internal"
+                    x:CompileBindings="True">
+    <!--
+        AppStepper — compact split +/- numeric stepper.
+
+        Retemplates NumericUpDown into a bordered [−  value  +] row (decrease left,
+        mono value centered, increase right) while keeping all of NumericUpDown's
+        value parsing, clamping, and keyboard logic. Apply with:
+            <NumericUpDown Theme="{StaticResource AppStepper}" .../>
+    -->
+    <Design.PreviewWith>
+        <Border Padding="24" Background="{DynamicResource OverlayBackgroundBrush}">
+            <StackPanel Spacing="16" Width="200">
+                <NumericUpDown Theme="{StaticResource AppStepper}"
+                               Minimum="0" Maximum="999" Value="20"
+                               HorizontalAlignment="Left"/>
+                <NumericUpDown Theme="{StaticResource AppStepper}"
+                               Minimum="0" Maximum="9999" Value="200"
+                               IsEnabled="False"
+                               HorizontalAlignment="Left"/>
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+
+    <!-- One segment button (−/+). Divider side is set per-instance in the spinner template. -->
+    <ControlTheme x:Key="AppStepperButton" TargetType="RepeatButton">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource DividerSubtleBrush}"/>
+        <Setter Property="MinWidth" Value="26"/>
+        <Setter Property="VerticalAlignment" Value="Stretch"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PART_Bg"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}">
+                    <ContentPresenter HorizontalContentAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Content="{TemplateBinding Content}"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^ /template/ Border#PART_Bg">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="^:pointerover /template/ Border#PART_Bg">
+            <Setter Property="Background" Value="{DynamicResource NavigationButtonBackgroundHoverBrush}"/>
+        </Style>
+        <Style Selector="^:pressed /template/ Border#PART_Bg">
+            <Setter Property="Background" Value="{DynamicResource ButtonBackgroundPressedBrush}"/>
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Opacity" Value="0.4"/>
+        </Style>
+    </ControlTheme>
+
+    <!-- Split spinner: decrease | value | increase inside a single rounded frame. -->
+    <ControlTheme x:Key="AppStepperSpinner" TargetType="ButtonSpinner">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}"
+                        MinHeight="{TemplateBinding MinHeight}"
+                        ClipToBounds="True">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <RepeatButton Name="PART_DecreaseButton"
+                                      Grid.Column="0"
+                                      Theme="{StaticResource AppStepperButton}"
+                                      BorderThickness="0,0,1,0"
+                                      IsTabStop="False">
+                            <Rectangle Width="9" Height="1.4"
+                                       Fill="{DynamicResource TextFadedBrush}"/>
+                        </RepeatButton>
+
+                        <ContentPresenter Name="PART_ContentPresenter"
+                                          Grid.Column="1"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+
+                        <RepeatButton Name="PART_IncreaseButton"
+                                      Grid.Column="2"
+                                      Theme="{StaticResource AppStepperButton}"
+                                      BorderThickness="1,0,0,0"
+                                      IsTabStop="False">
+                            <Panel Width="9" Height="9">
+                                <Rectangle Width="9" Height="1.4" Fill="{DynamicResource TextFadedBrush}"/>
+                                <Rectangle Width="1.4" Height="9" Fill="{DynamicResource TextFadedBrush}"/>
+                            </Panel>
+                        </RepeatButton>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+
+    <ControlTheme x:Key="AppStepper" TargetType="NumericUpDown">
+        <!--
+            NumericUpDown.Increment defaults to 1.0m (decimal scale 1), so each +/- click
+            computes e.g. 20m + 1.0m = 21.0m and the TextBox briefly renders "21.0" until
+            the two-way binding round-trips through an int VM property and truncates the
+            scale back to 0 on blur. Pin Increment/FormatString/ParsingNumberStyle here so
+            whole-unit steppers (card counts, etc.) never show that transient float. A
+            future fractional stepper can still override Increment/FormatString/
+            ParsingNumberStyle per-instance.
+        -->
+        <Setter Property="Increment" Value="1"/>
+        <Setter Property="FormatString" Value="0"/>
+        <Setter Property="ParsingNumberStyle" Value="Integer"/>
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Monospace}"/>
+        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="MinHeight" Value="28"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <DataValidationErrors>
+                    <ButtonSpinner Name="PART_Spinner"
+                                   Theme="{StaticResource AppStepperSpinner}"
+                                   Background="{DynamicResource TextControlBackgroundBrush}"
+                                   BorderBrush="{DynamicResource TextControlBorderBrush}"
+                                   BorderThickness="1"
+                                   CornerRadius="{DynamicResource Radius.Sm}"
+                                   MinHeight="28"
+                                   IsTabStop="False"
+                                   AllowSpin="{TemplateBinding AllowSpin}"
+                                   ShowButtonSpinner="{TemplateBinding ShowButtonSpinner}">
+                        <TextBox Name="PART_TextBox"
+                                 Background="Transparent"
+                                 BorderBrush="Transparent"
+                                 BorderThickness="0"
+                                 Width="44"
+                                 MinWidth="0"
+                                 MinHeight="0"
+                                 Padding="0"
+                                 FontFamily="{TemplateBinding FontFamily}"
+                                 FontSize="{TemplateBinding FontSize}"
+                                 Foreground="{TemplateBinding Foreground}"
+                                 IsReadOnly="{TemplateBinding IsReadOnly}"
+                                 VerticalContentAlignment="Center"
+                                 HorizontalContentAlignment="Center"
+                                 TextAlignment="Center"
+                                 Text="{TemplateBinding Text}"
+                                 PlaceholderText="{TemplateBinding Watermark}"
+                                 AcceptsReturn="False"
+                                 TextWrapping="NoWrap"/>
+                    </ButtonSpinner>
+                </DataValidationErrors>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+</ResourceDictionary>
