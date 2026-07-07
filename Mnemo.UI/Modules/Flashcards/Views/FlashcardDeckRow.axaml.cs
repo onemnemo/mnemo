@@ -1,9 +1,14 @@
 using System;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.DependencyInjection;
+using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Services;
+using Mnemo.UI.Controls;
 using Mnemo.UI.Modules.Flashcards.ViewModels;
 
 namespace Mnemo.UI.Modules.Flashcards.Views;
@@ -117,6 +122,47 @@ public partial class FlashcardDeckRow : UserControl
     }
 
     // --- Actions -----------------------------------------------------------
+
+    private IServiceProvider? Services => (Application.Current as App)?.Services;
+
+    // --- Study submenu: mirrors FlashcardStudySplitButton's mode picker (Review / Cram ▸ Due·All / Test) ---
+
+    private void OnMenuFlyoutOpening(object? sender, EventArgs e)
+    {
+        if (DataContext is not FlashcardDeckRowViewModel row)
+            return;
+
+        var caughtUp = row.IsUpToDate;
+        ReviewMenuItem.Classes.Set("default", !caughtUp);
+        CramMenuItem.Classes.Set("default", caughtUp);
+
+        CramDueMenuItem.SetValue(MenuItemGestureHint.GestureHintProperty, row.DueToday.ToString(CultureInfo.CurrentCulture));
+        CramAllMenuItem.SetValue(MenuItemGestureHint.GestureHintProperty, row.ActiveCards.ToString(CultureInfo.CurrentCulture));
+    }
+
+    private void OnReviewClick(object? sender, RoutedEventArgs e) => StartSession(FlashcardSessionMode.Review);
+
+    private void OnCramDueClick(object? sender, RoutedEventArgs e) => StartSession(FlashcardSessionMode.Cram, FlashcardSessionScope.Due);
+
+    private void OnCramAllClick(object? sender, RoutedEventArgs e) => StartSession(FlashcardSessionMode.Cram, FlashcardSessionScope.All);
+
+    private void OnTestClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not FlashcardDeckRowViewModel row || string.IsNullOrWhiteSpace(row.Id))
+            return;
+        if (Services?.GetService<INavigationService>() is not { } nav)
+            return;
+        nav.NavigateTo("flashcard-test", new FlashcardSessionNavigationParameter(row.Id, FlashcardSessionMode.Test));
+    }
+
+    private void StartSession(FlashcardSessionMode mode, FlashcardSessionScope scope = default)
+    {
+        if (DataContext is not FlashcardDeckRowViewModel row || string.IsNullOrWhiteSpace(row.Id))
+            return;
+        if (Services?.GetService<INavigationService>() is not { } nav)
+            return;
+        nav.NavigateTo("flashcard-session", new FlashcardSessionNavigationParameter(row.Id, mode, scope));
+    }
 
     private void OnOpenClick(object? sender, RoutedEventArgs e) => Execute(vm => vm.OpenDeckCommand);
 

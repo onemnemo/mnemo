@@ -437,9 +437,9 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
         _navigation.NavigateTo("flashcard-deck", new FlashcardDeckNavigationParameter(header.Id));
     }
 
-    public async Task MoveDeckToFolderAsync(string deckId, string targetFolderId)
+    public async Task MoveDeckToFolderAsync(string deckId, string? targetFolderId)
     {
-        if (string.IsNullOrWhiteSpace(deckId) || string.IsNullOrWhiteSpace(targetFolderId))
+        if (string.IsNullOrWhiteSpace(deckId))
             return;
 
         var existing = _loadedDecks.FirstOrDefault(d => string.Equals(d.Id, deckId, StringComparison.Ordinal));
@@ -481,16 +481,37 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
 
     // --- Folder actions ----------------------------------------------------
 
-    public async Task MoveFolderAsync(string sourceFolderId, string targetFolderId, bool dropIntoFolder, bool insertAfterTarget)
+    public async Task MoveFolderAsync(string sourceFolderId, string? targetFolderId, bool dropIntoFolder, bool insertAfterTarget)
     {
-        if (string.IsNullOrWhiteSpace(sourceFolderId) || string.IsNullOrWhiteSpace(targetFolderId))
-            return;
-        if (string.Equals(sourceFolderId, targetFolderId, StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(sourceFolderId))
             return;
 
         var source = _loadedFolders.FirstOrDefault(f => string.Equals(f.Id, sourceFolderId, StringComparison.Ordinal));
+        if (source is null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(targetFolderId))
+        {
+            // Root-level drop: lift the folder to the top level, appended after the existing root siblings.
+            if (source.ParentId is null)
+                return;
+
+            var rootOrder = _loadedFolders
+                .Where(f => f.ParentId is null && !string.Equals(f.Id, sourceFolderId, StringComparison.Ordinal))
+                .Select(f => f.Order)
+                .DefaultIfEmpty(-1)
+                .Max() + 1;
+
+            await _library.SaveFolderAsync(source with { ParentId = null, Order = rootOrder }).ConfigureAwait(false);
+            await LoadDecksAsync().ConfigureAwait(false);
+            return;
+        }
+
+        if (string.Equals(sourceFolderId, targetFolderId, StringComparison.Ordinal))
+            return;
+
         var target = _loadedFolders.FirstOrDefault(f => string.Equals(f.Id, targetFolderId, StringComparison.Ordinal));
-        if (source is null || target is null)
+        if (target is null)
             return;
 
         if (dropIntoFolder)

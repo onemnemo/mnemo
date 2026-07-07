@@ -4,7 +4,6 @@
              xmlns:converters="using:Mnemo.UI.Converters"
              xmlns:markup="using:Mnemo.UI.Markup"
              xmlns:vm="using:Mnemo.UI.Modules.Flashcards.ViewModels"
-             xmlns:views="using:Mnemo.UI.Modules.Flashcards.Views"
              x:Class="Mnemo.UI.Modules.Flashcards.Views.FlashcardDeckRow"
              x:DataType="vm:FlashcardDeckRowViewModel"
              x:CompileBindings="True"
@@ -18,25 +17,23 @@
             MinWidth="0">
         <Grid ColumnDefinitions="*,56,56,56,96,32" MinWidth="0">
             <!-- Deck name + card count -->
-            <Grid Grid.Column="0"
-                  ColumnDefinitions="*,Auto"
-                  MinWidth="0"
-                  VerticalAlignment="Center"
-                  Margin="{Binding Depth, Converter={x:Static converters:IntToLeftIndentConverter.Instance}}">
-                <TextBlock Grid.Column="0"
-                           Text="{Binding Name}"
+            <StackPanel Grid.Column="0"
+                        Orientation="Horizontal"
+                        Spacing="8"
+                        MinWidth="0"
+                        VerticalAlignment="Center"
+                        Margin="{Binding Depth, Converter={x:Static converters:IntToLeftIndentConverter.Instance}}">
+                <TextBlock Text="{Binding Name}"
                            Classes="deck-name"
                            Margin="6,0,0,0"
                            TextTrimming="CharacterEllipsis"
                            ToolTip.Tip="{Binding Name}"
                            VerticalAlignment="Center"
                            MinWidth="0" />
-                <TextBlock Grid.Column="1"
-                           Text="{Binding CardCountLine}"
+                <TextBlock Text="{Binding CardCountLine}"
                            Classes="row-sub"
-                           VerticalAlignment="Center"
-                           Margin="8,0,0,0" />
-            </Grid>
+                           VerticalAlignment="Center" />
+            </StackPanel>
 
             <!-- Metric columns -->
             <TextBlock Grid.Column="1" Classes="metric new" Classes.zero="{Binding !HasNew}"
@@ -78,16 +75,57 @@
                             Orientation="Horizontal" Spacing="6"
                             HorizontalAlignment="Right" VerticalAlignment="Center"
                             Margin="0,0,4,0">
-                    <views:FlashcardStudySplitButton DeckId="{Binding Id}"
-                                                      DueCount="{Binding DueToday}"
-                                                      AllCount="{Binding ActiveCards}"
-                                                      Compact="True" />
                     <Button x:Name="MoreButton" Classes="row-more"
                             ToolTip.Tip="{markup:T Ns=Flashcards, Key=DeckMenu}">
                         <controls:AppIcon Icon="Common/dots-vertical" Width="16" Height="16"
                                           Color="{DynamicResource TextFadedBrush}" />
                         <Button.Flyout>
-                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <!-- Study submenu mirrors FlashcardStudySplitButton's mode picker. Counts/pre-highlight
+                                 are pushed in from code-behind on Opening - cross-popup bindings into MenuItems
+                                 don't resolve here (same established gotcha as the split button). -->
+                            <MenuFlyout Placement="BottomEdgeAlignedRight" Opening="OnMenuFlyoutOpening">
+                                <MenuItem Header="{markup:T Ns=Flashcards, Key=Study}">
+                                    <MenuItem.Icon>
+                                        <controls:AppIcon Icon="Common/play-filled" Width="16" Height="16" />
+                                    </MenuItem.Icon>
+
+                                    <MenuItem x:Name="ReviewMenuItem"
+                                              Header="{markup:T Ns=Flashcards, Key=SessionReview}"
+                                              Click="OnReviewClick"
+                                              controls:MenuItemGestureHint.GestureHint="{markup:T Ns=Flashcards, Key=StudyMenuHintReview}">
+                                        <MenuItem.Icon>
+                                            <controls:AppIcon Icon="Common/play" Width="16" Height="16" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+
+                                    <Separator />
+
+                                    <MenuItem Header="{markup:T Ns=Flashcards, Key=StudyPracticeSectionHeader}" Classes="section-header" />
+
+                                    <MenuItem x:Name="CramMenuItem"
+                                              Header="{markup:T Ns=Flashcards, Key=SessionCram}"
+                                              controls:MenuItemGestureHint.GestureHint="{markup:T Ns=Flashcards, Key=StudyMenuHintCram}">
+                                        <MenuItem.Icon>
+                                            <controls:AppIcon Icon="Common/repeat" Width="16" Height="16" />
+                                        </MenuItem.Icon>
+                                        <MenuItem Header="{markup:T Ns=Flashcards, Key=StudyCramSectionHeader}" Classes="section-header" />
+                                        <MenuItem x:Name="CramDueMenuItem"
+                                                  Header="{markup:T Ns=Flashcards, Key=StudyCramDueCards}"
+                                                  Click="OnCramDueClick" />
+                                        <MenuItem x:Name="CramAllMenuItem"
+                                                  Header="{markup:T Ns=Flashcards, Key=StudyCramAllCards}"
+                                                  Click="OnCramAllClick" />
+                                    </MenuItem>
+
+                                    <MenuItem Header="{markup:T Ns=Flashcards, Key=SessionTest}"
+                                              Click="OnTestClick"
+                                              controls:MenuItemGestureHint.GestureHint="{markup:T Ns=Flashcards, Key=StudyMenuHintTest}">
+                                        <MenuItem.Icon>
+                                            <controls:AppIcon Icon="Common/pencil" Width="16" Height="16" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                </MenuItem>
+                                <Separator />
                                 <MenuItem Header="{markup:T Ns=Flashcards, Key=OpenDeck}" Click="OnOpenClick">
                                     <MenuItem.Icon>
                                         <controls:AppIcon Icon="Flyout/open" Width="16" Height="16" />

@@ -16,50 +16,43 @@
             MinWidth="0">
         <Grid ColumnDefinitions="*,56,56,56,96,32" MinWidth="0">
             <!-- Chevron + folder icon + name -->
-            <Grid Grid.Column="0"
-                  ColumnDefinitions="*,Auto"
-                  MinWidth="0"
-                  VerticalAlignment="Center"
-                  Margin="{Binding Depth, Converter={x:Static converters:IntToLeftIndentConverter.Instance}}">
-                <StackPanel Grid.Column="0"
-                            Orientation="Horizontal"
-                            Spacing="8"
-                            MinWidth="0"
-                            VerticalAlignment="Center">
-                    <Panel Width="10" VerticalAlignment="Center">
-                        <controls:AppIcon Icon="Common/chevron-right" Width="9" Height="9"
-                                          Color="{DynamicResource TextFadedBrush}"
-                                          IsVisible="{Binding !IsExpanded}" />
-                        <controls:AppIcon Icon="Common/chevron-down" Width="9" Height="9"
-                                          Color="{DynamicResource TextFadedBrush}"
-                                          IsVisible="{Binding IsExpanded}" />
-                    </Panel>
-                    <controls:AppIcon Icon="Common/folder" Width="14" Height="14"
+            <StackPanel Grid.Column="0"
+                        Orientation="Horizontal"
+                        Spacing="8"
+                        MinWidth="0"
+                        VerticalAlignment="Center"
+                        Margin="{Binding Depth, Converter={x:Static converters:IntToLeftIndentConverter.Instance}}">
+                <Panel Width="10" VerticalAlignment="Center">
+                    <controls:AppIcon Icon="Common/chevron-right" Width="9" Height="9"
                                       Color="{DynamicResource TextFadedBrush}"
-                                      VerticalAlignment="Center" />
-                    <TextBlock x:Name="FolderNameTextBlock"
-                               Text="{Binding Name}"
-                               Classes="folder-name"
-                               VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"
-                               ToolTip.Tip="{Binding Name}"
-                               MinWidth="0" />
-                    <TextBox x:Name="FolderNameTextBox"
-                             IsVisible="False"
-                             Text="{Binding Name, Mode=TwoWay}"
-                             VerticalAlignment="Center"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             Padding="0"
-                             LostFocus="OnNameEditLostFocus"
-                             KeyDown="OnNameEditKeyDown" />
-                </StackPanel>
-                <TextBlock Grid.Column="1"
-                           Text="{Binding DeckCountLabel}"
-                           Classes="row-sub"
+                                      IsVisible="{Binding !IsExpanded}" />
+                    <controls:AppIcon Icon="Common/chevron-down" Width="9" Height="9"
+                                      Color="{DynamicResource TextFadedBrush}"
+                                      IsVisible="{Binding IsExpanded}" />
+                </Panel>
+                <controls:AppIcon Icon="Common/folder" Width="14" Height="14"
+                                  Color="{DynamicResource TextFadedBrush}"
+                                  VerticalAlignment="Center" />
+                <TextBlock x:Name="FolderNameTextBlock"
+                           Text="{Binding Name}"
+                           Classes="folder-name"
                            VerticalAlignment="Center"
-                           Margin="8,0,0,0" />
-            </Grid>
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip.Tip="{Binding Name}"
+                           MinWidth="0" />
+                <TextBox x:Name="FolderNameTextBox"
+                         IsVisible="False"
+                         Text="{Binding Name, Mode=TwoWay}"
+                         VerticalAlignment="Center"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="0"
+                         LostFocus="OnNameEditLostFocus"
+                         KeyDown="OnNameEditKeyDown" />
+                <TextBlock Text="{Binding DeckCountLabel}"
+                           Classes="row-sub"
+                           VerticalAlignment="Center" />
+            </StackPanel>
 
             <!-- Aggregated metric columns -->
             <TextBlock Grid.Column="1" Classes="metric new" Classes.zero="{Binding !HasNew}" Text="{Binding NewCount}" />

@@ -36,7 +36,8 @@ public partial class FlashcardsView : UserControl
         if (this.FindControl<Canvas>("DragOverlayCanvas") is not Canvas overlay)
             return;
 
-        _dragCoordinator = new FlashcardsDragCoordinator(overlay, this);
+        var treeSurface = this.FindControl<Control>("LibraryTreeSurface");
+        _dragCoordinator = new FlashcardsDragCoordinator(overlay, this, treeSurface);
     }
 
     public void InitiateFolderDrag(FlashcardFolderItemViewModel item, FlashcardFolderRow row, IPointer pointer)
@@ -68,22 +69,36 @@ public partial class FlashcardsView : UserControl
         if (drop is null)
             return;
 
-        if (drop.Value.SourceKind == FlashcardsDragCoordinator.DragSourceKind.Deck &&
-            !string.IsNullOrWhiteSpace(drop.Value.TargetFolderId))
+        if (drop.Value.SourceKind == FlashcardsDragCoordinator.DragSourceKind.Deck)
         {
-            await vm.MoveDeckToFolderAsync(drop.Value.SourceId, drop.Value.TargetFolderId);
+            if (drop.Value.IsRootTarget)
+            {
+                await vm.MoveDeckToFolderAsync(drop.Value.SourceId, null);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(drop.Value.TargetFolderId))
+                await vm.MoveDeckToFolderAsync(drop.Value.SourceId, drop.Value.TargetFolderId);
             return;
         }
 
-        if (drop.Value.SourceKind == FlashcardsDragCoordinator.DragSourceKind.Folder &&
-            !string.IsNullOrWhiteSpace(drop.Value.TargetFolderId) &&
-            drop.Value.FolderMode != FlashcardsDragCoordinator.FolderDropMode.None)
+        if (drop.Value.SourceKind == FlashcardsDragCoordinator.DragSourceKind.Folder)
         {
-            await vm.MoveFolderAsync(
-                drop.Value.SourceId,
-                drop.Value.TargetFolderId,
-                drop.Value.FolderMode == FlashcardsDragCoordinator.FolderDropMode.DropIntoFolder,
-                drop.Value.FolderMode == FlashcardsDragCoordinator.FolderDropMode.InsertBelow);
+            if (drop.Value.IsRootTarget)
+            {
+                await vm.MoveFolderAsync(drop.Value.SourceId, null, dropIntoFolder: false, insertAfterTarget: false);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(drop.Value.TargetFolderId) &&
+                drop.Value.FolderMode != FlashcardsDragCoordinator.FolderDropMode.None)
+            {
+                await vm.MoveFolderAsync(
+                    drop.Value.SourceId,
+                    drop.Value.TargetFolderId,
+                    drop.Value.FolderMode == FlashcardsDragCoordinator.FolderDropMode.DropIntoFolder,
+                    drop.Value.FolderMode == FlashcardsDragCoordinator.FolderDropMode.InsertBelow);
+            }
         }
     }
 

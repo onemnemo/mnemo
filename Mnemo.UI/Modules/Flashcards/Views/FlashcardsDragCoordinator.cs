@@ -34,10 +34,12 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         DragSourceKind SourceKind,
         string SourceId,
         string? TargetFolderId,
+        bool IsRootTarget,
         FolderDropMode FolderMode);
 
     private readonly Canvas _overlay;
     private readonly Control _root;
+    private readonly Control? _treeSurface;
 
     private DragSourceKind _sourceKind;
     private string? _sourceId;
@@ -46,13 +48,15 @@ public sealed class FlashcardsDragCoordinator : IDisposable
     private Rectangle? _insertLine;
     private Border? _folderHighlight;
     private string? _targetFolderId;
+    private bool _isRootTarget;
     private FolderDropMode _folderDropMode;
     private Vector _ghostPointerOffset;
 
-    public FlashcardsDragCoordinator(Canvas overlay, Control root)
+    public FlashcardsDragCoordinator(Canvas overlay, Control root, Control? treeSurface = null)
     {
         _overlay = overlay;
         _root = root;
+        _treeSurface = treeSurface;
     }
 
     public bool IsDragging => _sourceKind != DragSourceKind.None;
@@ -68,8 +72,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         sourceRow.Opacity = 0.35;
         _ghost = CreateFolderGhost(folder, sourceRow);
         _overlay.Children.Add(_ghost);
-        var folderGhostHeight = _ghost.Bounds.Height > 0 ? _ghost.Bounds.Height : Math.Max(32, sourceRow.Bounds.Height);
-        _ghostPointerOffset = new Vector((_ghost.Width / 2), Math.Min(14, folderGhostHeight / 2));
+        _ghostPointerOffset = MeasureGhostPointerOffset(_ghost, sourceRow);
         CreateIndicators();
         pointer.Capture(_root);
     }
@@ -85,8 +88,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         sourceCard.Opacity = 0.35;
         _ghost = CreateDeckGhost(deck, sourceCard);
         _overlay.Children.Add(_ghost);
-        var deckGhostHeight = _ghost.Bounds.Height > 0 ? _ghost.Bounds.Height : Math.Max(40, sourceCard.Bounds.Height);
-        _ghostPointerOffset = new Vector((_ghost.Width / 2), Math.Min(14, deckGhostHeight / 2));
+        _ghostPointerOffset = MeasureGhostPointerOffset(_ghost, sourceCard);
         CreateIndicators();
         pointer.Capture(_root);
     }
@@ -108,7 +110,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
             return null;
         }
 
-        var result = new DragDropResult(_sourceKind, _sourceId, _targetFolderId, _folderDropMode);
+        var result = new DragDropResult(_sourceKind, _sourceId, _targetFolderId, _isRootTarget, _folderDropMode);
         Cleanup(pointer);
         return result;
     }
@@ -121,6 +123,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
     private void ResolveDropTarget(Point pointerOnOverlay)
     {
         _targetFolderId = null;
+        _isRootTarget = false;
         _folderDropMode = FolderDropMode.None;
         HideIndicators();
 
@@ -165,6 +168,40 @@ public sealed class FlashcardsDragCoordinator : IDisposable
 
             return;
         }
+
+        // Not over any specific row — hovering the tree surface itself (e.g. the totals footer, or
+        // any gap around the rows) moves the dragged item to the root level.
+        if (_treeSurface != null)
+        {
+            var surfaceBounds = GetBoundsInVisual(_treeSurface, _overlay);
+            if (surfaceBounds.Contains(pointerOnOverlay))
+            {
+                _isRootTarget = true;
+                var nearTop = pointerOnOverlay.Y - surfaceBounds.Top < surfaceBounds.Height / 2;
+                if (nearTop)
+                    ShowInsertLine(surfaceBounds.Top, surfaceBounds.Left, surfaceBounds.Width);
+                else
+                    ShowInsertLine(surfaceBounds.Bottom, surfaceBounds.Left, surfaceBounds.Width);
+            }
+        }
+    }
+
+    private static Rect GetBoundsInVisual(Visual visual, Visual targetVisual)
+    {
+        var transform = visual.TransformToVisual(targetVisual);
+        if (transform == null)
+            return new Rect();
+
+        return new Rect(transform.Value.Transform(new Point(0, 0)), visual.Bounds.Size);
+    }
+
+    private static Vector MeasureGhostPointerOffset(Border ghost, Control sourceControl)
+    {
+        ghost.Measure(Size.Infinity);
+        var size = ghost.DesiredSize;
+        var width = size.Width > 0 ? size.Width : Math.Max(40, sourceControl.Bounds.Width);
+        var height = size.Height > 0 ? size.Height : Math.Max(32, sourceControl.Bounds.Height);
+        return new Vector(Math.Min(24, width / 2), Math.Min(14, height / 2));
     }
 
     private void PositionGhost(Point pointerOnOverlay)
@@ -172,8 +209,8 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         if (_ghost == null)
             return;
 
-        var width = _ghost.Bounds.Width > 0 ? _ghost.Bounds.Width : _ghost.Width;
-        var height = _ghost.Bounds.Height > 0 ? _ghost.Bounds.Height : 40;
+        var width = _ghost.Bounds.Width > 0 ? _ghost.Bounds.Width : _ghost.DesiredSize.Width;
+        var height = _ghost.Bounds.Height > 0 ? _ghost.Bounds.Height : _ghost.DesiredSize.Height;
         var left = pointerOnOverlay.X - _ghostPointerOffset.X;
         var top = pointerOnOverlay.Y - _ghostPointerOffset.Y;
         left = Math.Clamp(left, 0, Math.Max(0, _overlay.Bounds.Width - width));
@@ -242,79 +279,62 @@ public sealed class FlashcardsDragCoordinator : IDisposable
             _folderHighlight.IsVisible = false;
     }
 
-    private Border CreateFolderGhost(FlashcardFolderItemViewModel folder, FlashcardFolderRow sourceRow)
+    private Border CreateFolderGhost(FlashcardFolderItemViewModel folder, FlashcardFolderRow sourceRow) =>
+        CreateGhostContainer(folder.Name, folder.DeckCountLabel);
+
+    private Border CreateDeckGhost(FlashcardDeckRowViewModel deck, Control sourceCard) =>
+        CreateGhostContainer(deck.Name, deck.CardCountLine);
+
+    private Border CreateGhostContainer(string name, string? subtitle)
     {
-        var row = new Grid
+        var content = new StackPanel
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto,*"),
-            ColumnSpacing = 8,
-            MinWidth = 180
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Center
         };
 
-        row.Children.Add(new SvgIcon
+        content.Children.Add(new AppIcon
         {
-            SvgPath = "avares://Mnemo.UI/Icons/Common/folder.svg",
-            Width = 18,
-            Height = 18,
+            Icon = "Common/grip-vertical",
+            Width = 14,
+            Height = 14,
             VerticalAlignment = VerticalAlignment.Center,
-            Color = ResolveBrushAny("TextSecondaryBrush", "TextPrimaryBrush")
+            Color = ResolveBrushAny("TextFadedBrush", "TextSecondaryBrush")
         });
 
-        row.Children.Add(new TextBlock
+        content.Children.Add(new TextBlock
         {
-            Text = folder.Name,
+            Text = name,
+            FontFamily = ResolveFontFamily("Font.Medium"),
+            FontSize = ResolveDouble("FontSize.Body.ExtraSmall", 12),
+            Foreground = ResolveBrushAny("TextPrimaryBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis
         });
-        Grid.SetColumn(row.Children[1], 1);
 
-        return CreateGhostContainer(row, 220);
-    }
-
-    private Border CreateDeckGhost(FlashcardDeckRowViewModel deck, Control sourceCard)
-    {
-        var row = new Grid
+        if (!string.IsNullOrWhiteSpace(subtitle))
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto,*"),
-            ColumnSpacing = 8,
-            MinWidth = 240
-        };
+            content.Children.Add(new TextBlock
+            {
+                Text = subtitle,
+                FontSize = ResolveDouble("FontSize.Caption", 11),
+                Foreground = ResolveBrushAny("TextFadedBrush"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
 
-        row.Children.Add(new SvgIcon
-        {
-            SvgPath = "avares://Mnemo.UI/Icons/Common/file-text.svg",
-            Width = 18,
-            Height = 18,
-            VerticalAlignment = VerticalAlignment.Center,
-            Color = ResolveBrushAny("TextSecondaryBrush", "TextPrimaryBrush")
-        });
-
-        row.Children.Add(new TextBlock
-        {
-            Text = deck.Name,
-            VerticalAlignment = VerticalAlignment.Center,
-            FontFamily = FontFamily.Parse("Inter SemiBold"),
-            TextTrimming = TextTrimming.CharacterEllipsis
-        });
-        Grid.SetColumn(row.Children[1], 1);
-
-        return CreateGhostContainer(row, 240);
-    }
-
-    private Border CreateGhostContainer(Control content, double width)
-    {
         return new Border
         {
             Child = content,
-            Padding = new Thickness(10, 8),
-            Background = ResolveBrushAny("TreeViewItemBackgroundPointerOver", "CardBackgroundSecondaryBrush"),
+            Padding = new Thickness(12, 8),
+            Background = ResolveBrushAny("OverlayBackgroundBrush"),
             BorderThickness = new Thickness(1),
-            BorderBrush = ResolveBrushAny("TreeViewItemBorderBrushPointerOver", "BorderBrush"),
-            BoxShadow = BoxShadows.Parse("0 4 16 0 #40000000"),
-            CornerRadius = new CornerRadius(8),
+            BorderBrush = ResolveBrushAny("BorderBrush"),
+            BoxShadow = ResolveBoxShadows("Elevation.4", "0 12 28 0 #3D000000"),
+            CornerRadius = ResolveCornerRadius("Radius.Md", 8),
+            RenderTransform = new RotateTransform(-1.5),
             IsHitTestVisible = false,
-            Opacity = 0.95,
-            Width = width,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top
         };
@@ -358,6 +378,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         _insertLine = null;
         _folderHighlight = null;
         _targetFolderId = null;
+        _isRootTarget = false;
         _folderDropMode = FolderDropMode.None;
         _sourceKind = DragSourceKind.None;
         _sourceId = null;
@@ -392,6 +413,42 @@ public sealed class FlashcardsDragCoordinator : IDisposable
         }
 
         return Brushes.Gray;
+    }
+
+    private FontFamily ResolveFontFamily(string key)
+    {
+        if (_overlay.TryGetResource(key, Theme, out var value) && value is FontFamily family)
+            return family;
+        if (Application.Current?.TryGetResource(key, Theme, out value) == true && value is FontFamily appFamily)
+            return appFamily;
+        return FontFamily.Default;
+    }
+
+    private double ResolveDouble(string key, double fallback)
+    {
+        if (_overlay.TryGetResource(key, Theme, out var value) && value is double d)
+            return d;
+        if (Application.Current?.TryGetResource(key, Theme, out value) == true && value is double appD)
+            return appD;
+        return fallback;
+    }
+
+    private BoxShadows ResolveBoxShadows(string key, string fallback)
+    {
+        if (_overlay.TryGetResource(key, Theme, out var value) && value is BoxShadows shadows)
+            return shadows;
+        if (Application.Current?.TryGetResource(key, Theme, out value) == true && value is BoxShadows appShadows)
+            return appShadows;
+        return BoxShadows.Parse(fallback);
+    }
+
+    private CornerRadius ResolveCornerRadius(string key, double fallback)
+    {
+        if (_overlay.TryGetResource(key, Theme, out var value) && value is CornerRadius radius)
+            return radius;
+        if (Application.Current?.TryGetResource(key, Theme, out value) == true && value is CornerRadius appRadius)
+            return appRadius;
+        return new CornerRadius(fallback);
     }
 
     private Color TryResolveAccentColor()

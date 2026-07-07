@@ -308,7 +308,7 @@
                 </Grid>
 
                 <!-- Deck tree -->
-                <Border Classes="surface-card" ClipToBounds="True" IsVisible="{Binding ShowTree}"
+                <Border x:Name="LibraryTreeSurface" Classes="surface-card" ClipToBounds="True" IsVisible="{Binding ShowTree}"
                         HorizontalAlignment="Stretch" MinWidth="0">
                     <StackPanel>
                         <!-- Column header -->
