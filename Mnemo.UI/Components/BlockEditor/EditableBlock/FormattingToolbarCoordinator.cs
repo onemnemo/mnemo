@@ -493,31 +493,13 @@ internal sealed class FormattingToolbarCoordinator
         var continueLabel = loc?.T("Continue", "Common") ?? "Continue";
         var cancelLabel = loc?.T("Cancel", "Common") ?? "Cancel";
 
-        var tcs = new TaskCompletionSource<bool>();
-        var dialog = new DialogOverlay
-        {
-            Title = T("ExternalLinkTitle"),
-            Description = string.Format(T("ExternalLinkMessage"), url),
-            PrimaryText = continueLabel,
-            SecondaryText = cancelLabel
-        };
+        var choice = await overlaySvc.CreateDialogAsync(
+            T("ExternalLinkTitle"),
+            string.Format(T("ExternalLinkMessage"), url),
+            continueLabel,
+            cancelLabel).ConfigureAwait(true);
 
-        var id = overlaySvc.CreateOverlay(dialog, new OverlayOptions
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            ShowBackdrop = true,
-            CloseOnOutsideClick = false,
-            CloseOnEscape = true
-        }, "ExternalLinkConfirm");
-
-        dialog.OnChoose = choice =>
-        {
-            overlaySvc.CloseOverlay(id);
-            tcs.TrySetResult(string.Equals(choice, continueLabel, StringComparison.Ordinal));
-        };
-
-        return await tcs.Task;
+        return string.Equals(choice, continueLabel, StringComparison.Ordinal);
     }
 
     private void AttachOutsideClickHandler(Control anchorTextBox)

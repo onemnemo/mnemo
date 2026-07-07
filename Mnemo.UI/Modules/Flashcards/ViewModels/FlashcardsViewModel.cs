@@ -445,24 +445,13 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
     /// <summary>Shows the name-input dialog for a new deck. Returns the trimmed name, or null if cancelled.</summary>
     private async Task<string?> PromptForDeckNameAsync()
     {
-        var input = new InputDialogOverlay
-        {
-            Title = _localization.T("NewDeck", "Flashcards"),
-            Placeholder = _localization.T("DeckNamePlaceholder", "Flashcards"),
-            InputValue = _localization.T("DefaultDeckName", "Flashcards"),
-            ConfirmText = _localization.T("Create", "Common"),
-            CancelText = _localization.T("Cancel", "Common")
-        };
-
-        var id = _overlay.CreateOverlay(input, new OverlayOptions { ShowBackdrop = true, CloseOnOutsideClick = true });
-        var tcs = new TaskCompletionSource<string?>();
-        input.OnResult = value =>
-        {
-            _overlay.CloseOverlay(id);
-            tcs.TrySetResult(value);
-        };
-
-        var result = (await tcs.Task.ConfigureAwait(true))?.Trim();
+        var result = (await _overlay.CreateInputDialogAsync(
+            title: _localization.T("NewDeck", "Flashcards"),
+            confirmText: _localization.T("Create", "Common"),
+            cancelText: _localization.T("Cancel", "Common"),
+            placeholder: _localization.T("DeckNamePlaceholder", "Flashcards"),
+            initialValue: _localization.T("DefaultDeckName", "Flashcards"),
+            confirmIconName: "Common/plus").ConfigureAwait(true))?.Trim();
         return string.IsNullOrWhiteSpace(result) ? null : result;
     }
 
@@ -500,6 +489,7 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
             _localization.T("DeleteDeckConfirm", "Flashcards"),
             deleteLabel,
             cancelLabel,
+            confirmIconName: "Common/trash",
             severity: DialogSeverity.Destructive).ConfigureAwait(false);
         if (!string.Equals(confirm, deleteLabel, StringComparison.Ordinal))
             return;

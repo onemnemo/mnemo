@@ -78,7 +78,9 @@ internal sealed class FakeWidgetContext : IWidgetContext
         public void CloseOverlay(string id) { }
         public void CloseOverlay(string id, object? result) { }
         public string CreateOverlay(object content, OverlayOptions options, string? name = null) => string.Empty;
-        public Task<string?> CreateDialogAsync(string title, string message, string confirmText = "OK", string cancelText = "", object? icon = null, object? parameter = null, DialogSeverity severity = DialogSeverity.Default)
+        public Task<string?> CreateDialogAsync(string title, string message, string confirmText = "OK", string cancelText = "", string? confirmIconName = null, DialogSeverity severity = DialogSeverity.Default)
+            => Task.FromResult<string?>(null);
+        public Task<string?> CreateInputDialogAsync(string title, string confirmText = "Save", string cancelText = "Cancel", string? description = null, string? placeholder = null, string? initialValue = null, string? confirmIconName = null)
             => Task.FromResult<string?>(null);
     }
 

@@ -355,7 +355,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         CopyAssistantMessageCommand = new AsyncRelayCommand<ChatMessageViewModel>(CopyAssistantMessageAsync);
 
         DeleteChatCommand = new AsyncRelayCommand<string>(DeleteChatAsync, CanModifyChat);
-        RenameChatCommand = new RelayCommand<string>(BeginRenameChat, CanModifyChat);
+        RenameChatCommand = new AsyncRelayCommand<string>(BeginRenameChatAsync, CanModifyChat);
 
         RefreshLandingSuggestions();
 
@@ -1127,33 +1127,20 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     private bool CanModifyChat(string? id) =>
         CanSwitchChatHistory && !string.IsNullOrEmpty(id) && _chatSessions.ContainsKey(id!);
 
-    private void BeginRenameChat(string? conversationId)
+    private async Task BeginRenameChatAsync(string? conversationId)
     {
         if (string.IsNullOrEmpty(conversationId) || !_chatSessions.TryGetValue(conversationId, out var session)) return;
 
-        var overlay = new InputDialogOverlay
-        {
-            Title = _localizationService.T("RenameChat", "Chat"),
-            Placeholder = _localizationService.T("RenameChatPlaceholder", "Chat"),
-            InputValue = GetEditableTitle(session),
-            ConfirmText = _localizationService.T("Save", "Common"),
-            CancelText = _localizationService.T("Cancel", "Common")
-        };
-        var options = new OverlayOptions
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            ShowBackdrop = true,
-            CloseOnOutsideClick = true,
-            CloseOnEscape = true
-        };
-        var overlayInstanceId = _overlayService.CreateOverlay(overlay, options, "RenameChat");
-        overlay.OnResult = result =>
-        {
-            _overlayService.CloseOverlay(overlayInstanceId);
-            if (result == null) return;
-            ApplyCustomTitle(conversationId, string.IsNullOrWhiteSpace(result) ? null : result.Trim());
-        };
+        var result = await _overlayService.CreateInputDialogAsync(
+            title: _localizationService.T("RenameChat", "Chat"),
+            confirmText: _localizationService.T("Save", "Common"),
+            cancelText: _localizationService.T("Cancel", "Common"),
+            placeholder: _localizationService.T("RenameChatPlaceholder", "Chat"),
+            initialValue: GetEditableTitle(session),
+            confirmIconName: "Common/pencil").ConfigureAwait(true);
+
+        if (result == null) return;
+        ApplyCustomTitle(conversationId, string.IsNullOrWhiteSpace(result) ? null : result.Trim());
     }
 
     private void ApplyCustomTitle(string conversationId, string? customTitle)

@@ -289,7 +289,7 @@ public partial class FlashcardDeckViewModel : ViewModelBase, INavigationAware, I
 
         GoBackCommand = new RelayCommand(() => _navigation.NavigateTo("flashcards"));
         AddCardsCommand = new RelayCommand(AddCards);
-        RenameDeckCommand = new RelayCommand(OpenRenameDialog);
+        RenameDeckCommand = new AsyncRelayCommand(OpenRenameDialogAsync);
         MoveToFolderCommand = new RelayCommand<FlashcardFolderMenuItem?>(item => _ = MoveDeckToFolderAsync(item));
         OpenReviewSettingsCommand = new RelayCommand(OpenReviewSettings);
         ExportDeckCommand = new RelayCommand(() => ExportRequested?.Invoke());
@@ -915,38 +915,24 @@ public partial class FlashcardDeckViewModel : ViewModelBase, INavigationAware, I
 
     // --- Deck-level actions ------------------------------------------------
 
-    private void OpenRenameDialog()
+    private async Task OpenRenameDialogAsync()
     {
-        var input = new InputDialogOverlay
-        {
-            Title = _localization.T("RenameDeck", "Flashcards"),
-            Placeholder = _localization.T("DeckNamePlaceholder", "Flashcards"),
-            InputValue = DeckName,
-            ConfirmText = _localization.T("Save", "Common"),
-            CancelText = _localization.T("Cancel", "Common")
-        };
+        var result = await _overlay.CreateInputDialogAsync(
+            title: _localization.T("RenameDeck", "Flashcards"),
+            confirmText: _localization.T("Save", "Common"),
+            cancelText: _localization.T("Cancel", "Common"),
+            placeholder: _localization.T("DeckNamePlaceholder", "Flashcards"),
+            initialValue: DeckName,
+            confirmIconName: "Common/pencil").ConfigureAwait(true);
 
-        var id = _overlay.CreateOverlay(input, new OverlayOptions
-        {
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            ShowBackdrop = true,
-            CloseOnOutsideClick = true,
-            CloseOnEscape = true
-        });
-
-        input.OnResult = async result =>
-        {
-            _overlay.CloseOverlay(id);
-            var trimmed = (result ?? string.Empty).Trim();
-            if (trimmed.Length == 0 || string.Equals(trimmed, DeckName, StringComparison.Ordinal))
-                return;
-            var summary = await _library.GetDeckAsync(_deckId).ConfigureAwait(false);
-            if (summary is null)
-                return;
-            await _library.SaveDeckAsync(summary.Header with { Name = trimmed }).ConfigureAwait(false);
-            await LoadHeaderAsync().ConfigureAwait(false);
-        };
+        var trimmed = (result ?? string.Empty).Trim();
+        if (trimmed.Length == 0 || string.Equals(trimmed, DeckName, StringComparison.Ordinal))
+            return;
+        var summary = await _library.GetDeckAsync(_deckId).ConfigureAwait(false);
+        if (summary is null)
+            return;
+        await _library.SaveDeckAsync(summary.Header with { Name = trimmed }).ConfigureAwait(false);
+        await LoadHeaderAsync().ConfigureAwait(false);
     }
 
     private async Task MoveDeckToFolderAsync(FlashcardFolderMenuItem? target)

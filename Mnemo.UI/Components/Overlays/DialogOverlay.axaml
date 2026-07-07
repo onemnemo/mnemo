@@ -4,57 +4,96 @@
              xmlns:conv="using:Mnemo.UI.Converters"
              xmlns:controls="using:Mnemo.UI.Controls"
              x:Class="Mnemo.UI.Components.Overlays.DialogOverlay"
-             x:DataType="local:DialogOverlay">
+             x:DataType="local:DialogOverlay"
+             x:CompileBindings="True">
   <UserControl.Resources>
     <conv:NullToBoolConverter x:Key="NullToBoolConverter" />
   </UserControl.Resources>
-  <Border Background="{DynamicResource OverlayBackgroundBrush}"
-          BorderBrush="{DynamicResource IconsSeparationBarBrush}"
-          BorderThickness="1"
-          CornerRadius="12"
-          Padding="24"
-          MinWidth="400"
-          MaxWidth="520">
-    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
-      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-        <TextBlock Text="{Binding Title}"
-                   FontSize="{DynamicResource FontSize.Heading4}" 
-                   FontFamily="{DynamicResource Font.Bold}"
-                   Foreground="{DynamicResource TextPrimaryBrush}"
-                   VerticalAlignment="Center"
-                   TextWrapping="Wrap"
-                   IsVisible="{Binding Title, Converter={StaticResource NullToBoolConverter}}"/>
-        <Button Grid.Column="1" Classes="ghost" Command="{Binding CloseCommand}" Padding="4" Margin="0,-4,-4,0">
-          <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/x.svg" Width="20" Height="20" />
-        </Button>
-      </Grid>
-      
-      <TextBlock Grid.Row="1"
-                  Text="{Binding Description}"
-                  FontFamily="{DynamicResource Font.Medium}"
-                  FontSize="{DynamicResource FontSize.Body.Small}"
-                  Foreground="{DynamicResource TextSecondaryBrush}"
-                 TextWrapping="Wrap"
-                 IsVisible="{Binding Description, Converter={StaticResource NullToBoolConverter}}"/>
 
-      <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right">
-        <Button Content="{Binding SecondaryText}"
-                Classes="secondary"
-                Command="{Binding SecondaryCommand}"
-                IsVisible="{Binding SecondaryText, Converter={StaticResource NullToBoolConverter}}"/>
-        <Button Content="{Binding PrimaryText}"
-                Classes.destructive="{Binding IsDestructive}"
-                Classes.accent="{Binding !IsDestructive}"
-                Command="{Binding PrimaryCommand}"
-                IsVisible="{Binding PrimaryText, Converter={StaticResource NullToBoolConverter}}"/>
+  <UserControl.Styles>
+    <!-- Input field: quiet resting fill, accent ring on focus, constant thickness (no layout jump). -->
+    <Style Selector="TextBox#InputTextBox">
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+      <Setter Property="BorderThickness" Value="1.5"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="14,11"/>
+      <Setter Property="MinHeight" Value="44"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Input}"/>
+      <Setter Property="SelectionForegroundBrush" Value="{DynamicResource InputDialogSelectionForegroundBrush}"/>
+      <Style Selector="^:pointerover /template/ Border#PART_BorderElement">
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+      </Style>
+      <Style Selector="^:focus">
+        <Setter Property="Background" Value="{DynamicResource OverlayBackgroundBrush}"/>
+        <Style Selector="^ /template/ Border#PART_BorderElement">
+          <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+      </Style>
+    </Style>
+  </UserControl.Styles>
+
+  <Border Background="{DynamicResource OverlayBackgroundBrush}"
+          BorderBrush="{DynamicResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="16"
+          Padding="24,22,24,20"
+          MinWidth="372"
+          MaxWidth="440">
+    <StackPanel>
+      <!-- Header: title + optional description on the left, close affordance on the right -->
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+          <TextBlock Text="{Binding Title}"
+                     FontFamily="{DynamicResource Font.SemiBold}"
+                     FontSize="{DynamicResource FontSize.Heading6}"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
+                     TextWrapping="Wrap"
+                     IsVisible="{Binding Title, Converter={StaticResource NullToBoolConverter}}"/>
+          <TextBlock Text="{Binding Description}"
+                     FontFamily="{DynamicResource Font.Medium}"
+                     FontSize="{DynamicResource FontSize.Body.Small}"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     LineHeight="20"
+                     TextWrapping="Wrap"
+                     IsVisible="{Binding Description, Converter={StaticResource NullToBoolConverter}}"/>
+        </StackPanel>
+
+        <controls:AppButton Grid.Column="1"
+                            Classes="ghost"
+                            IconName="Common/x"
+                            IconSize="16"
+                            Padding="6"
+                            Margin="0,-4,-6,0"
+                            VerticalAlignment="Top"
+                            Command="{Binding CloseCommand}"/>
+      </Grid>
+
+      <!-- Body (input mode only) -->
+      <TextBox x:Name="InputTextBox"
+               Margin="0,15,0,0"
+               Text="{Binding InputValue, Mode=TwoWay}"
+               PlaceholderText="{Binding Placeholder}"
+               IsVisible="{Binding ShowInput}"/>
+
+      <!-- Actions -->
+      <StackPanel Orientation="Horizontal"
+                  Spacing="8"
+                  HorizontalAlignment="Right"
+                  Margin="0,18,0,0">
+        <controls:AppButton Content="{Binding SecondaryText}"
+                            Classes="ghost"
+                            Command="{Binding SecondaryCommand}"
+                            IsVisible="{Binding SecondaryText, Converter={StaticResource NullToBoolConverter}}"/>
+        <controls:AppButton Content="{Binding PrimaryText}"
+                            IconName="{Binding PrimaryIcon}"
+                            Classes.destructive="{Binding IsDestructive}"
+                            Classes.accent="{Binding !IsDestructive}"
+                            Command="{Binding PrimaryCommand}"
+                            IsVisible="{Binding PrimaryText, Converter={StaticResource NullToBoolConverter}}"/>
       </StackPanel>
-    </Grid>
+    </StackPanel>
   </Border>
 </UserControl>
-
-
-
-
-
-
-

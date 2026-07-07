@@ -215,7 +215,7 @@ public partial class MindmapOverviewView : UserControl
         var overlayService = services?.GetService<IOverlayService>();
         if (mindmapService == null || overlayService == null)
             return;
-        var confirm = await overlayService.CreateDialogAsync("Delete Mindmap", $"Are you sure you want to delete '{item.Name}'?", "Delete", "Cancel", severity: DialogSeverity.Destructive).ConfigureAwait(true);
+        var confirm = await overlayService.CreateDialogAsync("Delete Mindmap", $"Are you sure you want to delete '{item.Name}'?", "Delete", "Cancel", confirmIconName: "Common/trash", severity: DialogSeverity.Destructive).ConfigureAwait(true);
         if (!string.Equals(confirm, "Delete", StringComparison.Ordinal))
             return;
         var deleted = await mindmapService.DeleteMindmapAsync(item.Id).ConfigureAwait(true);
@@ -235,22 +235,13 @@ public partial class MindmapOverviewView : UserControl
         var overlayService = services?.GetService<IOverlayService>();
         if (mindmapService == null || overlayService == null)
             return;
-        var input = new InputDialogOverlay
-        {
-            Title = "Rename mindmap",
-            Placeholder = "Mindmap name",
-            InputValue = item.Name,
-            ConfirmText = "Save",
-            CancelText = "Cancel"
-        };
-        var id = overlayService.CreateOverlay(input, new OverlayOptions { ShowBackdrop = true, CloseOnOutsideClick = true });
-        var tcs = new TaskCompletionSource<string?>();
-        input.OnResult = result =>
-        {
-            overlayService.CloseOverlay(id);
-            tcs.TrySetResult(result);
-        };
-        var newName = (await tcs.Task.ConfigureAwait(true) ?? string.Empty).Trim();
+        var newName = (await overlayService.CreateInputDialogAsync(
+            title: "Rename mindmap",
+            confirmText: "Save",
+            cancelText: "Cancel",
+            placeholder: "Mindmap name",
+            initialValue: item.Name,
+            confirmIconName: "Common/pencil").ConfigureAwait(true) ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(newName) || string.Equals(newName, item.Name, StringComparison.Ordinal))
             return;
         var existing = await mindmapService.GetMindmapAsync(item.Id).ConfigureAwait(true);

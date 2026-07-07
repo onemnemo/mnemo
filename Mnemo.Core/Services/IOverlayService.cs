@@ -69,5 +69,19 @@ public interface IOverlayService
     void CloseOverlay(string id);
     void CloseOverlay(string id, object? result);
     string CreateOverlay(object content, OverlayOptions options, string? name = null);
-    Task<string?> CreateDialogAsync(string title, string message, string confirmText = "OK", string cancelText = "", object? icon = null, object? parameter = null, DialogSeverity severity = DialogSeverity.Default);
+
+    /// <summary>
+    /// Shows the shared action dialog (title, description, confirm/cancel). Returns the text of the
+    /// button pressed — <paramref name="confirmText"/> on confirm, <paramref name="cancelText"/> on
+    /// cancel, or null if dismissed via the close affordance.
+    /// </summary>
+    /// <param name="confirmIconName">Optional leading icon on the primary button (e.g. "Common/trash").</param>
+    Task<string?> CreateDialogAsync(string title, string message, string confirmText = "OK", string cancelText = "", string? confirmIconName = null, DialogSeverity severity = DialogSeverity.Default);
+
+    /// <summary>
+    /// Shows the shared input dialog (title, optional description, text field, confirm/cancel).
+    /// Returns the entered text on confirm, or null if cancelled or dismissed.
+    /// </summary>
+    /// <param name="confirmIconName">Optional leading icon on the primary button (e.g. "Common/plus").</param>
+    Task<string?> CreateInputDialogAsync(string title, string confirmText = "Save", string cancelText = "Cancel", string? description = null, string? placeholder = null, string? initialValue = null, string? confirmIconName = null);
 }

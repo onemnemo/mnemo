@@ -305,22 +305,13 @@ public partial class FlashcardsView : UserControl
         if (overlayService == null || library == null || localization == null)
             return;
 
-        var input = new InputDialogOverlay
-        {
-            Title = localization.T("RenameDeck", "Flashcards"),
-            Placeholder = localization.T("DeckNamePlaceholder", "Flashcards"),
-            InputValue = row.Name,
-            ConfirmText = localization.T("Save", "Common"),
-            CancelText = localization.T("Cancel", "Common")
-        };
-        var id = overlayService.CreateOverlay(input, new OverlayOptions { ShowBackdrop = true, CloseOnOutsideClick = true });
-        var tcs = new TaskCompletionSource<string?>();
-        input.OnResult = value =>
-        {
-            overlayService.CloseOverlay(id);
-            tcs.TrySetResult(value);
-        };
-        var newName = (await tcs.Task.ConfigureAwait(true) ?? string.Empty).Trim();
+        var newName = (await overlayService.CreateInputDialogAsync(
+            title: localization.T("RenameDeck", "Flashcards"),
+            confirmText: localization.T("Save", "Common"),
+            cancelText: localization.T("Cancel", "Common"),
+            placeholder: localization.T("DeckNamePlaceholder", "Flashcards"),
+            initialValue: row.Name,
+            confirmIconName: "Common/pencil").ConfigureAwait(true) ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(newName) || string.Equals(newName, row.Name, StringComparison.Ordinal))
             return;
         var summary = await library.GetDeckAsync(row.Id).ConfigureAwait(true);

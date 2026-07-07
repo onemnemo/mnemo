@@ -551,6 +551,7 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
             string.Format(CultureInfo.CurrentCulture, T("DeleteFolderConfirm"), folderItem.Name),
             T("Delete"),
             T("Cancel"),
+            confirmIconName: "Common/trash",
             severity: DialogSeverity.Destructive).ConfigureAwait(true);
         if (!string.Equals(confirm, T("Delete"), StringComparison.Ordinal))
             return;
@@ -599,25 +600,14 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
 
     // --- Helpers -----------------------------------------------------------
 
-    private async Task<string?> PromptForNameAsync(string title, string initialValue)
-    {
-        var input = new InputDialogOverlay
-        {
-            Title = title,
-            Placeholder = T("NamePlaceholder"),
-            InputValue = initialValue,
-            ConfirmText = T("Save"),
-            CancelText = T("Cancel")
-        };
-        var id = _overlay.CreateOverlay(input, new OverlayOptions { ShowBackdrop = true, CloseOnOutsideClick = true });
-        var tcs = new TaskCompletionSource<string?>();
-        input.OnResult = result =>
-        {
-            _overlay.CloseOverlay(id);
-            tcs.TrySetResult(result);
-        };
-        return await tcs.Task.ConfigureAwait(true);
-    }
+    private Task<string?> PromptForNameAsync(string title, string initialValue)
+        => _overlay.CreateInputDialogAsync(
+            title: title,
+            confirmText: T("Save"),
+            cancelText: T("Cancel"),
+            placeholder: T("NamePlaceholder"),
+            initialValue: initialValue,
+            confirmIconName: "Common/pencil");
 
     private string LayoutLabelFor(string? algorithm) => algorithm switch
     {

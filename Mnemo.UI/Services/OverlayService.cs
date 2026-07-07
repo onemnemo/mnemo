@@ -100,7 +100,7 @@ public class OverlayService : IOverlayService
         return instance.Id;
     }
 
-    public async Task<string?> CreateDialogAsync(string title, string message, string confirmText = "OK", string cancelText = "", object? icon = null, object? parameter = null, DialogSeverity severity = DialogSeverity.Default)
+    public async Task<string?> CreateDialogAsync(string title, string message, string confirmText = "OK", string cancelText = "", string? confirmIconName = null, DialogSeverity severity = DialogSeverity.Default)
     {
         var tcs = new TaskCompletionSource<object?>();
         var dialog = new DialogOverlay
@@ -109,25 +109,57 @@ public class OverlayService : IOverlayService
             Description = message,
             PrimaryText = confirmText,
             SecondaryText = cancelText,
+            PrimaryIcon = confirmIconName,
             IsDestructive = severity == DialogSeverity.Destructive
         };
 
-        var options = new OverlayOptions
-        {
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            ShowBackdrop = true,
-            CloseOnOutsideClick = false
-        };
-
-        var id = CreateOverlay(dialog, options, "Dialog");
+        var id = CreateOverlay(dialog, DialogOverlayOptions(), "Dialog");
         _completionSources[id] = tcs;
 
-        // Hook into the dialog's choose action
-        dialog.OnChoose = (result) => CloseOverlay(id, result);
+        // Preserve the "returns the pressed button's text" contract: confirm → confirmText,
+        // cancel → cancelText, close affordance → null.
+        dialog.OnClosed = choice => CloseOverlay(id, choice.Button switch
+        {
+            DialogButton.Primary => confirmText,
+            DialogButton.Secondary => cancelText,
+            _ => null
+        });
 
         var result = await tcs.Task;
         return result as string;
     }
+
+    public async Task<string?> CreateInputDialogAsync(string title, string confirmText = "Save", string cancelText = "Cancel", string? description = null, string? placeholder = null, string? initialValue = null, string? confirmIconName = null)
+    {
+        var tcs = new TaskCompletionSource<object?>();
+        var dialog = new DialogOverlay
+        {
+            Title = title,
+            Description = description,
+            Placeholder = placeholder,
+            InputValue = initialValue,
+            PrimaryText = confirmText,
+            SecondaryText = cancelText,
+            PrimaryIcon = confirmIconName,
+            ShowInput = true
+        };
+
+        var id = CreateOverlay(dialog, DialogOverlayOptions(), "InputDialog");
+        _completionSources[id] = tcs;
+
+        // Only the primary button returns the entered value; cancel/close return null.
+        dialog.OnClosed = choice => CloseOverlay(id, choice.Button == DialogButton.Primary ? choice.Input : null);
+
+        var result = await tcs.Task;
+        return result as string;
+    }
+
+    private static OverlayOptions DialogOverlayOptions() => new()
+    {
+        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        ShowBackdrop = true,
+        CloseOnOutsideClick = false
+    };
 }
 
