@@ -7,6 +7,8 @@ using Mnemo.Core.Services.Keybinds;
 using Mnemo.Core.Services.Search;
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Infrastructure.Services;
+using Mnemo.Infrastructure.Services.MindmapV2;
+using Mnemo.Infrastructure.Services.MindmapV2.Persistence;
 using Mnemo.Infrastructure.Services.Search;
 using Mnemo.Infrastructure.Services.Tools;
 using Mnemo.UI.Modules.Mindmap.Services;
@@ -20,6 +22,11 @@ public class MindmapModule : IModule
     {
         services.AddSingleton<IMindmapService, MindmapService>();
         services.AddSingleton<IMindmapLayoutService, MindmapLayoutService>();
+
+        // Schema v2 store + service (P1). Additive alongside the still-live v1 service; the v1 module is
+        // removed in P2, at which point IMindmapDocumentService takes the canonical IMindmapService name.
+        services.AddSingleton<IMindmapStore, MindmapStore>();
+        services.AddSingleton<IMindmapDocumentService, MindmapDocumentService>();
         // Each MindmapViewModel gets its own graph state. The session, history,
         // clipboard, hover, and mutator must all share the SAME session/history
         // instances so mutations operate on the data the VM is displaying.
