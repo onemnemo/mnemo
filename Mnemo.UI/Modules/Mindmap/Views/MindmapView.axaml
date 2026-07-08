@@ -348,6 +348,20 @@
 
                     <StackPanel IsVisible="{Binding HasSelection}" Spacing="18">
 
+                        <!-- Template for the selected node's tree -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="insHeader" Text="{markup:T Ns=Mindmap, Key=TemplateThisTree}"/>
+                            <controls:ModernComboBox Classes="compact" HorizontalAlignment="Stretch"
+                                                     ItemsSource="{Binding TemplateOptions}"
+                                                     SelectedItem="{Binding SelectedClusterTemplateOption}">
+                                <controls:ModernComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:MindmapTemplateOption">
+                                        <TextBlock Text="{Binding Label}"/>
+                                    </DataTemplate>
+                                </controls:ModernComboBox.ItemTemplate>
+                            </controls:ModernComboBox>
+                        </StackPanel>
+
                         <!-- Fill -->
                         <StackPanel Spacing="8">
                             <TextBlock Classes="insHeader" Text="{markup:T Ns=Mindmap, Key=Fill}"/>
