@@ -627,7 +627,9 @@ public sealed class MindmapDocumentService : IMindmapService
             updated = updated with { Content = textContent };
         }
 
-        if (op.Style is not null)
+        if (op.ClearStyle)
+            updated = updated with { Style = op.Style is null ? null : MergeStyle(null, op.Style) };
+        else if (op.Style is not null)
             updated = updated with { Style = MergeStyle(element.Style, op.Style) };
         if (op.Collapsed.HasValue)
             updated = updated with { Collapsed = op.Collapsed.Value };

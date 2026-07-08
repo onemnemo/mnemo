@@ -28,6 +28,8 @@
     "ShapeOutline": "アウトライン",
     "ShapePlain": "プレーン",
     "ToggleCollapse": "折りたたむ / 展開",
-    "TogglePin": "固定 / 解除"
+    "TogglePin": "固定 / 解除",
+    "StyleSubtree": "サブツリーに適用",
+    "ClearStyle": "スタイルをクリア"
   }
 }

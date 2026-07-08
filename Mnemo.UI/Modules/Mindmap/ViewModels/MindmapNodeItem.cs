@@ -50,6 +50,10 @@ public partial class MindmapNodeItem : ObservableObject
     [ObservableProperty]
     private bool _isPinned;
 
+    /// <summary>Whether this node's descendants are hidden. Reflected in the toolbar's collapse toggle.</summary>
+    [ObservableProperty]
+    private bool _isCollapsed;
+
     // Resolved style, filled from the cascade when the document is projected; color members are theme
     // token references the canvas maps to brushes.
 

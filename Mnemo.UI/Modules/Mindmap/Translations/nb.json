@@ -28,6 +28,8 @@
     "ShapeOutline": "Omriss",
     "ShapePlain": "Enkel",
     "ToggleCollapse": "Slå sammen / utvid",
-    "TogglePin": "Fest / løsne"
+    "TogglePin": "Fest / løsne",
+    "StyleSubtree": "Stil på undertre",
+    "ClearStyle": "Fjern stil"
   }
 }

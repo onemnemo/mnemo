@@ -28,6 +28,8 @@
     "ShapeOutline": "Outline",
     "ShapePlain": "Plain",
     "ToggleCollapse": "Collapse / expand",
-    "TogglePin": "Pin / unpin"
+    "TogglePin": "Pin / unpin",
+    "StyleSubtree": "Style subtree",
+    "ClearStyle": "Clear style"
   }
 }

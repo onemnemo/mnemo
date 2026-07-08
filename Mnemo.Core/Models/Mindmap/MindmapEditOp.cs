@@ -58,6 +58,9 @@ public sealed record SetOp : MindmapEditOp
     /// <summary>Merge these style overrides onto the element's existing style (non-null members win).</summary>
     public ElementStyle? Style { get; init; }
 
+    /// <summary>Drop the element's existing style override before applying <see cref="Style"/>, resetting it to the template default.</summary>
+    public bool ClearStyle { get; init; }
+
     public bool? Collapsed { get; init; }
 
     public bool? Pinned { get; init; }

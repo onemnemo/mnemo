@@ -338,6 +338,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                 Text = NodeText(element.Content),
                 IsRoot = !hasParent.Contains(element.Id),
                 IsPinned = element.Pinned,
+                IsCollapsed = element.Collapsed,
                 FillToken = style.Fill,
                 StrokeToken = style.Stroke,
                 TextToken = style.TextColor,
@@ -641,6 +642,25 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         SelectedNode is null
             ? Task.CompletedTask
             : ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Pinned = !SelectedNode.IsPinned });
+
+    // Pushes the node's own style overrides down onto its whole subtree.
+    [RelayCommand]
+    private Task StyleSubtreeAsync()
+    {
+        if (SelectedNode is null || _document is null)
+            return Task.CompletedTask;
+        var element = _document.Elements.FirstOrDefault(e => e.Id == SelectedNode.Id);
+        return element?.Style is null
+            ? Task.CompletedTask
+            : ApplyToSelectionAsync(new StyleSubtreeOp { Root = SelectedNode.Id, Style = element.Style });
+    }
+
+    // Drops the node's override so it falls back to the template default.
+    [RelayCommand]
+    private Task ClearNodeStyleAsync() =>
+        SelectedNode is null
+            ? Task.CompletedTask
+            : ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, ClearStyle = true });
 
     public void ClearHoverState()
     {

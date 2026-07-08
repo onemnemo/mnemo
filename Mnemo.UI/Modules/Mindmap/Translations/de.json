@@ -28,6 +28,8 @@
     "ShapeOutline": "Umriss",
     "ShapePlain": "Einfach",
     "ToggleCollapse": "Ein-/ausklappen",
-    "TogglePin": "Anheften / lösen"
+    "TogglePin": "Anheften / lösen",
+    "StyleSubtree": "Teilbaum stylen",
+    "ClearStyle": "Stil zurücksetzen"
   }
 }

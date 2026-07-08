@@ -28,6 +28,8 @@
     "ShapeOutline": "Contorno",
     "ShapePlain": "Simple",
     "ToggleCollapse": "Contraer / expandir",
-    "TogglePin": "Fijar / soltar"
+    "TogglePin": "Fijar / soltar",
+    "StyleSubtree": "Aplicar al subárbol",
+    "ClearStyle": "Borrar estilo"
   }
 }

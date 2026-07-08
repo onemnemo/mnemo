@@ -79,6 +79,45 @@ public sealed class MindmapDocumentServiceTests
     }
 
     [Fact]
+    public async Task Set_ClearStyle_RemovesOverride()
+    {
+        await using var h = new MindmapTestHarness();
+        var (map, ids) = await SeedAsync(h, new MindmapNodeSpec { Ref = "n", Text = "n" });
+
+        await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new SetOp { Id = ids["n"], Style = new ElementStyle { Fill = "accent", NodeShape = NodeShape.Pill } },
+        });
+        await h.Service.ApplyAsync(map.Id, 3, new MindmapEditOp[]
+        {
+            new SetOp { Id = ids["n"], ClearStyle = true },
+        });
+
+        var node = (await h.Service.GetAsync(map.Id)).Value!.Elements.Single(e => e.Id == ids["n"]);
+        Assert.Null(node.Style);
+    }
+
+    [Fact]
+    public async Task Set_ClearStyleWithNewStyle_ReplacesInsteadOfMerging()
+    {
+        await using var h = new MindmapTestHarness();
+        var (map, ids) = await SeedAsync(h, new MindmapNodeSpec { Ref = "n", Text = "n" });
+
+        await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new SetOp { Id = ids["n"], Style = new ElementStyle { Fill = "accent", Stroke = "stroke" } },
+        });
+        await h.Service.ApplyAsync(map.Id, 3, new MindmapEditOp[]
+        {
+            new SetOp { Id = ids["n"], ClearStyle = true, Style = new ElementStyle { Fill = "palette.2" } },
+        });
+
+        var node = (await h.Service.GetAsync(map.Id)).Value!.Elements.Single(e => e.Id == ids["n"]);
+        Assert.Equal("palette.2", node.Style!.Fill);
+        Assert.Null(node.Style.Stroke);
+    }
+
+    [Fact]
     public async Task Move_Reparent_RejectedWhenCyclic()
     {
         await using var h = new MindmapTestHarness();
