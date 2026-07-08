@@ -12,6 +12,7 @@ using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Services;
 using Mnemo.UI.Components.Overlays;
 using Mnemo.UI.Modules.Mindmap.Services;
+using Mnemo.UI.Modules.Mindmap.Views;
 using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Mindmap.ViewModels;
@@ -40,6 +41,7 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
     private readonly ILoggerService _logger;
     private readonly IDateDisplayService _dateDisplay;
     private readonly ILocalizationService _localization;
+    private readonly IMindmapStyleTemplateProvider _templates;
 
     // Raw loaded data (source of truth for structural queries).
     private List<MindmapLibraryEntry> _maps = new();
@@ -130,7 +132,8 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
         IOverlayService overlay,
         ILoggerService logger,
         IDateDisplayService dateDisplay,
-        ILocalizationService localization)
+        ILocalizationService localization,
+        IMindmapStyleTemplateProvider templates)
     {
         _mindmapService = mindmapService;
         _studyService = studyService;
@@ -139,6 +142,7 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
         _logger = logger;
         _dateDisplay = dateDisplay;
         _localization = localization;
+        _templates = templates;
 
         CreateCommand = new AsyncRelayCommand(CreateNewMindmapAsync);
         CreateFolderCommand = new AsyncRelayCommand(CreateNewFolderAsync);
@@ -489,16 +493,28 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
 
     private async Task CreateNewMindmapAsync()
     {
-        var name = await PromptForNameAsync(T("CreateMindmapTitle"), T("NewMindmap")).ConfigureAwait(true);
-        if (string.IsNullOrWhiteSpace(name))
+        try
+        {
+            await _templates.RefreshAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", "Failed to load style templates for the create gallery.", ex);
+        }
+
+        var choice = await PromptCreateMapAsync().ConfigureAwait(true);
+        if (choice is null || string.IsNullOrWhiteSpace(choice.Name))
             return;
 
         try
         {
-            // Seed a central root node so a new map opens with something to build from (the editing model —
-            // Tab=child, Enter=sibling — works off an existing node), rather than a blank canvas.
+            var name = choice.Name.Trim();
+            // Seed a central root node so a new map opens with something to build from (the editing model,
+            // Tab=child and Enter=sibling, works off an existing node) rather than a blank canvas.
             var outline = new[] { new MindmapNodeSpec { Text = name } };
-            var result = await _mindmapService.CreateAsync(name, outline, folderId: CurrentFolderId).ConfigureAwait(true);
+            var result = await _mindmapService
+                .CreateAsync(name, outline, templateId: choice.TemplateId, folderId: CurrentFolderId)
+                .ConfigureAwait(true);
             if (result.IsSuccess && result.Value != null)
                 _navigation.NavigateTo("mindmap-detail", result.Value.Id);
             else
@@ -508,6 +524,27 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
         {
             _logger.Error("Mindmap", "Failed to create mindmap", ex);
         }
+    }
+
+    // Shows the new-map dialog (name + starting-template gallery) and resolves with the choice, or null.
+    private Task<MindmapCreateResult?> PromptCreateMapAsync()
+    {
+        var tcs = new TaskCompletionSource<MindmapCreateResult?>();
+        var overlay = new MindmapCreateOverlay();
+        overlay.Initialize(_templates.All, T("NewMindmap"), _templates.Default.Id);
+        var id = _overlay.CreateOverlay(overlay, new OverlayOptions
+        {
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            ShowBackdrop = true,
+            CloseOnOutsideClick = false,
+        }, "MindmapCreate");
+        overlay.Completed = result =>
+        {
+            _overlay.CloseOverlay(id);
+            tcs.TrySetResult(result);
+        };
+        return tcs.Task;
     }
 
     private async Task CreateNewFolderAsync()

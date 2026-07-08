@@ -1,0 +1,92 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Mnemo.UI.Controls"
+             x:Class="Mnemo.UI.Modules.Mindmap.Views.MindmapCreateOverlay">
+  <UserControl.Styles>
+    <Style Selector="TextBox#NameBox">
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+      <Setter Property="BorderThickness" Value="1.5"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="14,11"/>
+      <Setter Property="MinHeight" Value="44"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Input}"/>
+      <Style Selector="^:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+      </Style>
+    </Style>
+
+    <!-- Template card: a selectable tile with a palette preview and the template name. -->
+    <Style Selector="Button.tplCard">
+      <Setter Property="Width" Value="132"/>
+      <Setter Property="Padding" Value="9"/>
+      <Setter Property="CornerRadius" Value="11"/>
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+      <Setter Property="BorderThickness" Value="1.5"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.tplCard:pointerover">
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    </Style>
+    <Style Selector="Button.tplCard.selected">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+  </UserControl.Styles>
+
+  <Border Background="{DynamicResource OverlayBackgroundBrush}"
+          BorderBrush="{DynamicResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="16"
+          Padding="24,22,24,20"
+          Width="460">
+    <StackPanel>
+      <!-- Header -->
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+          <TextBlock x:Name="TitleText"
+                     FontFamily="{DynamicResource Font.SemiBold}"
+                     FontSize="{DynamicResource FontSize.Heading6}"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
+                     TextWrapping="Wrap"/>
+          <TextBlock x:Name="DescriptionText"
+                     FontFamily="{DynamicResource Font.Medium}"
+                     FontSize="{DynamicResource FontSize.Body.Small}"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <controls:AppButton Grid.Column="1"
+                            Classes="ghost"
+                            IconName="Common/x"
+                            IconSize="16"
+                            Padding="6"
+                            Margin="0,-4,-6,0"
+                            VerticalAlignment="Top"
+                            Click="OnCancelClick"/>
+      </Grid>
+
+      <!-- Name -->
+      <TextBox x:Name="NameBox" Margin="0,16,0,0"/>
+
+      <!-- Template gallery -->
+      <TextBlock x:Name="GalleryLabel"
+                 Margin="0,16,0,0"
+                 FontFamily="{DynamicResource Font.SemiBold}"
+                 FontSize="{DynamicResource FontSize.Body.Small}"
+                 Foreground="{DynamicResource TextPrimaryBrush}"/>
+      <ScrollViewer Margin="0,8,0,0" MaxHeight="248" HorizontalScrollBarVisibility="Disabled">
+        <WrapPanel x:Name="GalleryPanel" ItemWidth="132" ItemHeight="90"/>
+      </ScrollViewer>
+
+      <!-- Actions -->
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,20,0,0">
+        <controls:AppButton x:Name="CancelButton" Classes="ghost" Click="OnCancelClick"/>
+        <controls:AppButton x:Name="CreateButton" Classes="accent" IconName="Common/plus" Click="OnCreateClick"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>
