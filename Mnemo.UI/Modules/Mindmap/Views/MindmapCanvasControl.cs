@@ -199,11 +199,24 @@ public sealed class MindmapCanvasControl : Control
         context.DrawRectangle(fill, pen, rect, CornerRadius, CornerRadius);
 
         var text = GetFormattedText(node);
-        if (text is null)
-            return;
+        if (text is not null)
+        {
+            var origin = new Point(node.X + TextPadding / 2, node.Y + (node.Height - text.Height) / 2);
+            context.DrawText(text, origin);
+        }
 
-        var origin = new Point(node.X + TextPadding / 2, node.Y + (node.Height - text.Height) / 2);
-        context.DrawText(text, origin);
+        if (node.IsPinned)
+        {
+            // Contrasting dot in the top-right: white on an accent root, accent on a light node.
+            var pinBrush = node.IsRoot ? RootText : SelectedStroke;
+            if (pinBrush is not null)
+            {
+                var center = new Point(
+                    node.X + node.Width - MindmapNodeItem.PinBadgeInset,
+                    node.Y + MindmapNodeItem.PinBadgeInset);
+                context.DrawEllipse(pinBrush, null, center, MindmapNodeItem.PinBadgeRadius, MindmapNodeItem.PinBadgeRadius);
+            }
+        }
     }
 
     private FormattedText? GetFormattedText(MindmapNodeItem node)

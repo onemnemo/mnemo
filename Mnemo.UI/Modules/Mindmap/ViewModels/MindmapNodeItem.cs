@@ -13,6 +13,11 @@ public partial class MindmapNodeItem : ObservableObject
     public const double DefaultWidth = 132;
     public const double DefaultHeight = 40;
 
+    /// <summary>Pin badge geometry (top-right corner): draw radius, inset from the corner, and click radius.</summary>
+    public const double PinBadgeRadius = 4.5;
+    public const double PinBadgeInset = 9;
+    public const double PinBadgeHitRadius = 11;
+
     public required string Id { get; init; }
 
     [ObservableProperty]
@@ -39,6 +44,10 @@ public partial class MindmapNodeItem : ObservableObject
 
     [ObservableProperty]
     private bool _isSelected;
+
+    /// <summary>Pinned nodes are excluded from auto-layout; shown with a small badge you can click to release.</summary>
+    [ObservableProperty]
+    private bool _isPinned;
 
     /// <summary>Center X in canvas coordinates (edge endpoints attach here).</summary>
     public double CenterX => X + Width / 2;

@@ -106,6 +106,14 @@ public partial class MindmapView : UserControl
         if (node is not null)
         {
             Vm.Select(node);
+
+            // Clicking a pinned node's badge releases it back into auto-layout (no drag).
+            if (IsInPinBadge(content, node))
+            {
+                _ = Vm.SetPinnedAsync(node.Id, false);
+                return;
+            }
+
             _draggingNode = node;
             _dragGrabOffset = new Point(content.X - node.X, content.Y - node.Y);
         }
@@ -166,4 +174,15 @@ public partial class MindmapView : UserControl
 
     // Hit-testing goes through the canvas control's quadtree (topmost node under the point).
     private MindmapNodeItem? HitTest(Point content) => _canvas?.HitTestNode(content);
+
+    private static bool IsInPinBadge(Point content, MindmapNodeItem node)
+    {
+        if (!node.IsPinned)
+            return false;
+        var cx = node.X + node.Width - MindmapNodeItem.PinBadgeInset;
+        var cy = node.Y + MindmapNodeItem.PinBadgeInset;
+        var dx = content.X - cx;
+        var dy = content.Y - cy;
+        return dx * dx + dy * dy <= MindmapNodeItem.PinBadgeHitRadius * MindmapNodeItem.PinBadgeHitRadius;
+    }
 }

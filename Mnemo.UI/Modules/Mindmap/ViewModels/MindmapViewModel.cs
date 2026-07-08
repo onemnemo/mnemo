@@ -258,6 +258,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                 Height = element.Height ?? MindmapNodeItem.DefaultHeight,
                 Text = NodeText(element.Content),
                 IsRoot = !hasParent.Contains(element.Id),
+                IsPinned = element.Pinned,
             };
             items[element.Id] = item;
             Nodes.Add(item);
@@ -513,6 +514,12 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     public async Task MoveNodeAsync(string nodeId, Point contentPosition)
     {
         await ApplyAsync(new MoveOp { Id = nodeId, X = contentPosition.X, Y = contentPosition.Y }, selectRef: null).ConfigureAwait(true);
+    }
+
+    /// <summary>Pins or releases a node. Releasing lets it rejoin auto-layout on the next pass.</summary>
+    public async Task SetPinnedAsync(string nodeId, bool pinned)
+    {
+        await ApplyAsync(new SetOp { Id = nodeId, Pinned = pinned }, selectRef: null).ConfigureAwait(true);
     }
 
     private async Task DeleteSelectedAsync()

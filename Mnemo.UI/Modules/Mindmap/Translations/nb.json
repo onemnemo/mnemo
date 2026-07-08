@@ -14,11 +14,13 @@
     "mindmap.enter": "Legg til søsken / rediger kant",
     "mindmap.edit-edge-label": "Rediger kantetikett"
   },
-  "LayoutBalanced": "Balansert",
-  "LayoutTreeRight": "Tre · høyre",
-  "LayoutTreeDown": "Tre · ned",
-  "LayoutRadial": "Radial",
-  "LayoutTimeline": "Tidslinje",
-  "LayoutFree": "Fri",
-  "LayoutTip": "Oppsett"
+  "Mindmap": {
+    "LayoutBalanced": "Balansert",
+    "LayoutTreeRight": "Tre · høyre",
+    "LayoutTreeDown": "Tre · ned",
+    "LayoutRadial": "Radial",
+    "LayoutTimeline": "Tidslinje",
+    "LayoutFree": "Fri",
+    "LayoutTip": "Oppsett"
+  }
 }
