@@ -77,8 +77,13 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private MindmapLayoutOption? _selectedLayoutOption;
 
-    // True while the selection is set programmatically (on load/reload), so it doesn't re-issue a LayoutOp.
+    /// <summary>The map's style template, bound to the top-bar picker. Sets the document default template.</summary>
+    [ObservableProperty]
+    private MindmapTemplateOption? _selectedTemplateOption;
+
+    // True while a selection is set programmatically (on load/reload), so it doesn't re-issue an op.
     private bool _suppressLayoutOptionChange;
+    private bool _suppressTemplateOptionChange;
 
     /// <summary>Edge selection is not yet wired in the foundation slice; kept for the keybind contract.</summary>
     public object? SelectedEdge { get; set; }
@@ -86,6 +91,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     public ObservableCollection<MindmapNodeItem> Nodes { get; } = new();
     public ObservableCollection<MindmapEdgeItem> Edges { get; } = new();
     public ObservableCollection<MindmapLayoutOption> LayoutOptions { get; } = new();
+    public ObservableCollection<MindmapTemplateOption> TemplateOptions { get; } = new();
 
     public ICommand RecenterCommand { get; }
     public ICommand DeleteSelectedCommand { get; }
@@ -111,9 +117,10 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, () => SelectedNode is not null);
 
         BuildLayoutOptions();
+        BuildTemplateOptions();
     }
 
-    // --- Layout switcher --------------------------------------------
+    // --- Layout switcher ---------------------------------------------------
 
     private void BuildLayoutOptions()
     {
@@ -168,6 +175,38 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         _suppressLayoutOptionChange = true;
         SelectedLayoutOption = LayoutOptions.FirstOrDefault(o => o.Id == algorithm) ?? LayoutOptions.FirstOrDefault();
         _suppressLayoutOptionChange = false;
+    }
+
+    // --- Template picker ---------------------------------------------------
+
+    private void BuildTemplateOptions()
+    {
+        TemplateOptions.Clear();
+        foreach (var template in _templates.All)
+            TemplateOptions.Add(new MindmapTemplateOption(template.Id, template.Name));
+    }
+
+    partial void OnSelectedTemplateOptionChanged(MindmapTemplateOption? value)
+    {
+        if (_suppressTemplateOptionChange || value is null || _document is null)
+            return;
+        _ = ChangeTemplateAsync(value.Id);
+    }
+
+    /// <summary>Sets the document's default style template and re-projects.</summary>
+    private async Task ChangeTemplateAsync(string templateId)
+    {
+        if (_document is null)
+            return;
+        await ApplyOpsAsync(new[] { (MindmapEditOp)new LayoutOp { TemplateId = templateId } }, selectRef: null).ConfigureAwait(true);
+    }
+
+    private void SyncTemplateSelection(MindmapDocument document)
+    {
+        var id = document.Canvas.DefaultTemplateId ?? _templates.Default.Id;
+        _suppressTemplateOptionChange = true;
+        SelectedTemplateOption = TemplateOptions.FirstOrDefault(o => o.Id == id) ?? TemplateOptions.FirstOrDefault();
+        _suppressTemplateOptionChange = false;
     }
 
     public void OnNavigatedTo(object? parameter)
@@ -241,6 +280,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         Title = document.Title;
         Revision = document.Revision;
         SyncLayoutSelection(document);
+        SyncTemplateSelection(document);
 
         var hasParent = document.Edges
             .Where(e => e.Kind == EdgeKind.Hierarchy)

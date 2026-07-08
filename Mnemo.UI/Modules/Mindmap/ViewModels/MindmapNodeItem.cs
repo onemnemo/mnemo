@@ -50,8 +50,8 @@ public partial class MindmapNodeItem : ObservableObject
     [ObservableProperty]
     private bool _isPinned;
 
-    // --- Resolved style: filled from the style cascade when the document is projected. Color members
-    // are theme token references the canvas maps to brushes. ---
+    // Resolved style, filled from the cascade when the document is projected; color members are theme
+    // token references the canvas maps to brushes.
 
     [ObservableProperty]
     private string _fillToken = MindmapStyleTokens.Surface;

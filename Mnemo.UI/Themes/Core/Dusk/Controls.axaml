@@ -104,6 +104,14 @@
     <SolidColorBrush x:Key="CardBackgroundPrimaryBrush" Color="{DynamicResource CardBackgroundPrimary}"/>
     <SolidColorBrush x:Key="CardBackgroundSecondaryBrush" Color="{DynamicResource CardBackgroundSecondary}"/>
     <SolidColorBrush x:Key="AccentBrush" Color="{DynamicResource Accent}"/>
+    <SolidColorBrush x:Key="MindmapPalette1Brush" Color="{DynamicResource MindmapPalette1}"/>
+    <SolidColorBrush x:Key="MindmapPalette2Brush" Color="{DynamicResource MindmapPalette2}"/>
+    <SolidColorBrush x:Key="MindmapPalette3Brush" Color="{DynamicResource MindmapPalette3}"/>
+    <SolidColorBrush x:Key="MindmapPalette4Brush" Color="{DynamicResource MindmapPalette4}"/>
+    <SolidColorBrush x:Key="MindmapPalette5Brush" Color="{DynamicResource MindmapPalette5}"/>
+    <SolidColorBrush x:Key="MindmapPalette6Brush" Color="{DynamicResource MindmapPalette6}"/>
+    <SolidColorBrush x:Key="MindmapPalette7Brush" Color="{DynamicResource MindmapPalette7}"/>
+    <SolidColorBrush x:Key="MindmapPalette8Brush" Color="{DynamicResource MindmapPalette8}"/>
     <SolidColorBrush x:Key="AccentSubtleBackgroundBrush" Color="{DynamicResource AccentSubtleBackground}"/>
     <SolidColorBrush x:Key="AccentBorderSubtleBrush" Color="{DynamicResource AccentBorderSubtle}"/>
     <SolidColorBrush x:Key="QuickActionCardBackgroundBrush" Color="{DynamicResource QuickActionCardBackground}"/>

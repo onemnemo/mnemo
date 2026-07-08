@@ -7,8 +7,8 @@ using Xunit;
 namespace Mnemo.Infrastructure.Tests.Mindmap;
 
 /// <summary>
-/// The style cascade: element overrides → template root/depth/branch rules → theme defaults, plus
-/// the shipped built-in templates. The resolver is a pure function, so these assert precedence and
+/// The style cascade: element overrides → template root/depth/branch rules → theme defaults, plus the
+/// shipped built-in templates. The resolver is a pure function, so these assert precedence and
 /// token selection rather than rendered pixels.
 /// </summary>
 public sealed class MindmapStyleResolverTests

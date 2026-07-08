@@ -422,6 +422,15 @@
     <!-- Block quote vertical line -->
     <Color x:Key="QuoteLine">#E9573F</Color>
     <!-- Mindmap -->
+    <!-- Branch color ramp (palette.1..8): one distinct hue per depth-1 branch -->
+    <Color x:Key="MindmapPalette1">#E9573F</Color>
+    <Color x:Key="MindmapPalette2">#D2922E</Color>
+    <Color x:Key="MindmapPalette3">#74A657</Color>
+    <Color x:Key="MindmapPalette4">#33A594</Color>
+    <Color x:Key="MindmapPalette5">#4189CC</Color>
+    <Color x:Key="MindmapPalette6">#8463C4</Color>
+    <Color x:Key="MindmapPalette7">#C25F8D</Color>
+    <Color x:Key="MindmapPalette8">#927255</Color>
     <Color x:Key="MindmapNodeBorder">#EADFCB</Color>
     <Color x:Key="MindmapNodeBorderHover">#F19B75</Color>
     <Color x:Key="MindmapNodeBorderSelected">#E9573F</Color>

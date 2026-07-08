@@ -26,6 +26,16 @@
                            FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
 
                 <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <controls:ModernComboBox Classes="compact" MinWidth="128" VerticalAlignment="Center"
+                                             ItemsSource="{Binding TemplateOptions}"
+                                             SelectedItem="{Binding SelectedTemplateOption}"
+                                             ToolTip.Tip="{markup:T Ns=Mindmap, Key=TemplateTip}">
+                        <controls:ModernComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:MindmapTemplateOption">
+                                <TextBlock Text="{Binding Label}"/>
+                            </DataTemplate>
+                        </controls:ModernComboBox.ItemTemplate>
+                    </controls:ModernComboBox>
                     <controls:ModernComboBox Classes="compact" MinWidth="118" VerticalAlignment="Center"
                                              ItemsSource="{Binding LayoutOptions}"
                                              SelectedItem="{Binding SelectedLayoutOption}"

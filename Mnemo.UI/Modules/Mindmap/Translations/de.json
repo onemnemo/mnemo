@@ -21,6 +21,7 @@
     "LayoutRadial": "Radial",
     "LayoutTimeline": "Zeitachse",
     "LayoutFree": "Frei",
-    "LayoutTip": "Layout"
+    "LayoutTip": "Layout",
+    "TemplateTip": "Stil"
   }
 }

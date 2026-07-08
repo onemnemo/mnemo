@@ -30,8 +30,8 @@ public readonly record struct StyleContext
 }
 
 /// <summary>
-/// A fully-resolved element style: the cascade collapsed to concrete token references and enum values
-///. Color members are theme token strings the UI maps to brushes — never null, never raw hex.
+/// A fully-resolved element style: the cascade collapsed to concrete token references and enum values.
+/// Color members are theme token strings the UI maps to brushes — never null, never raw hex.
 /// </summary>
 public sealed record ResolvedStyle
 {

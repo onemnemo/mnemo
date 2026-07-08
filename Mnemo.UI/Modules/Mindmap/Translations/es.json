@@ -21,6 +21,7 @@
     "LayoutRadial": "Radial",
     "LayoutTimeline": "Cronología",
     "LayoutFree": "Libre",
-    "LayoutTip": "Diseño"
+    "LayoutTip": "Diseño",
+    "TemplateTip": "Estilo"
   }
 }

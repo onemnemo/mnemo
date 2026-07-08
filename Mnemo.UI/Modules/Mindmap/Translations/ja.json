@@ -21,6 +21,7 @@
     "LayoutRadial": "放射状",
     "LayoutTimeline": "タイムライン",
     "LayoutFree": "フリー",
-    "LayoutTip": "レイアウト"
+    "LayoutTip": "レイアウト",
+    "TemplateTip": "スタイル"
   }
 }

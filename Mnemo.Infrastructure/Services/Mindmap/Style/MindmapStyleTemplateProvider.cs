@@ -5,7 +5,7 @@ using Mnemo.Core.Services;
 namespace Mnemo.Infrastructure.Services.Mindmap.Style;
 
 /// <summary>
-/// Template registry backed by the shipped built-ins. User templates loaded from storage will layer
+/// Template registry backed by the shipped built-ins. User templates loaded from storage can layer
 /// on top; today the set is exactly the built-ins.
 /// </summary>
 public sealed class MindmapStyleTemplateProvider : IMindmapStyleTemplateProvider

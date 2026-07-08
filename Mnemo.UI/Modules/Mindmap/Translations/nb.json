@@ -21,6 +21,7 @@
     "LayoutRadial": "Radial",
     "LayoutTimeline": "Tidslinje",
     "LayoutFree": "Fri",
-    "LayoutTip": "Oppsett"
+    "LayoutTip": "Oppsett",
+    "TemplateTip": "Stil"
   }
 }
