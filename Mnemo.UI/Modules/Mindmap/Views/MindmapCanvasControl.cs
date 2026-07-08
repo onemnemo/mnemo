@@ -292,10 +292,19 @@ public sealed class MindmapCanvasControl : Control
         if (_brushCache.TryGetValue(token, out var cached))
             return cached;
 
-        IBrush? brush = null;
-        var key = MindmapStyleBrushes.ResourceKey(token);
-        if (key is not null && this.TryFindResource(key, out var value) && value is IBrush resolved)
-            brush = resolved;
+        IBrush? brush;
+        if (token.StartsWith('#') && Color.TryParse(token, out var color))
+        {
+            // A literal hex color (custom, picked in the inspector) rather than a theme token.
+            brush = new SolidColorBrush(color);
+        }
+        else
+        {
+            brush = null;
+            var key = MindmapStyleBrushes.ResourceKey(token);
+            if (key is not null && this.TryFindResource(key, out var value) && value is IBrush resolved)
+                brush = resolved;
+        }
 
         _brushCache[token] = brush;
         return brush;

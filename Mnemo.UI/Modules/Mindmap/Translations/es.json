@@ -39,6 +39,15 @@
     "DeleteTemplateMessage": "¿Eliminar la plantilla \"{0}\"?",
     "Save": "Guardar",
     "Cancel": "Cancelar",
-    "Delete": "Eliminar"
+    "Delete": "Eliminar",
+    "InspectorTitle": "Estilo",
+    "InspectorEmpty": "Selecciona un nodo para darle estilo",
+    "InspectorTip": "Inspector de estilo",
+    "Fill": "Relleno",
+    "Stroke": "Contorno",
+    "TextColor": "Texto",
+    "Shape": "Forma",
+    "Size": "Tamaño",
+    "ApplyColor": "Aplicar color"
   }
 }

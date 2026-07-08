@@ -39,6 +39,15 @@
     "DeleteTemplateMessage": "Slette malen «{0}»?",
     "Save": "Lagre",
     "Cancel": "Avbryt",
-    "Delete": "Slett"
+    "Delete": "Slett",
+    "InspectorTitle": "Stil",
+    "InspectorEmpty": "Velg en node for å style den",
+    "InspectorTip": "Stilinspektør",
+    "Fill": "Fyll",
+    "Stroke": "Strek",
+    "TextColor": "Tekst",
+    "Shape": "Form",
+    "Size": "Størrelse",
+    "ApplyColor": "Bruk farge"
   }
 }

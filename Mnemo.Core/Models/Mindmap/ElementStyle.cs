@@ -21,17 +21,18 @@ public enum NodeShape
 /// <summary>
 /// Per-element style overrides. Every member is nullable: a null means "inherit" and resolution walks
 /// the cascade element → template rule → cluster template → document default → theme. Color
-/// members are token references, never raw hex.
+/// members are theme token references (which follow theme switches) or a literal <c>#RRGGBB</c> hex a
+/// user picked for that element.
 /// </summary>
 public sealed record ElementStyle
 {
-    /// <summary>Fill color token reference.</summary>
+    /// <summary>Fill color: a theme token or a literal <c>#RRGGBB</c> hex.</summary>
     public string? Fill { get; init; }
 
-    /// <summary>Stroke color token reference.</summary>
+    /// <summary>Stroke color: a theme token or a literal <c>#RRGGBB</c> hex.</summary>
     public string? Stroke { get; init; }
 
-    /// <summary>Text color token reference.</summary>
+    /// <summary>Text color: a theme token or a literal <c>#RRGGBB</c> hex.</summary>
     public string? TextColor { get; init; }
 
     public FontScale? FontScale { get; init; }

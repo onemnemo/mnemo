@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mnemo.Core.Models.Mindmap;
@@ -73,7 +74,25 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     private string _zoomLabel = "100%";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelection))]
     private MindmapNodeItem? _selectedNode;
+
+    /// <summary>True when a node is selected; drives the inspector's content vs its empty state.</summary>
+    public bool HasSelection => SelectedNode is not null;
+
+    /// <summary>Whether the docked style inspector panel is open (toggled from the top bar).</summary>
+    [ObservableProperty]
+    private bool _isInspectorOpen;
+
+    // Hex entries in the inspector's color sections; prefilled from the selected node's custom colors.
+    [ObservableProperty]
+    private string _fillHex = string.Empty;
+
+    [ObservableProperty]
+    private string _strokeHex = string.Empty;
+
+    [ObservableProperty]
+    private string _textHex = string.Empty;
 
     /// <summary>Whether the floating style toolbar shows (a node is selected).</summary>
     [ObservableProperty]
@@ -608,6 +627,12 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             oldValue.PropertyChanged -= OnSelectedNodeMoved;
         if (newValue is not null)
             newValue.PropertyChanged += OnSelectedNodeMoved;
+
+        // Show the node's custom colors in the inspector hex fields (blank when it uses theme tokens).
+        FillHex = HexOrEmpty(newValue?.FillToken);
+        StrokeHex = HexOrEmpty(newValue?.StrokeToken);
+        TextHex = HexOrEmpty(newValue?.TextToken);
+
         UpdateSelectionToolbar();
     }
 
@@ -654,6 +679,37 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         SelectedNode is null || string.IsNullOrEmpty(token)
             ? Task.CompletedTask
             : ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Style = new ElementStyle { Fill = token } });
+
+    [RelayCommand]
+    private Task SetStrokeAsync(string? token) =>
+        SelectedNode is null || string.IsNullOrEmpty(token)
+            ? Task.CompletedTask
+            : ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Style = new ElementStyle { Stroke = token } });
+
+    [RelayCommand]
+    private Task SetTextColorAsync(string? token) =>
+        SelectedNode is null || string.IsNullOrEmpty(token)
+            ? Task.CompletedTask
+            : ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Style = new ElementStyle { TextColor = token } });
+
+    [RelayCommand]
+    private void ToggleInspector() => IsInspectorOpen = !IsInspectorOpen;
+
+    [RelayCommand]
+    private Task SetFillHexAsync() => TryHex(FillHex) is { } token ? SetFillAsync(token) : Task.CompletedTask;
+
+    [RelayCommand]
+    private Task SetStrokeHexAsync() => TryHex(StrokeHex) is { } token ? SetStrokeAsync(token) : Task.CompletedTask;
+
+    [RelayCommand]
+    private Task SetTextHexAsync() => TryHex(TextHex) is { } token ? SetTextColorAsync(token) : Task.CompletedTask;
+
+    /// <summary>Normalizes a user-entered hex color, or null if it doesn't parse.</summary>
+    private static string? TryHex(string? input) =>
+        !string.IsNullOrWhiteSpace(input) && Color.TryParse(input, out var color) ? color.ToString() : null;
+
+    private static string HexOrEmpty(string? token) =>
+        token is not null && token.StartsWith('#') ? token : string.Empty;
 
     [RelayCommand]
     private Task SetShapeAsync(string? name) =>

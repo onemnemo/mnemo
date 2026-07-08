@@ -39,6 +39,15 @@
     "DeleteTemplateMessage": "テンプレート「{0}」を削除しますか？",
     "Save": "保存",
     "Cancel": "キャンセル",
-    "Delete": "削除"
+    "Delete": "削除",
+    "InspectorTitle": "スタイル",
+    "InspectorEmpty": "スタイルを設定するノードを選択",
+    "InspectorTip": "スタイルインスペクター",
+    "Fill": "塗り",
+    "Stroke": "線",
+    "TextColor": "テキスト",
+    "Shape": "形状",
+    "Size": "サイズ",
+    "ApplyColor": "色を適用"
   }
 }

@@ -14,6 +14,7 @@
 
     <UserControl.Resources>
         <conv:EqualsConverter x:Key="EnumEquals"/>
+        <conv:HexToBrushConverter x:Key="HexToBrush"/>
     </UserControl.Resources>
 
     <UserControl.Styles>
@@ -58,6 +59,80 @@
         <Style Selector="Button.mmTool:disabled">
             <Setter Property="Opacity" Value="0.35"/>
             <Setter Property="Cursor" Value="Arrow"/>
+        </Style>
+
+        <!-- Inspector panel -->
+        <Style Selector="Button.insToggle.active">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.insTitle">
+            <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.insHeader">
+            <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
+        </Style>
+        <Style Selector="Button.insSwatch">
+            <Setter Property="Width" Value="26"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Margin" Value="0,0,6,6"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.insSwatch:pointerover">
+            <Setter Property="Opacity" Value="0.8"/>
+        </Style>
+        <Style Selector="Button.insSwatch.active">
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+        <Style Selector="Button.insTool">
+            <Setter Property="MinWidth" Value="40"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource DividerSubtleBrush}"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.insTool:pointerover">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Button.insTool.active">
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+        <Style Selector="Button.insReset">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource DividerSubtleBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.insReset:pointerover">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Button.insReset:disabled">
+            <Setter Property="Opacity" Value="0.4"/>
         </Style>
     </UserControl.Styles>
 
@@ -106,6 +181,14 @@
                     </controls:ModernComboBox>
                     <TextBlock Text="{Binding ZoomLabel}" FontFamily="{DynamicResource MonoFontFamily}"
                                FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center"/>
+                    <Button Classes="ghost insToggle" Padding="6" Background="Transparent" BorderThickness="0"
+                            VerticalAlignment="Center" CornerRadius="6"
+                            Command="{Binding ToggleInspectorCommand}"
+                            Classes.active="{Binding IsInspectorOpen}"
+                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=InspectorTip}">
+                        <controls:AppIcon Icon="Common/palette" Width="16" Height="16"
+                                          Color="{DynamicResource TextSecondaryBrush}"/>
+                    </Button>
                 </StackPanel>
                 <Button Grid.Column="4" Name="RecenterButton" Classes="ghost" Padding="6"
                         Background="Transparent" BorderThickness="0" Command="{Binding RecenterCommand}"
@@ -116,8 +199,9 @@
             </Grid>
         </Border>
 
-        <!-- Canvas -->
-        <Border Grid.Row="1" Name="CanvasHost" ClipToBounds="True"
+        <!-- Canvas + docked style inspector -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+        <Border Grid.Column="0" Name="CanvasHost" ClipToBounds="True"
                 Background="{DynamicResource WorkspaceBackgroundBrush}">
           <Grid>
             <views:MindmapGridBackground Transform="{Binding CanvasTransform}"
@@ -133,7 +217,7 @@
         </Border>
 
         <!-- Contextual style toolbar: floats above the selected node -->
-        <Canvas Grid.Row="1" ClipToBounds="True">
+        <Canvas Grid.Column="0" ClipToBounds="True">
             <Border IsVisible="{Binding IsSelectionToolbarVisible}"
                     Canvas.Left="{Binding SelectionToolbarLeft}"
                     Canvas.Top="{Binding SelectionToolbarTop}"
@@ -249,5 +333,230 @@
                 </StackPanel>
             </Border>
         </Canvas>
+
+        <!-- Docked style inspector: the full per-node styling surface -->
+        <Border Grid.Column="1" Width="272" IsVisible="{Binding IsInspectorOpen}"
+                Background="{DynamicResource WorkspaceBackgroundBrush}"
+                BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1,0,0,0">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16" Spacing="18">
+                    <TextBlock Classes="insTitle" Text="{markup:T Ns=Mindmap, Key=InspectorTitle}"/>
+
+                    <TextBlock IsVisible="{Binding !HasSelection}" TextWrapping="Wrap"
+                               FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}"
+                               Text="{markup:T Ns=Mindmap, Key=InspectorEmpty}"/>
+
+                    <StackPanel IsVisible="{Binding HasSelection}" Spacing="18">
+
+                        <!-- Fill -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="insHeader" Text="{markup:T Ns=Mindmap, Key=Fill}"/>
+                            <WrapPanel>
+                                <Button Classes="insSwatch" Command="{Binding SetFillCommand}" CommandParameter="surface"
+                                        Classes.active="{Binding SelectedNode.FillToken, Converter={StaticResource EnumEquals}, ConverterParameter=surface}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource CardBackgroundSecondaryBrush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetFillCommand}" CommandParameter="accent"
+                                        Classes.active="{Binding SelectedNode.FillToken, Converter={StaticResource EnumEquals}, ConverterParameter=accent}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentBrush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetFillCommand}" CommandParameter="palette.1"
+                                        Classes.active="{Binding SelectedNode.FillToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.1}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette1Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetFillCommand}" CommandParameter="palette.2"
+                                        Classes.active="{Binding SelectedNode.FillToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.2}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette2Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetFillCommand}" CommandParameter="palette.3"
+                                        Classes.active="{Binding SelectedNode.FillToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.3}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette3Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetFillCommand}" CommandParameter="palette.4"
+                                        Classes.active="{Binding SelectedNode.FillToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.4}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette4Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetFillCommand}" CommandParameter="palette.5"
+                                        Classes.active="{Binding SelectedNode.FillToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.5}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette5Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetFillCommand}" CommandParameter="palette.6"
+                                        Classes.active="{Binding SelectedNode.FillToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.6}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette6Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetFillCommand}" CommandParameter="palette.7"
+                                        Classes.active="{Binding SelectedNode.FillToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.7}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette7Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetFillCommand}" CommandParameter="palette.8"
+                                        Classes.active="{Binding SelectedNode.FillToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.8}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette8Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                            </WrapPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border Width="26" Height="26" CornerRadius="6" BorderThickness="1"
+                                        BorderBrush="{DynamicResource DividerSubtleBrush}"
+                                        Background="{Binding FillHex, Converter={StaticResource HexToBrush}}"/>
+                                <TextBox Text="{Binding FillHex}" PlaceholderText="#RRGGBB" Width="112" Height="30"
+                                         VerticalContentAlignment="Center" FontSize="12">
+                                    <TextBox.KeyBindings>
+                                        <KeyBinding Gesture="Enter" Command="{Binding SetFillHexCommand}"/>
+                                    </TextBox.KeyBindings>
+                                </TextBox>
+                                <Button Classes="insTool" MinWidth="34" Margin="0" Command="{Binding SetFillHexCommand}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=ApplyColor}">
+                                    <controls:AppIcon Icon="Common/check" Width="15" Height="15" Color="{DynamicResource TextPrimaryBrush}"/>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Stroke -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="insHeader" Text="{markup:T Ns=Mindmap, Key=Stroke}"/>
+                            <WrapPanel>
+                                <Button Classes="insSwatch" Command="{Binding SetStrokeCommand}" CommandParameter="stroke"
+                                        Classes.active="{Binding SelectedNode.StrokeToken, Converter={StaticResource EnumEquals}, ConverterParameter=stroke}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource BorderBrush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetStrokeCommand}" CommandParameter="accent"
+                                        Classes.active="{Binding SelectedNode.StrokeToken, Converter={StaticResource EnumEquals}, ConverterParameter=accent}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentBrush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetStrokeCommand}" CommandParameter="palette.1"
+                                        Classes.active="{Binding SelectedNode.StrokeToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.1}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette1Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetStrokeCommand}" CommandParameter="palette.2"
+                                        Classes.active="{Binding SelectedNode.StrokeToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.2}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette2Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetStrokeCommand}" CommandParameter="palette.3"
+                                        Classes.active="{Binding SelectedNode.StrokeToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.3}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette3Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetStrokeCommand}" CommandParameter="palette.4"
+                                        Classes.active="{Binding SelectedNode.StrokeToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.4}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette4Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetStrokeCommand}" CommandParameter="palette.5"
+                                        Classes.active="{Binding SelectedNode.StrokeToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.5}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette5Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetStrokeCommand}" CommandParameter="palette.6"
+                                        Classes.active="{Binding SelectedNode.StrokeToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.6}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette6Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetStrokeCommand}" CommandParameter="palette.7"
+                                        Classes.active="{Binding SelectedNode.StrokeToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.7}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette7Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetStrokeCommand}" CommandParameter="palette.8"
+                                        Classes.active="{Binding SelectedNode.StrokeToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.8}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource MindmapPalette8Brush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                            </WrapPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border Width="26" Height="26" CornerRadius="6" BorderThickness="1"
+                                        BorderBrush="{DynamicResource DividerSubtleBrush}"
+                                        Background="{Binding StrokeHex, Converter={StaticResource HexToBrush}}"/>
+                                <TextBox Text="{Binding StrokeHex}" PlaceholderText="#RRGGBB" Width="112" Height="30"
+                                         VerticalContentAlignment="Center" FontSize="12">
+                                    <TextBox.KeyBindings>
+                                        <KeyBinding Gesture="Enter" Command="{Binding SetStrokeHexCommand}"/>
+                                    </TextBox.KeyBindings>
+                                </TextBox>
+                                <Button Classes="insTool" MinWidth="34" Margin="0" Command="{Binding SetStrokeHexCommand}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=ApplyColor}">
+                                    <controls:AppIcon Icon="Common/check" Width="15" Height="15" Color="{DynamicResource TextPrimaryBrush}"/>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Text -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="insHeader" Text="{markup:T Ns=Mindmap, Key=TextColor}"/>
+                            <WrapPanel>
+                                <Button Classes="insSwatch" Command="{Binding SetTextColorCommand}" CommandParameter="textPrimary"
+                                        Classes.active="{Binding SelectedNode.TextToken, Converter={StaticResource EnumEquals}, ConverterParameter=textPrimary}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetTextColorCommand}" CommandParameter="textMuted"
+                                        Classes.active="{Binding SelectedNode.TextToken, Converter={StaticResource EnumEquals}, ConverterParameter=textMuted}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource TextSecondaryBrush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetTextColorCommand}" CommandParameter="onAccent"
+                                        Classes.active="{Binding SelectedNode.TextToken, Converter={StaticResource EnumEquals}, ConverterParameter=onAccent}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentButtonForegroundBrush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                                <Button Classes="insSwatch" Command="{Binding SetTextColorCommand}" CommandParameter="accent"
+                                        Classes.active="{Binding SelectedNode.TextToken, Converter={StaticResource EnumEquals}, ConverterParameter=accent}">
+                                    <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentBrush}" BorderBrush="{DynamicResource DividerSubtleBrush}" BorderThickness="1"/>
+                                </Button>
+                            </WrapPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border Width="26" Height="26" CornerRadius="6" BorderThickness="1"
+                                        BorderBrush="{DynamicResource DividerSubtleBrush}"
+                                        Background="{Binding TextHex, Converter={StaticResource HexToBrush}}"/>
+                                <TextBox Text="{Binding TextHex}" PlaceholderText="#RRGGBB" Width="112" Height="30"
+                                         VerticalContentAlignment="Center" FontSize="12">
+                                    <TextBox.KeyBindings>
+                                        <KeyBinding Gesture="Enter" Command="{Binding SetTextHexCommand}"/>
+                                    </TextBox.KeyBindings>
+                                </TextBox>
+                                <Button Classes="insTool" MinWidth="34" Margin="0" Command="{Binding SetTextHexCommand}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=ApplyColor}">
+                                    <controls:AppIcon Icon="Common/check" Width="15" Height="15" Color="{DynamicResource TextPrimaryBrush}"/>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Shape -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="insHeader" Text="{markup:T Ns=Mindmap, Key=Shape}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Classes="insTool" Command="{Binding SetShapeCommand}" CommandParameter="Card"
+                                        Classes.active="{Binding SelectedNode.Shape, Converter={StaticResource EnumEquals}, ConverterParameter=Card}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=ShapeCard}">
+                                    <Border Width="20" Height="13" CornerRadius="3" Background="{Binding $parent[Button].Foreground}"/>
+                                </Button>
+                                <Button Classes="insTool" Command="{Binding SetShapeCommand}" CommandParameter="Pill"
+                                        Classes.active="{Binding SelectedNode.Shape, Converter={StaticResource EnumEquals}, ConverterParameter=Pill}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=ShapePill}">
+                                    <Border Width="22" Height="13" CornerRadius="7" Background="{Binding $parent[Button].Foreground}"/>
+                                </Button>
+                                <Button Classes="insTool" Command="{Binding SetShapeCommand}" CommandParameter="Outline"
+                                        Classes.active="{Binding SelectedNode.Shape, Converter={StaticResource EnumEquals}, ConverterParameter=Outline}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=ShapeOutline}">
+                                    <Border Width="20" Height="13" CornerRadius="3" BorderThickness="1.5" BorderBrush="{Binding $parent[Button].Foreground}"/>
+                                </Button>
+                                <Button Classes="insTool" Command="{Binding SetShapeCommand}" CommandParameter="Plain"
+                                        Classes.active="{Binding SelectedNode.Shape, Converter={StaticResource EnumEquals}, ConverterParameter=Plain}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=ShapePlain}" Content="T"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Size -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="insHeader" Text="{markup:T Ns=Mindmap, Key=Size}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Classes="insTool" Command="{Binding SetFontScaleCommand}" CommandParameter="S" Content="S"
+                                        Classes.active="{Binding SelectedNode.FontScale, Converter={StaticResource EnumEquals}, ConverterParameter=S}"/>
+                                <Button Classes="insTool" Command="{Binding SetFontScaleCommand}" CommandParameter="M" Content="M"
+                                        Classes.active="{Binding SelectedNode.FontScale, Converter={StaticResource EnumEquals}, ConverterParameter=M}"/>
+                                <Button Classes="insTool" Command="{Binding SetFontScaleCommand}" CommandParameter="L" Content="L"
+                                        Classes.active="{Binding SelectedNode.FontScale, Converter={StaticResource EnumEquals}, ConverterParameter=L}"/>
+                                <Button Classes="insTool" Command="{Binding SetFontScaleCommand}" CommandParameter="XL" Content="XL"
+                                        Classes.active="{Binding SelectedNode.FontScale, Converter={StaticResource EnumEquals}, ConverterParameter=XL}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Button Classes="insReset" Command="{Binding ClearNodeStyleCommand}"
+                                IsEnabled="{Binding SelectedNode.HasStyleOverride, FallbackValue=False}"
+                                Content="{markup:T Ns=Mindmap, Key=ClearStyle}"/>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+        </Grid>
     </Grid>
 </UserControl>

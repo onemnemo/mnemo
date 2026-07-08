@@ -39,6 +39,15 @@
     "DeleteTemplateMessage": "Delete the template \"{0}\"?",
     "Save": "Save",
     "Cancel": "Cancel",
-    "Delete": "Delete"
+    "Delete": "Delete",
+    "InspectorTitle": "Style",
+    "InspectorEmpty": "Select a node to style it",
+    "InspectorTip": "Style inspector",
+    "Fill": "Fill",
+    "Stroke": "Stroke",
+    "TextColor": "Text",
+    "Shape": "Shape",
+    "Size": "Size",
+    "ApplyColor": "Apply color"
   }
 }

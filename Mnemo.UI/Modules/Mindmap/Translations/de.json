@@ -39,6 +39,15 @@
     "DeleteTemplateMessage": "Vorlage \"{0}\" löschen?",
     "Save": "Speichern",
     "Cancel": "Abbrechen",
-    "Delete": "Löschen"
+    "Delete": "Löschen",
+    "InspectorTitle": "Stil",
+    "InspectorEmpty": "Wähle einen Knoten zum Gestalten",
+    "InspectorTip": "Stil-Inspektor",
+    "Fill": "Füllung",
+    "Stroke": "Kontur",
+    "TextColor": "Text",
+    "Shape": "Form",
+    "Size": "Größe",
+    "ApplyColor": "Farbe anwenden"
   }
 }
