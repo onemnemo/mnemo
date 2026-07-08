@@ -6,6 +6,7 @@ using Mnemo.Core.Services.Keybinds;
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Mindmap;
+using Mnemo.Infrastructure.Services.Mindmap.Layout;
 using Mnemo.Infrastructure.Services.Mindmap.Persistence;
 using Mnemo.UI.Modules.Mindmap.ViewModels;
 
@@ -22,6 +23,16 @@ public class MindmapModule : IModule
     {
         services.AddSingleton<IMindmapStore, MindmapStore>();
         services.AddSingleton<IMindmapService, MindmapDocumentService>();
+
+        // Layout engine: the six built-in algorithms plus the dispatching service.
+        services.AddSingleton<IMindmapLayoutProvider, BalancedLayoutProvider>();
+        services.AddSingleton<IMindmapLayoutProvider, TreeRightLayoutProvider>();
+        services.AddSingleton<IMindmapLayoutProvider, TreeDownLayoutProvider>();
+        services.AddSingleton<IMindmapLayoutProvider, RadialLayoutProvider>();
+        services.AddSingleton<IMindmapLayoutProvider, TimelineLayoutProvider>();
+        services.AddSingleton<IMindmapLayoutProvider, FreeLayoutProvider>();
+        services.AddSingleton<IMindmapLayoutService, MindmapLayoutService>();
+
         services.AddTransient<MindmapOverviewViewModel>();
         services.AddTransient<MindmapViewModel>();
     }
