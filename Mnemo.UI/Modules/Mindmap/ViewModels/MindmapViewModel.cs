@@ -30,6 +30,8 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 {
     private readonly IMindmapService _service;
     private readonly IMindmapLayoutService _layout;
+    private readonly IMindmapStyleResolver _styleResolver;
+    private readonly IMindmapStyleTemplateProvider _templates;
     private readonly INavigationService _navigation;
     private readonly ILoggerService _logger;
     private readonly ILocalizationService? _localization;
@@ -91,12 +93,16 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     public MindmapViewModel(
         IMindmapService service,
         IMindmapLayoutService layout,
+        IMindmapStyleResolver styleResolver,
+        IMindmapStyleTemplateProvider templates,
         INavigationService navigation,
         ILoggerService logger,
         ILocalizationService? localization = null)
     {
         _service = service;
         _layout = layout;
+        _styleResolver = styleResolver;
+        _templates = templates;
         _navigation = navigation;
         _logger = logger;
         _localization = localization;
@@ -241,6 +247,24 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             .Select(e => e.ToId)
             .ToHashSet();
 
+        // Style cascade: each node's depth/branch context, plus the per-cluster template chain.
+        var styleContexts = BuildStyleContexts(document);
+        var documentTemplate = _templates.ById(document.Canvas.DefaultTemplateId) ?? _templates.Default;
+        var clusterTemplateIds = document.Clusters.ToDictionary(c => c.RootId, c => c.TemplateId);
+        var chainCache = new Dictionary<string, IReadOnlyList<StyleTemplate>>();
+
+        IReadOnlyList<StyleTemplate> ChainFor(string rootId)
+        {
+            if (chainCache.TryGetValue(rootId, out var cached))
+                return cached;
+            var clusterTemplate = _templates.ById(clusterTemplateIds.GetValueOrDefault(rootId));
+            IReadOnlyList<StyleTemplate> chain = clusterTemplate is not null && clusterTemplate.Id != documentTemplate.Id
+                ? new[] { clusterTemplate, documentTemplate }
+                : new[] { documentTemplate };
+            chainCache[rootId] = chain;
+            return chain;
+        }
+
         var items = new Dictionary<string, MindmapNodeItem>();
         Nodes.Clear();
         foreach (var element in document.Elements.Where(e => e.Kind == ElementKind.Node))
@@ -248,6 +272,10 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             // No computed position = hidden under a collapsed ancestor; skip it (and its edges).
             if (!positions.TryGetValue(element.Id, out var pos))
                 continue;
+
+            var context = styleContexts.TryGetValue(element.Id, out var info) ? info.Context : StyleContext.Free;
+            var rootId = info.RootId ?? element.Id;
+            var style = _styleResolver.Resolve(element.Style, context, ChainFor(rootId));
 
             var item = new MindmapNodeItem
             {
@@ -259,6 +287,11 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                 Text = NodeText(element.Content),
                 IsRoot = !hasParent.Contains(element.Id),
                 IsPinned = element.Pinned,
+                FillToken = style.Fill,
+                StrokeToken = style.Stroke,
+                TextToken = style.TextColor,
+                Shape = style.NodeShape,
+                FontScale = style.FontScale,
             };
             items[element.Id] = item;
             Nodes.Add(item);
@@ -274,6 +307,57 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         }
 
         SelectedNode = null;
+    }
+
+    /// <summary>A node's cascade inputs: its depth/branch context and its cluster's root id.</summary>
+    private readonly record struct NodeStyleInfo(StyleContext Context, string RootId);
+
+    /// <summary>
+    /// Computes each node's <see cref="StyleContext"/> (depth, depth-1 branch index, is-root) from the
+    /// hierarchy edges, so the style cascade can apply depth-band rules and branch coloring.
+    /// </summary>
+    private static Dictionary<string, NodeStyleInfo> BuildStyleContexts(MindmapDocument document)
+    {
+        var infos = new Dictionary<string, NodeStyleInfo>();
+        var nodeIds = document.Elements.Where(e => e.Kind == ElementKind.Node).Select(e => e.Id).ToHashSet();
+        if (nodeIds.Count == 0)
+            return infos;
+
+        var childrenOf = new Dictionary<string, List<string>>();
+        var parentOf = new Dictionary<string, string>();
+        foreach (var edge in document.Edges.Where(e =>
+                     e.Kind == EdgeKind.Hierarchy && nodeIds.Contains(e.FromId) && nodeIds.Contains(e.ToId)))
+        {
+            if (!childrenOf.TryGetValue(edge.FromId, out var kids))
+            {
+                kids = new List<string>();
+                childrenOf[edge.FromId] = kids;
+            }
+            kids.Add(edge.ToId);
+            parentOf[edge.ToId] = edge.FromId;
+        }
+
+        foreach (var root in nodeIds.Where(id => !parentOf.ContainsKey(id)))
+        {
+            infos[root] = new NodeStyleInfo(StyleContext.Root, root);
+
+            void Walk(string id, int depth, int branchIndex)
+            {
+                if (!childrenOf.TryGetValue(id, out var kids))
+                    return;
+                for (var j = 0; j < kids.Count; j++)
+                {
+                    // A depth-1 child seeds a new branch; deeper nodes inherit their ancestor's branch.
+                    var childBranch = depth == 0 ? j : branchIndex;
+                    infos[kids[j]] = new NodeStyleInfo(new StyleContext(depth + 1, childBranch, false), root);
+                    Walk(kids[j], depth + 1, childBranch);
+                }
+            }
+
+            Walk(root, 0, -1);
+        }
+
+        return infos;
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Mnemo.Core.Models.Mindmap;
 
 namespace Mnemo.UI.Modules.Mindmap.ViewModels;
 
@@ -48,6 +49,24 @@ public partial class MindmapNodeItem : ObservableObject
     /// <summary>Pinned nodes are excluded from auto-layout; shown with a small badge you can click to release.</summary>
     [ObservableProperty]
     private bool _isPinned;
+
+    // --- Resolved style: filled from the style cascade when the document is projected. Color members
+    // are theme token references the canvas maps to brushes. ---
+
+    [ObservableProperty]
+    private string _fillToken = MindmapStyleTokens.Surface;
+
+    [ObservableProperty]
+    private string _strokeToken = MindmapStyleTokens.Stroke;
+
+    [ObservableProperty]
+    private string _textToken = MindmapStyleTokens.TextPrimary;
+
+    [ObservableProperty]
+    private NodeShape _shape = NodeShape.Card;
+
+    [ObservableProperty]
+    private FontScale _fontScale = FontScale.M;
 
     /// <summary>Center X in canvas coordinates (edge endpoints attach here).</summary>
     public double CenterX => X + Width / 2;

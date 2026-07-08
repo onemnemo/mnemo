@@ -8,6 +8,7 @@ using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Mindmap;
 using Mnemo.Infrastructure.Services.Mindmap.Layout;
 using Mnemo.Infrastructure.Services.Mindmap.Persistence;
+using Mnemo.Infrastructure.Services.Mindmap.Style;
 using Mnemo.UI.Modules.Mindmap.ViewModels;
 
 namespace Mnemo.UI.Modules.Mindmap;
@@ -32,6 +33,10 @@ public class MindmapModule : IModule
         services.AddSingleton<IMindmapLayoutProvider, TimelineLayoutProvider>();
         services.AddSingleton<IMindmapLayoutProvider, FreeLayoutProvider>();
         services.AddSingleton<IMindmapLayoutService, MindmapLayoutService>();
+
+        // Styling: the cascade resolver and the template registry (built-ins today, user templates later).
+        services.AddSingleton<IMindmapStyleResolver, MindmapStyleResolver>();
+        services.AddSingleton<IMindmapStyleTemplateProvider, MindmapStyleTemplateProvider>();
 
         services.AddTransient<MindmapOverviewViewModel>();
         services.AddTransient<MindmapViewModel>();

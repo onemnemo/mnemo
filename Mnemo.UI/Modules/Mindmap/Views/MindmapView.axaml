@@ -58,11 +58,6 @@
                                         Nodes="{Binding Nodes}"
                                         Edges="{Binding Edges}"
                                         Transform="{Binding CanvasTransform}"
-                                        NodeFill="{DynamicResource CardBackgroundSecondaryBrush}"
-                                        NodeStroke="{DynamicResource BorderBrush}"
-                                        NodeText="{DynamicResource TextPrimaryBrush}"
-                                        RootFill="{DynamicResource AccentBrush}"
-                                        RootText="{DynamicResource AccentButtonForegroundBrush}"
                                         SelectedStroke="{DynamicResource AccentBrush}"
                                         EdgeStroke="{DynamicResource BorderBrush}"/>
           </Grid>
