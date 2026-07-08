@@ -7,7 +7,7 @@ namespace Mnemo.UI.Modules.Mindmap.ViewModels;
 /// A single canvas element as rendered in the editor (schema v2). A lightweight view projection of a
 /// <c>MindmapElement</c> — position, size, label, style and selection state — kept separate from the
 /// immutable document model so the canvas can bind and update it without touching storage. Covers tree
-/// nodes and the free kinds (text, shapes); <see cref="Kind"/> tells the canvas how to draw it.
+/// nodes and the free kinds (text, shapes, frames); <see cref="Kind"/> tells the canvas how to draw it.
 /// </summary>
 public partial class MindmapNodeItem : ObservableObject
 {
@@ -21,6 +21,13 @@ public partial class MindmapNodeItem : ObservableObject
     public const double TextDefaultWidth = 140;
     public const double TextDefaultHeight = 36;
 
+    /// <summary>Default box for a newly placed frame: a roomy container you drop other elements into.</summary>
+    public const double FrameDefaultWidth = 320;
+    public const double FrameDefaultHeight = 220;
+
+    /// <summary>Height of a frame's title strip; the label sits here and members start below it.</summary>
+    public const double FrameTitleHeight = 26;
+
     /// <summary>Pin badge geometry (top-right corner): draw radius, inset from the corner, and click radius.</summary>
     public const double PinBadgeRadius = 4.5;
     public const double PinBadgeInset = 9;
@@ -33,6 +40,10 @@ public partial class MindmapNodeItem : ObservableObject
 
     /// <summary>Geometry for a free <see cref="ElementKind.Shape"/> element; null for nodes and text.</summary>
     public ShapeType? FreeShape { get; init; }
+
+    /// <summary>Explicit member ids for a <see cref="ElementKind.Frame"/>; empty for every other kind. Used to drag the group together.</summary>
+    public System.Collections.Generic.IReadOnlyList<string> MemberIds { get; init; } =
+        System.Array.Empty<string>();
 
     /// <summary>True for free (non-node) elements: fixed position, no hierarchy, no auto-layout.</summary>
     public bool IsFree => Kind is not ElementKind.Node;

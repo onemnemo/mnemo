@@ -32,6 +32,11 @@ public partial class MindmapView : UserControl
     private Point _dragGrabOffset;
     private bool _dragMoved;
 
+    // When dragging a frame, its members move with it: their positions at grab time, shifted live by the
+    // frame's delta. The service commits the same translation on release (see MindmapDocumentService).
+    private System.Collections.Generic.List<(MindmapNodeItem Item, double OrigX, double OrigY)>? _dragMembers;
+    private Point _dragFrameOrigin;
+
     public MindmapView()
     {
         InitializeComponent();
@@ -117,6 +122,7 @@ public partial class MindmapView : UserControl
 
             _draggingNode = node;
             _dragGrabOffset = new Point(content.X - node.X, content.Y - node.Y);
+            CaptureFrameMembers(node);
         }
         else
         {
@@ -149,7 +155,33 @@ public partial class MindmapView : UserControl
             var content = Vm.ScreenToContent(screen);
             _draggingNode.X = content.X - _dragGrabOffset.X;
             _draggingNode.Y = content.Y - _dragGrabOffset.Y;
+
+            if (_dragMembers is not null)
+            {
+                var dx = _draggingNode.X - _dragFrameOrigin.X;
+                var dy = _draggingNode.Y - _dragFrameOrigin.Y;
+                foreach (var (item, origX, origY) in _dragMembers)
+                {
+                    item.X = origX + dx;
+                    item.Y = origY + dy;
+                }
+            }
         }
+    }
+
+    // Snapshot a dragged frame's members so they can be shifted with it during the drag.
+    private void CaptureFrameMembers(MindmapNodeItem node)
+    {
+        _dragMembers = null;
+        if (node.Kind != ElementKind.Frame || node.MemberIds.Count == 0 || Vm is null)
+            return;
+
+        var memberIds = new System.Collections.Generic.HashSet<string>(node.MemberIds);
+        _dragFrameOrigin = new Point(node.X, node.Y);
+        _dragMembers = Vm.Nodes
+            .Where(n => memberIds.Contains(n.Id))
+            .Select(n => (n, n.X, n.Y))
+            .ToList();
     }
 
     private async void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
@@ -158,6 +190,7 @@ public partial class MindmapView : UserControl
         var node = _draggingNode;
         var moved = _dragMoved;
         _draggingNode = null;
+        _dragMembers = null;
         _isPanning = false;
 
         if (Vm is not null && node is not null && moved)
@@ -185,6 +218,12 @@ public partial class MindmapView : UserControl
     {
         if (Vm is not null)
             await Vm.CreateFreeTextAsync(ViewportCenterContent());
+    }
+
+    private async void OnAddFrameClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is not null)
+            await Vm.CreateFrameAsync(ViewportCenterContent());
     }
 
     private async void OnShapeClick(object? sender, RoutedEventArgs e)

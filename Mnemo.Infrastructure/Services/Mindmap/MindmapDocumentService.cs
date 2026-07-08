@@ -647,12 +647,22 @@ public sealed class MindmapDocumentService : IMindmapService
 
         if (op.X.HasValue && op.Y.HasValue)
         {
+            var dx = op.X.Value - element.X;
+            var dy = op.Y.Value - element.Y;
+
             working.ReplaceElement(element with
             {
                 X = op.X.Value,
                 Y = op.Y.Value,
                 Pinned = element.Kind == ElementKind.Node ? true : element.Pinned,
             });
+
+            // Moving a frame translates its members by the same delta so the group moves together
+            // Member nodes pin, matching the "reposition implies pin" rule
+            // above — otherwise the next auto-layout would snap them back and split the group.
+            if ((dx != 0 || dy != 0) && element.Content is FrameContent frame)
+                TranslateFrameMembers(working, frame, dx, dy);
+
             return null;
         }
 
@@ -881,6 +891,21 @@ public sealed class MindmapDocumentService : IMindmapService
     }
 
     // ---- Helpers --------------------------------------------------------------------------------
+
+    private static void TranslateFrameMembers(MindmapWorkingDocument working, FrameContent frame, double dx, double dy)
+    {
+        foreach (var childId in frame.ChildIds)
+        {
+            if (!working.TryGetElement(childId, out var child))
+                continue;
+            working.ReplaceElement(child with
+            {
+                X = child.X + dx,
+                Y = child.Y + dy,
+                Pinned = child.Kind == ElementKind.Node ? true : child.Pinned,
+            });
+        }
+    }
 
     private static void PruneFrameMembership(MindmapWorkingDocument working, IReadOnlyCollection<string> removedIds)
     {

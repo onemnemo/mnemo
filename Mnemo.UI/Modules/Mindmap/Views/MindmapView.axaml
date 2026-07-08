@@ -468,6 +468,11 @@
                         <controls:AppIcon Icon="Common/type" Width="16" Height="16"
                                           Color="{DynamicResource TextSecondaryBrush}"/>
                     </Button>
+                    <Border Width="1" Height="22" Margin="4,0" Background="{DynamicResource DividerSubtleBrush}"/>
+                    <Button Classes="mmPill" Click="OnAddFrameClick" ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolFrame}">
+                        <controls:AppIcon Icon="Common/frame" Width="17" Height="17"
+                                          Color="{DynamicResource TextSecondaryBrush}"/>
+                    </Button>
                 </StackPanel>
             </Border>
         </Grid>

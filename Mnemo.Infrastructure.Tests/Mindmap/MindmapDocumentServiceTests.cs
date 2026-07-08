@@ -233,6 +233,40 @@ public sealed class MindmapDocumentServiceTests
     }
 
     [Fact]
+    public async Task Move_Frame_TranslatesMembers_PinsMemberNodes_AndLeavesNonMembers()
+    {
+        await using var h = new MindmapTestHarness();
+        var map = (await h.Service.CreateAsync("M")).Value!;
+        var seed = (await h.Service.ApplyAsync(map.Id, 1, new MindmapEditOp[]
+        {
+            new AddElementOp { Ref = "s", Kind = ElementKind.Shape, X = 100, Y = 100, Content = new ShapeContent { Shape = ShapeType.Rectangle } },
+            new AddElementOp { Ref = "o", Kind = ElementKind.Shape, X = 400, Y = 400, Content = new ShapeContent { Shape = ShapeType.Ellipse } },
+            new AddNodesOp { Nodes = new List<MindmapNodeSpec> { new() { Ref = "n" } } },
+            new AddElementOp { Ref = "f", Kind = ElementKind.Frame, X = 50, Y = 50, Content = new FrameContent { Title = "G" } },
+        })).Value!;
+
+        // A member shape and an unpinned member node; the frame moves by a (+100, +100) delta.
+        await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new FrameOp { Id = seed.CreatedIds["f"], Add = new[] { seed.CreatedIds["s"], seed.CreatedIds["n"] } },
+        });
+        await h.Service.ApplyAsync(map.Id, 3, new MindmapEditOp[]
+        {
+            new MoveOp { Id = seed.CreatedIds["f"], X = 150, Y = 150 },
+        });
+
+        var doc = (await h.Service.GetAsync(map.Id)).Value!;
+        var shape = doc.Elements.Single(e => e.Id == seed.CreatedIds["s"]);
+        var node = doc.Elements.Single(e => e.Id == seed.CreatedIds["n"]);
+        var outside = doc.Elements.Single(e => e.Id == seed.CreatedIds["o"]);
+
+        Assert.Equal((200, 200), (shape.X, shape.Y));      // member shape shifted by the delta
+        Assert.Equal((100, 100), (node.X, node.Y));        // member node started at origin, shifted + pinned
+        Assert.True(node.Pinned);
+        Assert.Equal((400, 400), (outside.X, outside.Y));  // non-member untouched
+    }
+
+    [Fact]
     public async Task StyleSubtree_AppliesToRootAndDescendants()
     {
         await using var h = new MindmapTestHarness();

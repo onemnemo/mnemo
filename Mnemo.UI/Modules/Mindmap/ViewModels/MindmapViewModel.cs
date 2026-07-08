@@ -420,6 +420,32 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         var items = new Dictionary<string, MindmapNodeItem>();
         var branchColors = new Dictionary<string, string?>();
         Nodes.Clear();
+
+        // Frames are containers, so they draw behind everything — project them first (lowest z). Their
+        // explicit membership rides along so the canvas can drag the whole group together.
+        foreach (var element in document.Elements.Where(e => e.Kind == ElementKind.Frame))
+        {
+            var style = _styleResolver.Resolve(element.Style, StyleContext.Free, System.Array.Empty<StyleTemplate>());
+            var item = new MindmapNodeItem
+            {
+                Id = element.Id,
+                Kind = ElementKind.Frame,
+                MemberIds = (element.Content as FrameContent)?.ChildIds ?? System.Array.Empty<string>(),
+                X = element.X,
+                Y = element.Y,
+                Width = element.Width ?? MindmapNodeItem.FrameDefaultWidth,
+                Height = element.Height ?? MindmapNodeItem.FrameDefaultHeight,
+                Text = NodeText(element.Content),
+                HasStyleOverride = element.Style is not null,
+                FillToken = style.Fill,
+                StrokeToken = style.Stroke,
+                TextToken = style.TextColor,
+                FontScale = style.FontScale,
+            };
+            items[element.Id] = item;
+            Nodes.Add(item);
+        }
+
         foreach (var element in document.Elements.Where(e => e.Kind == ElementKind.Node))
         {
             // No computed position = hidden under a collapsed ancestor; skip it (and its edges).
@@ -682,6 +708,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         MathContent math => math.Latex,
         FreeTextContent free => free.Text,
         ShapeContent shape => shape.Text ?? string.Empty,
+        FrameContent frame => frame.Title,
         _ => string.Empty,
     };
 
@@ -1033,6 +1060,15 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             new ShapeContent { Shape = shape },
             MindmapNodeItem.ShapeDefaultWidth,
             MindmapNodeItem.ShapeDefaultHeight,
+            contentPoint);
+
+    /// <summary>Places an empty frame centered on the content point and selects it. Members are added later by dragging.</summary>
+    public Task CreateFrameAsync(Point contentPoint) =>
+        AddFreeElementAsync(
+            ElementKind.Frame,
+            new FrameContent { Title = T("NewFrame") },
+            MindmapNodeItem.FrameDefaultWidth,
+            MindmapNodeItem.FrameDefaultHeight,
             contentPoint);
 
     private Task AddFreeElementAsync(ElementKind kind, IElementContent content, double width, double height, Point center) =>

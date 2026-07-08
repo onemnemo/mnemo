@@ -219,6 +219,9 @@ public sealed class MindmapCanvasControl : Control
             case ElementKind.Shape:
                 DrawShape(context, node, selectedPen);
                 return;
+            case ElementKind.Frame:
+                DrawFrame(context, node, selectedPen);
+                return;
         }
 
         var rect = NodeRect(node);
@@ -304,6 +307,34 @@ public sealed class MindmapCanvasControl : Control
         var text = GetFormattedText(node);
         if (text is not null)
             context.DrawText(text, new Point(node.X + TextPadding / 2, node.Y + (node.Height - text.Height) / 2));
+    }
+
+    // A frame: a translucent titled container drawn behind its members (projected first, so lowest z).
+    // The faint fill lets the dot grid and members show through; only the title strip carries its label.
+    private void DrawFrame(DrawingContext context, MindmapNodeItem node, Pen selectedPen)
+    {
+        var rect = NodeRect(node);
+        var fill = ResolveBrush(node.FillToken) ?? ResolveBrush(MindmapStyleTokens.Surface);
+        var border = node.IsSelected
+            ? selectedPen
+            : new Pen(ResolveBrush(node.StrokeToken) ?? Brushes.Gray, NodeStrokeThickness);
+
+        if (fill is not null)
+        {
+            using (context.PushOpacity(0.3))
+                context.DrawRectangle(fill, null, rect, CornerRadius, CornerRadius);
+        }
+
+        context.DrawRectangle(null, border, rect, CornerRadius, CornerRadius);
+
+        var text = GetFormattedText(node);
+        if (text is not null)
+        {
+            var origin = new Point(
+                node.X + TextPadding / 2,
+                node.Y + (MindmapNodeItem.FrameTitleHeight - text.Height) / 2);
+            context.DrawText(text, origin);
+        }
     }
 
     private static StreamGeometry BuildPolygon(Rect r, ShapeType shape)
