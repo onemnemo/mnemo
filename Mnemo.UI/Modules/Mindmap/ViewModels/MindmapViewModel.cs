@@ -13,6 +13,7 @@ using CommunityToolkit.Mvvm.Input;
 using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Services;
 using Mnemo.UI.Modules.Mindmap.Services;
+using Mnemo.UI.Modules.Mindmap.Views;
 using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Mindmap.ViewModels;
@@ -41,6 +42,9 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     private readonly MindmapCamera _camera = new();
     private MindmapDocument? _document;
+
+    // Each node's cluster root id, from the last projection, so the inspector can target the right tree.
+    private IReadOnlyDictionary<string, string> _clusterRootByNode = new Dictionary<string, string>();
 
     // Guards against a slow layout pass applying after a newer document has already arrived.
     private int _applyGeneration;
@@ -112,9 +116,14 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private MindmapTemplateOption? _selectedTemplateOption;
 
+    /// <summary>The selected node's cluster template, bound to the inspector. Sets that tree's template only.</summary>
+    [ObservableProperty]
+    private MindmapTemplateOption? _selectedClusterTemplateOption;
+
     // True while a selection is set programmatically (on load/reload), so it doesn't re-issue an op.
     private bool _suppressLayoutOptionChange;
     private bool _suppressTemplateOptionChange;
+    private bool _suppressClusterTemplateChange;
 
     /// <summary>Edge selection is not yet wired in the foundation slice; kept for the keybind contract.</summary>
     public object? SelectedEdge { get; set; }
@@ -239,12 +248,15 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         RebuildTemplatePicker();
     }
 
-    // Rebuilds the picker from the provider's current templates, keeping the document's selection.
+    // Rebuilds the picker from the provider's current templates, keeping the document and cluster selections.
     private void RebuildTemplatePicker()
     {
         BuildTemplateOptions();
         if (_document is not null)
+        {
             SyncTemplateSelection(_document);
+            SyncClusterTemplateSelection();
+        }
     }
 
     partial void OnSelectedTemplateOptionChanged(MindmapTemplateOption? value)
@@ -269,6 +281,38 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         SelectedTemplateOption = TemplateOptions.FirstOrDefault(o => o.Id == id) ?? TemplateOptions.FirstOrDefault();
         _suppressTemplateOptionChange = false;
     }
+
+    partial void OnSelectedClusterTemplateOptionChanged(MindmapTemplateOption? value)
+    {
+        if (_suppressClusterTemplateChange || value is null || _document is null || SelectedNode is null)
+            return;
+        _ = SetClusterTemplateAsync(value.Id);
+    }
+
+    /// <summary>Sets the selected node's cluster (tree) template, layering above the document default.</summary>
+    private Task SetClusterTemplateAsync(string templateId)
+    {
+        if (SelectedNode is null)
+            return Task.CompletedTask;
+        return ApplyToSelectionAsync(new LayoutOp { Root = ClusterRootOf(SelectedNode.Id), TemplateId = templateId });
+    }
+
+    // Points the inspector's template picker at the selected node's tree: its explicit cluster template if it
+    // has one, otherwise the document default it currently inherits.
+    private void SyncClusterTemplateSelection()
+    {
+        if (SelectedNode is null || _document is null)
+            return;
+        var rootId = ClusterRootOf(SelectedNode.Id);
+        var clusterTemplate = _document.Clusters.FirstOrDefault(c => c.RootId == rootId)?.TemplateId;
+        var id = clusterTemplate ?? _document.Canvas.DefaultTemplateId ?? _templates.Default.Id;
+        _suppressClusterTemplateChange = true;
+        SelectedClusterTemplateOption = TemplateOptions.FirstOrDefault(o => o.Id == id) ?? TemplateOptions.FirstOrDefault();
+        _suppressClusterTemplateChange = false;
+    }
+
+    private string ClusterRootOf(string nodeId) =>
+        _clusterRootByNode.TryGetValue(nodeId, out var root) ? root : nodeId;
 
     public void OnNavigatedTo(object? parameter)
     {
@@ -351,6 +395,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
         // Style cascade: each node's depth/branch context, plus the per-cluster template chain.
         var styleContexts = BuildStyleContexts(document);
+        _clusterRootByNode = styleContexts.ToDictionary(kv => kv.Key, kv => kv.Value.RootId);
         var documentTemplate = _templates.ById(document.Canvas.DefaultTemplateId) ?? _templates.Default;
         var clusterTemplateIds = document.Clusters.ToDictionary(c => c.RootId, c => c.TemplateId);
         var chainCache = new Dictionary<string, IReadOnlyList<StyleTemplate>>();
@@ -633,6 +678,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         StrokeHex = HexOrEmpty(newValue?.StrokeToken);
         TextHex = HexOrEmpty(newValue?.TextToken);
 
+        SyncClusterTemplateSelection();
         UpdateSelectionToolbar();
     }
 
@@ -759,31 +805,26 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             ? Task.CompletedTask
             : ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, ClearStyle = true });
 
-    // Saves the selected node's style override as a reusable user template (its look becomes the root
-    // style), prompting for a name. It then appears in the top-bar picker alongside the built-ins.
+    // Saves the selected node's styled subtree as a reusable user template. A dialog captures a name and how
+    // many depth levels to snapshot; each level becomes its own depth band, so the template reproduces the
+    // look level by level rather than only cloning the root. The result joins the top-bar picker.
     [RelayCommand]
     private async Task SaveStyleAsTemplateAsync()
     {
         if (SelectedNode is null || _document is null || _overlay is null)
             return;
-        var element = _document.Elements.FirstOrDefault(e => e.Id == SelectedNode.Id);
-        if (element?.Style is null)
+
+        var rootId = SelectedNode.Id;
+        var availableLevels = MindmapTemplateCapture.AvailableLevels(_document, rootId);
+        if (availableLevels <= 0)
             return;
 
-        var name = await _overlay.CreateInputDialogAsync(
-            Tr("SaveTemplateTitle", "Save style as template"),
-            Tr("Save", "Save"),
-            Tr("Cancel", "Cancel"),
-            placeholder: Tr("TemplateNamePlaceholder", "Template name")).ConfigureAwait(true);
-        if (string.IsNullOrWhiteSpace(name))
+        var choice = await PromptSaveTemplateAsync(availableLevels).ConfigureAwait(true);
+        if (choice is null || string.IsNullOrWhiteSpace(choice.Name))
             return;
 
-        var template = new StyleTemplate
-        {
-            Id = $"user-{Guid.NewGuid():N}",
-            Name = name.Trim(),
-            RootStyle = element.Style,
-        };
+        var template = MindmapTemplateCapture.Capture(
+            _document, rootId, $"user-{Guid.NewGuid():N}", choice.Name.Trim(), choice.Levels);
 
         try
         {
@@ -794,6 +835,27 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         {
             _logger.Error("Mindmap", "Failed to save style template.", ex);
         }
+    }
+
+    // Shows the save-as-template dialog, resolving with the user's name + level choice, or null if cancelled.
+    private Task<MindmapSaveTemplateResult?> PromptSaveTemplateAsync(int availableLevels)
+    {
+        var tcs = new TaskCompletionSource<MindmapSaveTemplateResult?>();
+        var overlay = new MindmapSaveTemplateOverlay();
+        overlay.Initialize(availableLevels, defaultLevels: availableLevels);
+        var id = _overlay!.CreateOverlay(overlay, new OverlayOptions
+        {
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            ShowBackdrop = true,
+            CloseOnOutsideClick = false,
+        }, "MindmapSaveTemplate");
+        overlay.Completed = result =>
+        {
+            _overlay.CloseOverlay(id);
+            tcs.TrySetResult(result);
+        };
+        return tcs.Task;
     }
 
     // Deletes the user template currently chosen in the picker (built-ins are not deletable). Any map still
