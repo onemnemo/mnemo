@@ -25,6 +25,7 @@
     "ToolShape": "Shapes",
     "NewFrame": "Frame",
     "ToolFrame": "Add frame",
+    "ToolConnect": "Connect",
     "ShapeRectangle": "Rectangle",
     "ShapeEllipse": "Ellipse",
     "ShapeDiamond": "Diamond",

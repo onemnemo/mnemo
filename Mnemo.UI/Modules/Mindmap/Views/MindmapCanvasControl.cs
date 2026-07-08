@@ -66,6 +66,10 @@ public sealed class MindmapCanvasControl : Control
     private MindmapQuadtree? _tree;
     private bool _treeDirty = true;
 
+    // Rubber-band line shown while the connect tool drags from a source element to the cursor (content coords).
+    private Point? _pendingLinkStart;
+    private Point _pendingLinkEnd;
+
     static MindmapCanvasControl()
     {
         AffectsRender<MindmapCanvasControl>(TransformProperty, SelectedStrokeProperty, EdgeStrokeProperty, FontFamilyProperty);
@@ -146,9 +150,17 @@ public sealed class MindmapCanvasControl : Control
 
     // --- Rendering ---------------------------------------------------------
 
+    /// <summary>Shows or clears the connect tool's rubber-band line (content coordinates; null start hides it).</summary>
+    public void SetPendingLink(Point? start, Point end)
+    {
+        _pendingLinkStart = start;
+        _pendingLinkEnd = end;
+        InvalidateVisual();
+    }
+
     public override void Render(DrawingContext context)
     {
-        if (_nodeList.Count == 0 && _edgeList.Count == 0)
+        if (_nodeList.Count == 0 && _edgeList.Count == 0 && _pendingLinkStart is null)
             return;
 
         var transform = Transform;
@@ -162,6 +174,16 @@ public sealed class MindmapCanvasControl : Control
         {
             DrawEdges(context, visible);
             DrawNodes(context, visible);
+
+            if (_pendingLinkStart is { } pendingStart)
+            {
+                var pen = new Pen(SelectedStroke ?? Brushes.OrangeRed, EdgeStrokeThickness)
+                {
+                    LineCap = PenLineCap.Round,
+                    DashStyle = new DashStyle(new double[] { 3, 3 }, 0),
+                };
+                context.DrawLine(pen, pendingStart, _pendingLinkEnd);
+            }
         }
     }
 
@@ -175,9 +197,83 @@ public sealed class MindmapCanvasControl : Control
         {
             if (!EdgeBounds(edge).Intersects(visible))
                 continue;
-            var pen = edge.ColorToken is { } token ? EdgePen(token) ?? defaultPen : defaultPen;
-            context.DrawGeometry(null, pen, edge.Geometry);
+
+            if (edge.IsHierarchy)
+            {
+                var pen = edge.ColorToken is { } token ? EdgePen(token) ?? defaultPen : defaultPen;
+                context.DrawGeometry(null, pen, edge.Geometry);
+            }
+            else
+            {
+                DrawLinkEdge(context, edge, defaultPen);
+            }
         }
+    }
+
+    // A link edge: a (possibly dashed) straight connector with arrow/dot caps and an optional label chip.
+    private void DrawLinkEdge(DrawingContext context, MindmapEdgeItem edge, Pen defaultPen)
+    {
+        var brush = (edge.ColorToken is { } token ? ResolveBrush(token) : null) ?? defaultPen.Brush ?? Brushes.Gray;
+        var linePen = new Pen(brush, EdgeStrokeThickness) { LineCap = PenLineCap.Round, DashStyle = DashFor(edge.LineStyle) };
+        context.DrawGeometry(null, linePen, edge.Geometry);
+
+        var start = edge.DrawStart;
+        var end = edge.DrawEnd;
+        var dx = end.X - start.X;
+        var dy = end.Y - start.Y;
+        var len = Math.Sqrt(dx * dx + dy * dy);
+        if (len >= 1)
+        {
+            var dir = new Point(dx / len, dy / len);
+            var capPen = new Pen(brush, EdgeStrokeThickness) { LineCap = PenLineCap.Round };
+            if (edge.EndCap != ArrowCap.None)
+                DrawCap(context, brush, capPen, end, dir, edge.EndCap);
+            if (edge.StartCap != ArrowCap.None)
+                DrawCap(context, brush, capPen, start, new Point(-dir.X, -dir.Y), edge.StartCap);
+        }
+
+        if (!string.IsNullOrEmpty(edge.Label))
+            DrawEdgeLabel(context, edge, brush);
+    }
+
+    private static DashStyle? DashFor(LineStyle style) => style switch
+    {
+        LineStyle.Dashed => new DashStyle(new double[] { 4, 3 }, 0),
+        LineStyle.Dotted => new DashStyle(new double[] { 1, 2 }, 0),
+        _ => null,
+    };
+
+    // Draws a cap at the tip, oriented so it points along dir (the connector's travel direction at that end).
+    private static void DrawCap(DrawingContext context, IBrush brush, Pen pen, Point tip, Point dir, ArrowCap cap)
+    {
+        if (cap == ArrowCap.Dot)
+        {
+            context.DrawEllipse(brush, null, tip, 3.5, 3.5);
+            return;
+        }
+
+        const double length = 9;
+        const double spread = 0.45; // radians off the shaft
+        var bx = -dir.X;
+        var by = -dir.Y;
+        var cos = Math.Cos(spread);
+        var sin = Math.Sin(spread);
+        var wing1 = new Point(tip.X + (bx * cos - by * sin) * length, tip.Y + (bx * sin + by * cos) * length);
+        var wing2 = new Point(tip.X + (bx * cos + by * sin) * length, tip.Y + (-bx * sin + by * cos) * length);
+        context.DrawLine(pen, tip, wing1);
+        context.DrawLine(pen, tip, wing2);
+    }
+
+    private void DrawEdgeLabel(DrawingContext context, MindmapEdgeItem edge, IBrush brush)
+    {
+        var typeface = new Typeface(FontFamily);
+        var text = new FormattedText(edge.Label!, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, 11, brush);
+        var mid = edge.Midpoint;
+        const double pad = 3;
+        var rect = new Rect(mid.X - text.Width / 2 - pad, mid.Y - text.Height / 2 - pad, text.Width + pad * 2, text.Height + pad * 2);
+        var background = ResolveBrush(MindmapStyleTokens.Surface) ?? Brushes.White;
+        context.DrawRectangle(background, null, rect, 3, 3);
+        context.DrawText(text, new Point(mid.X - text.Width / 2, mid.Y - text.Height / 2));
     }
 
     // Cached branch-colored pen for a token; null when the token has no theme brush (draw uses the default).

@@ -67,6 +67,10 @@
         <Style Selector="Button.mmPill:pointerover">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
         </Style>
+        <!-- Active tool (e.g. connect mode engaged): accent fill so the mode is obvious. -->
+        <Style Selector="Button.mmPill.active">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        </Style>
         <!-- Shape flyout: white popover card; tiles show a shape glyph over a small label. -->
         <Style Selector="FlyoutPresenter.mmShapeFlyout">
             <Setter Property="Background" Value="{DynamicResource WorkspaceBackgroundBrush}"/>
@@ -469,6 +473,11 @@
                                           Color="{DynamicResource TextSecondaryBrush}"/>
                     </Button>
                     <Border Width="1" Height="22" Margin="4,0" Background="{DynamicResource DividerSubtleBrush}"/>
+                    <Button x:Name="ConnectButton" Classes="mmPill" Click="OnConnectClick"
+                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolConnect}">
+                        <controls:AppIcon x:Name="ConnectIcon" Icon="Common/link" Width="17" Height="17"
+                                          Color="{DynamicResource TextSecondaryBrush}"/>
+                    </Button>
                     <Button Classes="mmPill" Click="OnAddFrameClick" ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolFrame}">
                         <controls:AppIcon Icon="Common/frame" Width="17" Height="17"
                                           Color="{DynamicResource TextSecondaryBrush}"/>

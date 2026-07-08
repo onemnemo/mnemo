@@ -514,6 +514,22 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                 Edges.Add(new MindmapEdgeItem(edge.Id, from, to, colorToken: branchColors.GetValueOrDefault(edge.ToId)));
         }
 
+        // Link edges join any two elements (whiteboard connectors). They default to a solid straight line
+        // with an arrow at the target so they read as connectors, honoring any per-edge style overrides.
+        foreach (var edge in document.Edges.Where(e => e.Kind == EdgeKind.Link))
+        {
+            if (!items.TryGetValue(edge.FromId, out var from) || !items.TryGetValue(edge.ToId, out var to))
+                continue;
+            Edges.Add(new MindmapEdgeItem(
+                edge.Id, from, to,
+                isHierarchy: false,
+                colorToken: edge.Style?.Color,
+                startCap: edge.Style?.StartCap ?? ArrowCap.None,
+                endCap: edge.Style?.EndCap ?? ArrowCap.Arrow,
+                lineStyle: edge.Style?.Line ?? LineStyle.Solid,
+                label: edge.Label));
+        }
+
         SelectedNode = null;
     }
 
@@ -1061,6 +1077,14 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             MindmapNodeItem.ShapeDefaultWidth,
             MindmapNodeItem.ShapeDefaultHeight,
             contentPoint);
+
+    /// <summary>Creates a link edge (connector) between two elements. No-op if they are the same element.</summary>
+    public async Task LinkAsync(string fromId, string toId)
+    {
+        if (fromId == toId)
+            return;
+        await ApplyAsync(new LinkOp { A = fromId, B = toId }, selectRef: null).ConfigureAwait(true);
+    }
 
     /// <summary>Places an empty frame centered on the content point and selects it. Members are added later by dragging.</summary>
     public Task CreateFrameAsync(Point contentPoint) =>

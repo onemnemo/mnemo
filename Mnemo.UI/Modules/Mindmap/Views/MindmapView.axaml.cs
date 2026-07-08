@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Models.Keybinds;
 using Mnemo.Core.Models.Mindmap;
@@ -37,6 +38,10 @@ public partial class MindmapView : UserControl
     private System.Collections.Generic.List<(MindmapNodeItem Item, double OrigX, double OrigY)>? _dragMembers;
     private Point _dragFrameOrigin;
 
+    // Connect tool: while engaged, a press-drag from one element to another creates a link edge.
+    private bool _connectMode;
+    private MindmapNodeItem? _connectSource;
+
     public MindmapView()
     {
         InitializeComponent();
@@ -69,6 +74,15 @@ public partial class MindmapView : UserControl
     {
         if (e.Handled)
             return;
+
+        // Escape leaves the connect tool rather than falling through to a global keybind.
+        if (_connectMode && e.Key == Key.Escape)
+        {
+            SetConnectMode(false);
+            e.Handled = true;
+            return;
+        }
+
         if (Application.Current is not App app || app.Services is null)
             return;
 
@@ -109,6 +123,19 @@ public partial class MindmapView : UserControl
 
         var content = Vm.ScreenToContent(screen);
         var node = HitTest(content);
+
+        // Connect tool: start a link from the pressed element; empty space is a no-op (stays in the tool).
+        if (_connectMode)
+        {
+            if (node is not null)
+            {
+                _connectSource = node;
+                _canvas?.SetPendingLink(new Point(node.CenterX, node.CenterY), content);
+                e.Pointer.Capture(_host);
+            }
+            return;
+        }
+
         if (node is not null)
         {
             Vm.Select(node);
@@ -141,6 +168,13 @@ public partial class MindmapView : UserControl
         var screen = e.GetPosition(_host);
         var delta = screen - _lastScreenPoint;
         _lastScreenPoint = screen;
+
+        // Connect tool: track the rubber-band line to the cursor while dragging from the source.
+        if (_connectSource is not null)
+        {
+            _canvas?.SetPendingLink(new Point(_connectSource.CenterX, _connectSource.CenterY), Vm.ScreenToContent(screen));
+            return;
+        }
 
         if (System.Math.Abs(screen.X - _pressScreenPoint.X) > DragThreshold ||
             System.Math.Abs(screen.Y - _pressScreenPoint.Y) > DragThreshold)
@@ -187,6 +221,22 @@ public partial class MindmapView : UserControl
     private async void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         e.Pointer.Capture(null);
+
+        // Connect tool: releasing over a different element creates the link; over empty/self it just cancels.
+        if (_connectSource is not null)
+        {
+            var source = _connectSource;
+            _connectSource = null;
+            _canvas?.SetPendingLink(null, default);
+            if (Vm is not null && _host is not null)
+            {
+                var target = HitTest(Vm.ScreenToContent(e.GetPosition(_host)));
+                if (target is not null && !ReferenceEquals(target, source))
+                    await Vm.LinkAsync(source.Id, target.Id);
+            }
+            return;
+        }
+
         var node = _draggingNode;
         var moved = _dragMoved;
         _draggingNode = null;
@@ -225,6 +275,23 @@ public partial class MindmapView : UserControl
         if (Vm is not null)
             await Vm.CreateFrameAsync(ViewportCenterContent());
     }
+
+    private void OnConnectClick(object? sender, RoutedEventArgs e) => SetConnectMode(!_connectMode);
+
+    // Toggles the connect tool, updating the button's active state and cancelling any pending link.
+    private void SetConnectMode(bool on)
+    {
+        _connectMode = on;
+        _connectSource = null;
+        _canvas?.SetPendingLink(null, default);
+
+        if (ConnectButton is not null)
+            ConnectButton.Classes.Set("active", on);
+        if (ConnectIcon is not null)
+            ConnectIcon.Color = TryResource(on ? "AccentButtonForegroundBrush" : "TextSecondaryBrush");
+    }
+
+    private IBrush? TryResource(string key) => this.TryFindResource(key, out var value) ? value as IBrush : null;
 
     private async void OnShapeClick(object? sender, RoutedEventArgs e)
     {

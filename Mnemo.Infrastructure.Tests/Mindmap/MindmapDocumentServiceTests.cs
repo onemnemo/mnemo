@@ -197,6 +197,22 @@ public sealed class MindmapDocumentServiceTests
     }
 
     [Fact]
+    public async Task Link_SelfLink_Rejected()
+    {
+        await using var h = new MindmapTestHarness();
+        var (map, ids) = await SeedAsync(h, new MindmapNodeSpec { Ref = "a" });
+
+        var result = (await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new LinkOp { A = ids["a"], B = ids["a"] },
+        })).Value!;
+
+        Assert.False(result.Success);
+        Assert.Equal(MindmapEditErrorCode.InvalidOperation, result.Error!.Code);
+        Assert.DoesNotContain((await h.Service.GetAsync(map.Id)).Value!.Edges, e => e.Kind == EdgeKind.Link);
+    }
+
+    [Fact]
     public async Task AddElement_Shape_CreatesFreeElement()
     {
         await using var h = new MindmapTestHarness();

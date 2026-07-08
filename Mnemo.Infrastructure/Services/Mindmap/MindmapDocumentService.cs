@@ -725,6 +725,8 @@ public sealed class MindmapDocumentService : IMindmapService
 
     private static MindmapEditError? ApplyLink(MindmapWorkingDocument working, LinkOp op, EditAccumulator accumulator)
     {
+        if (op.A == op.B)
+            return Err(MindmapEditErrorCode.InvalidOperation, "A link edge must join two different elements.");
         if (!working.ContainsElement(op.A))
             return NotFound(op.A);
         if (!working.ContainsElement(op.B))
