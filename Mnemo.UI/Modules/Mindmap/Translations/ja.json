@@ -22,6 +22,12 @@
     "LayoutTimeline": "タイムライン",
     "LayoutFree": "フリー",
     "LayoutTip": "レイアウト",
-    "TemplateTip": "スタイル"
+    "TemplateTip": "スタイル",
+    "ShapeCard": "カード",
+    "ShapePill": "ピル",
+    "ShapeOutline": "アウトライン",
+    "ShapePlain": "プレーン",
+    "ToggleCollapse": "折りたたむ / 展開",
+    "TogglePin": "固定 / 解除"
   }
 }

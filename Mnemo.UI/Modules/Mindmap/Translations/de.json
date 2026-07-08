@@ -22,6 +22,12 @@
     "LayoutTimeline": "Zeitachse",
     "LayoutFree": "Frei",
     "LayoutTip": "Layout",
-    "TemplateTip": "Stil"
+    "TemplateTip": "Stil",
+    "ShapeCard": "Karte",
+    "ShapePill": "Kapsel",
+    "ShapeOutline": "Umriss",
+    "ShapePlain": "Einfach",
+    "ToggleCollapse": "Ein-/ausklappen",
+    "TogglePin": "Anheften / lösen"
   }
 }

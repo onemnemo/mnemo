@@ -22,6 +22,12 @@
     "LayoutTimeline": "Cronología",
     "LayoutFree": "Libre",
     "LayoutTip": "Diseño",
-    "TemplateTip": "Estilo"
+    "TemplateTip": "Estilo",
+    "ShapeCard": "Tarjeta",
+    "ShapePill": "Píldora",
+    "ShapeOutline": "Contorno",
+    "ShapePlain": "Simple",
+    "ToggleCollapse": "Contraer / expandir",
+    "TogglePin": "Fijar / soltar"
   }
 }

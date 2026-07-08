@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
@@ -72,6 +73,16 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     [ObservableProperty]
     private MindmapNodeItem? _selectedNode;
+
+    /// <summary>Whether the floating style toolbar shows (a node is selected).</summary>
+    [ObservableProperty]
+    private bool _isSelectionToolbarVisible;
+
+    [ObservableProperty]
+    private double _selectionToolbarLeft;
+
+    [ObservableProperty]
+    private double _selectionToolbarTop;
 
     /// <summary>The map's layout algorithm, bound to the top-bar switcher. Applies to every cluster.</summary>
     [ObservableProperty]
@@ -543,6 +554,9 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     // --- Selection ---------------------------------------------------------
 
+    private const double ToolbarGap = 12;
+    private const double ToolbarHeight = 40;
+
     public void Select(MindmapNodeItem? node)
     {
         foreach (var n in Nodes)
@@ -550,6 +564,83 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         SelectedNode = node;
         ((AsyncRelayCommand)DeleteSelectedCommand).NotifyCanExecuteChanged();
     }
+
+    partial void OnSelectedNodeChanged(MindmapNodeItem? oldValue, MindmapNodeItem? newValue)
+    {
+        if (oldValue is not null)
+            oldValue.PropertyChanged -= OnSelectedNodeMoved;
+        if (newValue is not null)
+            newValue.PropertyChanged += OnSelectedNodeMoved;
+        UpdateSelectionToolbar();
+    }
+
+    private void OnSelectedNodeMoved(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MindmapNodeItem.X) or nameof(MindmapNodeItem.Y)
+            or nameof(MindmapNodeItem.Width) or nameof(MindmapNodeItem.Height))
+            UpdateSelectionToolbar();
+    }
+
+    // Floats the style toolbar just above the selected node, following pan, zoom and drag.
+    private void UpdateSelectionToolbar()
+    {
+        var node = SelectedNode;
+        if (node is null)
+        {
+            IsSelectionToolbarVisible = false;
+            return;
+        }
+
+        var topLeft = _camera.ContentToScreen(new Point(node.X, node.Y));
+        SelectionToolbarLeft = topLeft.X;
+        SelectionToolbarTop = topLeft.Y - ToolbarHeight - ToolbarGap;
+        IsSelectionToolbarVisible = true;
+    }
+
+    // Applies an op to the selected node, then reselects it so the toolbar stays open on the same node.
+    private async Task ApplyToSelectionAsync(MindmapEditOp op)
+    {
+        if (SelectedNode is null)
+            return;
+        var id = SelectedNode.Id;
+        await ApplyAsync(op, selectRef: null).ConfigureAwait(true);
+        Select(Nodes.FirstOrDefault(n => n.Id == id));
+    }
+
+    [RelayCommand]
+    private Task SetFillAsync(string? token) =>
+        SelectedNode is null || string.IsNullOrEmpty(token)
+            ? Task.CompletedTask
+            : ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Style = new ElementStyle { Fill = token } });
+
+    [RelayCommand]
+    private Task SetShapeAsync(string? name) =>
+        SelectedNode is not null && Enum.TryParse<NodeShape>(name, out var shape)
+            ? ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Style = new ElementStyle { NodeShape = shape } })
+            : Task.CompletedTask;
+
+    [RelayCommand]
+    private Task SetFontScaleAsync(string? name) =>
+        SelectedNode is not null && Enum.TryParse<FontScale>(name, out var scale)
+            ? ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Style = new ElementStyle { FontScale = scale } })
+            : Task.CompletedTask;
+
+    [RelayCommand]
+    private Task ToggleCollapseAsync()
+    {
+        if (SelectedNode is null || _document is null)
+            return Task.CompletedTask;
+        var element = _document.Elements.FirstOrDefault(e => e.Id == SelectedNode.Id);
+        return element is null
+            ? Task.CompletedTask
+            : ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Collapsed = !element.Collapsed });
+    }
+
+    [RelayCommand]
+    private Task TogglePinAsync() =>
+        SelectedNode is null
+            ? Task.CompletedTask
+            : ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Pinned = !SelectedNode.IsPinned });
 
     public void ClearHoverState()
     {
@@ -584,6 +675,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     {
         CanvasTransform = _camera.Transform;
         ZoomLabel = string.Format(CultureInfo.InvariantCulture, "{0:0}%", _camera.Scale * 100);
+        UpdateSelectionToolbar();
     }
 
     public Point ScreenToContent(Point screen) => _camera.ScreenToContent(screen);

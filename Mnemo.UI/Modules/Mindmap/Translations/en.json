@@ -22,6 +22,12 @@
     "LayoutTimeline": "Timeline",
     "LayoutFree": "Free",
     "LayoutTip": "Layout",
-    "TemplateTip": "Style"
+    "TemplateTip": "Style",
+    "ShapeCard": "Card",
+    "ShapePill": "Pill",
+    "ShapeOutline": "Outline",
+    "ShapePlain": "Plain",
+    "ToggleCollapse": "Collapse / expand",
+    "TogglePin": "Pin / unpin"
   }
 }

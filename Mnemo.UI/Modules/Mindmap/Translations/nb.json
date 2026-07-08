@@ -22,6 +22,12 @@
     "LayoutTimeline": "Tidslinje",
     "LayoutFree": "Fri",
     "LayoutTip": "Oppsett",
-    "TemplateTip": "Stil"
+    "TemplateTip": "Stil",
+    "ShapeCard": "Kort",
+    "ShapePill": "Pille",
+    "ShapeOutline": "Omriss",
+    "ShapePlain": "Enkel",
+    "ToggleCollapse": "Slå sammen / utvid",
+    "TogglePin": "Fest / løsne"
   }
 }
