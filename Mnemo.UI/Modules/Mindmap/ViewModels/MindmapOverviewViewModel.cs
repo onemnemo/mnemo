@@ -495,7 +495,10 @@ public partial class MindmapOverviewViewModel : ViewModelBase, INavigationAware
 
         try
         {
-            var result = await _mindmapService.CreateAsync(name, folderId: CurrentFolderId).ConfigureAwait(true);
+            // Seed a central root node so a new map opens with something to build from (the editing model —
+            // Tab=child, Enter=sibling — works off an existing node), rather than a blank canvas.
+            var outline = new[] { new MindmapNodeSpec { Text = name } };
+            var result = await _mindmapService.CreateAsync(name, outline, folderId: CurrentFolderId).ConfigureAwait(true);
             if (result.IsSuccess && result.Value != null)
                 _navigation.NavigateTo("mindmap-detail", result.Value.Id);
             else

@@ -75,7 +75,7 @@ internal static class MindmapKeybindManifest
         Chords("mindmap.paste", "Primary+V"),
         Chords("mindmap.duplicate", "Primary+D"),
         Chords("mindmap.add-child", "Tab"),
-        Chords("mindmap.enter", "Enter"),
+        Chords("mindmap.enter", "Return", "Enter"),
         Chords("mindmap.edit-edge-label", "F2"),
     ];
 

@@ -43,65 +43,17 @@
           <Grid>
             <views:MindmapGridBackground Transform="{Binding CanvasTransform}"
                                          DotBrush="{DynamicResource DividerSubtleBrush}"/>
-            <Canvas Name="World" RenderTransformOrigin="0,0">
-                <Canvas.RenderTransform>
-                    <MatrixTransform Matrix="{Binding CanvasTransform}"/>
-                </Canvas.RenderTransform>
-
-                <!-- Edges -->
-                <ItemsControl ItemsSource="{Binding Edges}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate><Canvas/></ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:MindmapEdgeItem">
-                            <Path Data="{Binding Geometry}"
-                                  Stroke="{DynamicResource BorderBrush}" StrokeThickness="1.5"
-                                  StrokeLineCap="Round"/>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <!-- Nodes -->
-                <ItemsControl ItemsSource="{Binding Nodes}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate><Canvas/></ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.Styles>
-                        <Style Selector="ContentPresenter" x:DataType="vm:MindmapNodeItem">
-                            <Setter Property="Canvas.Left" Value="{Binding X}"/>
-                            <Setter Property="Canvas.Top" Value="{Binding Y}"/>
-                        </Style>
-                    </ItemsControl.Styles>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:MindmapNodeItem">
-                            <Border Width="{Binding Width}" Height="{Binding Height}"
-                                    CornerRadius="10" BorderThickness="1.5"
-                                    Classes.selected="{Binding IsSelected}"
-                                    Classes.root="{Binding IsRoot}"
-                                    Background="{DynamicResource CardBackgroundSecondaryBrush}"
-                                    BorderBrush="{DynamicResource BorderBrush}">
-                                <Border.Styles>
-                                    <Style Selector="Border.selected">
-                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
-                                    </Style>
-                                    <Style Selector="Border.root">
-                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
-                                    </Style>
-                                    <Style Selector="Border.root > TextBlock">
-                                        <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundBrush}"/>
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                    </Style>
-                                </Border.Styles>
-                                <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           Margin="10,0" MaxWidth="112"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </Canvas>
+            <views:MindmapCanvasControl Name="World"
+                                        Nodes="{Binding Nodes}"
+                                        Edges="{Binding Edges}"
+                                        Transform="{Binding CanvasTransform}"
+                                        NodeFill="{DynamicResource CardBackgroundSecondaryBrush}"
+                                        NodeStroke="{DynamicResource BorderBrush}"
+                                        NodeText="{DynamicResource TextPrimaryBrush}"
+                                        RootFill="{DynamicResource AccentBrush}"
+                                        RootText="{DynamicResource AccentButtonForegroundBrush}"
+                                        SelectedStroke="{DynamicResource AccentBrush}"
+                                        EdgeStroke="{DynamicResource BorderBrush}"/>
           </Grid>
         </Border>
     </Grid>

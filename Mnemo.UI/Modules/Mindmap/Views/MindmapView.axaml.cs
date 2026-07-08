@@ -1,11 +1,14 @@
+using System;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Microsoft.Extensions.DependencyInjection;
+using Mnemo.Core.Models.Keybinds;
 using Mnemo.Core.Services;
 using Mnemo.UI.Modules.Mindmap.ViewModels;
+using Mnemo.UI.Services;
 
 namespace Mnemo.UI.Modules.Mindmap.Views;
 
@@ -20,6 +23,7 @@ public partial class MindmapView : UserControl
     private const double DragThreshold = 4;
 
     private Border? _host;
+    private MindmapCanvasControl? _canvas;
     private bool _isPanning;
     private MindmapNodeItem? _draggingNode;
     private Point _lastScreenPoint;
@@ -31,6 +35,7 @@ public partial class MindmapView : UserControl
     {
         InitializeComponent();
         _host = this.FindControl<Border>("CanvasHost");
+        _canvas = this.FindControl<MindmapCanvasControl>("World");
         if (_host is not null)
         {
             _host.PointerWheelChanged += OnWheel;
@@ -39,6 +44,11 @@ public partial class MindmapView : UserControl
             _host.PointerReleased += OnPointerReleased;
             _host.DoubleTapped += OnDoubleTapped;
         }
+
+        // The workspace keybind host skips the mindmap-detail route in the tunnel phase so a focused label
+        // editor can consume Tab/Enter first; canvas shortcuts are matched here in the bubble phase instead.
+        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Bubble);
+        Loaded += (_, _) => _canvas?.Focus();
     }
 
     private MindmapViewModel? Vm => DataContext as MindmapViewModel;
@@ -47,6 +57,26 @@ public partial class MindmapView : UserControl
     {
         var navigation = (Application.Current as App)?.Services?.GetService<INavigationService>();
         navigation?.NavigateTo("mindmap");
+    }
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled)
+            return;
+        if (Application.Current is not App app || app.Services is null)
+            return;
+
+        var keyMap = app.Services.GetService<IKeyMap>();
+        var router = app.Services.GetService<IKeybindActionRouter>();
+        if (keyMap is null || router is null)
+            return;
+
+        var input = KeybindInputNormalizer.FromKeyEvent(e);
+        var result = keyMap.ProcessLocalKeyDown(input, DateTime.UtcNow, SequenceSwallowMode.SwallowOnPrefixAdvance);
+        if (result.CompletedAction && !string.IsNullOrEmpty(result.ActionId) && !router.TryExecute(result.ActionId))
+            return;
+        if (result.Handled)
+            e.Handled = true;
     }
 
     private void OnWheel(object? sender, PointerWheelEventArgs e)
@@ -62,6 +92,9 @@ public partial class MindmapView : UserControl
     {
         if (Vm is null || _host is null || !e.GetCurrentPoint(_host).Properties.IsLeftButtonPressed)
             return;
+
+        // Take keyboard focus so canvas keybinds (Tab/Enter/Delete/undo/…) route to this view.
+        _canvas?.Focus();
 
         var screen = e.GetPosition(_host);
         _pressScreenPoint = screen;
@@ -131,16 +164,6 @@ public partial class MindmapView : UserControl
             await Vm.CreateNodeAtAsync(content);
     }
 
-    private MindmapNodeItem? HitTest(Point content)
-    {
-        // Topmost-last: iterate in reverse so later (visually upper) nodes win.
-        for (var i = Vm!.Nodes.Count - 1; i >= 0; i--)
-        {
-            var n = Vm.Nodes[i];
-            if (content.X >= n.X && content.X <= n.X + n.Width &&
-                content.Y >= n.Y && content.Y <= n.Y + n.Height)
-                return n;
-        }
-        return null;
-    }
+    // Hit-testing goes through the canvas control's quadtree (topmost node under the point).
+    private MindmapNodeItem? HitTest(Point content) => _canvas?.HitTestNode(content);
 }

@@ -420,31 +420,55 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         }, selectRef: "paste").ConfigureAwait(true);
     }
 
-    /// <summary>Duplicates the selected subtree as a sibling (or a new root cluster when it is itself a root).</summary>
+    /// <summary>Duplicates the selected subtree as a sibling, or — for a root — as an offset copy beside it.</summary>
     public async Task DuplicateSelectionAsync()
     {
         if (SelectedNode is null || _document is null)
             return;
 
-        var spec = CaptureSubtree(SelectedNode.Id) with { Ref = "dup" };
         var parentEdge = _document.Edges.FirstOrDefault(e => e.Kind == EdgeKind.Hierarchy && e.ToId == SelectedNode.Id);
-        await ApplyAsync(new AddNodesOp
+        if (parentEdge is not null)
         {
-            Under = parentEdge?.FromId,
-            After = parentEdge is null ? null : SelectedNode.Id,
-            Nodes = new[] { spec },
-        }, selectRef: "dup").ConfigureAwait(true);
+            // Non-root: the copy re-homes under the same parent, right after the source (auto-laid).
+            var spec = CaptureSubtree(SelectedNode.Id) with { Ref = "dup" };
+            await ApplyAsync(new AddNodesOp
+            {
+                Under = parentEdge.FromId,
+                After = SelectedNode.Id,
+                Nodes = new[] { spec },
+            }, selectRef: "dup").ConfigureAwait(true);
+            return;
+        }
+
+        // Root: there is no parent to re-home under, and the placeholder layout would drop a fresh root
+        // cluster off-screen — so pin the whole copied subtree at a small offset from the source so it
+        // lands visibly beside the original.
+        const double offset = 48;
+        var pinnedSpec = CaptureSubtree(SelectedNode.Id, offset, offset) with { Ref = "dup" };
+        await ApplyAsync(new AddNodesOp { Nodes = new[] { pinnedSpec } }, selectRef: "dup").ConfigureAwait(true);
     }
 
-    /// <summary>Recursively snapshots a node's content and children into a spec (fresh ids assigned on apply).</summary>
-    private MindmapNodeSpec CaptureSubtree(string nodeId)
+    /// <summary>
+    /// Recursively snapshots a node's content and children into a spec (fresh ids assigned on apply). When
+    /// an offset is given, each node is pinned at its current on-canvas position plus the offset, so the
+    /// copy renders as an exact offset duplicate rather than being re-laid.
+    /// </summary>
+    private MindmapNodeSpec CaptureSubtree(string nodeId, double offsetX = 0, double offsetY = 0)
     {
         var element = _document!.Elements.First(e => e.Id == nodeId);
         var children = _document.Edges
             .Where(e => e.Kind == EdgeKind.Hierarchy && e.FromId == nodeId)
-            .Select(e => CaptureSubtree(e.ToId))
+            .Select(e => CaptureSubtree(e.ToId, offsetX, offsetY))
             .ToList();
-        return new MindmapNodeSpec { Content = element.Content, Children = children };
+
+        var spec = new MindmapNodeSpec { Content = element.Content, Children = children };
+        if (offsetX != 0 || offsetY != 0)
+        {
+            var item = Nodes.FirstOrDefault(n => n.Id == nodeId);
+            if (item is not null)
+                spec = spec with { X = item.X + offsetX, Y = item.Y + offsetY };
+        }
+        return spec;
     }
 
     public void BeginEditSelectedEdgeLabel()
