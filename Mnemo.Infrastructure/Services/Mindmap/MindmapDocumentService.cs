@@ -521,6 +521,7 @@ public sealed class MindmapDocumentService : IMindmapService
         DeleteOp del => ApplyDelete(working, del, accumulator),
         LinkOp link => ApplyLink(working, link, accumulator),
         UnlinkOp unlink => ApplyUnlink(working, unlink),
+        SetEdgeOp setEdge => ApplySetEdge(working, setEdge),
         StyleSubtreeOp style => ApplyStyleSubtree(working, style),
         LayoutOp layout => ApplyLayout(working, layout),
         AddElementOp addElement => ApplyAddElement(working, addElement, accumulator),
@@ -771,6 +772,24 @@ public sealed class MindmapDocumentService : IMindmapService
         return null;
     }
 
+    private static MindmapEditError? ApplySetEdge(MindmapWorkingDocument working, SetEdgeOp op)
+    {
+        if (!working.TryGetEdge(op.EdgeId, out var edge))
+            return NotFound(op.EdgeId);
+
+        var updated = edge;
+        if (op.Label is not null)
+            updated = updated with { Label = op.Label.Length == 0 ? null : op.Label };
+
+        if (op.ClearStyle)
+            updated = updated with { Style = op.Style is null ? null : MergeEdgeStyle(null, op.Style) };
+        else if (op.Style is not null)
+            updated = updated with { Style = MergeEdgeStyle(edge.Style, op.Style) };
+
+        working.ReplaceEdge(updated);
+        return null;
+    }
+
     private static MindmapEditError? ApplyStyleSubtree(MindmapWorkingDocument working, StyleSubtreeOp op)
     {
         IReadOnlyCollection<string> targets;
@@ -998,6 +1017,22 @@ public sealed class MindmapDocumentService : IMindmapService
             FontScale = incoming.FontScale ?? existing.FontScale,
             NodeShape = incoming.NodeShape ?? existing.NodeShape,
             Icon = incoming.Icon ?? existing.Icon,
+        };
+    }
+
+    private static EdgeStyle MergeEdgeStyle(EdgeStyle? existing, EdgeStyle incoming)
+    {
+        if (existing is null)
+            return incoming;
+
+        return new EdgeStyle
+        {
+            Line = incoming.Line ?? existing.Line,
+            Routing = incoming.Routing ?? existing.Routing,
+            StartCap = incoming.StartCap ?? existing.StartCap,
+            EndCap = incoming.EndCap ?? existing.EndCap,
+            Color = incoming.Color ?? existing.Color,
+            Thickness = incoming.Thickness ?? existing.Thickness,
         };
     }
 

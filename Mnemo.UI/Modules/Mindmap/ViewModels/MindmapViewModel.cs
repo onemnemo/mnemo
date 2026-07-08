@@ -112,6 +112,20 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private double _selectionToolbarTop;
 
+    /// <summary>The selected link edge, if any; drives the floating edge toolbar. Mutually exclusive with a node selection.</summary>
+    [ObservableProperty]
+    private MindmapEdgeItem? _selectedEdge;
+
+    /// <summary>Whether the floating edge toolbar shows (a link edge is selected).</summary>
+    [ObservableProperty]
+    private bool _isEdgeToolbarVisible;
+
+    [ObservableProperty]
+    private double _edgeToolbarLeft;
+
+    [ObservableProperty]
+    private double _edgeToolbarTop;
+
     /// <summary>The map's layout algorithm, bound to the top-bar switcher. Applies to every cluster.</summary>
     [ObservableProperty]
     private MindmapLayoutOption? _selectedLayoutOption;
@@ -128,9 +142,6 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     private bool _suppressLayoutOptionChange;
     private bool _suppressTemplateOptionChange;
     private bool _suppressClusterTemplateChange;
-
-    /// <summary>Edge selection is not yet wired in the foundation slice; kept for the keybind contract.</summary>
-    public object? SelectedEdge { get; set; }
 
     public ObservableCollection<MindmapNodeItem> Nodes { get; } = new();
     public ObservableCollection<MindmapEdgeItem> Edges { get; } = new();
@@ -530,7 +541,9 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                 label: edge.Label));
         }
 
+        // The old node/edge items are gone; drop selection so no toolbar points at a stale, disposed item.
         SelectedNode = null;
+        SelectedEdge = null;
     }
 
     /// <summary>A node's cascade inputs: its depth/branch context and its cluster's root id.</summary>
@@ -739,8 +752,18 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     private const double ToolbarGap = 12;
     private const double ToolbarHeight = 40;
 
+    // The edge toolbar is centered on the edge midpoint; this nudges its left edge by ~half its width.
+    private const double EdgeToolbarHalfWidth = 130;
+
     public void Select(MindmapNodeItem? node)
     {
+        // Node and edge selection are mutually exclusive; picking a node (or empty space) drops any edge.
+        if (SelectedEdge is { } selectedEdge)
+        {
+            selectedEdge.IsSelected = false;
+            SelectedEdge = null;
+        }
+
         // Only toggle the two affected items; looping every node fired a property-change and canvas
         // invalidate per element on every click, which dragged on large maps.
         if (SelectedNode is { } previous && !ReferenceEquals(previous, node))
@@ -749,6 +772,24 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             node.IsSelected = true;
         SelectedNode = node;
         ((AsyncRelayCommand)DeleteSelectedCommand).NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Selects a link edge (clearing any node selection) so its floating toolbar appears.</summary>
+    public void SelectEdge(MindmapEdgeItem? edge)
+    {
+        if (SelectedEdge is { } previous && !ReferenceEquals(previous, edge))
+            previous.IsSelected = false;
+
+        // Selecting an edge drops the node selection (and hides the node toolbar).
+        if (edge is not null && SelectedNode is { } node)
+        {
+            node.IsSelected = false;
+            SelectedNode = null;
+        }
+
+        if (edge is not null)
+            edge.IsSelected = true;
+        SelectedEdge = edge;
     }
 
     partial void OnSelectedNodeChanged(MindmapNodeItem? oldValue, MindmapNodeItem? newValue)
@@ -804,6 +845,88 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         await ApplyAsync(op, selectRef: null).ConfigureAwait(true);
         Select(Nodes.FirstOrDefault(n => n.Id == id));
     }
+
+    partial void OnSelectedEdgeChanged(MindmapEdgeItem? oldValue, MindmapEdgeItem? newValue)
+    {
+        if (oldValue is not null)
+            oldValue.PropertyChanged -= OnSelectedEdgeMoved;
+        if (newValue is not null)
+            newValue.PropertyChanged += OnSelectedEdgeMoved;
+        UpdateEdgeToolbar();
+    }
+
+    private void OnSelectedEdgeMoved(object? sender, PropertyChangedEventArgs e)
+    {
+        // The midpoint shifts when either endpoint moves; the edge item raises Start/End then.
+        if (e.PropertyName is nameof(MindmapEdgeItem.Start) or nameof(MindmapEdgeItem.End))
+            UpdateEdgeToolbar();
+    }
+
+    // Floats the edge toolbar just above the selected edge's midpoint, following pan, zoom and endpoint drags.
+    private void UpdateEdgeToolbar()
+    {
+        var edge = SelectedEdge;
+        if (edge is null)
+        {
+            IsEdgeToolbarVisible = false;
+            return;
+        }
+
+        var mid = _camera.ContentToScreen(edge.Midpoint);
+        EdgeToolbarLeft = mid.X - EdgeToolbarHalfWidth;
+
+        var above = mid.Y - ToolbarHeight - ToolbarGap;
+        EdgeToolbarTop = above >= ToolbarGap ? above : mid.Y + ToolbarGap;
+        IsEdgeToolbarVisible = true;
+    }
+
+    // Applies an op to the selected edge, then reselects it by id so the toolbar stays open (or hides on delete).
+    private async Task ApplyToEdgeAsync(MindmapEditOp op)
+    {
+        if (SelectedEdge is null)
+            return;
+        var id = SelectedEdge.Id;
+        await ApplyAsync(op, selectRef: null).ConfigureAwait(true);
+        SelectEdge(Edges.FirstOrDefault(e => e.Id == id));
+    }
+
+    [RelayCommand]
+    private Task SetEdgeLineAsync(string? style) =>
+        SelectedEdge is null || !System.Enum.TryParse<LineStyle>(style, out var line)
+            ? Task.CompletedTask
+            : ApplyToEdgeAsync(new SetEdgeOp { EdgeId = SelectedEdge.Id, Style = new EdgeStyle { Line = line } });
+
+    [RelayCommand]
+    private Task SetEdgeColorAsync(string? token) =>
+        SelectedEdge is null || string.IsNullOrEmpty(token)
+            ? Task.CompletedTask
+            : ApplyToEdgeAsync(new SetEdgeOp { EdgeId = SelectedEdge.Id, Style = new EdgeStyle { Color = token } });
+
+    [RelayCommand]
+    private Task ToggleEdgeStartCapAsync() =>
+        SelectedEdge is null
+            ? Task.CompletedTask
+            : ApplyToEdgeAsync(new SetEdgeOp
+            {
+                EdgeId = SelectedEdge.Id,
+                Style = new EdgeStyle { StartCap = SelectedEdge.StartCap == ArrowCap.Arrow ? ArrowCap.None : ArrowCap.Arrow },
+            });
+
+    [RelayCommand]
+    private Task ToggleEdgeEndCapAsync() =>
+        SelectedEdge is null
+            ? Task.CompletedTask
+            : ApplyToEdgeAsync(new SetEdgeOp
+            {
+                EdgeId = SelectedEdge.Id,
+                Style = new EdgeStyle { EndCap = SelectedEdge.EndCap == ArrowCap.Arrow ? ArrowCap.None : ArrowCap.Arrow },
+            });
+
+    [RelayCommand]
+    private Task DeleteEdgeAsync() =>
+        SelectedEdge is null
+            ? Task.CompletedTask
+            : ApplyToEdgeAsync(new UnlinkOp { EdgeId = SelectedEdge.Id });
 
     [RelayCommand]
     private Task SetFillAsync(string? token) =>
@@ -1007,6 +1130,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         CanvasTransform = _camera.Transform;
         ZoomLabel = string.Format(CultureInfo.InvariantCulture, "{0:0}%", _camera.Scale * 100);
         UpdateSelectionToolbar();
+        UpdateEdgeToolbar();
     }
 
     public Point ScreenToContent(Point screen) => _camera.ScreenToContent(screen);

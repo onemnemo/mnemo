@@ -148,6 +148,35 @@ public sealed class MindmapCanvasControl : Control
         return best >= 0 ? _nodeList[best] : null;
     }
 
+    /// <summary>Returns the topmost link edge within <paramref name="threshold"/> content units of the point, or null.</summary>
+    public MindmapEdgeItem? HitTestEdge(Point contentPoint, double threshold)
+    {
+        // Later-drawn edges sit on top, so scan back-to-front and take the first within range.
+        for (var i = _edgeList.Count - 1; i >= 0; i--)
+        {
+            var edge = _edgeList[i];
+            if (edge.IsHierarchy)
+                continue;
+            if (DistanceToSegment(contentPoint, edge.DrawStart, edge.DrawEnd) <= threshold)
+                return edge;
+        }
+        return null;
+    }
+
+    private static double DistanceToSegment(Point p, Point a, Point b)
+    {
+        var dx = b.X - a.X;
+        var dy = b.Y - a.Y;
+        var lengthSq = dx * dx + dy * dy;
+        if (lengthSq < 1e-9)
+            return Math.Sqrt((p.X - a.X) * (p.X - a.X) + (p.Y - a.Y) * (p.Y - a.Y));
+
+        var t = Math.Clamp(((p.X - a.X) * dx + (p.Y - a.Y) * dy) / lengthSq, 0, 1);
+        var projX = a.X + t * dx;
+        var projY = a.Y + t * dy;
+        return Math.Sqrt((p.X - projX) * (p.X - projX) + (p.Y - projY) * (p.Y - projY));
+    }
+
     // --- Rendering ---------------------------------------------------------
 
     /// <summary>Shows or clears the connect tool's rubber-band line (content coordinates; null start hides it).</summary>
@@ -213,8 +242,11 @@ public sealed class MindmapCanvasControl : Control
     // A link edge: a (possibly dashed) straight connector with arrow/dot caps and an optional label chip.
     private void DrawLinkEdge(DrawingContext context, MindmapEdgeItem edge, Pen defaultPen)
     {
-        var brush = (edge.ColorToken is { } token ? ResolveBrush(token) : null) ?? defaultPen.Brush ?? Brushes.Gray;
-        var linePen = new Pen(brush, EdgeStrokeThickness) { LineCap = PenLineCap.Round, DashStyle = DashFor(edge.LineStyle) };
+        var brush = edge.IsSelected
+            ? SelectedStroke ?? Brushes.OrangeRed
+            : (edge.ColorToken is { } token ? ResolveBrush(token) : null) ?? defaultPen.Brush ?? Brushes.Gray;
+        var thickness = edge.IsSelected ? SelectedStrokeThickness : EdgeStrokeThickness;
+        var linePen = new Pen(brush, thickness) { LineCap = PenLineCap.Round, DashStyle = DashFor(edge.LineStyle) };
         context.DrawGeometry(null, linePen, edge.Geometry);
 
         var start = edge.DrawStart;
@@ -225,7 +257,7 @@ public sealed class MindmapCanvasControl : Control
         if (len >= 1)
         {
             var dir = new Point(dx / len, dy / len);
-            var capPen = new Pen(brush, EdgeStrokeThickness) { LineCap = PenLineCap.Round };
+            var capPen = new Pen(brush, thickness) { LineCap = PenLineCap.Round };
             if (edge.EndCap != ArrowCap.None)
                 DrawCap(context, brush, capPen, end, dir, edge.EndCap);
             if (edge.StartCap != ArrowCap.None)
@@ -641,12 +673,18 @@ public sealed class MindmapCanvasControl : Control
             case NotifyCollectionChangedAction.Add when e.NewItems is not null:
                 foreach (var item in e.NewItems)
                     if (item is MindmapEdgeItem edge)
+                    {
                         _edgeList.Add(edge);
+                        edge.PropertyChanged += OnEdgeItemChanged;
+                    }
                 break;
             case NotifyCollectionChangedAction.Remove when e.OldItems is not null:
                 foreach (var item in e.OldItems)
                     if (item is MindmapEdgeItem edge)
+                    {
                         _edgeList.Remove(edge);
+                        edge.PropertyChanged -= OnEdgeItemChanged;
+                    }
                 break;
             default:
                 RebuildEdgeList();
@@ -654,6 +692,13 @@ public sealed class MindmapCanvasControl : Control
         }
 
         InvalidateVisual();
+    }
+
+    private void OnEdgeItemChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // Endpoint moves already repaint via node changes; only the selection highlight needs a nudge here.
+        if (e.PropertyName == nameof(MindmapEdgeItem.IsSelected))
+            InvalidateVisual();
     }
 
     private void RebuildNodeList()
@@ -678,11 +723,16 @@ public sealed class MindmapCanvasControl : Control
 
     private void RebuildEdgeList()
     {
+        foreach (var edge in _edgeList)
+            edge.PropertyChanged -= OnEdgeItemChanged;
         _edgeList.Clear();
         if (_edges is not null)
             foreach (var item in _edges)
                 if (item is MindmapEdgeItem edge)
+                {
                     _edgeList.Add(edge);
+                    edge.PropertyChanged += OnEdgeItemChanged;
+                }
         InvalidateVisual();
     }
 

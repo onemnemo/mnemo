@@ -47,6 +47,10 @@ public partial class MindmapEdgeItem : ObservableObject, IDisposable
 
     public bool IsHierarchy { get; }
 
+    /// <summary>Whether this edge is the selected one (link edges only); drawn highlighted.</summary>
+    [ObservableProperty]
+    private bool _isSelected;
+
     /// <summary>Style token for the line color (a branch palette token or hex), or null to use the default edge brush.</summary>
     public string? ColorToken { get; }
 

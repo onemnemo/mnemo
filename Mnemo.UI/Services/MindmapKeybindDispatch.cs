@@ -35,7 +35,7 @@ public sealed class MindmapKeybindDispatch(INavigationService navigation) : IMin
         if (!TryGetMindmapViewModel(out var vm) || !vm.IsEditingEnabled) return;
         foreach (var node in vm.Nodes)
             node.IsSelected = false;
-        vm.SelectedEdge = null;
+        vm.SelectEdge(null);
         vm.ClearHoverState();
     }
 

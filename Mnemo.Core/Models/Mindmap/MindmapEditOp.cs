@@ -115,6 +115,21 @@ public sealed record UnlinkOp : MindmapEditOp
     public string? B { get; init; }
 }
 
+/// <summary>Update an existing edge's label and/or style overrides (by edge id).</summary>
+public sealed record SetEdgeOp : MindmapEditOp
+{
+    public required string EdgeId { get; init; }
+
+    /// <summary>New label; an empty string clears it. Null leaves the label unchanged.</summary>
+    public string? Label { get; init; }
+
+    /// <summary>Merge these style overrides onto the edge's existing style (non-null members win).</summary>
+    public EdgeStyle? Style { get; init; }
+
+    /// <summary>Drop the edge's existing style override before applying <see cref="Style"/>.</summary>
+    public bool ClearStyle { get; init; }
+}
+
 /// <summary>Bulk style application to a subtree root (and descendants) or an explicit id list.</summary>
 public sealed record StyleSubtreeOp : MindmapEditOp
 {

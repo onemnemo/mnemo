@@ -197,6 +197,70 @@ public sealed class MindmapDocumentServiceTests
     }
 
     [Fact]
+    public async Task SetEdge_UpdatesLabelAndStyle_Merging()
+    {
+        await using var h = new MindmapTestHarness();
+        var (map, ids) = await SeedAsync(h,
+            new MindmapNodeSpec { Ref = "a" }, new MindmapNodeSpec { Ref = "b" });
+        var linked = (await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new LinkOp { Ref = "l", A = ids["a"], B = ids["b"] },
+        })).Value!;
+        var edgeId = linked.CreatedIds["l"];
+
+        // A label + line style, then a separately merged end cap: all three should survive.
+        await h.Service.ApplyAsync(map.Id, 3, new MindmapEditOp[]
+        {
+            new SetEdgeOp { EdgeId = edgeId, Label = "flows to", Style = new EdgeStyle { Line = LineStyle.Dashed } },
+        });
+        await h.Service.ApplyAsync(map.Id, 4, new MindmapEditOp[]
+        {
+            new SetEdgeOp { EdgeId = edgeId, Style = new EdgeStyle { EndCap = ArrowCap.Arrow } },
+        });
+
+        var edge = (await h.Service.GetAsync(map.Id)).Value!.Edges.Single(e => e.Id == edgeId);
+        Assert.Equal("flows to", edge.Label);
+        Assert.Equal(LineStyle.Dashed, edge.Style!.Line);
+        Assert.Equal(ArrowCap.Arrow, edge.Style!.EndCap);
+    }
+
+    [Fact]
+    public async Task SetEdge_ClearStyle_RemovesOverride()
+    {
+        await using var h = new MindmapTestHarness();
+        var (map, ids) = await SeedAsync(h,
+            new MindmapNodeSpec { Ref = "a" }, new MindmapNodeSpec { Ref = "b" });
+        var linked = (await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new LinkOp { Ref = "l", A = ids["a"], B = ids["b"], Style = new EdgeStyle { Line = LineStyle.Dotted } },
+        })).Value!;
+        var edgeId = linked.CreatedIds["l"];
+
+        await h.Service.ApplyAsync(map.Id, 3, new MindmapEditOp[]
+        {
+            new SetEdgeOp { EdgeId = edgeId, ClearStyle = true },
+        });
+
+        var edge = (await h.Service.GetAsync(map.Id)).Value!.Edges.Single(e => e.Id == edgeId);
+        Assert.Null(edge.Style);
+    }
+
+    [Fact]
+    public async Task SetEdge_NotFound_Rejected()
+    {
+        await using var h = new MindmapTestHarness();
+        var (map, _) = await SeedAsync(h, new MindmapNodeSpec { Ref = "a" });
+
+        var result = (await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new SetEdgeOp { EdgeId = "zzzz", Style = new EdgeStyle { Line = LineStyle.Dashed } },
+        })).Value!;
+
+        Assert.False(result.Success);
+        Assert.Equal(MindmapEditErrorCode.NotFound, result.Error!.Code);
+    }
+
+    [Fact]
     public async Task Link_SelfLink_Rejected()
     {
         await using var h = new MindmapTestHarness();

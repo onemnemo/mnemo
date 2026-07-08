@@ -151,6 +151,11 @@ public partial class MindmapView : UserControl
             _dragGrabOffset = new Point(content.X - node.X, content.Y - node.Y);
             CaptureFrameMembers(node);
         }
+        else if (HitTestEdge(content, screen) is { } edge)
+        {
+            // A click near a link edge selects it (no drag/pan) so its floating toolbar appears.
+            Vm.SelectEdge(edge);
+        }
         else
         {
             Vm.Select(null);
@@ -309,6 +314,19 @@ public partial class MindmapView : UserControl
 
     // Hit-testing goes through the canvas control's quadtree (topmost node under the point).
     private MindmapNodeItem? HitTest(Point content) => _canvas?.HitTestNode(content);
+
+    // Link-edge hit-testing: a fixed screen-pixel grab radius converted to content units so it stays
+    // clickable at any zoom.
+    private const double EdgeHitScreenRadius = 8;
+
+    private MindmapEdgeItem? HitTestEdge(Point content, Point screen)
+    {
+        if (Vm is null || _canvas is null)
+            return null;
+        var offset = Vm.ScreenToContent(new Point(screen.X + EdgeHitScreenRadius, screen.Y));
+        var threshold = System.Math.Abs(offset.X - content.X);
+        return _canvas.HitTestEdge(content, threshold);
+    }
 
     private static bool IsInPinBadge(Point content, MindmapNodeItem node)
     {

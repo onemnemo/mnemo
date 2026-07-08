@@ -147,6 +147,16 @@ internal sealed class MindmapWorkingDocument
         _changeTouched.Add(id);
     }
 
+    /// <summary>Replaces an existing edge in place (same id, preserved order), marking it changed.</summary>
+    public void ReplaceEdge(MindmapEdge edge)
+    {
+        if (!_edges.ContainsKey(edge.Id))
+            return;
+
+        _edges[edge.Id] = edge;
+        _changeTouched.Add(edge.Id);
+    }
+
     /// <summary>Edges incident to an element (either endpoint), in document order.</summary>
     public IEnumerable<MindmapEdge> IncidentEdges(string elementId) =>
         _edgeOrder.Select(id => _edges[id]).Where(e => e.FromId == elementId || e.ToId == elementId);

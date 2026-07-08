@@ -381,6 +381,83 @@
                     </Button>
                 </StackPanel>
             </Border>
+
+            <!-- Contextual edge toolbar: floats above the selected link edge's midpoint -->
+            <Border IsVisible="{Binding IsEdgeToolbarVisible}"
+                    Canvas.Left="{Binding EdgeToolbarLeft}"
+                    Canvas.Top="{Binding EdgeToolbarTop}"
+                    Height="40" Padding="7,0"
+                    Background="{DynamicResource FloatingChromeBackgroundBrush}"
+                    CornerRadius="10" BoxShadow="0 6 20 0 #33000000">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <!-- Line style -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <Button Classes="mmTool" Command="{Binding SetEdgeLineCommand}" CommandParameter="Solid"
+                                Classes.active="{Binding SelectedEdge.LineStyle, Converter={StaticResource EnumEquals}, ConverterParameter=Solid}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeSolid}">
+                            <Line StartPoint="0,0" EndPoint="18,0" StrokeThickness="2"
+                                  Stroke="{DynamicResource FloatingChromeForegroundBrush}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
+                        <Button Classes="mmTool" Command="{Binding SetEdgeLineCommand}" CommandParameter="Dashed"
+                                Classes.active="{Binding SelectedEdge.LineStyle, Converter={StaticResource EnumEquals}, ConverterParameter=Dashed}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeDashed}">
+                            <Line StartPoint="0,0" EndPoint="18,0" StrokeThickness="2" StrokeDashArray="2,1.5"
+                                  Stroke="{DynamicResource FloatingChromeForegroundBrush}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
+                        <Button Classes="mmTool" Command="{Binding SetEdgeLineCommand}" CommandParameter="Dotted"
+                                Classes.active="{Binding SelectedEdge.LineStyle, Converter={StaticResource EnumEquals}, ConverterParameter=Dotted}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeDotted}">
+                            <Line StartPoint="0,0" EndPoint="18,0" StrokeThickness="2" StrokeDashArray="0.5,2" StrokeLineCap="Round"
+                                  Stroke="{DynamicResource FloatingChromeForegroundBrush}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
+                    </StackPanel>
+
+                    <Border Width="1" Height="20" Background="{DynamicResource FloatingChromeDividerBrush}" VerticalAlignment="Center"/>
+
+                    <!-- Arrow caps -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <Button Classes="mmTool" Command="{Binding ToggleEdgeStartCapCommand}" Content="&#x2190;"
+                                Classes.active="{Binding SelectedEdge.StartCap, Converter={StaticResource EnumEquals}, ConverterParameter=Arrow}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeStartArrow}"/>
+                        <Button Classes="mmTool" Command="{Binding ToggleEdgeEndCapCommand}" Content="&#x2192;"
+                                Classes.active="{Binding SelectedEdge.EndCap, Converter={StaticResource EnumEquals}, ConverterParameter=Arrow}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeEndArrow}"/>
+                    </StackPanel>
+
+                    <Border Width="1" Height="20" Background="{DynamicResource FloatingChromeDividerBrush}" VerticalAlignment="Center"/>
+
+                    <!-- Color -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <Button Classes="mmSwatch" Command="{Binding SetEdgeColorCommand}" CommandParameter="stroke"
+                                Classes.active="{Binding SelectedEdge.ColorToken, Converter={StaticResource EnumEquals}, ConverterParameter=stroke}">
+                            <Border Width="15" Height="15" CornerRadius="8" Background="{DynamicResource BorderBrush}"/>
+                        </Button>
+                        <Button Classes="mmSwatch" Command="{Binding SetEdgeColorCommand}" CommandParameter="accent"
+                                Classes.active="{Binding SelectedEdge.ColorToken, Converter={StaticResource EnumEquals}, ConverterParameter=accent}">
+                            <Border Width="15" Height="15" CornerRadius="8" Background="{DynamicResource AccentBrush}"/>
+                        </Button>
+                        <Button Classes="mmSwatch" Command="{Binding SetEdgeColorCommand}" CommandParameter="palette.3"
+                                Classes.active="{Binding SelectedEdge.ColorToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.3}">
+                            <Border Width="15" Height="15" CornerRadius="8" Background="{DynamicResource MindmapPalette3Brush}"/>
+                        </Button>
+                        <Button Classes="mmSwatch" Command="{Binding SetEdgeColorCommand}" CommandParameter="palette.5"
+                                Classes.active="{Binding SelectedEdge.ColorToken, Converter={StaticResource EnumEquals}, ConverterParameter=palette.5}">
+                            <Border Width="15" Height="15" CornerRadius="8" Background="{DynamicResource MindmapPalette5Brush}"/>
+                        </Button>
+                    </StackPanel>
+
+                    <Border Width="1" Height="20" Background="{DynamicResource FloatingChromeDividerBrush}" VerticalAlignment="Center"/>
+
+                    <Button Classes="mmTool" Command="{Binding DeleteEdgeCommand}"
+                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=DeleteEdge}">
+                        <controls:AppIcon Icon="Common/trash" Width="14" Height="14"
+                                          Color="{DynamicResource FloatingChromeForegroundBrush}"/>
+                    </Button>
+                </StackPanel>
+            </Border>
         </Canvas>
 
         <!-- Bottom tool pill: place elements (node, shape, text) at the viewport center -->
