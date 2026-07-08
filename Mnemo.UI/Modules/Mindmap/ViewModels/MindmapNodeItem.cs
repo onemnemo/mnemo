@@ -4,9 +4,10 @@ using Mnemo.Core.Models.Mindmap;
 namespace Mnemo.UI.Modules.Mindmap.ViewModels;
 
 /// <summary>
-/// A single node as rendered on the editor canvas (schema v2). A lightweight view projection of a
-/// <c>MindmapElement</c> of kind Node — position, size, label and selection state — kept separate from
-/// the immutable document model so the canvas can bind and update it without touching storage.
+/// A single canvas element as rendered in the editor (schema v2). A lightweight view projection of a
+/// <c>MindmapElement</c> — position, size, label, style and selection state — kept separate from the
+/// immutable document model so the canvas can bind and update it without touching storage. Covers tree
+/// nodes and the free kinds (text, shapes); <see cref="Kind"/> tells the canvas how to draw it.
 /// </summary>
 public partial class MindmapNodeItem : ObservableObject
 {
@@ -14,12 +15,27 @@ public partial class MindmapNodeItem : ObservableObject
     public const double DefaultWidth = 132;
     public const double DefaultHeight = 40;
 
+    /// <summary>Default box for a newly placed free shape and free text label.</summary>
+    public const double ShapeDefaultWidth = 132;
+    public const double ShapeDefaultHeight = 76;
+    public const double TextDefaultWidth = 140;
+    public const double TextDefaultHeight = 36;
+
     /// <summary>Pin badge geometry (top-right corner): draw radius, inset from the corner, and click radius.</summary>
     public const double PinBadgeRadius = 4.5;
     public const double PinBadgeInset = 9;
     public const double PinBadgeHitRadius = 11;
 
     public required string Id { get; init; }
+
+    /// <summary>The element kind this item projects. Free kinds (Text/Shape) draw differently and skip the tree and auto-layout.</summary>
+    public ElementKind Kind { get; init; } = ElementKind.Node;
+
+    /// <summary>Geometry for a free <see cref="ElementKind.Shape"/> element; null for nodes and text.</summary>
+    public ShapeType? FreeShape { get; init; }
+
+    /// <summary>True for free (non-node) elements: fixed position, no hierarchy, no auto-layout.</summary>
+    public bool IsFree => Kind is not ElementKind.Node;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CenterX))]

@@ -15,6 +15,21 @@
     "mindmap.edit-edge-label": "Rediger kantetikett"
   },
   "Mindmap": {
+    "NewNode": "Ny node",
+    "NewText": "Tekst",
+    "ToolNode": "Legg til node",
+    "ToolText": "Legg til tekst",
+    "ToolRectangle": "Legg til rektangel",
+    "ToolEllipse": "Legg til ellipse",
+    "ToolDiamond": "Legg til rombe",
+    "ToolShape": "Former",
+    "ShapeRectangle": "Rektangel",
+    "ShapeEllipse": "Ellipse",
+    "ShapeDiamond": "Rombe",
+    "ShapeHexagon": "Sekskant",
+    "ShapeParallelogram": "Parallellogram",
+    "ShapeLine": "Linje",
+    "ShapeArrow": "Pil",
     "LayoutBalanced": "Balansert",
     "LayoutTreeRight": "Tre · høyre",
     "LayoutTreeDown": "Tre · ned",
@@ -53,6 +68,7 @@
     "TextColor": "Tekst",
     "Shape": "Form",
     "Size": "Størrelse",
-    "ApplyColor": "Bruk farge"
+    "ApplyColor": "Bruk farge",
+    "ShapesInlineTextHint": "Former kan inneholde tekst"
   }
 }

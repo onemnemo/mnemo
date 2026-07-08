@@ -52,6 +52,51 @@
         <Style Selector="Button.mmTool:pointerover">
             <Setter Property="Background" Value="{DynamicResource FloatingChromeHoverBrush}"/>
         </Style>
+        <!-- Bottom tool pill buttons: larger square hit target inside the rounded pill. -->
+        <Style Selector="Button.mmPill">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.mmPill:pointerover">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+        </Style>
+        <!-- Shape flyout: white popover card; tiles show a shape glyph over a small label. -->
+        <Style Selector="FlyoutPresenter.mmShapeFlyout">
+            <Setter Property="Background" Value="{DynamicResource WorkspaceBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="MinWidth" Value="0"/>
+        </Style>
+        <Style Selector="Button.shapeTile">
+            <Setter Property="Height" Value="52"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        </Style>
+        <Style Selector="Button.shapeTile:pointerover">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+        </Style>
+        <Style Selector="StackPanel.shapeTileBody">
+            <Setter Property="Spacing" Value="5"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.shapeTile TextBlock.shapeTileLabel">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        </Style>
         <Style Selector="Button.mmTool.active">
             <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundBrush}"/>
@@ -334,6 +379,99 @@
             </Border>
         </Canvas>
 
+        <!-- Bottom tool pill: place elements (node, shape, text) at the viewport center -->
+        <Grid Grid.Column="0">
+            <Border VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,18"
+                    Height="44" Padding="7,0"
+                    Background="{DynamicResource WorkspaceBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="22" BoxShadow="0 10 28 0 #26000000">
+                <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                    <Button Classes="mmPill" Click="OnAddNodeClick" ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolNode}">
+                        <controls:AppIcon Icon="Mindmap/node" Width="18" Height="18"
+                                          Color="{DynamicResource TextSecondaryBrush}"/>
+                    </Button>
+                    <!-- Shape opens a flyout of primitives rather than one button per shape -->
+                    <Button x:Name="ShapeButton" Classes="mmPill" ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolShape}">
+                        <Panel Width="22" Height="22">
+                            <controls:AppIcon Icon="Common/square" Width="15" Height="15"
+                                              Color="{DynamicResource TextSecondaryBrush}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Path Data="M0,5 L5,5 L5,0 Z" Fill="{DynamicResource TextTertiaryBrush}"
+                                  Width="5" Height="5"
+                                  HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+                        </Panel>
+                        <Button.Flyout>
+                            <Flyout Placement="Top" FlyoutPresenterClasses="mmShapeFlyout">
+                                <StackPanel Width="252">
+                                    <UniformGrid Columns="4">
+                                        <Button Classes="shapeTile" Tag="Rectangle" Click="OnShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/rectangle" Width="24" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeRectangle}"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="shapeTile" Tag="Ellipse" Click="OnShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/ellipse" Width="24" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeEllipse}"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="shapeTile" Tag="Diamond" Click="OnShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/diamond" Width="20" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeDiamond}"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="shapeTile" Tag="Hexagon" Click="OnShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/hexagon" Width="22" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeHexagon}"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="shapeTile" Tag="Parallelogram" Click="OnShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/parallelogram" Width="24" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeParallelogram}"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="shapeTile" Tag="Line" Click="OnShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/line" Width="24" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeLine}"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="shapeTile" Tag="Arrow" Click="OnShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/arrow" Width="24" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeArrow}"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </UniformGrid>
+                                    <Border Margin="0,8,0,0" Padding="4,8,4,0" BorderThickness="0,1,0,0"
+                                            BorderBrush="{DynamicResource DividerSubtleBrush}">
+                                        <TextBlock Text="{markup:T Ns=Mindmap, Key=ShapesInlineTextHint}"
+                                                   FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}"/>
+                                    </Border>
+                                </StackPanel>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                    <Button Classes="mmPill" Click="OnAddTextClick" ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolText}">
+                        <controls:AppIcon Icon="Common/type" Width="16" Height="16"
+                                          Color="{DynamicResource TextSecondaryBrush}"/>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
+
         <!-- Docked style inspector: the full per-node styling surface -->
         <Border Grid.Column="1" Width="272" IsVisible="{Binding IsInspectorOpen}"
                 Background="{DynamicResource WorkspaceBackgroundBrush}"
@@ -348,8 +486,8 @@
 
                     <StackPanel IsVisible="{Binding HasSelection}" Spacing="18">
 
-                        <!-- Template for the selected node's tree -->
-                        <StackPanel Spacing="8">
+                        <!-- Template for the selected node's tree (node selections only) -->
+                        <StackPanel Spacing="8" IsVisible="{Binding IsNodeSelected}">
                             <TextBlock Classes="insHeader" Text="{markup:T Ns=Mindmap, Key=TemplateThisTree}"/>
                             <controls:ModernComboBox Classes="compact" HorizontalAlignment="Stretch"
                                                      ItemsSource="{Binding TemplateOptions}"

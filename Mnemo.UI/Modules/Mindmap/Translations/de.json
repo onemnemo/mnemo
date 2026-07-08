@@ -15,6 +15,21 @@
     "mindmap.edit-edge-label": "Kantenbeschriftung bearbeiten"
   },
   "Mindmap": {
+    "NewNode": "Neuer Knoten",
+    "NewText": "Text",
+    "ToolNode": "Knoten hinzufügen",
+    "ToolText": "Text hinzufügen",
+    "ToolRectangle": "Rechteck hinzufügen",
+    "ToolEllipse": "Ellipse hinzufügen",
+    "ToolDiamond": "Raute hinzufügen",
+    "ToolShape": "Formen",
+    "ShapeRectangle": "Rechteck",
+    "ShapeEllipse": "Ellipse",
+    "ShapeDiamond": "Raute",
+    "ShapeHexagon": "Sechseck",
+    "ShapeParallelogram": "Parallelogramm",
+    "ShapeLine": "Linie",
+    "ShapeArrow": "Pfeil",
     "LayoutBalanced": "Ausgewogen",
     "LayoutTreeRight": "Baum · rechts",
     "LayoutTreeDown": "Baum · unten",
@@ -53,6 +68,7 @@
     "TextColor": "Text",
     "Shape": "Form",
     "Size": "Größe",
-    "ApplyColor": "Farbe anwenden"
+    "ApplyColor": "Farbe anwenden",
+    "ShapesInlineTextHint": "Formen können Text enthalten"
   }
 }

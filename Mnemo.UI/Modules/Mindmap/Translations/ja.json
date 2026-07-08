@@ -15,6 +15,21 @@
     "mindmap.edit-edge-label": "エッジラベルを編集"
   },
   "Mindmap": {
+    "NewNode": "新しいノード",
+    "NewText": "テキスト",
+    "ToolNode": "ノードを追加",
+    "ToolText": "テキストを追加",
+    "ToolRectangle": "四角形を追加",
+    "ToolEllipse": "楕円を追加",
+    "ToolDiamond": "ひし形を追加",
+    "ToolShape": "シェイプ",
+    "ShapeRectangle": "四角形",
+    "ShapeEllipse": "楕円",
+    "ShapeDiamond": "ひし形",
+    "ShapeHexagon": "六角形",
+    "ShapeParallelogram": "平行四辺形",
+    "ShapeLine": "線",
+    "ShapeArrow": "矢印",
     "LayoutBalanced": "バランス",
     "LayoutTreeRight": "ツリー・右",
     "LayoutTreeDown": "ツリー・下",
@@ -53,6 +68,7 @@
     "TextColor": "テキスト",
     "Shape": "形状",
     "Size": "サイズ",
-    "ApplyColor": "色を適用"
+    "ApplyColor": "色を適用",
+    "ShapesInlineTextHint": "図形にはテキストを入力できます"
   }
 }

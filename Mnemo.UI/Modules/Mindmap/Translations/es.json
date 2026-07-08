@@ -15,6 +15,21 @@
     "mindmap.edit-edge-label": "Editar etiqueta de arista"
   },
   "Mindmap": {
+    "NewNode": "Nuevo nodo",
+    "NewText": "Texto",
+    "ToolNode": "Añadir nodo",
+    "ToolText": "Añadir texto",
+    "ToolRectangle": "Añadir rectángulo",
+    "ToolEllipse": "Añadir elipse",
+    "ToolDiamond": "Añadir rombo",
+    "ToolShape": "Formas",
+    "ShapeRectangle": "Rectángulo",
+    "ShapeEllipse": "Elipse",
+    "ShapeDiamond": "Rombo",
+    "ShapeHexagon": "Hexágono",
+    "ShapeParallelogram": "Paralelogramo",
+    "ShapeLine": "Línea",
+    "ShapeArrow": "Flecha",
     "LayoutBalanced": "Equilibrado",
     "LayoutTreeRight": "Árbol · derecha",
     "LayoutTreeDown": "Árbol · abajo",
@@ -53,6 +68,7 @@
     "TextColor": "Texto",
     "Shape": "Forma",
     "Size": "Tamaño",
-    "ApplyColor": "Aplicar color"
+    "ApplyColor": "Aplicar color",
+    "ShapesInlineTextHint": "Las formas admiten texto"
   }
 }

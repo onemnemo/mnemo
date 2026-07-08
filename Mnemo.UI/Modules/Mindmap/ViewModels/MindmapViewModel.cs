@@ -79,10 +79,14 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
+    [NotifyPropertyChangedFor(nameof(IsNodeSelected))]
     private MindmapNodeItem? _selectedNode;
 
-    /// <summary>True when a node is selected; drives the inspector's content vs its empty state.</summary>
+    /// <summary>True when any element is selected; drives the inspector's content vs its empty state.</summary>
     public bool HasSelection => SelectedNode is not null;
+
+    /// <summary>True only for a tree node (not a free shape/text); gates node-only inspector controls.</summary>
+    public bool IsNodeSelected => SelectedNode is { IsFree: false };
 
     /// <summary>Whether the docked style inspector panel is open (toggled from the top bar).</summary>
     [ObservableProperty]
@@ -292,7 +296,8 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     /// <summary>Sets the selected node's cluster (tree) template, layering above the document default.</summary>
     private Task SetClusterTemplateAsync(string templateId)
     {
-        if (SelectedNode is null)
+        // Only tree nodes belong to a cluster; free elements have no template of their own.
+        if (SelectedNode is null || SelectedNode.IsFree)
             return Task.CompletedTask;
         return ApplyToSelectionAsync(new LayoutOp { Root = ClusterRootOf(SelectedNode.Id), TemplateId = templateId });
     }
@@ -442,6 +447,31 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                 StrokeToken = style.Stroke,
                 TextToken = style.TextColor,
                 Shape = style.NodeShape,
+                FontScale = style.FontScale,
+            };
+            items[element.Id] = item;
+            Nodes.Add(item);
+        }
+
+        // Free elements (shapes, text) sit at their stored positions outside the tree and auto-layout; the
+        // cascade's template rules don't apply to them (StyleContext.Free), only their own overrides.
+        foreach (var element in document.Elements.Where(e => e.Kind is ElementKind.Shape or ElementKind.Text))
+        {
+            var style = _styleResolver.Resolve(element.Style, StyleContext.Free, System.Array.Empty<StyleTemplate>());
+            var item = new MindmapNodeItem
+            {
+                Id = element.Id,
+                Kind = element.Kind,
+                FreeShape = (element.Content as ShapeContent)?.Shape,
+                X = element.X,
+                Y = element.Y,
+                Width = element.Width ?? DefaultFreeWidth(element.Kind),
+                Height = element.Height ?? DefaultFreeHeight(element.Kind),
+                Text = NodeText(element.Content),
+                HasStyleOverride = element.Style is not null,
+                FillToken = style.Fill,
+                StrokeToken = style.Stroke,
+                TextToken = style.TextColor,
                 FontScale = style.FontScale,
             };
             items[element.Id] = item;
@@ -650,8 +680,16 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         CodeContent code => code.Source,
         LinkContent link => link.Title ?? link.Url,
         MathContent math => math.Latex,
+        FreeTextContent free => free.Text,
+        ShapeContent shape => shape.Text ?? string.Empty,
         _ => string.Empty,
     };
+
+    private static double DefaultFreeWidth(ElementKind kind) =>
+        kind == ElementKind.Text ? MindmapNodeItem.TextDefaultWidth : MindmapNodeItem.ShapeDefaultWidth;
+
+    private static double DefaultFreeHeight(ElementKind kind) =>
+        kind == ElementKind.Text ? MindmapNodeItem.TextDefaultHeight : MindmapNodeItem.ShapeDefaultHeight;
 
     // --- Selection ---------------------------------------------------------
 
@@ -660,8 +698,12 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     public void Select(MindmapNodeItem? node)
     {
-        foreach (var n in Nodes)
-            n.IsSelected = ReferenceEquals(n, node);
+        // Only toggle the two affected items; looping every node fired a property-change and canvas
+        // invalidate per element on every click, which dragged on large maps.
+        if (SelectedNode is { } previous && !ReferenceEquals(previous, node))
+            previous.IsSelected = false;
+        if (node is not null)
+            node.IsSelected = true;
         SelectedNode = node;
         ((AsyncRelayCommand)DeleteSelectedCommand).NotifyCanExecuteChanged();
     }
@@ -936,6 +978,10 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             return;
         }
 
+        // Tree editing only applies to nodes; a selected free element (shape/text) has no hierarchy.
+        if (SelectedNode.IsFree)
+            return;
+
         await ApplyAsync(new AddNodesOp
         {
             Under = SelectedNode.Id,
@@ -950,6 +996,9 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             await AddRootAsync().ConfigureAwait(true);
             return;
         }
+
+        if (SelectedNode.IsFree)
+            return;
 
         var parentEdge = _document.Edges.FirstOrDefault(e => e.Kind == EdgeKind.Hierarchy && e.ToId == SelectedNode.Id);
         await ApplyAsync(new AddNodesOp
@@ -967,6 +1016,36 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             Nodes = new[] { new MindmapNodeSpec { Ref = "new", Text = T("NewNode"), X = contentPoint.X, Y = contentPoint.Y } },
         }, selectRef: "new").ConfigureAwait(true);
     }
+
+    /// <summary>Places a free text label centered on the given content point and selects it.</summary>
+    public Task CreateFreeTextAsync(Point contentPoint) =>
+        AddFreeElementAsync(
+            ElementKind.Text,
+            new FreeTextContent { Text = T("NewText") },
+            MindmapNodeItem.TextDefaultWidth,
+            MindmapNodeItem.TextDefaultHeight,
+            contentPoint);
+
+    /// <summary>Places a free shape of the given geometry centered on the content point and selects it.</summary>
+    public Task CreateShapeAsync(ShapeType shape, Point contentPoint) =>
+        AddFreeElementAsync(
+            ElementKind.Shape,
+            new ShapeContent { Shape = shape },
+            MindmapNodeItem.ShapeDefaultWidth,
+            MindmapNodeItem.ShapeDefaultHeight,
+            contentPoint);
+
+    private Task AddFreeElementAsync(ElementKind kind, IElementContent content, double width, double height, Point center) =>
+        ApplyAsync(new AddElementOp
+        {
+            Ref = "new",
+            Kind = kind,
+            Content = content,
+            X = center.X - width / 2,
+            Y = center.Y - height / 2,
+            Width = width,
+            Height = height,
+        }, selectRef: "new");
 
     private Task AddRootAsync() => ApplyAsync(new AddNodesOp
     {

@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Models.Keybinds;
+using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Services;
 using Mnemo.UI.Modules.Mindmap.ViewModels;
 using Mnemo.UI.Services;
@@ -170,6 +171,34 @@ public partial class MindmapView : UserControl
         var content = Vm.ScreenToContent(e.GetPosition(_host));
         if (HitTest(content) is null)
             await Vm.CreateNodeAtAsync(content);
+    }
+
+    // --- Bottom tool pill: place free elements at the current viewport center ---
+
+    private async void OnAddNodeClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is not null)
+            await Vm.CreateNodeAtAsync(ViewportCenterContent());
+    }
+
+    private async void OnAddTextClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is not null)
+            await Vm.CreateFreeTextAsync(ViewportCenterContent());
+    }
+
+    private async void OnShapeClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is null || sender is not Control { Tag: string name } || !Enum.TryParse<ShapeType>(name, out var shape))
+            return;
+        ShapeButton.Flyout?.Hide();
+        await Vm.CreateShapeAsync(shape, ViewportCenterContent());
+    }
+
+    private Point ViewportCenterContent()
+    {
+        var size = _host?.Bounds.Size ?? new Size(800, 500);
+        return Vm!.ScreenToContent(new Point(size.Width / 2, size.Height / 2));
     }
 
     // Hit-testing goes through the canvas control's quadtree (topmost node under the point).

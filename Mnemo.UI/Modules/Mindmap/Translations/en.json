@@ -15,6 +15,21 @@
     "mindmap.edit-edge-label": "Edit edge label"
   },
   "Mindmap": {
+    "NewNode": "New node",
+    "NewText": "Text",
+    "ToolNode": "Add node",
+    "ToolText": "Add text",
+    "ToolRectangle": "Add rectangle",
+    "ToolEllipse": "Add ellipse",
+    "ToolDiamond": "Add diamond",
+    "ToolShape": "Shapes",
+    "ShapeRectangle": "Rectangle",
+    "ShapeEllipse": "Ellipse",
+    "ShapeDiamond": "Diamond",
+    "ShapeHexagon": "Hexagon",
+    "ShapeParallelogram": "Parallelogram",
+    "ShapeLine": "Line",
+    "ShapeArrow": "Arrow",
     "LayoutBalanced": "Balanced",
     "LayoutTreeRight": "Tree · right",
     "LayoutTreeDown": "Tree · down",
@@ -53,6 +68,7 @@
     "TextColor": "Text",
     "Shape": "Shape",
     "Size": "Size",
-    "ApplyColor": "Apply color"
+    "ApplyColor": "Apply color",
+    "ShapesInlineTextHint": "Shapes take inline text"
   }
 }

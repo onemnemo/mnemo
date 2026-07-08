@@ -194,28 +194,33 @@ public sealed class MindmapCanvasControl : Control
 
     private void DrawNodes(DrawingContext context, Rect visible)
     {
-        EnsureTree();
-        if (_tree is null)
+        if (_nodeList.Count == 0)
             return;
 
-        _queryBuffer.Clear();
-        _tree.Query(visible, _queryBuffer);
-        _queryBuffer.Sort(); // ascending index == draw order; also groups duplicates for dedupe
-
+        // Cull with a straight pass over the list rather than the quadtree: a moved element marks the tree
+        // dirty, so querying here would rebuild it on every drag frame. The tree is kept for hit-testing,
+        // which rebuilds lazily on the next pointer press. List order is already the draw (z) order.
         var selectedPen = new Pen(SelectedStroke ?? Brushes.OrangeRed, SelectedStrokeThickness);
-
-        var previous = -1;
-        foreach (var index in _queryBuffer)
+        for (var i = 0; i < _nodeList.Count; i++)
         {
-            if (index == previous)
-                continue;
-            previous = index;
-            DrawNode(context, _nodeList[index], selectedPen);
+            var node = _nodeList[i];
+            if (NodeRect(node).Intersects(visible))
+                DrawNode(context, node, selectedPen);
         }
     }
 
     private void DrawNode(DrawingContext context, MindmapNodeItem node, Pen selectedPen)
     {
+        switch (node.Kind)
+        {
+            case ElementKind.Text:
+                DrawFreeText(context, node, selectedPen);
+                return;
+            case ElementKind.Shape:
+                DrawShape(context, node, selectedPen);
+                return;
+        }
+
         var rect = NodeRect(node);
         var radius = node.Shape == NodeShape.Pill ? node.Height / 2 : CornerRadius;
 
@@ -251,6 +256,99 @@ public sealed class MindmapCanvasControl : Control
                 context.DrawEllipse(pinBrush, null, center, MindmapNodeItem.PinBadgeRadius, MindmapNodeItem.PinBadgeRadius);
             }
         }
+    }
+
+    // A free text label: just the text, with a selection outline so it can be grabbed when empty.
+    private void DrawFreeText(DrawingContext context, MindmapNodeItem node, Pen selectedPen)
+    {
+        if (node.IsSelected)
+            context.DrawRectangle(null, selectedPen, NodeRect(node), CornerRadius, CornerRadius);
+
+        var text = GetFormattedText(node);
+        if (text is not null)
+            context.DrawText(text, new Point(node.X + TextPadding / 2, node.Y + (node.Height - text.Height) / 2));
+    }
+
+    // A free shape: its geometry (filled + stroked) with optional inline text. Lines and arrows are stroke only.
+    private void DrawShape(DrawingContext context, MindmapNodeItem node, Pen selectedPen)
+    {
+        var rect = NodeRect(node);
+        var shape = node.FreeShape ?? ShapeType.Rectangle;
+        var fill = ResolveBrush(node.FillToken) ?? ResolveBrush(MindmapStyleTokens.Surface);
+        var border = node.IsSelected
+            ? selectedPen
+            : new Pen(ResolveBrush(node.StrokeToken) ?? Brushes.Gray, NodeStrokeThickness);
+
+        switch (shape)
+        {
+            case ShapeType.Ellipse:
+                context.DrawEllipse(fill, border, rect.Center, rect.Width / 2, rect.Height / 2);
+                break;
+            case ShapeType.Line:
+                context.DrawLine(border, new Point(rect.Left, rect.Center.Y), new Point(rect.Right, rect.Center.Y));
+                break;
+            case ShapeType.Arrow:
+                DrawArrow(context, border, rect);
+                break;
+            case ShapeType.Rectangle:
+                context.DrawRectangle(fill, border, rect, CornerRadius, CornerRadius);
+                break;
+            default:
+                context.DrawGeometry(fill, border, BuildPolygon(rect, shape));
+                break;
+        }
+
+        if (shape is ShapeType.Line or ShapeType.Arrow)
+            return;
+
+        var text = GetFormattedText(node);
+        if (text is not null)
+            context.DrawText(text, new Point(node.X + TextPadding / 2, node.Y + (node.Height - text.Height) / 2));
+    }
+
+    private static StreamGeometry BuildPolygon(Rect r, ShapeType shape)
+    {
+        var points = shape switch
+        {
+            ShapeType.Diamond => new[]
+            {
+                new Point(r.Center.X, r.Top), new Point(r.Right, r.Center.Y),
+                new Point(r.Center.X, r.Bottom), new Point(r.Left, r.Center.Y),
+            },
+            ShapeType.Hexagon => new[]
+            {
+                new Point(r.Left + r.Width * 0.25, r.Top), new Point(r.Left + r.Width * 0.75, r.Top),
+                new Point(r.Right, r.Center.Y),
+                new Point(r.Left + r.Width * 0.75, r.Bottom), new Point(r.Left + r.Width * 0.25, r.Bottom),
+                new Point(r.Left, r.Center.Y),
+            },
+            _ => new[] // Parallelogram
+            {
+                new Point(r.Left + r.Width * 0.18, r.Top), new Point(r.Right, r.Top),
+                new Point(r.Right - r.Width * 0.18, r.Bottom), new Point(r.Left, r.Bottom),
+            },
+        };
+
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(points[0], isFilled: true);
+            for (var i = 1; i < points.Length; i++)
+                ctx.LineTo(points[i]);
+            ctx.EndFigure(isClosed: true);
+        }
+        return geometry;
+    }
+
+    private static void DrawArrow(DrawingContext context, Pen pen, Rect r)
+    {
+        var start = new Point(r.Left, r.Center.Y);
+        var end = new Point(r.Right, r.Center.Y);
+        context.DrawLine(pen, start, end);
+
+        var head = Math.Min(12, r.Width * 0.3);
+        context.DrawLine(pen, end, new Point(end.X - head, end.Y - head * 0.6));
+        context.DrawLine(pen, end, new Point(end.X - head, end.Y + head * 0.6));
     }
 
     private FormattedText? GetFormattedText(MindmapNodeItem node)
@@ -436,7 +534,8 @@ public sealed class MindmapCanvasControl : Control
         foreach (var node in _nodeList)
             node.PropertyChanged -= OnNodeItemChanged;
         _nodeList.Clear();
-        _textCache.Clear();
+        // The text cache is keyed by content (text, scale, token, width), not by item instance, so it stays
+        // valid across a reload. Keeping it means an edit or move does not re-shape every label.
 
         if (_nodes is not null)
             foreach (var item in _nodes)
