@@ -10,7 +10,7 @@ namespace Mnemo.Infrastructure.Services.Mindmap.Persistence;
 internal static class MindmapStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 2;
+    public const int TargetVersion = 3;
 
     /// <summary>Every table and the FTS virtual table, created if absent (fresh databases).</summary>
     public const string CreateSql = """
@@ -41,6 +41,15 @@ internal static class MindmapStoreSchema
             SortOrder INTEGER NOT NULL DEFAULT 0
         );
 
+        -- User style templates, global across all maps. The whole template is stored as JSON; Name is
+        -- kept as an indexed header column so the picker can list without deserializing every row.
+        CREATE TABLE IF NOT EXISTS MindmapStyleTemplates (
+            Id        TEXT PRIMARY KEY,
+            Name      TEXT NOT NULL,
+            Json      TEXT NOT NULL,
+            CreatedAt TEXT NOT NULL
+        );
+
         -- Self-contained FTS5 mirror: MapId/ElementId are stored but not tokenized (UNINDEXED); only
         -- Text is searchable. Rows are inserted/deleted per touched element on commit, so DELETE ... WHERE
         -- on the un-indexed columns is used (a standalone FTS5 table supports ordinary DML).
@@ -52,7 +61,8 @@ internal static class MindmapStoreSchema
     /// <summary>
     /// Idempotent ALTER statements bringing a v1 database (maps only, no library columns/folders) up to
     /// v2. The folders table is created by <see cref="CreateSql"/>; only the new Mindmaps columns need
-    /// adding to an existing table. Guarded per-column by the store via PRAGMA table_info.
+    /// adding to an existing table. Guarded per-column by the store via PRAGMA table_info. v3 adds the
+    /// style-templates table, which needs no ALTER since <see cref="CreateSql"/> creates it if absent.
     /// </summary>
     public const string AddFolderIdColumnSql = "ALTER TABLE Mindmaps ADD COLUMN FolderId TEXT NULL;";
 

@@ -55,6 +55,10 @@
             <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundBrush}"/>
         </Style>
+        <Style Selector="Button.mmTool:disabled">
+            <Setter Property="Opacity" Value="0.35"/>
+            <Setter Property="Cursor" Value="Arrow"/>
+        </Style>
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,*">
@@ -216,11 +220,13 @@
                     <Border Width="1" Height="20" Background="{DynamicResource FloatingChromeDividerBrush}" VerticalAlignment="Center"/>
 
                     <Button Classes="mmTool" Command="{Binding StyleSubtreeCommand}"
+                            IsEnabled="{Binding SelectedNode.HasStyleOverride, FallbackValue=False}"
                             ToolTip.Tip="{markup:T Ns=Mindmap, Key=StyleSubtree}">
                         <controls:AppIcon Icon="Common/sitemap" Width="14" Height="14"
                                           Color="{DynamicResource FloatingChromeForegroundBrush}"/>
                     </Button>
                     <Button Classes="mmTool" Command="{Binding ClearNodeStyleCommand}"
+                            IsEnabled="{Binding SelectedNode.HasStyleOverride, FallbackValue=False}"
                             ToolTip.Tip="{markup:T Ns=Mindmap, Key=ClearStyle}">
                         <controls:AppIcon Icon="Common/eraser" Width="14" Height="14"
                                           Color="{DynamicResource FloatingChromeForegroundBrush}"/>

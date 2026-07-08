@@ -46,4 +46,15 @@ public interface IMindmapStore
 
     /// <summary>Assigns a map to a folder, or to the root when <paramref name="folderId"/> is null.</summary>
     Task SetFolderAsync(string mapId, string? folderId, CancellationToken cancellationToken = default);
+
+    // ---- User style templates (global, shared across all maps) -----------------------------------
+
+    /// <summary>Lists the user's saved style templates, oldest first.</summary>
+    Task<IReadOnlyList<StyleTemplate>> GetStyleTemplatesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Upserts a user style template by id (creation time is preserved across updates).</summary>
+    Task SaveStyleTemplateAsync(StyleTemplate template, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes a user style template by id.</summary>
+    Task DeleteStyleTemplateAsync(string id, CancellationToken cancellationToken = default);
 }

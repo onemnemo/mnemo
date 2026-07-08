@@ -339,6 +339,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                 IsRoot = !hasParent.Contains(element.Id),
                 IsPinned = element.Pinned,
                 IsCollapsed = element.Collapsed,
+                HasStyleOverride = element.Style is not null,
                 FillToken = style.Fill,
                 StrokeToken = style.Stroke,
                 TextToken = style.TextColor,

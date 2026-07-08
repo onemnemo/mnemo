@@ -54,6 +54,10 @@ public partial class MindmapNodeItem : ObservableObject
     [ObservableProperty]
     private bool _isCollapsed;
 
+    /// <summary>Whether the node carries its own style override. Gates the subtree/clear toolbar actions, which are inert without one.</summary>
+    [ObservableProperty]
+    private bool _hasStyleOverride;
+
     // Resolved style, filled from the cascade when the document is projected; color members are theme
     // token references the canvas maps to brushes.
 

@@ -296,6 +296,61 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
             await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }, cancellationToken);
 
+    // ---- User style templates (global, shared across all maps) -----------------------------------
+
+    public async Task<IReadOnlyList<StyleTemplate>> GetStyleTemplatesAsync(CancellationToken cancellationToken = default)
+    {
+        await InitializeAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT Json FROM MindmapStyleTemplates ORDER BY CreatedAt, Name;";
+
+        var templates = new List<StyleTemplate>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var template = JsonSerializer.Deserialize<StyleTemplate>(reader.GetString(0), MindmapDocumentSerializer.Options);
+            if (template is not null)
+                templates.Add(template);
+        }
+
+        return templates;
+    }
+
+    public Task SaveStyleTemplateAsync(StyleTemplate template, CancellationToken cancellationToken = default) =>
+        WriteAsync(async (writer, tx) =>
+        {
+            await using var cmd = writer.CreateCommand();
+            cmd.Transaction = tx;
+            // CreatedAt is set on insert only; the update path omits it so first-saved time is preserved.
+            cmd.CommandText = """
+                INSERT INTO MindmapStyleTemplates (Id, Name, Json, CreatedAt)
+                VALUES ($id, $name, $json, $created)
+                ON CONFLICT(Id) DO UPDATE SET
+                    Name = excluded.Name,
+                    Json = excluded.Json;
+                """;
+            cmd.Parameters.AddWithValue("$id", template.Id);
+            cmd.Parameters.AddWithValue("$name", template.Name);
+            cmd.Parameters.AddWithValue("$json", JsonSerializer.Serialize(template, MindmapDocumentSerializer.Options));
+            cmd.Parameters.AddWithValue("$created", DateTimeOffset.UtcNow.ToString(DateFormat, CultureInfo.InvariantCulture));
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }, cancellationToken);
+
+    public Task DeleteStyleTemplateAsync(string id, CancellationToken cancellationToken = default) =>
+        WriteAsync(async (writer, tx) =>
+        {
+            await using var cmd = writer.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "DELETE FROM MindmapStyleTemplates WHERE Id = $id;";
+            cmd.Parameters.AddWithValue("$id", id);
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }, cancellationToken);
+
     private static IReadOnlyList<string> ParseDeckIds(string json)
     {
         if (string.IsNullOrWhiteSpace(json))

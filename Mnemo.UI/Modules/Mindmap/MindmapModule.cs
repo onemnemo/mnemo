@@ -34,7 +34,7 @@ public class MindmapModule : IModule
         services.AddSingleton<IMindmapLayoutProvider, FreeLayoutProvider>();
         services.AddSingleton<IMindmapLayoutService, MindmapLayoutService>();
 
-        // Styling: the cascade resolver and the template registry (built-ins today, user templates later).
+        // Styling: the cascade resolver and the template registry (built-ins plus the user's saved templates).
         services.AddSingleton<IMindmapStyleResolver, MindmapStyleResolver>();
         services.AddSingleton<IMindmapStyleTemplateProvider, MindmapStyleTemplateProvider>();
 
