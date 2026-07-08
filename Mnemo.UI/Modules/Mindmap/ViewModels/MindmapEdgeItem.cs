@@ -17,12 +17,13 @@ public partial class MindmapEdgeItem : ObservableObject, IDisposable
     private readonly MindmapNodeItem _to;
     private bool _disposed;
 
-    public MindmapEdgeItem(string id, MindmapNodeItem from, MindmapNodeItem to, bool isHierarchy = true)
+    public MindmapEdgeItem(string id, MindmapNodeItem from, MindmapNodeItem to, bool isHierarchy = true, string? colorToken = null)
     {
         Id = id;
         _from = from;
         _to = to;
         IsHierarchy = isHierarchy;
+        ColorToken = colorToken;
         _from.PropertyChanged += OnEndpointChanged;
         _to.PropertyChanged += OnEndpointChanged;
     }
@@ -30,6 +31,9 @@ public partial class MindmapEdgeItem : ObservableObject, IDisposable
     public string Id { get; }
 
     public bool IsHierarchy { get; }
+
+    /// <summary>Style token for the line color (a branch palette token), or null to use the default edge brush.</summary>
+    public string? ColorToken { get; }
 
     public Point Start => new(_from.CenterX, _from.CenterY);
 

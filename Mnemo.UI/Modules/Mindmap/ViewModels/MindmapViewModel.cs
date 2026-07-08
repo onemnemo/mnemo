@@ -349,6 +349,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         }
 
         var items = new Dictionary<string, MindmapNodeItem>();
+        var branchColors = new Dictionary<string, string?>();
         Nodes.Clear();
         foreach (var element in document.Elements.Where(e => e.Kind == ElementKind.Node))
         {
@@ -359,6 +360,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             var context = styleContexts.TryGetValue(element.Id, out var info) ? info.Context : StyleContext.Free;
             var rootId = info.RootId ?? element.Id;
             var style = _styleResolver.Resolve(element.Style, context, ChainFor(rootId));
+            branchColors[element.Id] = style.BranchColor;
 
             var item = new MindmapNodeItem
             {
@@ -387,8 +389,9 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         Edges.Clear();
         foreach (var edge in document.Edges.Where(e => e.Kind == EdgeKind.Hierarchy))
         {
+            // A branch-colored template gives each child a palette token; its incoming edge takes the same.
             if (items.TryGetValue(edge.FromId, out var from) && items.TryGetValue(edge.ToId, out var to))
-                Edges.Add(new MindmapEdgeItem(edge.Id, from, to));
+                Edges.Add(new MindmapEdgeItem(edge.Id, from, to, colorToken: branchColors.GetValueOrDefault(edge.ToId)));
         }
 
         SelectedNode = null;
@@ -627,7 +630,12 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
         var topLeft = _camera.ContentToScreen(new Point(node.X, node.Y));
         SelectionToolbarLeft = topLeft.X;
-        SelectionToolbarTop = topLeft.Y - ToolbarHeight - ToolbarGap;
+
+        // Sit above the node; if that runs past the top of the viewport, flip below it instead.
+        var above = topLeft.Y - ToolbarHeight - ToolbarGap;
+        SelectionToolbarTop = above >= ToolbarGap
+            ? above
+            : _camera.ContentToScreen(new Point(node.X, node.Y + node.Height)).Y + ToolbarGap;
         IsSelectionToolbarVisible = true;
     }
 

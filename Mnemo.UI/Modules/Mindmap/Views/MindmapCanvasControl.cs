@@ -45,6 +45,10 @@ public sealed class MindmapCanvasControl : Control
     public static readonly StyledProperty<IBrush?> SelectedStrokeProperty = AvaloniaProperty.Register<MindmapCanvasControl, IBrush?>(nameof(SelectedStroke));
     public static readonly StyledProperty<IBrush?> EdgeStrokeProperty = AvaloniaProperty.Register<MindmapCanvasControl, IBrush?>(nameof(EdgeStroke));
 
+    /// <summary>Font for node labels; bound to the app's Geist family in XAML.</summary>
+    public static readonly StyledProperty<FontFamily> FontFamilyProperty =
+        AvaloniaProperty.Register<MindmapCanvasControl, FontFamily>(nameof(FontFamily), FontFamily.Default);
+
     private IEnumerable? _nodes;
     private IEnumerable? _edges;
 
@@ -56,12 +60,15 @@ public sealed class MindmapCanvasControl : Control
     // Per-token brush cache, keyed by style token; cleared when the theme changes so colors re-resolve.
     private readonly Dictionary<string, IBrush?> _brushCache = new();
 
+    // Per-token edge pens (branch coloring); cleared alongside the brush cache on a theme change.
+    private readonly Dictionary<string, Pen?> _edgePenCache = new();
+
     private MindmapQuadtree? _tree;
     private bool _treeDirty = true;
 
     static MindmapCanvasControl()
     {
-        AffectsRender<MindmapCanvasControl>(TransformProperty, SelectedStrokeProperty, EdgeStrokeProperty);
+        AffectsRender<MindmapCanvasControl>(TransformProperty, SelectedStrokeProperty, EdgeStrokeProperty, FontFamilyProperty);
     }
 
     public MindmapCanvasControl()
@@ -73,8 +80,9 @@ public sealed class MindmapCanvasControl : Control
 
     private void OnActualThemeVariantChanged(object? sender, EventArgs e)
     {
-        // Cached brushes and formatted text bake in the theme; drop both so the next render re-resolves.
+        // Cached brushes, pens and formatted text bake in the theme; drop them so the next render re-resolves.
         _brushCache.Clear();
+        _edgePenCache.Clear();
         _textCache.Clear();
         InvalidateVisual();
     }
@@ -112,6 +120,7 @@ public sealed class MindmapCanvasControl : Control
     public Matrix Transform { get => GetValue(TransformProperty); set => SetValue(TransformProperty, value); }
     public IBrush? SelectedStroke { get => GetValue(SelectedStrokeProperty); set => SetValue(SelectedStrokeProperty, value); }
     public IBrush? EdgeStroke { get => GetValue(EdgeStrokeProperty); set => SetValue(EdgeStrokeProperty, value); }
+    public FontFamily FontFamily { get => GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
 
     // --- Hit-testing -------------------------------------------------------
 
@@ -161,13 +170,26 @@ public sealed class MindmapCanvasControl : Control
         if (_edgeList.Count == 0)
             return;
 
-        var pen = new Pen(EdgeStroke ?? Brushes.Gray, EdgeStrokeThickness) { LineCap = PenLineCap.Round };
+        var defaultPen = new Pen(EdgeStroke ?? Brushes.Gray, EdgeStrokeThickness) { LineCap = PenLineCap.Round };
         foreach (var edge in _edgeList)
         {
             if (!EdgeBounds(edge).Intersects(visible))
                 continue;
+            var pen = edge.ColorToken is { } token ? EdgePen(token) ?? defaultPen : defaultPen;
             context.DrawGeometry(null, pen, edge.Geometry);
         }
+    }
+
+    // Cached branch-colored pen for a token; null when the token has no theme brush (draw uses the default).
+    private Pen? EdgePen(string token)
+    {
+        if (_edgePenCache.TryGetValue(token, out var cached))
+            return cached;
+
+        var brush = ResolveBrush(token);
+        var pen = brush is null ? null : new Pen(brush, EdgeStrokeThickness) { LineCap = PenLineCap.Round };
+        _edgePenCache[token] = pen;
+        return pen;
     }
 
     private void DrawNodes(DrawingContext context, Rect visible)
@@ -243,7 +265,7 @@ public sealed class MindmapCanvasControl : Control
 
         var brush = ResolveBrush(node.TextToken) ?? Brushes.Black;
         var weight = node.IsRoot ? FontWeight.SemiBold : FontWeight.Normal;
-        var typeface = new Typeface(FontFamily.Default, FontStyle.Normal, weight);
+        var typeface = new Typeface(FontFamily, FontStyle.Normal, weight);
         var text = new FormattedText(node.Text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, FontSizeFor(node.FontScale), brush)
         {
             MaxTextWidth = Math.Max(1, node.Width - TextPadding),
@@ -458,5 +480,12 @@ public sealed class MindmapCanvasControl : Control
         // Repaint when first laid out or resized (culling depends on the control's bounds).
         if (change.Property == BoundsProperty)
             InvalidateVisual();
+
+        // A font change invalidates the measured/cached text.
+        if (change.Property == FontFamilyProperty)
+        {
+            _textCache.Clear();
+            InvalidateVisual();
+        }
     }
 }

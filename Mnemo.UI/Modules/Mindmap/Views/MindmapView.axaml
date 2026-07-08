@@ -126,6 +126,7 @@
                                         Nodes="{Binding Nodes}"
                                         Edges="{Binding Edges}"
                                         Transform="{Binding CanvasTransform}"
+                                        FontFamily="{DynamicResource DefaultFontFamily}"
                                         SelectedStroke="{DynamicResource AccentBrush}"
                                         EdgeStroke="{DynamicResource BorderBrush}"/>
           </Grid>
