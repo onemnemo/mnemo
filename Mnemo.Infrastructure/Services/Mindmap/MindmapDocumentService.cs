@@ -338,6 +338,78 @@ public sealed class MindmapDocumentService : IMindmapService
         }
     }
 
+    public async Task<Result<long>> RestoreAsync(
+        string mapId,
+        long expectedRevision,
+        MindmapRestoreDelta delta,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(delta);
+
+        var gate = _mapGates.GetOrAdd(mapId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var document = await _store.LoadAsync(mapId, cancellationToken).ConfigureAwait(false);
+            if (document is null)
+                return Result<long>.Failure($"Mindmap '{mapId}' was not found.");
+            if (document.SchemaVersion != 2)
+                return Result<long>.Failure($"Mindmap '{mapId}' uses unsupported schema version {document.SchemaVersion}.");
+
+            document = PruneDanglingEdges(document).Value!;
+
+            // Undo/redo restores the local editor's own prior state; a stale revision means someone else
+            // wrote in between, so refuse rather than silently clobbering their change.
+            if (expectedRevision != document.Revision)
+                return Result<long>.Failure($"Cannot restore: revision {expectedRevision} no longer matches the stored revision {document.Revision}.");
+
+            if (delta.IsEmpty)
+                return Result<long>.Success(document.Revision);
+
+            var working = new MindmapWorkingDocument(document, _idGenerator);
+
+            // Clear removed rows first, then restore verbatim: elements before edges so an edge's endpoints
+            // exist, and remove-then-add on an existing edge keeps document order duplicate-free.
+            foreach (var edgeId in delta.RemoveEdgeIds)
+                working.RemoveEdge(edgeId);
+            foreach (var elementId in delta.RemoveElementIds)
+                working.RemoveElement(elementId);
+
+            foreach (var element in delta.Elements)
+            {
+                if (working.ContainsElement(element.Id))
+                    working.ReplaceElement(element);
+                else
+                    working.AddElement(element);
+            }
+
+            foreach (var edge in delta.Edges)
+            {
+                if (working.TryGetEdge(edge.Id, out _))
+                    working.RemoveEdge(edge.Id);
+                working.AddEdge(edge, insertAfterEdgeId: null);
+            }
+
+            foreach (var cluster in delta.Clusters)
+                working.SetCluster(cluster.RootId, cluster);
+
+            var newRevision = document.Revision + 1;
+            var updated = working.Materialize(newRevision, DateTime.UtcNow);
+            await _store.SaveAsync(updated, working.BuildSearchDelta(fullReplace: false), cancellationToken).ConfigureAwait(false);
+            _changeLog.Record(mapId, newRevision, working.ChangeTouchedIds);
+            return Result<long>.Success(newRevision);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", $"Failed to restore mindmap '{mapId}'.", ex);
+            return Result<long>.Failure($"Failed to restore mindmap '{mapId}'.", ex);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     // ---- Concurrency ---------------------------------------------------------------------
 
     /// <summary>

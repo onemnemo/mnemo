@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Mnemo.UI.Modules.Mindmap.ViewModels"
+             xmlns:views="using:Mnemo.UI.Modules.Mindmap.Views"
              xmlns:markup="using:Mnemo.UI.Markup"
              mc:Ignorable="d"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -39,7 +40,10 @@
         <!-- Canvas -->
         <Border Grid.Row="1" Name="CanvasHost" ClipToBounds="True"
                 Background="{DynamicResource WorkspaceBackgroundBrush}">
-            <Canvas Name="World">
+          <Grid>
+            <views:MindmapGridBackground Transform="{Binding CanvasTransform}"
+                                         DotBrush="{DynamicResource DividerSubtleBrush}"/>
+            <Canvas Name="World" RenderTransformOrigin="0,0">
                 <Canvas.RenderTransform>
                     <MatrixTransform Matrix="{Binding CanvasTransform}"/>
                 </Canvas.RenderTransform>
@@ -51,8 +55,9 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:MindmapEdgeItem">
-                            <Line StartPoint="{Binding Start}" EndPoint="{Binding End}"
-                                  Stroke="{DynamicResource BorderBrush}" StrokeThickness="1.5"/>
+                            <Path Data="{Binding Geometry}"
+                                  Stroke="{DynamicResource BorderBrush}" StrokeThickness="1.5"
+                                  StrokeLineCap="Round"/>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -97,6 +102,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </Canvas>
+          </Grid>
         </Border>
     </Grid>
 </UserControl>

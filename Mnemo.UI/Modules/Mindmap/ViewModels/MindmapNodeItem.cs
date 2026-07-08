@@ -12,15 +12,19 @@ public partial class MindmapNodeItem : ObservableObject
     public required string Id { get; init; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CenterX))]
     private double _x;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CenterY))]
     private double _y;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CenterX))]
     private double _width = 132;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CenterY))]
     private double _height = 40;
 
     [ObservableProperty]

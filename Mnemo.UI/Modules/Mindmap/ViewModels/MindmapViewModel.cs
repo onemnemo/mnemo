@@ -22,8 +22,9 @@ namespace Mnemo.UI.Modules.Mindmap.ViewModels;
 /// revisioned op batch.
 /// </summary>
 /// <remarks>
-/// P2 foundation slice: rendering is a straightforward canvas projection (virtualized custom-draw + quadtree
-/// is the tracked next step); undo/redo and clipboard are stubbed pending the op-inverse history.
+/// P2: rendering is a straightforward canvas projection (virtualized custom-draw + quadtree is the tracked
+/// next step). Undo/redo is command-based: each edit records the touched-subset delta that reverses
+/// and replays it. Clipboard (copy/paste/duplicate-selection) is still stubbed.
 /// </remarks>
 public partial class MindmapViewModel : ViewModelBase, INavigationAware
 {
@@ -34,6 +35,13 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     private readonly MindmapCamera _camera = new();
     private MindmapDocument? _document;
+
+    // Command-based history: each edit records the delta that reverses it and the one that replays
+    // it, both scoped to the touched sub-document, so memory is proportional to the change, not the map.
+    private readonly Stack<HistoryEntry> _undoStack = new();
+    private readonly Stack<HistoryEntry> _redoStack = new();
+
+    private sealed record HistoryEntry(MindmapRestoreDelta Undo, MindmapRestoreDelta Redo);
 
     [ObservableProperty]
     private string _mapId = string.Empty;
@@ -92,6 +100,8 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     public void OnNavigatedFrom()
     {
         Nodes.Clear();
+        foreach (var edge in Edges)
+            edge.Dispose();
         Edges.Clear();
     }
 
@@ -110,6 +120,8 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             }
 
             MapId = id;
+            _undoStack.Clear();
+            _redoStack.Clear();
             ApplyDocument(result.Value);
             Recenter();
         }
@@ -164,18 +176,13 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             Nodes.Add(item);
         }
 
+        foreach (var stale in Edges)
+            stale.Dispose();
         Edges.Clear();
         foreach (var edge in document.Edges.Where(e => e.Kind == EdgeKind.Hierarchy))
         {
             if (items.TryGetValue(edge.FromId, out var from) && items.TryGetValue(edge.ToId, out var to))
-            {
-                Edges.Add(new MindmapEdgeItem
-                {
-                    Id = edge.Id,
-                    Start = new Point(from.CenterX, from.CenterY),
-                    End = new Point(to.CenterX, to.CenterY),
-                });
-            }
+                Edges.Add(new MindmapEdgeItem(edge.Id, from, to));
         }
 
         SelectedNode = null;
@@ -299,6 +306,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     private async Task ApplyAsync(MindmapEditOp op, string? selectRef)
     {
+        var before = _document;
         try
         {
             var result = await _service.ApplyAsync(MapId, Revision, new[] { op }).ConfigureAwait(true);
@@ -315,6 +323,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
             var newId = selectRef is not null ? result.Value.CreatedIds.GetValueOrDefault(selectRef) : null;
             await ReloadAsync(newId).ConfigureAwait(true);
+            RecordHistory(before, _document);
         }
         catch (Exception ex)
         {
@@ -322,33 +331,120 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         }
     }
 
-    // --- Keybind-contract stubs (implemented in the next P2 push) ----------
+    // --- Command-based undo/redo ------------------------------------
 
-    public Task UndoAsync()
+    private void RecordHistory(MindmapDocument? before, MindmapDocument? after)
     {
-        _logger.Info("Mindmap", "Undo is not yet implemented (P2 op-inverse history pending).");
-        return Task.CompletedTask;
+        if (before is null || after is null)
+            return;
+
+        var undo = MindmapRestoreDelta.Between(after, before);
+        var redo = MindmapRestoreDelta.Between(before, after);
+        if (undo.IsEmpty && redo.IsEmpty)
+            return;
+
+        _undoStack.Push(new HistoryEntry(undo, redo));
+        _redoStack.Clear();
     }
 
-    public Task RedoAsync()
+    public async Task UndoAsync()
     {
-        _logger.Info("Mindmap", "Redo is not yet implemented (P2 op-inverse history pending).");
-        return Task.CompletedTask;
+        if (_undoStack.Count == 0)
+            return;
+        var entry = _undoStack.Peek();
+        if (await RestoreAsync(entry.Undo).ConfigureAwait(true))
+        {
+            _undoStack.Pop();
+            _redoStack.Push(entry);
+        }
     }
 
-    public void CopySelection() =>
-        _logger.Info("Mindmap", "Copy is not yet implemented (P2 clipboard pending).");
-
-    public Task PasteAsync()
+    public async Task RedoAsync()
     {
-        _logger.Info("Mindmap", "Paste is not yet implemented (P2 clipboard pending).");
-        return Task.CompletedTask;
+        if (_redoStack.Count == 0)
+            return;
+        var entry = _redoStack.Peek();
+        if (await RestoreAsync(entry.Redo).ConfigureAwait(true))
+        {
+            _redoStack.Pop();
+            _undoStack.Push(entry);
+        }
     }
 
-    public Task DuplicateSelectionAsync()
+    private async Task<bool> RestoreAsync(MindmapRestoreDelta delta)
     {
-        _logger.Info("Mindmap", "Duplicate-selection is not yet implemented (P2 clipboard pending).");
-        return Task.CompletedTask;
+        if (delta.IsEmpty)
+            return true;
+
+        var keepSelected = SelectedNode?.Id;
+        try
+        {
+            var result = await _service.RestoreAsync(MapId, Revision, delta).ConfigureAwait(true);
+            if (!result.IsSuccess)
+            {
+                _logger.Warning("Mindmap", $"Undo/redo restore failed on '{MapId}': {result.ErrorMessage}");
+                return false;
+            }
+
+            await ReloadAsync(keepSelected).ConfigureAwait(true);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", $"Undo/redo restore threw on '{MapId}'.", ex);
+            return false;
+        }
+    }
+
+    // --- Clipboard (subtree copy/paste/duplicate) --------------------------
+
+    private MindmapNodeSpec? _clipboard;
+
+    /// <summary>Captures the selected node and its whole hierarchy subtree as a reusable node spec.</summary>
+    public void CopySelection()
+    {
+        if (SelectedNode is null || _document is null)
+            return;
+        _clipboard = CaptureSubtree(SelectedNode.Id);
+    }
+
+    /// <summary>Pastes the clipboard subtree under the current selection (or as a new root cluster).</summary>
+    public async Task PasteAsync()
+    {
+        if (_clipboard is null)
+            return;
+        await ApplyAsync(new AddNodesOp
+        {
+            Under = SelectedNode?.Id,
+            Nodes = new[] { _clipboard with { Ref = "paste" } },
+        }, selectRef: "paste").ConfigureAwait(true);
+    }
+
+    /// <summary>Duplicates the selected subtree as a sibling (or a new root cluster when it is itself a root).</summary>
+    public async Task DuplicateSelectionAsync()
+    {
+        if (SelectedNode is null || _document is null)
+            return;
+
+        var spec = CaptureSubtree(SelectedNode.Id) with { Ref = "dup" };
+        var parentEdge = _document.Edges.FirstOrDefault(e => e.Kind == EdgeKind.Hierarchy && e.ToId == SelectedNode.Id);
+        await ApplyAsync(new AddNodesOp
+        {
+            Under = parentEdge?.FromId,
+            After = parentEdge is null ? null : SelectedNode.Id,
+            Nodes = new[] { spec },
+        }, selectRef: "dup").ConfigureAwait(true);
+    }
+
+    /// <summary>Recursively snapshots a node's content and children into a spec (fresh ids assigned on apply).</summary>
+    private MindmapNodeSpec CaptureSubtree(string nodeId)
+    {
+        var element = _document!.Elements.First(e => e.Id == nodeId);
+        var children = _document.Edges
+            .Where(e => e.Kind == EdgeKind.Hierarchy && e.FromId == nodeId)
+            .Select(e => CaptureSubtree(e.ToId))
+            .ToList();
+        return new MindmapNodeSpec { Content = element.Content, Children = children };
     }
 
     public void BeginEditSelectedEdgeLabel()

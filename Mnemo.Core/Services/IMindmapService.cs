@@ -52,6 +52,17 @@ public interface IMindmapService
         IReadOnlyList<MindmapEditOp> ops,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Applies a verbatim <see cref="MindmapRestoreDelta"/> (the transport for command-based
+    /// undo/redo): elements/edges/clusters are restored exactly by id and the delta's ids removed, atomically,
+    /// bumping the revision. Revision-checked like <see cref="ApplyAsync"/>. Returns the new revision.
+    /// </summary>
+    Task<Result<long>> RestoreAsync(
+        string mapId,
+        long expectedRevision,
+        MindmapRestoreDelta delta,
+        CancellationToken cancellationToken = default);
+
     // ---- Library organization (folders + folder membership) -------------------------------------
 
     /// <summary>Loads every map's full document plus its library metadata, for the library/overview page.</summary>
