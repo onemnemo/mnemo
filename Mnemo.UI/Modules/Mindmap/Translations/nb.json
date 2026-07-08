@@ -13,5 +13,12 @@
     "mindmap.add-child": "Legg til barnenode",
     "mindmap.enter": "Legg til søsken / rediger kant",
     "mindmap.edit-edge-label": "Rediger kantetikett"
-  }
+  },
+  "LayoutBalanced": "Balansert",
+  "LayoutTreeRight": "Tre · høyre",
+  "LayoutTreeDown": "Tre · ned",
+  "LayoutRadial": "Radial",
+  "LayoutTimeline": "Tidslinje",
+  "LayoutFree": "Fri",
+  "LayoutTip": "Oppsett"
 }

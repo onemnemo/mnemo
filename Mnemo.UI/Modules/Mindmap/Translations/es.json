@@ -13,5 +13,12 @@
     "mindmap.add-child": "Añadir nodo hijo",
     "mindmap.enter": "Añadir hermano / editar arista",
     "mindmap.edit-edge-label": "Editar etiqueta de arista"
-  }
+  },
+  "LayoutBalanced": "Equilibrado",
+  "LayoutTreeRight": "Árbol · derecha",
+  "LayoutTreeDown": "Árbol · abajo",
+  "LayoutRadial": "Radial",
+  "LayoutTimeline": "Cronología",
+  "LayoutFree": "Libre",
+  "LayoutTip": "Diseño"
 }

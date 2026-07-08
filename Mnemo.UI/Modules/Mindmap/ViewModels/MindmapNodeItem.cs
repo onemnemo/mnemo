@@ -9,6 +9,10 @@ namespace Mnemo.UI.Modules.Mindmap.ViewModels;
 /// </summary>
 public partial class MindmapNodeItem : ObservableObject
 {
+    /// <summary>Fallback node box size when an element has no explicit width/height (auto-size).</summary>
+    public const double DefaultWidth = 132;
+    public const double DefaultHeight = 40;
+
     public required string Id { get; init; }
 
     [ObservableProperty]
@@ -21,11 +25,11 @@ public partial class MindmapNodeItem : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CenterX))]
-    private double _width = 132;
+    private double _width = DefaultWidth;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CenterY))]
-    private double _height = 40;
+    private double _height = DefaultHeight;
 
     [ObservableProperty]
     private string _text = string.Empty;

@@ -13,5 +13,12 @@
     "mindmap.add-child": "Add child node",
     "mindmap.enter": "Add sibling / edit edge",
     "mindmap.edit-edge-label": "Edit edge label"
-  }
+  },
+  "LayoutBalanced": "Balanced",
+  "LayoutTreeRight": "Tree · right",
+  "LayoutTreeDown": "Tree · down",
+  "LayoutRadial": "Radial",
+  "LayoutTimeline": "Timeline",
+  "LayoutFree": "Free",
+  "LayoutTip": "Layout"
 }

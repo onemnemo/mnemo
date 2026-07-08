@@ -13,5 +13,12 @@
     "mindmap.add-child": "子ノードを追加",
     "mindmap.enter": "兄弟を追加 / エッジを編集",
     "mindmap.edit-edge-label": "エッジラベルを編集"
-  }
+  },
+  "LayoutBalanced": "バランス",
+  "LayoutTreeRight": "ツリー・右",
+  "LayoutTreeDown": "ツリー・下",
+  "LayoutRadial": "放射状",
+  "LayoutTimeline": "タイムライン",
+  "LayoutFree": "フリー",
+  "LayoutTip": "レイアウト"
 }

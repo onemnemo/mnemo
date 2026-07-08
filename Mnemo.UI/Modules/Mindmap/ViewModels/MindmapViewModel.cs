@@ -29,12 +29,16 @@ namespace Mnemo.UI.Modules.Mindmap.ViewModels;
 public partial class MindmapViewModel : ViewModelBase, INavigationAware
 {
     private readonly IMindmapService _service;
+    private readonly IMindmapLayoutService _layout;
     private readonly INavigationService _navigation;
     private readonly ILoggerService _logger;
     private readonly ILocalizationService? _localization;
 
     private readonly MindmapCamera _camera = new();
     private MindmapDocument? _document;
+
+    // Guards against a slow layout pass applying after a newer document has already arrived.
+    private int _applyGeneration;
 
     // Command-based history: each edit records the delta that reverses it and the one that replays
     // it, both scoped to the touched sub-document, so memory is proportional to the change, not the map.
@@ -67,28 +71,97 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private MindmapNodeItem? _selectedNode;
 
+    /// <summary>The map's layout algorithm, bound to the top-bar switcher. Applies to every cluster.</summary>
+    [ObservableProperty]
+    private MindmapLayoutOption? _selectedLayoutOption;
+
+    // True while the selection is set programmatically (on load/reload), so it doesn't re-issue a LayoutOp.
+    private bool _suppressLayoutOptionChange;
+
     /// <summary>Edge selection is not yet wired in the foundation slice; kept for the keybind contract.</summary>
     public object? SelectedEdge { get; set; }
 
     public ObservableCollection<MindmapNodeItem> Nodes { get; } = new();
     public ObservableCollection<MindmapEdgeItem> Edges { get; } = new();
+    public ObservableCollection<MindmapLayoutOption> LayoutOptions { get; } = new();
 
     public ICommand RecenterCommand { get; }
     public ICommand DeleteSelectedCommand { get; }
 
     public MindmapViewModel(
         IMindmapService service,
+        IMindmapLayoutService layout,
         INavigationService navigation,
         ILoggerService logger,
         ILocalizationService? localization = null)
     {
         _service = service;
+        _layout = layout;
         _navigation = navigation;
         _logger = logger;
         _localization = localization;
 
         RecenterCommand = new RelayCommand(Recenter);
         DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, () => SelectedNode is not null);
+
+        BuildLayoutOptions();
+    }
+
+    // --- Layout switcher --------------------------------------------
+
+    private void BuildLayoutOptions()
+    {
+        LayoutOptions.Clear();
+        LayoutOptions.Add(new MindmapLayoutOption(MindmapLayoutAlgorithms.Balanced, LayoutLabel("LayoutBalanced", "Balanced")));
+        LayoutOptions.Add(new MindmapLayoutOption(MindmapLayoutAlgorithms.TreeRight, LayoutLabel("LayoutTreeRight", "Tree · right")));
+        LayoutOptions.Add(new MindmapLayoutOption(MindmapLayoutAlgorithms.TreeDown, LayoutLabel("LayoutTreeDown", "Tree · down")));
+        LayoutOptions.Add(new MindmapLayoutOption(MindmapLayoutAlgorithms.Radial, LayoutLabel("LayoutRadial", "Radial")));
+        LayoutOptions.Add(new MindmapLayoutOption(MindmapLayoutAlgorithms.Timeline, LayoutLabel("LayoutTimeline", "Timeline")));
+        LayoutOptions.Add(new MindmapLayoutOption(MindmapLayoutAlgorithms.Free, LayoutLabel("LayoutFree", "Free")));
+    }
+
+    private string LayoutLabel(string key, string fallback)
+    {
+        var value = _localization?.T(key, "Mindmap");
+        return string.IsNullOrEmpty(value) || value == key ? fallback : value;
+    }
+
+    partial void OnSelectedLayoutOptionChanged(MindmapLayoutOption? value)
+    {
+        if (_suppressLayoutOptionChange || value is null || _document is null)
+            return;
+        _ = ChangeLayoutAsync(value.Id);
+    }
+
+    /// <summary>Sets every cluster's layout algorithm (one <see cref="LayoutOp"/> per root) and re-lays out.</summary>
+    private async Task ChangeLayoutAsync(string algorithm)
+    {
+        if (_document is null)
+            return;
+        var roots = RootIds(_document);
+        if (roots.Count == 0)
+            return;
+
+        var ops = roots.Select(id => (MindmapEditOp)new LayoutOp { Root = id, Algorithm = algorithm }).ToList();
+        await ApplyOpsAsync(ops, selectRef: null).ConfigureAwait(true);
+    }
+
+    private static List<string> RootIds(MindmapDocument document)
+    {
+        var nodeIds = document.Elements.Where(e => e.Kind == ElementKind.Node).Select(e => e.Id).ToHashSet();
+        var hasParent = document.Edges
+            .Where(e => e.Kind == EdgeKind.Hierarchy && nodeIds.Contains(e.ToId))
+            .Select(e => e.ToId)
+            .ToHashSet();
+        return nodeIds.Where(id => !hasParent.Contains(id)).ToList();
+    }
+
+    private void SyncLayoutSelection(MindmapDocument document)
+    {
+        var algorithm = document.Clusters.FirstOrDefault()?.LayoutAlgorithm ?? MindmapLayoutAlgorithms.Balanced;
+        _suppressLayoutOptionChange = true;
+        SelectedLayoutOption = LayoutOptions.FirstOrDefault(o => o.Id == algorithm) ?? LayoutOptions.FirstOrDefault();
+        _suppressLayoutOptionChange = false;
     }
 
     public void OnNavigatedTo(object? parameter)
@@ -122,7 +195,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             MapId = id;
             _undoStack.Clear();
             _redoStack.Clear();
-            ApplyDocument(result.Value);
+            await ApplyDocumentAsync(result.Value).ConfigureAwait(true);
             Recenter();
         }
         catch (Exception ex)
@@ -140,20 +213,29 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         var result = await _service.GetAsync(MapId).ConfigureAwait(true);
         if (result.IsSuccess && result.Value is not null)
         {
-            ApplyDocument(result.Value);
+            await ApplyDocumentAsync(result.Value).ConfigureAwait(true);
             if (selectId is not null)
                 Select(Nodes.FirstOrDefault(n => n.Id == selectId));
         }
     }
 
-    private void ApplyDocument(MindmapDocument document)
+    /// <summary>
+    /// Projects a document onto the canvas: runs the layout engine per cluster, then rebuilds the
+    /// bindable node/edge items. A generation guard drops a pass whose positions arrive after a newer
+    /// document has already been applied (the snapshot-revision discard rule).
+    /// </summary>
+    private async Task ApplyDocumentAsync(MindmapDocument document)
     {
+        var generation = ++_applyGeneration;
+        var positions = await ComputeLayoutAsync(document).ConfigureAwait(true);
+        if (generation != _applyGeneration)
+            return;
+
         _document = document;
         Title = document.Title;
         Revision = document.Revision;
+        SyncLayoutSelection(document);
 
-        var positions = MindmapTreeLayout.ComputePositions(document);
-        var nodeElements = document.Elements.Where(e => e.Kind == ElementKind.Node).ToList();
         var hasParent = document.Edges
             .Where(e => e.Kind == EdgeKind.Hierarchy)
             .Select(e => e.ToId)
@@ -161,14 +243,19 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
         var items = new Dictionary<string, MindmapNodeItem>();
         Nodes.Clear();
-        foreach (var element in nodeElements)
+        foreach (var element in document.Elements.Where(e => e.Kind == ElementKind.Node))
         {
-            var pos = positions.GetValueOrDefault(element.Id);
+            // No computed position = hidden under a collapsed ancestor; skip it (and its edges).
+            if (!positions.TryGetValue(element.Id, out var pos))
+                continue;
+
             var item = new MindmapNodeItem
             {
                 Id = element.Id,
                 X = pos.X,
                 Y = pos.Y,
+                Width = element.Width ?? MindmapNodeItem.DefaultWidth,
+                Height = element.Height ?? MindmapNodeItem.DefaultHeight,
                 Text = NodeText(element.Content),
                 IsRoot = !hasParent.Contains(element.Id),
             };
@@ -186,6 +273,137 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         }
 
         SelectedNode = null;
+    }
+
+    /// <summary>
+    /// Builds a <see cref="LayoutSnapshot"/> per cluster (one hierarchy tree), runs the layout service for
+    /// each, and merges the positions. Unpinned clusters are stacked so multiple root trees don't overlap;
+    /// a cluster with a pinned root is honored where it sits.
+    /// </summary>
+    private async Task<Dictionary<string, LayoutPosition>> ComputeLayoutAsync(MindmapDocument document)
+    {
+        var merged = new Dictionary<string, LayoutPosition>();
+
+        var nodeById = document.Elements
+            .Where(e => e.Kind == ElementKind.Node)
+            .ToDictionary(e => e.Id);
+        if (nodeById.Count == 0)
+            return merged;
+
+        var hierarchy = document.Edges
+            .Where(e => e.Kind == EdgeKind.Hierarchy && nodeById.ContainsKey(e.FromId) && nodeById.ContainsKey(e.ToId))
+            .ToList();
+
+        var childrenOf = new Dictionary<string, List<string>>();
+        var parentOf = new Dictionary<string, string>();
+        var orderOf = new Dictionary<string, int>();
+        foreach (var edge in hierarchy)
+        {
+            if (!childrenOf.TryGetValue(edge.FromId, out var kids))
+            {
+                kids = new List<string>();
+                childrenOf[edge.FromId] = kids;
+            }
+            orderOf[edge.ToId] = kids.Count;
+            kids.Add(edge.ToId);
+            parentOf[edge.ToId] = edge.FromId;
+        }
+
+        var roots = nodeById.Values.Where(e => !parentOf.ContainsKey(e.Id)).Select(e => e.Id);
+        var clusterSettings = document.Clusters.ToDictionary(c => c.RootId);
+        var stackTop = 0.0;
+
+        foreach (var rootId in roots)
+        {
+            var clusterNodes = new List<LayoutNode>();
+            void Collect(string id)
+            {
+                var element = nodeById[id];
+                clusterNodes.Add(new LayoutNode
+                {
+                    Id = id,
+                    ParentId = parentOf.GetValueOrDefault(id),
+                    Order = orderOf.GetValueOrDefault(id),
+                    Width = element.Width ?? MindmapNodeItem.DefaultWidth,
+                    Height = element.Height ?? MindmapNodeItem.DefaultHeight,
+                    Collapsed = element.Collapsed,
+                    Pinned = element.Pinned,
+                    X = element.X,
+                    Y = element.Y,
+                });
+                if (childrenOf.TryGetValue(id, out var kids))
+                    foreach (var kid in kids)
+                        Collect(kid);
+            }
+            Collect(rootId);
+
+            var settings = clusterSettings.GetValueOrDefault(rootId);
+            var snapshot = new LayoutSnapshot
+            {
+                RootId = rootId,
+                Nodes = clusterNodes,
+                Algorithm = settings?.LayoutAlgorithm ?? MindmapLayoutAlgorithms.Balanced,
+                Options = settings?.Options,
+                Revision = document.Revision,
+            };
+
+            IReadOnlyDictionary<string, LayoutPosition> clusterPositions;
+            try
+            {
+                var result = await _layout.ComputeAsync(snapshot).ConfigureAwait(true);
+                clusterPositions = result.IsSuccess && result.Value is not null
+                    ? result.Value.Positions
+                    : FallbackPositions(clusterNodes);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Mindmap", $"Layout failed for cluster '{rootId}'; using stored positions.", ex);
+                clusterPositions = FallbackPositions(clusterNodes);
+            }
+
+            MergeCluster(merged, clusterPositions, clusterNodes, nodeById[rootId].Pinned, ref stackTop);
+        }
+
+        return merged;
+    }
+
+    private static Dictionary<string, LayoutPosition> FallbackPositions(IReadOnlyList<LayoutNode> nodes)
+    {
+        var positions = new Dictionary<string, LayoutPosition>();
+        foreach (var node in nodes)
+            positions[node.Id] = new LayoutPosition(node.X, node.Y);
+        return positions;
+    }
+
+    private static void MergeCluster(
+        Dictionary<string, LayoutPosition> merged,
+        IReadOnlyDictionary<string, LayoutPosition> cluster,
+        IReadOnlyList<LayoutNode> clusterNodes,
+        bool rootPinned,
+        ref double stackTop)
+    {
+        const double clusterGap = 64;
+
+        if (rootPinned || cluster.Count == 0)
+        {
+            foreach (var (id, position) in cluster)
+                merged[id] = position;
+            return;
+        }
+
+        // Stack unpinned clusters vertically so separate root trees never sit on top of each other.
+        var sizeById = clusterNodes.ToDictionary(n => n.Id);
+        double minY = double.MaxValue, maxY = double.MinValue;
+        foreach (var (id, position) in cluster)
+        {
+            minY = Math.Min(minY, position.Y);
+            maxY = Math.Max(maxY, position.Y + sizeById[id].Height);
+        }
+
+        var dy = stackTop - minY;
+        foreach (var (id, position) in cluster)
+            merged[id] = new LayoutPosition(position.X, position.Y + dy);
+        stackTop = maxY + dy + clusterGap;
     }
 
     private static string NodeText(IElementContent content) => content switch
@@ -304,12 +522,15 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         await ApplyAsync(new DeleteOp { Ids = new[] { SelectedNode.Id } }, selectRef: null).ConfigureAwait(true);
     }
 
-    private async Task ApplyAsync(MindmapEditOp op, string? selectRef)
+    private Task ApplyAsync(MindmapEditOp op, string? selectRef) =>
+        ApplyOpsAsync(new[] { op }, selectRef);
+
+    private async Task ApplyOpsAsync(IReadOnlyList<MindmapEditOp> ops, string? selectRef)
     {
         var before = _document;
         try
         {
-            var result = await _service.ApplyAsync(MapId, Revision, new[] { op }).ConfigureAwait(true);
+            var result = await _service.ApplyAsync(MapId, Revision, ops).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is null)
             {
                 _logger.Error("Mindmap", $"Edit failed on '{MapId}': {result.ErrorMessage}");

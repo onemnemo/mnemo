@@ -13,5 +13,12 @@
     "mindmap.add-child": "Kindknoten hinzufügen",
     "mindmap.enter": "Geschwister hinzufügen / Kante bearbeiten",
     "mindmap.edit-edge-label": "Kantenbeschriftung bearbeiten"
-  }
+  },
+  "LayoutBalanced": "Ausgewogen",
+  "LayoutTreeRight": "Baum · rechts",
+  "LayoutTreeDown": "Baum · unten",
+  "LayoutRadial": "Radial",
+  "LayoutTimeline": "Zeitachse",
+  "LayoutFree": "Frei",
+  "LayoutTip": "Layout"
 }
