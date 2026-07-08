@@ -30,6 +30,15 @@
     "ToggleCollapse": "Slå sammen / utvid",
     "TogglePin": "Fest / løsne",
     "StyleSubtree": "Stil på undertre",
-    "ClearStyle": "Fjern stil"
+    "ClearStyle": "Fjern stil",
+    "SaveAsTemplate": "Lagre stil som mal",
+    "SaveTemplateTitle": "Lagre stil som mal",
+    "TemplateNamePlaceholder": "Malnavn",
+    "DeleteTemplate": "Slett mal",
+    "DeleteTemplateTitle": "Slett mal",
+    "DeleteTemplateMessage": "Slette malen «{0}»?",
+    "Save": "Lagre",
+    "Cancel": "Avbryt",
+    "Delete": "Slett"
   }
 }

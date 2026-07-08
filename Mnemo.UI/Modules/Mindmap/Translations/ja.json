@@ -30,6 +30,15 @@
     "ToggleCollapse": "折りたたむ / 展開",
     "TogglePin": "固定 / 解除",
     "StyleSubtree": "サブツリーに適用",
-    "ClearStyle": "スタイルをクリア"
+    "ClearStyle": "スタイルをクリア",
+    "SaveAsTemplate": "スタイルをテンプレートとして保存",
+    "SaveTemplateTitle": "スタイルをテンプレートとして保存",
+    "TemplateNamePlaceholder": "テンプレート名",
+    "DeleteTemplate": "テンプレートを削除",
+    "DeleteTemplateTitle": "テンプレートを削除",
+    "DeleteTemplateMessage": "テンプレート「{0}」を削除しますか？",
+    "Save": "保存",
+    "Cancel": "キャンセル",
+    "Delete": "削除"
   }
 }

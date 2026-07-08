@@ -36,6 +36,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     private readonly INavigationService _navigation;
     private readonly ILoggerService _logger;
     private readonly ILocalizationService? _localization;
+    private readonly IOverlayService? _overlay;
 
     private readonly MindmapCamera _camera = new();
     private MindmapDocument? _document;
@@ -114,7 +115,8 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         IMindmapStyleTemplateProvider templates,
         INavigationService navigation,
         ILoggerService logger,
-        ILocalizationService? localization = null)
+        ILocalizationService? localization = null,
+        IOverlayService? overlay = null)
     {
         _service = service;
         _layout = layout;
@@ -123,6 +125,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         _navigation = navigation;
         _logger = logger;
         _localization = localization;
+        _overlay = overlay;
 
         RecenterCommand = new RelayCommand(Recenter);
         DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, () => SelectedNode is not null);
@@ -144,9 +147,12 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         LayoutOptions.Add(new MindmapLayoutOption(MindmapLayoutAlgorithms.Free, LayoutLabel("LayoutFree", "Free")));
     }
 
-    private string LayoutLabel(string key, string fallback)
+    private string LayoutLabel(string key, string fallback) => Tr(key, fallback);
+
+    /// <summary>Localized string with a fallback, defaulting to the Mindmap namespace.</summary>
+    private string Tr(string key, string fallback, string ns = "Mindmap")
     {
-        var value = _localization?.T(key, "Mindmap");
+        var value = _localization?.T(key, ns);
         return string.IsNullOrEmpty(value) || value == key ? fallback : value;
     }
 
@@ -193,8 +199,33 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     private void BuildTemplateOptions()
     {
         TemplateOptions.Clear();
-        foreach (var template in _templates.All)
+        foreach (var template in _templates.BuiltIns)
             TemplateOptions.Add(new MindmapTemplateOption(template.Id, template.Name));
+        foreach (var template in _templates.UserTemplates)
+            TemplateOptions.Add(new MindmapTemplateOption(template.Id, template.Name, IsUser: true));
+    }
+
+    /// <summary>Reloads user templates from storage and rebuilds the picker.</summary>
+    private async Task RefreshTemplatesAsync()
+    {
+        try
+        {
+            await _templates.RefreshAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", "Failed to load user style templates.", ex);
+        }
+
+        RebuildTemplatePicker();
+    }
+
+    // Rebuilds the picker from the provider's current templates, keeping the document's selection.
+    private void RebuildTemplatePicker()
+    {
+        BuildTemplateOptions();
+        if (_document is not null)
+            SyncTemplateSelection(_document);
     }
 
     partial void OnSelectedTemplateOptionChanged(MindmapTemplateOption? value)
@@ -251,6 +282,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             MapId = id;
             _undoStack.Clear();
             _redoStack.Clear();
+            await RefreshTemplatesAsync().ConfigureAwait(true);
             await ApplyDocumentAsync(result.Value).ConfigureAwait(true);
             Recenter();
         }
@@ -662,6 +694,73 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         SelectedNode is null
             ? Task.CompletedTask
             : ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, ClearStyle = true });
+
+    // Saves the selected node's style override as a reusable user template (its look becomes the root
+    // style), prompting for a name. It then appears in the top-bar picker alongside the built-ins.
+    [RelayCommand]
+    private async Task SaveStyleAsTemplateAsync()
+    {
+        if (SelectedNode is null || _document is null || _overlay is null)
+            return;
+        var element = _document.Elements.FirstOrDefault(e => e.Id == SelectedNode.Id);
+        if (element?.Style is null)
+            return;
+
+        var name = await _overlay.CreateInputDialogAsync(
+            Tr("SaveTemplateTitle", "Save style as template"),
+            Tr("Save", "Save"),
+            Tr("Cancel", "Cancel"),
+            placeholder: Tr("TemplateNamePlaceholder", "Template name")).ConfigureAwait(true);
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+
+        var template = new StyleTemplate
+        {
+            Id = $"user-{Guid.NewGuid():N}",
+            Name = name.Trim(),
+            RootStyle = element.Style,
+        };
+
+        try
+        {
+            await _templates.SaveAsync(template).ConfigureAwait(true);
+            RebuildTemplatePicker();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", "Failed to save style template.", ex);
+        }
+    }
+
+    // Deletes the user template currently chosen in the picker (built-ins are not deletable). Any map still
+    // referencing it falls back to the default template via the cascade.
+    [RelayCommand]
+    private async Task DeleteSelectedTemplateAsync()
+    {
+        if (_overlay is null || SelectedTemplateOption is not { IsUser: true } option)
+            return;
+
+        var deleteLabel = Tr("Delete", "Delete");
+        var confirm = await _overlay.CreateDialogAsync(
+            Tr("DeleteTemplateTitle", "Delete template"),
+            string.Format(CultureInfo.CurrentCulture, Tr("DeleteTemplateMessage", "Delete the template \"{0}\"?"), option.Label),
+            deleteLabel,
+            Tr("Cancel", "Cancel"),
+            confirmIconName: "Common/trash",
+            severity: DialogSeverity.Destructive).ConfigureAwait(true);
+        if (confirm != deleteLabel)
+            return;
+
+        try
+        {
+            await _templates.DeleteAsync(option.Id).ConfigureAwait(true);
+            RebuildTemplatePicker();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", "Failed to delete style template.", ex);
+        }
+    }
 
     public void ClearHoverState()
     {

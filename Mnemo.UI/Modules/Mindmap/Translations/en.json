@@ -30,6 +30,15 @@
     "ToggleCollapse": "Collapse / expand",
     "TogglePin": "Pin / unpin",
     "StyleSubtree": "Style subtree",
-    "ClearStyle": "Clear style"
+    "ClearStyle": "Clear style",
+    "SaveAsTemplate": "Save style as template",
+    "SaveTemplateTitle": "Save style as template",
+    "TemplateNamePlaceholder": "Template name",
+    "DeleteTemplate": "Delete template",
+    "DeleteTemplateTitle": "Delete template",
+    "DeleteTemplateMessage": "Delete the template \"{0}\"?",
+    "Save": "Save",
+    "Cancel": "Cancel",
+    "Delete": "Delete"
   }
 }

@@ -30,6 +30,15 @@
     "ToggleCollapse": "Ein-/ausklappen",
     "TogglePin": "Anheften / lösen",
     "StyleSubtree": "Teilbaum stylen",
-    "ClearStyle": "Stil zurücksetzen"
+    "ClearStyle": "Stil zurücksetzen",
+    "SaveAsTemplate": "Stil als Vorlage speichern",
+    "SaveTemplateTitle": "Stil als Vorlage speichern",
+    "TemplateNamePlaceholder": "Vorlagenname",
+    "DeleteTemplate": "Vorlage löschen",
+    "DeleteTemplateTitle": "Vorlage löschen",
+    "DeleteTemplateMessage": "Vorlage \"{0}\" löschen?",
+    "Save": "Speichern",
+    "Cancel": "Abbrechen",
+    "Delete": "Löschen"
   }
 }

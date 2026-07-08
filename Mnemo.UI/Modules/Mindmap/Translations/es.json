@@ -30,6 +30,15 @@
     "ToggleCollapse": "Contraer / expandir",
     "TogglePin": "Fijar / soltar",
     "StyleSubtree": "Aplicar al subárbol",
-    "ClearStyle": "Borrar estilo"
+    "ClearStyle": "Borrar estilo",
+    "SaveAsTemplate": "Guardar estilo como plantilla",
+    "SaveTemplateTitle": "Guardar estilo como plantilla",
+    "TemplateNamePlaceholder": "Nombre de la plantilla",
+    "DeleteTemplate": "Eliminar plantilla",
+    "DeleteTemplateTitle": "Eliminar plantilla",
+    "DeleteTemplateMessage": "¿Eliminar la plantilla \"{0}\"?",
+    "Save": "Guardar",
+    "Cancel": "Cancelar",
+    "Delete": "Eliminar"
   }
 }

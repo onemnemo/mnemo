@@ -86,6 +86,14 @@
                             </DataTemplate>
                         </controls:ModernComboBox.ItemTemplate>
                     </controls:ModernComboBox>
+                    <Button Classes="ghost" Padding="6" Background="Transparent" BorderThickness="0"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding SelectedTemplateOption.IsUser, FallbackValue=False}"
+                            Command="{Binding DeleteSelectedTemplateCommand}"
+                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=DeleteTemplate}">
+                        <controls:AppIcon Icon="Common/trash" Width="15" Height="15"
+                                          Color="{DynamicResource TextSecondaryBrush}"/>
+                    </Button>
                     <controls:ModernComboBox Classes="compact" MinWidth="118" VerticalAlignment="Center"
                                              ItemsSource="{Binding LayoutOptions}"
                                              SelectedItem="{Binding SelectedLayoutOption}"
@@ -229,6 +237,12 @@
                             IsEnabled="{Binding SelectedNode.HasStyleOverride, FallbackValue=False}"
                             ToolTip.Tip="{markup:T Ns=Mindmap, Key=ClearStyle}">
                         <controls:AppIcon Icon="Common/eraser" Width="14" Height="14"
+                                          Color="{DynamicResource FloatingChromeForegroundBrush}"/>
+                    </Button>
+                    <Button Classes="mmTool" Command="{Binding SaveStyleAsTemplateCommand}"
+                            IsEnabled="{Binding SelectedNode.HasStyleOverride, FallbackValue=False}"
+                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=SaveAsTemplate}">
+                        <controls:AppIcon Icon="Common/bookmark-plus" Width="14" Height="14"
                                           Color="{DynamicResource FloatingChromeForegroundBrush}"/>
                     </Button>
                 </StackPanel>
