@@ -26,6 +26,9 @@ public sealed class MindmapDocumentService : IMindmapService
     private readonly MindmapChangeLog _changeLog = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _mapGates = new();
 
+    /// <inheritdoc />
+    public event EventHandler<MindmapChangedEventArgs>? Changed;
+
     /// <param name="idGenerator">Optional short-id generator (tests inject a deterministic one).</param>
     public MindmapDocumentService(IMindmapStore store, ILoggerService logger, MindmapShortIdGenerator? idGenerator = null)
     {
@@ -42,6 +45,7 @@ public sealed class MindmapDocumentService : IMindmapService
         string? folderId = null,
         CancellationToken cancellationToken = default)
     {
+        (string Id, long Revision)? committed = null;
         try
         {
             var now = DateTime.UtcNow;
@@ -68,12 +72,18 @@ public sealed class MindmapDocumentService : IMindmapService
             if (!string.IsNullOrEmpty(folderId))
                 await _store.SetFolderAsync(document.Id, folderId, cancellationToken).ConfigureAwait(false);
             _changeLog.Record(document.Id, initialRevision, working.ChangeTouchedIds);
+            committed = (document.Id, initialRevision);
             return document;
         }
         catch (Exception ex)
         {
             _logger.Error("Mindmap", "Failed to create mindmap.", ex);
             return Result<MindmapDocument>.Failure("Failed to create mindmap.", ex);
+        }
+        finally
+        {
+            if (committed is { } c)
+                RaiseChanged(c.Id, c.Revision, MindmapChangeKind.Created);
         }
     }
 
@@ -97,6 +107,46 @@ public sealed class MindmapDocumentService : IMindmapService
         }
     }
 
+    public async Task<Result<MindmapFindResult>> FindInMapAsync(string mapId, string query, int limit, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var document = await _store.LoadAsync(mapId, cancellationToken).ConfigureAwait(false);
+            if (document is null)
+                return Result<MindmapFindResult>.Failure($"Mindmap '{mapId}' was not found.");
+            if (document.SchemaVersion != 2)
+                return Result<MindmapFindResult>.Failure($"Mindmap '{mapId}' uses unsupported schema version {document.SchemaVersion}.");
+
+            // An empty query has no meaningful FTS match; return the revision with no hits so the caller can
+            // still proceed (and carry the rev into an edit) rather than treating it as an error.
+            if (string.IsNullOrWhiteSpace(query))
+                return Result<MindmapFindResult>.Success(new MindmapFindResult { Revision = document.Revision });
+
+            var boundedLimit = limit <= 0 ? 20 : limit;
+            var hits = await _store.SearchAsync(mapId, query, boundedLimit, cancellationToken).ConfigureAwait(false);
+            if (hits.Count == 0)
+                return Result<MindmapFindResult>.Success(new MindmapFindResult { Revision = document.Revision });
+
+            var byId = document.Elements.ToDictionary(e => e.Id);
+            var parentOf = BuildHierarchyParentMap(document);
+            var findHits = hits
+                .Select(h => new MindmapFindHit
+                {
+                    ElementId = h.ElementId,
+                    Text = h.Text,
+                    Path = BuildHierarchyPath(h.ElementId, parentOf, byId),
+                })
+                .ToList();
+
+            return Result<MindmapFindResult>.Success(new MindmapFindResult { Revision = document.Revision, Hits = findHits });
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", $"Failed to search mindmap '{mapId}'.", ex);
+            return Result<MindmapFindResult>.Failure($"Failed to search mindmap '{mapId}'.", ex);
+        }
+    }
+
     public async Task<Result<IReadOnlyList<MindmapDocumentSummary>>> ListAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -113,11 +163,16 @@ public sealed class MindmapDocumentService : IMindmapService
 
     public async Task<Result> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
+        long? deletedRevision = null;
         try
         {
+            // Read the header first so the change notification can report the last revision before deletion.
+            var existing = await _store.LoadAsync(id, cancellationToken).ConfigureAwait(false);
             await _store.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
             _changeLog.Forget(id);
             _mapGates.TryRemove(id, out _);
+            if (existing is not null)
+                deletedRevision = existing.Revision;
             return Result.Success();
         }
         catch (Exception ex)
@@ -125,12 +180,18 @@ public sealed class MindmapDocumentService : IMindmapService
             _logger.Error("Mindmap", $"Failed to delete mindmap '{id}'.", ex);
             return Result.Failure($"Failed to delete mindmap '{id}'.", ex);
         }
+        finally
+        {
+            if (deletedRevision is { } rev)
+                RaiseChanged(id, rev, MindmapChangeKind.Deleted);
+        }
     }
 
     public async Task<Result<MindmapDocument>> RenameAsync(string id, string title, CancellationToken cancellationToken = default)
     {
         var gate = _mapGates.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        long? committedRevision = null;
         try
         {
             var document = await _store.LoadAsync(id, cancellationToken).ConfigureAwait(false);
@@ -141,6 +202,7 @@ public sealed class MindmapDocumentService : IMindmapService
             // No element text changed, so the FTS mirror needs no delta.
             await _store.SaveAsync(renamed, new MindmapSearchDelta(), cancellationToken).ConfigureAwait(false);
             _changeLog.Record(id, renamed.Revision, new HashSet<string>());
+            committedRevision = renamed.Revision;
             return renamed;
         }
         catch (Exception ex)
@@ -150,12 +212,16 @@ public sealed class MindmapDocumentService : IMindmapService
         }
         finally
         {
+            // Release before notifying so a slow handler can't hold the per-map write lock.
             gate.Release();
+            if (committedRevision is { } rev)
+                RaiseChanged(id, rev, MindmapChangeKind.Renamed);
         }
     }
 
     public async Task<Result<MindmapDocument>> DuplicateAsync(string id, string newTitle, CancellationToken cancellationToken = default)
     {
+        (string Id, long Revision)? committed = null;
         try
         {
             var source = await _store.LoadAsync(id, cancellationToken).ConfigureAwait(false);
@@ -200,12 +266,18 @@ public sealed class MindmapDocumentService : IMindmapService
             var document = working.Materialize(initialRevision, now);
             await _store.SaveAsync(document, working.BuildSearchDelta(fullReplace: true), cancellationToken).ConfigureAwait(false);
             _changeLog.Record(document.Id, initialRevision, working.ChangeTouchedIds);
+            committed = (document.Id, initialRevision);
             return document;
         }
         catch (Exception ex)
         {
             _logger.Error("Mindmap", $"Failed to duplicate mindmap '{id}'.", ex);
             return Result<MindmapDocument>.Failure("Failed to duplicate mindmap.", ex);
+        }
+        finally
+        {
+            if (committed is { } c)
+                RaiseChanged(c.Id, c.Revision, MindmapChangeKind.Created);
         }
     }
 
@@ -289,6 +361,7 @@ public sealed class MindmapDocumentService : IMindmapService
 
         var gate = _mapGates.GetOrAdd(mapId, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        long? committedRevision = null;
         try
         {
             var document = await _store.LoadAsync(mapId, cancellationToken).ConfigureAwait(false);
@@ -318,6 +391,7 @@ public sealed class MindmapDocumentService : IMindmapService
             var updated = working.Materialize(newRevision, DateTime.UtcNow);
             await _store.SaveAsync(updated, working.BuildSearchDelta(fullReplace: false), cancellationToken).ConfigureAwait(false);
             _changeLog.Record(mapId, newRevision, working.ChangeTouchedIds);
+            committedRevision = newRevision;
 
             return Ok(new MindmapEditResult
             {
@@ -334,7 +408,11 @@ public sealed class MindmapDocumentService : IMindmapService
         }
         finally
         {
+            // Release before notifying so a slow handler can't hold the per-map write lock. Only a real
+            // commit sets committedRevision, so failed/rebased-conflict batches raise nothing.
             gate.Release();
+            if (committedRevision is { } rev)
+                RaiseChanged(mapId, rev, MindmapChangeKind.Edited);
         }
     }
 
@@ -348,6 +426,7 @@ public sealed class MindmapDocumentService : IMindmapService
 
         var gate = _mapGates.GetOrAdd(mapId, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        long? committedRevision = null;
         try
         {
             var document = await _store.LoadAsync(mapId, cancellationToken).ConfigureAwait(false);
@@ -397,6 +476,7 @@ public sealed class MindmapDocumentService : IMindmapService
             var updated = working.Materialize(newRevision, DateTime.UtcNow);
             await _store.SaveAsync(updated, working.BuildSearchDelta(fullReplace: false), cancellationToken).ConfigureAwait(false);
             _changeLog.Record(mapId, newRevision, working.ChangeTouchedIds);
+            committedRevision = newRevision;
             return Result<long>.Success(newRevision);
         }
         catch (Exception ex)
@@ -407,6 +487,8 @@ public sealed class MindmapDocumentService : IMindmapService
         finally
         {
             gate.Release();
+            if (committedRevision is { } rev)
+                RaiseChanged(mapId, rev, MindmapChangeKind.Edited);
         }
     }
 
@@ -537,7 +619,7 @@ public sealed class MindmapDocumentService : IMindmapService
         if (op.Under is not null)
         {
             if (!working.TryGetElement(op.Under, out var parent))
-                return NotFound(op.Under);
+                return NotFound(working, op.Under);
             if (parent.Kind != ElementKind.Node)
                 return Err(MindmapEditErrorCode.BadContentType, $"'{op.Under}' is not a node and cannot be a hierarchy parent.");
         }
@@ -610,7 +692,7 @@ public sealed class MindmapDocumentService : IMindmapService
     private static MindmapEditError? ApplySet(MindmapWorkingDocument working, SetOp op)
     {
         if (!working.TryGetElement(op.Id, out var element))
-            return NotFound(op.Id);
+            return NotFound(working, op.Id);
 
         var updated = element;
 
@@ -648,7 +730,7 @@ public sealed class MindmapDocumentService : IMindmapService
     private static MindmapEditError? ApplyMove(MindmapWorkingDocument working, MoveOp op)
     {
         if (!working.TryGetElement(op.Id, out var element))
-            return NotFound(op.Id);
+            return NotFound(working, op.Id);
 
         if (op.X.HasValue && op.Y.HasValue)
         {
@@ -677,7 +759,7 @@ public sealed class MindmapDocumentService : IMindmapService
         if (element.Kind != ElementKind.Node)
             return Err(MindmapEditErrorCode.BadContentType, "Only nodes can be reparented.");
         if (!working.TryGetElement(op.Under, out var parent))
-            return NotFound(op.Under);
+            return NotFound(working, op.Under);
         if (parent.Kind != ElementKind.Node)
             return Err(MindmapEditErrorCode.BadContentType, $"'{op.Under}' is not a node and cannot be a hierarchy parent.");
         if (MindmapGraph.WouldCreateCycle(working.Edges, op.Under, op.Id))
@@ -705,7 +787,7 @@ public sealed class MindmapDocumentService : IMindmapService
         foreach (var id in op.Ids)
         {
             if (!working.ContainsElement(id))
-                return NotFound(id);
+                return NotFound(working, id);
             toRemove.UnionWith(MindmapGraph.CollectSubtree(working.Edges, id));
         }
 
@@ -733,9 +815,9 @@ public sealed class MindmapDocumentService : IMindmapService
         if (op.A == op.B)
             return Err(MindmapEditErrorCode.InvalidOperation, "A link edge must join two different elements.");
         if (!working.ContainsElement(op.A))
-            return NotFound(op.A);
+            return NotFound(working, op.A);
         if (!working.ContainsElement(op.B))
-            return NotFound(op.B);
+            return NotFound(working, op.B);
 
         var edgeId = working.NewId();
         working.AddEdge(new MindmapEdge
@@ -759,7 +841,7 @@ public sealed class MindmapDocumentService : IMindmapService
         if (op.EdgeId is not null)
         {
             if (!working.TryGetEdge(op.EdgeId, out target))
-                return NotFound(op.EdgeId);
+                return NotFound(working, op.EdgeId);
         }
         else if (op.A is not null && op.B is not null)
         {
@@ -779,7 +861,7 @@ public sealed class MindmapDocumentService : IMindmapService
     private static MindmapEditError? ApplySetEdge(MindmapWorkingDocument working, SetEdgeOp op)
     {
         if (!working.TryGetEdge(op.EdgeId, out var edge))
-            return NotFound(op.EdgeId);
+            return NotFound(working, op.EdgeId);
 
         var updated = edge;
         if (op.Label is not null)
@@ -800,14 +882,14 @@ public sealed class MindmapDocumentService : IMindmapService
         if (op.Root is not null)
         {
             if (!working.ContainsElement(op.Root))
-                return NotFound(op.Root);
+                return NotFound(working, op.Root);
             targets = MindmapGraph.CollectSubtree(working.Edges, op.Root);
         }
         else if (op.Ids is { Count: > 0 })
         {
             foreach (var id in op.Ids)
                 if (!working.ContainsElement(id))
-                    return NotFound(id);
+                    return NotFound(working, id);
             targets = op.Ids;
         }
         else
@@ -829,7 +911,7 @@ public sealed class MindmapDocumentService : IMindmapService
         if (op.Root is not null)
         {
             if (!working.ContainsElement(op.Root))
-                return NotFound(op.Root);
+                return NotFound(working, op.Root);
 
             var existing = working.GetOrDefaultCluster(op.Root);
             working.SetCluster(op.Root, existing with
@@ -861,7 +943,7 @@ public sealed class MindmapDocumentService : IMindmapService
             foreach (var childId in frame.ChildIds)
             {
                 if (!working.TryGetElement(childId, out var child))
-                    return NotFound(childId);
+                    return NotFound(working, childId);
                 if (child.Kind == ElementKind.Frame)
                     return Err(MindmapEditErrorCode.BadContentType, "Frames may not contain frames.");
             }
@@ -887,7 +969,7 @@ public sealed class MindmapDocumentService : IMindmapService
     private static MindmapEditError? ApplyFrame(MindmapWorkingDocument working, FrameOp op)
     {
         if (!working.TryGetElement(op.Id, out var element))
-            return NotFound(op.Id);
+            return NotFound(working, op.Id);
         if (element.Content is not FrameContent frame)
             return Err(MindmapEditErrorCode.BadContentType, $"Element '{op.Id}' is not a frame.");
 
@@ -903,7 +985,7 @@ public sealed class MindmapDocumentService : IMindmapService
                 if (childId == op.Id)
                     return Err(MindmapEditErrorCode.InvalidOperation, "A frame cannot contain itself.");
                 if (!working.TryGetElement(childId, out var child))
-                    return NotFound(childId);
+                    return NotFound(working, childId);
                 if (child.Kind == ElementKind.Frame)
                     return Err(MindmapEditErrorCode.BadContentType, "Frames may not contain frames.");
                 if (!members.Contains(childId))
@@ -985,6 +1067,61 @@ public sealed class MindmapDocumentService : IMindmapService
             .ToList();
     }
 
+    private static Dictionary<string, string> BuildHierarchyParentMap(MindmapDocument document)
+    {
+        var parentOf = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var edge in document.Edges)
+        {
+            if (edge.Kind == EdgeKind.Hierarchy)
+                parentOf[edge.ToId] = edge.FromId;
+        }
+
+        return parentOf;
+    }
+
+    /// <summary>Ancestor node texts from root to the element's parent, joined with " &gt; " (empty for roots/free elements).</summary>
+    private static string BuildHierarchyPath(
+        string elementId,
+        IReadOnlyDictionary<string, string> parentOf,
+        IReadOnlyDictionary<string, MindmapElement> byId)
+    {
+        var ancestors = new List<string>();
+        // Track visited (starting from the hit itself) so a malformed cycle can never spin here.
+        var visited = new HashSet<string>(StringComparer.Ordinal) { elementId };
+        var current = elementId;
+        while (parentOf.TryGetValue(current, out var parent) && visited.Add(parent))
+        {
+            if (byId.TryGetValue(parent, out var parentElement))
+            {
+                var text = MindmapSearchText.Extract(parentElement);
+                ancestors.Add(string.IsNullOrEmpty(text) ? parent : text);
+            }
+
+            current = parent;
+        }
+
+        ancestors.Reverse();
+        return string.Join(" > ", ancestors);
+    }
+
+    private void RaiseChanged(string mapId, long revision, MindmapChangeKind kind)
+    {
+        var handler = Changed;
+        if (handler is null)
+            return;
+
+        try
+        {
+            handler(this, new MindmapChangedEventArgs { MapId = mapId, Revision = revision, Kind = kind });
+        }
+        catch (Exception ex)
+        {
+            // The notification is a boundary: a subscriber throwing must not roll back the committed write
+            // or surface as a service failure. Log and continue.
+            _logger.Error("Mindmap", $"A mindmap change handler threw for '{mapId}'.", ex);
+        }
+    }
+
     private static IElementContent? BuildTextContent(MindmapElement element, string text) => element.Kind switch
     {
         // Write the text into the node's own kind so editing a task/code/math label keeps its type
@@ -1049,10 +1186,15 @@ public sealed class MindmapDocumentService : IMindmapService
         };
     }
 
-    // Nearest-text suggestions on not-found are populated once find_in_map lands (P6); ids alone here
-    // carry no text to rank against.
-    private static MindmapEditError NotFound(string id) =>
-        new() { Code = MindmapEditErrorCode.NotFound, Message = $"Element or edge '{id}' was not found." };
+    // A mistyped short id gets nearest-text suggestions ranked against the document's live elements, so a
+    // small model can recover without re-reading the whole map.
+    private static MindmapEditError NotFound(MindmapWorkingDocument working, string id) =>
+        new()
+        {
+            Code = MindmapEditErrorCode.NotFound,
+            Message = $"Element or edge '{id}' was not found.",
+            Suggestions = MindmapSuggestions.NearestElementIds(working.Elements, id),
+        };
 
     private static MindmapEditError Err(MindmapEditErrorCode code, string message) =>
         new() { Code = code, Message = message };

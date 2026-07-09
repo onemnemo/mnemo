@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,6 +29,13 @@ public interface IMindmapService
 
     /// <summary>Load the full document. Dangling edges are pruned in-memory on load.</summary>
     Task<Result<MindmapDocument>> GetAsync(string id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Full-text search within one map (<c>find_in_map</c>), returning matching elements with their
+    /// hierarchy breadcrumb and the current revision — the entry point into a huge map for a small model.
+    /// An empty/whitespace query yields no hits (still with the current revision), never a failure.
+    /// </summary>
+    Task<Result<MindmapFindResult>> FindInMapAsync(string mapId, string query, int limit, CancellationToken cancellationToken = default);
 
     /// <summary>List document headers (title, revision, modified) without deserializing full documents.</summary>
     Task<Result<IReadOnlyList<MindmapDocumentSummary>>> ListAsync(CancellationToken cancellationToken = default);
@@ -78,4 +86,12 @@ public interface IMindmapService
 
     /// <summary>Moves a map into a folder, or to the root when <paramref name="folderId"/> is null.</summary>
     Task<Result> MoveToFolderAsync(string mapId, string? folderId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Raised after a mutation commits (create/edit/rename/delete/duplicate), on the committing thread —
+    /// which is a background thread for tool-driven edits, never the semaphore-held write section.
+    /// Handlers must marshal to the UI thread themselves and must not throw; a throwing handler is logged
+    /// and swallowed rather than corrupting the commit.
+    /// </summary>
+    event EventHandler<MindmapChangedEventArgs>? Changed;
 }

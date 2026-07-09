@@ -9,6 +9,8 @@ using Mnemo.Infrastructure.Services.Mindmap;
 using Mnemo.Infrastructure.Services.Mindmap.Layout;
 using Mnemo.Infrastructure.Services.Mindmap.Persistence;
 using Mnemo.Infrastructure.Services.Mindmap.Style;
+using Mnemo.Infrastructure.Services.Mindmap.Tools;
+using Mnemo.Infrastructure.Services.Tools;
 using Mnemo.UI.Modules.Mindmap.ViewModels;
 
 namespace Mnemo.UI.Modules.Mindmap;
@@ -61,7 +63,8 @@ public class MindmapModule : IModule
 
     public void RegisterTools(IFunctionRegistry registry, IServiceProvider services)
     {
-        // Mindmap AI tools are reintroduced on the v2 command layer in P6.
+        var toolService = services.GetRequiredService<MindmapToolService>();
+        MindmapToolRegistrar.Register(registry, toolService);
     }
 
     public void RegisterWidgets(IWidgetRegistry registry, IServiceProvider services)

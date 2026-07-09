@@ -1,0 +1,132 @@
+{
+  "tools": [
+    {
+      "name": "search_mindmaps",
+      "description": "Find mindmaps by title. With query: substring or in-order fuzzy match. Without query: lists maps newest-first. Returns { maps: [{ id, title, rev, modified }] }.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "Title keywords. Omit to list maps." },
+          "limit": { "type": "integer", "description": "Max results (default 20, max 100)." }
+        }
+      },
+      "enabled": true
+    },
+    {
+      "name": "create_mindmap",
+      "description": "Create a map from a nested outline in one call. Returns { id, rev, node_count }. Prefer edit_mindmap when the map already exists.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "outline": {
+            "type": "array",
+            "description": "Nested tree; each node is { t, c[] }.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "t": { "type": "string", "description": "Node text." },
+                "c": { "type": "array", "items": { "type": "object" }, "description": "Child nodes." }
+              }
+            }
+          },
+          "layout": { "type": "string", "description": "Layout applied to seeded clusters: balanced, treeRight, treeDown, radial, timeline, free." },
+          "template": { "type": "string", "description": "Default style template id for the document." }
+        },
+        "required": ["title"]
+      },
+      "enabled": true
+    },
+    {
+      "name": "outline_mindmap",
+      "description": "Compact tree of a map: nodes as { i, t, c[] }; a subtree hidden by depth or a collapsed node reports { +n } (hidden descendant count) instead of c. Returns { map_id, rev, layout, nodes, edges, roots, free }, where free lists non-tree elements as { i, kind, t? }. Read before editing to keep context small.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "map_id": { "type": "string" },
+          "subtree_of": { "type": "string", "description": "Scope to this node's subtree." },
+          "depth": { "type": "integer", "description": "Levels to expand; deeper descendants collapse into +n." }
+        },
+        "required": ["map_id"]
+      },
+      "enabled": true
+    },
+    {
+      "name": "find_in_map",
+      "description": "Full-text search within one map. Returns { rev, hits: [{ i, t, path }] }, where path is the ancestor breadcrumb. The entry point into a large map.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "map_id": { "type": "string" },
+          "query": { "type": "string" },
+          "limit": { "type": "integer", "description": "Max hits (default 20, max 100)." }
+        },
+        "required": ["map_id", "query"]
+      },
+      "enabled": true
+    },
+    {
+      "name": "read_elements",
+      "description": "Full detail for selected elements. Provide ids (max 100), OR subtree_of (a node + its subtree), OR kinds. Returns { map_id, rev, elements: [{ i, kind, content, style?, x?, y?, collapsed?, pinned?, w?, h? }], edges: [{ e, a, b, kind, label? }] }. content uses the storage $type shape.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "map_id": { "type": "string" },
+          "ids": { "type": "array", "items": { "type": "string" }, "description": "Element ids to read (max 100)." },
+          "subtree_of": { "type": "string", "description": "Read a node and its whole subtree." },
+          "kinds": { "type": "array", "items": { "type": "string" }, "description": "Filter to kinds: node, shape, text, image, frame." }
+        },
+        "required": ["map_id"]
+      },
+      "enabled": true
+    },
+    {
+      "name": "edit_mindmap",
+      "description": "Apply an atomic op batch (all-or-nothing) using the rev from outline/find/read. Each op has an 'op' field. add {under?, after?, nodes:[{t|content, c[], ref?}]} inserts nested subtrees (no under = new cluster). set {id, t?|content?, style?, clear_style?, collapsed?, pinned?, wh?}. move {id, under, after?} or {id, xy:[x,y]}. del {ids:[]}. link {a, b, label?, style?, ref?}. unlink {edge} or {a, b}. set_edge {edge, label?, style?, clear_style?}. style_subtree {root|ids, style}. layout {root?, algo?, template?, options?}. add_el {kind, xy:[x,y], content, wh?, ref?}. frame {id, add?:[], remove?:[]}. content and style are the storage $type/token shapes; ref keys map to created ids in the result. Returns { rev, created, deleted }. Errors: rev_conflict (contended_ids), not_found (suggestions), would_cycle, bad_content_type, validation_error, each with failed_op_index.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "map_id": { "type": "string" },
+          "rev": { "type": "integer", "description": "Revision the ops were composed against (from outline/find/read)." },
+          "ops": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "op": { "type": "string", "enum": ["add", "set", "move", "del", "link", "unlink", "set_edge", "style_subtree", "layout", "add_el", "frame"] },
+                "id": { "type": "string" },
+                "ids": { "type": "array", "items": { "type": "string" } },
+                "under": { "type": "string" },
+                "after": { "type": "string" },
+                "nodes": { "type": "array", "items": { "type": "object" } },
+                "t": { "type": "string", "description": "Text shorthand." },
+                "content": { "type": "object", "description": "Typed content ($type: text, task, code, math, link, note, flashcard, image, shape, freeText, canvasImage, frame)." },
+                "style": { "type": "object" },
+                "clear_style": { "type": "boolean" },
+                "collapsed": { "type": "boolean" },
+                "pinned": { "type": "boolean" },
+                "xy": { "type": "array", "items": { "type": "number" }, "description": "[x, y] position." },
+                "wh": { "type": "array", "items": { "type": "number" }, "description": "[width, height]." },
+                "a": { "type": "string" },
+                "b": { "type": "string" },
+                "edge": { "type": "string" },
+                "label": { "type": "string" },
+                "root": { "type": "string" },
+                "algo": { "type": "string" },
+                "template": { "type": "string" },
+                "options": { "type": "object" },
+                "kind": { "type": "string", "description": "Element kind for add_el: shape, text, image, frame." },
+                "add": { "type": "array", "items": { "type": "string" } },
+                "remove": { "type": "array", "items": { "type": "string" } },
+                "ref": { "type": "string", "description": "Caller key returned in created -> id." }
+              },
+              "required": ["op"]
+            }
+          }
+        },
+        "required": ["map_id", "rev", "ops"]
+      },
+      "enabled": true
+    }
+  ]
+}

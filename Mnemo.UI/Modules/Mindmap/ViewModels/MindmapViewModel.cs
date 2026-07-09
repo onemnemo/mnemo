@@ -10,6 +10,7 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mnemo.Core.Models;
@@ -383,16 +384,56 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     public void OnNavigatedTo(object? parameter)
     {
+        // Unsubscribe first: navigation can deliver a new map without an intervening OnNavigatedFrom.
+        _service.Changed -= OnServiceChanged;
+        _service.Changed += OnServiceChanged;
         if (parameter is string id && !string.IsNullOrEmpty(id))
             _ = LoadAsync(id);
     }
 
     public void OnNavigatedFrom()
     {
+        _service.Changed -= OnServiceChanged;
         Nodes.Clear();
         foreach (var edge in Edges)
             edge.Dispose();
         Edges.Clear();
+    }
+
+    // --- Live-session bridge -------------------------------------------------
+
+    // Local edits in flight (apply/undo/redo). While non-zero, external-change notifications are ignored:
+    // our own pipeline reloads after it commits, and that reload reads the latest document anyway.
+    private int _localMutationsInFlight;
+
+    // Raised by the service on its committing (background) thread after any successful commit — including
+    // ones made by AI tools while this map is open. Marshal to the UI thread before touching state.
+    private void OnServiceChanged(object? sender, MindmapChangedEventArgs e)
+    {
+        if (e.Kind == MindmapChangeKind.Deleted || !string.Equals(e.MapId, MapId, StringComparison.Ordinal))
+            return;
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!string.Equals(e.MapId, MapId, StringComparison.Ordinal)
+                || _localMutationsInFlight > 0
+                || e.Revision <= Revision)
+                return;
+            _ = RefreshFromExternalChangeAsync();
+        });
+    }
+
+    private async Task RefreshFromExternalChangeAsync()
+    {
+        try
+        {
+            var keepSelected = SelectedNode?.Id;
+            await ReloadAsync(keepSelected).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", $"External-change refresh failed on '{MapId}'.", ex);
+        }
     }
 
     // --- Loading / projection ----------------------------------------------
@@ -1746,6 +1787,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     private async Task ApplyOpsAsync(IReadOnlyList<MindmapEditOp> ops, string? selectRef)
     {
         var before = _document;
+        _localMutationsInFlight++;
         try
         {
             // SQLite work is synchronous under Microsoft.Data.Sqlite, so run it off the UI thread; only the
@@ -1769,6 +1811,10 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         catch (Exception ex)
         {
             _logger.Error("Mindmap", $"Edit threw on '{MapId}'.", ex);
+        }
+        finally
+        {
+            _localMutationsInFlight--;
         }
     }
 
@@ -1818,9 +1864,11 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             return true;
 
         var keepSelected = SelectedNode?.Id;
+        _localMutationsInFlight++;
         try
         {
-            var result = await _service.RestoreAsync(MapId, Revision, delta).ConfigureAwait(true);
+            // Off the UI thread for the same reason as ApplyOpsAsync: the SQLite work underneath is synchronous.
+            var result = await Task.Run(() => _service.RestoreAsync(MapId, Revision, delta)).ConfigureAwait(true);
             if (!result.IsSuccess)
             {
                 _logger.Warning("Mindmap", $"Undo/redo restore failed on '{MapId}': {result.ErrorMessage}");
@@ -1834,6 +1882,10 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         {
             _logger.Error("Mindmap", $"Undo/redo restore threw on '{MapId}'.", ex);
             return false;
+        }
+        finally
+        {
+            _localMutationsInFlight--;
         }
     }
 

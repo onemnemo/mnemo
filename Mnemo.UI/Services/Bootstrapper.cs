@@ -13,6 +13,7 @@ using Mnemo.Infrastructure.Services.Updates;
 using Mnemo.Core.History;
 using Mnemo.Infrastructure.History;
 using Mnemo.Infrastructure.Services.AI;
+using Mnemo.Infrastructure.Services.Mindmap.Tools;
 using Mnemo.Infrastructure.Services.Notes;
 using Mnemo.Infrastructure.Services.Notes.Pdf;
 using Mnemo.Infrastructure.Services.Flashcards;
@@ -104,7 +105,7 @@ public static class Bootstrapper
         services.AddSingleton<ISkillInjectionOverrideStore, SkillInjectionOverrideStore>();
         services.AddSingleton<SkillDiscoveryToolService>();
         services.AddSingleton<SettingsToolService>();
-        // Mindmap AI tools return on the v2 command layer in P6.
+        services.AddSingleton(sp => new MindmapToolService(sp.GetRequiredService<IMindmapService>()));
         services.AddSingleton<IToolDispatcher, ToolDispatcher>();
 
         // ── Conversation memory (in-process UI state only) ────────────────────

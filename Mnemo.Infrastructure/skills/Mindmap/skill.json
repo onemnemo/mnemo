@@ -1,0 +1,11 @@
+{
+  "id": "Mindmap",
+  "version": "1.0.0",
+  "enabled": true,
+  "description": "The Mindmap module: freeform canvas of tree nodes, shapes, frames and connectors; creating, searching, outlining, reading and editing maps with mindmap tools.",
+  "detection_hint": "mindmap, mind map, map, canvas, node, branch, outline, subtree, cluster, shape, frame, connector, link edge, brainstorm, concept map, add node, edit map",
+  "injection": {
+    "system_prompt_fragment": "Mindmaps are one document of short-id elements: tree nodes (a hierarchy forest) plus free shapes, text, images and frames, joined by hierarchy or link edges. Work like an editor: search_mindmaps to find a map, then outline_mindmap (compact {i, t, c[]} tree, +n = hidden/collapsed descendants) or find_in_map (text search -> ids + breadcrumb) to locate the branch — never read a whole big map. Both give you a rev. read_elements pulls full detail (content, style, edges) for specific ids. edit_mindmap applies an atomic op batch: pass the rev you were given; a stale-but-non-contending rev is rebased for you, and rev_conflict lists the contended ids. Prefer one nested add ({under?, nodes:[{t, c[]}]}) over many single adds. Style with templates and theme tokens (accent, palette.3), not per-node hex. Structural edits auto-run layout — don't manage x/y unless you mean to pin. Ops are batched and transactional: any bad op fails the whole batch by index. Tool results are JSON: ok, code, message, data.",
+    "include_tools": true
+  }
+}
