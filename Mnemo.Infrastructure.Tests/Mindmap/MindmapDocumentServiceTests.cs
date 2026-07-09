@@ -236,6 +236,27 @@ public sealed class MindmapDocumentServiceTests
     }
 
     [Fact]
+    public async Task Set_ResizesElement()
+    {
+        await using var h = new MindmapTestHarness();
+        var map = (await h.Service.CreateAsync("M")).Value!;
+        var seed = (await h.Service.ApplyAsync(map.Id, map.Revision, new MindmapEditOp[]
+        {
+            new AddElementOp { Ref = "f", Kind = ElementKind.Frame, X = 0, Y = 0, Width = 200, Height = 120, Content = new FrameContent { Title = "G" } },
+        })).Value!;
+        var id = seed.CreatedIds["f"];
+
+        await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new SetOp { Id = id, Width = 360, Height = 240 },
+        });
+
+        var frame = (await h.Service.GetAsync(map.Id)).Value!.Elements.Single(e => e.Id == id);
+        Assert.Equal(360, frame.Width);
+        Assert.Equal(240, frame.Height);
+    }
+
+    [Fact]
     public async Task SetEdge_UpdatesLabelAndStyle_Merging()
     {
         await using var h = new MindmapTestHarness();

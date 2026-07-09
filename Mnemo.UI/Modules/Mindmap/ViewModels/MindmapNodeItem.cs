@@ -38,6 +38,10 @@ public partial class MindmapNodeItem : ObservableObject
     public const double TaskCheckboxInset = 11;
     public const double TaskTextGap = 8;
 
+    /// <summary>Resize handle (bottom-right corner of a selected free element/frame): draw size and click pad.</summary>
+    public const double ResizeHandleSize = 10;
+    public const double ResizeHandleHitPad = 5;
+
     public required string Id { get; init; }
 
     /// <summary>The element kind this item projects. Free kinds (Text/Shape) draw differently and skip the tree and auto-layout.</summary>

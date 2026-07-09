@@ -636,6 +636,10 @@ public sealed class MindmapDocumentService : IMindmapService
             updated = updated with { Collapsed = op.Collapsed.Value };
         if (op.Pinned.HasValue)
             updated = updated with { Pinned = op.Pinned.Value };
+        if (op.Width.HasValue)
+            updated = updated with { Width = op.Width.Value };
+        if (op.Height.HasValue)
+            updated = updated with { Height = op.Height.Value };
 
         working.ReplaceElement(updated);
         return null;

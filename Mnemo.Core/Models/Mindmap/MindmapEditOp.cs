@@ -64,6 +64,12 @@ public sealed record SetOp : MindmapEditOp
     public bool? Collapsed { get; init; }
 
     public bool? Pinned { get; init; }
+
+    /// <summary>New explicit width (e.g. from a resize handle). Null leaves it unchanged.</summary>
+    public double? Width { get; init; }
+
+    /// <summary>New explicit height. Null leaves it unchanged.</summary>
+    public double? Height { get; init; }
 }
 
 /// <summary>Reparent a node (cycle-checked) or reposition an element. Repositioning implies pinning.</summary>

@@ -351,7 +351,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         IsLoading = true;
         try
         {
-            var result = await _service.GetAsync(id).ConfigureAwait(true);
+            var result = await Task.Run(() => _service.GetAsync(id)).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is null)
             {
                 _logger.Error("Mindmap", $"Failed to open mindmap '{id}': {result.ErrorMessage}");
@@ -377,7 +377,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     private async Task ReloadAsync(string? selectId = null)
     {
-        var result = await _service.GetAsync(MapId).ConfigureAwait(true);
+        var result = await Task.Run(() => _service.GetAsync(MapId)).ConfigureAwait(true);
         if (result.IsSuccess && result.Value is not null)
         {
             await ApplyDocumentAsync(result.Value).ConfigureAwait(true);
@@ -715,18 +715,33 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             return;
         }
 
-        // Stack unpinned clusters vertically so separate root trees never sit on top of each other.
+        // Stack unpinned clusters vertically so separate root trees never sit on top of each other. Pinned
+        // nodes were dragged to an explicit spot (e.g. into a frame), so they anchor in place: exclude them
+        // from the stack bounds and the shift, otherwise the stack would tear them off their drop position.
         var sizeById = clusterNodes.ToDictionary(n => n.Id);
+        var pinnedById = clusterNodes.ToDictionary(n => n.Id, n => n.Pinned);
         double minY = double.MaxValue, maxY = double.MinValue;
         foreach (var (id, position) in cluster)
         {
+            if (pinnedById.GetValueOrDefault(id))
+                continue;
             minY = Math.Min(minY, position.Y);
             maxY = Math.Max(maxY, position.Y + sizeById[id].Height);
         }
 
+        // Nothing left to stack (every node is pinned): keep them all where they were dropped.
+        if (minY == double.MaxValue)
+        {
+            foreach (var (id, position) in cluster)
+                merged[id] = position;
+            return;
+        }
+
         var dy = stackTop - minY;
         foreach (var (id, position) in cluster)
-            merged[id] = new LayoutPosition(position.X, position.Y + dy);
+            merged[id] = pinnedById.GetValueOrDefault(id)
+                ? position
+                : new LayoutPosition(position.X, position.Y + dy);
         stackTop = maxY + dy + clusterGap;
     }
 
@@ -929,6 +944,45 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         SelectedEdge is null
             ? Task.CompletedTask
             : ApplyToEdgeAsync(new UnlinkOp { EdgeId = SelectedEdge.Id });
+
+    /// <summary>Commits a new size for an element after a resize-handle drag.</summary>
+    public Task ResizeElementAsync(string id, double width, double height) =>
+        ApplyAsync(new SetOp { Id = id, Width = width, Height = height }, selectRef: null);
+
+    /// <summary>
+    /// After an element is dropped, joins it to the frame it now sits inside (or removes it from the frame
+    /// it left). Membership is explicit, so this is what makes "drag into a frame" work.
+    /// </summary>
+    public async Task UpdateFrameMembershipAsync(string elementId)
+    {
+        var item = Nodes.FirstOrDefault(n => n.Id == elementId);
+        if (item is null || item.Kind == ElementKind.Frame || _document is null)
+            return;
+
+        var center = new Point(item.CenterX, item.CenterY);
+
+        // Topmost frame containing the drop point (frames project first, so a later one draws on top).
+        var target = Nodes.LastOrDefault(n =>
+            n.Kind == ElementKind.Frame &&
+            new Rect(n.X, n.Y, n.Width, n.Height).Contains(center));
+
+        var current = _document.Elements.FirstOrDefault(e =>
+            e.Content is FrameContent frame && frame.ChildIds.Contains(elementId));
+
+        if (target?.Id == current?.Id)
+            return;
+
+        var ops = new List<MindmapEditOp>();
+        if (current is not null)
+            ops.Add(new FrameOp { Id = current.Id, Remove = new[] { elementId } });
+        if (target is not null)
+            ops.Add(new FrameOp { Id = target.Id, Add = new[] { elementId } });
+        if (ops.Count > 0)
+        {
+            await ApplyOpsAsync(ops, selectRef: null).ConfigureAwait(true);
+            Select(Nodes.FirstOrDefault(n => n.Id == elementId));
+        }
+    }
 
     /// <summary>Toggles a task node's done state (clicked via its checkbox on the canvas).</summary>
     public Task ToggleTaskDoneAsync(string id)
@@ -1268,6 +1322,8 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     public async Task MoveNodeAsync(string nodeId, Point contentPosition)
     {
         await ApplyAsync(new MoveOp { Id = nodeId, X = contentPosition.X, Y = contentPosition.Y }, selectRef: null).ConfigureAwait(true);
+        // Reprojection clears selection; keep the dragged element selected so its toolbar/handle stay.
+        Select(Nodes.FirstOrDefault(n => n.Id == nodeId));
     }
 
     /// <summary>Pins or releases a node. Releasing lets it rejoin auto-layout on the next pass.</summary>
@@ -1291,7 +1347,9 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         var before = _document;
         try
         {
-            var result = await _service.ApplyAsync(MapId, Revision, ops).ConfigureAwait(true);
+            // SQLite work is synchronous under Microsoft.Data.Sqlite, so run it off the UI thread; only the
+            // projection (collection mutation) below marshals back on. Otherwise every edit froze the canvas.
+            var result = await Task.Run(() => _service.ApplyAsync(MapId, Revision, ops)).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is null)
             {
                 _logger.Error("Mindmap", $"Edit failed on '{MapId}': {result.ErrorMessage}");

@@ -337,9 +337,23 @@ public sealed class MindmapCanvasControl : Control
         for (var i = 0; i < _nodeList.Count; i++)
         {
             var node = _nodeList[i];
-            if (NodeRect(node).Intersects(visible))
-                DrawNode(context, node, selectedPen);
+            if (!NodeRect(node).Intersects(visible))
+                continue;
+            DrawNode(context, node, selectedPen);
+
+            // Free elements and frames get a bottom-right resize handle while selected.
+            if (node.IsSelected && node.IsFree)
+                DrawResizeHandle(context, node);
         }
+    }
+
+    private void DrawResizeHandle(DrawingContext context, MindmapNodeItem node)
+    {
+        var size = MindmapNodeItem.ResizeHandleSize;
+        var cx = node.X + node.Width;
+        var cy = node.Y + node.Height;
+        var rect = new Rect(cx - size / 2, cy - size / 2, size, size);
+        context.DrawRectangle(SelectedStroke ?? Brushes.OrangeRed, null, rect, 2, 2);
     }
 
     private void DrawNode(DrawingContext context, MindmapNodeItem node, Pen selectedPen)

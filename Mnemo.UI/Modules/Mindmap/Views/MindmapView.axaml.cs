@@ -42,6 +42,10 @@ public partial class MindmapView : UserControl
     private bool _connectMode;
     private MindmapNodeItem? _connectSource;
 
+    // Resizing a selected free element/frame by its bottom-right handle.
+    private const double MinElementSize = 40;
+    private MindmapNodeItem? _resizingNode;
+
     public MindmapView()
     {
         InitializeComponent();
@@ -136,6 +140,15 @@ public partial class MindmapView : UserControl
             return;
         }
 
+        // The resize handle sits on the selected element's bottom-right corner, partly outside its rect, so
+        // the node hit-test would miss it. Check it directly against the current selection, before anything else.
+        if (Vm.SelectedNode is { IsFree: true } selected && IsInResizeHandle(content, selected))
+        {
+            _resizingNode = selected;
+            e.Pointer.Capture(_host);
+            return;
+        }
+
         if (node is not null)
         {
             Vm.Select(node);
@@ -185,6 +198,15 @@ public partial class MindmapView : UserControl
         if (_connectSource is not null)
         {
             _canvas?.SetPendingLink(new Point(_connectSource.CenterX, _connectSource.CenterY), Vm.ScreenToContent(screen));
+            return;
+        }
+
+        // Resizing: the bottom-right corner follows the cursor, clamped to a minimum size.
+        if (_resizingNode is not null)
+        {
+            var content = Vm.ScreenToContent(screen);
+            _resizingNode.Width = System.Math.Max(MinElementSize, content.X - _resizingNode.X);
+            _resizingNode.Height = System.Math.Max(MinElementSize, content.Y - _resizingNode.Y);
             return;
         }
 
@@ -249,6 +271,16 @@ public partial class MindmapView : UserControl
             return;
         }
 
+        // Resizing: commit the element's new size.
+        if (_resizingNode is not null)
+        {
+            var resized = _resizingNode;
+            _resizingNode = null;
+            if (Vm is not null)
+                await Vm.ResizeElementAsync(resized.Id, resized.Width, resized.Height);
+            return;
+        }
+
         var node = _draggingNode;
         var moved = _dragMoved;
         _draggingNode = null;
@@ -256,7 +288,13 @@ public partial class MindmapView : UserControl
         _isPanning = false;
 
         if (Vm is not null && node is not null && moved)
+        {
             await Vm.MoveNodeAsync(node.Id, new Point(node.X, node.Y));
+
+            // Dropping a non-frame element inside a frame joins it (or leaving one removes it).
+            if (node.Kind != ElementKind.Frame)
+                await Vm.UpdateFrameMembershipAsync(node.Id);
+        }
     }
 
     private async void OnDoubleTapped(object? sender, TappedEventArgs e)
@@ -333,6 +371,18 @@ public partial class MindmapView : UserControl
         var offset = Vm.ScreenToContent(new Point(screen.X + EdgeHitScreenRadius, screen.Y));
         var threshold = System.Math.Abs(offset.X - content.X);
         return _canvas.HitTestEdge(content, threshold);
+    }
+
+    private static bool IsInResizeHandle(Point content, MindmapNodeItem node)
+    {
+        if (!node.IsFree)
+            return false;
+
+        var half = MindmapNodeItem.ResizeHandleSize / 2 + MindmapNodeItem.ResizeHandleHitPad;
+        var cx = node.X + node.Width;
+        var cy = node.Y + node.Height;
+        return content.X >= cx - half && content.X <= cx + half
+            && content.Y >= cy - half && content.Y <= cy + half;
     }
 
     private static bool IsInTaskCheckbox(Point content, MindmapNodeItem node)
