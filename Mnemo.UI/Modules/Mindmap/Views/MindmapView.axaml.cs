@@ -147,6 +147,13 @@ public partial class MindmapView : UserControl
                 return;
             }
 
+            // Clicking a task node's checkbox toggles its done state (no drag).
+            if (IsInTaskCheckbox(content, node))
+            {
+                _ = Vm.ToggleTaskDoneAsync(node.Id);
+                return;
+            }
+
             _draggingNode = node;
             _dragGrabOffset = new Point(content.X - node.X, content.Y - node.Y);
             CaptureFrameMembers(node);
@@ -326,6 +333,19 @@ public partial class MindmapView : UserControl
         var offset = Vm.ScreenToContent(new Point(screen.X + EdgeHitScreenRadius, screen.Y));
         var threshold = System.Math.Abs(offset.X - content.X);
         return _canvas.HitTestEdge(content, threshold);
+    }
+
+    private static bool IsInTaskCheckbox(Point content, MindmapNodeItem node)
+    {
+        if (node.ContentType != ElementContentDiscriminators.Task)
+            return false;
+
+        const double pad = 4; // generous grab area around the box
+        var size = MindmapNodeItem.TaskCheckboxSize;
+        var x = node.X + MindmapNodeItem.TaskCheckboxInset;
+        var y = node.Y + (node.Height - size) / 2;
+        return content.X >= x - pad && content.X <= x + size + pad
+            && content.Y >= y - pad && content.Y <= y + size + pad;
     }
 
     private static bool IsInPinBadge(Point content, MindmapNodeItem node)

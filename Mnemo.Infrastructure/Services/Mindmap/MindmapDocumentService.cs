@@ -983,7 +983,16 @@ public sealed class MindmapDocumentService : IMindmapService
 
     private static IElementContent? BuildTextContent(MindmapElement element, string text) => element.Kind switch
     {
-        ElementKind.Node => new TextContent { Text = text },
+        // Write the text into the node's own kind so editing a task/code/math label keeps its type
+        // (Done, Language, ...) instead of silently reverting the node to plain text.
+        ElementKind.Node => element.Content switch
+        {
+            TaskContent task => task with { Text = text },
+            CodeContent code => code with { Source = text },
+            MathContent math => math with { Latex = text },
+            LinkContent link => link with { Title = text },
+            _ => new TextContent { Text = text },
+        },
         ElementKind.Text => new FreeTextContent { Text = text },
         ElementKind.Shape when element.Content is ShapeContent shape => shape with { Text = text },
         ElementKind.Frame when element.Content is FrameContent frame => frame with { Title = text },

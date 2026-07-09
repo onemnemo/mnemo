@@ -33,6 +33,11 @@ public partial class MindmapNodeItem : ObservableObject
     public const double PinBadgeInset = 9;
     public const double PinBadgeHitRadius = 11;
 
+    /// <summary>Task node checkbox geometry (left, vertically centered): box size, left inset, and text gap.</summary>
+    public const double TaskCheckboxSize = 15;
+    public const double TaskCheckboxInset = 11;
+    public const double TaskTextGap = 8;
+
     public required string Id { get; init; }
 
     /// <summary>The element kind this item projects. Free kinds (Text/Shape) draw differently and skip the tree and auto-layout.</summary>
@@ -40,6 +45,13 @@ public partial class MindmapNodeItem : ObservableObject
 
     /// <summary>Geometry for a free <see cref="ElementKind.Shape"/> element; null for nodes and text.</summary>
     public ShapeType? FreeShape { get; init; }
+
+    /// <summary>The node content's type discriminator (text/task/code/math/...); drives kind-specific drawing.</summary>
+    public string ContentType { get; init; } = ElementContentDiscriminators.Text;
+
+    /// <summary>Whether a task node is checked off; drawn as a filled checkbox with a strikethrough label.</summary>
+    [ObservableProperty]
+    private bool _isTaskDone;
 
     /// <summary>Explicit member ids for a <see cref="ElementKind.Frame"/>; empty for every other kind. Used to drag the group together.</summary>
     public System.Collections.Generic.IReadOnlyList<string> MemberIds { get; init; } =

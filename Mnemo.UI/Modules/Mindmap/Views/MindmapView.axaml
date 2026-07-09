@@ -260,6 +260,7 @@
                                         Edges="{Binding Edges}"
                                         Transform="{Binding CanvasTransform}"
                                         FontFamily="{DynamicResource DefaultFontFamily}"
+                                        MonoFontFamily="{DynamicResource Font.Monospace}"
                                         SelectedStroke="{DynamicResource AccentBrush}"
                                         EdgeStroke="{DynamicResource BorderBrush}"/>
           </Grid>
@@ -589,6 +590,25 @@
                                     </DataTemplate>
                                 </controls:ModernComboBox.ItemTemplate>
                             </controls:ModernComboBox>
+                        </StackPanel>
+
+                        <!-- Node content type (node selections only) -->
+                        <StackPanel Spacing="8" IsVisible="{Binding IsNodeSelected}">
+                            <TextBlock Classes="insHeader" Text="{markup:T Ns=Mindmap, Key=NodeType}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Classes="insTool" Command="{Binding SetNodeKindCommand}" CommandParameter="text" Content="Aa"
+                                        Classes.active="{Binding SelectedNode.ContentType, Converter={StaticResource EnumEquals}, ConverterParameter=text}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=KindText}"/>
+                                <Button Classes="insTool" Command="{Binding SetNodeKindCommand}" CommandParameter="task" Content="&#x2713;"
+                                        Classes.active="{Binding SelectedNode.ContentType, Converter={StaticResource EnumEquals}, ConverterParameter=task}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=KindTask}"/>
+                                <Button Classes="insTool" Command="{Binding SetNodeKindCommand}" CommandParameter="code" Content="{}{ }"
+                                        Classes.active="{Binding SelectedNode.ContentType, Converter={StaticResource EnumEquals}, ConverterParameter=code}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=KindCode}"/>
+                                <Button Classes="insTool" Command="{Binding SetNodeKindCommand}" CommandParameter="math" Content="&#x2211;"
+                                        Classes.active="{Binding SelectedNode.ContentType, Converter={StaticResource EnumEquals}, ConverterParameter=math}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=KindMath}"/>
+                            </StackPanel>
                         </StackPanel>
 
                         <!-- Fill -->

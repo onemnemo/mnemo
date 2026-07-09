@@ -476,6 +476,8 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                 Width = element.Width ?? MindmapNodeItem.DefaultWidth,
                 Height = element.Height ?? MindmapNodeItem.DefaultHeight,
                 Text = NodeText(element.Content),
+                ContentType = element.Content.TypeDiscriminator,
+                IsTaskDone = element.Content is TaskContent { Done: true },
                 IsRoot = !hasParent.Contains(element.Id),
                 IsPinned = element.Pinned,
                 IsCollapsed = element.Collapsed,
@@ -927,6 +929,33 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         SelectedEdge is null
             ? Task.CompletedTask
             : ApplyToEdgeAsync(new UnlinkOp { EdgeId = SelectedEdge.Id });
+
+    /// <summary>Toggles a task node's done state (clicked via its checkbox on the canvas).</summary>
+    public Task ToggleTaskDoneAsync(string id)
+    {
+        var element = _document?.Elements.FirstOrDefault(e => e.Id == id);
+        if (element?.Content is not TaskContent task)
+            return Task.CompletedTask;
+        return ApplyAsync(new SetOp { Id = id, Content = task with { Done = !task.Done } }, selectRef: null);
+    }
+
+    // Converts the selected node between content kinds, carrying its visible text into the new kind's slot.
+    [RelayCommand]
+    private Task SetNodeKindAsync(string? kind)
+    {
+        if (SelectedNode is null || SelectedNode.IsFree)
+            return Task.CompletedTask;
+
+        var text = SelectedNode.Text;
+        IElementContent content = kind switch
+        {
+            ElementContentDiscriminators.Task => new TaskContent { Text = text },
+            ElementContentDiscriminators.Code => new CodeContent { Source = text },
+            ElementContentDiscriminators.Math => new MathContent { Latex = text },
+            _ => new TextContent { Text = text },
+        };
+        return ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Content = content });
+    }
 
     [RelayCommand]
     private Task SetFillAsync(string? token) =>

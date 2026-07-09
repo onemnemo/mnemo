@@ -49,13 +49,17 @@ public sealed class MindmapCanvasControl : Control
     public static readonly StyledProperty<FontFamily> FontFamilyProperty =
         AvaloniaProperty.Register<MindmapCanvasControl, FontFamily>(nameof(FontFamily), FontFamily.Default);
 
+    /// <summary>Monospace font for code-node labels; bound to Geist Mono in XAML.</summary>
+    public static readonly StyledProperty<FontFamily> MonoFontFamilyProperty =
+        AvaloniaProperty.Register<MindmapCanvasControl, FontFamily>(nameof(MonoFontFamily), FontFamily.Default);
+
     private IEnumerable? _nodes;
     private IEnumerable? _edges;
 
     private readonly List<MindmapNodeItem> _nodeList = new();
     private readonly List<MindmapEdgeItem> _edgeList = new();
     private readonly List<int> _queryBuffer = new();
-    private readonly Dictionary<(string Text, bool Root, FontScale Scale, string TextToken, int WidthBucket), FormattedText> _textCache = new();
+    private readonly Dictionary<(string Text, bool Root, FontScale Scale, string TextToken, string ContentType, int WidthBucket), FormattedText> _textCache = new();
 
     // Per-token brush cache, keyed by style token; cleared when the theme changes so colors re-resolve.
     private readonly Dictionary<string, IBrush?> _brushCache = new();
@@ -72,7 +76,7 @@ public sealed class MindmapCanvasControl : Control
 
     static MindmapCanvasControl()
     {
-        AffectsRender<MindmapCanvasControl>(TransformProperty, SelectedStrokeProperty, EdgeStrokeProperty, FontFamilyProperty);
+        AffectsRender<MindmapCanvasControl>(TransformProperty, SelectedStrokeProperty, EdgeStrokeProperty, FontFamilyProperty, MonoFontFamilyProperty);
     }
 
     public MindmapCanvasControl()
@@ -125,6 +129,7 @@ public sealed class MindmapCanvasControl : Control
     public IBrush? SelectedStroke { get => GetValue(SelectedStrokeProperty); set => SetValue(SelectedStrokeProperty, value); }
     public IBrush? EdgeStroke { get => GetValue(EdgeStrokeProperty); set => SetValue(EdgeStrokeProperty, value); }
     public FontFamily FontFamily { get => GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
+    public FontFamily MonoFontFamily { get => GetValue(MonoFontFamilyProperty); set => SetValue(MonoFontFamilyProperty, value); }
 
     // --- Hit-testing -------------------------------------------------------
 
@@ -368,11 +373,26 @@ public sealed class MindmapCanvasControl : Control
         if (fill is not null || border is not null)
             context.DrawRectangle(fill, border, rect, radius, radius);
 
+        var isTask = node.ContentType == ElementContentDiscriminators.Task;
+        if (isTask)
+            DrawTaskCheckbox(context, node);
+
         var text = GetFormattedText(node);
         if (text is not null)
         {
-            var origin = new Point(node.X + TextPadding / 2, node.Y + (node.Height - text.Height) / 2);
-            context.DrawText(text, origin);
+            var textLeft = isTask
+                ? node.X + MindmapNodeItem.TaskCheckboxInset + MindmapNodeItem.TaskCheckboxSize + MindmapNodeItem.TaskTextGap
+                : node.X + TextPadding / 2;
+            var textTop = node.Y + (node.Height - text.Height) / 2;
+            context.DrawText(text, new Point(textLeft, textTop));
+
+            // Strike a completed task's label through.
+            if (isTask && node.IsTaskDone)
+            {
+                var y = textTop + text.Height / 2;
+                var strikePen = new Pen(ResolveBrush(node.TextToken) ?? Brushes.Gray, 1.2);
+                context.DrawLine(strikePen, new Point(textLeft, y), new Point(textLeft + text.Width, y));
+            }
         }
 
         if (node.IsPinned)
@@ -386,6 +406,33 @@ public sealed class MindmapCanvasControl : Control
                     node.Y + MindmapNodeItem.PinBadgeInset);
                 context.DrawEllipse(pinBrush, null, center, MindmapNodeItem.PinBadgeRadius, MindmapNodeItem.PinBadgeRadius);
             }
+        }
+    }
+
+    // A task node's checkbox: an outlined box on the left, filled with a checkmark when done.
+    private void DrawTaskCheckbox(DrawingContext context, MindmapNodeItem node)
+    {
+        var size = MindmapNodeItem.TaskCheckboxSize;
+        var x = node.X + MindmapNodeItem.TaskCheckboxInset;
+        var y = node.Y + (node.Height - size) / 2;
+        var box = new Rect(x, y, size, size);
+        var stroke = ResolveBrush(node.TextToken) ?? Brushes.Gray;
+
+        if (node.IsTaskDone)
+        {
+            var fill = ResolveBrush(MindmapStyleTokens.Accent) ?? stroke;
+            context.DrawRectangle(fill, null, box, 3, 3);
+            var checkPen = new Pen(ResolveBrush(MindmapStyleTokens.OnAccent) ?? Brushes.White, 1.6)
+            {
+                LineCap = PenLineCap.Round,
+                LineJoin = PenLineJoin.Round,
+            };
+            context.DrawLine(checkPen, new Point(x + size * 0.24, y + size * 0.52), new Point(x + size * 0.43, y + size * 0.72));
+            context.DrawLine(checkPen, new Point(x + size * 0.43, y + size * 0.72), new Point(x + size * 0.76, y + size * 0.30));
+        }
+        else
+        {
+            context.DrawRectangle(null, new Pen(stroke, 1.4), box, 3, 3);
         }
     }
 
@@ -516,18 +563,31 @@ public sealed class MindmapCanvasControl : Control
             return null;
 
         var widthBucket = (int)node.Width;
-        var key = (node.Text, node.IsRoot, node.FontScale, node.TextToken, widthBucket);
+        var key = (node.Text, node.IsRoot, node.FontScale, node.TextToken, node.ContentType, widthBucket);
         if (_textCache.TryGetValue(key, out var cached))
             return cached;
 
         var brush = ResolveBrush(node.TextToken) ?? Brushes.Black;
         var weight = node.IsRoot ? FontWeight.SemiBold : FontWeight.Normal;
-        var typeface = new Typeface(FontFamily, FontStyle.Normal, weight);
+
+        // Code nodes read as monospace, math as italic; task labels sit left of the checkbox.
+        var isTask = node.ContentType == ElementContentDiscriminators.Task;
+        var typeface = node.ContentType switch
+        {
+            ElementContentDiscriminators.Code => new Typeface(MonoFontFamily, FontStyle.Normal, weight),
+            ElementContentDiscriminators.Math => new Typeface(FontFamily, FontStyle.Italic, weight),
+            _ => new Typeface(FontFamily, FontStyle.Normal, weight),
+        };
+
+        var leftInset = isTask
+            ? MindmapNodeItem.TaskCheckboxInset + MindmapNodeItem.TaskCheckboxSize + MindmapNodeItem.TaskTextGap
+            : TextPadding;
+
         var text = new FormattedText(node.Text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, FontSizeFor(node.FontScale), brush)
         {
-            MaxTextWidth = Math.Max(1, node.Width - TextPadding),
+            MaxTextWidth = Math.Max(1, node.Width - leftInset - TextPadding / 2),
             Trimming = TextTrimming.CharacterEllipsis,
-            TextAlignment = TextAlignment.Center,
+            TextAlignment = isTask ? TextAlignment.Left : TextAlignment.Center,
         };
         _textCache[key] = text;
         return text;
@@ -767,7 +827,7 @@ public sealed class MindmapCanvasControl : Control
             InvalidateVisual();
 
         // A font change invalidates the measured/cached text.
-        if (change.Property == FontFamilyProperty)
+        if (change.Property == FontFamilyProperty || change.Property == MonoFontFamilyProperty)
         {
             _textCache.Clear();
             InvalidateVisual();

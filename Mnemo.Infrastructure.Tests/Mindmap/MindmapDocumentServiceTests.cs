@@ -197,6 +197,45 @@ public sealed class MindmapDocumentServiceTests
     }
 
     [Fact]
+    public async Task Set_TextShorthand_PreservesTypedNodeContent()
+    {
+        await using var h = new MindmapTestHarness();
+        var (map, ids) = await SeedAsync(h, new MindmapNodeSpec { Ref = "n" });
+
+        // Turn the node into a completed task, then edit its label via the text shorthand.
+        await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new SetOp { Id = ids["n"], Content = new TaskContent { Text = "old", Done = true } },
+        });
+        await h.Service.ApplyAsync(map.Id, 3, new MindmapEditOp[]
+        {
+            new SetOp { Id = ids["n"], Text = "buy milk" },
+        });
+
+        var node = (await h.Service.GetAsync(map.Id)).Value!.Elements.Single(e => e.Id == ids["n"]);
+        var task = Assert.IsType<TaskContent>(node.Content);
+        Assert.Equal("buy milk", task.Text);
+        Assert.True(task.Done); // editing the label must not drop the task's Done state
+    }
+
+    [Fact]
+    public async Task Set_ConvertNodeContentKind_KeepsNodeKind()
+    {
+        await using var h = new MindmapTestHarness();
+        var (map, ids) = await SeedAsync(h, new MindmapNodeSpec { Ref = "n", Text = "x" });
+
+        var result = (await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new SetOp { Id = ids["n"], Content = new CodeContent { Source = "print()", Language = "py" } },
+        })).Value!;
+
+        Assert.True(result.Success);
+        var node = (await h.Service.GetAsync(map.Id)).Value!.Elements.Single(e => e.Id == ids["n"]);
+        Assert.Equal(ElementKind.Node, node.Kind);
+        Assert.IsType<CodeContent>(node.Content);
+    }
+
+    [Fact]
     public async Task SetEdge_UpdatesLabelAndStyle_Merging()
     {
         await using var h = new MindmapTestHarness();
