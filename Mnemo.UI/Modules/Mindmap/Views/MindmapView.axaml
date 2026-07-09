@@ -275,7 +275,8 @@
                                         MonoFontFamily="{DynamicResource Font.Monospace}"
                                         SelectedStroke="{DynamicResource AccentBrush}"
                                         EdgeStroke="{DynamicResource BorderBrush}"
-                                        MissingImageLabel="{markup:T Ns=Mindmap, Key=ImageMissing}"/>
+                                        MissingImageLabel="{markup:T Ns=Mindmap, Key=ImageMissing}"
+                                        MissingRefLabel="{markup:T Ns=Mindmap, Key=RefMissing}"/>
           </Grid>
         </Border>
 
@@ -546,7 +547,8 @@
                      Height="{Binding LabelEditorHeight}"
                      FontSize="{Binding LabelEditorFontSize}"
                      Text="{Binding LabelEditorText, Mode=TwoWay}"
-                     AcceptsReturn="False"
+                     AcceptsReturn="{Binding LabelEditorAcceptsReturn}"
+                     TextWrapping="NoWrap"
                      PlaceholderText="{markup:T Ns=Mindmap, Key=LabelPlaceholder}"/>
         </Canvas>
 
@@ -689,7 +691,7 @@
                         <!-- Node content type (node selections only) -->
                         <StackPanel Spacing="8" IsVisible="{Binding IsNodeSelected}">
                             <TextBlock Classes="insHeader" Text="{markup:T Ns=Mindmap, Key=NodeType}"/>
-                            <StackPanel Orientation="Horizontal">
+                            <WrapPanel>
                                 <Button Classes="insTool" Command="{Binding SetNodeKindCommand}" CommandParameter="text" Content="Aa"
                                         Classes.active="{Binding SelectedNode.ContentType, Converter={StaticResource EnumEquals}, ConverterParameter=text}"
                                         ToolTip.Tip="{markup:T Ns=Mindmap, Key=KindText}"/>
@@ -702,7 +704,22 @@
                                 <Button Classes="insTool" Command="{Binding SetNodeKindCommand}" CommandParameter="math" Content="&#x2211;"
                                         Classes.active="{Binding SelectedNode.ContentType, Converter={StaticResource EnumEquals}, ConverterParameter=math}"
                                         ToolTip.Tip="{markup:T Ns=Mindmap, Key=KindMath}"/>
-                            </StackPanel>
+                                <Button Classes="insTool" Command="{Binding SetNodeKindCommand}" CommandParameter="link"
+                                        Classes.active="{Binding SelectedNode.ContentType, Converter={StaticResource EnumEquals}, ConverterParameter=link}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=KindLink}">
+                                    <controls:AppIcon Icon="Common/link" Width="15" Height="15" Color="{Binding $parent[Button].Foreground}"/>
+                                </Button>
+                                <Button Classes="insTool" Command="{Binding SetNodeKindCommand}" CommandParameter="note"
+                                        Classes.active="{Binding SelectedNode.ContentType, Converter={StaticResource EnumEquals}, ConverterParameter=note}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=KindNote}">
+                                    <controls:AppIcon Icon="Common/file-text" Width="15" Height="15" Color="{Binding $parent[Button].Foreground}"/>
+                                </Button>
+                                <Button Classes="insTool" Command="{Binding SetNodeKindCommand}" CommandParameter="flashcard"
+                                        Classes.active="{Binding SelectedNode.ContentType, Converter={StaticResource EnumEquals}, ConverterParameter=flashcard}"
+                                        ToolTip.Tip="{markup:T Ns=Mindmap, Key=KindFlashcard}">
+                                    <controls:AppIcon Icon="Common/gallery-horizontal-end" Width="15" Height="15" Color="{Binding $parent[Button].Foreground}"/>
+                                </Button>
+                            </WrapPanel>
                         </StackPanel>
 
                         <!-- Fill -->

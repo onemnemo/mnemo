@@ -4,12 +4,17 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Mnemo.Core.Models.Mindmap;
+using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Services.LaTeX;
 using Mnemo.UI.Modules.Mindmap.ViewModels;
+using Mnemo.UI.Services.LaTeX.Layout.Boxes;
+using Mnemo.UI.Services.LaTeX.Rendering;
 
 namespace Mnemo.UI.Modules.Mindmap.Views;
 
@@ -58,6 +63,10 @@ public sealed class MindmapCanvasControl : Control
     public static readonly StyledProperty<string?> MissingImageLabelProperty =
         AvaloniaProperty.Register<MindmapCanvasControl, string?>(nameof(MissingImageLabel));
 
+    /// <summary>Localized label drawn for a reference node whose target is gone; bound via markup:T in XAML.</summary>
+    public static readonly StyledProperty<string?> MissingRefLabelProperty =
+        AvaloniaProperty.Register<MindmapCanvasControl, string?>(nameof(MissingRefLabel));
+
     private IEnumerable? _nodes;
     private IEnumerable? _edges;
 
@@ -76,6 +85,23 @@ public sealed class MindmapCanvasControl : Control
     // Per-token edge pens (branch coloring); cleared alongside the brush cache on a theme change.
     private readonly Dictionary<string, Pen?> _edgePenCache = new();
 
+    // Math nodes render through the LaTeX engine's layout-box tree, cached by (latex, fontSize). A cached null
+    // marks invalid LaTeX so the node falls back to raw text without re-fetching. Boxes are theme-agnostic
+    // (color is injected at draw time), so this survives a theme change. Requests are deduped via the in-flight
+    // set, both touched only on the UI thread.
+    private readonly LRUCache<(string Latex, double FontSize), Box?> _boxCache = new(300);
+    private readonly HashSet<(string Latex, double FontSize)> _pendingBoxRequests = new();
+
+    // Glyph cache for the math renderer; its key carries the color, so no clearing is needed on a theme change.
+    private readonly LRUCache<(string, double, uint), FormattedText> _mathTextCache = new(500);
+
+    // Language chips on code nodes, keyed by language; cleared with the text cache (the brush is baked in).
+    private readonly Dictionary<string, FormattedText> _chipCache = new();
+
+    // Trailing chips on reference nodes (e.g. a deck's due count), keyed by badge text; cleared alongside
+    // _chipCache since both bake in the theme brush.
+    private readonly Dictionary<string, FormattedText> _badgeCache = new();
+
     private MindmapQuadtree? _tree;
     private bool _treeDirty = true;
 
@@ -85,7 +111,7 @@ public sealed class MindmapCanvasControl : Control
 
     static MindmapCanvasControl()
     {
-        AffectsRender<MindmapCanvasControl>(TransformProperty, SelectedStrokeProperty, EdgeStrokeProperty, FontFamilyProperty, MonoFontFamilyProperty, MissingImageLabelProperty);
+        AffectsRender<MindmapCanvasControl>(TransformProperty, SelectedStrokeProperty, EdgeStrokeProperty, FontFamilyProperty, MonoFontFamilyProperty, MissingImageLabelProperty, MissingRefLabelProperty);
     }
 
     public MindmapCanvasControl()
@@ -101,6 +127,8 @@ public sealed class MindmapCanvasControl : Control
         _brushCache.Clear();
         _edgePenCache.Clear();
         _textCache.Clear();
+        _chipCache.Clear();
+        _badgeCache.Clear();
         InvalidateVisual();
     }
 
@@ -140,6 +168,10 @@ public sealed class MindmapCanvasControl : Control
     public FontFamily FontFamily { get => GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
     public FontFamily MonoFontFamily { get => GetValue(MonoFontFamilyProperty); set => SetValue(MonoFontFamilyProperty, value); }
     public string? MissingImageLabel { get => GetValue(MissingImageLabelProperty); set => SetValue(MissingImageLabelProperty, value); }
+    public string? MissingRefLabel { get => GetValue(MissingRefLabelProperty); set => SetValue(MissingRefLabelProperty, value); }
+
+    /// <summary>The LaTeX layout engine used to render math nodes; set once by the view. Null falls back to raw text.</summary>
+    public ILaTeXEngine? LatexEngine { get; set; }
 
     // --- Hit-testing -------------------------------------------------------
 
@@ -427,21 +459,36 @@ public sealed class MindmapCanvasControl : Control
         if (isTask)
             DrawTaskCheckbox(context, node);
 
-        var text = GetFormattedText(node);
-        if (text is not null)
+        if (node.ContentType == ElementContentDiscriminators.Math && TryDrawMath(context, node, rect))
         {
-            var textLeft = isTask
-                ? node.X + MindmapNodeItem.TaskCheckboxInset + MindmapNodeItem.TaskCheckboxSize + MindmapNodeItem.TaskTextGap
-                : node.X + TextPadding / 2;
-            var textTop = node.Y + (node.Height - text.Height) / 2;
-            context.DrawText(text, new Point(textLeft, textTop));
-
-            // Strike a completed task's label through.
-            if (isTask && node.IsTaskDone)
+            // The rendered layout box stands in for the label; nothing else to draw for a math node here.
+        }
+        else if (node.ContentType == ElementContentDiscriminators.Code)
+        {
+            DrawCodeLabel(context, node, rect, fill);
+        }
+        else if (IsRefContent(node.ContentType))
+        {
+            DrawRefContent(context, node, rect, fill);
+        }
+        else
+        {
+            var text = GetFormattedText(node);
+            if (text is not null)
             {
-                var y = textTop + text.Height / 2;
-                var strikePen = new Pen(ResolveBrush(node.TextToken) ?? Brushes.Gray, 1.2);
-                context.DrawLine(strikePen, new Point(textLeft, y), new Point(textLeft + text.Width, y));
+                var textLeft = isTask
+                    ? node.X + MindmapNodeItem.TaskCheckboxInset + MindmapNodeItem.TaskCheckboxSize + MindmapNodeItem.TaskTextGap
+                    : node.X + TextPadding / 2;
+                var textTop = node.Y + (node.Height - text.Height) / 2;
+                context.DrawText(text, new Point(textLeft, textTop));
+
+                // Strike a completed task's label through.
+                if (isTask && node.IsTaskDone)
+                {
+                    var y = textTop + text.Height / 2;
+                    var strikePen = new Pen(ResolveBrush(node.TextToken) ?? Brushes.Gray, 1.2);
+                    context.DrawLine(strikePen, new Point(textLeft, y), new Point(textLeft + text.Width, y));
+                }
             }
         }
 
@@ -484,6 +531,129 @@ public sealed class MindmapCanvasControl : Control
         {
             context.DrawRectangle(null, new Pen(stroke, 1.4), box, 3, 3);
         }
+    }
+
+    private static bool IsRefContent(string contentType) =>
+        contentType is ElementContentDiscriminators.Link
+            or ElementContentDiscriminators.Note
+            or ElementContentDiscriminators.Flashcard;
+
+    // A reference node: a kind glyph on the left, then the resolved title — or a muted "missing" label when the
+    // target is gone, or nothing while it's still resolving — plus an optional trailing chip on the right.
+    private void DrawRefContent(DrawingContext context, MindmapNodeItem node, Rect rect, IBrush? fill)
+    {
+        DrawRefGlyph(context, node);
+
+        var textLeft = node.X + MindmapNodeItem.RefGlyphInset + MindmapNodeItem.RefGlyphSize + MindmapNodeItem.RefTextGap;
+
+        if (node.IsRefMissing)
+        {
+            DrawMissingRef(context, node, textLeft);
+            return;
+        }
+
+        var text = GetFormattedText(node);
+        if (text is not null)
+            context.DrawText(text, new Point(textLeft, node.Y + (node.Height - text.Height) / 2));
+
+        if (!string.IsNullOrEmpty(node.RefBadge))
+            DrawRefBadge(context, node.RefBadge!, rect, fill);
+    }
+
+    // The kind glyph, drawn in the node's text color: an external-link arrow, a document, or stacked cards.
+    private void DrawRefGlyph(DrawingContext context, MindmapNodeItem node)
+    {
+        var size = MindmapNodeItem.RefGlyphSize;
+        var x = node.X + MindmapNodeItem.RefGlyphInset;
+        var y = node.Y + (node.Height - size) / 2;
+        var brush = ResolveBrush(node.TextToken) ?? Brushes.Gray;
+        var pen = new Pen(brush, 1.4) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+
+        switch (node.ContentType)
+        {
+            case ElementContentDiscriminators.Link:
+                DrawLinkGlyph(context, pen, x, y, size);
+                break;
+            case ElementContentDiscriminators.Note:
+                DrawNoteGlyph(context, pen, x, y, size);
+                break;
+            case ElementContentDiscriminators.Flashcard:
+                DrawFlashcardGlyph(context, pen, node, x, y, size);
+                break;
+        }
+    }
+
+    // A diagonal arrow pointing up-right — the node opens something elsewhere.
+    private static void DrawLinkGlyph(DrawingContext context, Pen pen, double x, double y, double size)
+    {
+        var tail = new Point(x + size * 0.22, y + size * 0.78);
+        var tip = new Point(x + size * 0.80, y + size * 0.20);
+        context.DrawLine(pen, tail, tip);
+        context.DrawLine(pen, tip, new Point(x + size * 0.46, y + size * 0.20));
+        context.DrawLine(pen, tip, new Point(x + size * 0.80, y + size * 0.54));
+    }
+
+    // A document outline with two text lines.
+    private static void DrawNoteGlyph(DrawingContext context, Pen pen, double x, double y, double size)
+    {
+        var body = new Rect(x + size * 0.20, y + size * 0.10, size * 0.60, size * 0.80);
+        context.DrawRectangle(null, pen, body, 2, 2);
+        var lineLeft = body.X + size * 0.12;
+        var lineRight = body.Right - size * 0.12;
+        context.DrawLine(pen, new Point(lineLeft, y + size * 0.40), new Point(lineRight, y + size * 0.40));
+        context.DrawLine(pen, new Point(lineLeft, y + size * 0.58), new Point(lineRight, y + size * 0.58));
+    }
+
+    // Two offset rounded rects (a stack of cards); the front is filled with the node fill so it reads as stacked.
+    private void DrawFlashcardGlyph(DrawingContext context, Pen pen, MindmapNodeItem node, double x, double y, double size)
+    {
+        var cardFill = ResolveBrush(node.FillToken) ?? ResolveBrush(MindmapStyleTokens.Surface);
+        var back = new Rect(x + size * 0.30, y + size * 0.14, size * 0.52, size * 0.52);
+        var front = new Rect(x + size * 0.12, y + size * 0.34, size * 0.52, size * 0.52);
+        context.DrawRectangle(null, pen, back, 2, 2);
+        context.DrawRectangle(cardFill, pen, front, 2, 2);
+    }
+
+    // The muted, italic "missing reference" label, left-aligned after the glyph. Built fresh each draw (mirrors
+    // the missing-image placeholder); a missing ref is rare enough not to warrant caching.
+    private void DrawMissingRef(DrawingContext context, MindmapNodeItem node, double textLeft)
+    {
+        var label = MissingRefLabel;
+        if (string.IsNullOrEmpty(label))
+            return;
+
+        var brush = ResolveBrush(MindmapStyleTokens.TextMuted) ?? Brushes.Gray;
+        var text = new FormattedText(label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+            new Typeface(FontFamily, FontStyle.Italic), FontSizeFor(node.FontScale), brush)
+        {
+            MaxTextWidth = Math.Max(1, node.X + node.Width - textLeft - TextPadding / 2),
+            Trimming = TextTrimming.CharacterEllipsis,
+        };
+        context.DrawText(text, new Point(textLeft, node.Y + (node.Height - text.Height) / 2));
+    }
+
+    // A small muted chip pinned to the node's right edge (e.g. a deck's due count). Paints its own background so
+    // a long title beneath doesn't show through, mirroring the code-node language chip.
+    private void DrawRefBadge(DrawingContext context, string badge, Rect rect, IBrush? fill)
+    {
+        const double pad = MindmapNodeItem.TaskCheckboxInset;
+        if (!_badgeCache.TryGetValue(badge, out var chip))
+        {
+            var brush = ResolveBrush(MindmapStyleTokens.TextMuted) ?? Brushes.Gray;
+            chip = new FormattedText(badge, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(FontFamily), 9.5, brush);
+            _badgeCache[badge] = chip;
+        }
+
+        var chipX = Math.Max(rect.X + pad, rect.Right - pad - chip.Width);
+        var chipY = rect.Y + (rect.Height - chip.Height) / 2;
+
+        var background = fill ?? ResolveBrush(MindmapStyleTokens.Surface);
+        if (background is not null)
+        {
+            const double bleed = 3;
+            context.DrawRectangle(background, null, new Rect(chipX - bleed, chipY - 1, chip.Width + bleed * 2, chip.Height + 2), 3, 3);
+        }
+        context.DrawText(chip, new Point(chipX, chipY));
     }
 
     // A free text label: just the text, with a selection outline so it can be grabbed when empty.
@@ -682,8 +852,9 @@ public sealed class MindmapCanvasControl : Control
         var brush = ResolveBrush(node.TextToken) ?? Brushes.Black;
         var weight = node.IsRoot ? FontWeight.SemiBold : FontWeight.Normal;
 
-        // Code nodes read as monospace, math as italic; task labels sit left of the checkbox.
+        // Code nodes read as monospace, math as italic; task and reference labels sit left of their glyph.
         var isTask = node.ContentType == ElementContentDiscriminators.Task;
+        var isRef = IsRefContent(node.ContentType);
         var typeface = node.ContentType switch
         {
             ElementContentDiscriminators.Code => new Typeface(MonoFontFamily, FontStyle.Normal, weight),
@@ -691,16 +862,31 @@ public sealed class MindmapCanvasControl : Control
             _ => new Typeface(FontFamily, FontStyle.Normal, weight),
         };
 
-        var leftInset = isTask
-            ? MindmapNodeItem.TaskCheckboxInset + MindmapNodeItem.TaskCheckboxSize + MindmapNodeItem.TaskTextGap
-            : TextPadding;
-
-        var text = new FormattedText(node.Text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, FontSizeFor(node.FontScale), brush)
+        FormattedText text;
+        if (node.ContentType == ElementContentDiscriminators.Code)
         {
-            MaxTextWidth = Math.Max(1, node.Width - leftInset - TextPadding / 2),
-            Trimming = TextTrimming.CharacterEllipsis,
-            TextAlignment = isTask ? TextAlignment.Left : TextAlignment.Center,
-        };
+            // A code snippet keeps its own line breaks and never wraps; the caller clips it to the node box.
+            text = new FormattedText(node.Text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, FontSizeFor(node.FontScale), brush)
+            {
+                TextAlignment = TextAlignment.Left,
+            };
+        }
+        else
+        {
+            var leftInset = isTask
+                ? MindmapNodeItem.TaskCheckboxInset + MindmapNodeItem.TaskCheckboxSize + MindmapNodeItem.TaskTextGap
+                : isRef
+                    ? MindmapNodeItem.RefGlyphInset + MindmapNodeItem.RefGlyphSize + MindmapNodeItem.RefTextGap
+                    : TextPadding;
+
+            text = new FormattedText(node.Text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, FontSizeFor(node.FontScale), brush)
+            {
+                MaxTextWidth = Math.Max(1, node.Width - leftInset - TextPadding / 2),
+                Trimming = TextTrimming.CharacterEllipsis,
+                TextAlignment = isTask || isRef ? TextAlignment.Left : TextAlignment.Center,
+            };
+        }
+
         _textCache[key] = text;
         return text;
     }
@@ -712,6 +898,131 @@ public sealed class MindmapCanvasControl : Control
         FontScale.XL => 19,
         _ => 13,
     };
+
+    // --- Math node rendering -----------------------------------------------
+
+    // Draws a math node's LaTeX as a rendered layout box centered in its content rect. Returns false — so the
+    // caller falls back to the italic raw-text label — when the engine is missing, the LaTeX is invalid, or the
+    // box hasn't been laid out yet (a fetch is kicked off and the node repaints when it lands).
+    private bool TryDrawMath(DrawingContext context, MindmapNodeItem node, Rect rect)
+    {
+        if (LatexEngine is null || node.IsEditing || string.IsNullOrEmpty(node.Text))
+            return false;
+
+        var fontSize = FontSizeFor(node.FontScale);
+        var key = (node.Text, fontSize);
+        if (_boxCache.TryGetValue(key, out var box))
+        {
+            if (box is null)
+                return false;
+            DrawMathBox(context, node, rect, box);
+            return true;
+        }
+
+        RequestMathBox(node.Text, fontSize);
+        return false;
+    }
+
+    private void DrawMathBox(DrawingContext context, MindmapNodeItem node, Rect rect, Box box)
+    {
+        if (box.Width <= 0 || box.TotalHeight <= 0)
+            return;
+
+        const double pad = 6;
+        var availWidth = Math.Max(1, rect.Width - pad * 2);
+        var availHeight = Math.Max(1, rect.Height - pad * 2);
+
+        // Fit uniformly, never upscaling, so the expression stays crisp and centered inside the node box.
+        var scale = Math.Min(1, Math.Min(availWidth / box.Width, availHeight / box.TotalHeight));
+        var drawWidth = box.Width * scale;
+        var drawHeight = box.TotalHeight * scale;
+        var offsetX = rect.X + (rect.Width - drawWidth) / 2;
+        var offsetY = rect.Y + (rect.Height - drawHeight) / 2;
+
+        var brush = ResolveBrush(node.TextToken) ?? Brushes.Black;
+        using (context.PushTransform(Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(offsetX, offsetY)))
+        {
+            var mathContext = new MathRenderContext(context, brush, _mathTextCache);
+            box.Render(mathContext, 0, box.Height);
+        }
+    }
+
+    // Fetches a layout box off the render loop, then repaints. Deduped through the in-flight set so a node
+    // waiting on its box doesn't queue a fetch every frame.
+    private void RequestMathBox(string latex, double fontSize)
+    {
+        var key = (latex, fontSize);
+        if (!_pendingBoxRequests.Add(key))
+            return;
+        _ = FetchMathBoxAsync(latex, fontSize);
+    }
+
+    private async Task FetchMathBoxAsync(string latex, double fontSize)
+    {
+        Box? box = null;
+        try
+        {
+            if (LatexEngine is { } engine)
+            {
+                var layout = await engine.GetLayoutBoxAsync(latex, fontSize).ConfigureAwait(true);
+                box = layout as Box;
+            }
+        }
+        catch
+        {
+            // Invalid or failed layout: cache the null result so the node renders raw text without retrying,
+            // mirroring the image-decode fallback. The render loop must never see this throw.
+            box = null;
+        }
+
+        _boxCache.Add((latex, fontSize), box);
+        _pendingBoxRequests.Remove((latex, fontSize));
+        InvalidateVisual();
+    }
+
+    // --- Code node rendering -----------------------------------------------
+
+    // Draws a code snippet as left/top-aligned monospace text clipped to the node box (no wrapping), with an
+    // optional language chip in the top-right. The chip paints on the node fill so it never overlaps the code.
+    private void DrawCodeLabel(DrawingContext context, MindmapNodeItem node, Rect rect, IBrush? fill)
+    {
+        var text = GetFormattedText(node);
+        if (text is null)
+            return;
+
+        const double pad = MindmapNodeItem.CodePadding;
+        var inner = new Rect(rect.X + pad, rect.Y + pad, Math.Max(1, rect.Width - pad * 2), Math.Max(1, rect.Height - pad * 2));
+
+        using (context.PushClip(inner))
+            context.DrawText(text, new Point(inner.X, inner.Y));
+
+        if (!string.IsNullOrEmpty(node.CodeLanguage))
+            DrawLanguageChip(context, node.CodeLanguage!, rect, fill);
+    }
+
+    private void DrawLanguageChip(DrawingContext context, string language, Rect rect, IBrush? fill)
+    {
+        const double pad = MindmapNodeItem.CodePadding;
+        if (!_chipCache.TryGetValue(language, out var chip))
+        {
+            var brush = ResolveBrush(MindmapStyleTokens.TextMuted) ?? Brushes.Gray;
+            chip = new FormattedText(language, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(MonoFontFamily), 9.5, brush);
+            _chipCache[language] = chip;
+        }
+
+        var chipX = Math.Max(rect.X + pad, rect.Right - pad - chip.Width);
+        var chipY = rect.Y + pad;
+
+        // Paint the chip's own background (the node fill) so the first code line can't show through beneath it.
+        var background = fill ?? ResolveBrush(MindmapStyleTokens.Surface);
+        if (background is not null)
+        {
+            const double bleed = 2;
+            context.DrawRectangle(background, null, new Rect(chipX - bleed, chipY, chip.Width + bleed * 2, chip.Height));
+        }
+
+        context.DrawText(chip, new Point(chipX, chipY));
+    }
 
     /// <summary>Resolves a style token to a theme brush (cached); null if the token has no brush.</summary>
     private IBrush? ResolveBrush(string? token)
@@ -931,6 +1242,10 @@ public sealed class MindmapCanvasControl : Control
             case nameof(MindmapNodeItem.FontScale):
                 _textCache.Clear();
                 break;
+            case nameof(MindmapNodeItem.IsRefMissing):
+            case nameof(MindmapNodeItem.RefBadge):
+                // Lazy ref resolution lands here; the label itself arrives via Text, these only need a repaint.
+                break;
         }
         InvalidateVisual();
     }
@@ -957,6 +1272,8 @@ public sealed class MindmapCanvasControl : Control
         if (change.Property == FontFamilyProperty || change.Property == MonoFontFamilyProperty)
         {
             _textCache.Clear();
+            _chipCache.Clear();
+            _badgeCache.Clear();
             InvalidateVisual();
         }
     }

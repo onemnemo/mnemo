@@ -1,0 +1,99 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Mnemo.UI.Controls"
+             xmlns:views="using:Mnemo.UI.Modules.Mindmap.Views"
+             x:Class="Mnemo.UI.Modules.Mindmap.Views.MindmapRefPickerOverlay">
+  <UserControl.Styles>
+    <!-- Search field: quiet fill, accent ring on focus, constant thickness (no layout jump). -->
+    <Style Selector="TextBox#SearchBox">
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+      <Setter Property="BorderThickness" Value="1.5"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="14,11"/>
+      <Setter Property="MinHeight" Value="44"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Input}"/>
+      <Style Selector="^:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+      </Style>
+    </Style>
+
+    <Style Selector="ListBox#EntryList">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="4"/>
+    </Style>
+    <Style Selector="ListBox#EntryList ListBoxItem">
+      <Setter Property="Padding" Value="10,8"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.Small}"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+  </UserControl.Styles>
+
+  <Border Background="{DynamicResource OverlayBackgroundBrush}"
+          BorderBrush="{DynamicResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="16"
+          Padding="24,22,24,20"
+          Width="420">
+    <StackPanel>
+      <!-- Header -->
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <TextBlock x:Name="TitleText"
+                   Grid.Column="0"
+                   VerticalAlignment="Center"
+                   FontFamily="{DynamicResource Font.SemiBold}"
+                   FontSize="{DynamicResource FontSize.Heading6}"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
+                   TextWrapping="Wrap"/>
+        <controls:AppButton Grid.Column="1"
+                            Classes="ghost"
+                            IconName="Common/x"
+                            IconSize="16"
+                            Padding="6"
+                            Margin="0,-4,-6,0"
+                            VerticalAlignment="Top"
+                            Click="OnCancelClick"/>
+      </Grid>
+
+      <!-- Search -->
+      <TextBox x:Name="SearchBox" Margin="0,16,0,0"/>
+
+      <!-- Results -->
+      <Border Margin="0,12,0,0"
+              MinHeight="120"
+              CornerRadius="10"
+              BorderThickness="1"
+              BorderBrush="{DynamicResource DividerSubtleBrush}"
+              ClipToBounds="True">
+        <Panel>
+          <ListBox x:Name="EntryList" MaxHeight="280" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="views:RefPickerEntry">
+                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"/>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <TextBlock x:Name="EmptyText"
+                     IsVisible="False"
+                     Margin="16"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     TextAlignment="Center"
+                     TextWrapping="Wrap"
+                     FontSize="{DynamicResource FontSize.Body.Small}"
+                     Foreground="{DynamicResource TextTertiaryBrush}"/>
+        </Panel>
+      </Border>
+
+      <!-- Actions -->
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,20,0,0">
+        <controls:AppButton x:Name="CancelButton" Classes="ghost" Click="OnCancelClick"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

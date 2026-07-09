@@ -56,6 +56,10 @@ public partial class MindmapView : UserControl
         _host = this.FindControl<Border>("CanvasHost");
         _canvas = this.FindControl<MindmapCanvasControl>("World");
         _labelEditor = this.FindControl<TextBox>("LabelEditor");
+
+        // The canvas renders math nodes through the shared LaTeX engine; wire it once from the app container.
+        if (_canvas is not null)
+            _canvas.LatexEngine = (Application.Current as App)?.Services?.GetService<ILaTeXEngine>();
         if (_host is not null)
         {
             _host.PointerWheelChanged += OnWheel;
@@ -129,17 +133,25 @@ public partial class MindmapView : UserControl
         if (Vm is null)
             return;
 
-        // Enter commits, Escape cancels; both are marked handled so the canvas bubble handler doesn't also fire.
-        if (e.Key is Key.Enter or Key.Return)
-        {
-            e.Handled = true;
-            _ = Vm.CommitLabelEditAsync();
-            _canvas?.Focus();
-        }
-        else if (e.Key == Key.Escape)
+        // Escape always cancels; marked handled so the canvas bubble handler doesn't also fire.
+        if (e.Key == Key.Escape)
         {
             e.Handled = true;
             Vm.CancelLabelEdit();
+            _canvas?.Focus();
+            return;
+        }
+
+        // Multi-line (code) editing: plain Enter inserts a newline and Ctrl+Enter commits. Single-line labels
+        // commit on Enter. When we don't commit, the keystroke falls through to the TextBox unhandled.
+        if (e.Key is Key.Enter or Key.Return)
+        {
+            var commit = !Vm.LabelEditorAcceptsReturn || e.KeyModifiers.HasFlag(KeyModifiers.Control);
+            if (!commit)
+                return;
+
+            e.Handled = true;
+            _ = Vm.CommitLabelEditAsync();
             _canvas?.Focus();
         }
     }
@@ -252,6 +264,13 @@ public partial class MindmapView : UserControl
             if (IsInTaskCheckbox(content, node))
             {
                 _ = Vm.ToggleTaskDoneAsync(node.Id);
+                return;
+            }
+
+            // Clicking a reference node's kind glyph follows it (open link / open note or deck), no drag.
+            if (IsInRefGlyph(content, node))
+            {
+                _ = Vm.OpenRefAsync(node.Id);
                 return;
             }
 
@@ -398,8 +417,17 @@ public partial class MindmapView : UserControl
             return;
         }
 
-        // Existing element (any kind, including a frame's title/interior): edit its label.
         Vm.Select(hit);
+
+        // A reference node opens its target on double-click rather than editing (note/flashcard have no editable
+        // label anyway; a link's title is still editable via the F2/Enter keybind path).
+        if (IsRefNode(hit))
+        {
+            await Vm.OpenRefAsync(hit.Id);
+            return;
+        }
+
+        // Existing element (any kind, including a frame's title/interior): edit its label.
         Vm.BeginEditElement(hit);
     }
 
@@ -508,6 +536,24 @@ public partial class MindmapView : UserControl
         const double pad = 4; // generous grab area around the box
         var size = MindmapNodeItem.TaskCheckboxSize;
         var x = node.X + MindmapNodeItem.TaskCheckboxInset;
+        var y = node.Y + (node.Height - size) / 2;
+        return content.X >= x - pad && content.X <= x + size + pad
+            && content.Y >= y - pad && content.Y <= y + size + pad;
+    }
+
+    private static bool IsRefNode(MindmapNodeItem node) =>
+        node.ContentType is ElementContentDiscriminators.Link
+            or ElementContentDiscriminators.Note
+            or ElementContentDiscriminators.Flashcard;
+
+    private static bool IsInRefGlyph(Point content, MindmapNodeItem node)
+    {
+        if (!IsRefNode(node))
+            return false;
+
+        const double pad = 4; // generous grab area around the glyph
+        var size = MindmapNodeItem.RefGlyphSize;
+        var x = node.X + MindmapNodeItem.RefGlyphInset;
         var y = node.Y + (node.Height - size) / 2;
         return content.X >= x - pad && content.X <= x + size + pad
             && content.Y >= y - pad && content.Y <= y + size + pad;

@@ -38,9 +38,17 @@ public partial class MindmapNodeItem : ObservableObject
     public const double TaskCheckboxInset = 11;
     public const double TaskTextGap = 8;
 
+    /// <summary>Reference node kind-glyph geometry (left, vertically centered): draw size, left inset, and text gap.</summary>
+    public const double RefGlyphSize = 14;
+    public const double RefGlyphInset = 11;
+    public const double RefTextGap = 8;
+
     /// <summary>Resize handle (bottom-right corner of a selected free element/frame): draw size and click pad.</summary>
     public const double ResizeHandleSize = 10;
     public const double ResizeHandleHitPad = 5;
+
+    /// <summary>Inner padding around a code node's snippet text and its language chip.</summary>
+    public const double CodePadding = 8;
 
     public required string Id { get; init; }
 
@@ -56,9 +64,20 @@ public partial class MindmapNodeItem : ObservableObject
     /// <summary>The node content's type discriminator (text/task/code/math/...); drives kind-specific drawing.</summary>
     public string ContentType { get; init; } = ElementContentDiscriminators.Text;
 
+    /// <summary>A code node's language label, drawn as a small chip; null/empty for every other content type.</summary>
+    public string? CodeLanguage { get; init; }
+
     /// <summary>Whether a task node is checked off; drawn as a filled checkbox with a strikethrough label.</summary>
     [ObservableProperty]
     private bool _isTaskDone;
+
+    /// <summary>True when a note/flashcard ref can't be resolved (deleted target); drawn as a muted "missing" label.</summary>
+    [ObservableProperty]
+    private bool _isRefMissing;
+
+    /// <summary>Small trailing chip for a resolved ref (e.g. a deck's due count); null when there's nothing to show.</summary>
+    [ObservableProperty]
+    private string? _refBadge;
 
     /// <summary>Explicit member ids for a <see cref="ElementKind.Frame"/>; empty for every other kind. Used to drag the group together.</summary>
     public System.Collections.Generic.IReadOnlyList<string> MemberIds { get; init; } =
@@ -131,4 +150,29 @@ public partial class MindmapNodeItem : ObservableObject
 
     /// <summary>Center Y in canvas coordinates.</summary>
     public double CenterY => Y + Height / 2;
+
+    /// <summary>
+    /// The box height for an element: its explicit stored height if set, otherwise a content-derived default.
+    /// Multi-line code grows to fit its lines (capped) so a snippet isn't crushed into the one-line node box.
+    /// Shared by the canvas projection and the layout snapshot so drawn size and layout spacing agree.
+    /// </summary>
+    public static double HeightFor(MindmapElement element)
+    {
+        if (element.Height is { } stored)
+            return stored;
+
+        if (element.Content is CodeContent { Source.Length: > 0 } code)
+        {
+            var lineCount = code.Source.Split('\n').Length;
+            if (lineCount > 1)
+            {
+                // Fixed at the M font scale; the element's resolved scale isn't known here, an accepted tradeoff.
+                const double lineHeight = 13 * 1.45;
+                var lines = System.Math.Clamp(lineCount, 1, 8);
+                return System.Math.Max(DefaultHeight, lines * lineHeight + 2 * CodePadding);
+            }
+        }
+
+        return DefaultHeight;
+    }
 }

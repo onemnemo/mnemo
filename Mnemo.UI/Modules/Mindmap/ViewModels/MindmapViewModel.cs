@@ -12,11 +12,14 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Mnemo.Core.Models;
+using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
 using Mnemo.UI.Modules.Mindmap.Services;
 using Mnemo.UI.Modules.Mindmap.Views;
+using Mnemo.UI.Services;
 using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Mindmap.ViewModels;
@@ -43,9 +46,16 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     private readonly ILocalizationService? _localization;
     private readonly IOverlayService? _overlay;
     private readonly IImageAssetService? _imageAssets;
+    private readonly INoteService? _notes;
+    private readonly IFlashcardLibraryService? _decks;
 
     private readonly MindmapCamera _camera = new();
     private MindmapDocument? _document;
+
+    // Resolved titles for note/flashcard refs, keyed "note:{id}" / "deck:{id}"; a null value marks a confirmed
+    // dangling reference. Lives for the view model's lifetime — a note/deck renamed elsewhere is not reflected
+    // until the map is reopened (accepted staleness).
+    private readonly Dictionary<string, (string Title, string? Badge)?> _refCache = new();
 
     // Each node's cluster root id, from the last projection, so the inspector can target the right tree.
     private IReadOnlyDictionary<string, string> _clusterRootByNode = new Dictionary<string, string>();
@@ -157,6 +167,10 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private double _labelEditorFontSize = 13;
 
+    /// <summary>Whether the inline editor accepts newlines (multi-line code nodes); false for every other label.</summary>
+    [ObservableProperty]
+    private bool _labelEditorAcceptsReturn;
+
     /// <summary>The map's layout algorithm, bound to the top-bar switcher. Applies to every cluster.</summary>
     [ObservableProperty]
     private MindmapLayoutOption? _selectedLayoutOption;
@@ -191,7 +205,9 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         ILoggerService logger,
         ILocalizationService? localization = null,
         IOverlayService? overlay = null,
-        IImageAssetService? imageAssets = null)
+        IImageAssetService? imageAssets = null,
+        INoteService? notes = null,
+        IFlashcardLibraryService? decks = null)
     {
         _service = service;
         _layout = layout;
@@ -202,6 +218,8 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         _localization = localization;
         _overlay = overlay;
         _imageAssets = imageAssets;
+        _notes = notes;
+        _decks = decks;
 
         RecenterCommand = new RelayCommand(Recenter);
         DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, () => SelectedNode is not null);
@@ -507,9 +525,10 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                 X = pos.X,
                 Y = pos.Y,
                 Width = element.Width ?? MindmapNodeItem.DefaultWidth,
-                Height = element.Height ?? MindmapNodeItem.DefaultHeight,
+                Height = MindmapNodeItem.HeightFor(element),
                 Text = NodeText(element.Content),
                 ContentType = element.Content.TypeDiscriminator,
+                CodeLanguage = (element.Content as CodeContent)?.Language,
                 IsTaskDone = element.Content is TaskContent { Done: true },
                 IsRoot = !hasParent.Contains(element.Id),
                 IsPinned = element.Pinned,
@@ -521,6 +540,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                 Shape = style.NodeShape,
                 FontScale = style.FontScale,
             };
+            ApplyRefContentState(item, element.Content);
             items[element.Id] = item;
             Nodes.Add(item);
         }
@@ -583,6 +603,9 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         CancelLabelEdit();
         SelectedNode = null;
         SelectedEdge = null;
+
+        // Resolve any note/flashcard titles not yet cached, off the render path; a stale pass is discarded.
+        _ = ResolveRefsAsync(generation);
     }
 
     /// <summary>A node's cascade inputs: its depth/branch context and its cluster's root id.</summary>
@@ -686,7 +709,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                     ParentId = parentOf.GetValueOrDefault(id),
                     Order = orderOf.GetValueOrDefault(id),
                     Width = element.Width ?? MindmapNodeItem.DefaultWidth,
-                    Height = element.Height ?? MindmapNodeItem.DefaultHeight,
+                    Height = MindmapNodeItem.HeightFor(element),
                     Collapsed = element.Collapsed,
                     Pinned = element.Pinned,
                     X = element.X,
@@ -793,8 +816,129 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         ShapeContent shape => shape.Text ?? string.Empty,
         FrameContent frame => frame.Title,
         CanvasImageContent => string.Empty,
+        // Note/flashcard titles resolve lazily against their target entity; empty until then.
+        NoteContent => string.Empty,
+        FlashcardContent => string.Empty,
         _ => string.Empty,
     };
+
+    // --- Cross-document reference resolution --------------------------------
+
+    private static string RefKeyForNote(string noteId) => "note:" + noteId;
+    private static string RefKeyForDeck(string deckId) => "deck:" + deckId;
+
+    // Applies any cached title/badge for a note/flashcard ref to a freshly projected item, synchronously so a
+    // reopened map paints resolved refs without a flash. Uncached refs are filled by ResolveRefsAsync.
+    private void ApplyRefContentState(MindmapNodeItem item, IElementContent content)
+    {
+        var key = content switch
+        {
+            NoteContent note => RefKeyForNote(note.NoteId),
+            FlashcardContent deck => RefKeyForDeck(deck.DeckId),
+            _ => null,
+        };
+        if (key is not null && _refCache.TryGetValue(key, out var entry))
+            ApplyRefEntry(item, entry);
+    }
+
+    private static void ApplyRefEntry(MindmapNodeItem item, (string Title, string? Badge)? entry)
+    {
+        if (entry is null)
+        {
+            item.IsRefMissing = true;
+            item.RefBadge = null;
+            item.Text = string.Empty;
+        }
+        else
+        {
+            item.IsRefMissing = false;
+            item.Text = entry.Value.Title;
+            item.RefBadge = entry.Value.Badge;
+        }
+    }
+
+    // Resolves note/flashcard refs not yet in the cache in one background pass, then applies the titles to the
+    // live items. The generation guard drops a pass whose results arrive after a newer projection has replaced
+    // the items it was resolving for, so it never writes into stale nodes.
+    private async Task ResolveRefsAsync(int generation)
+    {
+        if (_document is null || (_notes is null && _decks is null))
+            return;
+
+        var noteIds = new List<string>();
+        var deckIds = new List<string>();
+        foreach (var element in _document.Elements.Where(e => e.Kind == ElementKind.Node))
+        {
+            if (element.Content is NoteContent note && !_refCache.ContainsKey(RefKeyForNote(note.NoteId)))
+                noteIds.Add(note.NoteId);
+            else if (element.Content is FlashcardContent deck && !_refCache.ContainsKey(RefKeyForDeck(deck.DeckId)))
+                deckIds.Add(deck.DeckId);
+        }
+        if (noteIds.Count == 0 && deckIds.Count == 0)
+            return;
+
+        Dictionary<string, (string Title, string? Badge)?> resolved;
+        try
+        {
+            // SQLite stores block synchronously under async, so resolve off the UI thread.
+            resolved = await Task.Run(async () =>
+            {
+                var map = new Dictionary<string, (string Title, string? Badge)?>();
+                if (_notes is not null)
+                    foreach (var id in noteIds.Distinct())
+                    {
+                        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
+                        map[RefKeyForNote(id)] = note is null ? null : (NoteLabel(note), (string?)null);
+                    }
+                if (_decks is not null)
+                    foreach (var id in deckIds.Distinct())
+                    {
+                        var deck = await _decks.GetDeckAsync(id).ConfigureAwait(false);
+                        map[RefKeyForDeck(id)] = deck is null ? null : (deck.Name, DeckBadge(deck));
+                    }
+                return map;
+            }).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", "Failed to resolve mindmap references.", ex);
+            return;
+        }
+
+        // A newer projection replaced the items we resolved for; drop these results untouched.
+        if (generation != _applyGeneration || _document is null)
+            return;
+
+        foreach (var (key, value) in resolved)
+            _refCache[key] = value;
+
+        foreach (var element in _document.Elements.Where(e => e.Kind == ElementKind.Node))
+        {
+            var key = element.Content switch
+            {
+                NoteContent note when resolved.ContainsKey(RefKeyForNote(note.NoteId)) => RefKeyForNote(note.NoteId),
+                FlashcardContent deck when resolved.ContainsKey(RefKeyForDeck(deck.DeckId)) => RefKeyForDeck(deck.DeckId),
+                _ => null,
+            };
+            if (key is null)
+                continue;
+            var item = Nodes.FirstOrDefault(n => n.Id == element.Id);
+            if (item is not null)
+                ApplyRefEntry(item, resolved[key]);
+        }
+    }
+
+    // A note's list/title label, falling back to a localized placeholder for an untitled note so a blank row is
+    // never shown and a resolved-but-untitled node isn't mistaken for one still resolving.
+    private string NoteLabel(Note note) =>
+        string.IsNullOrWhiteSpace(note.Title) ? Tr("RefUntitled", "Untitled") : note.Title.Trim();
+
+    // A deck's trailing chip: its total due count when there's anything to study, otherwise none.
+    private string? DeckBadge(FlashcardDeckSummary deck)
+    {
+        var due = deck.DueCounts.Total;
+        return due > 0 ? string.Format(CultureInfo.CurrentCulture, Tr("DueBadge", "{0} due"), due) : null;
+    }
 
     // Resolves an image element's stored asset id to an absolute path under the shared images directory. A
     // hand-edited document may already carry a rooted path, so honor that as-is; null for every non-image kind.
@@ -1061,12 +1205,26 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         return ApplyAsync(new SetOp { Id = id, Content = task with { Done = !task.Done } }, selectRef: null);
     }
 
-    // Converts the selected node between content kinds, carrying its visible text into the new kind's slot.
+    // Converts the selected node between content kinds, carrying its visible text into the new kind's slot. The
+    // three reference kinds first prompt for their target (a URL, a note, or a deck) before converting.
     [RelayCommand]
-    private Task SetNodeKindAsync(string? kind)
+    private async Task SetNodeKindAsync(string? kind)
     {
         if (SelectedNode is null || SelectedNode.IsFree)
-            return Task.CompletedTask;
+            return;
+
+        switch (kind)
+        {
+            case ElementContentDiscriminators.Link:
+                await ConvertToLinkAsync().ConfigureAwait(true);
+                return;
+            case ElementContentDiscriminators.Note:
+                await ConvertToNoteRefAsync().ConfigureAwait(true);
+                return;
+            case ElementContentDiscriminators.Flashcard:
+                await ConvertToDeckRefAsync().ConfigureAwait(true);
+                return;
+        }
 
         var text = SelectedNode.Text;
         IElementContent content = kind switch
@@ -1076,7 +1234,116 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             ElementContentDiscriminators.Math => new MathContent { Latex = text },
             _ => new TextContent { Text = text },
         };
-        return ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Content = content });
+        await ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Content = content }).ConfigureAwait(true);
+    }
+
+    // Prompts for a URL and converts the selection to a link node, keeping its current label as the link title.
+    private async Task ConvertToLinkAsync()
+    {
+        if (_overlay is null || SelectedNode is null)
+            return;
+
+        var id = SelectedNode.Id;
+        var label = SelectedNode.Text?.Trim();
+        var currentUrl = (_document?.Elements.FirstOrDefault(e => e.Id == id)?.Content as LinkContent)?.Url;
+
+        var input = await _overlay.CreateInputDialogAsync(
+            Tr("LinkUrlTitle", "Link a web page"),
+            Tr("Save", "Save"),
+            Tr("Cancel", "Cancel"),
+            description: Tr("LinkUrlDescription", "Paste an http or https address."),
+            placeholder: "https://",
+            initialValue: currentUrl,
+            confirmIconName: "Common/link").ConfigureAwait(true);
+
+        if (string.IsNullOrWhiteSpace(input))
+            return;
+        var url = input.Trim();
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
+            return;
+
+        var title = string.IsNullOrEmpty(label) ? null : label;
+        await ApplyToSelectionAsync(new SetOp { Id = id, Content = new LinkContent { Url = url, Title = title } }).ConfigureAwait(true);
+    }
+
+    // Picks a note to reference and converts the selection to a note ref.
+    private async Task ConvertToNoteRefAsync()
+    {
+        if (_overlay is null || _notes is null || SelectedNode is null)
+            return;
+
+        var entries = await Task.Run(async () =>
+        {
+            var notes = await _notes.GetAllNotesAsync().ConfigureAwait(false);
+            return notes.Select(n => new RefPickerEntry(n.NoteId, NoteLabel(n))).ToList();
+        }).ConfigureAwait(true);
+
+        var pick = await PromptRefPickerAsync(Tr("PickNoteTitle", "Link a note"), entries).ConfigureAwait(true);
+        if (pick is null || SelectedNode is null)
+            return;
+        await ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Content = new NoteContent { NoteId = pick.Id } }).ConfigureAwait(true);
+    }
+
+    // Picks a flashcard deck to reference and converts the selection to a deck ref.
+    private async Task ConvertToDeckRefAsync()
+    {
+        if (_overlay is null || _decks is null || SelectedNode is null)
+            return;
+
+        var entries = await Task.Run(async () =>
+        {
+            var decks = await _decks.ListDecksAsync().ConfigureAwait(false);
+            return decks.Select(d => new RefPickerEntry(d.Id, d.Name)).ToList();
+        }).ConfigureAwait(true);
+
+        var pick = await PromptRefPickerAsync(Tr("PickDeckTitle", "Link a deck"), entries).ConfigureAwait(true);
+        if (pick is null || SelectedNode is null)
+            return;
+        await ApplyToSelectionAsync(new SetOp { Id = SelectedNode.Id, Content = new FlashcardContent { DeckId = pick.Id } }).ConfigureAwait(true);
+    }
+
+    // Shows the ref picker overlay, resolving with the chosen entry, or null if cancelled/dismissed.
+    private Task<RefPickerEntry?> PromptRefPickerAsync(string title, IReadOnlyList<RefPickerEntry> entries)
+    {
+        var tcs = new TaskCompletionSource<RefPickerEntry?>();
+        var overlay = new MindmapRefPickerOverlay();
+        overlay.Initialize(title, entries);
+        var id = _overlay!.CreateOverlay(overlay, new OverlayOptions
+        {
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            ShowBackdrop = true,
+            CloseOnOutsideClick = false,
+        }, "MindmapRefPicker");
+        overlay.Completed = result =>
+        {
+            _overlay.CloseOverlay(id);
+            tcs.TrySetResult(result);
+        };
+        return tcs.Task;
+    }
+
+    /// <summary>
+    /// Follows a reference node: a link opens in the browser, a note or deck navigates to its module. Notes and
+    /// decks navigate even when the target may be gone (the target module shows its own not-found state); only
+    /// an invalid URL is skipped.
+    /// </summary>
+    public Task OpenRefAsync(string elementId)
+    {
+        var content = _document?.Elements.FirstOrDefault(e => e.Id == elementId)?.Content;
+        switch (content)
+        {
+            case LinkContent link:
+                ExternalLinkOpener.Open(link.Url);
+                break;
+            case NoteContent note:
+                _navigation.NavigateTo("notes", note.NoteId);
+                break;
+            case FlashcardContent deck:
+                _navigation.NavigateTo("flashcard-deck", new FlashcardDeckNavigationParameter(deck.DeckId));
+                break;
+        }
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
@@ -1667,11 +1934,20 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         if (item.Kind == ElementKind.Image)
             return;
 
+        // Note/flashcard refs have no editable label: the service's text edit would convert the ref to plain
+        // text. Their label comes from the target entity and changes only by relinking. (Links stay editable —
+        // their edit writes the link title.)
+        if (item.ContentType is ElementContentDiscriminators.Note or ElementContentDiscriminators.Flashcard)
+            return;
+
         HideLabelEditor();
 
         _editingNode = item;
         _labelEditorOriginal = item.Text;
         LabelEditorText = item.Text;
+
+        // Only code snippets are multi-line; every other kind (incl. frame titles) edits on a single line.
+        LabelEditorAcceptsReturn = item.ContentType == ElementContentDiscriminators.Code;
 
         var scale = _camera.Scale;
         // A frame's text is its title, which lives in the top strip rather than filling the whole box.
@@ -1698,6 +1974,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         _editingEdge = edge;
         _labelEditorOriginal = edge.Label ?? string.Empty;
         LabelEditorText = _labelEditorOriginal;
+        LabelEditorAcceptsReturn = false;
 
         var scale = _camera.Scale;
         LabelEditorFontSize = 11 * scale;
@@ -1720,7 +1997,11 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
         var node = _editingNode;
         var edge = _editingEdge;
-        var text = (LabelEditorText ?? string.Empty).Trim();
+
+        // Code keeps its exact text (indentation, blank lines, newlines); every other label is trimmed.
+        var isCode = node is not null && node.ContentType == ElementContentDiscriminators.Code;
+        var raw = LabelEditorText ?? string.Empty;
+        var text = isCode ? raw : raw.Trim();
 
         // Close first so a LostFocus raised during the reload doesn't re-enter this commit.
         HideLabelEditor();
@@ -1728,7 +2009,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         if (node is not null)
         {
             // Nodes, free text and frame titles must keep a label; an empty entry cancels rather than commits.
-            if (text.Length == 0 || text == _labelEditorOriginal.Trim())
+            if (string.IsNullOrWhiteSpace(text) || text == (isCode ? _labelEditorOriginal : _labelEditorOriginal.Trim()))
                 return;
             var id = node.Id;
             await ApplyAsync(new SetOp { Id = id, Text = text }, selectRef: null).ConfigureAwait(true);
