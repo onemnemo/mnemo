@@ -5,6 +5,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Models.Keybinds;
 using Mnemo.Core.Models.Mindmap;
@@ -26,6 +28,8 @@ public partial class MindmapView : UserControl
 
     private Border? _host;
     private MindmapCanvasControl? _canvas;
+    private TextBox? _labelEditor;
+    private MindmapViewModel? _subscribedVm;
     private bool _isPanning;
     private MindmapNodeItem? _draggingNode;
     private Point _lastScreenPoint;
@@ -38,8 +42,8 @@ public partial class MindmapView : UserControl
     private System.Collections.Generic.List<(MindmapNodeItem Item, double OrigX, double OrigY)>? _dragMembers;
     private Point _dragFrameOrigin;
 
-    // Connect tool: while engaged, a press-drag from one element to another creates a link edge.
-    private bool _connectMode;
+    // Connect tool: while engaged (VM.IsConnectToolActive), a press-drag from one element to another
+    // creates a link edge. The rubber-band source is view-local.
     private MindmapNodeItem? _connectSource;
 
     // Resizing a selected free element/frame by its bottom-right handle.
@@ -51,6 +55,7 @@ public partial class MindmapView : UserControl
         InitializeComponent();
         _host = this.FindControl<Border>("CanvasHost");
         _canvas = this.FindControl<MindmapCanvasControl>("World");
+        _labelEditor = this.FindControl<TextBox>("LabelEditor");
         if (_host is not null)
         {
             _host.PointerWheelChanged += OnWheel;
@@ -60,6 +65,14 @@ public partial class MindmapView : UserControl
             _host.DoubleTapped += OnDoubleTapped;
         }
 
+        if (_labelEditor is not null)
+        {
+            _labelEditor.KeyDown += OnLabelEditorKeyDown;
+            _labelEditor.LostFocus += OnLabelEditorLostFocus;
+        }
+
+        DataContextChanged += OnDataContextChanged;
+
         // The workspace keybind host skips the mindmap-detail route in the tunnel phase so a focused label
         // editor can consume Tab/Enter first; canvas shortcuts are matched here in the bubble phase instead.
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Bubble);
@@ -67,6 +80,76 @@ public partial class MindmapView : UserControl
     }
 
     private MindmapViewModel? Vm => DataContext as MindmapViewModel;
+
+    // Follow the active view model so the code-behind can focus the editor when the VM opens it, and react
+    // to the connect-tool toggle (clear the rubber-band, flip the button icon color).
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (_subscribedVm is not null)
+        {
+            _subscribedVm.LabelEditorOpened -= OnLabelEditorOpened;
+            _subscribedVm.PropertyChanged -= OnVmPropertyChanged;
+        }
+        _subscribedVm = Vm;
+        if (_subscribedVm is not null)
+        {
+            _subscribedVm.LabelEditorOpened += OnLabelEditorOpened;
+            _subscribedVm.PropertyChanged += OnVmPropertyChanged;
+        }
+        SyncConnectToolVisual();
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MindmapViewModel.IsConnectToolActive))
+            SyncConnectToolVisual();
+    }
+
+    // Reflects the VM's connect-tool state in the pill icon and clears any in-progress rubber-band.
+    private void SyncConnectToolVisual()
+    {
+        var on = Vm?.IsConnectToolActive == true;
+        _connectSource = null;
+        _canvas?.SetPendingLink(null, default);
+        if (ConnectIcon is not null)
+            ConnectIcon.Color = TryResource(on ? "AccentButtonForegroundBrush" : "TextSecondaryBrush");
+    }
+
+    // The TextBox is only just made visible; defer the focus so it can take it, then select all for type-to-rename.
+    private void OnLabelEditorOpened() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_labelEditor is null || Vm?.IsLabelEditorVisible != true)
+            return;
+        _labelEditor.Focus();
+        _labelEditor.SelectAll();
+    }, DispatcherPriority.Background);
+
+    private void OnLabelEditorKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (Vm is null)
+            return;
+
+        // Enter commits, Escape cancels; both are marked handled so the canvas bubble handler doesn't also fire.
+        if (e.Key is Key.Enter or Key.Return)
+        {
+            e.Handled = true;
+            _ = Vm.CommitLabelEditAsync();
+            _canvas?.Focus();
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            Vm.CancelLabelEdit();
+            _canvas?.Focus();
+        }
+    }
+
+    // Clicking away (or focusing the canvas) commits the pending edit.
+    private void OnLabelEditorLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { IsLabelEditorVisible: true })
+            _ = Vm.CommitLabelEditAsync();
+    }
 
     private void OnBackClick(object? sender, RoutedEventArgs e)
     {
@@ -79,10 +162,15 @@ public partial class MindmapView : UserControl
         if (e.Handled)
             return;
 
+        // A focused text field (the inline label editor, the inspector hex boxes) owns its keystrokes; canvas
+        // shortcuts like Delete/Tab/Enter must not fire while typing.
+        if (e.Source is TextBox)
+            return;
+
         // Escape leaves the connect tool rather than falling through to a global keybind.
-        if (_connectMode && e.Key == Key.Escape)
+        if (Vm?.IsConnectToolActive == true && e.Key == Key.Escape)
         {
-            SetConnectMode(false);
+            Vm.ToggleConnectTool();
             e.Handled = true;
             return;
         }
@@ -129,7 +217,7 @@ public partial class MindmapView : UserControl
         var node = HitTest(content);
 
         // Connect tool: start a link from the pressed element; empty space is a no-op (stays in the tool).
-        if (_connectMode)
+        if (Vm.IsConnectToolActive)
         {
             if (node is not null)
             {
@@ -302,8 +390,17 @@ public partial class MindmapView : UserControl
         if (Vm is null || _host is null)
             return;
         var content = Vm.ScreenToContent(e.GetPosition(_host));
-        if (HitTest(content) is null)
+        var hit = HitTest(content);
+        if (hit is null)
+        {
+            // Empty canvas: create a node (the view model opens the editor on it to name it).
             await Vm.CreateNodeAtAsync(content);
+            return;
+        }
+
+        // Existing element (any kind, including a frame's title/interior): edit its label.
+        Vm.Select(hit);
+        Vm.BeginEditElement(hit);
     }
 
     // --- Bottom tool pill: place free elements at the current viewport center ---
@@ -326,20 +423,38 @@ public partial class MindmapView : UserControl
             await Vm.CreateFrameAsync(ViewportCenterContent());
     }
 
-    private void OnConnectClick(object? sender, RoutedEventArgs e) => SetConnectMode(!_connectMode);
-
-    // Toggles the connect tool, updating the button's active state and cancelling any pending link.
-    private void SetConnectMode(bool on)
+    private async void OnAddImageClick(object? sender, RoutedEventArgs e)
     {
-        _connectMode = on;
-        _connectSource = null;
-        _canvas?.SetPendingLink(null, default);
+        if (Vm is null)
+            return;
 
-        if (ConnectButton is not null)
-            ConnectButton.Classes.Set("active", on);
-        if (ConnectIcon is not null)
-            ConnectIcon.Color = TryResource(on ? "AccentButtonForegroundBrush" : "TextSecondaryBrush");
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is null)
+            return;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("Images")
+                {
+                    Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp", "*.tiff" }
+                }
+            }
+        });
+
+        if (files.Count == 0)
+            return;
+
+        var sourcePath = files[0].TryGetLocalPath();
+        if (string.IsNullOrEmpty(sourcePath))
+            return;
+
+        await Vm.CreateImageAsync(sourcePath, ViewportCenterContent());
     }
+
+    private void OnConnectClick(object? sender, RoutedEventArgs e) => Vm?.ToggleConnectTool();
 
     private IBrush? TryResource(string key) => this.TryFindResource(key, out var value) ? value as IBrush : null;
 

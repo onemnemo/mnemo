@@ -90,7 +90,8 @@ public partial class MainWindow : Window
         router.RegisterHandler("mindmap.duplicate", () => mindmapDispatch.Duplicate());
         router.RegisterHandler("mindmap.add-child", () => mindmapDispatch.AddChild());
         router.RegisterHandler("mindmap.enter", () => mindmapDispatch.Enter());
-        router.RegisterHandler("mindmap.edit-edge-label", () => mindmapDispatch.EditEdgeLabel());
+        router.RegisterHandler("mindmap.edit-edge-label", () => mindmapDispatch.EditLabel());
+        router.RegisterHandler("mindmap.connect", () => mindmapDispatch.ToggleConnect());
         router.RegisterHandler("editor.reset-view", () => notesEditorDispatch.TryResetEditorView());
     }
 

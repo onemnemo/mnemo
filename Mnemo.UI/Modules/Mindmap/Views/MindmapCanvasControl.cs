@@ -7,6 +7,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Mnemo.Core.Models.Mindmap;
 using Mnemo.UI.Modules.Mindmap.ViewModels;
 
@@ -53,6 +54,10 @@ public sealed class MindmapCanvasControl : Control
     public static readonly StyledProperty<FontFamily> MonoFontFamilyProperty =
         AvaloniaProperty.Register<MindmapCanvasControl, FontFamily>(nameof(MonoFontFamily), FontFamily.Default);
 
+    /// <summary>Localized label drawn in place of an image whose asset is missing; bound via markup:T in XAML.</summary>
+    public static readonly StyledProperty<string?> MissingImageLabelProperty =
+        AvaloniaProperty.Register<MindmapCanvasControl, string?>(nameof(MissingImageLabel));
+
     private IEnumerable? _nodes;
     private IEnumerable? _edges;
 
@@ -60,6 +65,10 @@ public sealed class MindmapCanvasControl : Control
     private readonly List<MindmapEdgeItem> _edgeList = new();
     private readonly List<int> _queryBuffer = new();
     private readonly Dictionary<(string Text, bool Root, FontScale Scale, string TextToken, string ContentType, int WidthBucket), FormattedText> _textCache = new();
+
+    // Decoded image assets keyed by absolute path, loaded lazily on first draw; a failed load caches null so
+    // the placeholder draws without retrying every frame. Disposed and cleared when the control detaches.
+    private readonly Dictionary<string, Bitmap?> _bitmapCache = new();
 
     // Per-token brush cache, keyed by style token; cleared when the theme changes so colors re-resolve.
     private readonly Dictionary<string, IBrush?> _brushCache = new();
@@ -76,7 +85,7 @@ public sealed class MindmapCanvasControl : Control
 
     static MindmapCanvasControl()
     {
-        AffectsRender<MindmapCanvasControl>(TransformProperty, SelectedStrokeProperty, EdgeStrokeProperty, FontFamilyProperty, MonoFontFamilyProperty);
+        AffectsRender<MindmapCanvasControl>(TransformProperty, SelectedStrokeProperty, EdgeStrokeProperty, FontFamilyProperty, MonoFontFamilyProperty, MissingImageLabelProperty);
     }
 
     public MindmapCanvasControl()
@@ -130,6 +139,7 @@ public sealed class MindmapCanvasControl : Control
     public IBrush? EdgeStroke { get => GetValue(EdgeStrokeProperty); set => SetValue(EdgeStrokeProperty, value); }
     public FontFamily FontFamily { get => GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
     public FontFamily MonoFontFamily { get => GetValue(MonoFontFamilyProperty); set => SetValue(MonoFontFamilyProperty, value); }
+    public string? MissingImageLabel { get => GetValue(MissingImageLabelProperty); set => SetValue(MissingImageLabelProperty, value); }
 
     // --- Hit-testing -------------------------------------------------------
 
@@ -162,8 +172,12 @@ public sealed class MindmapCanvasControl : Control
             var edge = _edgeList[i];
             if (edge.IsHierarchy)
                 continue;
-            if (DistanceToSegment(contentPoint, edge.DrawStart, edge.DrawEnd) <= threshold)
-                return edge;
+
+            // Test each segment of the routed path (a curve arrives here already sampled into segments).
+            var poly = edge.HitPolyline;
+            for (var s = 0; s + 1 < poly.Count; s++)
+                if (DistanceToSegment(contentPoint, poly[s], poly[s + 1]) <= threshold)
+                    return edge;
         }
         return null;
     }
@@ -244,39 +258,58 @@ public sealed class MindmapCanvasControl : Control
         }
     }
 
-    // A link edge: a (possibly dashed) straight connector with arrow/dot caps and an optional label chip.
+    // A link edge: a routed connector (straight/curved/orthogonal) with arrow/dot caps and an optional label.
     private void DrawLinkEdge(DrawingContext context, MindmapEdgeItem edge, Pen defaultPen)
     {
         var brush = edge.IsSelected
             ? SelectedStroke ?? Brushes.OrangeRed
             : (edge.ColorToken is { } token ? ResolveBrush(token) : null) ?? defaultPen.Brush ?? Brushes.Gray;
-        var thickness = edge.IsSelected ? SelectedStrokeThickness : EdgeStrokeThickness;
-        var linePen = new Pen(brush, thickness) { LineCap = PenLineCap.Round, DashStyle = DashFor(edge.LineStyle) };
-        context.DrawGeometry(null, linePen, edge.Geometry);
+        // Selection keeps a visible boost over the edge's own thickness.
+        var thickness = edge.IsSelected ? Math.Max(edge.Thickness + 0.5, SelectedStrokeThickness) : edge.Thickness;
+
+        if (edge.LineStyle == LineStyle.Double)
+        {
+            // Two strokes straddling the centerline; the caps below still sit on the true path.
+            var gap = thickness / 2 + 0.9;
+            var doublePen = new Pen(brush, thickness) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+            context.DrawGeometry(null, doublePen, edge.BuildParallelGeometry(gap));
+            context.DrawGeometry(null, doublePen, edge.BuildParallelGeometry(-gap));
+        }
+        else
+        {
+            var linePen = new Pen(brush, thickness)
+            {
+                LineCap = PenLineCap.Round,
+                LineJoin = PenLineJoin.Round,
+                DashStyle = DashFor(edge.LineStyle),
+            };
+            context.DrawGeometry(null, linePen, edge.Geometry);
+        }
 
         var start = edge.DrawStart;
         var end = edge.DrawEnd;
         var dx = end.X - start.X;
         var dy = end.Y - start.Y;
-        var len = Math.Sqrt(dx * dx + dy * dy);
-        if (len >= 1)
+        if (dx * dx + dy * dy >= 1)
         {
-            var dir = new Point(dx / len, dy / len);
             var capPen = new Pen(brush, thickness) { LineCap = PenLineCap.Round };
             if (edge.EndCap != ArrowCap.None)
-                DrawCap(context, brush, capPen, end, dir, edge.EndCap);
+                DrawCap(context, brush, capPen, end, edge.EndDirection, edge.EndCap);
             if (edge.StartCap != ArrowCap.None)
-                DrawCap(context, brush, capPen, start, new Point(-dir.X, -dir.Y), edge.StartCap);
+                DrawCap(context, brush, capPen, start, edge.StartDirection, edge.StartCap);
         }
 
-        if (!string.IsNullOrEmpty(edge.Label))
+        if (!string.IsNullOrEmpty(edge.Label) && !edge.IsEditing)
             DrawEdgeLabel(context, edge, brush);
     }
 
+    private static readonly DashStyle DashedStyle = new(new double[] { 4, 3 }, 0);
+    private static readonly DashStyle DottedStyle = new(new double[] { 1, 2 }, 0);
+
     private static DashStyle? DashFor(LineStyle style) => style switch
     {
-        LineStyle.Dashed => new DashStyle(new double[] { 4, 3 }, 0),
-        LineStyle.Dotted => new DashStyle(new double[] { 1, 2 }, 0),
+        LineStyle.Dashed => DashedStyle,
+        LineStyle.Dotted => DottedStyle,
         _ => null,
     };
 
@@ -368,6 +401,9 @@ public sealed class MindmapCanvasControl : Control
                 return;
             case ElementKind.Frame:
                 DrawFrame(context, node, selectedPen);
+                return;
+            case ElementKind.Image:
+                DrawImage(context, node, selectedPen);
                 return;
         }
 
@@ -526,6 +562,67 @@ public sealed class MindmapCanvasControl : Control
         }
     }
 
+    // A canvas image: the decoded bitmap stretched to the element rect with a thin frame (accent when
+    // selected). A missing or unreadable asset falls back to a labeled placeholder.
+    private void DrawImage(DrawingContext context, MindmapNodeItem node, Pen selectedPen)
+    {
+        var rect = NodeRect(node);
+        var bitmap = node.AssetPath is { } path ? GetBitmap(path) : null;
+        var border = node.IsSelected
+            ? selectedPen
+            : new Pen(ResolveBrush(node.StrokeToken) ?? Brushes.Gray, NodeStrokeThickness);
+
+        if (bitmap is null)
+        {
+            DrawMissingImage(context, rect, border);
+            return;
+        }
+
+        // Plain stretch: the default size is aspect-correct, and a user resize may distort (accepted).
+        context.DrawImage(bitmap, rect);
+        context.DrawRectangle(null, border, rect);
+    }
+
+    // Placeholder for an image whose asset can't be loaded: a muted fill, the same frame, and a centered label.
+    private void DrawMissingImage(DrawingContext context, Rect rect, Pen border)
+    {
+        var fill = ResolveBrush(MindmapStyleTokens.SurfaceAlt) ?? ResolveBrush(MindmapStyleTokens.Surface);
+        context.DrawRectangle(fill, border, rect);
+
+        var label = MissingImageLabel;
+        if (string.IsNullOrEmpty(label))
+            return;
+
+        var brush = ResolveBrush(MindmapStyleTokens.TextMuted) ?? Brushes.Gray;
+        var text = new FormattedText(label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(FontFamily), 12, brush)
+        {
+            MaxTextWidth = Math.Max(1, rect.Width - TextPadding),
+            TextAlignment = TextAlignment.Center,
+            Trimming = TextTrimming.CharacterEllipsis,
+        };
+        context.DrawText(text, new Point(rect.X + (rect.Width - text.Width) / 2, rect.Y + (rect.Height - text.Height) / 2));
+    }
+
+    // Lazily decodes and caches an image asset by absolute path; a failed load caches null (drawn as the
+    // placeholder) so a missing file doesn't retry decoding on every frame.
+    private Bitmap? GetBitmap(string path)
+    {
+        if (_bitmapCache.TryGetValue(path, out var cached))
+            return cached;
+
+        Bitmap? bitmap = null;
+        try
+        {
+            bitmap = new Bitmap(path);
+        }
+        catch
+        {
+            // Missing or unreadable asset: cache the null result and render the placeholder instead.
+        }
+        _bitmapCache[path] = bitmap;
+        return bitmap;
+    }
+
     private static StreamGeometry BuildPolygon(Rect r, ShapeType shape)
     {
         var points = shape switch
@@ -573,7 +670,8 @@ public sealed class MindmapCanvasControl : Control
 
     private FormattedText? GetFormattedText(MindmapNodeItem node)
     {
-        if (string.IsNullOrEmpty(node.Text))
+        // While the inline editor is open over this element, the overlay TextBox shows the text instead.
+        if (node.IsEditing || string.IsNullOrEmpty(node.Text))
             return null;
 
         var widthBucket = (int)node.Width;
@@ -688,9 +786,13 @@ public sealed class MindmapCanvasControl : Control
 
     private static Rect EdgeBounds(MindmapEdgeItem edge)
     {
+        // Inflated because a curved route bulges past the endpoint box (up to ~36px, plus caps/double gap).
+        const double bulge = 40;
         var x = Math.Min(edge.Start.X, edge.End.X);
         var y = Math.Min(edge.Start.Y, edge.End.Y);
-        return new Rect(x, y, Math.Abs(edge.End.X - edge.Start.X), Math.Abs(edge.End.Y - edge.Start.Y));
+        return new Rect(x - bulge, y - bulge,
+            Math.Abs(edge.End.X - edge.Start.X) + bulge * 2,
+            Math.Abs(edge.End.Y - edge.Start.Y) + bulge * 2);
     }
 
     // --- Collection / item change tracking ---------------------------------
@@ -770,8 +872,8 @@ public sealed class MindmapCanvasControl : Control
 
     private void OnEdgeItemChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // Endpoint moves already repaint via node changes; only the selection highlight needs a nudge here.
-        if (e.PropertyName == nameof(MindmapEdgeItem.IsSelected))
+        // Endpoint moves already repaint via node changes; the selection highlight and edit-suppression need a nudge here.
+        if (e.PropertyName is nameof(MindmapEdgeItem.IsSelected) or nameof(MindmapEdgeItem.IsEditing))
             InvalidateVisual();
     }
 
@@ -820,8 +922,9 @@ public sealed class MindmapCanvasControl : Control
                 break;
             case nameof(MindmapNodeItem.Width):
             case nameof(MindmapNodeItem.Height):
+                // The text cache key includes the width bucket, so other nodes' entries stay valid; only the
+                // resized node misses. Clearing here made every visible label re-shape on each resize frame.
                 _treeDirty = true;
-                _textCache.Clear();
                 break;
             case nameof(MindmapNodeItem.Text):
             case nameof(MindmapNodeItem.TextToken):
@@ -830,6 +933,16 @@ public sealed class MindmapCanvasControl : Control
                 break;
         }
         InvalidateVisual();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+
+        // Release decoded image assets so navigating away from the editor doesn't leak their pixel buffers.
+        foreach (var bitmap in _bitmapCache.Values)
+            bitmap?.Dispose();
+        _bitmapCache.Clear();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)

@@ -183,6 +183,18 @@
         <Style Selector="Button.insReset:disabled">
             <Setter Property="Opacity" Value="0.4"/>
         </Style>
+
+        <!-- Inline label editor: an overlay TextBox that sits flush over the element/edge being renamed. -->
+        <Style Selector="TextBox.mmLabelEditor">
+            <Setter Property="Padding" Value="5,2"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Background" Value="{DynamicResource WorkspaceBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
+        </Style>
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,*">
@@ -262,7 +274,8 @@
                                         FontFamily="{DynamicResource DefaultFontFamily}"
                                         MonoFontFamily="{DynamicResource Font.Monospace}"
                                         SelectedStroke="{DynamicResource AccentBrush}"
-                                        EdgeStroke="{DynamicResource BorderBrush}"/>
+                                        EdgeStroke="{DynamicResource BorderBrush}"
+                                        MissingImageLabel="{markup:T Ns=Mindmap, Key=ImageMissing}"/>
           </Grid>
         </Border>
 
@@ -414,6 +427,70 @@
                                   Stroke="{DynamicResource FloatingChromeForegroundBrush}"
                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Button>
+                        <Button Classes="mmTool" Command="{Binding SetEdgeLineCommand}" CommandParameter="Double"
+                                Classes.active="{Binding SelectedEdge.LineStyle, Converter={StaticResource EnumEquals}, ConverterParameter=Double}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeDouble}">
+                            <StackPanel Spacing="3" VerticalAlignment="Center">
+                                <Line StartPoint="0,0" EndPoint="18,0" StrokeThickness="1.5"
+                                      Stroke="{DynamicResource FloatingChromeForegroundBrush}"/>
+                                <Line StartPoint="0,0" EndPoint="18,0" StrokeThickness="1.5"
+                                      Stroke="{DynamicResource FloatingChromeForegroundBrush}"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <Border Width="1" Height="20" Background="{DynamicResource FloatingChromeDividerBrush}" VerticalAlignment="Center"/>
+
+                    <!-- Routing -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <Button Classes="mmTool" Command="{Binding SetEdgeRoutingCommand}" CommandParameter="Curve"
+                                Classes.active="{Binding SelectedEdge.Routing, Converter={StaticResource EnumEquals}, ConverterParameter=Curve}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=RouteCurve}">
+                            <Path Data="M0,9 C5,9 7,0 12,0" StrokeThickness="2" StrokeLineCap="Round"
+                                  Stroke="{DynamicResource FloatingChromeForegroundBrush}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
+                        <Button Classes="mmTool" Command="{Binding SetEdgeRoutingCommand}" CommandParameter="Straight"
+                                Classes.active="{Binding SelectedEdge.Routing, Converter={StaticResource EnumEquals}, ConverterParameter=Straight}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=RouteStraight}">
+                            <Line StartPoint="0,9" EndPoint="14,0" StrokeThickness="2" StrokeLineCap="Round"
+                                  Stroke="{DynamicResource FloatingChromeForegroundBrush}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
+                        <Button Classes="mmTool" Command="{Binding SetEdgeRoutingCommand}" CommandParameter="Orthogonal"
+                                Classes.active="{Binding SelectedEdge.Routing, Converter={StaticResource EnumEquals}, ConverterParameter=Orthogonal}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=RouteOrthogonal}">
+                            <Polyline Points="0,9 6,9 6,0 13,0" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                                      Stroke="{DynamicResource FloatingChromeForegroundBrush}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
+                    </StackPanel>
+
+                    <Border Width="1" Height="20" Background="{DynamicResource FloatingChromeDividerBrush}" VerticalAlignment="Center"/>
+
+                    <!-- Thickness -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <Button Classes="mmTool" Command="{Binding SetEdgeThicknessCommand}" CommandParameter="1"
+                                Classes.active="{Binding SelectedEdge.Thickness, Converter={StaticResource EnumEquals}, ConverterParameter=1}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeThin}">
+                            <Line StartPoint="0,0" EndPoint="18,0" StrokeThickness="1"
+                                  Stroke="{DynamicResource FloatingChromeForegroundBrush}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
+                        <Button Classes="mmTool" Command="{Binding SetEdgeThicknessCommand}" CommandParameter="1.5"
+                                Classes.active="{Binding SelectedEdge.Thickness, Converter={StaticResource EnumEquals}, ConverterParameter=1.5}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeMedium}">
+                            <Line StartPoint="0,0" EndPoint="18,0" StrokeThickness="2"
+                                  Stroke="{DynamicResource FloatingChromeForegroundBrush}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
+                        <Button Classes="mmTool" Command="{Binding SetEdgeThicknessCommand}" CommandParameter="3"
+                                Classes.active="{Binding SelectedEdge.Thickness, Converter={StaticResource EnumEquals}, ConverterParameter=3}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=EdgeThick}">
+                            <Line StartPoint="0,0" EndPoint="18,0" StrokeThickness="3.5"
+                                  Stroke="{DynamicResource FloatingChromeForegroundBrush}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
                     </StackPanel>
 
                     <Border Width="1" Height="20" Background="{DynamicResource FloatingChromeDividerBrush}" VerticalAlignment="Center"/>
@@ -459,6 +536,18 @@
                     </Button>
                 </StackPanel>
             </Border>
+
+            <!-- Inline label editor floats over the element/edge being renamed -->
+            <TextBox Name="LabelEditor" Classes="mmLabelEditor"
+                     IsVisible="{Binding IsLabelEditorVisible}"
+                     Canvas.Left="{Binding LabelEditorLeft}"
+                     Canvas.Top="{Binding LabelEditorTop}"
+                     Width="{Binding LabelEditorWidth}"
+                     Height="{Binding LabelEditorHeight}"
+                     FontSize="{Binding LabelEditorFontSize}"
+                     Text="{Binding LabelEditorText, Mode=TwoWay}"
+                     AcceptsReturn="False"
+                     PlaceholderText="{markup:T Ns=Mindmap, Key=LabelPlaceholder}"/>
         </Canvas>
 
         <!-- Bottom tool pill: place elements (node, shape, text) at the viewport center -->
@@ -552,12 +641,17 @@
                     </Button>
                     <Border Width="1" Height="22" Margin="4,0" Background="{DynamicResource DividerSubtleBrush}"/>
                     <Button x:Name="ConnectButton" Classes="mmPill" Click="OnConnectClick"
+                            Classes.active="{Binding IsConnectToolActive}"
                             ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolConnect}">
                         <controls:AppIcon x:Name="ConnectIcon" Icon="Common/link" Width="17" Height="17"
                                           Color="{DynamicResource TextSecondaryBrush}"/>
                     </Button>
                     <Button Classes="mmPill" Click="OnAddFrameClick" ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolFrame}">
                         <controls:AppIcon Icon="Common/frame" Width="17" Height="17"
+                                          Color="{DynamicResource TextSecondaryBrush}"/>
+                    </Button>
+                    <Button Classes="mmPill" Click="OnAddImageClick" ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolImage}">
+                        <controls:AppIcon Icon="Common/image" Width="17" Height="17"
                                           Color="{DynamicResource TextSecondaryBrush}"/>
                     </Button>
                 </StackPanel>

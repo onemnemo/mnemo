@@ -50,6 +50,9 @@ public partial class MindmapNodeItem : ObservableObject
     /// <summary>Geometry for a free <see cref="ElementKind.Shape"/> element; null for nodes and text.</summary>
     public ShapeType? FreeShape { get; init; }
 
+    /// <summary>Absolute path to a resolved <see cref="ElementKind.Image"/> asset; null for every other kind.</summary>
+    public string? AssetPath { get; init; }
+
     /// <summary>The node content's type discriminator (text/task/code/math/...); drives kind-specific drawing.</summary>
     public string ContentType { get; init; } = ElementContentDiscriminators.Text;
 
@@ -88,6 +91,10 @@ public partial class MindmapNodeItem : ObservableObject
 
     [ObservableProperty]
     private bool _isSelected;
+
+    /// <summary>True while this element's label is being edited inline; the canvas suppresses its own drawn label so the overlay editor isn't doubled underneath.</summary>
+    [ObservableProperty]
+    private bool _isEditing;
 
     /// <summary>Pinned nodes are excluded from auto-layout; shown with a small badge you can click to release.</summary>
     [ObservableProperty]

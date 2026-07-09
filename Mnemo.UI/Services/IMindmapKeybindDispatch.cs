@@ -13,5 +13,6 @@ public interface IMindmapKeybindDispatch
     void Duplicate();
     void AddChild();
     void Enter();
-    void EditEdgeLabel();
+    void EditLabel();
+    void ToggleConnect();
 }

@@ -79,10 +79,19 @@ public sealed class MindmapKeybindDispatch(INavigationService navigation) : IMin
             vm.BeginEditSelectedEdgeLabel();
     }
 
-    public void EditEdgeLabel()
+    public void EditLabel()
     {
         if (!TryGetMindmapViewModel(out var vm) || !vm.IsEditingEnabled) return;
-        if (vm.SelectedEdge == null) return;
-        vm.BeginEditSelectedEdgeLabel();
+        // A selected edge edits its label; otherwise fall back to the selected element's label.
+        if (vm.SelectedEdge != null)
+            vm.BeginEditSelectedEdgeLabel();
+        else if (vm.SelectedNode != null)
+            vm.BeginEditElement(vm.SelectedNode);
+    }
+
+    public void ToggleConnect()
+    {
+        if (!TryGetMindmapViewModel(out var vm) || !vm.IsEditingEnabled) return;
+        vm.ToggleConnectTool();
     }
 }

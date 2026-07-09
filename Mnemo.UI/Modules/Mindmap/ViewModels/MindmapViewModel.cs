@@ -3,15 +3,18 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Common;
 using Mnemo.UI.Modules.Mindmap.Services;
 using Mnemo.UI.Modules.Mindmap.Views;
 using Mnemo.UI.ViewModels;
@@ -39,6 +42,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     private readonly ILoggerService _logger;
     private readonly ILocalizationService? _localization;
     private readonly IOverlayService? _overlay;
+    private readonly IImageAssetService? _imageAssets;
 
     private readonly MindmapCamera _camera = new();
     private MindmapDocument? _document;
@@ -126,6 +130,33 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private double _edgeToolbarTop;
 
+    /// <summary>Whether the connect tool is engaged; a press-drag between two elements then creates a link edge.</summary>
+    [ObservableProperty]
+    private bool _isConnectToolActive;
+
+    /// <summary>Whether the inline label editor (an overlay TextBox) is open over an element or edge.</summary>
+    [ObservableProperty]
+    private bool _isLabelEditorVisible;
+
+    /// <summary>The editable label text, two-way bound to the overlay TextBox.</summary>
+    [ObservableProperty]
+    private string _labelEditorText = string.Empty;
+
+    [ObservableProperty]
+    private double _labelEditorLeft;
+
+    [ObservableProperty]
+    private double _labelEditorTop;
+
+    [ObservableProperty]
+    private double _labelEditorWidth;
+
+    [ObservableProperty]
+    private double _labelEditorHeight;
+
+    [ObservableProperty]
+    private double _labelEditorFontSize = 13;
+
     /// <summary>The map's layout algorithm, bound to the top-bar switcher. Applies to every cluster.</summary>
     [ObservableProperty]
     private MindmapLayoutOption? _selectedLayoutOption;
@@ -159,7 +190,8 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         INavigationService navigation,
         ILoggerService logger,
         ILocalizationService? localization = null,
-        IOverlayService? overlay = null)
+        IOverlayService? overlay = null,
+        IImageAssetService? imageAssets = null)
     {
         _service = service;
         _layout = layout;
@@ -169,6 +201,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         _logger = logger;
         _localization = localization;
         _overlay = overlay;
+        _imageAssets = imageAssets;
 
         RecenterCommand = new RelayCommand(Recenter);
         DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, () => SelectedNode is not null);
@@ -492,9 +525,9 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             Nodes.Add(item);
         }
 
-        // Free elements (shapes, text) sit at their stored positions outside the tree and auto-layout; the
-        // cascade's template rules don't apply to them (StyleContext.Free), only their own overrides.
-        foreach (var element in document.Elements.Where(e => e.Kind is ElementKind.Shape or ElementKind.Text))
+        // Free elements (shapes, text, images) sit at their stored positions outside the tree and auto-layout;
+        // the cascade's template rules don't apply to them (StyleContext.Free), only their own overrides.
+        foreach (var element in document.Elements.Where(e => e.Kind is ElementKind.Shape or ElementKind.Text or ElementKind.Image))
         {
             var style = _styleResolver.Resolve(element.Style, StyleContext.Free, System.Array.Empty<StyleTemplate>());
             var item = new MindmapNodeItem
@@ -502,6 +535,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                 Id = element.Id,
                 Kind = element.Kind,
                 FreeShape = (element.Content as ShapeContent)?.Shape,
+                AssetPath = ResolveAssetPath(element.Content),
                 X = element.X,
                 Y = element.Y,
                 Width = element.Width ?? DefaultFreeWidth(element.Kind),
@@ -540,10 +574,13 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
                 startCap: edge.Style?.StartCap ?? ArrowCap.None,
                 endCap: edge.Style?.EndCap ?? ArrowCap.Arrow,
                 lineStyle: edge.Style?.Line ?? LineStyle.Solid,
+                routing: edge.Style?.Routing ?? EdgeRouting.Curve,
+                thickness: edge.Style?.Thickness ?? MindmapEdgeItem.DefaultThickness,
                 label: edge.Label));
         }
 
-        // The old node/edge items are gone; drop selection so no toolbar points at a stale, disposed item.
+        // The old node/edge items are gone; drop the editor and selection so nothing points at a stale item.
+        CancelLabelEdit();
         SelectedNode = null;
         SelectedEdge = null;
     }
@@ -755,8 +792,20 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         FreeTextContent free => free.Text,
         ShapeContent shape => shape.Text ?? string.Empty,
         FrameContent frame => frame.Title,
+        CanvasImageContent => string.Empty,
         _ => string.Empty,
     };
+
+    // Resolves an image element's stored asset id to an absolute path under the shared images directory. A
+    // hand-edited document may already carry a rooted path, so honor that as-is; null for every non-image kind.
+    private static string? ResolveAssetPath(IElementContent content)
+    {
+        if (content is not CanvasImageContent { AssetId: { Length: > 0 } assetId })
+            return null;
+        return Path.IsPathRooted(assetId)
+            ? assetId
+            : Path.Combine(MnemoAppPaths.GetImagesDirectory(), assetId);
+    }
 
     private static double DefaultFreeWidth(ElementKind kind) =>
         kind == ElementKind.Text ? MindmapNodeItem.TextDefaultWidth : MindmapNodeItem.ShapeDefaultWidth;
@@ -770,10 +819,14 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     private const double ToolbarHeight = 40;
 
     // The edge toolbar is centered on the edge midpoint; this nudges its left edge by ~half its width.
-    private const double EdgeToolbarHalfWidth = 130;
+    private const double EdgeToolbarHalfWidth = 235;
 
     public void Select(MindmapNodeItem? node)
     {
+        // A selection change ends any in-progress inline edit.
+        if (IsLabelEditorVisible)
+            CancelLabelEdit();
+
         // Node and edge selection are mutually exclusive; picking a node (or empty space) drops any edge.
         if (SelectedEdge is { } selectedEdge)
         {
@@ -794,6 +847,9 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     /// <summary>Selects a link edge (clearing any node selection) so its floating toolbar appears.</summary>
     public void SelectEdge(MindmapEdgeItem? edge)
     {
+        if (IsLabelEditorVisible)
+            CancelLabelEdit();
+
         if (SelectedEdge is { } previous && !ReferenceEquals(previous, edge))
             previous.IsSelected = false;
 
@@ -918,6 +974,18 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         SelectedEdge is null || string.IsNullOrEmpty(token)
             ? Task.CompletedTask
             : ApplyToEdgeAsync(new SetEdgeOp { EdgeId = SelectedEdge.Id, Style = new EdgeStyle { Color = token } });
+
+    [RelayCommand]
+    private Task SetEdgeRoutingAsync(string? routing) =>
+        SelectedEdge is null || !Enum.TryParse<EdgeRouting>(routing, out var value)
+            ? Task.CompletedTask
+            : ApplyToEdgeAsync(new SetEdgeOp { EdgeId = SelectedEdge.Id, Style = new EdgeStyle { Routing = value } });
+
+    [RelayCommand]
+    private Task SetEdgeThicknessAsync(string? value) =>
+        SelectedEdge is null || !double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var thickness)
+            ? Task.CompletedTask
+            : ApplyToEdgeAsync(new SetEdgeOp { EdgeId = SelectedEdge.Id, Style = new EdgeStyle { Thickness = thickness } });
 
     [RelayCommand]
     private Task ToggleEdgeStartCapAsync() =>
@@ -1210,6 +1278,9 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     private void SyncCamera()
     {
+        // The overlay editor is positioned once in screen space; rather than live-track it through pan/zoom,
+        // close it (a pending edit is committed by the view's LostFocus before the camera moves).
+        CancelLabelEdit();
         CanvasTransform = _camera.Transform;
         ZoomLabel = string.Format(CultureInfo.InvariantCulture, "{0:0}%", _camera.Scale * 100);
         UpdateSelectionToolbar();
@@ -1237,6 +1308,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             Under = SelectedNode.Id,
             Nodes = new[] { new MindmapNodeSpec { Ref = "new", Text = T("NewNode") } },
         }, selectRef: "new").ConfigureAwait(true);
+        BeginEditNewSelection();
     }
 
     public async Task AddSiblingNodeAsync()
@@ -1257,6 +1329,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             After = parentEdge is null ? null : SelectedNode.Id,
             Nodes = new[] { new MindmapNodeSpec { Ref = "new", Text = T("NewNode") } },
         }, selectRef: "new").ConfigureAwait(true);
+        BeginEditNewSelection();
     }
 
     public async Task CreateNodeAtAsync(Point contentPoint)
@@ -1265,16 +1338,20 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         {
             Nodes = new[] { new MindmapNodeSpec { Ref = "new", Text = T("NewNode"), X = contentPoint.X, Y = contentPoint.Y } },
         }, selectRef: "new").ConfigureAwait(true);
+        BeginEditNewSelection();
     }
 
-    /// <summary>Places a free text label centered on the given content point and selects it.</summary>
-    public Task CreateFreeTextAsync(Point contentPoint) =>
-        AddFreeElementAsync(
+    /// <summary>Places a free text label centered on the given content point, selects it, and opens the editor to name it.</summary>
+    public async Task CreateFreeTextAsync(Point contentPoint)
+    {
+        await AddFreeElementAsync(
             ElementKind.Text,
             new FreeTextContent { Text = T("NewText") },
             MindmapNodeItem.TextDefaultWidth,
             MindmapNodeItem.TextDefaultHeight,
-            contentPoint);
+            contentPoint).ConfigureAwait(true);
+        BeginEditNewSelection();
+    }
 
     /// <summary>Places a free shape of the given geometry centered on the content point and selects it.</summary>
     public Task CreateShapeAsync(ShapeType shape, Point contentPoint) =>
@@ -1285,12 +1362,65 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             MindmapNodeItem.ShapeDefaultHeight,
             contentPoint);
 
+    /// <summary>Toggles the connect tool. The view clears any in-progress rubber-band when this turns off.</summary>
+    public void ToggleConnectTool() => IsConnectToolActive = !IsConnectToolActive;
+
     /// <summary>Creates a link edge (connector) between two elements. No-op if they are the same element.</summary>
     public async Task LinkAsync(string fromId, string toId)
     {
         if (fromId == toId)
             return;
         await ApplyAsync(new LinkOp { A = fromId, B = toId }, selectRef: null).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Imports an image file through the asset service and places it centered on the content point, sized to
+    /// its natural aspect ratio, then selects it. No-op if the asset service isn't wired up or import fails.
+    /// </summary>
+    public async Task CreateImageAsync(string sourcePath, Point contentPoint)
+    {
+        if (_imageAssets is null)
+            return;
+
+        var import = await _imageAssets.ImportAndCopyAsync(sourcePath, "mindmap-" + Guid.NewGuid().ToString("N")).ConfigureAwait(true);
+        if (!import.IsSuccess || string.IsNullOrEmpty(import.Value))
+            return;
+
+        // Store only the file name so the document stays portable — renderers resolve it under the shared
+        // images directory. Deleting an image element never deletes this file: undo can bring the element
+        // back, and a later integrity sweep reclaims genuinely orphaned assets.
+        var assetId = Path.GetFileName(import.Value);
+        var (width, height) = ProbeImageSize(import.Value);
+
+        await AddFreeElementAsync(
+            ElementKind.Image,
+            new CanvasImageContent { AssetId = assetId },
+            width,
+            height,
+            contentPoint).ConfigureAwait(true);
+    }
+
+    // Decodes the stored file once to read its pixel size, then scales it uniformly to fit the default box
+    // (never upscaling past its natural size, never below a floor), so a freshly placed image is aspect-correct.
+    private (double Width, double Height) ProbeImageSize(string absolutePath)
+    {
+        const double maxWidth = 360, maxHeight = 280, minSize = 40;
+        try
+        {
+            using var bitmap = new Bitmap(absolutePath);
+            double naturalWidth = bitmap.PixelSize.Width;
+            double naturalHeight = bitmap.PixelSize.Height;
+            if (naturalWidth < 1 || naturalHeight < 1)
+                return (maxWidth / 2, maxHeight / 2);
+
+            var scale = Math.Min(1.0, Math.Min(maxWidth / naturalWidth, maxHeight / naturalHeight));
+            return (Math.Max(minSize, naturalWidth * scale), Math.Max(minSize, naturalHeight * scale));
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", $"Failed to read image dimensions for '{absolutePath}'.", ex);
+            return (maxWidth / 2, maxHeight / 2);
+        }
     }
 
     /// <summary>Places an empty frame centered on the content point and selects it. Members are added later by dragging.</summary>
@@ -1314,10 +1444,14 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             Height = height,
         }, selectRef: "new");
 
-    private Task AddRootAsync() => ApplyAsync(new AddNodesOp
+    private async Task AddRootAsync()
     {
-        Nodes = new[] { new MindmapNodeSpec { Ref = "new", Text = T("NewNode") } },
-    }, selectRef: "new");
+        await ApplyAsync(new AddNodesOp
+        {
+            Nodes = new[] { new MindmapNodeSpec { Ref = "new", Text = T("NewNode") } },
+        }, selectRef: "new").ConfigureAwait(true);
+        BeginEditNewSelection();
+    }
 
     public async Task MoveNodeAsync(string nodeId, Point contentPosition)
     {
@@ -1511,10 +1645,135 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         return spec;
     }
 
+    // --- Inline label editing ----------------------------------------------
+
+    // Minimum on-screen width so a small element still gets a usable editor; edge editors use a fixed width.
+    private const double MinLabelEditorWidth = 120;
+    private const double EdgeLabelEditorWidth = 160;
+
+    // Exactly one of these is set while the editor is open; both null when it's closed.
+    private MindmapNodeItem? _editingNode;
+    private MindmapEdgeItem? _editingEdge;
+    private string _labelEditorOriginal = string.Empty;
+
+    /// <summary>Raised when the inline editor opens, so the view can focus its TextBox and select all text.</summary>
+    public event Action? LabelEditorOpened;
+
+    /// <summary>Opens the inline editor over an element's label (a frame edits its title strip). Type-to-rename.</summary>
+    public void BeginEditElement(MindmapNodeItem item)
+    {
+        // Images have no text slot; committing a SetOp{Text} would be a service error, so a rename (incl. a
+        // double-click) just leaves the image selected.
+        if (item.Kind == ElementKind.Image)
+            return;
+
+        HideLabelEditor();
+
+        _editingNode = item;
+        _labelEditorOriginal = item.Text;
+        LabelEditorText = item.Text;
+
+        var scale = _camera.Scale;
+        // A frame's text is its title, which lives in the top strip rather than filling the whole box.
+        var boxHeight = item.Kind == ElementKind.Frame ? MindmapNodeItem.FrameTitleHeight : item.Height;
+        var topLeft = _camera.ContentToScreen(new Point(item.X, item.Y));
+        LabelEditorLeft = topLeft.X;
+        LabelEditorTop = topLeft.Y;
+        LabelEditorWidth = Math.Max(MinLabelEditorWidth, item.Width * scale);
+        LabelEditorHeight = boxHeight * scale;
+        LabelEditorFontSize = FontSizeFor(item.FontScale) * scale;
+
+        item.IsEditing = true;
+        IsLabelEditorVisible = true;
+        LabelEditorOpened?.Invoke();
+    }
+
+    /// <summary>Opens the inline editor over the selected link edge's label (centered on its midpoint).</summary>
     public void BeginEditSelectedEdgeLabel()
     {
-        // Edge labels are not edited here.
+        if (SelectedEdge is not { } edge)
+            return;
+        HideLabelEditor();
+
+        _editingEdge = edge;
+        _labelEditorOriginal = edge.Label ?? string.Empty;
+        LabelEditorText = _labelEditorOriginal;
+
+        var scale = _camera.Scale;
+        LabelEditorFontSize = 11 * scale;
+        LabelEditorWidth = EdgeLabelEditorWidth;
+        LabelEditorHeight = LabelEditorFontSize + 12;
+        var mid = _camera.ContentToScreen(edge.Midpoint);
+        LabelEditorLeft = mid.X - LabelEditorWidth / 2;
+        LabelEditorTop = mid.Y - LabelEditorHeight / 2;
+
+        edge.IsEditing = true;
+        IsLabelEditorVisible = true;
+        LabelEditorOpened?.Invoke();
     }
+
+    /// <summary>Commits the editor's text through the right op, or no-ops if it's unchanged (or an empty node label).</summary>
+    public async Task CommitLabelEditAsync()
+    {
+        if (!IsLabelEditorVisible)
+            return;
+
+        var node = _editingNode;
+        var edge = _editingEdge;
+        var text = (LabelEditorText ?? string.Empty).Trim();
+
+        // Close first so a LostFocus raised during the reload doesn't re-enter this commit.
+        HideLabelEditor();
+
+        if (node is not null)
+        {
+            // Nodes, free text and frame titles must keep a label; an empty entry cancels rather than commits.
+            if (text.Length == 0 || text == _labelEditorOriginal.Trim())
+                return;
+            var id = node.Id;
+            await ApplyAsync(new SetOp { Id = id, Text = text }, selectRef: null).ConfigureAwait(true);
+            Select(Nodes.FirstOrDefault(n => n.Id == id));
+        }
+        else if (edge is not null)
+        {
+            // Edge labels tolerate empty (it clears the label); skip only when nothing actually changed.
+            if (text == _labelEditorOriginal)
+                return;
+            var id = edge.Id;
+            await ApplyAsync(new SetEdgeOp { EdgeId = id, Label = text }, selectRef: null).ConfigureAwait(true);
+            SelectEdge(Edges.FirstOrDefault(e => e.Id == id));
+        }
+    }
+
+    /// <summary>Closes the editor without committing.</summary>
+    public void CancelLabelEdit() => HideLabelEditor();
+
+    private void HideLabelEditor()
+    {
+        if (_editingNode is not null)
+            _editingNode.IsEditing = false;
+        if (_editingEdge is not null)
+            _editingEdge.IsEditing = false;
+        _editingNode = null;
+        _editingEdge = null;
+        IsLabelEditorVisible = false;
+    }
+
+    // Opens the editor on the element just created (now the selection), so a new node can be named by typing.
+    private void BeginEditNewSelection()
+    {
+        if (SelectedNode is not null)
+            BeginEditElement(SelectedNode);
+    }
+
+    // Mirrors MindmapCanvasControl.FontSizeFor so the overlay's text lines up with what the canvas would draw.
+    private static double FontSizeFor(FontScale scale) => scale switch
+    {
+        FontScale.S => 11.5,
+        FontScale.L => 15.5,
+        FontScale.XL => 19,
+        _ => 13,
+    };
 
     private string T(string key) => _localization?.T(key, "Mindmap") ?? key;
 }
