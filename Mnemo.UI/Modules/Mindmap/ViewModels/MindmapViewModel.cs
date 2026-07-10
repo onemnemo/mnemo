@@ -49,6 +49,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     private readonly IImageAssetService? _imageAssets;
     private readonly INoteService? _notes;
     private readonly IFlashcardLibraryService? _decks;
+    private readonly ISettingsService? _settings;
 
     private readonly MindmapCamera _camera = new();
     private MindmapDocument? _document;
@@ -95,6 +96,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
     [NotifyPropertyChangedFor(nameof(IsNodeSelected))]
+    [NotifyPropertyChangedFor(nameof(BoundSelectedNode))]
     private MindmapNodeItem? _selectedNode;
 
     /// <summary>True when any element is selected; drives the inspector's content vs its empty state.</summary>
@@ -102,6 +104,22 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     /// <summary>True only for a tree node (not a free shape/text); gates node-only inspector controls.</summary>
     public bool IsNodeSelected => SelectedNode is { IsFree: false };
+
+    // Never-null binding sources for the floating toolbars and inspector. Compiled bindings walk their
+    // chains even while those panels are hidden, and a null intermediate logs a binding error per control
+    // per selection change — dozens per click, and the error logging itself is measurably slow. The
+    // placeholders are inert detached items that nothing edits.
+    private static readonly MindmapNodeItem PlaceholderNode = new() { Id = string.Empty };
+    private static readonly MindmapEdgeItem PlaceholderEdge = new(string.Empty, PlaceholderNode, PlaceholderNode, isHierarchy: false);
+
+    /// <summary>The selected element for toolbar/inspector bindings; an inert placeholder while nothing is selected.</summary>
+    public MindmapNodeItem BoundSelectedNode => SelectedNode ?? PlaceholderNode;
+
+    /// <summary>The selected link edge for edge-toolbar bindings; an inert placeholder while none is selected.</summary>
+    public MindmapEdgeItem BoundSelectedEdge => SelectedEdge ?? PlaceholderEdge;
+
+    /// <summary>Whether the template picker currently shows a user template (gates the delete button).</summary>
+    public bool IsUserTemplateSelected => SelectedTemplateOption?.IsUser == true;
 
     // The additive multi-selection set. <see cref="SelectedNode"/> stays the PRIMARY (last added) and every
     // existing single-selection consumer keeps reading it; this only tracks the extra members so multi-drag,
@@ -153,6 +171,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     /// <summary>The selected link edge, if any; drives the floating edge toolbar. Mutually exclusive with a node selection.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BoundSelectedEdge))]
     private MindmapEdgeItem? _selectedEdge;
 
     /// <summary>Whether the floating edge toolbar shows (a link edge is selected).</summary>
@@ -165,9 +184,44 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private double _edgeToolbarTop;
 
-    /// <summary>Whether the connect tool is engaged; a press-drag between two elements then creates a link edge.</summary>
+    /// <summary>The sticky canvas tool driving pointer behaviour (bottom toolbar, V/H/C shortcuts).</summary>
     [ObservableProperty]
-    private bool _isConnectToolActive;
+    [NotifyPropertyChangedFor(nameof(IsSelectToolActive))]
+    [NotifyPropertyChangedFor(nameof(IsPanToolActive))]
+    [NotifyPropertyChangedFor(nameof(IsConnectToolActive))]
+    private MindmapTool _activeTool = MindmapTool.Select;
+
+    public bool IsSelectToolActive => ActiveTool == MindmapTool.Select;
+
+    public bool IsPanToolActive => ActiveTool == MindmapTool.Pan;
+
+    /// <summary>Whether the connect tool is engaged; a press-drag between two elements then creates or removes a link edge.</summary>
+    public bool IsConnectToolActive => ActiveTool == MindmapTool.Connect;
+
+    // --- Canvas backdrop & minimap (Settings → Mindmap; live-updated via SettingChanged) --------------
+
+    [ObservableProperty]
+    private MindmapBackgroundMode _backgroundMode = MindmapBackgroundMode.Dots;
+
+    [ObservableProperty]
+    private double _gridSpacing = 40;
+
+    [ObservableProperty]
+    private double _gridDotRadius = 1.5;
+
+    [ObservableProperty]
+    private double _gridOpacity = 0.2;
+
+    /// <summary>Whether the minimap shows ("Auto" hides it only while the map is empty).</summary>
+    [ObservableProperty]
+    private bool _isMinimapVisible;
+
+    // Raw "Mindmap.MinimapVisibility" setting value: Auto / On / Off.
+    private string _minimapVisibilitySetting = "Auto";
+
+    /// <summary>The viewport in content coordinates, kept current with the camera; drives the minimap's frame.</summary>
+    [ObservableProperty]
+    private Rect _viewportContentRect;
 
     /// <summary>Whether the cursor-anchored radial toolkit (Alt+W) is open.</summary>
     [ObservableProperty]
@@ -207,12 +261,29 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private bool _labelEditorAcceptsReturn;
 
+    /// <summary>Editor text alignment, matched to how the canvas draws the label being edited (so the text doesn't jump).</summary>
+    [ObservableProperty]
+    private TextAlignment _labelEditorTextAlignment = TextAlignment.Center;
+
+    /// <summary>Left/right editor padding matched to the canvas label's inset (task checkbox, ref glyph, code padding).</summary>
+    [ObservableProperty]
+    private Thickness _labelEditorPadding = new(6, 2);
+
+    /// <summary>True while a code node is edited; the editor switches to the monospace family.</summary>
+    [ObservableProperty]
+    private bool _labelEditorIsMono;
+
+    /// <summary>True while a root node is edited; the editor matches the canvas' semibold weight.</summary>
+    [ObservableProperty]
+    private bool _labelEditorIsSemiBold;
+
     /// <summary>The map's layout algorithm, bound to the top-bar switcher. Applies to every cluster.</summary>
     [ObservableProperty]
     private MindmapLayoutOption? _selectedLayoutOption;
 
     /// <summary>The map's style template, bound to the top-bar picker. Sets the document default template.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsUserTemplateSelected))]
     private MindmapTemplateOption? _selectedTemplateOption;
 
     /// <summary>The selected node's cluster template, bound to the inspector. Sets that tree's template only.</summary>
@@ -231,6 +302,8 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     public ICommand RecenterCommand { get; }
     public ICommand DeleteSelectedCommand { get; }
+    public ICommand UndoCommand { get; }
+    public ICommand RedoCommand { get; }
 
     public MindmapViewModel(
         IMindmapService service,
@@ -243,7 +316,8 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         IOverlayService? overlay = null,
         IImageAssetService? imageAssets = null,
         INoteService? notes = null,
-        IFlashcardLibraryService? decks = null)
+        IFlashcardLibraryService? decks = null,
+        ISettingsService? settings = null)
     {
         _service = service;
         _layout = layout;
@@ -256,9 +330,15 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         _imageAssets = imageAssets;
         _notes = notes;
         _decks = decks;
+        _settings = settings;
 
         RecenterCommand = new RelayCommand(Recenter);
-        DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, () => SelectedNode is not null);
+        DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, () => SelectedNode is not null || SelectedEdge is not null);
+        UndoCommand = new AsyncRelayCommand(UndoAsync, () => _undoStack.Count > 0);
+        RedoCommand = new AsyncRelayCommand(RedoAsync, () => _redoStack.Count > 0);
+
+        // "Auto" minimap visibility tracks whether the map has any content.
+        Nodes.CollectionChanged += (_, _) => UpdateMinimapVisibility();
 
         BuildLayoutOptions();
         BuildTemplateOptions();
@@ -422,6 +502,12 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         // Unsubscribe first: navigation can deliver a new map without an intervening OnNavigatedFrom.
         _service.Changed -= OnServiceChanged;
         _service.Changed += OnServiceChanged;
+        if (_settings is not null)
+        {
+            _settings.SettingChanged -= OnSettingChanged;
+            _settings.SettingChanged += OnSettingChanged;
+        }
+        _ = LoadCanvasSettingsAsync();
         if (parameter is string id && !string.IsNullOrEmpty(id))
             _ = LoadAsync(id);
     }
@@ -429,11 +515,65 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     public void OnNavigatedFrom()
     {
         _service.Changed -= OnServiceChanged;
+        if (_settings is not null)
+            _settings.SettingChanged -= OnSettingChanged;
         Nodes.Clear();
         foreach (var edge in Edges)
             edge.Dispose();
         Edges.Clear();
     }
+
+    // --- Canvas settings (Settings → Mindmap) --------------------------------
+
+    private async Task LoadCanvasSettingsAsync()
+    {
+        if (_settings is null)
+        {
+            UpdateMinimapVisibility();
+            return;
+        }
+
+        try
+        {
+            var gridType = await _settings.GetAsync("Mindmap.GridType", "Dotted").ConfigureAwait(true);
+            var gridSize = await _settings.GetAsync("Mindmap.GridSize", "40").ConfigureAwait(true);
+            var dotSize = await _settings.GetAsync("Mindmap.GridDotSize", "1.5").ConfigureAwait(true);
+            var opacity = await _settings.GetAsync("Mindmap.GridOpacity", "0.2").ConfigureAwait(true);
+            _minimapVisibilitySetting = await _settings.GetAsync("Mindmap.MinimapVisibility", "Auto").ConfigureAwait(true);
+
+            BackgroundMode = gridType switch
+            {
+                "None" => MindmapBackgroundMode.None,
+                "Lines" => MindmapBackgroundMode.Lines,
+                _ => MindmapBackgroundMode.Dots,
+            };
+            GridSpacing = ParseOr(gridSize, 40);
+            GridDotRadius = ParseOr(dotSize, 1.5);
+            GridOpacity = ParseOr(opacity, 0.2);
+            UpdateMinimapVisibility();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", "Failed to load canvas settings.", ex);
+        }
+    }
+
+    private static double ParseOr(string? value, double fallback) =>
+        double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
+
+    // The settings page can change these while the editor is open; re-read on any mindmap key.
+    private void OnSettingChanged(object? sender, string key)
+    {
+        if (key.StartsWith("Mindmap.", StringComparison.Ordinal))
+            Dispatcher.UIThread.Post(() => _ = LoadCanvasSettingsAsync());
+    }
+
+    private void UpdateMinimapVisibility() => IsMinimapVisible = _minimapVisibilitySetting switch
+    {
+        "Off" => false,
+        "On" => true,
+        _ => Nodes.Count > 0,
+    };
 
     // --- Live-session bridge -------------------------------------------------
 
@@ -488,6 +628,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             MapId = id;
             _undoStack.Clear();
             _redoStack.Clear();
+            RefreshHistoryCommands();
             await RefreshTemplatesAsync().ConfigureAwait(true);
             await ApplyDocumentAsync(result.Value).ConfigureAwait(true);
             Recenter();
@@ -1399,6 +1540,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         if (newValue is not null)
             newValue.PropertyChanged += OnSelectedEdgeMoved;
         UpdateEdgeToolbar();
+        ((AsyncRelayCommand)DeleteSelectedCommand).NotifyCanExecuteChanged();
     }
 
     private void OnSelectedEdgeMoved(object? sender, PropertyChangedEventArgs e)
@@ -1868,9 +2010,27 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             return;
         var cx = Nodes.Average(n => n.CenterX);
         var cy = Nodes.Average(n => n.CenterY);
-        _camera.CenterOnContentPoint(new Point(cx, cy), 800, 500);
+        _camera.CenterOnContentPoint(new Point(cx, cy), _viewportSize.Width, _viewportSize.Height);
         SyncCamera();
     }
+
+    /// <summary>Centers the camera on a content point (minimap click/drag navigation).</summary>
+    public void CenterViewportOn(Point contentPoint)
+    {
+        _camera.CenterOnContentPoint(contentPoint, _viewportSize.Width, _viewportSize.Height);
+        SyncCamera();
+    }
+
+    // Zoom pill buttons step around the viewport center (the wheel keeps zooming at the pointer).
+    private const double ZoomButtonFactor = 1.25;
+
+    [RelayCommand]
+    private void ZoomIn() => ZoomAt(ViewportCenterScreen(), ZoomButtonFactor);
+
+    [RelayCommand]
+    private void ZoomOut() => ZoomAt(ViewportCenterScreen(), 1 / ZoomButtonFactor);
+
+    private Point ViewportCenterScreen() => new(_viewportSize.Width / 2, _viewportSize.Height / 2);
 
     private void SyncCamera()
     {
@@ -1879,9 +2039,15 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         CancelLabelEdit();
         CanvasTransform = _camera.Transform;
         ZoomLabel = string.Format(CultureInfo.InvariantCulture, "{0:0}%", _camera.Scale * 100);
+        UpdateViewportContentRect();
         UpdateSelectionChrome();
         UpdateEdgeToolbar();
     }
+
+    private void UpdateViewportContentRect() =>
+        ViewportContentRect = new Rect(
+            _camera.ScreenToContent(default),
+            _camera.ScreenToContent(new Point(_viewportSize.Width, _viewportSize.Height)));
 
     public Point ScreenToContent(Point screen) => _camera.ScreenToContent(screen);
 
@@ -1916,7 +2082,10 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     public void UpdateViewportSize(Size size)
     {
         if (size.Width > 0 && size.Height > 0)
+        {
             _viewportSize = size;
+            UpdateViewportContentRect();
+        }
     }
 
     // The screen anchor for a cursor-anchored action: the pointer when it's over the canvas, else the viewport center.
@@ -2015,8 +2184,19 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             MindmapNodeItem.ShapeDefaultHeight,
             contentPoint);
 
-    /// <summary>Toggles the connect tool. The view clears any in-progress rubber-band when this turns off.</summary>
-    public void ToggleConnectTool() => IsConnectToolActive = !IsConnectToolActive;
+    /// <summary>Toggles the connect tool (falling back to select). The view clears any in-progress rubber-band when this turns off.</summary>
+    public void ToggleConnectTool() =>
+        ActiveTool = ActiveTool == MindmapTool.Connect ? MindmapTool.Select : MindmapTool.Connect;
+
+    /// <summary>Activates a sticky tool (bottom toolbar buttons and the V/H shortcuts).</summary>
+    public void SetTool(MindmapTool tool) => ActiveTool = tool;
+
+    [RelayCommand]
+    private void ActivateTool(string? tool)
+    {
+        if (Enum.TryParse<MindmapTool>(tool, out var value))
+            ActiveTool = value;
+    }
 
     // --- Tool shortcuts (N / T / F / S) place at the cursor, else the viewport center -----
 
@@ -2032,11 +2212,24 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     /// <summary>Creates a default rectangle under the cursor for the <c>S</c> shortcut (the radial's shape wedge opens the full picker).</summary>
     public Task CreateDefaultShapeAtCursorAsync() => CreateShapeAsync(ShapeType.Rectangle, CursorAnchorContent());
 
-    /// <summary>Creates a link edge (connector) between two elements. No-op if they are the same element.</summary>
+    /// <summary>
+    /// Creates a link edge (connector) between two elements — or removes the existing one, so the connect
+    /// tool doubles as the disconnect gesture. No-op if they are the same element.
+    /// </summary>
     public async Task LinkAsync(string fromId, string toId)
     {
         if (fromId == toId)
             return;
+
+        var existing = _document?.Edges.FirstOrDefault(e =>
+            e.Kind == EdgeKind.Link
+            && ((e.FromId == fromId && e.ToId == toId) || (e.FromId == toId && e.ToId == fromId)));
+        if (existing is not null)
+        {
+            await ApplyAsync(new UnlinkOp { EdgeId = existing.Id }, selectRef: null).ConfigureAwait(true);
+            return;
+        }
+
         await ApplyAsync(new LinkOp { A = fromId, B = toId }, selectRef: null).ConfigureAwait(true);
     }
 
@@ -2135,6 +2328,13 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     private async Task DeleteSelectedAsync()
     {
+        // A selected link edge deletes on the same gesture (Delete key / toolbar) as elements do.
+        if (SelectedEdge is { } edge)
+        {
+            await ApplyAsync(new UnlinkOp { EdgeId = edge.Id }, selectRef: null).ConfigureAwait(true);
+            return;
+        }
+
         // Delete the whole selection set in one batch (one undo step); a single selection deletes just that
         // node, exactly as before. The service cascades subtrees and orphans frame members.
         var ids = _selectedNodes.Count > 0
@@ -2196,6 +2396,13 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
         _undoStack.Push(new HistoryEntry(undo, redo));
         _redoStack.Clear();
+        RefreshHistoryCommands();
+    }
+
+    private void RefreshHistoryCommands()
+    {
+        ((AsyncRelayCommand)UndoCommand).NotifyCanExecuteChanged();
+        ((AsyncRelayCommand)RedoCommand).NotifyCanExecuteChanged();
     }
 
     public async Task UndoAsync()
@@ -2207,6 +2414,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         {
             _undoStack.Pop();
             _redoStack.Push(entry);
+            RefreshHistoryCommands();
         }
     }
 
@@ -2219,6 +2427,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         {
             _redoStack.Pop();
             _undoStack.Push(entry);
+            RefreshHistoryCommands();
         }
     }
 
@@ -2363,17 +2572,36 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         LabelEditorText = item.Text;
 
         // Only code snippets are multi-line; every other kind (incl. frame titles) edits on a single line.
-        LabelEditorAcceptsReturn = item.ContentType == ElementContentDiscriminators.Code;
+        var isCode = item.ContentType == ElementContentDiscriminators.Code;
+        var isTask = item.ContentType == ElementContentDiscriminators.Task;
+        var isLink = item.ContentType == ElementContentDiscriminators.Link;
+        LabelEditorAcceptsReturn = isCode;
 
         var scale = _camera.Scale;
         // A frame's text is its title, which lives in the top strip rather than filling the whole box.
         var boxHeight = item.Kind == ElementKind.Frame ? MindmapNodeItem.FrameTitleHeight : item.Height;
         var topLeft = _camera.ContentToScreen(new Point(item.X, item.Y));
-        LabelEditorLeft = topLeft.X;
+        var scaledWidth = item.Width * scale;
+        LabelEditorWidth = Math.Max(MinLabelEditorWidth, scaledWidth);
+        // A min-width editor would otherwise hang off to the right; keep it centered on the element.
+        LabelEditorLeft = topLeft.X - Math.Max(0, LabelEditorWidth - scaledWidth) / 2;
         LabelEditorTop = topLeft.Y;
-        LabelEditorWidth = Math.Max(MinLabelEditorWidth, item.Width * scale);
         LabelEditorHeight = boxHeight * scale;
         LabelEditorFontSize = FontSizeFor(item.FontScale) * scale;
+
+        // Mirror how the canvas draws this label — alignment, left inset, family and weight — so the text
+        // doesn't visibly jump when the editor opens or commits.
+        LabelEditorTextAlignment = isCode || isTask || isLink ? TextAlignment.Left : TextAlignment.Center;
+        LabelEditorIsMono = isCode;
+        LabelEditorIsSemiBold = item.IsRoot;
+        var leftInset = isTask
+            ? MindmapNodeItem.TaskCheckboxInset + MindmapNodeItem.TaskCheckboxSize + MindmapNodeItem.TaskTextGap
+            : isLink
+                ? MindmapNodeItem.RefGlyphInset + MindmapNodeItem.RefGlyphSize + MindmapNodeItem.RefTextGap
+                : isCode
+                    ? MindmapNodeItem.CodePadding
+                    : 6;
+        LabelEditorPadding = new Thickness(leftInset * scale, 2, 6 * scale, 2);
 
         item.IsEditing = true;
         IsLabelEditorVisible = true;
@@ -2391,6 +2619,10 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         _labelEditorOriginal = edge.Label ?? string.Empty;
         LabelEditorText = _labelEditorOriginal;
         LabelEditorAcceptsReturn = false;
+        LabelEditorTextAlignment = TextAlignment.Center;
+        LabelEditorIsMono = false;
+        LabelEditorIsSemiBold = false;
+        LabelEditorPadding = new Thickness(6, 2);
 
         var scale = _camera.Scale;
         LabelEditorFontSize = 11 * scale;

@@ -434,7 +434,8 @@
     <Color x:Key="MindmapNodeBorderSelected">#2c2520</Color>
     <Color x:Key="MindmapNodeBackgroundHover">#2a221e</Color>
     <Color x:Key="MindmapEdgeStroke">#2c2520</Color>
-    <Color x:Key="MindmapGridColor">#202c2520</Color>
+    <!-- Grid backdrop; opaque and a touch softer than TextTertiary so Mindmap.GridOpacity alone governs transparency. -->
+    <Color x:Key="MindmapGridColor">#6B625B</Color>
     <!-- Mindmap toolbar (floating panel) -->
     <Color x:Key="MindmapToolbarPanelBackground">#211b18</Color>
     <Color x:Key="MindmapToolbarSectionBackground">#1e1916</Color>

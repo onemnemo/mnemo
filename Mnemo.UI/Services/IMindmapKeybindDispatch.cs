@@ -14,6 +14,8 @@ public interface IMindmapKeybindDispatch
     void AddChild();
     void Enter();
     void EditLabel();
+    void SelectTool();
+    void PanTool();
     void ToggleConnect();
     void NewNode();
     void NewText();

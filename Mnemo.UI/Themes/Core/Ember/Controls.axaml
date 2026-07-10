@@ -554,6 +554,7 @@
     <SolidColorBrush x:Key="MindmapNodeBorderSelectedBrush" Color="{DynamicResource MindmapNodeBorderSelected}"/>
     <SolidColorBrush x:Key="MindmapNodeBackgroundHoverBrush" Color="{DynamicResource MindmapNodeBackgroundHover}"/>
     <SolidColorBrush x:Key="MindmapEdgeStrokeBrush" Color="{DynamicResource MindmapEdgeStroke}"/>
+    <SolidColorBrush x:Key="MindmapGridBrush" Color="{DynamicResource MindmapGridColor}"/>
     <BoxShadows x:Key="MindmapNodeBoxShadow">0 2 4 0 #20000000</BoxShadows>
     <BoxShadows x:Key="MindmapNodeBoxShadowHover">0 4 8 0 #35000000</BoxShadows>
     <BoxShadows x:Key="MindmapNodeBoxShadowSelected">0 0 0 2 #50e95b45</BoxShadows>

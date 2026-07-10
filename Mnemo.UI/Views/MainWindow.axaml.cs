@@ -91,6 +91,8 @@ public partial class MainWindow : Window
         router.RegisterHandler("mindmap.add-child", () => mindmapDispatch.AddChild());
         router.RegisterHandler("mindmap.enter", () => mindmapDispatch.Enter());
         router.RegisterHandler("mindmap.edit-edge-label", () => mindmapDispatch.EditLabel());
+        router.RegisterHandler("mindmap.tool-select", () => mindmapDispatch.SelectTool());
+        router.RegisterHandler("mindmap.tool-pan", () => mindmapDispatch.PanTool());
         router.RegisterHandler("mindmap.connect", () => mindmapDispatch.ToggleConnect());
         router.RegisterHandler("mindmap.new-node", () => mindmapDispatch.NewNode());
         router.RegisterHandler("mindmap.new-text", () => mindmapDispatch.NewText());

@@ -96,6 +96,8 @@ internal static class MindmapKeybindManifest
         Chords("mindmap.add-child", "Tab"),
         Chords("mindmap.enter", "Return", "Enter"),
         Chords("mindmap.edit-edge-label", "F2"),
+        Chords("mindmap.tool-select", "V"),
+        Chords("mindmap.tool-pan", "H"),
         Chords("mindmap.connect", "C"),
         Chords("mindmap.new-node", "N"),
         Chords("mindmap.new-text", "T"),

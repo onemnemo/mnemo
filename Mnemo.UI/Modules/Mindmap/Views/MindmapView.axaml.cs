@@ -52,9 +52,21 @@ public partial class MindmapView : UserControl
     // the selection to just that element (standard click-through behaviour on a group).
     private bool _pressedMultiMember;
 
-    // Shift+drag marquee on empty canvas: its start point (content coords) while in progress.
+    // Marquee on empty canvas (select tool): its start point (content coords) while in progress. Selection
+    // updates live as the rectangle grows — hits are highlighted view-side each frame and committed through
+    // the view model on release. Shift makes it additive over the selection captured at press.
     private bool _isMarqueeing;
+    private bool _marqueeStarted;
     private Point _marqueeStartContent;
+    private System.Collections.Generic.List<MindmapNodeItem>? _marqueeBase;
+    private readonly System.Collections.Generic.HashSet<MindmapNodeItem> _marqueeVisual = new();
+
+    // Contextual cursors, one shared instance each so pointer moves never allocate.
+    private static readonly Cursor HandCursor = new(StandardCursorType.Hand);
+    private static readonly Cursor CrossCursor = new(StandardCursorType.Cross);
+    private static readonly Cursor SizeAllCursor = new(StandardCursorType.SizeAll);
+    private static readonly Cursor ResizeCornerCursor = new(StandardCursorType.BottomRightCorner);
+    private Cursor? _currentCursor;
 
     // Connect tool: while engaged (VM.IsConnectToolActive), a press-drag from one element to another
     // creates a link edge. The rubber-band source is view-local.
@@ -90,6 +102,11 @@ public partial class MindmapView : UserControl
             _labelEditor.KeyDown += OnLabelEditorKeyDown;
             _labelEditor.LostFocus += OnLabelEditorLostFocus;
         }
+
+        // Minimap presses recenter the camera on the pointed-at content position.
+        var minimap = this.FindControl<MindmapMinimapControl>("Minimap");
+        if (minimap is not null)
+            minimap.PanRequested += content => Vm?.CenterViewportOn(content);
 
         DataContextChanged += OnDataContextChanged;
 
@@ -134,16 +151,48 @@ public partial class MindmapView : UserControl
     {
         if (e.PropertyName == nameof(MindmapViewModel.IsConnectToolActive))
             SyncConnectToolVisual();
+        else if (e.PropertyName == nameof(MindmapViewModel.ActiveTool))
+            UpdateCursor();
     }
 
-    // Reflects the VM's connect-tool state in the pill icon and clears any in-progress rubber-band.
+    // Leaving the connect tool clears any in-progress rubber-band (the button state is styled via Classes.active).
     private void SyncConnectToolVisual()
     {
-        var on = Vm?.IsConnectToolActive == true;
         _connectSource = null;
         _canvas?.SetPendingLink(null, default);
-        if (ConnectIcon is not null)
-            ConnectIcon.Color = TryResource(on ? "AccentButtonForegroundBrush" : "TextSecondaryBrush");
+        UpdateCursor();
+    }
+
+    // Swaps the canvas cursor to match what a press would do right now. The optional content point adds
+    // hover awareness (the resize corner) when no interaction is in progress.
+    private void UpdateCursor(Point? contentPoint = null)
+    {
+        if (_host is null)
+            return;
+
+        Cursor? cursor = null;
+        if (_isPanning || Vm?.IsPanToolActive == true)
+            cursor = HandCursor;
+        else if (Vm?.IsConnectToolActive == true)
+            cursor = CrossCursor;
+        else if (_resizingNode is not null)
+            cursor = ResizeCornerCursor;
+        else if (_draggingNode is not null && _dragMoved)
+            cursor = SizeAllCursor;
+        else if (_isMarqueeing && _dragMoved)
+            cursor = CrossCursor;
+        else if (contentPoint is { } content
+                 && Vm?.SelectedNode is { IsFree: true } selected
+                 && (_canvas?.ChromeVisible ?? false)
+                 && IsInResizeHandle(content, selected))
+            cursor = ResizeCornerCursor;
+
+        // Null falls back to the inherited arrow; only touch the property when the shape actually changes.
+        if (!ReferenceEquals(_currentCursor, cursor))
+        {
+            _currentCursor = cursor;
+            _host.Cursor = cursor;
+        }
     }
 
     // The TextBox is only just made visible; defer the focus so it can take it, then select all for type-to-rename.
@@ -214,10 +263,10 @@ public partial class MindmapView : UserControl
             return;
         }
 
-        // Escape leaves the connect tool rather than falling through to a global keybind.
-        if (Vm?.IsConnectToolActive == true && e.Key == Key.Escape)
+        // Escape leaves a modal tool (connect/pan) rather than falling through to a global keybind.
+        if (Vm is { IsSelectToolActive: false } vm && e.Key == Key.Escape)
         {
-            Vm.ToggleConnectTool();
+            vm.SetTool(MindmapTool.Select);
             e.Handled = true;
             return;
         }
@@ -249,8 +298,10 @@ public partial class MindmapView : UserControl
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (Vm is null || _host is null || !e.GetCurrentPoint(_host).Properties.IsLeftButtonPressed)
+        if (Vm is null || _host is null)
             return;
+
+        var properties = e.GetCurrentPoint(_host).Properties;
 
         // Take keyboard focus so canvas keybinds (Tab/Enter/Delete/undo/…) route to this view.
         _canvas?.Focus();
@@ -260,6 +311,27 @@ public partial class MindmapView : UserControl
         _lastScreenPoint = screen;
         _dragMoved = false;
         _pressedMultiMember = false;
+
+        // A middle-button drag pans in any tool, so the camera is always one gesture away.
+        if (properties.IsMiddleButtonPressed)
+        {
+            _isPanning = true;
+            e.Pointer.Capture(_host);
+            UpdateCursor();
+            return;
+        }
+
+        if (!properties.IsLeftButtonPressed)
+            return;
+
+        // Pan tool: every drag moves the camera and clicks leave the selection alone.
+        if (Vm.IsPanToolActive)
+        {
+            _isPanning = true;
+            e.Pointer.Capture(_host);
+            UpdateCursor();
+            return;
+        }
 
         var content = Vm.ScreenToContent(screen);
         var node = HitTest(content);
@@ -346,16 +418,16 @@ public partial class MindmapView : UserControl
             // A click near a link edge selects it (no drag/pan) so its floating toolbar appears.
             Vm.SelectEdge(edge);
         }
-        else if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
-        {
-            // Shift+drag on empty canvas draws a marquee; the selection is applied on release.
-            _isMarqueeing = true;
-            _marqueeStartContent = content;
-        }
         else
         {
-            Vm.Select(null);
-            _isPanning = true;
+            // Empty canvas: drag draws a live marquee (Shift keeps and extends the current selection);
+            // a plain click without a drag clears the selection on release.
+            _isMarqueeing = true;
+            _marqueeStarted = false;
+            _marqueeStartContent = content;
+            _marqueeBase = additive
+                ? new System.Collections.Generic.List<MindmapNodeItem>(Vm.SelectedNodes)
+                : null;
         }
 
         e.Pointer.Capture(_host);
@@ -391,11 +463,16 @@ public partial class MindmapView : UserControl
             System.Math.Abs(screen.Y - _pressScreenPoint.Y) > DragThreshold)
             _dragMoved = true;
 
-        // Marquee: grow the selection rectangle from the press point to the cursor.
+        // Marquee: grow the selection rectangle from the press point to the cursor, selecting live.
         if (_isMarqueeing)
         {
+            if (!_dragMoved)
+                return;
             var content = Vm.ScreenToContent(screen);
-            _canvas?.SetMarquee(RectFromPoints(_marqueeStartContent, content));
+            var rect = RectFromPoints(_marqueeStartContent, content);
+            _canvas?.SetMarquee(rect);
+            UpdateMarqueeHighlight(rect);
+            UpdateCursor();
             return;
         }
 
@@ -405,6 +482,7 @@ public partial class MindmapView : UserControl
         }
         else if (_draggingNode is not null)
         {
+            UpdateCursor();
             var content = Vm.ScreenToContent(screen);
             _draggingNode.X = content.X - _dragGrabOffset.X;
             _draggingNode.Y = content.Y - _dragGrabOffset.Y;
@@ -431,6 +509,43 @@ public partial class MindmapView : UserControl
                 }
             }
         }
+        else
+        {
+            // Plain hover: the cursor hints at what a press would do (e.g. the resize corner).
+            UpdateCursor(Vm.ScreenToContent(screen));
+        }
+    }
+
+    // Applies the marquee rectangle to the selection as the drag grows: hits (plus the Shift-preserved base)
+    // highlight immediately, elements the rectangle no longer covers un-highlight. The set is committed
+    // through the view model on release so the floating toolbars don't churn mid-drag.
+    private void UpdateMarqueeHighlight(Rect rect)
+    {
+        if (Vm is null || _canvas is null)
+            return;
+
+        if (!_marqueeStarted)
+        {
+            _marqueeStarted = true;
+            // A fresh (non-additive) marquee replaces the selection, so clear it as the drag begins.
+            if (_marqueeBase is null)
+                Vm.Select(null);
+        }
+
+        var desired = new System.Collections.Generic.HashSet<MindmapNodeItem>(_canvas.HitTestNodes(rect));
+        if (_marqueeBase is not null)
+            foreach (var item in _marqueeBase)
+                desired.Add(item);
+
+        foreach (var item in _marqueeVisual)
+            if (!desired.Contains(item))
+                item.IsSelected = false;
+        foreach (var item in desired)
+            item.IsSelected = true;
+
+        _marqueeVisual.Clear();
+        foreach (var item in desired)
+            _marqueeVisual.Add(item);
     }
 
     // A content-space rectangle from two corner points (marquee bounds).
@@ -519,21 +634,40 @@ public partial class MindmapView : UserControl
             return;
         }
 
-        // Marquee: select everything intersecting the rectangle (or clear on a shift-click that didn't drag).
+        // Marquee: commit everything intersecting the rectangle (or clear on a click that didn't drag).
         if (_isMarqueeing)
         {
             _isMarqueeing = false;
+            _marqueeStarted = false;
+            var baseSelection = _marqueeBase;
+            _marqueeBase = null;
             _canvas?.SetMarquee(null);
+
+            // Drop the live view-side highlight first; SelectMany below re-applies the final set so the
+            // view model's selection list and the IsSelected flags stay consistent.
+            foreach (var item in _marqueeVisual)
+                item.IsSelected = false;
+            _marqueeVisual.Clear();
+
             if (Vm is not null && _host is not null && _dragMoved && _canvas is not null)
             {
                 var end = Vm.ScreenToContent(e.GetPosition(_host));
                 var hits = _canvas.HitTestNodes(RectFromPoints(_marqueeStartContent, end));
-                Vm.SelectMany(hits);
+                var final = new System.Collections.Generic.List<MindmapNodeItem>();
+                if (baseSelection is not null)
+                    foreach (var item in baseSelection)
+                        if (!final.Contains(item))
+                            final.Add(item);
+                foreach (var item in hits)
+                    if (!final.Contains(item))
+                        final.Add(item);
+                Vm.SelectMany(final);
             }
             else
             {
                 Vm?.Select(null);
             }
+            UpdateCursor();
             return;
         }
 
@@ -546,6 +680,7 @@ public partial class MindmapView : UserControl
         _multiDragMembers = null;
         _pressedMultiMember = false;
         _isPanning = false;
+        UpdateCursor();
 
         if (Vm is null || node is null)
             return;
@@ -575,7 +710,8 @@ public partial class MindmapView : UserControl
 
     private async void OnDoubleTapped(object? sender, TappedEventArgs e)
     {
-        if (Vm is null || _host is null)
+        // Double-click editing/creation is a select-tool affordance; pan and connect stay modal.
+        if (Vm is null || _host is null || !Vm.IsSelectToolActive)
             return;
         var content = Vm.ScreenToContent(e.GetPosition(_host));
         var hit = HitTest(content);
@@ -660,8 +796,6 @@ public partial class MindmapView : UserControl
 
     private void OnConnectClick(object? sender, RoutedEventArgs e) => Vm?.ToggleConnectTool();
 
-    private IBrush? TryResource(string key) => this.TryFindResource(key, out var value) ? value as IBrush : null;
-
     private async void OnShapeClick(object? sender, RoutedEventArgs e)
     {
         if (Vm is null || sender is not Control { Tag: string name } || !Enum.TryParse<ShapeType>(name, out var shape))
@@ -706,12 +840,28 @@ public partial class MindmapView : UserControl
         await Vm.CreateFrameAsync(content);
     }
 
+    private void OnRadialSelectClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is null)
+            return;
+        Vm.CloseRadial();
+        Vm.SetTool(MindmapTool.Select);
+    }
+
+    private void OnRadialPanClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is null)
+            return;
+        Vm.CloseRadial();
+        Vm.SetTool(MindmapTool.Pan);
+    }
+
     private void OnRadialConnectClick(object? sender, RoutedEventArgs e)
     {
         if (Vm is null)
             return;
         Vm.CloseRadial();
-        Vm.ToggleConnectTool();
+        Vm.SetTool(MindmapTool.Connect);
     }
 
     private async void OnRadialImageClick(object? sender, RoutedEventArgs e)

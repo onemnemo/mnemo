@@ -86,6 +86,18 @@ public sealed class MindmapKeybindDispatch(INavigationService navigation) : IMin
             vm.BeginEditElement(vm.SelectedNode);
     }
 
+    public void SelectTool()
+    {
+        if (!TryGetMindmapViewModel(out var vm)) return;
+        vm.SetTool(MindmapTool.Select);
+    }
+
+    public void PanTool()
+    {
+        if (!TryGetMindmapViewModel(out var vm)) return;
+        vm.SetTool(MindmapTool.Pan);
+    }
+
     public void ToggleConnect()
     {
         if (!TryGetMindmapViewModel(out var vm) || !vm.IsEditingEnabled) return;

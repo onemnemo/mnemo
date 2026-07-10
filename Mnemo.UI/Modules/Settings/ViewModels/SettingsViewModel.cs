@@ -459,11 +459,11 @@ public partial class SettingsViewModel : ViewModelBase
         gridGroup.Items.Add(new DropdownSettingViewModel(_settingsService, "Mindmap.GridType", T("GridType"), T("GridTypeDescription"), new[] { "None", "Dotted", "Lines" }, null, "Dotted"));
         gridGroup.Items.Add(new DropdownSettingViewModel(_settingsService, "Mindmap.GridSize", T("GridSize"), T("GridSizeDescription"), new[] { "20", "40", "60", "80", "100" }, null, "40"));
         gridGroup.Items.Add(new DropdownSettingViewModel(_settingsService, "Mindmap.GridDotSize", T("GridDotSize"), T("GridDotSizeDescription"), new[] { "0.5", "1.0", "1.5", "2.0", "2.5", "3.0" }, null, "1.5"));
-        gridGroup.Items.Add(new DropdownSettingViewModel(_settingsService, "Mindmap.GridOpacity", T("GridOpacity"), T("GridOpacityDescription"), new[] { "0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.8", "1.0" }, null, "0.2"));
+        gridGroup.Items.Add(new DropdownSettingViewModel(_settingsService, "Mindmap.GridOpacity", T("GridOpacity"), T("GridOpacityDescription"), new[] { "0.05", "0.1", "0.15", "0.2", "0.3", "0.5", "0.7", "1.0" }, null, "0.2"));
 
+        // The old "Mindmap.ModifierBehaviour" dropdown is gone: the editor now has explicit select/pan tools.
         var behaviourGroup = new SettingsGroupViewModel(T("Interaction"));
         behaviourGroup.Items.Add(new DropdownSettingViewModel(_settingsService, "Mindmap.MinimapVisibility", T("ShowMinimap"), T("ShowMinimapDescription"), new[] { "Auto", "On", "Off" }, null, "Auto"));
-        behaviourGroup.Items.Add(new DropdownSettingViewModel(_settingsService, "Mindmap.ModifierBehaviour", T("ShiftBehaviour"), T("ShiftBehaviourDescription"), new[] { T("Selecting"), T("Panning") }, null, T("Selecting")));
 
         mindmap.Groups.Add(gridGroup);
         mindmap.Groups.Add(behaviourGroup);
