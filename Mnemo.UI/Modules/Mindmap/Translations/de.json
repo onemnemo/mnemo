@@ -13,7 +13,12 @@
     "mindmap.add-child": "Kindknoten hinzufügen",
     "mindmap.enter": "Geschwister hinzufügen / Kante bearbeiten",
     "mindmap.edit-edge-label": "Beschriftung bearbeiten",
-    "mindmap.connect": "Verbindungswerkzeug"
+    "mindmap.connect": "Verbindungswerkzeug",
+    "mindmap.new-node": "Neuer Knoten",
+    "mindmap.new-text": "Neuer Text",
+    "mindmap.new-frame": "Neuer Rahmen",
+    "mindmap.shape-picker": "Neue Form",
+    "mindmap.radial": "Radialwerkzeuge"
   },
   "Mindmap": {
     "NewNode": "Neuer Knoten",
@@ -29,6 +34,7 @@
     "ToolFrame": "Rahmen hinzufügen",
     "ToolConnect": "Verbinden",
     "ToolImage": "Bild hinzufügen",
+    "Recenter": "Ansicht zentrieren",
     "ImageMissing": "Bild fehlt",
     "EdgeSolid": "Durchgezogene Linie",
     "EdgeDashed": "Gestrichelte Linie",
@@ -100,12 +106,26 @@
     "TemplateThisTree": "Vorlage · dieser Baum",
     "InspectorEmpty": "Wähle einen Knoten zum Gestalten",
     "InspectorTip": "Stil-Inspektor",
+    "ExportTip": "Exportieren",
+    "ExportPng": "Als PNG exportieren",
+    "ExportSvg": "Als SVG exportieren",
+    "ExportMd": "Als Markdown exportieren",
+    "ExportFailedTitle": "Export fehlgeschlagen",
+    "ExportFailed": "Der Export konnte nicht abgeschlossen werden.",
     "Fill": "Füllung",
     "Stroke": "Kontur",
     "TextColor": "Text",
     "Shape": "Form",
     "Size": "Größe",
     "ApplyColor": "Farbe anwenden",
-    "ShapesInlineTextHint": "Formen können Text enthalten"
+    "ShapesInlineTextHint": "Formen können Text enthalten",
+    "AlignLeft": "Links ausrichten",
+    "AlignCenterH": "Horizontal zentrieren",
+    "AlignRight": "Rechts ausrichten",
+    "AlignTop": "Oben ausrichten",
+    "AlignMiddleV": "Vertikal zentrieren",
+    "AlignBottom": "Unten ausrichten",
+    "DistributeH": "Horizontal verteilen",
+    "DistributeV": "Vertikal verteilen"
   }
 }

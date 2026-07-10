@@ -71,6 +71,29 @@
         <Style Selector="Button.mmPill.active">
             <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
         </Style>
+        <!-- Radial toolkit: circular icon buttons on the dark floating surface; terracotta on hover / when active. -->
+        <Style Selector="Button.mmRadial">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Background" Value="{DynamicResource FloatingChromeHoverBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.mmRadial:pointerover">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+        <Style Selector="Button.mmRadial.active">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        </Style>
         <!-- Shape flyout: white popover card; tiles show a shape glyph over a small label. -->
         <Style Selector="FlyoutPresenter.mmShapeFlyout">
             <Setter Property="Background" Value="{DynamicResource WorkspaceBackgroundBrush}"/>
@@ -249,6 +272,19 @@
                             ToolTip.Tip="{markup:T Ns=Mindmap, Key=InspectorTip}">
                         <controls:AppIcon Icon="Common/palette" Width="16" Height="16"
                                           Color="{DynamicResource TextSecondaryBrush}"/>
+                    </Button>
+                    <Button Classes="ghost" Padding="6" Background="Transparent" BorderThickness="0"
+                            VerticalAlignment="Center" CornerRadius="6"
+                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=ExportTip}">
+                        <controls:AppIcon Icon="Common/download" Width="16" Height="16"
+                                          Color="{DynamicResource TextSecondaryBrush}"/>
+                        <Button.Flyout>
+                            <MenuFlyout>
+                                <MenuItem Header="{markup:T Ns=Mindmap, Key=ExportPng}" Click="OnExportPngClick"/>
+                                <MenuItem Header="{markup:T Ns=Mindmap, Key=ExportSvg}" Click="OnExportSvgClick"/>
+                                <MenuItem Header="{markup:T Ns=Mindmap, Key=ExportMd}" Click="OnExportMdClick"/>
+                            </MenuFlyout>
+                        </Button.Flyout>
                     </Button>
                 </StackPanel>
                 <Button Grid.Column="4" Name="RecenterButton" Classes="ghost" Padding="6"
@@ -538,6 +574,68 @@
                 </StackPanel>
             </Border>
 
+            <!-- Contextual align/distribute toolbar: floats above a multi-selection of free elements -->
+            <Border IsVisible="{Binding IsAlignmentToolbarVisible}"
+                    Canvas.Left="{Binding AlignmentToolbarLeft}"
+                    Canvas.Top="{Binding AlignmentToolbarTop}"
+                    Height="40" Padding="7,0"
+                    Background="{DynamicResource FloatingChromeBackgroundBrush}"
+                    CornerRadius="10" BoxShadow="0 6 20 0 #33000000">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <!-- Align edges / centres -->
+                    <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                        <Button Classes="mmTool" Command="{Binding AlignLeftCommand}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=AlignLeft}">
+                            <controls:AppIcon Icon="Common/align-start-vertical" Width="15" Height="15"
+                                              Color="{DynamicResource FloatingChromeForegroundBrush}"/>
+                        </Button>
+                        <Button Classes="mmTool" Command="{Binding AlignCenterHorizontalCommand}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=AlignCenterH}">
+                            <controls:AppIcon Icon="Common/align-center-vertical" Width="15" Height="15"
+                                              Color="{DynamicResource FloatingChromeForegroundBrush}"/>
+                        </Button>
+                        <Button Classes="mmTool" Command="{Binding AlignRightCommand}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=AlignRight}">
+                            <controls:AppIcon Icon="Common/align-end-vertical" Width="15" Height="15"
+                                              Color="{DynamicResource FloatingChromeForegroundBrush}"/>
+                        </Button>
+                        <Button Classes="mmTool" Command="{Binding AlignTopCommand}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=AlignTop}">
+                            <controls:AppIcon Icon="Common/align-start-horizontal" Width="15" Height="15"
+                                              Color="{DynamicResource FloatingChromeForegroundBrush}"/>
+                        </Button>
+                        <Button Classes="mmTool" Command="{Binding AlignMiddleVerticalCommand}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=AlignMiddleV}">
+                            <controls:AppIcon Icon="Common/align-center-horizontal" Width="15" Height="15"
+                                              Color="{DynamicResource FloatingChromeForegroundBrush}"/>
+                        </Button>
+                        <Button Classes="mmTool" Command="{Binding AlignBottomCommand}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=AlignBottom}">
+                            <controls:AppIcon Icon="Common/align-end-horizontal" Width="15" Height="15"
+                                              Color="{DynamicResource FloatingChromeForegroundBrush}"/>
+                        </Button>
+                    </StackPanel>
+
+                    <Border Width="1" Height="20" Background="{DynamicResource FloatingChromeDividerBrush}" VerticalAlignment="Center"/>
+
+                    <!-- Distribute (needs 3+ elements) -->
+                    <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                        <Button Classes="mmTool" Command="{Binding DistributeHorizontalCommand}"
+                                IsEnabled="{Binding CanDistribute}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=DistributeH}">
+                            <controls:AppIcon Icon="Common/align-horizontal-distribute-center" Width="15" Height="15"
+                                              Color="{DynamicResource FloatingChromeForegroundBrush}"/>
+                        </Button>
+                        <Button Classes="mmTool" Command="{Binding DistributeVerticalCommand}"
+                                IsEnabled="{Binding CanDistribute}"
+                                ToolTip.Tip="{markup:T Ns=Mindmap, Key=DistributeV}">
+                            <controls:AppIcon Icon="Common/align-vertical-distribute-center" Width="15" Height="15"
+                                              Color="{DynamicResource FloatingChromeForegroundBrush}"/>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- Inline label editor floats over the element/edge being renamed -->
             <TextBox Name="LabelEditor" Classes="mmLabelEditor"
                      IsVisible="{Binding IsLabelEditorVisible}"
@@ -659,6 +757,124 @@
                 </StackPanel>
             </Border>
         </Grid>
+
+        <!-- Radial toolkit (Alt+W): a cursor-anchored ring of the six canvas tools -->
+        <Panel Grid.Column="0" IsVisible="{Binding IsRadialOpen}">
+            <!-- Backdrop swallows canvas clicks (pan/select suppressed); a press outside the ring closes it. -->
+            <Border Background="Transparent" PointerPressed="OnRadialBackdropPressed"/>
+            <Canvas>
+                <Canvas Canvas.Left="{Binding RadialLeft}" Canvas.Top="{Binding RadialTop}" Width="208" Height="208">
+                    <Border Width="208" Height="208" CornerRadius="104"
+                            Background="{DynamicResource FloatingChromeBackgroundBrush}"
+                            BorderBrush="{DynamicResource FloatingChromeDividerBrush}" BorderThickness="1"
+                            BoxShadow="0 12 32 0 #40000000"/>
+                    <!-- Cursor marker at the ring's center -->
+                    <Border Canvas.Left="98" Canvas.Top="98" Width="12" Height="12" CornerRadius="6"
+                            Background="{DynamicResource AccentBrush}"/>
+
+                    <Button Classes="mmRadial" Canvas.Left="84" Canvas.Top="6" Click="OnRadialNodeClick"
+                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolNode}">
+                        <controls:AppIcon Icon="Mindmap/node" Width="18" Height="18"
+                                          Color="{DynamicResource FloatingChromeForegroundStrongBrush}"/>
+                    </Button>
+                    <Button Classes="mmRadial" Canvas.Left="151.5" Canvas.Top="45" Click="OnRadialTextClick"
+                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolText}">
+                        <controls:AppIcon Icon="Common/type" Width="16" Height="16"
+                                          Color="{DynamicResource FloatingChromeForegroundStrongBrush}"/>
+                    </Button>
+                    <!-- Shape wedge opens the same tile picker as the pill, anchored on the ring -->
+                    <Button x:Name="RadialShapeButton" Classes="mmRadial" Canvas.Left="151.5" Canvas.Top="123"
+                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolShape}">
+                        <Panel Width="22" Height="22">
+                            <controls:AppIcon Icon="Common/square" Width="15" Height="15"
+                                              Color="{DynamicResource FloatingChromeForegroundStrongBrush}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Path Data="M0,5 L5,5 L5,0 Z" Fill="{DynamicResource FloatingChromeForegroundBrush}"
+                                  Width="5" Height="5"
+                                  HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+                        </Panel>
+                        <Button.Flyout>
+                            <Flyout Placement="Bottom" FlyoutPresenterClasses="mmShapeFlyout">
+                                <StackPanel Width="252">
+                                    <UniformGrid Columns="4">
+                                        <Button Classes="shapeTile" Tag="Rectangle" Click="OnRadialShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/rectangle" Width="24" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeRectangle}"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="shapeTile" Tag="Ellipse" Click="OnRadialShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/ellipse" Width="24" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeEllipse}"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="shapeTile" Tag="Diamond" Click="OnRadialShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/diamond" Width="20" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeDiamond}"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="shapeTile" Tag="Hexagon" Click="OnRadialShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/hexagon" Width="22" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeHexagon}"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="shapeTile" Tag="Parallelogram" Click="OnRadialShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/parallelogram" Width="24" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeParallelogram}"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="shapeTile" Tag="Line" Click="OnRadialShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/line" Width="24" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeLine}"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="shapeTile" Tag="Arrow" Click="OnRadialShapeClick">
+                                            <StackPanel Classes="shapeTileBody">
+                                                <controls:AppIcon Icon="Mindmap/arrow" Width="24" Height="18"
+                                                                  Color="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Classes="shapeTileLabel" Text="{markup:T Ns=Mindmap, Key=ShapeArrow}"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </UniformGrid>
+                                    <Border Margin="0,8,0,0" Padding="4,8,4,0" BorderThickness="0,1,0,0"
+                                            BorderBrush="{DynamicResource DividerSubtleBrush}">
+                                        <TextBlock Text="{markup:T Ns=Mindmap, Key=ShapesInlineTextHint}"
+                                                   FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}"/>
+                                    </Border>
+                                </StackPanel>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                    <Button Classes="mmRadial" Canvas.Left="84" Canvas.Top="162" Click="OnRadialConnectClick"
+                            Classes.active="{Binding IsConnectToolActive}"
+                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolConnect}">
+                        <controls:AppIcon Icon="Common/link" Width="17" Height="17"
+                                          Color="{DynamicResource FloatingChromeForegroundStrongBrush}"/>
+                    </Button>
+                    <Button Classes="mmRadial" Canvas.Left="16.5" Canvas.Top="123" Click="OnRadialFrameClick"
+                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolFrame}">
+                        <controls:AppIcon Icon="Common/frame" Width="17" Height="17"
+                                          Color="{DynamicResource FloatingChromeForegroundStrongBrush}"/>
+                    </Button>
+                    <Button Classes="mmRadial" Canvas.Left="16.5" Canvas.Top="45" Click="OnRadialImageClick"
+                            ToolTip.Tip="{markup:T Ns=Mindmap, Key=ToolImage}">
+                        <controls:AppIcon Icon="Common/image" Width="17" Height="17"
+                                          Color="{DynamicResource FloatingChromeForegroundStrongBrush}"/>
+                    </Button>
+                </Canvas>
+            </Canvas>
+        </Panel>
 
         <!-- Docked style inspector: the full per-node styling surface -->
         <Border Grid.Column="1" Width="272" IsVisible="{Binding IsInspectorOpen}"

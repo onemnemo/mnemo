@@ -97,6 +97,11 @@ internal static class MindmapKeybindManifest
         Chords("mindmap.enter", "Return", "Enter"),
         Chords("mindmap.edit-edge-label", "F2"),
         Chords("mindmap.connect", "C"),
+        Chords("mindmap.new-node", "N"),
+        Chords("mindmap.new-text", "T"),
+        Chords("mindmap.new-frame", "F"),
+        Chords("mindmap.shape-picker", "S"),
+        Chords("mindmap.radial", "Alt+W"),
     ];
 
     private static KeybindActionDefinition Chords(string actionId, params string[] gestures) =>

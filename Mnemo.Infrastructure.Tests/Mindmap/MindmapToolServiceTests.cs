@@ -4,7 +4,9 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Models.Tools;
+using Mnemo.Infrastructure.Services.Mindmap;
 using Mnemo.Infrastructure.Services.Mindmap.Tools;
+using Mnemo.Infrastructure.Tests.Widgets;
 using Xunit;
 
 namespace Mnemo.Infrastructure.Tests.Mindmap;
@@ -464,6 +466,61 @@ public sealed class MindmapToolServiceTests
         var limited = Data(await svc.SearchMindmapsAsync(new SearchMindmapsParameters { Limit = 2 }));
         Assert.Equal(2, limited.GetProperty("maps").GetArrayLength());
     }
+
+    // ---------------------------------------------------------------- integrity warnings
+
+    [Fact]
+    public async Task Outline_DanglingNoteRef_IncludesWarning()
+    {
+        await using var h = new MindmapTestHarness();
+        var map = (await h.Service.CreateAsync("M")).Value!;
+        var applied = (await h.Service.ApplyAsync(map.Id, map.Revision, new MindmapEditOp[]
+        {
+            new AddNodesOp { Nodes = new[] { new MindmapNodeSpec { Ref = "n", Content = new NoteContent { NoteId = "missing-note" } } } },
+        })).Value!;
+        var noteNodeId = applied.CreatedIds["n"];
+        var svc = ToolWithIntegrity(h, new FakeNoteService(), new FakeDeckLibrary());
+
+        var data = Data(await svc.OutlineMindmapAsync(new OutlineMindmapParameters { MapId = map.Id }));
+
+        var warnings = data.GetProperty("warnings").EnumerateArray().Select(e => e.GetString()!).ToList();
+        Assert.Contains(warnings, w => w.Contains("dangling note ref") && w.Contains(noteNodeId) && w.Contains("missing-note"));
+    }
+
+    [Fact]
+    public async Task Outline_CleanMap_OmitsWarnings()
+    {
+        await using var h = new MindmapTestHarness();
+        var map = (await h.Service.CreateAsync("M")).Value!;
+        await h.Service.ApplyAsync(map.Id, map.Revision, new MindmapEditOp[]
+        {
+            new AddNodesOp { Nodes = new[] { new MindmapNodeSpec { Text = "hi" } } },
+        });
+        var svc = ToolWithIntegrity(h, new FakeNoteService(), new FakeDeckLibrary());
+
+        var data = Data(await svc.OutlineMindmapAsync(new OutlineMindmapParameters { MapId = map.Id }));
+
+        Assert.False(data.TryGetProperty("warnings", out _));
+    }
+
+    [Fact]
+    public async Task Outline_WithoutIntegrityService_OmitsWarnings()
+    {
+        await using var h = new MindmapTestHarness();
+        var map = (await h.Service.CreateAsync("M")).Value!;
+        await h.Service.ApplyAsync(map.Id, map.Revision, new MindmapEditOp[]
+        {
+            new AddNodesOp { Nodes = new[] { new MindmapNodeSpec { Content = new NoteContent { NoteId = "missing-note" } } } },
+        });
+        var svc = new MindmapToolService(h.Service);
+
+        var data = Data(await svc.OutlineMindmapAsync(new OutlineMindmapParameters { MapId = map.Id }));
+
+        Assert.False(data.TryGetProperty("warnings", out _));
+    }
+
+    private static MindmapToolService ToolWithIntegrity(MindmapTestHarness h, FakeNoteService notes, FakeDeckLibrary decks) =>
+        new(h.Service, new MindmapIntegrityService(h.Service, notes, decks, new TestLogger()));
 
     private static string Mutate(string id) => id[..^1] + (id[^1] == 'a' ? 'b' : 'a');
 }

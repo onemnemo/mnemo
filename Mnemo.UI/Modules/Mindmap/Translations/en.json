@@ -13,7 +13,12 @@
     "mindmap.add-child": "Add child node",
     "mindmap.enter": "Add sibling / edit edge",
     "mindmap.edit-edge-label": "Edit label",
-    "mindmap.connect": "Connect tool"
+    "mindmap.connect": "Connect tool",
+    "mindmap.new-node": "New node",
+    "mindmap.new-text": "New text",
+    "mindmap.new-frame": "New frame",
+    "mindmap.shape-picker": "New shape",
+    "mindmap.radial": "Radial toolkit"
   },
   "Mindmap": {
     "NewNode": "New node",
@@ -29,6 +34,7 @@
     "ToolFrame": "Add frame",
     "ToolConnect": "Connect",
     "ToolImage": "Add image",
+    "Recenter": "Recenter view",
     "ImageMissing": "Missing image",
     "EdgeSolid": "Solid line",
     "EdgeDashed": "Dashed line",
@@ -100,12 +106,26 @@
     "TemplateThisTree": "Template · this tree",
     "InspectorEmpty": "Select a node to style it",
     "InspectorTip": "Style inspector",
+    "ExportTip": "Export",
+    "ExportPng": "Export as PNG",
+    "ExportSvg": "Export as SVG",
+    "ExportMd": "Export as Markdown",
+    "ExportFailedTitle": "Export failed",
+    "ExportFailed": "The export could not be completed.",
     "Fill": "Fill",
     "Stroke": "Stroke",
     "TextColor": "Text",
     "Shape": "Shape",
     "Size": "Size",
     "ApplyColor": "Apply color",
-    "ShapesInlineTextHint": "Shapes take inline text"
+    "ShapesInlineTextHint": "Shapes take inline text",
+    "AlignLeft": "Align left",
+    "AlignCenterH": "Align centers horizontally",
+    "AlignRight": "Align right",
+    "AlignTop": "Align top",
+    "AlignMiddleV": "Align middles vertically",
+    "AlignBottom": "Align bottom",
+    "DistributeH": "Distribute horizontally",
+    "DistributeV": "Distribute vertically"
   }
 }

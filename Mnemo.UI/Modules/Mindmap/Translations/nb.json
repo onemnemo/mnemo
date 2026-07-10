@@ -13,7 +13,12 @@
     "mindmap.add-child": "Legg til barnenode",
     "mindmap.enter": "Legg til søsken / rediger kant",
     "mindmap.edit-edge-label": "Rediger etikett",
-    "mindmap.connect": "Koblingsverktøy"
+    "mindmap.connect": "Koblingsverktøy",
+    "mindmap.new-node": "Ny node",
+    "mindmap.new-text": "Ny tekst",
+    "mindmap.new-frame": "Ny ramme",
+    "mindmap.shape-picker": "Ny form",
+    "mindmap.radial": "Radialverktøy"
   },
   "Mindmap": {
     "NewNode": "Ny node",
@@ -29,6 +34,7 @@
     "ToolFrame": "Legg til ramme",
     "ToolConnect": "Koble",
     "ToolImage": "Legg til bilde",
+    "Recenter": "Sentrer visning",
     "ImageMissing": "Mangler bilde",
     "EdgeSolid": "Heltrukket linje",
     "EdgeDashed": "Stiplet linje",
@@ -100,12 +106,26 @@
     "TemplateThisTree": "Mal · dette treet",
     "InspectorEmpty": "Velg en node for å style den",
     "InspectorTip": "Stilinspektør",
+    "ExportTip": "Eksporter",
+    "ExportPng": "Eksporter som PNG",
+    "ExportSvg": "Eksporter som SVG",
+    "ExportMd": "Eksporter som Markdown",
+    "ExportFailedTitle": "Eksport mislyktes",
+    "ExportFailed": "Eksporten kunne ikke fullføres.",
     "Fill": "Fyll",
     "Stroke": "Strek",
     "TextColor": "Tekst",
     "Shape": "Form",
     "Size": "Størrelse",
     "ApplyColor": "Bruk farge",
-    "ShapesInlineTextHint": "Former kan inneholde tekst"
+    "ShapesInlineTextHint": "Former kan inneholde tekst",
+    "AlignLeft": "Venstrejuster",
+    "AlignCenterH": "Sentrer vannrett",
+    "AlignRight": "Høyrejuster",
+    "AlignTop": "Toppjuster",
+    "AlignMiddleV": "Sentrer loddrett",
+    "AlignBottom": "Bunnjuster",
+    "DistributeH": "Fordel vannrett",
+    "DistributeV": "Fordel loddrett"
   }
 }

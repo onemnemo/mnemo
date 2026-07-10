@@ -13,7 +13,12 @@
     "mindmap.add-child": "Añadir nodo hijo",
     "mindmap.enter": "Añadir hermano / editar arista",
     "mindmap.edit-edge-label": "Editar etiqueta",
-    "mindmap.connect": "Herramienta conectar"
+    "mindmap.connect": "Herramienta conectar",
+    "mindmap.new-node": "Nuevo nodo",
+    "mindmap.new-text": "Nuevo texto",
+    "mindmap.new-frame": "Nuevo marco",
+    "mindmap.shape-picker": "Nueva forma",
+    "mindmap.radial": "Herramientas radiales"
   },
   "Mindmap": {
     "NewNode": "Nuevo nodo",
@@ -29,6 +34,7 @@
     "ToolFrame": "Añadir marco",
     "ToolConnect": "Conectar",
     "ToolImage": "Añadir imagen",
+    "Recenter": "Recentrar vista",
     "ImageMissing": "Falta la imagen",
     "EdgeSolid": "Línea sólida",
     "EdgeDashed": "Línea discontinua",
@@ -100,12 +106,26 @@
     "TemplateThisTree": "Plantilla · este árbol",
     "InspectorEmpty": "Selecciona un nodo para darle estilo",
     "InspectorTip": "Inspector de estilo",
+    "ExportTip": "Exportar",
+    "ExportPng": "Exportar como PNG",
+    "ExportSvg": "Exportar como SVG",
+    "ExportMd": "Exportar como Markdown",
+    "ExportFailedTitle": "Error de exportación",
+    "ExportFailed": "No se pudo completar la exportación.",
     "Fill": "Relleno",
     "Stroke": "Contorno",
     "TextColor": "Texto",
     "Shape": "Forma",
     "Size": "Tamaño",
     "ApplyColor": "Aplicar color",
-    "ShapesInlineTextHint": "Las formas admiten texto"
+    "ShapesInlineTextHint": "Las formas admiten texto",
+    "AlignLeft": "Alinear a la izquierda",
+    "AlignCenterH": "Centrar horizontalmente",
+    "AlignRight": "Alinear a la derecha",
+    "AlignTop": "Alinear arriba",
+    "AlignMiddleV": "Centrar verticalmente",
+    "AlignBottom": "Alinear abajo",
+    "DistributeH": "Distribuir horizontalmente",
+    "DistributeV": "Distribuir verticalmente"
   }
 }

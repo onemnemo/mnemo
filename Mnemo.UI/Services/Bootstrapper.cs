@@ -13,6 +13,7 @@ using Mnemo.Infrastructure.Services.Updates;
 using Mnemo.Core.History;
 using Mnemo.Infrastructure.History;
 using Mnemo.Infrastructure.Services.AI;
+using Mnemo.Infrastructure.Services.Mindmap;
 using Mnemo.Infrastructure.Services.Mindmap.Tools;
 using Mnemo.Infrastructure.Services.Notes;
 using Mnemo.Infrastructure.Services.Notes.Pdf;
@@ -105,7 +106,10 @@ public static class Bootstrapper
         services.AddSingleton<ISkillInjectionOverrideStore, SkillInjectionOverrideStore>();
         services.AddSingleton<SkillDiscoveryToolService>();
         services.AddSingleton<SettingsToolService>();
-        services.AddSingleton(sp => new MindmapToolService(sp.GetRequiredService<IMindmapService>()));
+        services.AddSingleton<IMindmapIntegrityService, MindmapIntegrityService>();
+        services.AddSingleton(sp => new MindmapToolService(
+            sp.GetRequiredService<IMindmapService>(),
+            sp.GetRequiredService<IMindmapIntegrityService>()));
         services.AddSingleton<IToolDispatcher, ToolDispatcher>();
 
         // ── Conversation memory (in-process UI state only) ────────────────────
@@ -203,12 +207,14 @@ public static class Bootstrapper
         services.AddSingleton<IMnemoPayloadHandler, NotesMnemoPayloadHandler>();
         services.AddSingleton<IMnemoPayloadHandler, SettingsMnemoPayloadHandler>();
         services.AddSingleton<IMnemoPayloadHandler, FlashcardsMnemoPayloadHandler>();
+        services.AddSingleton<IMnemoPayloadHandler, MindmapsMnemoPayloadHandler>();
         services.AddSingleton<IImportExportCoordinator, ImportExportCoordinator>();
         services.AddSingleton<IContentFormatAdapter, NotesMnemoFormatAdapter>();
         services.AddSingleton<IContentFormatAdapter, NotesMarkdownFormatAdapter>();
         services.AddSingleton<IContentFormatAdapter, FlashcardsMnemoFormatAdapter>();
         services.AddSingleton<IContentFormatAdapter, FlashcardsCsvFormatAdapter>();
         services.AddSingleton<IContentFormatAdapter, FlashcardsAnkiFormatAdapter>();
+        services.AddSingleton<IContentFormatAdapter, MindmapsMnemoFormatAdapter>();
 
         // 2. Register UI-specific Services
         services.AddSingleton<IThemeService, ThemeService>();

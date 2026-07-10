@@ -13,7 +13,12 @@
     "mindmap.add-child": "子ノードを追加",
     "mindmap.enter": "兄弟を追加 / エッジを編集",
     "mindmap.edit-edge-label": "ラベルを編集",
-    "mindmap.connect": "接続ツール"
+    "mindmap.connect": "接続ツール",
+    "mindmap.new-node": "新しいノード",
+    "mindmap.new-text": "新しいテキスト",
+    "mindmap.new-frame": "新しいフレーム",
+    "mindmap.shape-picker": "新しいシェイプ",
+    "mindmap.radial": "放射状ツール"
   },
   "Mindmap": {
     "NewNode": "新しいノード",
@@ -29,6 +34,7 @@
     "ToolFrame": "フレームを追加",
     "ToolConnect": "接続",
     "ToolImage": "画像を追加",
+    "Recenter": "表示を中央に",
     "ImageMissing": "画像がありません",
     "EdgeSolid": "実線",
     "EdgeDashed": "破線",
@@ -100,12 +106,26 @@
     "TemplateThisTree": "テンプレート · このツリー",
     "InspectorEmpty": "スタイルを設定するノードを選択",
     "InspectorTip": "スタイルインスペクター",
+    "ExportTip": "エクスポート",
+    "ExportPng": "PNGでエクスポート",
+    "ExportSvg": "SVGでエクスポート",
+    "ExportMd": "Markdownでエクスポート",
+    "ExportFailedTitle": "エクスポートに失敗しました",
+    "ExportFailed": "エクスポートを完了できませんでした。",
     "Fill": "塗り",
     "Stroke": "線",
     "TextColor": "テキスト",
     "Shape": "形状",
     "Size": "サイズ",
     "ApplyColor": "色を適用",
-    "ShapesInlineTextHint": "図形にはテキストを入力できます"
+    "ShapesInlineTextHint": "図形にはテキストを入力できます",
+    "AlignLeft": "左揃え",
+    "AlignCenterH": "左右中央揃え",
+    "AlignRight": "右揃え",
+    "AlignTop": "上揃え",
+    "AlignMiddleV": "上下中央揃え",
+    "AlignBottom": "下揃え",
+    "DistributeH": "左右に分布",
+    "DistributeV": "上下に分布"
   }
 }

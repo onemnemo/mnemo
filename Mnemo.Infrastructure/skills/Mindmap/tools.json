@@ -39,7 +39,7 @@
     },
     {
       "name": "outline_mindmap",
-      "description": "Compact tree of a map: nodes as { i, t, c[] }; a subtree hidden by depth or a collapsed node reports { +n } (hidden descendant count) instead of c. Returns { map_id, rev, layout, nodes, edges, roots, free }, where free lists non-tree elements as { i, kind, t? }. Read before editing to keep context small.",
+      "description": "Compact tree of a map: nodes as { i, t, c[] }; a subtree hidden by depth or a collapsed node reports { +n } (hidden descendant count) instead of c. Returns { map_id, rev, layout, nodes, edges, roots, free, warnings }, where free lists non-tree elements as { i, kind, t? } and warnings (only when present) lists dangling note/deck/image references as strings. Read before editing to keep context small.",
       "parameters": {
         "type": "object",
         "properties": {

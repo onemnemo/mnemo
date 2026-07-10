@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -42,6 +43,19 @@ public partial class MindmapView : UserControl
     private System.Collections.Generic.List<(MindmapNodeItem Item, double OrigX, double OrigY)>? _dragMembers;
     private Point _dragFrameOrigin;
 
+    // Multi-selection drag: every other selected element (plus non-primary selected frames' members), shifted
+    // live by the primary's delta, then committed as one move batch. Null for a plain single-element drag.
+    private System.Collections.Generic.List<(MindmapNodeItem Item, double OrigX, double OrigY)>? _multiDragMembers;
+    private Point _multiDragOrigin;
+
+    // True while the pressed element was already part of a 2+ selection, so a release without a drag collapses
+    // the selection to just that element (standard click-through behaviour on a group).
+    private bool _pressedMultiMember;
+
+    // Shift+drag marquee on empty canvas: its start point (content coords) while in progress.
+    private bool _isMarqueeing;
+    private Point _marqueeStartContent;
+
     // Connect tool: while engaged (VM.IsConnectToolActive), a press-drag from one element to another
     // creates a link edge. The rubber-band source is view-local.
     private MindmapNodeItem? _connectSource;
@@ -66,7 +80,9 @@ public partial class MindmapView : UserControl
             _host.PointerPressed += OnPointerPressed;
             _host.PointerMoved += OnPointerMoved;
             _host.PointerReleased += OnPointerReleased;
+            _host.PointerExited += OnHostPointerExited;
             _host.DoubleTapped += OnDoubleTapped;
+            _host.SizeChanged += OnHostSizeChanged;
         }
 
         if (_labelEditor is not null)
@@ -80,8 +96,19 @@ public partial class MindmapView : UserControl
         // The workspace keybind host skips the mindmap-detail route in the tunnel phase so a focused label
         // editor can consume Tab/Enter first; canvas shortcuts are matched here in the bubble phase instead.
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Bubble);
-        Loaded += (_, _) => _canvas?.Focus();
+        Loaded += (_, _) =>
+        {
+            _canvas?.Focus();
+            if (_host is not null)
+                Vm?.UpdateViewportSize(_host.Bounds.Size);
+        };
     }
+
+    // The view mirrors pointer/size changes into the view model so cursor-anchored actions (radial toolkit, tool
+    // shortcuts) can place elements where the cursor is, falling back to the viewport center when it's off-canvas.
+    private void OnHostPointerExited(object? sender, PointerEventArgs e) => Vm?.SetPointerOverCanvas(false);
+
+    private void OnHostSizeChanged(object? sender, SizeChangedEventArgs e) => Vm?.UpdateViewportSize(e.NewSize);
 
     private MindmapViewModel? Vm => DataContext as MindmapViewModel;
 
@@ -179,6 +206,14 @@ public partial class MindmapView : UserControl
         if (e.Source is TextBox)
             return;
 
+        // Escape closes the radial toolkit before anything else consumes it.
+        if (Vm?.IsRadialOpen == true && e.Key == Key.Escape)
+        {
+            Vm.CloseRadial();
+            e.Handled = true;
+            return;
+        }
+
         // Escape leaves the connect tool rather than falling through to a global keybind.
         if (Vm?.IsConnectToolActive == true && e.Key == Key.Escape)
         {
@@ -224,6 +259,7 @@ public partial class MindmapView : UserControl
         _pressScreenPoint = screen;
         _lastScreenPoint = screen;
         _dragMoved = false;
+        _pressedMultiMember = false;
 
         var content = Vm.ScreenToContent(screen);
         var node = HitTest(content);
@@ -240,9 +276,24 @@ public partial class MindmapView : UserControl
             return;
         }
 
+        var additive = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+
+        // Ctrl/Shift+click on an element toggles its set membership (no drag, no chrome interaction).
+        if (additive && node is not null)
+        {
+            Vm.ToggleSelect(node);
+            e.Pointer.Capture(_host);
+            return;
+        }
+
+        // Chrome (badges, checkboxes, ref glyphs, resize handles) that the canvas simplifies away at low zoom
+        // must not respond to clicks either — the affordance isn't drawn, so a click there falls through to
+        // plain selection/drag/pan instead.
+        var chromeInteractive = _canvas?.ChromeVisible ?? true;
+
         // The resize handle sits on the selected element's bottom-right corner, partly outside its rect, so
         // the node hit-test would miss it. Check it directly against the current selection, before anything else.
-        if (Vm.SelectedNode is { IsFree: true } selected && IsInResizeHandle(content, selected))
+        if (chromeInteractive && Vm.SelectedNode is { IsFree: true } selected && IsInResizeHandle(content, selected))
         {
             _resizingNode = selected;
             e.Pointer.Capture(_host);
@@ -251,37 +302,55 @@ public partial class MindmapView : UserControl
 
         if (node is not null)
         {
-            Vm.Select(node);
-
-            // Clicking a pinned node's badge releases it back into auto-layout (no drag).
-            if (IsInPinBadge(content, node))
+            // A plain press on an element already in a 2+ selection keeps the whole set for a group drag;
+            // otherwise it becomes the single selection. Chrome affordances (pin/task/ref) stay single-only.
+            var partOfMulti = node.IsSelected && Vm.SelectedNodes.Count > 1;
+            if (partOfMulti)
             {
-                _ = Vm.SetPinnedAsync(node.Id, false);
-                return;
+                _pressedMultiMember = true;
             }
-
-            // Clicking a task node's checkbox toggles its done state (no drag).
-            if (IsInTaskCheckbox(content, node))
+            else
             {
-                _ = Vm.ToggleTaskDoneAsync(node.Id);
-                return;
-            }
+                Vm.Select(node);
 
-            // Clicking a reference node's kind glyph follows it (open link / open note or deck), no drag.
-            if (IsInRefGlyph(content, node))
-            {
-                _ = Vm.OpenRefAsync(node.Id);
-                return;
+                // Clicking a pinned node's badge releases it back into auto-layout (no drag).
+                if (chromeInteractive && IsInPinBadge(content, node))
+                {
+                    _ = Vm.SetPinnedAsync(node.Id, false);
+                    return;
+                }
+
+                // Clicking a task node's checkbox toggles its done state (no drag).
+                if (chromeInteractive && IsInTaskCheckbox(content, node))
+                {
+                    _ = Vm.ToggleTaskDoneAsync(node.Id);
+                    return;
+                }
+
+                // Clicking a reference node's kind glyph follows it (open link / open note or deck), no drag.
+                if (chromeInteractive && IsInRefGlyph(content, node))
+                {
+                    _ = Vm.OpenRefAsync(node.Id);
+                    return;
+                }
             }
 
             _draggingNode = node;
             _dragGrabOffset = new Point(content.X - node.X, content.Y - node.Y);
             CaptureFrameMembers(node);
+            if (partOfMulti)
+                CaptureMultiDragMembers(node);
         }
         else if (HitTestEdge(content, screen) is { } edge)
         {
             // A click near a link edge selects it (no drag/pan) so its floating toolbar appears.
             Vm.SelectEdge(edge);
+        }
+        else if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            // Shift+drag on empty canvas draws a marquee; the selection is applied on release.
+            _isMarqueeing = true;
+            _marqueeStartContent = content;
         }
         else
         {
@@ -300,6 +369,7 @@ public partial class MindmapView : UserControl
         var screen = e.GetPosition(_host);
         var delta = screen - _lastScreenPoint;
         _lastScreenPoint = screen;
+        Vm.UpdatePointer(screen, new Rect(_host.Bounds.Size).Contains(screen));
 
         // Connect tool: track the rubber-band line to the cursor while dragging from the source.
         if (_connectSource is not null)
@@ -321,6 +391,14 @@ public partial class MindmapView : UserControl
             System.Math.Abs(screen.Y - _pressScreenPoint.Y) > DragThreshold)
             _dragMoved = true;
 
+        // Marquee: grow the selection rectangle from the press point to the cursor.
+        if (_isMarqueeing)
+        {
+            var content = Vm.ScreenToContent(screen);
+            _canvas?.SetMarquee(RectFromPoints(_marqueeStartContent, content));
+            return;
+        }
+
         if (_isPanning)
         {
             Vm.PanBy(delta.X, delta.Y);
@@ -341,8 +419,24 @@ public partial class MindmapView : UserControl
                     item.Y = origY + dy;
                 }
             }
+
+            if (_multiDragMembers is not null)
+            {
+                var dx = _draggingNode.X - _multiDragOrigin.X;
+                var dy = _draggingNode.Y - _multiDragOrigin.Y;
+                foreach (var (item, origX, origY) in _multiDragMembers)
+                {
+                    item.X = origX + dx;
+                    item.Y = origY + dy;
+                }
+            }
         }
     }
+
+    // A content-space rectangle from two corner points (marquee bounds).
+    private static Rect RectFromPoints(Point a, Point b) =>
+        new(System.Math.Min(a.X, b.X), System.Math.Min(a.Y, b.Y),
+            System.Math.Abs(a.X - b.X), System.Math.Abs(a.Y - b.Y));
 
     // Snapshot a dragged frame's members so they can be shifted with it during the drag.
     private void CaptureFrameMembers(MindmapNodeItem node)
@@ -357,6 +451,43 @@ public partial class MindmapView : UserControl
             .Where(n => memberIds.Contains(n.Id))
             .Select(n => (n, n.X, n.Y))
             .ToList();
+    }
+
+    // Snapshot the rest of a multi-selection so the whole group shifts live with the dragged element. Every
+    // other selected element moves by the same delta, plus the members of any selected frame (so a framed
+    // group follows its frame), deduped so a member that is itself selected only moves once. The dragged
+    // element's own frame members are excluded — CaptureFrameMembers already shifts those, so shifting them
+    // here too would double them.
+    private void CaptureMultiDragMembers(MindmapNodeItem dragged)
+    {
+        _multiDragMembers = null;
+        if (Vm is null || Vm.SelectedNodes.Count <= 1)
+            return;
+
+        _multiDragOrigin = new Point(dragged.X, dragged.Y);
+
+        var alreadyShifted = new System.Collections.Generic.HashSet<string>();
+        if (dragged.Kind == ElementKind.Frame)
+            foreach (var id in dragged.MemberIds)
+                alreadyShifted.Add(id);
+
+        var toShift = new System.Collections.Generic.Dictionary<string, MindmapNodeItem>();
+        foreach (var n in Vm.SelectedNodes)
+            if (!ReferenceEquals(n, dragged) && !alreadyShifted.Contains(n.Id))
+                toShift[n.Id] = n;
+
+        foreach (var frame in Vm.SelectedNodes)
+            if (frame.Kind == ElementKind.Frame && !ReferenceEquals(frame, dragged))
+                foreach (var memberId in frame.MemberIds)
+                {
+                    if (alreadyShifted.Contains(memberId))
+                        continue;
+                    var item = Vm.Nodes.FirstOrDefault(x => x.Id == memberId);
+                    if (item is not null && !ReferenceEquals(item, dragged))
+                        toShift[memberId] = item;
+                }
+
+        _multiDragMembers = toShift.Values.Select(n => (n, n.X, n.Y)).ToList();
     }
 
     private async void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
@@ -388,19 +519,57 @@ public partial class MindmapView : UserControl
             return;
         }
 
+        // Marquee: select everything intersecting the rectangle (or clear on a shift-click that didn't drag).
+        if (_isMarqueeing)
+        {
+            _isMarqueeing = false;
+            _canvas?.SetMarquee(null);
+            if (Vm is not null && _host is not null && _dragMoved && _canvas is not null)
+            {
+                var end = Vm.ScreenToContent(e.GetPosition(_host));
+                var hits = _canvas.HitTestNodes(RectFromPoints(_marqueeStartContent, end));
+                Vm.SelectMany(hits);
+            }
+            else
+            {
+                Vm?.Select(null);
+            }
+            return;
+        }
+
         var node = _draggingNode;
         var moved = _dragMoved;
+        var multiDrag = _multiDragMembers is not null;
+        var pressedMultiMember = _pressedMultiMember;
         _draggingNode = null;
         _dragMembers = null;
+        _multiDragMembers = null;
+        _pressedMultiMember = false;
         _isPanning = false;
 
-        if (Vm is not null && node is not null && moved)
-        {
-            await Vm.MoveNodeAsync(node.Id, new Point(node.X, node.Y));
+        if (Vm is null || node is null)
+            return;
 
-            // Dropping a non-frame element inside a frame joins it (or leaving one removes it).
-            if (node.Kind != ElementKind.Frame)
-                await Vm.UpdateFrameMembershipAsync(node.Id);
+        if (moved)
+        {
+            if (multiDrag)
+            {
+                // Group drag: one move batch for the whole set (frame membership isn't touched for multi-drags).
+                await Vm.CommitMultiMoveAsync();
+            }
+            else
+            {
+                await Vm.MoveNodeAsync(node.Id, new Point(node.X, node.Y));
+
+                // Dropping a non-frame element inside a frame joins it (or leaving one removes it).
+                if (node.Kind != ElementKind.Frame)
+                    await Vm.UpdateFrameMembershipAsync(node.Id);
+            }
+        }
+        else if (pressedMultiMember)
+        {
+            // A plain click on a group member without dragging collapses the selection to just that element.
+            Vm.Select(node);
         }
     }
 
@@ -453,6 +622,13 @@ public partial class MindmapView : UserControl
 
     private async void OnAddImageClick(object? sender, RoutedEventArgs e)
     {
+        if (Vm is not null)
+            await CreateImageAtAsync(ViewportCenterContent());
+    }
+
+    // Shared by the bottom pill and the radial toolkit: pick an image file and place it at the given content point.
+    private async Task CreateImageAtAsync(Point content)
+    {
         if (Vm is null)
             return;
 
@@ -479,7 +655,7 @@ public partial class MindmapView : UserControl
         if (string.IsNullOrEmpty(sourcePath))
             return;
 
-        await Vm.CreateImageAsync(sourcePath, ViewportCenterContent());
+        await Vm.CreateImageAsync(sourcePath, content);
     }
 
     private void OnConnectClick(object? sender, RoutedEventArgs e) => Vm?.ToggleConnectTool();
@@ -498,6 +674,71 @@ public partial class MindmapView : UserControl
     {
         var size = _host?.Bounds.Size ?? new Size(800, 500);
         return Vm!.ScreenToContent(new Point(size.Width / 2, size.Height / 2));
+    }
+
+    // --- Radial toolkit: the same six tools, placed at the content point under the ring's cursor origin ---
+    // Close the ring before creating so a freshly opened label editor isn't hidden behind the backdrop.
+
+    private async void OnRadialNodeClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is null)
+            return;
+        var content = Vm.RadialContentPoint();
+        Vm.CloseRadial();
+        await Vm.CreateNodeAtAsync(content);
+    }
+
+    private async void OnRadialTextClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is null)
+            return;
+        var content = Vm.RadialContentPoint();
+        Vm.CloseRadial();
+        await Vm.CreateFreeTextAsync(content);
+    }
+
+    private async void OnRadialFrameClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is null)
+            return;
+        var content = Vm.RadialContentPoint();
+        Vm.CloseRadial();
+        await Vm.CreateFrameAsync(content);
+    }
+
+    private void OnRadialConnectClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is null)
+            return;
+        Vm.CloseRadial();
+        Vm.ToggleConnectTool();
+    }
+
+    private async void OnRadialImageClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is null)
+            return;
+        var content = Vm.RadialContentPoint();
+        Vm.CloseRadial();
+        await CreateImageAtAsync(content);
+    }
+
+    // The radial's shape wedge opens the same tile picker as the pill; a tile creates that shape at the ring origin.
+    private async void OnRadialShapeClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is null || sender is not Control { Tag: string name } || !Enum.TryParse<ShapeType>(name, out var shape))
+            return;
+        RadialShapeButton.Flyout?.Hide();
+        var content = Vm.RadialContentPoint();
+        Vm.CloseRadial();
+        await Vm.CreateShapeAsync(shape, content);
+    }
+
+    // A press anywhere outside the ring dismisses it (and is swallowed so it doesn't reach the canvas beneath).
+    private void OnRadialBackdropPressed(object? sender, PointerPressedEventArgs e)
+    {
+        Vm?.CloseRadial();
+        e.Handled = true;
     }
 
     // Hit-testing goes through the canvas control's quadtree (topmost node under the point).

@@ -15,4 +15,9 @@ public interface IMindmapKeybindDispatch
     void Enter();
     void EditLabel();
     void ToggleConnect();
+    void NewNode();
+    void NewText();
+    void NewFrame();
+    void NewShape();
+    void OpenRadial();
 }

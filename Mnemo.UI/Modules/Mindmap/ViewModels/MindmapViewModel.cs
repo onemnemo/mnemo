@@ -103,6 +103,16 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     /// <summary>True only for a tree node (not a free shape/text); gates node-only inspector controls.</summary>
     public bool IsNodeSelected => SelectedNode is { IsFree: false };
 
+    // The additive multi-selection set. <see cref="SelectedNode"/> stays the PRIMARY (last added) and every
+    // existing single-selection consumer keeps reading it; this only tracks the extra members so multi-drag,
+    // multi-delete and align/distribute have a set to work over. Invariant: a member is in this list iff its
+    // IsSelected is true, and the primary — when non-null — is the last entry. A set of ≤1 mirrors the old
+    // single selection exactly, so single-selection behaviour is unchanged.
+    private readonly List<MindmapNodeItem> _selectedNodes = new();
+
+    /// <summary>The full selection set (primary last). One-or-zero elements mirror <see cref="SelectedNode"/>.</summary>
+    public IReadOnlyList<MindmapNodeItem> SelectedNodes => _selectedNodes;
+
     /// <summary>Whether the docked style inspector panel is open (toggled from the top bar).</summary>
     [ObservableProperty]
     private bool _isInspectorOpen;
@@ -117,7 +127,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private string _textHex = string.Empty;
 
-    /// <summary>Whether the floating style toolbar shows (a node is selected).</summary>
+    /// <summary>Whether the floating style toolbar shows (a single node is selected).</summary>
     [ObservableProperty]
     private bool _isSelectionToolbarVisible;
 
@@ -126,6 +136,20 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     [ObservableProperty]
     private double _selectionToolbarTop;
+
+    /// <summary>Whether the floating align/distribute toolbar shows (2+ free elements selected).</summary>
+    [ObservableProperty]
+    private bool _isAlignmentToolbarVisible;
+
+    [ObservableProperty]
+    private double _alignmentToolbarLeft;
+
+    [ObservableProperty]
+    private double _alignmentToolbarTop;
+
+    /// <summary>Whether the distribute buttons are usable (needs 3+ free elements).</summary>
+    [ObservableProperty]
+    private bool _canDistribute;
 
     /// <summary>The selected link edge, if any; drives the floating edge toolbar. Mutually exclusive with a node selection.</summary>
     [ObservableProperty]
@@ -144,6 +168,17 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     /// <summary>Whether the connect tool is engaged; a press-drag between two elements then creates a link edge.</summary>
     [ObservableProperty]
     private bool _isConnectToolActive;
+
+    /// <summary>Whether the cursor-anchored radial toolkit (Alt+W) is open.</summary>
+    [ObservableProperty]
+    private bool _isRadialOpen;
+
+    /// <summary>Top-left of the radial's square container in canvas-overlay coordinates (its center sits on the cursor).</summary>
+    [ObservableProperty]
+    private double _radialLeft;
+
+    [ObservableProperty]
+    private double _radialTop;
 
     /// <summary>Whether the inline label editor (an overlay TextBox) is open over an element or edge.</summary>
     [ObservableProperty]
@@ -641,9 +676,12 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         }
 
         // The old node/edge items are gone; drop the editor and selection so nothing points at a stale item.
+        // The set is restored by id afterwards (single reselect, or ReselectSet for a multi-element commit).
         CancelLabelEdit();
+        _selectedNodes.Clear();
         SelectedNode = null;
         SelectedEdge = null;
+        IsAlignmentToolbarVisible = false;
 
         // Resolve any note/flashcard titles not yet cached, off the render path; a stale pass is discarded.
         _ = ResolveRefsAsync(generation);
@@ -1006,6 +1044,9 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     // The edge toolbar is centered on the edge midpoint; this nudges its left edge by ~half its width.
     private const double EdgeToolbarHalfWidth = 235;
 
+    // The align toolbar is centered over the selection bounds' top-center; ~half its width nudges its left edge.
+    private const double AlignmentToolbarHalfWidth = 132;
+
     public void Select(MindmapNodeItem? node)
     {
         // A selection change ends any in-progress inline edit.
@@ -1019,17 +1060,123 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             SelectedEdge = null;
         }
 
-        // Only toggle the two affected items; looping every node fired a property-change and canvas
-        // invalidate per element on every click, which dragged on large maps.
-        if (SelectedNode is { } previous && !ReferenceEquals(previous, node))
-            previous.IsSelected = false;
+        // Collapse any multi-selection to just this node. A set of ≤1 touches only the two affected items,
+        // exactly as before — looping every node fired a property-change and canvas invalidate per element
+        // on every click, which dragged on large maps.
+        for (var i = 0; i < _selectedNodes.Count; i++)
+            if (!ReferenceEquals(_selectedNodes[i], node))
+                _selectedNodes[i].IsSelected = false;
+        _selectedNodes.Clear();
         if (node is not null)
+        {
             node.IsSelected = true;
+            _selectedNodes.Add(node);
+        }
         SelectedNode = node;
+        AfterSelectionSetChanged();
+    }
+
+    /// <summary>Toggles a node's set membership (Ctrl/Shift+click); the primary becomes the last added.</summary>
+    public void ToggleSelect(MindmapNodeItem? node)
+    {
+        if (node is null)
+            return;
+        if (IsLabelEditorVisible)
+            CancelLabelEdit();
+
+        // Toggling into a node selection drops any edge selection.
+        if (SelectedEdge is { } selectedEdge)
+        {
+            selectedEdge.IsSelected = false;
+            SelectedEdge = null;
+        }
+
+        var index = _selectedNodes.IndexOf(node);
+        if (index >= 0)
+        {
+            node.IsSelected = false;
+            _selectedNodes.RemoveAt(index);
+            SelectedNode = _selectedNodes.Count > 0 ? _selectedNodes[^1] : null;
+        }
+        else
+        {
+            node.IsSelected = true;
+            _selectedNodes.Add(node);
+            SelectedNode = node;
+        }
+        AfterSelectionSetChanged();
+    }
+
+    /// <summary>Replaces the set with exactly these elements (marquee result); the primary is the last one.</summary>
+    public void SelectMany(IReadOnlyList<MindmapNodeItem> nodes)
+    {
+        if (IsLabelEditorVisible)
+            CancelLabelEdit();
+
+        if (SelectedEdge is { } selectedEdge)
+        {
+            selectedEdge.IsSelected = false;
+            SelectedEdge = null;
+        }
+
+        for (var i = 0; i < _selectedNodes.Count; i++)
+            if (!nodes.Contains(_selectedNodes[i]))
+                _selectedNodes[i].IsSelected = false;
+        _selectedNodes.Clear();
+        foreach (var n in nodes)
+        {
+            n.IsSelected = true;
+            _selectedNodes.Add(n);
+        }
+        SelectedNode = _selectedNodes.Count > 0 ? _selectedNodes[^1] : null;
+        AfterSelectionSetChanged();
+    }
+
+    /// <summary>Clears the whole node selection and any edge selection (the Escape action).</summary>
+    public void ClearSelection()
+    {
+        // Sweep every element deselected (matches the prior single-selection Escape), then drop the
+        // multi-select set and its align toolbar. SelectedNode/edge/hover handling is unchanged from before.
+        foreach (var node in Nodes)
+            node.IsSelected = false;
+        _selectedNodes.Clear();
+        IsAlignmentToolbarVisible = false;
+        SelectEdge(null);
+        ClearHoverState();
+    }
+
+    // Rebuilds the set from ids that survived a reprojection (vanished ids dropped), with the given primary
+    // kept as the primary. Used after a multi-element edit commit so the group stays selected.
+    private void ReselectSet(IReadOnlyList<string> ids, string? primaryId)
+    {
+        var items = new List<MindmapNodeItem>();
+        foreach (var id in ids)
+        {
+            var item = Nodes.FirstOrDefault(n => n.Id == id);
+            if (item is not null && !items.Contains(item))
+                items.Add(item);
+        }
+        // The primary is the last entry (SelectMany's rule); move it there if it's still around.
+        if (primaryId is not null)
+        {
+            var primary = items.FirstOrDefault(n => n.Id == primaryId);
+            if (primary is not null)
+            {
+                items.Remove(primary);
+                items.Add(primary);
+            }
+        }
+        SelectMany(items);
+    }
+
+    // Runs after any change to the selection set: refresh both contextual toolbars and the delete command.
+    private void AfterSelectionSetChanged()
+    {
+        UpdateSelectionChrome();
         ((AsyncRelayCommand)DeleteSelectedCommand).NotifyCanExecuteChanged();
     }
 
-    /// <summary>Selects a link edge (clearing any node selection) so its floating toolbar appears.</summary>
+    /// <summary>Selects a link edge (clearing the whole node selection) so its floating toolbar appears.</summary>
     public void SelectEdge(MindmapEdgeItem? edge)
     {
         if (IsLabelEditorVisible)
@@ -1038,11 +1185,14 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         if (SelectedEdge is { } previous && !ReferenceEquals(previous, edge))
             previous.IsSelected = false;
 
-        // Selecting an edge drops the node selection (and hides the node toolbar).
-        if (edge is not null && SelectedNode is { } node)
+        // Selecting an edge drops the whole node selection (and hides the node/align toolbars).
+        if (edge is not null && _selectedNodes.Count > 0)
         {
-            node.IsSelected = false;
+            foreach (var n in _selectedNodes)
+                n.IsSelected = false;
+            _selectedNodes.Clear();
             SelectedNode = null;
+            UpdateSelectionChrome();
         }
 
         if (edge is not null)
@@ -1063,21 +1213,29 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         TextHex = HexOrEmpty(newValue?.TextToken);
 
         SyncClusterTemplateSelection();
-        UpdateSelectionToolbar();
+        UpdateSelectionChrome();
     }
 
     private void OnSelectedNodeMoved(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(MindmapNodeItem.X) or nameof(MindmapNodeItem.Y)
             or nameof(MindmapNodeItem.Width) or nameof(MindmapNodeItem.Height))
-            UpdateSelectionToolbar();
+            UpdateSelectionChrome();
     }
 
-    // Floats the style toolbar just above the selected node, following pan, zoom and drag.
+    // Refreshes both contextual toolbars: the single-node style toolbar and the multi-select align toolbar.
+    private void UpdateSelectionChrome()
+    {
+        UpdateSelectionToolbar();
+        UpdateAlignmentToolbar();
+    }
+
+    // Floats the style toolbar just above the selected node, following pan, zoom and drag. Hidden when the
+    // selection holds more than one element — a multi-selection shows the align toolbar (or nothing) instead.
     private void UpdateSelectionToolbar()
     {
         var node = SelectedNode;
-        if (node is null)
+        if (node is null || _selectedNodes.Count > 1)
         {
             IsSelectionToolbarVisible = false;
             return;
@@ -1092,6 +1250,136 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             ? above
             : _camera.ContentToScreen(new Point(node.X, node.Y + node.Height)).Y + ToolbarGap;
         IsSelectionToolbarVisible = true;
+    }
+
+    // The free elements a multi-selection can align: free kinds only (frames included), with a selected frame's
+    // members dropped so the frame's own move isn't fought by moving one of its members directly.
+    private List<AlignBox> BuildAlignmentBoxes()
+    {
+        var boxes = new List<AlignBox>();
+        if (_selectedNodes.Count < 2)
+            return boxes;
+
+        var framedMembers = FramedMemberIds();
+        foreach (var n in _selectedNodes)
+            if (n.IsFree && !framedMembers.Contains(n.Id))
+                boxes.Add(new AlignBox(n.Id, n.X, n.Y, n.Width, n.Height));
+        return boxes;
+    }
+
+    // Ids that a selected frame will translate on its own (Core moves a frame's members with it). They must
+    // not get an independent move in the same batch, or they would shift twice.
+    private HashSet<string> FramedMemberIds()
+    {
+        var ids = new HashSet<string>();
+        foreach (var n in _selectedNodes)
+            if (n.Kind == ElementKind.Frame)
+                foreach (var member in n.MemberIds)
+                    ids.Add(member);
+        return ids;
+    }
+
+    // Floats the align/distribute toolbar over the selected free elements' top-center, following pan and zoom.
+    // Shown only when 2+ free elements are selected; distribute needs 3+.
+    private void UpdateAlignmentToolbar()
+    {
+        var boxes = BuildAlignmentBoxes();
+        if (boxes.Count < 2)
+        {
+            IsAlignmentToolbarVisible = false;
+            return;
+        }
+
+        CanDistribute = boxes.Count >= 3;
+
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var b in boxes)
+        {
+            minX = Math.Min(minX, b.X);
+            minY = Math.Min(minY, b.Y);
+            maxX = Math.Max(maxX, b.X + b.Width);
+            maxY = Math.Max(maxY, b.Y + b.Height);
+        }
+
+        var topCenter = _camera.ContentToScreen(new Point((minX + maxX) / 2, minY));
+        AlignmentToolbarLeft = topCenter.X - AlignmentToolbarHalfWidth;
+
+        // Sit above the selection; if that runs past the top of the viewport, flip below its bottom edge.
+        var above = topCenter.Y - ToolbarHeight - ToolbarGap;
+        AlignmentToolbarTop = above >= ToolbarGap
+            ? above
+            : _camera.ContentToScreen(new Point((minX + maxX) / 2, maxY)).Y + ToolbarGap;
+        IsAlignmentToolbarVisible = true;
+    }
+
+    // --- Align / distribute (free elements only) ---------------------------
+
+    [RelayCommand]
+    private Task AlignLeftAsync() => ApplyAlignmentAsync(MindmapAlignOp.Left);
+
+    [RelayCommand]
+    private Task AlignCenterHorizontalAsync() => ApplyAlignmentAsync(MindmapAlignOp.CenterHorizontal);
+
+    [RelayCommand]
+    private Task AlignRightAsync() => ApplyAlignmentAsync(MindmapAlignOp.Right);
+
+    [RelayCommand]
+    private Task AlignTopAsync() => ApplyAlignmentAsync(MindmapAlignOp.Top);
+
+    [RelayCommand]
+    private Task AlignMiddleVerticalAsync() => ApplyAlignmentAsync(MindmapAlignOp.MiddleVertical);
+
+    [RelayCommand]
+    private Task AlignBottomAsync() => ApplyAlignmentAsync(MindmapAlignOp.Bottom);
+
+    [RelayCommand]
+    private Task DistributeHorizontalAsync() => ApplyAlignmentAsync(MindmapAlignOp.DistributeHorizontal);
+
+    [RelayCommand]
+    private Task DistributeVerticalAsync() => ApplyAlignmentAsync(MindmapAlignOp.DistributeVertical);
+
+    // Applies an align/distribute op as one move batch (one undo step), then restores the selection set.
+    private async Task ApplyAlignmentAsync(MindmapAlignOp op)
+    {
+        var boxes = BuildAlignmentBoxes();
+        if (boxes.Count < 2)
+            return;
+
+        var moves = MindmapAlignment.Compute(op, boxes);
+        if (moves.Count == 0)
+            return;
+
+        var ids = _selectedNodes.Select(n => n.Id).ToList();
+        var primaryId = SelectedNode?.Id;
+        var ops = moves.Select(m => (MindmapEditOp)new MoveOp { Id = m.Id, X = m.X, Y = m.Y }).ToList();
+
+        await ApplyOpsAsync(ops, selectRef: null).ConfigureAwait(true);
+        ReselectSet(ids, primaryId);
+    }
+
+    /// <summary>
+    /// Commits a live multi-element drag as one move batch (one undo step) from the elements' current
+    /// positions, then restores the selection. A selected frame's members are left out — the frame's own
+    /// move already translates them in Core, so a separate move would shift them twice.
+    /// </summary>
+    public async Task CommitMultiMoveAsync()
+    {
+        if (_selectedNodes.Count == 0)
+            return;
+
+        var framedMembers = FramedMemberIds();
+        var ids = _selectedNodes.Select(n => n.Id).ToList();
+        var primaryId = SelectedNode?.Id;
+
+        var ops = new List<MindmapEditOp>();
+        foreach (var n in _selectedNodes)
+            if (!framedMembers.Contains(n.Id))
+                ops.Add(new MoveOp { Id = n.Id, X = n.X, Y = n.Y });
+        if (ops.Count == 0)
+            return;
+
+        await ApplyOpsAsync(ops, selectRef: null).ConfigureAwait(true);
+        ReselectSet(ids, primaryId);
     }
 
     // Applies an op to the selected node, then reselects it so the toolbar stays open on the same node.
@@ -1591,11 +1879,68 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         CancelLabelEdit();
         CanvasTransform = _camera.Transform;
         ZoomLabel = string.Format(CultureInfo.InvariantCulture, "{0:0}%", _camera.Scale * 100);
-        UpdateSelectionToolbar();
+        UpdateSelectionChrome();
         UpdateEdgeToolbar();
     }
 
     public Point ScreenToContent(Point screen) => _camera.ScreenToContent(screen);
+
+    /// <summary>The loaded document, for flat projections such as the Markdown export. Null before a map is open.</summary>
+    public MindmapDocument? Document => _document;
+
+    // --- Cursor-anchored placement (radial toolkit, tool shortcuts) --------
+
+    // The last pointer position over the canvas (host coordinates) and its size, pushed by the view. Cursor-anchored
+    // actions place their element under the pointer; when it sits off the canvas they fall back to the viewport center.
+    private Point _pointerScreen;
+    private bool _isPointerOverCanvas;
+    private Size _viewportSize = new(800, 500);
+
+    // The radial container is square; half its size offsets the cursor anchor to the container's top-left.
+    private const double RadialHalfSize = 104;
+
+    // The screen point the radial is anchored at; its create items convert this so elements land under the ring.
+    private Point _radialOriginScreen;
+
+    /// <summary>The view reports pointer moves so cursor-anchored actions know where the cursor is.</summary>
+    public void UpdatePointer(Point screenPoint, bool overCanvas)
+    {
+        _pointerScreen = screenPoint;
+        _isPointerOverCanvas = overCanvas;
+    }
+
+    /// <summary>The view reports when the pointer leaves the canvas so placement falls back to the viewport center.</summary>
+    public void SetPointerOverCanvas(bool overCanvas) => _isPointerOverCanvas = overCanvas;
+
+    /// <summary>The view reports its canvas size so viewport-center placement stays accurate on any window size.</summary>
+    public void UpdateViewportSize(Size size)
+    {
+        if (size.Width > 0 && size.Height > 0)
+            _viewportSize = size;
+    }
+
+    // The screen anchor for a cursor-anchored action: the pointer when it's over the canvas, else the viewport center.
+    private Point CursorAnchorScreen() =>
+        _isPointerOverCanvas ? _pointerScreen : new Point(_viewportSize.Width / 2, _viewportSize.Height / 2);
+
+    // The content point a cursor-anchored create action places at.
+    private Point CursorAnchorContent() => _camera.ScreenToContent(CursorAnchorScreen());
+
+    /// <summary>Opens the radial toolkit centered on the cursor (or the viewport center when the pointer is off-canvas).</summary>
+    public void OpenRadial()
+    {
+        var origin = CursorAnchorScreen();
+        _radialOriginScreen = origin;
+        RadialLeft = origin.X - RadialHalfSize;
+        RadialTop = origin.Y - RadialHalfSize;
+        IsRadialOpen = true;
+    }
+
+    /// <summary>Closes the radial toolkit.</summary>
+    public void CloseRadial() => IsRadialOpen = false;
+
+    /// <summary>The content point under the radial's origin, where its create items place their element.</summary>
+    public Point RadialContentPoint() => _camera.ScreenToContent(_radialOriginScreen);
 
     // --- Structural edits (op batches) -------------------------------------
 
@@ -1672,6 +2017,20 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     /// <summary>Toggles the connect tool. The view clears any in-progress rubber-band when this turns off.</summary>
     public void ToggleConnectTool() => IsConnectToolActive = !IsConnectToolActive;
+
+    // --- Tool shortcuts (N / T / F / S) place at the cursor, else the viewport center -----
+
+    /// <summary>Creates a node under the cursor for the <c>N</c> shortcut.</summary>
+    public Task CreateNodeAtCursorAsync() => CreateNodeAtAsync(CursorAnchorContent());
+
+    /// <summary>Creates a free text label under the cursor for the <c>T</c> shortcut.</summary>
+    public Task CreateTextAtCursorAsync() => CreateFreeTextAsync(CursorAnchorContent());
+
+    /// <summary>Creates a frame under the cursor for the <c>F</c> shortcut.</summary>
+    public Task CreateFrameAtCursorAsync() => CreateFrameAsync(CursorAnchorContent());
+
+    /// <summary>Creates a default rectangle under the cursor for the <c>S</c> shortcut (the radial's shape wedge opens the full picker).</summary>
+    public Task CreateDefaultShapeAtCursorAsync() => CreateShapeAsync(ShapeType.Rectangle, CursorAnchorContent());
 
     /// <summary>Creates a link edge (connector) between two elements. No-op if they are the same element.</summary>
     public async Task LinkAsync(string fromId, string toId)
@@ -1776,9 +2135,14 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     private async Task DeleteSelectedAsync()
     {
-        if (SelectedNode is null)
+        // Delete the whole selection set in one batch (one undo step); a single selection deletes just that
+        // node, exactly as before. The service cascades subtrees and orphans frame members.
+        var ids = _selectedNodes.Count > 0
+            ? _selectedNodes.Select(n => n.Id).Distinct().ToList()
+            : SelectedNode is { } node ? new List<string> { node.Id } : new List<string>();
+        if (ids.Count == 0)
             return;
-        await ApplyAsync(new DeleteOp { Ids = new[] { SelectedNode.Id } }, selectRef: null).ConfigureAwait(true);
+        await ApplyAsync(new DeleteOp { Ids = ids }, selectRef: null).ConfigureAwait(true);
     }
 
     private Task ApplyAsync(MindmapEditOp op, string? selectRef) =>

@@ -34,6 +34,13 @@ public sealed class MindmapCanvasControl : Control
     private const double TextPadding = 12;
     private const double CullPadding = 240;
 
+    // Zoom-detail thresholds. Below ChromeZoom the node/edge chrome (pin badges, task checkboxes, ref
+    // glyphs and badges, language chips, edge labels, resize handles, code bodies) is skipped so frame
+    // times stay flat on dense maps; below LabelZoom the label text is dropped too, leaving only fills,
+    // strokes and edges. Chrome implies labels, since ChromeZoom sits above LabelZoom.
+    private const double ChromeZoomThreshold = 0.4;
+    private const double LabelZoomThreshold = 0.15;
+
     // --- Bound data --------------------------------------------------------
 
     public static readonly DirectProperty<MindmapCanvasControl, IEnumerable?> NodesProperty =
@@ -109,6 +116,19 @@ public sealed class MindmapCanvasControl : Control
     private Point? _pendingLinkStart;
     private Point _pendingLinkEnd;
 
+    // Selection rectangle shown while a Shift+drag marquee is in progress (content coords; null when idle).
+    private Rect? _marquee;
+
+    // Detail level of the current paint pass, derived from the camera zoom (or forced fully on for a PNG
+    // export). Read by the per-kind draw code to skip chrome/labels when zoomed far out. Independent of the
+    // hit-test-facing ChromeVisible, which always reflects the live camera transform.
+    private bool _paintChrome = true;
+    private bool _paintLabels = true;
+
+    // Set only while rendering a PNG export, so selection highlights and resize handles stay out of the
+    // exported image (a flat export shows content, not the editor's current selection).
+    private bool _exporting;
+
     static MindmapCanvasControl()
     {
         AffectsRender<MindmapCanvasControl>(TransformProperty, SelectedStrokeProperty, EdgeStrokeProperty, FontFamilyProperty, MonoFontFamilyProperty, MissingImageLabelProperty, MissingRefLabelProperty);
@@ -173,6 +193,16 @@ public sealed class MindmapCanvasControl : Control
     /// <summary>The LaTeX layout engine used to render math nodes; set once by the view. Null falls back to raw text.</summary>
     public ILaTeXEngine? LatexEngine { get; set; }
 
+    /// <summary>
+    /// Whether node/edge chrome (pin badges, task checkboxes, ref glyphs, resize handles, ...) is drawn at
+    /// the current camera zoom. The view consults this so simplified-away chrome does not respond to clicks.
+    /// Derived from the live camera transform, so it is unaffected by an in-progress export paint pass.
+    /// </summary>
+    public bool ChromeVisible => ZoomScale(Transform) >= ChromeZoomThreshold;
+
+    // Uniform scale factor of a camera/export transform (no rotation or skew, so this is the zoom).
+    private static double ZoomScale(Matrix m) => Math.Sqrt(Math.Abs(m.M11 * m.M22 - m.M12 * m.M21));
+
     // --- Hit-testing -------------------------------------------------------
 
     /// <summary>Returns the topmost node whose bounds contain <paramref name="contentPoint"/>, or null.</summary>
@@ -193,6 +223,25 @@ public sealed class MindmapCanvasControl : Control
                 best = index;
 
         return best >= 0 ? _nodeList[best] : null;
+    }
+
+    /// <summary>Returns every element whose bounds intersect <paramref name="contentRect"/> (marquee selection).</summary>
+    public IReadOnlyList<MindmapNodeItem> HitTestNodes(Rect contentRect)
+    {
+        var results = new List<MindmapNodeItem>();
+        EnsureTree();
+        if (_tree is null)
+            return results;
+
+        _queryBuffer.Clear();
+        _tree.Query(contentRect, _queryBuffer);
+
+        // The quadtree stores a straddling entry in every quadrant it touches, so dedupe by index.
+        var seen = new HashSet<int>();
+        foreach (var index in _queryBuffer)
+            if (seen.Add(index) && NodeRect(_nodeList[index]).Intersects(contentRect))
+                results.Add(_nodeList[index]);
+        return results;
     }
 
     /// <summary>Returns the topmost link edge within <paramref name="threshold"/> content units of the point, or null.</summary>
@@ -238,9 +287,16 @@ public sealed class MindmapCanvasControl : Control
         InvalidateVisual();
     }
 
+    /// <summary>Shows or clears the marquee selection rectangle (content coordinates; null hides it).</summary>
+    public void SetMarquee(Rect? contentRect)
+    {
+        _marquee = contentRect;
+        InvalidateVisual();
+    }
+
     public override void Render(DrawingContext context)
     {
-        if (_nodeList.Count == 0 && _edgeList.Count == 0 && _pendingLinkStart is null)
+        if (_nodeList.Count == 0 && _edgeList.Count == 0 && _pendingLinkStart is null && _marquee is null)
             return;
 
         var transform = Transform;
@@ -249,6 +305,9 @@ public sealed class MindmapCanvasControl : Control
             return;
 
         var visible = VisibleContentRect(transform);
+        var scale = ZoomScale(transform);
+        _paintChrome = scale >= ChromeZoomThreshold;
+        _paintLabels = scale >= LabelZoomThreshold;
 
         using (context.PushTransform(transform))
         {
@@ -264,7 +323,26 @@ public sealed class MindmapCanvasControl : Control
                 };
                 context.DrawLine(pen, pendingStart, _pendingLinkEnd);
             }
+
+            if (_marquee is { } marquee)
+                DrawMarquee(context, marquee, scale);
         }
+    }
+
+    // The Shift+drag selection rectangle: a faint accent fill with a dashed outline. Stroke and dashes are
+    // divided by the zoom so they stay ~constant on screen at any scale (drawn under the camera transform).
+    private void DrawMarquee(DrawingContext context, Rect rect, double scale)
+    {
+        var brush = SelectedStroke ?? Brushes.OrangeRed;
+        using (context.PushOpacity(0.12))
+            context.DrawRectangle(brush, null, rect);
+
+        var stroke = Math.Max(0.0001, scale);
+        var pen = new Pen(brush, 1.25 / stroke)
+        {
+            DashStyle = new DashStyle(new double[] { 4, 3 }, 0),
+        };
+        context.DrawRectangle(null, pen, rect);
     }
 
     private void DrawEdges(DrawingContext context, Rect visible)
@@ -293,11 +371,12 @@ public sealed class MindmapCanvasControl : Control
     // A link edge: a routed connector (straight/curved/orthogonal) with arrow/dot caps and an optional label.
     private void DrawLinkEdge(DrawingContext context, MindmapEdgeItem edge, Pen defaultPen)
     {
-        var brush = edge.IsSelected
+        var selected = edge.IsSelected && !_exporting;
+        var brush = selected
             ? SelectedStroke ?? Brushes.OrangeRed
             : (edge.ColorToken is { } token ? ResolveBrush(token) : null) ?? defaultPen.Brush ?? Brushes.Gray;
         // Selection keeps a visible boost over the edge's own thickness.
-        var thickness = edge.IsSelected ? Math.Max(edge.Thickness + 0.5, SelectedStrokeThickness) : edge.Thickness;
+        var thickness = selected ? Math.Max(edge.Thickness + 0.5, SelectedStrokeThickness) : edge.Thickness;
 
         if (edge.LineStyle == LineStyle.Double)
         {
@@ -331,7 +410,7 @@ public sealed class MindmapCanvasControl : Control
                 DrawCap(context, brush, capPen, start, edge.StartDirection, edge.StartCap);
         }
 
-        if (!string.IsNullOrEmpty(edge.Label) && !edge.IsEditing)
+        if (_paintChrome && !string.IsNullOrEmpty(edge.Label) && !edge.IsEditing)
             DrawEdgeLabel(context, edge, brush);
     }
 
@@ -406,8 +485,8 @@ public sealed class MindmapCanvasControl : Control
                 continue;
             DrawNode(context, node, selectedPen);
 
-            // Free elements and frames get a bottom-right resize handle while selected.
-            if (node.IsSelected && node.IsFree)
+            // Free elements and frames get a bottom-right resize handle while selected (chrome-level detail).
+            if (_paintChrome && !_exporting && node.IsSelected && node.IsFree)
                 DrawResizeHandle(context, node);
         }
     }
@@ -446,7 +525,7 @@ public sealed class MindmapCanvasControl : Control
         var fill = node.Shape is NodeShape.Card or NodeShape.Pill
             ? ResolveBrush(node.FillToken) ?? ResolveBrush(MindmapStyleTokens.Surface)
             : null;
-        Pen? border = node.IsSelected
+        Pen? border = node.IsSelected && !_exporting
             ? selectedPen
             : node.Shape == NodeShape.Plain
                 ? null
@@ -456,43 +535,48 @@ public sealed class MindmapCanvasControl : Control
             context.DrawRectangle(fill, border, rect, radius, radius);
 
         var isTask = node.ContentType == ElementContentDiscriminators.Task;
-        if (isTask)
+        if (isTask && _paintChrome)
             DrawTaskCheckbox(context, node);
 
-        if (node.ContentType == ElementContentDiscriminators.Math && TryDrawMath(context, node, rect))
+        if (_paintLabels)
         {
-            // The rendered layout box stands in for the label; nothing else to draw for a math node here.
-        }
-        else if (node.ContentType == ElementContentDiscriminators.Code)
-        {
-            DrawCodeLabel(context, node, rect, fill);
-        }
-        else if (IsRefContent(node.ContentType))
-        {
-            DrawRefContent(context, node, rect, fill);
-        }
-        else
-        {
-            var text = GetFormattedText(node);
-            if (text is not null)
+            if (node.ContentType == ElementContentDiscriminators.Math && TryDrawMath(context, node, rect))
             {
-                var textLeft = isTask
-                    ? node.X + MindmapNodeItem.TaskCheckboxInset + MindmapNodeItem.TaskCheckboxSize + MindmapNodeItem.TaskTextGap
-                    : node.X + TextPadding / 2;
-                var textTop = node.Y + (node.Height - text.Height) / 2;
-                context.DrawText(text, new Point(textLeft, textTop));
-
-                // Strike a completed task's label through.
-                if (isTask && node.IsTaskDone)
+                // The rendered layout box stands in for the label; nothing else to draw for a math node here.
+            }
+            else if (node.ContentType == ElementContentDiscriminators.Code)
+            {
+                // The code body reads as chrome-level detail; the node box still draws when it is skipped.
+                if (_paintChrome)
+                    DrawCodeLabel(context, node, rect, fill);
+            }
+            else if (IsRefContent(node.ContentType))
+            {
+                DrawRefContent(context, node, rect, fill);
+            }
+            else
+            {
+                var text = GetFormattedText(node);
+                if (text is not null)
                 {
-                    var y = textTop + text.Height / 2;
-                    var strikePen = new Pen(ResolveBrush(node.TextToken) ?? Brushes.Gray, 1.2);
-                    context.DrawLine(strikePen, new Point(textLeft, y), new Point(textLeft + text.Width, y));
+                    var textLeft = isTask
+                        ? node.X + MindmapNodeItem.TaskCheckboxInset + MindmapNodeItem.TaskCheckboxSize + MindmapNodeItem.TaskTextGap
+                        : node.X + TextPadding / 2;
+                    var textTop = node.Y + (node.Height - text.Height) / 2;
+                    context.DrawText(text, new Point(textLeft, textTop));
+
+                    // Strike a completed task's label through.
+                    if (isTask && node.IsTaskDone)
+                    {
+                        var y = textTop + text.Height / 2;
+                        var strikePen = new Pen(ResolveBrush(node.TextToken) ?? Brushes.Gray, 1.2);
+                        context.DrawLine(strikePen, new Point(textLeft, y), new Point(textLeft + text.Width, y));
+                    }
                 }
             }
         }
 
-        if (node.IsPinned)
+        if (_paintChrome && node.IsPinned)
         {
             // Dot in the top-right in the node's text color, so it contrasts with the fill.
             var pinBrush = ResolveBrush(node.TextToken) ?? SelectedStroke;
@@ -542,7 +626,8 @@ public sealed class MindmapCanvasControl : Control
     // target is gone, or nothing while it's still resolving — plus an optional trailing chip on the right.
     private void DrawRefContent(DrawingContext context, MindmapNodeItem node, Rect rect, IBrush? fill)
     {
-        DrawRefGlyph(context, node);
+        if (_paintChrome)
+            DrawRefGlyph(context, node);
 
         var textLeft = node.X + MindmapNodeItem.RefGlyphInset + MindmapNodeItem.RefGlyphSize + MindmapNodeItem.RefTextGap;
 
@@ -556,7 +641,7 @@ public sealed class MindmapCanvasControl : Control
         if (text is not null)
             context.DrawText(text, new Point(textLeft, node.Y + (node.Height - text.Height) / 2));
 
-        if (!string.IsNullOrEmpty(node.RefBadge))
+        if (_paintChrome && !string.IsNullOrEmpty(node.RefBadge))
             DrawRefBadge(context, node.RefBadge!, rect, fill);
     }
 
@@ -659,8 +744,11 @@ public sealed class MindmapCanvasControl : Control
     // A free text label: just the text, with a selection outline so it can be grabbed when empty.
     private void DrawFreeText(DrawingContext context, MindmapNodeItem node, Pen selectedPen)
     {
-        if (node.IsSelected)
+        if (node.IsSelected && !_exporting)
             context.DrawRectangle(null, selectedPen, NodeRect(node), CornerRadius, CornerRadius);
+
+        if (!_paintLabels)
+            return;
 
         var text = GetFormattedText(node);
         if (text is not null)
@@ -673,7 +761,7 @@ public sealed class MindmapCanvasControl : Control
         var rect = NodeRect(node);
         var shape = node.FreeShape ?? ShapeType.Rectangle;
         var fill = ResolveBrush(node.FillToken) ?? ResolveBrush(MindmapStyleTokens.Surface);
-        var border = node.IsSelected
+        var border = node.IsSelected && !_exporting
             ? selectedPen
             : new Pen(ResolveBrush(node.StrokeToken) ?? Brushes.Gray, NodeStrokeThickness);
 
@@ -696,7 +784,7 @@ public sealed class MindmapCanvasControl : Control
                 break;
         }
 
-        if (shape is ShapeType.Line or ShapeType.Arrow)
+        if (shape is ShapeType.Line or ShapeType.Arrow || !_paintLabels)
             return;
 
         var text = GetFormattedText(node);
@@ -710,7 +798,7 @@ public sealed class MindmapCanvasControl : Control
     {
         var rect = NodeRect(node);
         var fill = ResolveBrush(node.FillToken) ?? ResolveBrush(MindmapStyleTokens.Surface);
-        var border = node.IsSelected
+        var border = node.IsSelected && !_exporting
             ? selectedPen
             : new Pen(ResolveBrush(node.StrokeToken) ?? Brushes.Gray, NodeStrokeThickness);
 
@@ -722,7 +810,7 @@ public sealed class MindmapCanvasControl : Control
 
         context.DrawRectangle(null, border, rect, CornerRadius, CornerRadius);
 
-        var text = GetFormattedText(node);
+        var text = _paintLabels ? GetFormattedText(node) : null;
         if (text is not null)
         {
             var origin = new Point(
@@ -738,7 +826,7 @@ public sealed class MindmapCanvasControl : Control
     {
         var rect = NodeRect(node);
         var bitmap = node.AssetPath is { } path ? GetBitmap(path) : null;
-        var border = node.IsSelected
+        var border = node.IsSelected && !_exporting
             ? selectedPen
             : new Pen(ResolveBrush(node.StrokeToken) ?? Brushes.Gray, NodeStrokeThickness);
 
@@ -760,7 +848,7 @@ public sealed class MindmapCanvasControl : Control
         context.DrawRectangle(fill, border, rect);
 
         var label = MissingImageLabel;
-        if (string.IsNullOrEmpty(label))
+        if (!_paintLabels || string.IsNullOrEmpty(label))
             return;
 
         var brush = ResolveBrush(MindmapStyleTokens.TextMuted) ?? Brushes.Gray;
@@ -891,7 +979,8 @@ public sealed class MindmapCanvasControl : Control
         return text;
     }
 
-    private static double FontSizeFor(FontScale scale) => scale switch
+    // Shared by the canvas draw path and the SVG exporter so both size text identically.
+    internal static double FontSizeFor(FontScale scale) => scale switch
     {
         FontScale.S => 11.5,
         FontScale.L => 15.5,
@@ -1048,6 +1137,196 @@ public sealed class MindmapCanvasControl : Control
 
         _brushCache[token] = brush;
         return brush;
+    }
+
+    // Resolves a style token to a "#RRGGBB" string for the vector export; null when it has no solid brush.
+    private string? ResolveHex(string? token) =>
+        ResolveBrush(token) is ISolidColorBrush solid ? ToHex(solid.Color) : null;
+
+    private static string ToHex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+
+    // --- Export ------------------------------------------------------------
+
+    /// <summary>
+    /// The full-map extent (union of every element and edge bound) expanded by <paramref name="margin"/>,
+    /// in content coordinates. Default when the map is empty.
+    /// </summary>
+    private Rect ContentBounds(double margin)
+    {
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var node in _nodeList)
+        {
+            minX = Math.Min(minX, node.X);
+            minY = Math.Min(minY, node.Y);
+            maxX = Math.Max(maxX, node.X + node.Width);
+            maxY = Math.Max(maxY, node.Y + node.Height);
+        }
+        foreach (var edge in _edgeList)
+        {
+            var b = EdgeBounds(edge);
+            minX = Math.Min(minX, b.X);
+            minY = Math.Min(minY, b.Y);
+            maxX = Math.Max(maxX, b.Right);
+            maxY = Math.Max(maxY, b.Bottom);
+        }
+        if (minX > maxX || minY > maxY)
+            return default;
+        return new Rect(minX - margin, minY - margin, (maxX - minX) + margin * 2, (maxY - minY) + margin * 2);
+    }
+
+    /// <summary>
+    /// Renders the whole map (not just the viewport) into a bitmap at content scale over an opaque
+    /// <paramref name="background"/>, reusing the live draw path with all detail forced on. The longest
+    /// dimension is clamped to <paramref name="maxDimension"/> px by uniformly downscaling. Returns null for
+    /// an empty map. Must run on the UI thread; encoding the result can then move off it.
+    /// </summary>
+    public RenderTargetBitmap? RenderFullMap(IBrush background, double margin, double maxDimension)
+    {
+        if (_nodeList.Count == 0 && _edgeList.Count == 0)
+            return null;
+
+        var bounds = ContentBounds(margin);
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return null;
+
+        var scale = 1.0;
+        var longest = Math.Max(bounds.Width, bounds.Height);
+        if (longest > maxDimension)
+            scale = maxDimension / longest;
+
+        var pixelWidth = Math.Max(1, (int)Math.Ceiling(bounds.Width * scale));
+        var pixelHeight = Math.Max(1, (int)Math.Ceiling(bounds.Height * scale));
+
+        var bitmap = new RenderTargetBitmap(new PixelSize(pixelWidth, pixelHeight), new Vector(96, 96));
+        using (var context = bitmap.CreateDrawingContext())
+        {
+            context.DrawRectangle(background, null, new Rect(0, 0, pixelWidth, pixelHeight));
+
+            var transform = Matrix.CreateTranslation(-bounds.X, -bounds.Y) * Matrix.CreateScale(scale, scale);
+            var prevChrome = _paintChrome;
+            var prevLabels = _paintLabels;
+            _paintChrome = true;
+            _paintLabels = true;
+            _exporting = true;
+            try
+            {
+                using (context.PushTransform(transform))
+                {
+                    DrawEdges(context, bounds);
+                    DrawNodes(context, bounds);
+                }
+            }
+            finally
+            {
+                // A draw failure must not leave the live canvas stuck in export mode (no selection chrome).
+                _exporting = false;
+                _paintChrome = prevChrome;
+                _paintLabels = prevLabels;
+            }
+        }
+        return bitmap;
+    }
+
+    /// <summary>
+    /// Snapshots the map into a pure, Avalonia-visual-free scene the SVG emitter can serialize off-thread:
+    /// element geometry plus each item's fill/stroke/text colors resolved to hex against the active theme.
+    /// Must run on the UI thread (it resolves theme brushes).
+    /// </summary>
+    public MindmapSvgScene BuildSvgScene(string backgroundColor, double margin)
+    {
+        var edges = new List<MindmapSvgEdge>(_edgeList.Count);
+        foreach (var edge in _edgeList)
+            edges.Add(BuildSvgEdge(edge));
+
+        var nodes = new List<MindmapSvgNode>(_nodeList.Count);
+        foreach (var node in _nodeList)
+            nodes.Add(BuildSvgNode(node));
+
+        return new MindmapSvgScene
+        {
+            Bounds = ContentBounds(margin),
+            BackgroundColor = backgroundColor,
+            AccentColor = ResolveHex(MindmapStyleTokens.Accent) ?? "#C64F33",
+            OnAccentColor = ResolveHex(MindmapStyleTokens.OnAccent) ?? "#FFFFFF",
+            MutedColor = ResolveHex(MindmapStyleTokens.TextMuted) ?? "#808080",
+            SurfaceColor = ResolveHex(MindmapStyleTokens.Surface) ?? "#FFFFFF",
+            DefaultEdgeColor = EdgeStroke is ISolidColorBrush es ? ToHex(es.Color) : ResolveHex(MindmapStyleTokens.Stroke) ?? "#808080",
+            MissingImageLabel = MissingImageLabel ?? string.Empty,
+            MissingRefLabel = MissingRefLabel ?? string.Empty,
+            Edges = edges,
+            Nodes = nodes,
+        };
+    }
+
+    private MindmapSvgEdge BuildSvgEdge(MindmapEdgeItem edge)
+    {
+        IReadOnlyList<Point> points;
+        if (edge.IsHierarchy)
+        {
+            // A hierarchy edge is a fixed centre-to-centre cubic with horizontal-eased control points.
+            var s = edge.Start;
+            var e = edge.End;
+            var midX = (s.X + e.X) / 2;
+            points = new[] { s, new Point(midX, s.Y), new Point(midX, e.Y), e };
+        }
+        else
+        {
+            // A link route arrives here already sampled into polyline vertices (a curve into 16 segments).
+            points = new List<Point>(edge.HitPolyline);
+        }
+
+        return new MindmapSvgEdge
+        {
+            IsHierarchy = edge.IsHierarchy,
+            Points = points,
+            Color = edge.ColorToken is { } token ? ResolveHex(token) : null,
+            Thickness = edge.IsHierarchy ? EdgeStrokeThickness : edge.Thickness,
+            LineStyle = edge.LineStyle,
+            // Caps, directions and labels are link-edge concepts; hierarchy edges are a plain solid stroke.
+            StartCap = edge.IsHierarchy ? ArrowCap.None : edge.StartCap,
+            EndCap = edge.IsHierarchy ? ArrowCap.None : edge.EndCap,
+            StartDirection = edge.IsHierarchy ? default : edge.StartDirection,
+            EndDirection = edge.IsHierarchy ? default : edge.EndDirection,
+            Midpoint = edge.Midpoint,
+            Label = edge.IsHierarchy ? null : edge.Label,
+        };
+    }
+
+    private MindmapSvgNode BuildSvgNode(MindmapNodeItem node)
+    {
+        // Fill mirrors the draw path: nodes fill only for card/pill; shapes and frames always fill; text and
+        // image elements have none. A null fill tells the emitter to leave the shape unfilled.
+        var fill = node.Kind switch
+        {
+            ElementKind.Node => node.Shape is NodeShape.Card or NodeShape.Pill
+                ? ResolveHex(node.FillToken) ?? ResolveHex(MindmapStyleTokens.Surface)
+                : null,
+            ElementKind.Shape or ElementKind.Frame => ResolveHex(node.FillToken) ?? ResolveHex(MindmapStyleTokens.Surface),
+            _ => null,
+        };
+
+        return new MindmapSvgNode
+        {
+            Kind = node.Kind,
+            X = node.X,
+            Y = node.Y,
+            Width = node.Width,
+            Height = node.Height,
+            ContentType = node.ContentType,
+            Shape = node.Shape,
+            FreeShape = node.FreeShape,
+            FontScale = node.FontScale,
+            IsRoot = node.IsRoot,
+            Text = node.Text,
+            FillColor = fill,
+            StrokeColor = ResolveHex(node.StrokeToken) ?? "#808080",
+            TextColor = ResolveHex(node.TextToken) ?? "#000000",
+            IsTaskDone = node.IsTaskDone,
+            CodeLanguage = node.CodeLanguage,
+            IsRefMissing = node.IsRefMissing,
+            RefBadge = node.RefBadge,
+            AssetPath = node.AssetPath,
+        };
     }
 
     // --- Spatial index -----------------------------------------------------

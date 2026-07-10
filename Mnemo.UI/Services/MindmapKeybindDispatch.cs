@@ -33,10 +33,7 @@ public sealed class MindmapKeybindDispatch(INavigationService navigation) : IMin
     public void ClearSelection()
     {
         if (!TryGetMindmapViewModel(out var vm) || !vm.IsEditingEnabled) return;
-        foreach (var node in vm.Nodes)
-            node.IsSelected = false;
-        vm.SelectEdge(null);
-        vm.ClearHoverState();
+        vm.ClearSelection();
     }
 
     public void DeleteSelection()
@@ -93,5 +90,35 @@ public sealed class MindmapKeybindDispatch(INavigationService navigation) : IMin
     {
         if (!TryGetMindmapViewModel(out var vm) || !vm.IsEditingEnabled) return;
         vm.ToggleConnectTool();
+    }
+
+    public void NewNode()
+    {
+        if (!TryGetMindmapViewModel(out var vm) || !vm.IsEditingEnabled) return;
+        _ = vm.CreateNodeAtCursorAsync();
+    }
+
+    public void NewText()
+    {
+        if (!TryGetMindmapViewModel(out var vm) || !vm.IsEditingEnabled) return;
+        _ = vm.CreateTextAtCursorAsync();
+    }
+
+    public void NewFrame()
+    {
+        if (!TryGetMindmapViewModel(out var vm) || !vm.IsEditingEnabled) return;
+        _ = vm.CreateFrameAtCursorAsync();
+    }
+
+    public void NewShape()
+    {
+        if (!TryGetMindmapViewModel(out var vm) || !vm.IsEditingEnabled) return;
+        _ = vm.CreateDefaultShapeAtCursorAsync();
+    }
+
+    public void OpenRadial()
+    {
+        if (!TryGetMindmapViewModel(out var vm) || !vm.IsEditingEnabled) return;
+        vm.OpenRadial();
     }
 }

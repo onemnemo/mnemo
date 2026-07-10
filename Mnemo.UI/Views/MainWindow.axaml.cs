@@ -92,6 +92,11 @@ public partial class MainWindow : Window
         router.RegisterHandler("mindmap.enter", () => mindmapDispatch.Enter());
         router.RegisterHandler("mindmap.edit-edge-label", () => mindmapDispatch.EditLabel());
         router.RegisterHandler("mindmap.connect", () => mindmapDispatch.ToggleConnect());
+        router.RegisterHandler("mindmap.new-node", () => mindmapDispatch.NewNode());
+        router.RegisterHandler("mindmap.new-text", () => mindmapDispatch.NewText());
+        router.RegisterHandler("mindmap.new-frame", () => mindmapDispatch.NewFrame());
+        router.RegisterHandler("mindmap.shape-picker", () => mindmapDispatch.NewShape());
+        router.RegisterHandler("mindmap.radial", () => mindmapDispatch.OpenRadial());
         router.RegisterHandler("editor.reset-view", () => notesEditorDispatch.TryResetEditorView());
     }
 

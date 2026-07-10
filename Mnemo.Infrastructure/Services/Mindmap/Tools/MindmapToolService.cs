@@ -22,12 +22,19 @@ namespace Mnemo.Infrastructure.Services.Mindmap.Tools;
 public sealed class MindmapToolService
 {
     private const int ReadCap = 100;
+    private const int WarningCap = 5;
 
     private readonly IMindmapService _mindmaps;
+    private readonly IMindmapIntegrityService? _integrity;
 
-    public MindmapToolService(IMindmapService mindmaps)
+    /// <param name="integrity">
+    /// Optional integrity sweep; when supplied, <c>outline_mindmap</c> appends dangling-reference warnings.
+    /// A null sweep (or a failing one) simply omits warnings — the outline never fails on it.
+    /// </param>
+    public MindmapToolService(IMindmapService mindmaps, IMindmapIntegrityService? integrity = null)
     {
         _mindmaps = mindmaps;
+        _integrity = integrity;
     }
 
     // ---------------------------------------------------------------- discovery
@@ -125,16 +132,59 @@ public sealed class MindmapToolService
             .Select(FreeElementSummary)
             .ToList();
 
-        return ToolInvocationResult.Success("Outline.", new
+        var result = new Dictionary<string, object?>
         {
-            map_id = doc.Id,
-            rev = doc.Revision,
-            layout = DocumentLayout(doc, roots),
-            nodes = doc.Elements.Count(e => e.Kind == ElementKind.Node),
-            edges = doc.Edges.Count,
-            roots = trees,
-            free = free.Count > 0 ? free : null,
-        });
+            ["map_id"] = doc.Id,
+            ["rev"] = doc.Revision,
+            ["layout"] = DocumentLayout(doc, roots),
+            ["nodes"] = doc.Elements.Count(e => e.Kind == ElementKind.Node),
+            ["edges"] = doc.Edges.Count,
+            ["roots"] = trees,
+        };
+        if (free.Count > 0)
+            result["free"] = free;
+
+        var warnings = await BuildIntegrityWarningsAsync(doc.Id).ConfigureAwait(false);
+        if (warnings is { Count: > 0 })
+            result["warnings"] = warnings;
+
+        return ToolInvocationResult.Success("Outline.", result);
+    }
+
+    /// <summary>
+    /// Runs an integrity sweep and projects its issues to compact, agent-facing warning strings, capped at
+    /// <see cref="WarningCap"/> with a "+n more" tail. Returns null when there is no sweep, the sweep fails,
+    /// or the map is clean, so the outline stays fast and never fails on integrity.
+    /// </summary>
+    private async Task<IReadOnlyList<string>?> BuildIntegrityWarningsAsync(string mapId)
+    {
+        if (_integrity is null)
+            return null;
+
+        var sweep = await _integrity.SweepAsync(mapId).ConfigureAwait(false);
+        if (!sweep.IsSuccess || sweep.Value is null || sweep.Value.Issues.Count == 0)
+            return null;
+
+        var issues = sweep.Value.Issues;
+        var warnings = new List<string>(Math.Min(issues.Count, WarningCap) + 1);
+        for (var i = 0; i < issues.Count && i < WarningCap; i++)
+            warnings.Add(FormatIssue(issues[i]));
+        if (issues.Count > WarningCap)
+            warnings.Add($"+{issues.Count - WarningCap} more");
+
+        return warnings;
+    }
+
+    private static string FormatIssue(MindmapIntegrityIssue issue)
+    {
+        var label = issue.Kind switch
+        {
+            MindmapIntegrityIssueKind.MissingNote => "dangling note ref",
+            MindmapIntegrityIssueKind.MissingDeck => "dangling deck ref",
+            MindmapIntegrityIssueKind.MissingImageAsset => "missing image asset",
+            _ => "dangling ref",
+        };
+        return $"{label} on {issue.ElementId} ({issue.TargetId})";
     }
 
     // ---------------------------------------------------------------- find
