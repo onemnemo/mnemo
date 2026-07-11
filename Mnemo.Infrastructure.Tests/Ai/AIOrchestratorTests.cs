@@ -276,6 +276,34 @@ public class AIOrchestratorTests
     }
 
     [Fact]
+    public async Task PromptAsync_resolves_assistant_role_by_default()
+    {
+        var client = new ScriptedChatModelClient().Enqueue(
+            new ChatStreamDelta.Content("ok"),
+            new ChatStreamDelta.Finish(ChatFinishReason.Stop));
+        var router = FakeModelRouter.Available(client);
+        var orchestrator = NewOrchestrator(router);
+
+        await orchestrator.PromptAsync("sys", "hi");
+
+        Assert.Equal(new[] { AiRole.Assistant }, router.ResolvedChatRoles);
+    }
+
+    [Fact]
+    public async Task PromptAsync_routes_the_requested_role()
+    {
+        var client = new ScriptedChatModelClient().Enqueue(
+            new ChatStreamDelta.Content("ok"),
+            new ChatStreamDelta.Finish(ChatFinishReason.Stop));
+        var router = FakeModelRouter.Available(client);
+        var orchestrator = NewOrchestrator(router);
+
+        await orchestrator.PromptAsync("sys", "hi", AiRole.Summarizer);
+
+        Assert.Equal(new[] { AiRole.Summarizer }, router.ResolvedChatRoles);
+    }
+
+    [Fact]
     public async Task PromptStructuredAsync_sets_response_schema_from_json_string()
     {
         var client = new ScriptedChatModelClient().Enqueue(

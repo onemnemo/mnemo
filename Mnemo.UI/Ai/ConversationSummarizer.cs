@@ -3,16 +3,17 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models;
+using Mnemo.Core.Models.Ai;
 using Mnemo.Core.Services;
 
 namespace Mnemo.UI.Ai;
 
 /// <summary>
-/// Conversation summarizer backed by Atlas. Replaces the legacy
-/// <c>ConversationSummarizer</c> that called the Mnemo manager model via
-/// <c>IOrchestrationLayer</c>.
+/// Summarizes conversation history for session continuity. Runs as
+/// <see cref="AiRole.Summarizer"/> so the router can serve it with a cheaper model
+/// than the assistant.
 /// </summary>
-internal sealed class AtlasConversationSummarizer : IConversationSummarizer
+internal sealed class ConversationSummarizer : IConversationSummarizer
 {
     private const string SystemPrompt =
         "You are a conversation summarizer. Given a set of conversation turns, " +
@@ -22,7 +23,7 @@ internal sealed class AtlasConversationSummarizer : IConversationSummarizer
 
     private readonly IAIOrchestrator _orchestrator;
 
-    public AtlasConversationSummarizer(IAIOrchestrator orchestrator)
+    public ConversationSummarizer(IAIOrchestrator orchestrator)
     {
         _orchestrator = orchestrator;
     }
@@ -47,13 +48,13 @@ internal sealed class AtlasConversationSummarizer : IConversationSummarizer
         }
 
         Result<string> result = await _orchestrator
-            .PromptAsync(SystemPrompt, sb.ToString().TrimEnd(), ct)
+            .PromptAsync(SystemPrompt, sb.ToString().TrimEnd(), AiRole.Summarizer, ct)
             .ConfigureAwait(false);
 
         if (!result.IsSuccess)
         {
             return Result<ConversationSummary>.Failure(
-                result.ErrorMessage ?? "Atlas summarization failed.");
+                result.ErrorMessage ?? "Conversation summarization failed.");
         }
 
         int coveredTurn = snapshot.LastSummarizedTurn + newTurnsSinceLastSummary.Count;

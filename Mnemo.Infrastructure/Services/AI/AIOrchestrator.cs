@@ -38,12 +38,12 @@ public sealed class AIOrchestrator : IAIOrchestrator
     }
 
     /// <inheritdoc />
-    public Task<Result<string>> PromptAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
-        => CompleteAsync(systemPrompt, userPrompt, responseSchema: null, ct);
+    public Task<Result<string>> PromptAsync(string systemPrompt, string userPrompt, AiRole role = AiRole.Assistant, CancellationToken ct = default)
+        => CompleteAsync(systemPrompt, userPrompt, responseSchema: null, role, ct);
 
     /// <inheritdoc />
-    public Task<Result<string>> PromptStructuredAsync(string systemPrompt, string userPrompt, object? jsonSchema = null, CancellationToken ct = default)
-        => CompleteAsync(systemPrompt, userPrompt, BuildResponseSchema(jsonSchema), ct);
+    public Task<Result<string>> PromptStructuredAsync(string systemPrompt, string userPrompt, object? jsonSchema = null, AiRole role = AiRole.Assistant, CancellationToken ct = default)
+        => CompleteAsync(systemPrompt, userPrompt, BuildResponseSchema(jsonSchema), role, ct);
 
     /// <inheritdoc />
     public async IAsyncEnumerable<string> PromptStreamingWithHistoryAsync(
@@ -270,9 +270,9 @@ public sealed class AIOrchestrator : IAIOrchestrator
     }
 
     /// <summary>Shared single-shot completion path for <see cref="PromptAsync"/> and <see cref="PromptStructuredAsync"/>.</summary>
-    private async Task<Result<string>> CompleteAsync(string systemPrompt, string userPrompt, ChatResponseSchema? responseSchema, CancellationToken ct)
+    private async Task<Result<string>> CompleteAsync(string systemPrompt, string userPrompt, ChatResponseSchema? responseSchema, AiRole role, CancellationToken ct)
     {
-        var route = await _router.ResolveChatAsync(AiRole.Assistant, ct).ConfigureAwait(false);
+        var route = await _router.ResolveChatAsync(role, ct).ConfigureAwait(false);
         if (route is not { Status: AiRouteStatus.Available, Binding: { } binding })
         {
             return Result<string>.Failure($"No assistant model is available ({route.Status}).");

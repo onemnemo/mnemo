@@ -90,7 +90,7 @@ public static class Bootstrapper
         services.AddSingleton<IConversationMemoryStore>(sp =>
             new ConversationMemoryStore(sp.GetRequiredService<ILoggerService>()));
         services.AddSingleton<IConversationSummarizer>(sp =>
-            new AtlasConversationSummarizer(sp.GetRequiredService<IAIOrchestrator>()));
+            new ConversationSummarizer(sp.GetRequiredService<IAIOrchestrator>()));
         services.AddSingleton<IConversationMemoryInjector, ConversationMemoryInjector>();
 
         // ── MCP tool server (exposes Mnemo tools to external agents) ─

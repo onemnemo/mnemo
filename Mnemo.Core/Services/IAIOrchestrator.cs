@@ -3,17 +3,20 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models;
+using Mnemo.Core.Models.Ai;
 
 namespace Mnemo.Core.Services;
 
 public interface IAIOrchestrator
 {
-    Task<Result<string>> PromptAsync(string systemPrompt, string userPrompt, CancellationToken ct = default);
+    /// <param name="role">Routing role this prompt runs as; utility roles resolve to the cheaper configured model.</param>
+    Task<Result<string>> PromptAsync(string systemPrompt, string userPrompt, AiRole role = AiRole.Assistant, CancellationToken ct = default);
 
     /// <summary>
     /// Structured-output prompt: returns a JSON string conforming to <paramref name="jsonSchema"/>.
     /// </summary>
-    Task<Result<string>> PromptStructuredAsync(string systemPrompt, string userPrompt, object? jsonSchema = null, CancellationToken ct = default);
+    /// <param name="role">Routing role this prompt runs as; utility roles resolve to the cheaper configured model.</param>
+    Task<Result<string>> PromptStructuredAsync(string systemPrompt, string userPrompt, object? jsonSchema = null, AiRole role = AiRole.Assistant, CancellationToken ct = default);
 
     /// <summary>
     /// Streaming generation with real multi-turn conversation history. Sends proper message-list
