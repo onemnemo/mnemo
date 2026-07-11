@@ -98,10 +98,12 @@ public static class Bootstrapper
         services.AddSingleton<MnemoMcpServer>();
 
         // ── Mnemo AI stack: orchestrator + tool gateway over the v2 contracts ─
-        // The stub client/router keep chat streaming end to end until a real
-        // provider is configured; they are the swap point for the cloud client.
-        services.AddSingleton<IChatModelClient, StubChatModelClient>();
-        services.AddSingleton<IModelRouter, StubModelRouter>();
+        // Chat responses can stream for minutes, so the shared HttpClient must not impose
+        // its default 100s overall timeout; the chat client bounds time-to-first-headers.
+        services.AddHttpClient(OpenRouterChatClient.HttpClientName,
+            client => client.Timeout = System.Threading.Timeout.InfiniteTimeSpan);
+        services.AddSingleton<IChatModelClient, OpenRouterChatClient>();
+        services.AddSingleton<IModelRouter, ModelRouter>();
         services.AddSingleton<IAiToolGateway, AiToolGateway>();
         services.AddSingleton<IAIOrchestrator, AIOrchestrator>();
 
