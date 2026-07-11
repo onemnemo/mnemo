@@ -19,7 +19,7 @@ public interface IAIOrchestrator
     /// Streaming generation with real multi-turn conversation history. Sends proper message-list
     /// context instead of a flat text blob, improving multi-turn reasoning quality.
     /// </summary>
-    /// <param name="systemPrompt">Base system prompt (mode text). Atlas composes any additional context internally.</param>
+    /// <param name="systemPrompt">Base system prompt (mode text).</param>
     /// <param name="history">Prior turns (oldest first, excluding the current user message).</param>
     /// <param name="userMessage">The latest user message (will become the final user turn).</param>
     /// <param name="pipelineStatus">Optional. Reports <see cref="ChatPipelineStatusKeys"/> localization keys while routing or loading.</param>

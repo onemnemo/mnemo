@@ -16,7 +16,8 @@ namespace Mnemo.UI.Mcp;
 
 /// <summary>
 /// Hosts an in-process Streamable-HTTP MCP server that exposes Mnemo's tool surface
-/// to any MCP client (Atlas CLI/Studio, Claude Desktop, external agents, etc.).
+/// to external MCP clients (Claude Desktop, CLIs, other agents). The in-app assistant
+/// does not go through this server — it dispatches tools in-process via the AI gateway.
 /// </summary>
 /// <remarks>
 /// <para>Binds exclusively to <c>127.0.0.1</c> (loopback). DNS rebinding attacks are

@@ -90,7 +90,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Mnemo.Core\Mnemo.Core.csproj" />
     <ProjectReference Include="..\Mnemo.Infrastructure\Mnemo.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\atlas-main\src\Atlas.Composition\Atlas.Composition.csproj" />
   </ItemGroup>
 
   <!--
