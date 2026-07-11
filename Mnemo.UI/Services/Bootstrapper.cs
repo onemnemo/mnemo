@@ -104,6 +104,8 @@ public static class Bootstrapper
             client => client.Timeout = System.Threading.Timeout.InfiniteTimeSpan);
         services.AddSingleton<IChatModelClient, OpenRouterChatClient>();
         services.AddSingleton<IModelRouter, ModelRouter>();
+        services.AddSingleton<IModelCatalogService, OpenRouterModelCatalog>();
+        services.AddSingleton<IAiKeyValidator, OpenRouterKeyValidator>();
         services.AddSingleton<IAiToolGateway, AiToolGateway>();
         services.AddSingleton<IAIOrchestrator, AIOrchestrator>();
 

@@ -1,10 +1,14 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Mnemo.Core.Models.Ai;
 using Mnemo.Core.Services;
+using Mnemo.Core.Services.Ai;
+using Mnemo.Infrastructure.Services.AI;
 using Mnemo.Infrastructure.Services.Updates;
 using Mnemo.UI.Modules.Updates.Services;
 using Mnemo.UI.Services;
@@ -28,6 +32,9 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly UpdateOrchestrator _updateOrchestrator;
     private readonly IKeyMap _keyMap;
     private readonly IPerfDiagnostics _perf;
+    private readonly IModelCatalogService _modelCatalog;
+    private readonly IAiKeyValidator _keyValidator;
+    private readonly ILoggerService _logger;
 
     private bool _developerGateUnlocked;
     private bool _developerMode;
@@ -182,7 +189,10 @@ public partial class SettingsViewModel : ViewModelBase
         IUpdateService updateService,
         UpdateOrchestrator updateOrchestrator,
         IKeyMap keyMap,
-        IPerfDiagnostics perf)
+        IPerfDiagnostics perf,
+        IModelCatalogService modelCatalog,
+        IAiKeyValidator keyValidator,
+        ILoggerService logger)
     {
         _settingsService = settingsService;
         _themeService = themeService;
@@ -194,6 +204,9 @@ public partial class SettingsViewModel : ViewModelBase
         _updateOrchestrator = updateOrchestrator;
         _keyMap = keyMap;
         _perf = perf;
+        _modelCatalog = modelCatalog;
+        _keyValidator = keyValidator;
+        _logger = logger;
 
         AttachSettingsHandlers();
         _ = LoadInitialSettingsAsync();
@@ -256,6 +269,32 @@ public partial class SettingsViewModel : ViewModelBase
     }
 
     private string T(string key) => _localizationService.T(key, "Settings");
+
+    /// <summary>Turns a key-validation outcome into the status line under the Test button.</summary>
+    private string FormatKeyValidation(AiKeyValidationResult result)
+    {
+        if (result.IsValid)
+        {
+            if (result.CreditsLimit is { } limit)
+            {
+                var left = limit - (result.CreditsUsed ?? 0m);
+                return string.Format(T("TestConnectionOkLeftFormat"), left.ToString("0.00", CultureInfo.CurrentCulture));
+            }
+            if (result.CreditsUsed is { } used)
+            {
+                return string.Format(T("TestConnectionOkUsedFormat"), used.ToString("0.00", CultureInfo.CurrentCulture));
+            }
+            return T("TestConnectionOk");
+        }
+
+        return result.FailureKind switch
+        {
+            AiClientErrorKind.InvalidApiKey => T("TestConnectionInvalidKey"),
+            AiClientErrorKind.Network or AiClientErrorKind.Timeout => T("TestConnectionOffline"),
+            AiClientErrorKind.RateLimited => T("TestConnectionRateLimited"),
+            _ => T("TestConnectionFailed"),
+        };
+    }
 
     private void RebuildCategories(string? preserveCategoryId = null)
     {
@@ -360,6 +399,46 @@ public partial class SettingsViewModel : ViewModelBase
         {
             OffNotice = new SettingsNoticeViewModel(string.Empty, T("AIOffNotice"))
         };
+
+        aiGroup.Items.Add(new SettingsSubheaderViewModel(T("ModelProvider")));
+        aiGroup.Items.Add(new DropdownSettingViewModel(
+            _settingsService,
+            "AI.Provider.Mode",
+            T("ProviderMode"),
+            T("ProviderModeDescription"),
+            new[] { "Cloud", "Local", "Auto" },
+            new[] { T("ProviderModeCloud"), T("ProviderModeLocal"), T("ProviderModeAuto") },
+            "Cloud",
+            // Locked to Cloud until local models exist; the description says so.
+            isInteractionEnabled: false));
+        aiGroup.Items.Add(new TextSettingViewModel(
+            _settingsService,
+            "AI.OpenRouter.ApiKey",
+            T("OpenRouterApiKey"),
+            T("OpenRouterApiKeyDescription"),
+            isPassword: true));
+        aiGroup.Items.Add(new AsyncActionSettingViewModel(
+            T("TestConnection"),
+            T("TestConnectionDescription"),
+            T("TestNow"),
+            async vm =>
+            {
+                var key = await _settingsService.GetAsync("AI.OpenRouter.ApiKey", string.Empty);
+                var result = await _keyValidator.ValidateAsync(key);
+                vm.StatusText = FormatKeyValidation(result);
+            }));
+        aiGroup.Items.Add(new ModelPickerSettingViewModel(
+            _settingsService, _modelCatalog, _mainThreadDispatcher, _logger,
+            "AI.OpenRouter.AssistantModel",
+            T("AssistantModel"),
+            T("AssistantModelDescription"),
+            ModelRouter.DefaultModelId));
+        aiGroup.Items.Add(new ModelPickerSettingViewModel(
+            _settingsService, _modelCatalog, _mainThreadDispatcher, _logger,
+            "AI.OpenRouter.UtilityModel",
+            T("UtilityModel"),
+            T("UtilityModelDescription"),
+            ModelRouter.DefaultModelId));
 
         aiGroup.Items.Add(new SettingsSubheaderViewModel(T("Intelligence")));
         aiGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.AgentMode", T("AgentMode"), T("AgentModeDescription"), true));

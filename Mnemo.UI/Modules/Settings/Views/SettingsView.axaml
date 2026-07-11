@@ -104,6 +104,25 @@
             </components:SettingsRow>
         </DataTemplate>
 
+        <!-- Model picker (options stream in from the model catalog) -->
+        <DataTemplate x:Key="ModelPickerSettingTemplate" x:DataType="vm:ModelPickerSettingViewModel">
+            <components:SettingsRow Title="{Binding Title}" Description="{Binding Description}">
+                <components:SettingsRow.RightContent>
+                    <controls:ModernComboBox Classes="compact"
+                                             ItemsSource="{Binding Options}"
+                                             SelectedItem="{Binding SelectedOption}"
+                                             IsEnabled="{Binding !IsLoading}"
+                                             MinWidth="190">
+                        <controls:ModernComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ModelOptionViewModel">
+                                <TextBlock Text="{Binding DisplayName}" FontSize="13"/>
+                            </DataTemplate>
+                        </controls:ModernComboBox.ItemTemplate>
+                    </controls:ModernComboBox>
+                </components:SettingsRow.RightContent>
+            </components:SettingsRow>
+        </DataTemplate>
+
         <!-- Language Setting -->
         <DataTemplate x:Key="LanguageSettingTemplate" x:DataType="vm:LanguageSettingViewModel">
             <components:SettingsRow Title="{Binding Title}" Description="{Binding Description}">
@@ -471,6 +490,7 @@
                     <StaticResource ResourceKey="ToggleSettingTemplate"/>
                     <StaticResource ResourceKey="EnableAiAssistantToggleSettingTemplate"/>
                     <StaticResource ResourceKey="DropdownSettingTemplate"/>
+                    <StaticResource ResourceKey="ModelPickerSettingTemplate"/>
                     <StaticResource ResourceKey="LanguageSettingTemplate"/>
                     <StaticResource ResourceKey="ActionSettingTemplate"/>
                     <StaticResource ResourceKey="AsyncActionSettingTemplate"/>

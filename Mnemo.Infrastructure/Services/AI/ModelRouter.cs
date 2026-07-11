@@ -21,7 +21,9 @@ public sealed class ModelRouter : IModelRouter
 {
     private const string AssistantModelSettingKey = "AI.OpenRouter.AssistantModel";
     private const string UtilityModelSettingKey = "AI.OpenRouter.UtilityModel";
-    private const string DefaultModelId = "deepseek/deepseek-v4-flash";
+
+    /// <summary>Model used for any role the user has not configured; also the pickers' fallback.</summary>
+    public const string DefaultModelId = "deepseek/deepseek-v4-flash";
 
     private readonly IChatModelClient _chatClient;
     private readonly ISettingsService _settings;

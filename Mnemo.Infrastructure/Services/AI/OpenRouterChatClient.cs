@@ -283,7 +283,7 @@ public sealed class OpenRouterChatClient : IChatModelClient
             response.Dispose();
 
             var failure = new AiClientException(
-                MapStatusToKind(status), BuildHttpErrorMessage(status, reason, providerMessage), httpStatus: status);
+                OpenRouterErrors.MapStatusToKind(status), BuildHttpErrorMessage(status, reason, providerMessage), httpStatus: status);
 
             if (IsRetryableStatus(status) && attempt < MaxAttempts)
             {
@@ -345,19 +345,6 @@ public sealed class OpenRouterChatClient : IChatModelClient
 
     private static bool IsRetryableStatus(int status) => status is 429 or 500 or 502 or 503;
 
-    private static AiClientErrorKind MapStatusToKind(int status) => status switch
-    {
-        401 or 403 => AiClientErrorKind.InvalidApiKey,
-        402 => AiClientErrorKind.InsufficientCredits,
-        404 or 410 => AiClientErrorKind.ModelUnavailable,
-        408 => AiClientErrorKind.Timeout,
-        429 => AiClientErrorKind.RateLimited,
-        400 or 413 or 422 => AiClientErrorKind.InvalidRequest,
-        // OpenRouter fronts upstream providers, so a bad gateway means the model is unreachable.
-        502 or 503 => AiClientErrorKind.ModelUnavailable,
-        _ => AiClientErrorKind.Unknown,
-    };
-
     private static ChatFinishReason MapFinishReason(string reason) => reason switch
     {
         "stop" => ChatFinishReason.Stop,
@@ -376,7 +363,7 @@ public sealed class OpenRouterChatClient : IChatModelClient
     private static AiClientException MapStreamError(ErrorWire error)
     {
         var status = ExtractErrorStatus(error);
-        var kind = status is { } s ? MapStatusToKind(s) : AiClientErrorKind.Unknown;
+        var kind = status is { } s ? OpenRouterErrors.MapStatusToKind(s) : AiClientErrorKind.Unknown;
         var message = string.IsNullOrWhiteSpace(error.Message)
             ? "OpenRouter reported an error mid-stream."
             : error.Message!;
