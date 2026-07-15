@@ -7,6 +7,14 @@ using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Modules.Chat.ViewModels;
 
+/// <summary>Reader feedback on an assistant answer (thumbs up / down), or none.</summary>
+public enum MessageFeedback
+{
+    None = 0,
+    Up = 1,
+    Down = 2,
+}
+
 public class ChatMessageViewModel : ViewModelBase
 {
     public ChatMessageViewModel()
@@ -32,6 +40,7 @@ public class ChatMessageViewModel : ViewModelBase
                 OnPropertyChanged(nameof(HasCopiableAssistantContent));
                 OnPropertyChanged(nameof(IsActivelyThinking));
                 OnPropertyChanged(nameof(HasFinishedThinking));
+                OnPropertyChanged(nameof(IsAwaitingFirstToken));
             }
         }
     }
@@ -112,6 +121,20 @@ public class ChatMessageViewModel : ViewModelBase
         set => SetProperty(ref _isProcessThreadExpanded, value);
     }
 
+    private string? _processSummaryText;
+    /// <summary>Collapsed-trace summary suffix once the turn is done, e.g. "used 2 tools". Null while streaming or when no tools ran.</summary>
+    public string? ProcessSummaryText
+    {
+        get => _processSummaryText;
+        set
+        {
+            if (SetProperty(ref _processSummaryText, value))
+                OnPropertyChanged(nameof(HasProcessSummary));
+        }
+    }
+
+    public bool HasProcessSummary => !string.IsNullOrEmpty(_processSummaryText);
+
     private List<string>? _sources;
     public List<string>? Sources
     {
@@ -152,6 +175,43 @@ public class ChatMessageViewModel : ViewModelBase
 
     /// <summary>True once the model has moved on from reasoning to producing (or has finished) its final reply.</summary>
     public bool HasFinishedThinking => IsThinking && !IsActivelyThinking;
+
+    /// <summary>True from send until the first visible token arrives — drives the answer-area shimmer skeleton.</summary>
+    public bool IsAwaitingFirstToken => IsStreaming && Content.Length == 0;
+
+    private MessageFeedback _feedback = MessageFeedback.None;
+    /// <summary>Reader's thumbs feedback on this assistant answer.</summary>
+    public MessageFeedback Feedback
+    {
+        get => _feedback;
+        set
+        {
+            if (SetProperty(ref _feedback, value))
+            {
+                OnPropertyChanged(nameof(IsThumbUp));
+                OnPropertyChanged(nameof(IsThumbDown));
+            }
+        }
+    }
+
+    public bool IsThumbUp => _feedback == MessageFeedback.Up;
+    public bool IsThumbDown => _feedback == MessageFeedback.Down;
+
+    private bool _isEditing;
+    /// <summary>True while this user message is being edited inline (transient, never persisted).</summary>
+    public bool IsEditing
+    {
+        get => _isEditing;
+        set => SetProperty(ref _isEditing, value);
+    }
+
+    private string _editText = string.Empty;
+    /// <summary>Working buffer for the inline edit field; applied to <see cref="Content"/> on submit.</summary>
+    public string EditText
+    {
+        get => _editText;
+        set => SetProperty(ref _editText, value);
+    }
 
     private string? _pipelineStatusText;
     /// <summary>Localized pipeline label while routing or loading the model (cleared when reply text appears).</summary>
@@ -197,6 +257,7 @@ public class ChatMessageViewModel : ViewModelBase
                 OnPropertyChanged(nameof(HasCopiableAssistantContent));
                 OnPropertyChanged(nameof(IsActivelyThinking));
                 OnPropertyChanged(nameof(HasFinishedThinking));
+                OnPropertyChanged(nameof(IsAwaitingFirstToken));
             }
         }
     }

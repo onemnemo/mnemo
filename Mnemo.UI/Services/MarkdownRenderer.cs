@@ -65,16 +65,42 @@ public class MarkdownRenderer : IMarkdownRenderer
         }
     }
 
-    public async Task<Control> RenderAsync(string markdown, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground = null)
+    /// <summary>
+    /// Per-render typography snapshot. A caller-supplied base font size (e.g. chat's compact scale)
+    /// replaces the user's Markdown.* size settings for that render only; leading and spacing settings
+    /// still apply.
+    /// </summary>
+    private sealed record RenderOptions(
+        double BlockSpacing,
+        double BaseFontSize,
+        double CodeFontSize,
+        double MathFontSize,
+        double LineHeight,
+        double LetterSpacing)
+    {
+        public double LineHeightPx => BaseFontSize * LineHeight;
+        public double DisplayMathFontSize => MathFontSize + 2;
+    }
+
+    private static FontFamily GetFontFamily(string resourceKey) =>
+        (FontFamily)Application.Current!.FindResource(resourceKey)!;
+
+    public async Task<Control> RenderAsync(string markdown, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground = null, double? baseFontSizeOverride = null)
     {
         using var scope = _perf.Measure("Render", "MarkdownRenderer.RenderAsync", $"{markdown.Length} chars");
         var document = Markdig.Markdown.Parse(markdown, Pipeline);
-        var spacing = await GetBlockSpacingAsync();
-        var container = new StackPanel { Spacing = spacing };
+        var options = new RenderOptions(
+            await GetBlockSpacingAsync(),
+            baseFontSizeOverride ?? await GetBaseFontSizeAsync(),
+            baseFontSizeOverride ?? await GetCodeFontSizeAsync(),
+            baseFontSizeOverride ?? await GetMathFontSizeAsync(),
+            await GetLineHeightAsync(),
+            await GetLetterSpacingAsync());
+        var container = new StackPanel { Spacing = options.BlockSpacing };
 
         foreach (var block in document)
         {
-            var rendered = await RenderBlockAsync(block, specialInlines, foreground);
+            var rendered = await RenderBlockAsync(block, specialInlines, foreground, options);
             if (rendered != null)
                 container.Children.Add(rendered);
         }
@@ -115,20 +141,22 @@ public class MarkdownRenderer : IMarkdownRenderer
         return result;
     }
 
-    private async Task<double> GetMathFontSizeAsync(bool isDisplay)
+    private async Task<double> GetMathFontSizeAsync()
     {
-        if (_mathFontSize is { } cached) return isDisplay ? cached + 2 : cached;
+        if (_mathFontSize is { } cached) return cached;
         var val = await _settingsService.GetAsync("Markdown.MathFontSize", "16px");
         var result = double.TryParse(val.Replace("px", ""), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : 16.0;
         _mathFontSize = result;
-        return isDisplay ? result + 2 : result;
+        return result;
     }
 
     private async Task<double> GetLineHeightAsync()
     {
         if (_lineHeight is { } cached) return cached;
-        var val = await _settingsService.GetAsync("Markdown.LineHeight", "1.2");
-        var result = double.TryParse(val, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : 1.2;
+        // Fallback must match the Settings UI default for Markdown.LineHeight; a lower value here
+        // silently tightens all rendered prose for users who never touched the setting.
+        var val = await _settingsService.GetAsync("Markdown.LineHeight", "1.5");
+        var result = double.TryParse(val, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : 1.5;
         _lineHeight = result;
         return result;
     }
@@ -142,16 +170,16 @@ public class MarkdownRenderer : IMarkdownRenderer
         return result;
     }
 
-    private async Task<Control?> RenderBlockAsync(Markdig.Syntax.Block block, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, int listDepth = 0)
+    private async Task<Control?> RenderBlockAsync(Markdig.Syntax.Block block, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, RenderOptions options, int listDepth = 0)
     {
         return block switch
         {
-            ParagraphBlock paragraph => await RenderParagraphAsync(paragraph, specialInlines, foreground),
-            HeadingBlock heading => await RenderHeadingAsync(heading, specialInlines, foreground),
-            CodeBlock code => await RenderCodeBlockAsync(code),
-            QuoteBlock quote => await RenderQuoteAsync(quote, specialInlines, foreground),
-            ListBlock list => await RenderListAsync(list, specialInlines, foreground, listDepth),
-            var table when table.GetType().Name == "Table" => await RenderTableAsync(table, specialInlines, foreground),
+            ParagraphBlock paragraph => await RenderParagraphAsync(paragraph, specialInlines, foreground, options),
+            HeadingBlock heading => await RenderHeadingAsync(heading, specialInlines, foreground, options),
+            CodeBlock code => await RenderCodeBlockAsync(code, options),
+            QuoteBlock quote => await RenderQuoteAsync(quote, specialInlines, foreground, options),
+            ListBlock list => await RenderListAsync(list, specialInlines, foreground, options, listDepth),
+            var table when table.GetType().Name == "Table" => await RenderTableAsync(table, specialInlines, foreground, options),
             ThematicBreakBlock => new Border
             {
                 Height = 1,
@@ -162,34 +190,29 @@ public class MarkdownRenderer : IMarkdownRenderer
         };
     }
 
-    private async Task<Control> RenderParagraphAsync(ParagraphBlock paragraph, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground)
+    private async Task<Control> RenderParagraphAsync(ParagraphBlock paragraph, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, RenderOptions options)
     {
-        var fontSize = await GetBaseFontSizeAsync();
-        var lineHeight = await GetLineHeightAsync();
-        var letterSpacing = await GetLetterSpacingAsync();
-
         // Check whether this paragraph contains any display math.
         // If it does, we render the paragraph as a StackPanel with text segments
         // separated by standalone (block-level) display math controls, instead of
         // forcing large formulas into InlineUIContainer which garbles layout.
         if (ParagraphContainsDisplayMath(paragraph, specialInlines))
         {
-            return await RenderParagraphWithDisplayMathAsync(paragraph, specialInlines, foreground, fontSize, lineHeight, letterSpacing);
+            return await RenderParagraphWithDisplayMathAsync(paragraph, specialInlines, foreground, options);
         }
 
         // Simple path: no display math — single TextBlock with inline content.
-        var lineHeightPx = fontSize * lineHeight;
         // Inflate LineHeight to fit inline math so Avalonia allocates enough vertical space
         // in the line box (Avalonia caps line boxes at LineHeight, unlike WPF).
-        var effectiveLineHeightPx = await GetEffectiveLineHeightAsync(paragraph, specialInlines, lineHeightPx);
-        var textBlock = CreateParagraphTextBlock(fontSize, lineHeight, letterSpacing, foreground);
+        var effectiveLineHeightPx = await GetEffectiveLineHeightAsync(paragraph, specialInlines, options.LineHeightPx, options);
+        var textBlock = CreateParagraphTextBlock(options.BaseFontSize, options.LineHeight, options.LetterSpacing, foreground);
         textBlock.LineHeight = effectiveLineHeightPx;
 
         if (paragraph.Inline != null && textBlock.Inlines != null)
         {
             foreach (var inline in paragraph.Inline)
             {
-                await RenderInlineToInlinesAsync(inline, textBlock.Inlines, specialInlines, foreground, contextFontSize: fontSize, contextLineHeightPx: effectiveLineHeightPx);
+                await RenderInlineToInlinesAsync(inline, textBlock.Inlines, specialInlines, foreground, options, contextFontSize: options.BaseFontSize, contextLineHeightPx: effectiveLineHeightPx);
             }
         }
 
@@ -224,12 +247,10 @@ public class MarkdownRenderer : IMarkdownRenderer
         ParagraphBlock paragraph,
         Dictionary<string, MarkdownSpecialInline> specialInlines,
         IBrush? foreground,
-        double fontSize,
-        double lineHeight,
-        double letterSpacing)
+        RenderOptions options)
     {
         var container = new StackPanel { Spacing = 6 };
-        var currentTextBlock = CreateParagraphTextBlock(fontSize, lineHeight, letterSpacing, foreground);
+        var currentTextBlock = CreateParagraphTextBlock(options.BaseFontSize, options.LineHeight, options.LetterSpacing, foreground);
 
         if (paragraph.Inline != null)
         {
@@ -244,14 +265,13 @@ public class MarkdownRenderer : IMarkdownRenderer
                         container,
                         specialInlines,
                         foreground,
-                        fontSize, lineHeight, letterSpacing);
+                        options);
                 }
                 else
                 {
                     // Non-literal inlines go straight into the current TextBlock
-                    var lineHeightPx = fontSize * lineHeight;
                     if (currentTextBlock.Inlines != null)
-                        await RenderInlineToInlinesAsync(inline, currentTextBlock.Inlines, specialInlines, foreground, contextFontSize: fontSize, contextLineHeightPx: lineHeightPx);
+                        await RenderInlineToInlinesAsync(inline, currentTextBlock.Inlines, specialInlines, foreground, options, contextFontSize: options.BaseFontSize, contextLineHeightPx: options.LineHeightPx);
                 }
             }
         }
@@ -277,7 +297,7 @@ public class MarkdownRenderer : IMarkdownRenderer
         StackPanel container,
         Dictionary<string, MarkdownSpecialInline> specialInlines,
         IBrush? foreground,
-        double fontSize, double lineHeight, double letterSpacing)
+        RenderOptions options)
     {
         if (string.IsNullOrEmpty(text))
             return currentTextBlock;
@@ -317,13 +337,12 @@ public class MarkdownRenderer : IMarkdownRenderer
                     if (currentTextBlock.Inlines?.Count > 0)
                     {
                         container.Children.Add(currentTextBlock);
-                        currentTextBlock = CreateParagraphTextBlock(fontSize, lineHeight, letterSpacing, foreground);
+                        currentTextBlock = CreateParagraphTextBlock(options.BaseFontSize, options.LineHeight, options.LetterSpacing, foreground);
                     }
 
                     if (await _settingsService.GetAsync("Markdown.RenderMath", true) && !string.IsNullOrWhiteSpace(inlineData.Content))
                     {
-                        var displayFontSize = await GetMathFontSizeAsync(true);
-                        if (await _latexEngine.BuildLayoutAsync(inlineData.Content.Trim(), displayFontSize) is Mnemo.UI.Controls.LaTeXRenderer displayMathControl)
+                        if (await _latexEngine.BuildLayoutAsync(inlineData.Content.Trim(), options.DisplayMathFontSize) is Mnemo.UI.Controls.LaTeXRenderer displayMathControl)
                         {
                             ApplyInlineMathLayout(displayMathControl, foreground, isInline: false);
                             // Wrap in a centred border so it sits on its own line
@@ -350,7 +369,7 @@ public class MarkdownRenderer : IMarkdownRenderer
                 {
                     // Non-display-math special inline — render into the current TextBlock
                     if (currentTextBlock.Inlines != null)
-                        await RenderSpecialInlineAsync(inlineData, currentTextBlock.Inlines, foreground);
+                        await RenderSpecialInlineAsync(inlineData, currentTextBlock.Inlines, foreground, options);
                 }
 
                 position = endMarkerIndex + 1;
@@ -366,15 +385,14 @@ public class MarkdownRenderer : IMarkdownRenderer
     }
 
     /// <summary>Renders a single non-display-math special inline into the given InlineCollection.</summary>
-    private async Task RenderSpecialInlineAsync(MarkdownSpecialInline inlineData, InlineCollection inlines, IBrush? foreground, bool isHeading = false)
+    private async Task RenderSpecialInlineAsync(MarkdownSpecialInline inlineData, InlineCollection inlines, IBrush? foreground, RenderOptions options, bool isHeading = false)
     {
         switch (inlineData.Type)
         {
             case MarkdownInlineType.InlineMath:
                 if (await _settingsService.GetAsync("Markdown.RenderMath", true) && !string.IsNullOrWhiteSpace(inlineData.Content))
                 {
-                    var inlineFontSize = await GetMathFontSizeAsync(false);
-                    if (await _latexEngine.BuildLayoutAsync(inlineData.Content.Trim(), inlineFontSize) is Mnemo.UI.Controls.LaTeXRenderer inlineMathControl)
+                    if (await _latexEngine.BuildLayoutAsync(inlineData.Content.Trim(), options.MathFontSize) is Mnemo.UI.Controls.LaTeXRenderer inlineMathControl)
                     {
                         ApplyInlineMathLayout(inlineMathControl, foreground, isInline: true);
                         inlines.Add(new InlineUIContainer { Child = inlineMathControl, BaselineAlignment = BaselineAlignment.Center });
@@ -449,25 +467,26 @@ public class MarkdownRenderer : IMarkdownRenderer
         };
     }
 
-    private async Task RenderInlineToInlinesAsync(Markdig.Syntax.Inlines.Inline inline, InlineCollection inlines, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, bool isHeading = false, double? contextFontSize = null, double? contextLineHeightPx = null)
+    private async Task RenderInlineToInlinesAsync(Markdig.Syntax.Inlines.Inline inline, InlineCollection inlines, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, RenderOptions options, bool isHeading = false, double? contextFontSize = null, double? contextLineHeightPx = null)
     {
         switch (inline)
         {
             case LiteralInline literal:
                 var text = literal.Content.ToString();
-                await ReplaceSpecialPlaceholdersAsync(text, inlines, specialInlines, foreground, isHeading);
+                await ReplaceSpecialPlaceholdersAsync(text, inlines, specialInlines, foreground, options, isHeading);
                 break;
 
             case EmphasisInline emphasis:
                 var span = new Span();
                 if (emphasis.DelimiterCount == 2)
-                    span.FontWeight = FontWeight.Bold;
+                    // Geist ships as per-weight files; FontWeight.Bold on the regular cut would synthesize a faux bold.
+                    span.FontFamily = GetFontFamily("Font.SemiBold");
                 else if (emphasis.DelimiterCount == 1)
                     span.FontStyle = FontStyle.Italic;
 
                 foreach (var child in emphasis)
                 {
-                    await RenderInlineToInlinesAsync(child, span.Inlines, specialInlines, foreground, isHeading, contextFontSize, contextLineHeightPx);
+                    await RenderInlineToInlinesAsync(child, span.Inlines, specialInlines, foreground, options, isHeading, contextFontSize, contextLineHeightPx);
                 }
                 inlines.Add(span);
                 break;
@@ -476,7 +495,7 @@ public class MarkdownRenderer : IMarkdownRenderer
                 inlines.Add(new Run
                 {
                     Text = code.Content,
-                    FontFamily = new FontFamily("Consolas,monospace"),
+                    FontFamily = GetFontFamily("Font.Monospace"),
                     Foreground = foreground ?? (IBrush)Application.Current!.FindResource("TextPrimaryBrush")!,
                     Background = (IBrush)Application.Current!.FindResource("TextControlBackgroundBrush")!
                 });
@@ -496,9 +515,10 @@ public class MarkdownRenderer : IMarkdownRenderer
                     VerticalContentAlignment = VerticalAlignment.Bottom
                 };
 
-                var linkFontSize = contextFontSize ?? await GetBaseFontSizeAsync();
-                // Slightly more than font size so link doesn't sit too low; less than full paragraph line height so it doesn't sit above
-                var linkLineHeight = linkFontSize * 1.15;
+                var linkFontSize = contextFontSize ?? options.BaseFontSize;
+                // Match the surrounding paragraph's line box so linked text shares its baseline;
+                // a shorter line height here makes hyperlinks sit visibly lower than the sentence around them.
+                var linkLineHeight = contextLineHeightPx ?? linkFontSize * options.LineHeight;
                 var linkContent = new TextBlock
                 {
                     FontSize = linkFontSize,
@@ -518,7 +538,7 @@ public class MarkdownRenderer : IMarkdownRenderer
                     {
                         if (linkContent.Inlines != null)
                         {
-                            await RenderInlineToInlinesAsync(child, linkContent.Inlines, specialInlines, foreground, isHeading, contextFontSize, contextLineHeightPx);
+                            await RenderInlineToInlinesAsync(child, linkContent.Inlines, specialInlines, foreground, options, isHeading, contextFontSize, contextLineHeightPx);
                         }
                     }
                 }
@@ -544,7 +564,7 @@ public class MarkdownRenderer : IMarkdownRenderer
             case ContainerInline container:
                 foreach (var child in container)
                 {
-                    await RenderInlineToInlinesAsync(child, inlines, specialInlines, foreground, isHeading, contextFontSize, contextLineHeightPx);
+                    await RenderInlineToInlinesAsync(child, inlines, specialInlines, foreground, options, isHeading, contextFontSize, contextLineHeightPx);
                 }
                 break;
         }
@@ -580,7 +600,7 @@ public class MarkdownRenderer : IMarkdownRenderer
         control.Height = size.Height;
     }
 
-    private async Task ReplaceSpecialPlaceholdersAsync(string text, InlineCollection inlines, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, bool isHeading = false)
+    private async Task ReplaceSpecialPlaceholdersAsync(string text, InlineCollection inlines, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, RenderOptions options, bool isHeading = false)
     {
         if (string.IsNullOrEmpty(text) || specialInlines.Count == 0)
         {
@@ -629,8 +649,7 @@ public class MarkdownRenderer : IMarkdownRenderer
                     // Fall back to inline rendering since we can't split the block here.
                     if (await _settingsService.GetAsync("Markdown.RenderMath", true) && !string.IsNullOrWhiteSpace(inlineData.Content))
                     {
-                        var displayFontSize = await GetMathFontSizeAsync(true);
-                        if (await _latexEngine.BuildLayoutAsync(inlineData.Content.Trim(), displayFontSize) is Mnemo.UI.Controls.LaTeXRenderer displayMathControl)
+                        if (await _latexEngine.BuildLayoutAsync(inlineData.Content.Trim(), options.DisplayMathFontSize) is Mnemo.UI.Controls.LaTeXRenderer displayMathControl)
                         {
                             ApplyInlineMathLayout(displayMathControl, foreground, isInline: false);
                             inlines.Add(new InlineUIContainer { Child = displayMathControl, BaselineAlignment = BaselineAlignment.Center });
@@ -644,7 +663,7 @@ public class MarkdownRenderer : IMarkdownRenderer
                 else
                 {
                     // All other special inlines (inline math, highlight, sub/superscript, strikethrough)
-                    await RenderSpecialInlineAsync(inlineData, inlines, foreground, isHeading);
+                    await RenderSpecialInlineAsync(inlineData, inlines, foreground, options, isHeading);
                 }
 
                 position = endMarkerIndex + 1;
@@ -656,49 +675,51 @@ public class MarkdownRenderer : IMarkdownRenderer
         }
     }
 
-    private async Task<Control> RenderHeadingAsync(HeadingBlock heading, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground)
+    private async Task<Control> RenderHeadingAsync(HeadingBlock heading, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, RenderOptions options)
     {
-        var fontSize = heading.Level switch
+        // Heading ramp scales with the base size so a compact caller (e.g. chat at 14px)
+        // doesn't get 32px H1s towering over its prose. At the default 16px base this
+        // yields the classic 32/24/20/18/16/14.
+        var fontSize = Math.Round(options.BaseFontSize * heading.Level switch
         {
-            1 => 32,
-            2 => 24,
-            3 => 20,
-            4 => 18,
-            5 => 16,
-            _ => 14
-        };
-        var lineHeight = await GetLineHeightAsync();
-        var letterSpacing = await GetLetterSpacingAsync();
+            1 => 2.0,
+            2 => 1.5,
+            3 => 1.25,
+            4 => 1.125,
+            5 => 1.0,
+            _ => 0.875
+        });
+        // Headings read best with tighter leading than body copy; cap the user's prose setting.
+        var headingLineHeightPx = fontSize * Math.Min(options.LineHeight, 1.3);
 
         var textBlock = new TextBlock
         {
             TextWrapping = TextWrapping.Wrap,
-            FontWeight = FontWeight.Bold,
+            FontFamily = GetFontFamily("Font.SemiBold"),
             FontSize = fontSize,
-            LineHeight = fontSize * lineHeight,
-            LetterSpacing = letterSpacing,
+            LineHeight = headingLineHeightPx,
+            LetterSpacing = options.LetterSpacing,
             Margin = new Thickness(0, heading.Level == 1 ? 16 : 12, 0, 8),
             Foreground = (IBrush)Application.Current!.FindResource("TextPrimaryBrush")!
         };
 
         if (heading.Inline != null && textBlock.Inlines != null)
         {
-            var headingLineHeightPx = fontSize * lineHeight;
             foreach (var inline in heading.Inline)
             {
-                await RenderInlineToInlinesAsync(inline, textBlock.Inlines, specialInlines, foreground, isHeading: true, contextFontSize: fontSize, contextLineHeightPx: headingLineHeightPx);
+                await RenderInlineToInlinesAsync(inline, textBlock.Inlines, specialInlines, foreground, options, isHeading: true, contextFontSize: fontSize, contextLineHeightPx: headingLineHeightPx);
             }
         }
 
         return textBlock;
     }
 
-    private async Task<Control> RenderCodeBlockAsync(CodeBlock codeBlock)
+    private Task<Control> RenderCodeBlockAsync(CodeBlock codeBlock, RenderOptions options)
     {
         var fenced = codeBlock as FencedCodeBlock;
         var language = (fenced?.Info ?? string.Empty).Trim();
         var code = fenced?.Lines.ToString() ?? ((LeafBlock)codeBlock).Lines.ToString();
-        var codeFontSize = await GetCodeFontSizeAsync();
+        var codeFontSize = options.CodeFontSize;
         var app = Application.Current!;
         var defaultFg = (app.TryGetResource("SyntaxCodeDefaultBrush", app.ActualThemeVariant, out var synFg) && synFg is IBrush sb)
             ? sb
@@ -709,7 +730,7 @@ public class MarkdownRenderer : IMarkdownRenderer
             Background = (IBrush)app.FindResource("TextControlBackgroundBrush")!,
             BorderBrush = (IBrush)app.FindResource("RichTextSeparationLineBrush")!,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = (CornerRadius)app.FindResource("Radius.Lg")!,
             Margin = new Thickness(0, 8)
         };
 
@@ -729,8 +750,8 @@ public class MarkdownRenderer : IMarkdownRenderer
         var languageLabel = new TextBlock
         {
             Text = SketchSyntaxHighlighter.GetDisplayLanguageLabel(language),
-            FontWeight = FontWeight.SemiBold,
-            FontSize = 12,
+            FontFamily = GetFontFamily("Font.SemiBold"),
+            FontSize = (double)app.FindResource("FontSize.Body.ExtraSmall")!,
             Foreground = (IBrush)app.FindResource("TextTertiaryBrush")!,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -739,7 +760,7 @@ public class MarkdownRenderer : IMarkdownRenderer
         var copyButton = new Button
         {
             Content = "Copy",
-            FontSize = 11,
+            FontSize = (double)app.FindResource("FontSize.Body.Caption")!,
             Padding = new Thickness(10, 6),
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
@@ -747,7 +768,7 @@ public class MarkdownRenderer : IMarkdownRenderer
             Foreground = (IBrush)app.FindResource("TextSecondaryBrush")!,
             BorderBrush = (IBrush)app.FindResource("RichTextSeparationLineBrush")!,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8)
+            CornerRadius = (CornerRadius)app.FindResource("Radius.Md")!
         };
         Grid.SetColumn(copyButton, 2);
         copyButton.Click += async (_, _) =>
@@ -768,7 +789,7 @@ public class MarkdownRenderer : IMarkdownRenderer
         header.Children.Add(copyButton);
         headerBorder.Child = header;
 
-        var codeFont = new FontFamily("JetBrains Mono, Cascadia Code, Consolas, Courier New, monospace");
+        var codeFont = GetFontFamily("Font.Monospace");
         var lineHeight = codeFontSize * (20.0 / 13.0);
         var codeTextBlock = new TextBlock
         {
@@ -833,10 +854,10 @@ public class MarkdownRenderer : IMarkdownRenderer
         stackPanel.Children.Add(headerBorder);
         stackPanel.Children.Add(outerScroll);
         container.Child = stackPanel;
-        return container;
+        return Task.FromResult<Control>(container);
     }
 
-    private async Task<Control> RenderQuoteAsync(QuoteBlock quote, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground)
+    private async Task<Control> RenderQuoteAsync(QuoteBlock quote, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, RenderOptions options)
     {
         var border = new Border
         {
@@ -850,7 +871,7 @@ public class MarkdownRenderer : IMarkdownRenderer
 
         foreach (var block in quote)
         {
-            var rendered = await RenderBlockAsync(block, specialInlines, foreground);
+            var rendered = await RenderBlockAsync(block, specialInlines, foreground, options);
             if (rendered != null)
                 container.Children.Add(rendered);
         }
@@ -881,12 +902,12 @@ public class MarkdownRenderer : IMarkdownRenderer
     /// inline-math box height if the paragraph contains inline LaTeX. Avalonia caps line boxes at
     /// the TextBlock.LineHeight value, so we must inflate it to prevent math from overflowing.
     /// </summary>
-    private async Task<double> GetEffectiveLineHeightAsync(ParagraphBlock paragraph, Dictionary<string, MarkdownSpecialInline> specialInlines, double lineHeightPx)
+    private async Task<double> GetEffectiveLineHeightAsync(ParagraphBlock paragraph, Dictionary<string, MarkdownSpecialInline> specialInlines, double lineHeightPx, RenderOptions options)
     {
         if (paragraph.Inline == null || specialInlines.Count == 0)
             return lineHeightPx;
 
-        var inlineFontSize = await GetMathFontSizeAsync(false);
+        var inlineFontSize = options.MathFontSize;
         const double inlinePad = 2;
         var maxLaTeXHeight = 0.0;
 
@@ -916,15 +937,13 @@ public class MarkdownRenderer : IMarkdownRenderer
         return false;
     }
 
-    private async Task<Control> RenderListAsync(ListBlock list, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, int depth = 0)
+    private async Task<Control> RenderListAsync(ListBlock list, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, RenderOptions options, int depth = 0)
     {
         // Use same spacing as document block spacing so intro line → list matches list item → list item
-        var listSpacing = await GetBlockSpacingAsync();
-        var container = new StackPanel { Spacing = listSpacing, Margin = new Thickness(0, 0) };
-        var fontSize = await GetBaseFontSizeAsync();
-        var lineHeight = await GetLineHeightAsync();
-        var letterSpacing = await GetLetterSpacingAsync();
-        var lineHeightPx = fontSize * lineHeight;
+        var container = new StackPanel { Spacing = options.BlockSpacing, Margin = new Thickness(0, 0) };
+        var fontSize = options.BaseFontSize;
+        var letterSpacing = options.LetterSpacing;
+        var lineHeightPx = options.LineHeightPx;
         var bulletLineHeight = lineHeightPx;
         int index = 1;
 
@@ -932,7 +951,7 @@ public class MarkdownRenderer : IMarkdownRenderer
         {
             var firstBlock = item.Cast<Markdig.Syntax.Block>().FirstOrDefault();
             var firstLineHeight = firstBlock is ParagraphBlock firstParagraph
-                ? await GetEffectiveLineHeightAsync(firstParagraph, specialInlines, lineHeightPx)
+                ? await GetEffectiveLineHeightAsync(firstParagraph, specialInlines, lineHeightPx, options)
                 : lineHeightPx;
 
             // When the first line is tall (inline math), offset the bullet so it aligns
@@ -968,7 +987,7 @@ public class MarkdownRenderer : IMarkdownRenderer
             foreach (var block in item)
             {
                 var blockDepth = block is ListBlock ? depth + 1 : depth;
-                var rendered = await RenderBlockAsync(block, specialInlines, foreground, blockDepth);
+                var rendered = await RenderBlockAsync(block, specialInlines, foreground, options, blockDepth);
                 if (rendered != null)
                     content.Children.Add(rendered);
             }
@@ -986,7 +1005,7 @@ public class MarkdownRenderer : IMarkdownRenderer
         return container;
     }
 
-    private async Task<Control> RenderTableAsync(Markdig.Syntax.Block table, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground)
+    private async Task<Control> RenderTableAsync(Markdig.Syntax.Block table, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, RenderOptions options)
     {
         if (table is not Markdig.Extensions.Tables.Table markdigTable)
         {
@@ -1010,7 +1029,7 @@ public class MarkdownRenderer : IMarkdownRenderer
         {
             BorderBrush = (IBrush)Application.Current!.FindResource("RichTextSeparationLineBrush")!,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
+            CornerRadius = (CornerRadius)Application.Current!.FindResource("Radius.Sm")!,
             Background = (IBrush)Application.Current!.FindResource("TextControlBackgroundBrush")!,
             Child = grid,
             HorizontalAlignment = HorizontalAlignment.Left
@@ -1048,12 +1067,12 @@ public class MarkdownRenderer : IMarkdownRenderer
 
                 foreach (var block in tableCell)
                 {
-                    var rendered = await RenderBlockAsync(block, specialInlines, foreground);
+                    var rendered = await RenderBlockAsync(block, specialInlines, foreground, options);
                     if (rendered != null)
                     {
                         if (isHeaderRow && rendered is TextBlock headerTextBlock)
                         {
-                            headerTextBlock.FontWeight = FontWeight.SemiBold;
+                            headerTextBlock.FontFamily = GetFontFamily("Font.SemiBold");
                             headerTextBlock.Foreground = (IBrush)Application.Current!.FindResource("TextPrimaryBrush")!;
                         }
                         cellContent.Children.Add(rendered);

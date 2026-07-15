@@ -1,0 +1,241 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Mnemo.UI.Modules.Chat.ViewModels"
+             xmlns:controls="using:Mnemo.UI.Controls"
+             xmlns:converters="using:Mnemo.UI.Converters"
+             xmlns:markup="using:Mnemo.UI.Markup"
+             mc:Ignorable="d" d:DesignWidth="680"
+             x:Class="Mnemo.UI.Modules.Chat.Views.ChatComposerView"
+             x:DataType="vm:ChatViewModel"
+             x:Name="ComposerRoot">
+
+    <UserControl.Resources>
+        <converters:LocalPathToBitmapConverter x:Key="ComposerPathToBitmapConverter"/>
+        <converters:ChatAttachmentKindToBoolConverter x:Key="ComposerAttachmentKindConverter"/>
+        <converters:AssistantModeToLabelConverter x:Key="ComposerAssistantModeConverter"/>
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <StyleInclude Source="avares://Mnemo.UI/Modules/Chat/Views/ChatStyles.axaml"/>
+
+        <!-- Response-length dropdown as a quiet ghost pill -->
+        <Style Selector="controls|ModernComboBox.PromptPill">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Md}"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}"/>
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Composer card -->
+    <Border Background="{DynamicResource CardBackgroundPrimaryBrush}"
+            BorderBrush="{DynamicResource SidebarBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource Radius.Xl}"
+            BoxShadow="{StaticResource Elevation.1}">
+        <Grid RowDefinitions="Auto,Auto,Auto">
+
+            <!-- Staged attachments -->
+            <ItemsControl Grid.Row="0"
+                          ItemsSource="{Binding PendingAttachments}"
+                          IsVisible="{Binding !!PendingAttachments.Count}"
+                          Margin="14,8,14,0">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:ChatAttachmentViewModel">
+                        <Panel Margin="0,6,10,4">
+                            <!-- Image thumbnail -->
+                            <Border Width="52" Height="52"
+                                    CornerRadius="{StaticResource Radius.Md}"
+                                    ClipToBounds="True"
+                                    BorderBrush="{DynamicResource SidebarBorderBrush}"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource CardBackgroundSecondaryBrush}"
+                                    IsVisible="{Binding Kind, Converter={StaticResource ComposerAttachmentKindConverter}, ConverterParameter=Image}">
+                                <Image Source="{Binding Path, Converter={StaticResource ComposerPathToBitmapConverter}}"
+                                       Stretch="UniformToFill"/>
+                            </Border>
+                            <!-- File chip -->
+                            <Border Height="52"
+                                    CornerRadius="{StaticResource Radius.Md}"
+                                    Background="{DynamicResource SurfaceSubtleBrush}"
+                                    BorderBrush="{DynamicResource SidebarBorderBrush}"
+                                    BorderThickness="1"
+                                    Padding="10,0,12,0"
+                                    IsVisible="{Binding Kind, Converter={StaticResource ComposerAttachmentKindConverter}, ConverterParameter=File}">
+                                <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                                    <Border Width="30" Height="30"
+                                            CornerRadius="{StaticResource Radius.Sm}"
+                                            Background="{DynamicResource AccentSubtleBackgroundBrush}">
+                                        <controls:AppIcon Icon="Common/file-text"
+                                                          Width="14" Height="14"
+                                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          Color="{DynamicResource AccentBrush}"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                                        <TextBlock Text="{Binding DisplayName}"
+                                                   FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                                   FontFamily="{DynamicResource Font.Medium}"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   MaxWidth="150"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding SizeText}"
+                                                   IsVisible="{Binding HasSizeText}"
+                                                   FontSize="{DynamicResource FontSize.Body.Caption}"
+                                                   Foreground="{DynamicResource TextFadedBrush}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <!-- Floating remove badge -->
+                            <Button Width="17" Height="17"
+                                    CornerRadius="9"
+                                    Background="{DynamicResource TextPrimaryBrush}"
+                                    BorderThickness="0"
+                                    Padding="0"
+                                    HorizontalAlignment="Right" VerticalAlignment="Top"
+                                    Margin="0,-5,-5,0"
+                                    Cursor="Hand"
+                                    Command="{Binding RemoveCommand}"
+                                    CommandParameter="{Binding}">
+                                <controls:AppIcon Icon="Common/x"
+                                                  Width="9" Height="9"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  Color="{DynamicResource WorkspaceBackgroundBrush}"/>
+                            </Button>
+                        </Panel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Input -->
+            <TextBox x:Name="InputBox"
+                     Grid.Row="1"
+                     Classes="TransparentBackground"
+                     PlaceholderText="{Binding #ComposerRoot.Placeholder}"
+                     AcceptsReturn="False"
+                     TextWrapping="Wrap"
+                     MinHeight="52"
+                     MaxHeight="160"
+                     BorderThickness="0"
+                     Background="{DynamicResource TextControlTransparentBackgroundBrush}"
+                     Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
+                     Padding="16,16,16,4"/>
+
+            <!-- Toolbar -->
+            <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto" Margin="11,2,11,11">
+                <Button Grid.Column="0"
+                        Classes="chatIconBtn"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="{markup:T Ns=Chat, Key=AddAttachment}"
+                        Click="AddAttachment_Click">
+                    <controls:AppIcon Icon="Common/paperclip" Width="15" Height="15"
+                                      Color="{Binding $parent[Button].Foreground}"/>
+                </Button>
+                <Button Grid.Column="1"
+                        Classes="chatIconBtn"
+                        Margin="2,0,4,0"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="{markup:T Ns=Chat, Key=AddScreenshot}"
+                        Click="AddScreenshot_Click">
+                    <controls:AppIcon Icon="Common/camera" Width="15" Height="15"
+                                      Color="{Binding $parent[Button].Foreground}"/>
+                </Button>
+                <ToggleButton Grid.Column="2"
+                              Classes="chatTogglePill"
+                              VerticalAlignment="Center"
+                              IsChecked="{Binding IsWebSearchEnabled, Mode=TwoWay}"
+                              ToolTip.Tip="{markup:T Ns=Chat, Key=WebSearch}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <controls:AppIcon Icon="Common/globe" Width="13" Height="13"
+                                          VerticalAlignment="Center"
+                                          Color="{Binding $parent[ToggleButton].Foreground}"/>
+                        <TextBlock Text="{markup:T Ns=Chat, Key=WebSearch}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </ToggleButton>
+                <controls:ModernComboBox Grid.Column="3"
+                                         Classes="PromptPill"
+                                         ItemsSource="{Binding AssistantModes}"
+                                         SelectedItem="{Binding SelectedAssistantMode}"
+                                         MinWidth="78"
+                                         Margin="4,0,0,0"
+                                         VerticalAlignment="Center"
+                                         ToolTip.Tip="{markup:T Ns=Chat, Key=AssistantMode}">
+                    <controls:ModernComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Converter={StaticResource ComposerAssistantModeConverter}}"
+                                       FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                       FontFamily="{DynamicResource Font.Medium}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </DataTemplate>
+                    </controls:ModernComboBox.ItemTemplate>
+                </controls:ModernComboBox>
+                <Border Grid.Column="4"
+                        IsVisible="{Binding ShowMemoryPill}"
+                        VerticalAlignment="Center"
+                        Margin="6,0,0,0"
+                        Background="{DynamicResource SurfaceSubtleBrush}"
+                        BorderBrush="{DynamicResource SidebarBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource Radius.Pill}"
+                        Padding="10,4"
+                        MaxWidth="180"
+                        Cursor="Help">
+                    <ToolTip.Tip>
+                        <TextBlock Text="{Binding MemoryPillTooltipText}"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="420"
+                                   FontSize="{DynamicResource FontSize.Body.Small}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    </ToolTip.Tip>
+                    <TextBlock Text="{Binding MemoryPillDisplayText}"
+                               TextTrimming="CharacterEllipsis"
+                               FontSize="{DynamicResource FontSize.Body.Caption}"
+                               FontFamily="{DynamicResource Font.Medium}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                </Border>
+                <!-- Model readiness dot (offline / warming / ready) -->
+                <Border Grid.Column="6"
+                        Width="14" Height="14" CornerRadius="7"
+                        Background="{DynamicResource AccentSubtleBackgroundBrush}"
+                        VerticalAlignment="Center"
+                        Margin="0,0,10,0"
+                        ToolTip.Tip="{Binding AiStatusTooltip}">
+                    <Border Width="6" Height="6" CornerRadius="3"
+                            Background="{Binding AiStatusBrush}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Panel Grid.Column="7" VerticalAlignment="Center">
+                    <Button Classes="chatSendCircle"
+                            Command="{Binding SendMessageCommand}"
+                            IsVisible="{Binding !IsBusy}"
+                            ToolTip.Tip="{markup:T Ns=Chat, Key=SendEnter}">
+                        <controls:AppIcon Icon="Common/arrow-up"
+                                          Width="15" Height="15"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Color="{DynamicResource AccentButtonIconBrush}"/>
+                    </Button>
+                    <Button Classes="chatStopCircle"
+                            Command="{Binding StopCommand}"
+                            IsVisible="{Binding IsBusy}"
+                            ToolTip.Tip="{markup:T Ns=Chat, Key=Stop}">
+                        <controls:AppIcon Icon="Common/stop"
+                                          Width="14" Height="14"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Color="{DynamicResource StopButtonForegroundBrush}"/>
+                    </Button>
+                </Panel>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

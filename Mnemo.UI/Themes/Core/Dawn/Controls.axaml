@@ -49,6 +49,10 @@
     <SolidColorBrush x:Key="ChatProcessStateDoneGlyphBrush" Color="{DynamicResource ChatProcessStateDoneGlyph}"/>
     <SolidColorBrush x:Key="ChatProcessStateActiveBrush" Color="{DynamicResource ChatProcessStateActive}"/>
     <SolidColorBrush x:Key="ChatProcessStatePendingBrush" Color="{DynamicResource ChatProcessStatePending}"/>
+    <SolidColorBrush x:Key="ChatProcessSpinnerTrackBrush" Color="{DynamicResource ChatProcessSpinnerTrack}"/>
+    <SolidColorBrush x:Key="ChatProcessStateFailedFillBrush" Color="{DynamicResource ChatProcessStateFailedFill}"/>
+    <SolidColorBrush x:Key="ChatProcessStateFailedGlyphBrush" Color="{DynamicResource ChatProcessStateFailedGlyph}"/>
+    <SolidColorBrush x:Key="SurfaceSubtleBrush" Color="{DynamicResource SurfaceSubtle}"/>
     
     <!-- All other brushes from theme.axaml -->
     <SolidColorBrush x:Key="LinksBrush" Color="{DynamicResource Links}"/>

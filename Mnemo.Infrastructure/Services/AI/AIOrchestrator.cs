@@ -54,7 +54,8 @@ public sealed class AIOrchestrator : IAIOrchestrator
         IProgress<string>? pipelineStatus = null,
         string? conversationRoutingKey = null,
         Action<ChatToolCall>? onToolCall = null,
-        Action<string>? onAssistantReasoningUpdate = null)
+        Action<string>? onAssistantReasoningUpdate = null,
+        Action<string>? onAssistantNarration = null)
     {
         // C# forbids `yield return` inside a try/catch, so a background producer owns all error
         // handling and the visible tokens flow back through an unbounded channel. Unbounded means
@@ -75,6 +76,7 @@ public sealed class AIOrchestrator : IAIOrchestrator
             conversationRoutingKey,
             onToolCall,
             onAssistantReasoningUpdate,
+            onAssistantNarration,
             linkedCts.Token);
 
         try
@@ -107,13 +109,14 @@ public sealed class AIOrchestrator : IAIOrchestrator
         string? conversationRoutingKey,
         Action<ChatToolCall>? onToolCall,
         Action<string>? onAssistantReasoningUpdate,
+        Action<string>? onAssistantNarration,
         CancellationToken ct)
     {
         try
         {
             await RunStreamRoundsAsync(
                 writer, systemPrompt, history, userMessage,
-                pipelineStatus, conversationRoutingKey, onToolCall, onAssistantReasoningUpdate, ct)
+                pipelineStatus, conversationRoutingKey, onToolCall, onAssistantReasoningUpdate, onAssistantNarration, ct)
                 .ConfigureAwait(false);
             writer.Complete();
         }
@@ -139,8 +142,16 @@ public sealed class AIOrchestrator : IAIOrchestrator
         string? conversationRoutingKey,
         Action<ChatToolCall>? onToolCall,
         Action<string>? onAssistantReasoningUpdate,
+        Action<string>? onAssistantNarration,
         CancellationToken ct)
     {
+        // When a narration sink is supplied, mid-turn visible text (prose emitted in a round that then
+        // calls tools) is routed there rather than into the answer stream, so the yielded tokens are only
+        // the final post-tool text block. A round's disposition (narration vs answer) is known only once
+        // its stream ends, so in this mode a round's content is buffered and released at the round boundary
+        // instead of streamed live; the terminal answer still reveals progressively via the UI pacing.
+        var divertNarration = onAssistantNarration is not null;
+
         var route = await _router.ResolveChatAsync(AiRole.Assistant, ct).ConfigureAwait(false);
         if (route is not { Status: AiRouteStatus.Available, Binding: { } binding })
         {
@@ -187,7 +198,10 @@ public sealed class AIOrchestrator : IAIOrchestrator
                 {
                     case ChatStreamDelta.Content content when content.Text.Length > 0:
                         visibleText.Append(content.Text);
-                        writer.TryWrite(content.Text);
+                        // In diversion mode we can't stream yet: this text is only known to be the answer
+                        // (vs narration) once the round ends. It is released after the round below.
+                        if (!divertNarration)
+                            writer.TryWrite(content.Text);
                         break;
                     case ChatStreamDelta.Reasoning reasoningDelta:
                         reasoning.Append(reasoningDelta.Text);
@@ -203,8 +217,16 @@ public sealed class AIOrchestrator : IAIOrchestrator
 
             if (toolCalls.Count == 0)
             {
+                // Terminal round: its visible text is the answer. In diversion mode it was buffered, so
+                // release it now for the UI to reveal; in legacy mode it was already streamed live.
+                if (divertNarration && visibleText.Length > 0)
+                    writer.TryWrite(visibleText.ToString());
                 return;
             }
+
+            // This round called tools, so any visible text it produced is narration, not the answer.
+            if (divertNarration && visibleText.Length > 0)
+                onAssistantNarration!.Invoke(visibleText.ToString());
 
             messages.Add(ChatMessage.AssistantToolCalls(toolCalls, visibleText.Length > 0 ? visibleText.ToString() : null));
 

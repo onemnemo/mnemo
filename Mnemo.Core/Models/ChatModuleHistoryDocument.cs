@@ -59,7 +59,13 @@ public sealed class ChatModulePersistedMessage
 
     public string? ElapsedText { get; set; }
 
+    /// <summary>Collapsed-trace summary suffix, e.g. "used 2 tools".</summary>
+    public string? ProcessSummaryText { get; set; }
+
     public bool? ProcessThreadExpanded { get; set; }
+
+    /// <summary>Reader feedback: 0 none, 1 up, 2 down.</summary>
+    public int Feedback { get; set; }
 
     public List<ChatModulePersistedProcessStep>? ProcessSteps { get; set; }
 }
@@ -71,7 +77,10 @@ public sealed class ChatModulePersistedProcessStep
 
     public string? Detail { get; set; }
 
-    /// <summary>Phase kind name for reload: Routing, Model, Generating, Tool, or Continuing.</summary>
+    /// <summary>Quoted mid-turn prose for a Narration step; null for other kinds.</summary>
+    public string? Narration { get; set; }
+
+    /// <summary>Phase kind name for reload: Routing, Model, Generating, Tool, Continuing, or Narration.</summary>
     public string PhaseKind { get; set; } = "Routing";
 
     public bool IsComplete { get; set; } = true;

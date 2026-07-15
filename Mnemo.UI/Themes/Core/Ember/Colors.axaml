@@ -37,11 +37,14 @@
     <Color x:Key="AccentButtonIcon">#1c0f0b</Color>
     <Color x:Key="GhostButtonIcon">#9d9289</Color>
 
-    <!-- Chat: thought-process step state icons -->
-    <Color x:Key="ChatProcessStateDoneFill">#6cc592</Color>
-    <Color x:Key="ChatProcessStateDoneGlyph">#1c0f0b</Color>
+    <!-- Chat: reasoning-trace step states (sage disc + green check, accent spinner on a soft track) -->
+    <Color x:Key="ChatProcessStateDoneFill">#2C3A29</Color>
+    <Color x:Key="ChatProcessStateDoneGlyph">#6CC592</Color>
     <Color x:Key="ChatProcessStateActive">#e95b45</Color>
     <Color x:Key="ChatProcessStatePending">#b3a89f</Color>
+    <Color x:Key="ChatProcessSpinnerTrack">#46251C</Color>
+    <Color x:Key="ChatProcessStateFailedFill">#3B211D</Color>
+    <Color x:Key="ChatProcessStateFailedGlyph">#E28B80</Color>
     
     <!-- All other color definitions from theme.axaml -->
     <Color x:Key="Links">#f2826f</Color>
@@ -67,6 +70,8 @@
     <Color x:Key="WidgetIconColor5">#b3a89f</Color>
     <Color x:Key="CardBackgroundPrimary">Transparent</Color>
     <Color x:Key="CardBackgroundSecondary">#211b18</Color>
+    <!-- Faintest surface tint above the workspace (trace/source cards, quiet inset panels) -->
+    <Color x:Key="SurfaceSubtle">#1D1815</Color>
     <Color x:Key="Accent">#e95b45</Color>
     <Color x:Key="AccentSubtleBackground">#26E95B45</Color>
     <Color x:Key="AccentBorderSubtle">#59E95B45</Color>

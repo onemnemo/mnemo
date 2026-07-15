@@ -20,10 +20,15 @@ public sealed class ChatViewModelDataContextCommandConverter : IValueConverter
         {
             "Suggestion" => vm.SuggestionSelectedCommand,
             "Regenerate" => vm.RegenerateAssistantMessageCommand,
-            "Copy" => vm.CopyAssistantMessageCommand,
+            "Copy" => vm.CopyMessageCommand,
+            "ThumbUp" => vm.ToggleThumbUpCommand,
+            "ThumbDown" => vm.ToggleThumbDownCommand,
             "OpenImagePreview" => vm.OpenImagePreviewCommand,
             "RenameChat" => vm.RenameChatCommand,
             "DeleteChat" => vm.DeleteChatCommand,
+            "BeginEdit" => vm.BeginEditMessageCommand,
+            "CancelEdit" => vm.CancelEditMessageCommand,
+            "SubmitEdit" => vm.SubmitEditedMessageCommand,
             _ => null
         };
     }

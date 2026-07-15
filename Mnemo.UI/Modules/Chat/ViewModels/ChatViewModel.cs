@@ -38,6 +38,9 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     /// <summary>Number of turns between automatic summarizations.</summary>
     private const int SummarizationInterval = 3;
 
+    /// <summary>Grace period after the final token before the trace auto-collapses to its summary.</summary>
+    private const int TraceAutoCollapseDelayMs = 600;
+
     /// <summary>Settings key for the user's display name (shared with Overview greeting).</summary>
     private const string UserDisplayNameKey = "User.DisplayName";
 
@@ -106,6 +109,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
                 DeleteChatCommand.NotifyCanExecuteChanged();
                 RenameChatCommand.NotifyCanExecuteChanged();
                 RegenerateAssistantMessageCommand.NotifyCanExecuteChanged();
+                BeginEditMessageCommand.NotifyCanExecuteChanged();
+                SubmitEditedMessageCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -149,10 +154,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         private set => SetProperty(ref _profilePicturePath, value);
     }
 
-    /// <summary>Rich suggestion cards (icon + title + description) shown on the landing/empty state.</summary>
-    public ObservableCollection<ChatLandingSuggestionViewModel> LandingSuggestions { get; } = new();
-
-    /// <summary>Compact quick-action pills shown above the landing composer; sends the prompt on click.</summary>
+    /// <summary>Compact quick-action pills shown under the landing composer; sends the prompt on click.</summary>
     public ObservableCollection<ChatLandingSuggestionViewModel> LandingQuickActions { get; } = new();
 
     private const string WebSearchEnabledKey = "AI.WebSearch.Enabled";
@@ -181,6 +183,17 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
 
     /// <summary>True when the empty-state welcome + suggestions should show (no user messages in the thread yet).</summary>
     public bool ShowWelcomeIntro => _isHistoryReady && !Messages.Any(m => m.IsUser);
+
+    private string _activeConversationTitle = string.Empty;
+    /// <summary>Title of the active thread, shown in the session header above the conversation.</summary>
+    public string ActiveConversationTitle
+    {
+        get => _activeConversationTitle;
+        private set => SetProperty(ref _activeConversationTitle, value);
+    }
+
+    /// <summary>Id of the active thread; parameter for the session-header rename/delete commands.</summary>
+    public string ActiveConversationId => _conversationId;
 
     private static readonly Avalonia.Media.IBrush AiOfflineBrush =
         new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#9CA3AF"));
@@ -278,7 +291,13 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     public ICommand OpenImagePreviewCommand { get; }
 
     public AsyncRelayCommand<ChatMessageViewModel> RegenerateAssistantMessageCommand { get; }
-    public AsyncRelayCommand<ChatMessageViewModel> CopyAssistantMessageCommand { get; }
+    public AsyncRelayCommand<ChatMessageViewModel> CopyMessageCommand { get; }
+    public RelayCommand<ChatMessageViewModel> ToggleThumbUpCommand { get; }
+    public RelayCommand<ChatMessageViewModel> ToggleThumbDownCommand { get; }
+
+    public RelayCommand<ChatMessageViewModel> BeginEditMessageCommand { get; }
+    public RelayCommand<ChatMessageViewModel> CancelEditMessageCommand { get; }
+    public AsyncRelayCommand<ChatMessageViewModel> SubmitEditedMessageCommand { get; }
 
     public IAsyncRelayCommand<string> DeleteChatCommand { get; }
     public IRelayCommand<string> RenameChatCommand { get; }
@@ -352,12 +371,17 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         OpenImagePreviewCommand = new RelayCommand<string>(OpenImagePreview);
 
         RegenerateAssistantMessageCommand = new AsyncRelayCommand<ChatMessageViewModel>(RegenerateAssistantMessageAsync, CanRegenerateAssistantMessage);
-        CopyAssistantMessageCommand = new AsyncRelayCommand<ChatMessageViewModel>(CopyAssistantMessageAsync);
+        CopyMessageCommand = new AsyncRelayCommand<ChatMessageViewModel>(CopyMessageAsync);
+        ToggleThumbUpCommand = new RelayCommand<ChatMessageViewModel>(m => ToggleFeedback(m, MessageFeedback.Up));
+        ToggleThumbDownCommand = new RelayCommand<ChatMessageViewModel>(m => ToggleFeedback(m, MessageFeedback.Down));
+        BeginEditMessageCommand = new RelayCommand<ChatMessageViewModel>(BeginEditMessage, CanEditUserMessage);
+        CancelEditMessageCommand = new RelayCommand<ChatMessageViewModel>(CancelEditMessage);
+        SubmitEditedMessageCommand = new AsyncRelayCommand<ChatMessageViewModel>(SubmitEditedMessageAsync, CanEditUserMessage);
 
         DeleteChatCommand = new AsyncRelayCommand<string>(DeleteChatAsync, CanModifyChat);
         RenameChatCommand = new AsyncRelayCommand<string>(BeginRenameChatAsync, CanModifyChat);
 
-        RefreshLandingSuggestions();
+        RefreshLandingQuickActions();
 
         _settingsService.SettingChanged += OnSettingsServiceSettingChanged;
         _localizationService.LanguageChanged += OnLocalizationLanguageChanged;
@@ -384,52 +408,28 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         }
     }
 
-    private void RefreshLandingSuggestions()
+    private void RefreshLandingQuickActions()
     {
-        LandingSuggestions.Clear();
-        LandingSuggestions.Add(new ChatLandingSuggestionViewModel(
-            _localizationService.T("Suggestion1Title", "Chat"),
-            _localizationService.T("Suggestion1Prompt", "Chat"),
-            "avares://Mnemo.UI/Icons/Sidebar/flashcard.svg",
-            SendSuggestionCommand,
-            _localizationService.T("Suggestion1Description", "Chat"),
-            "#6366F1"));
-        LandingSuggestions.Add(new ChatLandingSuggestionViewModel(
-            _localizationService.T("Suggestion2Title", "Chat"),
-            _localizationService.T("Suggestion2Prompt", "Chat"),
-            "avares://Mnemo.UI/Icons/Common/file-text.svg",
-            SendSuggestionCommand,
-            _localizationService.T("Suggestion2Description", "Chat"),
-            "#3B82F6"));
-        LandingSuggestions.Add(new ChatLandingSuggestionViewModel(
-            _localizationService.T("Suggestion3Title", "Chat"),
-            _localizationService.T("Suggestion3Prompt", "Chat"),
-            "avares://Mnemo.UI/Icons/Common/pencil.svg",
-            SendSuggestionCommand,
-            _localizationService.T("Suggestion3Description", "Chat"),
-            "#10B981"));
-
         LandingQuickActions.Clear();
         LandingQuickActions.Add(new ChatLandingSuggestionViewModel(
             _localizationService.T("QuickActionFlashcards", "Chat"),
             _localizationService.T("QuickActionFlashcardsPrompt", "Chat"),
-            "avares://Mnemo.UI/Icons/Sidebar/flashcard.svg",
-            SendSuggestionCommand,
-            isPrimary: true));
+            "Sidebar/flashcard",
+            SendSuggestionCommand));
         LandingQuickActions.Add(new ChatLandingSuggestionViewModel(
             _localizationService.T("QuickActionSummarize", "Chat"),
             _localizationService.T("QuickActionSummarizePrompt", "Chat"),
-            "avares://Mnemo.UI/Icons/Common/file-text.svg",
+            "Common/file-text",
             SendSuggestionCommand));
         LandingQuickActions.Add(new ChatLandingSuggestionViewModel(
             _localizationService.T("QuickActionQuiz", "Chat"),
             _localizationService.T("QuickActionQuizPrompt", "Chat"),
-            "avares://Mnemo.UI/Icons/Common/pencil.svg",
+            "Common/pencil",
             SendSuggestionCommand));
         LandingQuickActions.Add(new ChatLandingSuggestionViewModel(
             _localizationService.T("QuickActionConceptMap", "Chat"),
             _localizationService.T("QuickActionConceptMapPrompt", "Chat"),
-            "avares://Mnemo.UI/Icons/Common/sitemap.svg",
+            "Common/sitemap",
             SendSuggestionCommand));
     }
 
@@ -464,10 +464,12 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     {
         Dispatcher.UIThread.Post(() =>
         {
-            RefreshLandingSuggestions();
+            RefreshLandingQuickActions();
             OnPropertyChanged(nameof(GreetingText));
             OnPropertyChanged(nameof(GreetingSubtitle));
             RefreshAiStatusUi(_aiSystemMonitor.State);
+            RebucketConversationRows();
+            RefreshActiveConversationHeader();
         });
     }
 
@@ -654,6 +656,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         if (IsBusy)
             StopGeneration();
         if (id == _conversationId) return;
+        CancelActiveEdits();
         if (persistBookends && !_isEphemeralConversation && _chatSessions.ContainsKey(_conversationId))
             PersistFireAndForget();
         if (_isEphemeralConversation)
@@ -673,12 +676,14 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         if (persistBookends)
             PersistFireAndForget();
         NotifyShowWelcomeIntroChanged();
+        RefreshActiveConversationHeader();
         RefreshMemoryPillUi();
     }
 
     /// <summary>Starts a new thread that only appears in the sidebar and storage after the first user message.</summary>
     private void EnterEphemeralConversation(bool persistIfLeavingMaterialized)
     {
+        CancelActiveEdits();
         if (persistIfLeavingMaterialized && !_isEphemeralConversation && _chatSessions.ContainsKey(_conversationId))
             PersistFireAndForget();
 
@@ -698,6 +703,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         OnPropertyChanged(nameof(SelectedAssistantMode));
         NotifyShowWelcomeIntroChanged();
         RequestScrollToBottom?.Invoke(this, EventArgs.Empty);
+        RefreshActiveConversationHeader();
         RefreshMemoryPillUi();
     }
 
@@ -716,15 +722,18 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         var row = new ChatConversationRowViewModel(id, i => SelectConversationById(i))
         {
             Title = _localizationService.T("NewChat", "Chat"),
-            IsSelected = true
+            IsSelected = true,
+            LastActivityUtc = session.LastActivityUtc
         };
         foreach (var r in ConversationRows)
             r.IsSelected = false;
         ConversationRows.Insert(0, row);
+        RebucketConversationRows();
         ResubscribeActiveMessages();
         OnPropertyChanged(nameof(Messages));
         OnPropertyChanged(nameof(SelectedAssistantMode));
         NotifyShowWelcomeIntroChanged();
+        RefreshActiveConversationHeader();
         RefreshMemoryPillUi();
     }
 
@@ -804,10 +813,13 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             var row = new ChatConversationRowViewModel(session.Id, id => SelectConversationById(id))
             {
                 Title = FormatTitleForRow(session),
-                IsSelected = false
+                IsSelected = false,
+                LastActivityUtc = session.LastActivityUtc
             };
             ConversationRows.Add(row);
         }
+
+        RebucketConversationRows();
 
         var active = ordered[0];
         _conversationId = active.Id;
@@ -818,6 +830,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         OnPropertyChanged(nameof(SelectedAssistantMode));
         NotifyShowWelcomeIntroChanged();
         RequestScrollToBottom?.Invoke(this, EventArgs.Empty);
+        RefreshActiveConversationHeader();
         RefreshMemoryPillUi();
     }
 
@@ -924,12 +937,16 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             vm.ProcessHeaderText = m.ProcessHeaderText!;
         if (!string.IsNullOrEmpty(m.ElapsedText))
             vm.ElapsedText = m.ElapsedText;
+        vm.ProcessSummaryText = m.ProcessSummaryText;
+        vm.Feedback = m.Feedback is >= 0 and <= 2 ? (MessageFeedback)m.Feedback : MessageFeedback.None;
         vm.IsProcessThreadExpanded = m.ProcessThreadExpanded ?? false;
 
         if (m.ProcessSteps is not { Count: > 0 }) return;
 
         foreach (var step in m.ProcessSteps)
             vm.ProcessSteps.Add(MapStepFromPersisted(step));
+
+        vm.ProcessSteps[^1].IsLast = true;
     }
 
     private static ChatProcessStepViewModel MapStepFromPersisted(ChatModulePersistedProcessStep s)
@@ -940,8 +957,9 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
 
         var vm = new ChatProcessStepViewModel
         {
-            Label = s.Label ?? string.Empty,
+            SimpleLabel = s.Label ?? string.Empty,
             Detail = s.Detail,
+            Narration = s.Narration,
             PhaseKind = phase,
             IsComplete = true,
             IsActive = false,
@@ -999,6 +1017,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         msg.ThoughtsCount = m.ThoughtsCount;
         msg.ProcessHeaderText = m.ProcessHeaderText;
         msg.ElapsedText = m.ElapsedText;
+        msg.ProcessSummaryText = m.ProcessSummaryText;
+        msg.Feedback = (int)m.Feedback;
         msg.ProcessThreadExpanded = m.IsProcessThreadExpanded;
 
         if (m.ProcessSteps.Count == 0) return;
@@ -1012,6 +1032,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         {
             Label = s.Label,
             Detail = s.Detail,
+            Narration = s.Narration,
             PhaseKind = s.PhaseKind.ToString(),
             IsComplete = s.IsComplete,
             ToolCalls = s.ToolCalls.Count == 0
@@ -1096,6 +1117,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         OnPropertyChanged(nameof(CanSwitchChatHistory));
         DeleteChatCommand.NotifyCanExecuteChanged();
         RenameChatCommand.NotifyCanExecuteChanged();
+        BeginEditMessageCommand.NotifyCanExecuteChanged();
+        SubmitEditedMessageCommand.NotifyCanExecuteChanged();
     }
 
     private string FormatTitleForRow(ChatSession session)
@@ -1109,6 +1132,44 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         }
 
         return DeriveConversationTitle(session.Messages);
+    }
+
+    /// <summary>Recomputes the session-header title/id bindings after the active thread changes.</summary>
+    private void RefreshActiveConversationHeader()
+    {
+        OnPropertyChanged(nameof(ActiveConversationId));
+        var session = ActiveSession;
+        ActiveConversationTitle = session != null
+            ? FormatTitleForRow(session)
+            : _localizationService.T("NewChat", "Chat");
+        RenameChatCommand.NotifyCanExecuteChanged();
+        DeleteChatCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Assigns each sidebar row its day-group label and marks the first row of every group.</summary>
+    private void RebucketConversationRows()
+    {
+        string? previous = null;
+        foreach (var row in ConversationRows)
+        {
+            var label = GetSectionLabel(row.LastActivityUtc);
+            row.SectionLabel = label;
+            row.ShowSectionLabel = !string.Equals(label, previous, StringComparison.Ordinal);
+            previous = label;
+        }
+    }
+
+    private string GetSectionLabel(DateTime lastActivityUtc)
+    {
+        var today = DateTime.Today;
+        var day = lastActivityUtc == default ? today : lastActivityUtc.ToLocalTime().Date;
+        if (day >= today)
+            return _localizationService.T("SectionToday", "Chat");
+        if (day == today.AddDays(-1))
+            return _localizationService.T("SectionYesterday", "Chat");
+        if (day > today.AddDays(-7))
+            return _localizationService.T("SectionPrevious7Days", "Chat");
+        return _localizationService.T("SectionOlder", "Chat");
     }
 
     private string GetEditableTitle(ChatSession session)
@@ -1150,6 +1211,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         var row = FindRow(conversationId);
         if (row != null)
             row.Title = FormatTitleForRow(session);
+        if (conversationId == _conversationId)
+            RefreshActiveConversationHeader();
         PersistFireAndForget();
     }
 
@@ -1175,6 +1238,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         var row = FindRow(conversationId);
         if (row != null)
             ConversationRows.Remove(row);
+        RebucketConversationRows();
         _memoryStore.Evict(conversationId);
 
         if (!wasActive)
@@ -1250,14 +1314,20 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         var session = ActiveSession;
         if (session == null) return;
         session.LastActivityUtc = DateTime.UtcNow;
+        var row = FindRow(_conversationId);
+        if (row != null)
+            row.LastActivityUtc = session.LastActivityUtc;
         MoveActiveRowToTop();
         RefreshActiveRowTitle();
+        RebucketConversationRows();
+        RefreshActiveConversationHeader();
     }
 
     private async Task SendMessageAsync()
     {
         if (!_isHistoryReady || string.IsNullOrWhiteSpace(InputText) || IsBusy) return;
 
+        CancelActiveEdits();
         MaterializeEphemeralConversation();
 
         var userMessage = InputText;
@@ -1290,7 +1360,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         {
             Content = string.Empty,
             IsUser = false,
-            IsStreaming = true
+            IsStreaming = true,
+            IsProcessThreadExpanded = true
         };
         Messages.Add(aiMessage);
 
@@ -1323,7 +1394,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         {
             Content = string.Empty,
             IsUser = false,
-            IsStreaming = true
+            IsStreaming = true,
+            IsProcessThreadExpanded = true
         };
         Messages.Insert(idx, newAi);
 
@@ -1331,9 +1403,9 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         await RunAssistantStreamingTurnCoreAsync(newAi, userMessage.Content, imagePaths).ConfigureAwait(false);
     }
 
-    private async Task CopyAssistantMessageAsync(ChatMessageViewModel? message)
+    private async Task CopyMessageAsync(ChatMessageViewModel? message)
     {
-        if (message == null || message.IsUser || string.IsNullOrWhiteSpace(message.Content)) return;
+        if (message == null || string.IsNullOrWhiteSpace(message.Content)) return;
         try
         {
             var text = message.Content;
@@ -1347,6 +1419,15 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         {
             _logger.Error("Chat", $"Copy to clipboard failed: {ex}");
         }
+    }
+
+    /// <summary>Toggles thumbs feedback: clicking the active direction clears it, otherwise sets it.</summary>
+    private void ToggleFeedback(ChatMessageViewModel? message, MessageFeedback direction)
+    {
+        if (message == null || message.IsUser)
+            return;
+        message.Feedback = message.Feedback == direction ? MessageFeedback.None : direction;
+        PersistFireAndForget();
     }
 
     private bool CanRegenerateAssistantMessage(ChatMessageViewModel? m) =>
@@ -1366,6 +1447,73 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
                 return Messages[i];
         }
         return null;
+    }
+
+    private bool CanEditUserMessage(ChatMessageViewModel? message) =>
+        message is { IsUser: true } && !IsBusy && _isHistoryReady;
+
+    private void BeginEditMessage(ChatMessageViewModel? message)
+    {
+        if (!CanEditUserMessage(message)) return;
+        CancelActiveEdits();
+        message!.EditText = message.Content;
+        message.IsEditing = true;
+    }
+
+    private void CancelEditMessage(ChatMessageViewModel? message)
+    {
+        if (message != null)
+            message.IsEditing = false;
+    }
+
+    /// <summary>Applies the edited text, discards everything after that message, and re-runs the assistant from there.</summary>
+    private async Task SubmitEditedMessageAsync(ChatMessageViewModel? message)
+    {
+        if (!CanEditUserMessage(message)) return;
+        var newContent = message!.EditText.Trim();
+        if (newContent.Length == 0) return;
+
+        var idx = Messages.IndexOf(message);
+        if (idx < 0) return;
+
+        message.IsEditing = false;
+        message.Content = newContent;
+        for (var i = Messages.Count - 1; i > idx; i--)
+            Messages.RemoveAt(i);
+
+        TouchActiveConversationAfterUserMessage();
+
+        var imagePaths = new List<string>();
+        if (message.Attachments != null)
+        {
+            foreach (var a in message.Attachments)
+            {
+                if (a.Kind == ChatAttachmentKind.Image)
+                    imagePaths.Add(a.Path);
+            }
+        }
+
+        var aiMessage = new ChatMessageViewModel
+        {
+            Content = string.Empty,
+            IsUser = false,
+            IsStreaming = true,
+            IsProcessThreadExpanded = true
+        };
+        Messages.Add(aiMessage);
+
+        IsBusy = true;
+        await RunAssistantStreamingTurnCoreAsync(aiMessage, newContent, imagePaths).ConfigureAwait(false);
+    }
+
+    /// <summary>Exits inline-edit mode on every message in the active thread.</summary>
+    private void CancelActiveEdits()
+    {
+        foreach (var m in Messages)
+        {
+            if (m.IsEditing)
+                m.IsEditing = false;
+        }
     }
 
     /// <summary>Runs orchestration and streaming for an assistant bubble that is already in <see cref="Messages"/>.</summary>
@@ -1444,6 +1592,13 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
                 }, DispatcherPriority.Background);
             };
 
+            void OnNarration(string text) =>
+                Dispatcher.UIThread.Post(() =>
+                {
+                    processThread?.AddNarration(text);
+                    aiMessage.ThoughtsCount += 1;
+                }, DispatcherPriority.Background);
+
             var (foundResponse, finalContent) = await ChatStreamingHelper.RunStreamingWithHistoryAsync(
                 _orchestrator,
                 baseSystemPrompt,
@@ -1455,7 +1610,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
                 conversationRoutingKey: streamingTurn.ConversationId,
                 displayOptions,
                 onToolCall,
-                onAssistantReasoningUpdate: UpdateReasoning);
+                onAssistantReasoningUpdate: UpdateReasoning,
+                onAssistantNarration: OnNarration);
 
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -1674,22 +1830,34 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         }
     }
 
-    private static void UpdateProcessHeader(ChatMessageViewModel message, ChatProcessThreadTracker tracker)
+    private void UpdateProcessHeader(ChatMessageViewModel message, ChatProcessThreadTracker tracker)
     {
-        var e = tracker.Elapsed;
-        message.ElapsedText = $"{(int)e.TotalMinutes:D2}:{e.Seconds:D2}";
-        message.ProcessHeaderText = tracker.ActiveStepLabel ?? "Thinking…";
+        // Running: live mono clock ("00:09"); the header stays steady while the rail shows the active step.
+        message.ElapsedText = ChatProcessThreadTracker.FormatRunningTimer(tracker.Elapsed);
+        message.ProcessHeaderText = _localizationService.T("WorkingOnIt", "Chat");
     }
 
-    private static void FinalizeProcessHeader(ChatMessageViewModel message, ChatProcessThreadTracker? tracker)
+    private void FinalizeProcessHeader(ChatMessageViewModel message, ChatProcessThreadTracker? tracker)
     {
         if (tracker == null) return;
-        var e = tracker.Elapsed;
-        message.ElapsedText = $"{(int)e.TotalMinutes:D2}:{e.Seconds:D2}";
-        var steps = message.ThoughtsCount;
-        message.ProcessHeaderText = steps > 0
-            ? $"Thought process ({steps} steps)"
-            : "Thought process";
+        // Completed: humanized duration ("20s", never "00:20") plus a plain-language "· used N tools" summary.
+        message.ElapsedText = ChatProcessThreadTracker.FormatShortDuration(tracker.Elapsed);
+        message.ProcessHeaderText = _localizationService.T("ThoughtFor", "Chat");
+        message.ProcessSummaryText = tracker.BuildCompletionSummary(k => _localizationService.T(k, "Chat"));
+
+        // The trace opens automatically while Atlas works; let the finished answer settle, then collapse
+        // it to the one-line summary (unless the reader has meanwhile expanded it to look).
+        ScheduleTraceCollapse(message);
+    }
+
+    private void ScheduleTraceCollapse(ChatMessageViewModel message)
+    {
+        _ = Task.Delay(TraceAutoCollapseDelayMs).ContinueWith(_ =>
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!message.IsStreaming)
+                    message.IsProcessThreadExpanded = false;
+            }, DispatcherPriority.Background), TaskScheduler.Default);
     }
 
     /// <inheritdoc />
@@ -1751,48 +1919,25 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     }
 }
 
-/// <summary>A landing-state suggestion (card or quick-action pill): icon + title, and a prompt sent on click.</summary>
+/// <summary>A landing quick-action pill: icon + title, and a prompt sent on click.</summary>
 public sealed class ChatLandingSuggestionViewModel
 {
-    public ChatLandingSuggestionViewModel(
-        string title,
-        string prompt,
-        string iconPath,
-        ICommand command,
-        string? description = null,
-        string? iconColor = null,
-        bool isPrimary = false)
+    public ChatLandingSuggestionViewModel(string title, string prompt, string iconName, ICommand command)
     {
         Title = title;
         Prompt = prompt;
-        IconPath = iconPath;
+        IconName = iconName;
         Command = command;
-        Description = description ?? string.Empty;
-        IsPrimary = isPrimary;
-        IconBrush = iconColor != null && Avalonia.Media.Color.TryParse(iconColor, out var c)
-            ? new Avalonia.Media.SolidColorBrush(c)
-            : null;
     }
 
-    /// <summary>Display text shown on the card / pill.</summary>
+    /// <summary>Display text shown on the pill.</summary>
     public string Title { get; }
 
     /// <summary>Prompt sent when the item is clicked (also used as the command parameter).</summary>
     public string Prompt { get; }
 
-    /// <summary>Optional secondary line shown on suggestion cards.</summary>
-    public string Description { get; }
-
-    public bool HasDescription => Description.Length > 0;
-
-    /// <summary>Resource URI of the icon.</summary>
-    public string IconPath { get; }
-
-    /// <summary>Optional fixed icon color for suggestion cards (falls back to theme brushes when null).</summary>
-    public Avalonia.Media.IBrush? IconBrush { get; }
-
-    /// <summary>True for the emphasized (filled) quick-action pill.</summary>
-    public bool IsPrimary { get; }
+    /// <summary>Icon identifier relative to Icons/ (AppIcon form, e.g. "Common/pencil").</summary>
+    public string IconName { get; }
 
     /// <summary>Command invoked on click, with <see cref="Prompt"/> as the parameter.</summary>
     public ICommand Command { get; }

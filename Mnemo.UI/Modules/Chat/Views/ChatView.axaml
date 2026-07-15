@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:Mnemo.UI.Modules.Chat.ViewModels"
              xmlns:vmroot="using:Mnemo.UI.ViewModels"
+             xmlns:views="using:Mnemo.UI.Modules.Chat.Views"
              xmlns:controls="using:Mnemo.UI.Controls"
              xmlns:components="using:Mnemo.UI.Components"
              xmlns:converters="using:Mnemo.UI.Converters"
@@ -15,8 +16,6 @@
 
     <UserControl.Resources>
         <converters:BoolToStreamingIntervalConverter x:Key="BoolToStreamingIntervalConverter"/>
-        <converters:NullToBoolConverter x:Key="StringNotEmptyToBoolConverter"/>
-        <converters:AssistantModeToLabelConverter x:Key="AssistantModeToLabelConverter"/>
         <converters:LocalPathToBitmapConverter x:Key="LocalPathToBitmapConverter"/>
         <converters:PathToImageConverter x:Key="PathToImageConverter"/>
         <converters:ChatAttachmentKindToBoolConverter x:Key="ChatAttachmentKindToBoolConverter"/>
@@ -25,231 +24,51 @@
                                          TrueBrush="{DynamicResource ListItemHoverBackgroundBrush}"
                                          FalseBrush="Transparent"/>
         <converters:BoolToDoubleConverter x:Key="BoolToDoubleConverter"/>
-
-        <!-- Shared composer attachment chip (used by both the landing and active composers) -->
-        <DataTemplate x:Key="PendingAttachmentTemplate" DataType="vm:ChatAttachmentViewModel">
-            <Border Background="{DynamicResource CardBackgroundSecondaryBrush}"
-                    BorderBrush="{DynamicResource SidebarBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="10"
-                    Padding="6,4"
-                    Margin="0,0,6,6">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <Border Width="36" Height="36" CornerRadius="8"
-                            ClipToBounds="True"
-                            Background="{DynamicResource CardBackgroundPrimaryBrush}">
-                        <Grid>
-                            <Image Width="36" Height="36"
-                                   Source="{Binding Path, Converter={StaticResource LocalPathToBitmapConverter}}"
-                                   Stretch="UniformToFill"
-                                   IsVisible="{Binding Kind, Converter={StaticResource ChatAttachmentKindToBoolConverter}, ConverterParameter=Image}"/>
-                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/file-text.svg"
-                                              Width="16" Height="16"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              Color="{DynamicResource TextSecondaryBrush}"
-                                              IsVisible="{Binding Kind, Converter={StaticResource ChatAttachmentKindToBoolConverter}, ConverterParameter=File}"/>
-                        </Grid>
-                    </Border>
-                    <TextBlock Text="{Binding DisplayName}"
-                               FontSize="11"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               MaxWidth="120"
-                               TextTrimming="CharacterEllipsis"
-                               VerticalAlignment="Center"/>
-                    <Button Command="{Binding RemoveCommand}"
-                            CommandParameter="{Binding}"
-                            Classes="PromptActionButton"
-                            Padding="2"
-                            VerticalAlignment="Center">
-                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/x.svg"
-                                          Width="12" Height="12"
-                                          Color="{DynamicResource TextSecondaryBrush}"/>
-                    </Button>
-                </StackPanel>
-            </Border>
-        </DataTemplate>
     </UserControl.Resources>
 
     <UserControl.Styles>
-        <!-- Assistant follow-up suggestion chip -->
-        <Style Selector="Button.SuggestionChip">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundPrimaryBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SidebarBorderBrush}"/>
-            <Setter Property="CornerRadius" Value="18"/>
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-            <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.Small}"/>
-            <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Style Selector="^:pointerover">
-                <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource TextFadedBrush}"/>
-                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-            </Style>
-        </Style>
+        <StyleInclude Source="avares://Mnemo.UI/Modules/Chat/Views/ChatStyles.axaml"/>
 
-        <!-- Landing suggestion card: colored icon + title + description -->
-        <Style Selector="Button.SuggestionCard">
+        <!-- Sidebar: white-card New chat button; accent lift on hover -->
+        <Style Selector="Button.chatNewChat">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundPrimaryBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="BorderBrush" Value="{DynamicResource SidebarBorderBrush}"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="18,16"/>
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Md}"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="VerticalAlignment" Value="Stretch"/>
-            <Setter Property="VerticalContentAlignment" Value="Top"/>
-            <Style Selector="^:pointerover">
-                <Setter Property="BorderBrush" Value="{DynamicResource TextFadedBrush}"/>
-            </Style>
-        </Style>
-
-        <!-- Landing quick-action pill; the "primary" variant is the inverted/filled one -->
-        <Style Selector="Button.QuickPill">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundPrimaryBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SidebarBorderBrush}"/>
-            <Setter Property="CornerRadius" Value="18"/>
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Style Selector="^:pointerover">
-                <Setter Property="BorderBrush" Value="{DynamicResource TextFadedBrush}"/>
-            </Style>
-        </Style>
-        <Style Selector="Button.QuickPill TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-        </Style>
-        <Style Selector="Button.QuickPill controls|SvgIcon">
-            <Setter Property="Color" Value="{DynamicResource TextPrimaryBrush}"/>
-        </Style>
-        <Style Selector="Button.QuickPill.primary">
-            <Setter Property="Background" Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+                    <BrushTransition Property="Foreground" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
             <Style Selector="^:pointerover">
-                <Setter Property="Opacity" Value="0.88"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+            </Style>
+            <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource CardBackgroundPrimaryBrush}"/>
             </Style>
         </Style>
-        <Style Selector="Button.QuickPill.primary TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource WorkspaceBackgroundBrush}"/>
-        </Style>
-        <Style Selector="Button.QuickPill.primary controls|SvgIcon">
-            <Setter Property="Color" Value="{DynamicResource WorkspaceBackgroundBrush}"/>
-        </Style>
 
-        <Style Selector="Button.PromptActionButton">
+        <Style Selector="Button.ChatHistoryToggle">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="8"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextFadedBrush}"/>
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Sm}"/>
+            <Setter Property="Padding" Value="7"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Style Selector="^:pointerover">
                 <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
-                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-            </Style>
-        </Style>
-
-        <!-- Icon + label ghost pill used in the composer toolbars (Attach) -->
-        <Style Selector="Button.ToolbarPill">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SidebarBorderBrush}"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="12,7"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-            <Style Selector="^:pointerover">
-                <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
-            </Style>
-        </Style>
-
-        <!-- Toggle ghost pill (Web Search) -->
-        <Style Selector="ToggleButton.ToolbarPill">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SidebarBorderBrush}"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="12,7"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-        </Style>
-        <Style Selector="ToggleButton.ToolbarPill /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        <Style Selector="ToggleButton.ToolbarPill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
-        </Style>
-        <Style Selector="ToggleButton.ToolbarPill:checked /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
-        </Style>
-
-        <Style Selector="controls|ModernComboBox.PromptPill">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="CornerRadius" Value="14"/>
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="MinHeight" Value="28"/>
-            <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.Caption}"/>
-            <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-        </Style>
-
-        <Style Selector="Button.ScrollToBottomLink">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-        <Style Selector="Button.ScrollToBottomLink:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        <Style Selector="Button.ScrollToBottomLink:pressed /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-
-        <Style Selector="controls|SvgIcon.ActiveSpin">
-            <Setter Property="RenderTransformOrigin" Value="50%,50%"/>
-            <Style.Animations>
-                <Animation Duration="0:0:1.1" IterationCount="Infinite">
-                    <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="0"/></KeyFrame>
-                    <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="360"/></KeyFrame>
-                </Animation>
-            </Style.Animations>
-        </Style>
-
-        <Style Selector="controls|SvgIcon.ActivePulse">
-            <Setter Property="RenderTransformOrigin" Value="50%,50%"/>
-            <Style.Animations>
-                <Animation Duration="0:0:1.5" IterationCount="Infinite">
-                    <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1.0"/></KeyFrame>
-                    <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.4"/></KeyFrame>
-                    <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1.0"/></KeyFrame>
-                </Animation>
-                <Animation Duration="0:0:2" IterationCount="Infinite">
-                    <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="0"/></KeyFrame>
-                    <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="360"/></KeyFrame>
-                </Animation>
-            </Style.Animations>
-        </Style>
-
-        <!-- White card "New Chat" button in the sidebar -->
-        <Style Selector="Button.NewChatButton">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundPrimaryBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SidebarBorderBrush}"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="Padding" Value="12,9"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Style Selector="^:pointerover">
-                <Setter Property="BorderBrush" Value="{DynamicResource TextFadedBrush}"/>
             </Style>
         </Style>
 
         <Style Selector="Border.chat-history-row">
-            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Md}"/>
             <Setter Property="MinWidth" Value="0"/>
         </Style>
 
@@ -270,104 +89,97 @@
             </Style>
         </Style>
 
-        <Style Selector="Button.ChatHistoryToggle">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="8"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-            <Style Selector="^:pointerover">
-                <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
-            </Style>
-        </Style>
-
         <Style Selector="Button.chat-history-more">
             <Setter Property="Padding" Value="6,8,10,8"/>
             <Setter Property="MinWidth" Value="32"/>
         </Style>
 
-        <Style Selector="Button.MessageActionIcon">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="7"/>
-            <Setter Property="MinWidth" Value="32"/>
-            <Setter Property="MinHeight" Value="32"/>
-            <Style Selector="^:pointerover">
-                <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
-            </Style>
-            <Style Selector="^:disabled">
-                <Setter Property="Opacity" Value="0.35"/>
-            </Style>
-        </Style>
-
-        <!-- Process thread pill: white floating pill, collapsible -->
-        <Style Selector="ToggleButton.ProcessPill">
+        <!-- Assistant follow-up suggestion chip -->
+        <Style Selector="Button.SuggestionChip">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundPrimaryBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="BorderBrush" Value="{DynamicResource SidebarBorderBrush}"/>
-            <Setter Property="CornerRadius" Value="18"/>
-            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}"/>
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
             <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-        <Style Selector="ToggleButton.ProcessPill /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        <Style Selector="ToggleButton.ProcessPill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        <Style Selector="ToggleButton.ProcessPill:pointerover">
-            <Setter Property="BorderBrush" Value="{DynamicResource TextFadedBrush}"/>
-        </Style>
-        <Style Selector="ToggleButton.ProcessPill:checked /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        <Style Selector="ToggleButton.ProcessPill controls|SvgIcon.chevron">
             <Setter Property="Transitions">
                 <Transitions>
-                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+                    <BrushTransition Property="Foreground" Duration="0:0:0.15" Easing="CubicEaseOut"/>
                 </Transitions>
             </Setter>
-            <Setter Property="RenderTransform" Value="rotate(0deg)"/>
-        </Style>
-        <Style Selector="ToggleButton.ProcessPill:checked controls|SvgIcon.chevron">
-            <Setter Property="RenderTransform" Value="rotate(180deg)"/>
-        </Style>
-
-        <!-- Circular send / stop button -->
-        <Style Selector="Button.SendCircle">
-            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="19"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Width" Value="38"/>
-            <Setter Property="Height" Value="38"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-                <Setter Property="Opacity" Value="0.92"/>
+            <Style Selector="^:pointerover">
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
             </Style>
         </Style>
-        <Style Selector="Button.StopCircle">
-            <Setter Property="Background" Value="{DynamicResource StopButtonBackgroundBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="19"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Width" Value="38"/>
-            <Setter Property="Height" Value="38"/>
+
+        <!-- Reasoning-trace card: one bordered raised card per assistant turn (warm paper surface,
+             hairline border, radius 12). The header row is always visible; the step rail toggles.
+             Clipped so the full-width header hover respects the rounded top corners. -->
+        <Style Selector="Border.chatTraceCard">
+            <Setter Property="Background" Value="{DynamicResource SurfaceSubtleBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SidebarBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Lg}"/>
+            <Setter Property="ClipToBounds" Value="True"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        </Style>
+
+        <!-- Hover-revealed user message actions (space always reserved: no layout shift) -->
+        <Style Selector="Grid.userTurn StackPanel.msgActions">
+            <Setter Property="Opacity" Value="0"/>
+            <Setter Property="IsHitTestVisible" Value="False"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Grid.userTurn:pointerover StackPanel.msgActions">
+            <Setter Property="Opacity" Value="1"/>
+            <Setter Property="IsHitTestVisible" Value="True"/>
+        </Style>
+
+        <!-- Floating scroll-to-latest pill -->
+        <Style Selector="Button.chatScrollPill">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SidebarBorderBrush}"/>
+            <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Padding" Value="11,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
+            <Style Selector="^:pointerover">
+                <Setter Property="BorderBrush" Value="{DynamicResource TextFadedBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            </Style>
         </Style>
     </UserControl.Styles>
 
     <Grid ColumnDefinitions="Auto,*">
+
         <!-- ===================== CHAT HISTORY SIDEBAR ===================== -->
         <Border Grid.Column="0"
                 Width="{Binding ChatHistorySidebarWidth}"
                 MinWidth="48"
                 BorderBrush="{DynamicResource SidebarBorderBrush}"
                 BorderThickness="0,0,1,0"
-                Background="{DynamicResource WorkspaceBackgroundBrush}">
+                Background="{DynamicResource SidebarBackgroundBrush}">
             <Panel>
-                <!-- Collapsed: narrow controls -->
+                <!-- Collapsed rail -->
                 <StackPanel Margin="0,14,0,0"
                             Spacing="10"
                             HorizontalAlignment="Center"
@@ -375,30 +187,32 @@
                     <Button Classes="ChatHistoryToggle"
                             Command="{Binding ToggleChatHistorySidebarCommand}"
                             ToolTip.Tip="{markup:T Ns=Notes, Key=ToggleSidebar}">
-                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/layout-sidebar.svg"
-                                          Width="20" Height="20"
+                        <controls:AppIcon Icon="Common/layout-sidebar"
+                                          Width="18" Height="18"
                                           Color="{DynamicResource TextSecondaryBrush}"/>
                     </Button>
                     <Button Background="{DynamicResource AccentBrush}"
                             BorderThickness="0"
-                            CornerRadius="17"
-                            Width="34" Height="34"
-                            Padding="6"
+                            CornerRadius="16"
+                            Width="32" Height="32"
+                            Padding="0"
                             HorizontalAlignment="Center"
                             Cursor="Hand"
                             Command="{Binding NewChatCommand}"
                             ToolTip.Tip="{markup:T Ns=Chat, Key=NewChat}">
-                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/plus.svg"
-                                          Width="18" Height="18"
+                        <controls:AppIcon Icon="Common/plus"
+                                          Width="15" Height="15"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
                                           Color="{DynamicResource AccentButtonIconBrush}"/>
                     </Button>
                 </StackPanel>
+
                 <!-- Expanded -->
-                <Grid RowDefinitions="Auto,Auto,Auto,*"
-                      Margin="14,16,14,14"
+                <Grid RowDefinitions="Auto,Auto,*"
+                      Margin="12,14,12,12"
                       IsVisible="{Binding IsChatHistorySidebarOpen}">
                     <!-- Brand row -->
-                    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" Margin="4,0,0,18">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" Margin="4,0,0,0">
                         <Border Grid.Column="0"
                                 Width="20" Height="20" CornerRadius="10"
                                 Background="{DynamicResource AccentBrush}"
@@ -411,115 +225,115 @@
                         <TextBlock Grid.Column="1"
                                    Text="ATLAS"
                                    Margin="8,0,0,0"
-                                   FontSize="12"
+                                   FontSize="{DynamicResource FontSize.Body.Caption}"
                                    LetterSpacing="2.5"
                                    FontFamily="{DynamicResource Font.Bold}"
                                    Foreground="{DynamicResource AccentBrush}"
                                    VerticalAlignment="Center"/>
                         <Button Grid.Column="3"
                                 Classes="ChatHistoryToggle"
-                                Padding="6"
+                                Padding="5"
                                 Command="{Binding ToggleChatHistorySidebarCommand}"
                                 ToolTip.Tip="{markup:T Ns=Notes, Key=ToggleSidebar}">
-                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/layout-sidebar.svg"
-                                              Width="18" Height="18"
+                            <controls:AppIcon Icon="Common/layout-sidebar"
+                                              Width="16" Height="16"
                                               Color="{DynamicResource TextFadedBrush}"/>
                         </Button>
                     </Grid>
-                    <!-- New Chat -->
+                    <!-- New chat -->
                     <Button Grid.Row="1"
+                            Classes="chatNewChat"
                             Command="{Binding NewChatCommand}"
-                            Classes="NewChatButton"
                             HorizontalAlignment="Stretch"
-                            Margin="0,0,0,20">
+                            Margin="0,14,0,4">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/plus.svg"
-                                              Width="14" Height="14"
-                                              Color="{DynamicResource TextPrimaryBrush}"
-                                              VerticalAlignment="Center"/>
+                            <controls:AppIcon Icon="Common/plus"
+                                              Width="13" Height="13"
+                                              VerticalAlignment="Center"
+                                              Color="{Binding $parent[Button].Foreground}"/>
                             <TextBlock Text="{markup:T Ns=Chat, Key=NewChat}"
                                        FontFamily="{DynamicResource Font.Medium}"
                                        FontSize="{DynamicResource FontSize.Body.Small}"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <!-- Recent sessions label -->
-                    <TextBlock Grid.Row="2"
-                               Text="{markup:T Ns=Chat, Key=RecentSessions}"
-                               Margin="6,0,0,10"
-                               FontSize="10"
-                               LetterSpacing="1.2"
-                               FontFamily="{DynamicResource Font.SemiBold}"
-                               Foreground="{DynamicResource TextFadedBrush}"/>
-                    <ScrollViewer Grid.Row="3"
+                    <!-- Day-grouped sessions -->
+                    <ScrollViewer Grid.Row="2"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl ItemsSource="{Binding ConversationRows}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="vm:ChatConversationRowViewModel">
-                                    <Panel Margin="0,0,0,4">
-                                        <Border IsVisible="{Binding IsSelected}"
-                                                CornerRadius="10"
-                                                Background="{DynamicResource CardBackgroundPrimaryBrush}"
-                                                BorderBrush="{DynamicResource SidebarBorderBrush}"
-                                                BorderThickness="1"/>
-                                        <Border Classes="chat-history-row"
-                                                MinWidth="0"
-                                                Background="{Binding IsRowHovered, Converter={StaticResource ChatHistoryRowHoverBrushConverter}}">
-                                            <Grid ColumnDefinitions="*,Auto" MinWidth="0">
-                                                <Button Grid.Column="0"
-                                                        Classes="chat-history-row-segment"
-                                                        Command="{Binding SelectCommand}"
-                                                        Padding="12,9,4,9"
-                                                        HorizontalAlignment="Stretch"
-                                                        HorizontalContentAlignment="Left"
-                                                        PointerEntered="ChatHistoryRowSegment_PointerEntered"
-                                                        PointerExited="ChatHistoryRowSegment_PointerExited">
-                                                    <Button.IsEnabled>
-                                                        <Binding ElementName="ChatRoot" Path="HistoryNavigationEnabled"/>
-                                                    </Button.IsEnabled>
-                                                    <TextBlock Text="{Binding Title}"
-                                                               FontSize="{DynamicResource FontSize.Body.Small}"
-                                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </Button>
-                                                <Button Grid.Column="1"
-                                                        Classes="chat-history-row-segment chat-history-more"
-                                                        Opacity="{Binding IsRowHovered, Converter={StaticResource BoolToDoubleConverter}, ConverterParameter=1|0}"
-                                                        ToolTip.Tip="{markup:T Ns=Chat, Key=MoreChatActions}"
-                                                        PointerEntered="ChatHistoryRowSegment_PointerEntered"
-                                                        PointerExited="ChatHistoryRowSegment_PointerExited">
-                                                    <Button.IsEnabled>
-                                                        <Binding ElementName="ChatRoot" Path="HistoryNavigationEnabled"/>
-                                                    </Button.IsEnabled>
-                                                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/dots-vertical-filled.svg"
-                                                                      Width="16" Height="16"
-                                                                      Color="{DynamicResource TextSecondaryBrush}"/>
-                                                    <Button.Flyout>
-                                                        <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                                            <MenuItem Header="{markup:T Ns=Notes, Key=Rename}">
-                                                                <MenuItem.Command>
-                                                                    <Binding ElementName="ChatRoot" Path="DataContext" Converter="{StaticResource ChatViewModelDataContextCommandConverter}" ConverterParameter="RenameChat"/>
-                                                                </MenuItem.Command>
-                                                                <MenuItem.CommandParameter>
-                                                                    <Binding Path="ConversationId"/>
-                                                                </MenuItem.CommandParameter>
-                                                            </MenuItem>
-                                                            <MenuItem Header="{markup:T Ns=Notes, Key=Delete}">
-                                                                <MenuItem.Command>
-                                                                    <Binding ElementName="ChatRoot" Path="DataContext" Converter="{StaticResource ChatViewModelDataContextCommandConverter}" ConverterParameter="DeleteChat"/>
-                                                                </MenuItem.Command>
-                                                                <MenuItem.CommandParameter>
-                                                                    <Binding Path="ConversationId"/>
-                                                                </MenuItem.CommandParameter>
-                                                            </MenuItem>
-                                                        </MenuFlyout>
-                                                    </Button.Flyout>
-                                                </Button>
-                                            </Grid>
-                                        </Border>
-                                    </Panel>
+                                    <StackPanel>
+                                        <TextBlock Classes="chatMicroCaps"
+                                                   Text="{Binding SectionLabel}"
+                                                   IsVisible="{Binding ShowSectionLabel}"
+                                                   Margin="8,14,8,6"/>
+                                        <Panel Margin="0,0,0,2">
+                                            <Border IsVisible="{Binding IsSelected}"
+                                                    CornerRadius="{StaticResource Radius.Md}"
+                                                    Background="{DynamicResource CardBackgroundPrimaryBrush}"
+                                                    BorderBrush="{DynamicResource SidebarBorderBrush}"
+                                                    BorderThickness="1"
+                                                    BoxShadow="{StaticResource Elevation.1}"/>
+                                            <Border Classes="chat-history-row"
+                                                    MinWidth="0"
+                                                    Background="{Binding IsRowHovered, Converter={StaticResource ChatHistoryRowHoverBrushConverter}}">
+                                                <Grid ColumnDefinitions="*,Auto" MinWidth="0">
+                                                    <Button Grid.Column="0"
+                                                            Classes="chat-history-row-segment"
+                                                            Command="{Binding SelectCommand}"
+                                                            Padding="10,7,4,7"
+                                                            HorizontalAlignment="Stretch"
+                                                            HorizontalContentAlignment="Left"
+                                                            PointerEntered="ChatHistoryRowSegment_PointerEntered"
+                                                            PointerExited="ChatHistoryRowSegment_PointerExited">
+                                                        <Button.IsEnabled>
+                                                            <Binding ElementName="ChatRoot" Path="HistoryNavigationEnabled"/>
+                                                        </Button.IsEnabled>
+                                                        <TextBlock Text="{Binding Title}"
+                                                                   FontSize="{DynamicResource FontSize.Body.Small}"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </Button>
+                                                    <Button Grid.Column="1"
+                                                            Classes="chat-history-row-segment chat-history-more"
+                                                            Opacity="{Binding IsRowHovered, Converter={StaticResource BoolToDoubleConverter}, ConverterParameter=1|0}"
+                                                            ToolTip.Tip="{markup:T Ns=Chat, Key=MoreChatActions}"
+                                                            PointerEntered="ChatHistoryRowSegment_PointerEntered"
+                                                            PointerExited="ChatHistoryRowSegment_PointerExited">
+                                                        <Button.IsEnabled>
+                                                            <Binding ElementName="ChatRoot" Path="HistoryNavigationEnabled"/>
+                                                        </Button.IsEnabled>
+                                                        <controls:AppIcon Icon="Common/dots-vertical-filled"
+                                                                          Width="15" Height="15"
+                                                                          Color="{DynamicResource TextSecondaryBrush}"/>
+                                                        <Button.Flyout>
+                                                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                                <MenuItem Header="{markup:T Ns=Notes, Key=Rename}">
+                                                                    <MenuItem.Command>
+                                                                        <Binding ElementName="ChatRoot" Path="DataContext" Converter="{StaticResource ChatViewModelDataContextCommandConverter}" ConverterParameter="RenameChat"/>
+                                                                    </MenuItem.Command>
+                                                                    <MenuItem.CommandParameter>
+                                                                        <Binding Path="ConversationId"/>
+                                                                    </MenuItem.CommandParameter>
+                                                                </MenuItem>
+                                                                <Separator/>
+                                                                <MenuItem Header="{markup:T Ns=Notes, Key=Delete}">
+                                                                    <MenuItem.Command>
+                                                                        <Binding ElementName="ChatRoot" Path="DataContext" Converter="{StaticResource ChatViewModelDataContextCommandConverter}" ConverterParameter="DeleteChat"/>
+                                                                    </MenuItem.Command>
+                                                                    <MenuItem.CommandParameter>
+                                                                        <Binding Path="ConversationId"/>
+                                                                    </MenuItem.CommandParameter>
+                                                                </MenuItem>
+                                                            </MenuFlyout>
+                                                        </Button.Flyout>
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+                                        </Panel>
+                                    </StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -528,250 +342,145 @@
             </Panel>
         </Border>
 
-        <!-- ===================== MAIN CONTENT ===================== -->
-        <Panel Grid.Column="1">
-            <!-- Soft warm gradient backdrop -->
-            <!-- Accent is #e95b45 across all core themes; GradientStop cannot resolve DynamicResource reliably -->
-            <Border IsHitTestVisible="False">
-                <Border.Background>
-                    <LinearGradientBrush StartPoint="20%,0%" EndPoint="80%,100%">
-                        <GradientStop Offset="0" Color="#00E95B45"/>
-                        <GradientStop Offset="0.55" Color="#00E95B45"/>
-                        <GradientStop Offset="1" Color="#14E95B45"/>
-                    </LinearGradientBrush>
-                </Border.Background>
-            </Border>
+        <!-- ===================== MAIN ===================== -->
+        <Grid Grid.Column="1" RowDefinitions="*,Auto">
 
-            <Grid RowDefinitions="*,Auto">
-                <!-- Center area: landing OR conversation -->
-                <Panel Grid.Row="0">
+            <!-- Center area: landing OR conversation -->
+            <Panel Grid.Row="0">
 
-                    <!-- ===================== LANDING / EMPTY STATE ===================== -->
-                    <ScrollViewer IsVisible="{Binding ShowWelcomeIntro}"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Center"
-                                    MaxWidth="780"
-                                    Margin="32,56,32,40">
-                            <!-- Brand row -->
-                            <StackPanel Orientation="Horizontal" Spacing="9" HorizontalAlignment="Left" Margin="4,0,0,20">
-                                <Border Width="18" Height="18" CornerRadius="9"
-                                        Background="{DynamicResource AccentBrush}"
-                                        VerticalAlignment="Center">
-                                    <Border Width="8" Height="8" CornerRadius="4"
-                                            BorderBrush="{DynamicResource AccentButtonIconBrush}"
-                                            BorderThickness="2.2"
-                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <TextBlock Text="ATLAS"
-                                           FontSize="11"
-                                           LetterSpacing="2.5"
-                                           FontFamily="{DynamicResource Font.Bold}"
-                                           Foreground="{DynamicResource AccentBrush}"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
-
-                            <!-- Greeting -->
-                            <TextBlock Text="{Binding GreetingText}"
-                                       FontSize="{DynamicResource FontSize.Heading1}"
-                                       FontFamily="{DynamicResource Font.Bold}"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       Margin="2,0,0,0"
-                                       TextWrapping="Wrap"/>
-                            <TextBlock Text="{Binding GreetingSubtitle}"
-                                       FontSize="{DynamicResource FontSize.Heading1}"
-                                       FontFamily="{DynamicResource Font.Bold}"
-                                       Foreground="{DynamicResource TextFadedBrush}"
-                                       Margin="2,2,0,26"
-                                       TextWrapping="Wrap"/>
-
-                            <!-- Quick action pills -->
-                            <ItemsControl ItemsSource="{Binding LandingQuickActions}" Margin="2,0,0,22">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel Orientation="Horizontal"/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="vm:ChatLandingSuggestionViewModel">
-                                        <Button Classes="QuickPill"
-                                                Classes.primary="{Binding IsPrimary}"
-                                                Margin="0,0,8,8"
-                                                Command="{Binding Command}"
-                                                CommandParameter="{Binding Prompt}">
-                                            <StackPanel Orientation="Horizontal" Spacing="7">
-                                                <controls:SvgIcon SvgPath="{Binding IconPath}"
-                                                                  Width="14" Height="14"
-                                                                  VerticalAlignment="Center"/>
-                                                <TextBlock Text="{Binding Title}"
-                                                           FontSize="{DynamicResource FontSize.Body.Caption}"
-                                                           FontFamily="{DynamicResource Font.Medium}"
-                                                           VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- Composer card -->
-                            <Border Background="{DynamicResource CardBackgroundPrimaryBrush}"
-                                    CornerRadius="22"
-                                    BorderThickness="1"
-                                    BorderBrush="{DynamicResource SidebarBorderBrush}"
-                                    BoxShadow="0 12 32 -12 #22000000">
-                                <Grid RowDefinitions="Auto,Auto,Auto">
-                                    <ItemsControl Grid.Row="0"
-                                                  ItemsSource="{Binding PendingAttachments}"
-                                                  ItemTemplate="{StaticResource PendingAttachmentTemplate}"
-                                                  Margin="16,12,16,0">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel Orientation="Horizontal"/>
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                    </ItemsControl>
-
-                                    <TextBox x:Name="LandingInputBox"
-                                             Grid.Row="1"
-                                             Classes="TransparentBackground"
-                                             PlaceholderText="{markup:T Ns=Chat, Key=LandingPlaceholder}"
-                                             AcceptsReturn="False"
-                                             TextWrapping="Wrap"
-                                             MinHeight="56"
-                                             MaxHeight="180"
-                                             BorderThickness="0"
-                                             Background="{DynamicResource TextControlTransparentBackgroundBrush}"
-                                             Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
-                                             Padding="20,18,20,8"/>
-
-                                    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,*,Auto"
-                                          Margin="12,0,12,12">
-                                        <Button Grid.Column="0"
-                                                Classes="PromptActionButton"
-                                                Margin="0,0,2,0"
-                                                VerticalAlignment="Center"
-                                                ToolTip.Tip="{markup:T Ns=Chat, Key=AddAttachment}"
-                                                Click="AddAttachment_Click">
-                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/link.svg"
-                                                              Width="16" Height="16"
-                                                              Color="{DynamicResource TextFadedBrush}"/>
-                                        </Button>
-                                        <ToggleButton Grid.Column="1"
-                                                      Classes="ToolbarPill"
-                                                      Padding="8"
-                                                      Margin="0,0,8,0"
-                                                      BorderThickness="0"
-                                                      VerticalAlignment="Center"
-                                                      IsChecked="{Binding IsWebSearchEnabled, Mode=TwoWay}"
-                                                      ToolTip.Tip="{markup:T Ns=Chat, Key=WebSearch}">
-                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/search.svg"
-                                                              Width="16" Height="16"
-                                                              Color="{DynamicResource TextFadedBrush}"/>
-                                        </ToggleButton>
-                                        <!-- Model badge; dot color doubles as live model status -->
-                                        <Border Grid.Column="2"
-                                                BorderBrush="{DynamicResource SidebarBorderBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="14"
-                                                Padding="10,5"
-                                                VerticalAlignment="Center"
-                                                ToolTip.Tip="{Binding AiStatusTooltip}">
-                                            <StackPanel Orientation="Horizontal" Spacing="7">
-                                                <Border Width="12" Height="12" CornerRadius="6"
-                                                        Background="{DynamicResource AccentBrush}"
-                                                        VerticalAlignment="Center">
-                                                    <Border Width="6" Height="6" CornerRadius="3"
-                                                            Background="{Binding AiStatusBrush}"
-                                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                </Border>
-                                                <TextBlock Text="atlas-1"
-                                                           FontSize="{DynamicResource FontSize.Body.Caption}"
-                                                           FontFamily="{DynamicResource Font.Medium}"
-                                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                                           VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Border>
-                                        <Panel Grid.Column="4" VerticalAlignment="Center">
-                                            <Button Command="{Binding SendMessageCommand}"
-                                                    IsVisible="{Binding !IsBusy}"
-                                                    Classes="SendCircle"
-                                                    ToolTip.Tip="{markup:T Ns=Chat, Key=SendEnter}">
-                                                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chevron-right.svg"
-                                                                  Width="18" Height="18"
-                                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                  Color="{DynamicResource AccentButtonIconBrush}">
-                                                    <controls:SvgIcon.RenderTransform>
-                                                        <RotateTransform Angle="-90"/>
-                                                    </controls:SvgIcon.RenderTransform>
-                                                </controls:SvgIcon>
-                                            </Button>
-                                            <Button Command="{Binding StopCommand}"
-                                                    IsVisible="{Binding IsBusy}"
-                                                    Classes="StopCircle"
-                                                    ToolTip.Tip="{markup:T Ns=Chat, Key=Stop}">
-                                                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/player-pause.svg"
-                                                                  Width="16" Height="16"
-                                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                  Color="{DynamicResource StopButtonForegroundBrush}"/>
-                                            </Button>
-                                        </Panel>
-                                    </Grid>
-                                </Grid>
+                <!-- ===================== LANDING ===================== -->
+                <ScrollViewer IsVisible="{Binding ShowWelcomeIntro}"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel HorizontalAlignment="Stretch"
+                                VerticalAlignment="Center"
+                                MaxWidth="640"
+                                Margin="32,56,32,40">
+                        <!-- Brand -->
+                        <StackPanel Orientation="Horizontal" Spacing="9" HorizontalAlignment="Left" Margin="2,0,0,0">
+                            <Border Width="20" Height="20" CornerRadius="10"
+                                    Background="{DynamicResource AccentBrush}"
+                                    VerticalAlignment="Center">
+                                <Border Width="9" Height="9" CornerRadius="4.5"
+                                        BorderBrush="{DynamicResource AccentButtonIconBrush}"
+                                        BorderThickness="2.5"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
-
-                            <!-- Disclaimer -->
-                            <TextBlock Text="{markup:T Ns=Chat, Key=Disclaimer}"
-                                       HorizontalAlignment="Center"
-                                       FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
-                                       Foreground="{DynamicResource TextFadedBrush}"
-                                       Margin="0,14,0,0"/>
-
-                            <!-- Suggestion cards -->
-                            <ItemsControl ItemsSource="{Binding LandingSuggestions}" Margin="0,28,0,0">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <UniformGrid Columns="3"/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="vm:ChatLandingSuggestionViewModel">
-                                        <Button Classes="SuggestionCard"
-                                                Margin="6,0"
-                                                Command="{Binding Command}"
-                                                CommandParameter="{Binding Prompt}">
-                                            <StackPanel Spacing="0">
-                                                <controls:SvgIcon SvgPath="{Binding IconPath}"
-                                                                  Width="18" Height="18"
-                                                                  HorizontalAlignment="Left"
-                                                                  Color="{Binding IconBrush}"/>
-                                                <TextBlock Text="{Binding Title}"
-                                                           Margin="0,14,0,0"
-                                                           FontSize="{DynamicResource FontSize.Body.Small}"
-                                                           FontFamily="{DynamicResource Font.SemiBold}"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                                           TextWrapping="Wrap"/>
-                                                <TextBlock Text="{Binding Description}"
-                                                           IsVisible="{Binding HasDescription}"
-                                                           Margin="0,6,0,0"
-                                                           FontSize="{DynamicResource FontSize.Body.Caption}"
-                                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                                           TextWrapping="Wrap"
-                                                           LineHeight="17"/>
-                                            </StackPanel>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <TextBlock Text="ATLAS"
+                                       FontSize="{DynamicResource FontSize.Body.Caption}"
+                                       LetterSpacing="2.5"
+                                       FontFamily="{DynamicResource Font.Bold}"
+                                       Foreground="{DynamicResource AccentBrush}"
+                                       VerticalAlignment="Center"/>
                         </StackPanel>
-                    </ScrollViewer>
 
-                    <!-- ===================== ACTIVE CONVERSATION ===================== -->
+                        <!-- Greeting -->
+                        <TextBlock Text="{Binding GreetingText}"
+                                   FontSize="{DynamicResource FontSize.Heading2}"
+                                   FontFamily="{DynamicResource Font.SemiBold}"
+                                   LetterSpacing="-0.5"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,16,0,0"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding GreetingSubtitle}"
+                                   FontSize="{DynamicResource FontSize.Heading5}"
+                                   FontFamily="{DynamicResource Font.Medium}"
+                                   LetterSpacing="-0.2"
+                                   Foreground="{DynamicResource TextFadedBrush}"
+                                   Margin="0,4,0,0"
+                                   TextWrapping="Wrap"/>
+
+                        <!-- Composer -->
+                        <views:ChatComposerView Margin="0,28,0,0"
+                                                Placeholder="{markup:T Ns=Chat, Key=LandingPlaceholder}"/>
+
+                        <!-- Quick actions -->
+                        <ItemsControl ItemsSource="{Binding LandingQuickActions}" Margin="0,12,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:ChatLandingSuggestionViewModel">
+                                    <Button Classes="chatQuickPill"
+                                            Margin="0,0,8,8"
+                                            Command="{Binding Command}"
+                                            CommandParameter="{Binding Prompt}">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <controls:AppIcon Icon="{Binding IconName}"
+                                                              Width="13" Height="13"
+                                                              VerticalAlignment="Center"
+                                                              Color="{Binding $parent[Button].Foreground}"/>
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                                       FontFamily="{DynamicResource Font.Medium}"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Disclaimer -->
+                        <TextBlock Text="{markup:T Ns=Chat, Key=Disclaimer}"
+                                   HorizontalAlignment="Center"
+                                   FontSize="{DynamicResource FontSize.Body.Caption}"
+                                   Foreground="{DynamicResource TextFadedBrush}"
+                                   Margin="0,22,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===================== ACTIVE CONVERSATION ===================== -->
+                <Grid RowDefinitions="Auto,*" IsVisible="{Binding !ShowWelcomeIntro}">
+                    <!-- Session header -->
+                    <Border Grid.Row="0"
+                            Height="46"
+                            BorderBrush="{DynamicResource DividerSubtleBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="20,0,14,0">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding ActiveConversationTitle}"
+                                       FontSize="{DynamicResource FontSize.Body.Small}"
+                                       FontFamily="{DynamicResource Font.Medium}"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                <Button Classes="chatIconBtn"
+                                        Command="{Binding RenameChatCommand}"
+                                        CommandParameter="{Binding ActiveConversationId}"
+                                        ToolTip.Tip="{markup:T Ns=Chat, Key=RenameChat}">
+                                    <controls:AppIcon Icon="Common/pencil" Width="14" Height="14"
+                                                      Color="{Binding $parent[Button].Foreground}"/>
+                                </Button>
+                                <Button Classes="chatIconBtn"
+                                        ToolTip.Tip="{markup:T Ns=Chat, Key=MoreChatActions}">
+                                    <controls:AppIcon Icon="Common/ellipsis" Width="15" Height="15"
+                                                      Color="{Binding $parent[Button].Foreground}"/>
+                                    <Button.Flyout>
+                                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                            <MenuItem Header="{markup:T Ns=Notes, Key=Rename}"
+                                                      Command="{Binding RenameChatCommand}"
+                                                      CommandParameter="{Binding ActiveConversationId}"/>
+                                            <Separator/>
+                                            <MenuItem Header="{markup:T Ns=Notes, Key=Delete}"
+                                                      Command="{Binding DeleteChatCommand}"
+                                                      CommandParameter="{Binding ActiveConversationId}"/>
+                                        </MenuFlyout>
+                                    </Button.Flyout>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Thread -->
                     <ScrollViewer x:Name="ChatScrollViewer"
-                                  IsVisible="{Binding !ShowWelcomeIntro}"
+                                  Grid.Row="1"
                                   VerticalScrollBarVisibility="Hidden"
                                   HorizontalScrollBarVisibility="Disabled">
-                        <Border MaxWidth="820" HorizontalAlignment="Stretch" MinWidth="0" Padding="28,28,28,16">
+                        <Border MaxWidth="680" HorizontalAlignment="Stretch" MinWidth="0" Padding="28,24,28,16">
                             <StackPanel MinWidth="0">
                                 <!-- ItemsRepeater virtualizes vertically; works correctly even inside ScrollViewer > StackPanel chain (unlike ItemsControl + VirtualizingStackPanel). -->
                                 <ItemsRepeater x:Name="ChatMessagesRepeater"
@@ -782,264 +491,342 @@
                                     </ItemsRepeater.Layout>
                                     <ItemsRepeater.ItemTemplate>
                                         <DataTemplate DataType="vm:ChatMessageViewModel">
-                                            <Panel Margin="0,0,0,32" MinWidth="0">
-                                                <!-- Assistant Message -->
+                                            <Panel Margin="0,0,0,20" MinWidth="0">
+
+                                                <!-- ============ ASSISTANT TURN ============ -->
                                                 <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding !IsUser}" MinWidth="0">
                                                     <!-- Atlas avatar -->
-                                                    <Border Grid.Column="0" Width="28" Height="28" CornerRadius="14"
+                                                    <Border Grid.Column="0" Width="26" Height="26" CornerRadius="13"
                                                             Background="{DynamicResource AccentBrush}"
-                                                            Margin="0,2,14,0" VerticalAlignment="Top"
-                                                            BoxShadow="0 2 6 -1 #26000000">
-                                                        <Border Width="11" Height="11" CornerRadius="5.5"
+                                                            Margin="0,2,11,0" VerticalAlignment="Top">
+                                                        <Border Width="10" Height="10" CornerRadius="5"
                                                                 BorderBrush="{DynamicResource AccentButtonIconBrush}"
-                                                                BorderThickness="2.5"
+                                                                BorderThickness="2.4"
                                                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                     </Border>
 
-                                                    <!-- Assistant message body -->
                                                     <StackPanel Grid.Column="1" MinWidth="0">
-                                                        <!-- Thought Process Pill (compact, collapsible) -->
-                                                        <ToggleButton Classes="ProcessPill"
-                                                                      IsChecked="{Binding IsProcessThreadExpanded, Mode=TwoWay}"
-                                                                      IsVisible="{Binding HasProcessThreadOrThoughts}"
-                                                                      Margin="0,0,0,12"
-                                                                      HorizontalAlignment="Left">
-                                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                                <!-- Streaming: spinner -->
-                                                                <controls:SvgIcon Classes="ActiveSpin"
-                                                                                  SvgPath="avares://Mnemo.UI/Icons/States/active.svg"
-                                                                                  Width="14" Height="14"
-                                                                                  VerticalAlignment="Center"
-                                                                                  Color="{DynamicResource ChatProcessStateActiveBrush}"
-                                                                                  IsVisible="{Binding IsStreaming}"/>
-                                                                <!-- Complete: success check -->
-                                                                <Panel Width="15" Height="15"
-                                                                       VerticalAlignment="Center"
-                                                                       IsVisible="{Binding !IsStreaming}">
-                                                                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/States/done-disc.svg"
-                                                                                      Width="15" Height="15"
-                                                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                                      Color="{DynamicResource ChatProcessStateDoneFillBrush}"/>
-                                                                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/States/done-check.svg"
-                                                                                      Width="15" Height="15"
-                                                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                                      Color="{DynamicResource ChatProcessStateDoneGlyphBrush}"/>
-                                                                </Panel>
-                                                                <TextBlock Text="{Binding ProcessHeaderText}"
-                                                                           FontSize="12"
-                                                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                           FontFamily="{DynamicResource Font.Medium}"
-                                                                           VerticalAlignment="Center"/>
-                                                                <TextBlock Text="·"
-                                                                           IsVisible="{Binding HasElapsedText}"
-                                                                           FontSize="12"
-                                                                           Foreground="{DynamicResource TextFadedBrush}"
-                                                                           FontFamily="{DynamicResource Font.Medium}"
-                                                                           VerticalAlignment="Center"/>
-                                                                <TextBlock Text="{Binding ElapsedText}"
-                                                                           IsVisible="{Binding HasElapsedText}"
-                                                                           FontSize="12"
-                                                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                                                           FontFamily="{DynamicResource Font.Monospace}"
-                                                                           VerticalAlignment="Center"/>
-                                                                <controls:SvgIcon Classes="chevron"
-                                                                                  SvgPath="avares://Mnemo.UI/Icons/Common/chevron-down.svg"
-                                                                                  Width="14" Height="14"
-                                                                                  Color="{DynamicResource TextFadedBrush}"
-                                                                                  VerticalAlignment="Center"
-                                                                                  Margin="2,0,0,0"/>
-                                                            </StackPanel>
-                                                        </ToggleButton>
 
-                                                        <!-- Collapsible step list / Thoughts -->
-                                                        <Border IsVisible="{Binding IsProcessThreadExpanded}"
-                                                                Margin="0,0,0,14"
-                                                                Padding="16,14"
-                                                                Background="{DynamicResource CardBackgroundPrimaryBrush}"
-                                                                BorderBrush="{DynamicResource SidebarBorderBrush}"
-                                                                BorderThickness="1"
-                                                                CornerRadius="16"
-                                                                BoxShadow="0 8 20 -10 #1A000000"
-                                                                HorizontalAlignment="Left"
-                                                                MinWidth="260">
+                                                        <!-- Reasoning trace card -->
+                                                        <Border Classes="chatTraceCard"
+                                                                IsVisible="{Binding HasProcessThreadOrThoughts}"
+                                                                HorizontalAlignment="Stretch"
+                                                                Margin="0,0,0,4">
                                                             <StackPanel>
-                                                                <ItemsControl ItemsSource="{Binding ProcessSteps}" IsVisible="{Binding HasProcessThread}">
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate DataType="vmroot:ChatProcessStepViewModel">
-                                                                            <Grid ColumnDefinitions="Auto,*">
-                                                                                <Grid Grid.Column="0" RowDefinitions="Auto, *" Width="20" Margin="0,2,10,0" HorizontalAlignment="Center">
-                                                                                    <Panel Grid.Row="0" Width="20" Height="20">
-                                                                                        <Panel Width="20" Height="20" IsVisible="{Binding IsComplete}">
-                                                                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/States/done-disc.svg"
-                                                                                                              Width="16" Height="16"
-                                                                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                                                              Color="{DynamicResource ChatProcessStateDoneFillBrush}"/>
-                                                                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/States/done-check.svg"
-                                                                                                              Width="16" Height="16"
-                                                                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                                                              Color="{DynamicResource ChatProcessStateDoneGlyphBrush}"/>
-                                                                                        </Panel>
-                                                                                        <controls:SvgIcon Classes="ActivePulse"
-                                                                                                          SvgPath="avares://Mnemo.UI/Icons/States/active.svg"
-                                                                                                          Width="16" Height="16"
-                                                                                                          HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                                                          Color="{DynamicResource ChatProcessStateActiveBrush}"
-                                                                                                          IsVisible="{Binding IsActive}"/>
-                                                                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/States/pending.svg"
-                                                                                                          Width="16" Height="16"
-                                                                                                          HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                                                          Color="{DynamicResource ChatProcessStatePendingBrush}"
-                                                                                                          IsVisible="{Binding IsPending}"/>
-                                                                                    </Panel>
-                                                                                    <Border Grid.Row="1" Width="1.5"
-                                                                                            Background="{DynamicResource SidebarBorderBrush}"
-                                                                                            Margin="0,4,0,0"
-                                                                                            HorizontalAlignment="Center"
-                                                                                            VerticalAlignment="Stretch"/>
-                                                                                </Grid>
-                                                                                <StackPanel Grid.Column="1" Spacing="2" MinWidth="0" Margin="0,0,0,14">
-                                                                                    <TextBlock Text="{Binding Label}"
-                                                                                               FontSize="{DynamicResource FontSize.Body.Small}"
-                                                                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                                               FontFamily="{DynamicResource Font.Medium}"
-                                                                                               TextWrapping="Wrap"/>
-                                                                                    <TextBlock Text="{Binding Detail}"
-                                                                                               FontSize="{DynamicResource FontSize.Body.Caption}"
-                                                                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                                                                               TextWrapping="Wrap"
-                                                                                               IsVisible="{Binding HasDetail}"/>
-                                                                                    <ItemsControl ItemsSource="{Binding ToolCalls}"
-                                                                                                  IsVisible="{Binding HasToolCalls}"
-                                                                                                  Margin="0,4,0,0">
-                                                                                        <ItemsControl.ItemTemplate>
-                                                                                            <DataTemplate DataType="vmroot:ChatToolCallViewModel">
-                                                                                                <Expander Padding="0" MinHeight="0"
-                                                                                                          Background="{DynamicResource CardBackgroundSecondaryBrush}"
-                                                                                                          BorderBrush="{DynamicResource SidebarBorderBrush}"
-                                                                                                          BorderThickness="1"
-                                                                                                          CornerRadius="8"
-                                                                                                          Margin="0,0,0,4">
-                                                                                                    <Expander.Header>
-                                                                                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
-                                                                                                            <!-- Live call state: spinner while running, check on success, alert on failure -->
-                                                                                                            <Panel Width="13" Height="13" VerticalAlignment="Center">
-                                                                                                                <controls:SvgIcon Classes="ActiveSpin"
-                                                                                                                                  SvgPath="avares://Mnemo.UI/Icons/States/active.svg"
-                                                                                                                                  Width="13" Height="13"
-                                                                                                                                  Color="{DynamicResource ChatProcessStateActiveBrush}"
-                                                                                                                                  IsVisible="{Binding IsRunning}"/>
-                                                                                                                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/States/done-check.svg"
-                                                                                                                                  Width="13" Height="13"
-                                                                                                                                  Color="{DynamicResource ChatProcessStateDoneFillBrush}"
-                                                                                                                                  IsVisible="{Binding IsSucceeded}"/>
-                                                                                                                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/square-rounded-x.svg"
-                                                                                                                                  Width="13" Height="13"
-                                                                                                                                  Color="{DynamicResource TextFadedBrush}"
-                                                                                                                                  IsVisible="{Binding IsFailed}"/>
-                                                                                                            </Panel>
-                                                                                                            <TextBlock Text="{Binding Name}"
-                                                                                                                       FontFamily="{DynamicResource Font.Monospace}"
-                                                                                                                       FontSize="11"
-                                                                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                                                                       VerticalAlignment="Center"/>
-                                                                                                            <TextBlock Text="{Binding Summary}"
-                                                                                                                       FontSize="11"
-                                                                                                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                                                                                                       VerticalAlignment="Center"/>
-                                                                                                        </StackPanel>
-                                                                                                    </Expander.Header>
-                                                                                                    <StackPanel Spacing="6" Margin="12,6,12,10">
-                                                                                                        <TextBlock Text="Arguments" FontSize="10" FontFamily="{DynamicResource Font.SemiBold}" Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                                                                                        <TextBlock Text="{Binding Arguments}" FontFamily="{DynamicResource Font.Monospace}" FontSize="10" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap"/>
-                                                                                                        <TextBlock Text="Result" FontSize="10" FontFamily="{DynamicResource Font.SemiBold}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
-                                                                                                        <TextBlock Text="{Binding Result}" FontFamily="{DynamicResource Font.Monospace}" FontSize="10" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap"/>
-                                                                                                    </StackPanel>
-                                                                                                </Expander>
-                                                                                            </DataTemplate>
-                                                                                        </ItemsControl.ItemTemplate>
-                                                                                    </ItemsControl>
-                                                                                </StackPanel>
-                                                                            </Grid>
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
-                                                                <!-- Reasoning trace: its own labeled state, clearly separate
-                                                                     from the routing/tool steps above and from the final
-                                                                     answer below — spinner while thinking, check once the
-                                                                     model has moved on to generating the reply. -->
-                                                                <StackPanel IsVisible="{Binding IsThinking}"
-                                                                            Margin="0,10,0,4"
-                                                                            Spacing="8">
-                                                                    <Border BorderBrush="{DynamicResource SidebarBorderBrush}"
-                                                                            BorderThickness="0,1,0,0"
-                                                                            Margin="0,0,0,2"/>
-                                                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                                                        <controls:SvgIcon Classes="ActiveSpin"
-                                                                                          SvgPath="avares://Mnemo.UI/Icons/States/active.svg"
-                                                                                          Width="13" Height="13"
-                                                                                          VerticalAlignment="Center"
-                                                                                          Color="{DynamicResource ChatProcessStateActiveBrush}"
-                                                                                          IsVisible="{Binding IsActivelyThinking}"/>
-                                                                        <Panel Width="14" Height="14" VerticalAlignment="Center"
-                                                                               IsVisible="{Binding HasFinishedThinking}">
-                                                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/States/done-disc.svg"
-                                                                                              Width="14" Height="14"
-                                                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                <!-- Header: spinner+Working on it | check+Thought for · elapsed · chevron -->
+                                                                <ToggleButton Classes="chatTraceHeader"
+                                                                              IsChecked="{Binding IsProcessThreadExpanded, Mode=TwoWay}">
+                                                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                                                        <Panel Grid.Column="0" Width="15" Height="15" VerticalAlignment="Center"
+                                                                               IsVisible="{Binding IsStreaming}">
+                                                                            <controls:AppIcon Icon="States/spinner-track"
+                                                                                              Width="15" Height="15"
+                                                                                              Color="{DynamicResource ChatProcessSpinnerTrackBrush}"/>
+                                                                            <controls:AppIcon Classes="ActiveSpin"
+                                                                                              Icon="States/spinner-arc"
+                                                                                              Width="15" Height="15"
+                                                                                              Color="{DynamicResource ChatProcessStateActiveBrush}"/>
+                                                                        </Panel>
+                                                                        <Panel Grid.Column="0" Width="15" Height="15" VerticalAlignment="Center"
+                                                                               IsVisible="{Binding !IsStreaming}">
+                                                                            <controls:AppIcon Icon="States/done-disc"
+                                                                                              Width="15" Height="15"
                                                                                               Color="{DynamicResource ChatProcessStateDoneFillBrush}"/>
-                                                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/States/done-check.svg"
-                                                                                              Width="14" Height="14"
-                                                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                            <controls:AppIcon Icon="States/done-check"
+                                                                                              Width="15" Height="15"
                                                                                               Color="{DynamicResource ChatProcessStateDoneGlyphBrush}"/>
                                                                         </Panel>
-                                                                        <TextBlock Text="{markup:T Ns=Chat, Key=ThinkingLabel}"
-                                                                                   FontSize="{DynamicResource FontSize.Body.Small}"
-                                                                                   FontFamily="{DynamicResource Font.Medium}"
-                                                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                                   VerticalAlignment="Center"/>
+                                                                        <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                                                                    Margin="8,0,0,0" VerticalAlignment="Center">
+                                                                            <TextBlock Text="{Binding ProcessHeaderText}"
+                                                                                       FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                                                                       FontFamily="{DynamicResource Font.SemiBold}"
+                                                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                                       VerticalAlignment="Center"/>
+                                                                            <TextBlock Text="{Binding ElapsedText}"
+                                                                                       IsVisible="{Binding HasElapsedText}"
+                                                                                       Margin="6,0,0,0"
+                                                                                       FontSize="{DynamicResource FontSize.Body.Caption}"
+                                                                                       FontFamily="{DynamicResource Font.Monospace}"
+                                                                                       Foreground="{DynamicResource TextFadedBrush}"
+                                                                                       VerticalAlignment="Center"/>
+                                                                            <Border Width="3" Height="3" CornerRadius="2"
+                                                                                    Margin="8,0,0,0" VerticalAlignment="Center"
+                                                                                    Background="{DynamicResource TextFadedBrush}"
+                                                                                    IsVisible="{Binding HasProcessSummary}"/>
+                                                                            <TextBlock Text="{Binding ProcessSummaryText}"
+                                                                                       IsVisible="{Binding HasProcessSummary}"
+                                                                                       Margin="8,0,0,0"
+                                                                                       FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                                                                       Foreground="{DynamicResource TextFadedBrush}"
+                                                                                       VerticalAlignment="Center"/>
+                                                                        </StackPanel>
+                                                                        <controls:AppIcon Grid.Column="2"
+                                                                                          Classes="chevron"
+                                                                                          Icon="Common/chevron-down"
+                                                                                          Width="13" Height="13"
+                                                                                          Margin="7,0,0,0"
+                                                                                          Color="{DynamicResource TextFadedBrush}"
+                                                                                          VerticalAlignment="Center"/>
+                                                                    </Grid>
+                                                                </ToggleButton>
+
+                                                                <!-- Body: step rail -->
+                                                                <Border IsVisible="{Binding IsProcessThreadExpanded}"
+                                                                        BorderBrush="{DynamicResource DividerSubtleBrush}"
+                                                                        BorderThickness="0,1,0,0"
+                                                                        Padding="14,12,16,4">
+                                                                    <StackPanel>
+                                                                        <!-- Thinking: reasoning text as the first rail row -->
+                                                                        <Grid ColumnDefinitions="15,*" IsVisible="{Binding IsThinking}">
+                                                                            <Grid Grid.Column="0" RowDefinitions="Auto,*">
+                                                                                <Panel Grid.Row="0" Width="15" Height="15" Margin="0,1,0,0">
+                                                                                    <Panel IsVisible="{Binding IsActivelyThinking}">
+                                                                                        <controls:AppIcon Icon="States/spinner-track"
+                                                                                                          Width="15" Height="15"
+                                                                                                          Color="{DynamicResource ChatProcessSpinnerTrackBrush}"/>
+                                                                                        <controls:AppIcon Classes="ActiveSpin"
+                                                                                                          Icon="States/spinner-arc"
+                                                                                                          Width="15" Height="15"
+                                                                                                          Color="{DynamicResource ChatProcessStateActiveBrush}"/>
+                                                                                    </Panel>
+                                                                                    <Panel IsVisible="{Binding HasFinishedThinking}">
+                                                                                        <controls:AppIcon Icon="States/done-disc"
+                                                                                                          Width="15" Height="15"
+                                                                                                          Color="{DynamicResource ChatProcessStateDoneFillBrush}"/>
+                                                                                        <controls:AppIcon Icon="States/done-check"
+                                                                                                          Width="15" Height="15"
+                                                                                                          Color="{DynamicResource ChatProcessStateDoneGlyphBrush}"/>
+                                                                                    </Panel>
+                                                                                </Panel>
+                                                                                <Border Grid.Row="1" Width="1.5"
+                                                                                        Background="{DynamicResource SidebarBorderBrush}"
+                                                                                        Margin="0,3,0,3"
+                                                                                        HorizontalAlignment="Center"
+                                                                                        VerticalAlignment="Stretch"
+                                                                                        IsVisible="{Binding HasProcessThread}"/>
+                                                                            </Grid>
+                                                                            <StackPanel Grid.Column="1" MinWidth="0" Margin="10,0,0,12">
+                                                                                <TextBlock Classes="chatStepLabel"
+                                                                                           Classes.active="{Binding IsActivelyThinking}"
+                                                                                           Text="{markup:T Ns=Chat, Key=ThinkingLabel}"/>
+                                                                                <!-- Clamped 2-line summary of the reasoning — never the full chain-of-thought. -->
+                                                                                <TextBlock Text="{Binding Thoughts}"
+                                                                                           FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                                                                           Foreground="{DynamicResource TextFadedBrush}"
+                                                                                           TextWrapping="Wrap"
+                                                                                           MaxLines="2"
+                                                                                           TextTrimming="CharacterEllipsis"
+                                                                                           LineHeight="18"
+                                                                                           Margin="0,6,0,0"/>
+                                                                            </StackPanel>
+                                                                        </Grid>
+
+                                                                        <ItemsControl ItemsSource="{Binding ProcessSteps}" IsVisible="{Binding HasProcessThread}">
+                                                                            <ItemsControl.ItemTemplate>
+                                                                                <DataTemplate DataType="vmroot:ChatProcessStepViewModel">
+                                                                                    <Grid ColumnDefinitions="15,*">
+                                                                                        <!-- State glyph (done / active / failed / pending) + connector -->
+                                                                                        <Grid Grid.Column="0" RowDefinitions="Auto,*" Margin="0,1,0,0">
+                                                                                            <Panel Grid.Row="0" Width="15" Height="15">
+                                                                                                <Panel IsVisible="{Binding ShowDoneIcon}">
+                                                                                                    <controls:AppIcon Icon="States/done-disc"
+                                                                                                                      Width="15" Height="15"
+                                                                                                                      Color="{DynamicResource ChatProcessStateDoneFillBrush}"/>
+                                                                                                    <controls:AppIcon Icon="States/done-check"
+                                                                                                                      Width="15" Height="15"
+                                                                                                                      Color="{DynamicResource ChatProcessStateDoneGlyphBrush}"/>
+                                                                                                </Panel>
+                                                                                                <Panel IsVisible="{Binding ShowActiveIcon}">
+                                                                                                    <controls:AppIcon Icon="States/spinner-track"
+                                                                                                                      Width="15" Height="15"
+                                                                                                                      Color="{DynamicResource ChatProcessSpinnerTrackBrush}"/>
+                                                                                                    <controls:AppIcon Classes="ActiveSpin"
+                                                                                                                      Icon="States/spinner-arc"
+                                                                                                                      Width="15" Height="15"
+                                                                                                                      Color="{DynamicResource ChatProcessStateActiveBrush}"/>
+                                                                                                </Panel>
+                                                                                                <Panel IsVisible="{Binding ShowFailedIcon}">
+                                                                                                    <controls:AppIcon Icon="States/done-disc"
+                                                                                                                      Width="15" Height="15"
+                                                                                                                      Color="{DynamicResource ChatProcessStateFailedFillBrush}"/>
+                                                                                                    <controls:AppIcon Icon="States/failed-x"
+                                                                                                                      Width="15" Height="15"
+                                                                                                                      Color="{DynamicResource ChatProcessStateFailedGlyphBrush}"/>
+                                                                                                </Panel>
+                                                                                                <controls:AppIcon Icon="States/pending"
+                                                                                                                  Width="15" Height="15"
+                                                                                                                  Color="{DynamicResource ChatProcessStatePendingBrush}"
+                                                                                                                  IsVisible="{Binding IsPending}"/>
+                                                                                            </Panel>
+                                                                                            <Border Grid.Row="1" Width="1.5"
+                                                                                                    Background="{DynamicResource SidebarBorderBrush}"
+                                                                                                    Margin="0,3,0,3"
+                                                                                                    HorizontalAlignment="Center"
+                                                                                                    VerticalAlignment="Stretch"
+                                                                                                    IsVisible="{Binding !IsLast}"/>
+                                                                                        </Grid>
+                                                                                        <!-- Step content -->
+                                                                                        <StackPanel Grid.Column="1" MinWidth="0" Margin="10,0,0,13">
+                                                                                            <!-- Narration: quiet quoted mid-turn prose, folded into the trace -->
+                                                                                            <TextBlock IsVisible="{Binding IsNarration}"
+                                                                                                       Text="{Binding Narration}"
+                                                                                                       FontStyle="Italic"
+                                                                                                       FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                                                                                       Foreground="{DynamicResource TextFadedBrush}"
+                                                                                                       TextWrapping="Wrap"
+                                                                                                       MaxLines="3"
+                                                                                                       TextTrimming="CharacterEllipsis"
+                                                                                                       LineHeight="18"/>
+                                                                                            <StackPanel Orientation="Horizontal" Spacing="7"
+                                                                                                        IsVisible="{Binding !IsNarration}">
+                                                                                                <TextBlock Classes="chatStepLabel"
+                                                                                                           Classes.active="{Binding IsActive}"
+                                                                                                           Text="{Binding Label}"
+                                                                                                           VerticalAlignment="Center"/>
+                                                                                                <Border IsVisible="{Binding HasDetail}"
+                                                                                                        Background="{DynamicResource AccentSubtleBackgroundBrush}"
+                                                                                                        CornerRadius="{StaticResource Radius.Sm}"
+                                                                                                        Padding="6,1"
+                                                                                                        VerticalAlignment="Center">
+                                                                                                    <TextBlock Text="{Binding Detail}"
+                                                                                                               FontSize="{DynamicResource FontSize.CaptionButton}"
+                                                                                                               FontFamily="{DynamicResource Font.Monospace}"
+                                                                                                               Foreground="{DynamicResource AccentBrush}"/>
+                                                                                                </Border>
+                                                                                                <!-- Inline tool-call suffixes; each toggles its own detail box below -->
+                                                                                                <ItemsControl ItemsSource="{Binding ToolCalls}"
+                                                                                                              IsVisible="{Binding HasToolCalls}"
+                                                                                                              VerticalAlignment="Center">
+                                                                                                    <ItemsControl.ItemsPanel>
+                                                                                                        <ItemsPanelTemplate>
+                                                                                                            <StackPanel Orientation="Horizontal" Spacing="7"/>
+                                                                                                        </ItemsPanelTemplate>
+                                                                                                    </ItemsControl.ItemsPanel>
+                                                                                                    <ItemsControl.ItemTemplate>
+                                                                                                        <DataTemplate DataType="vmroot:ChatToolCallViewModel">
+                                                                                                            <ToggleButton Classes="chatToolSuffix"
+                                                                                                                          IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                                                                                                          IsVisible="{Binding HasSummary}"
+                                                                                                                          ToolTip.Tip="{Binding Name}">
+                                                                                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                                                                    <TextBlock Text="·"/>
+                                                                                                                    <TextBlock Text="{Binding Summary}"
+                                                                                                                               Classes.failed="{Binding IsFailed}"/>
+                                                                                                                </StackPanel>
+                                                                                                            </ToggleButton>
+                                                                                                        </DataTemplate>
+                                                                                                    </ItemsControl.ItemTemplate>
+                                                                                                </ItemsControl>
+                                                                                            </StackPanel>
+                                                                                            <!-- Per-tool details, expanded from the suffix chip -->
+                                                                                            <ItemsControl ItemsSource="{Binding ToolCalls}">
+                                                                                                <ItemsControl.ItemTemplate>
+                                                                                                    <DataTemplate DataType="vmroot:ChatToolCallViewModel">
+                                                                                                        <Border IsVisible="{Binding IsExpanded}"
+                                                                                                                Background="{DynamicResource CardBackgroundSecondaryBrush}"
+                                                                                                                CornerRadius="{StaticResource Radius.Sm}"
+                                                                                                                Margin="0,6,0,0"
+                                                                                                                Padding="10,8">
+                                                                                                            <ScrollViewer MaxHeight="180"
+                                                                                                                          VerticalScrollBarVisibility="Auto"
+                                                                                                                          HorizontalScrollBarVisibility="Disabled">
+                                                                                                                <StackPanel Spacing="6">
+                                                                                                                    <TextBlock Text="{Binding Arguments}"
+                                                                                                                               FontFamily="{DynamicResource Font.Monospace}"
+                                                                                                                               FontSize="{DynamicResource FontSize.CaptionButton}"
+                                                                                                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                                                                               TextWrapping="Wrap"/>
+                                                                                                                    <TextBlock Text="{Binding Result}"
+                                                                                                                               FontFamily="{DynamicResource Font.Monospace}"
+                                                                                                                               FontSize="{DynamicResource FontSize.CaptionButton}"
+                                                                                                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                                                                               TextWrapping="Wrap"/>
+                                                                                                                </StackPanel>
+                                                                                                            </ScrollViewer>
+                                                                                                        </Border>
+                                                                                                    </DataTemplate>
+                                                                                                </ItemsControl.ItemTemplate>
+                                                                                            </ItemsControl>
+                                                                                        </StackPanel>
+                                                                                    </Grid>
+                                                                                </DataTemplate>
+                                                                            </ItemsControl.ItemTemplate>
+                                                                        </ItemsControl>
                                                                     </StackPanel>
-                                                                    <components:MarkdownView Source="{Binding Thoughts}"
-                                                                                             Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                                                </StackPanel>
+                                                                </Border>
                                                             </StackPanel>
                                                         </Border>
 
+                                                        <!-- Shimmer skeleton until the first token -->
+                                                        <StackPanel Spacing="9"
+                                                                    Margin="2,10,2,0"
+                                                                    IsVisible="{Binding IsAwaitingFirstToken}">
+                                                            <Grid ColumnDefinitions="92*,8*">
+                                                                <Border Grid.Column="0" Classes="chatShimmerBar"/>
+                                                            </Grid>
+                                                            <Border Classes="chatShimmerBar"/>
+                                                            <Grid ColumnDefinitions="62*,38*">
+                                                                <Border Grid.Column="0" Classes="chatShimmerBar"/>
+                                                            </Grid>
+                                                        </StackPanel>
+
+                                                        <!-- Answer -->
                                                         <components:MarkdownView Source="{Binding Content}"
+                                                                                 IsVisible="{Binding !!Content.Length}"
+                                                                                 Margin="0,8,0,0"
+                                                                                 FontSize="{DynamicResource FontSize.Body.Medium}"
                                                                                  Foreground="{DynamicResource TextPrimaryBrush}"
                                                                                  StreamingUpdateIntervalMs="{Binding IsStreaming, Converter={StaticResource BoolToStreamingIntervalConverter}}"/>
 
                                                         <!-- Sources -->
-                                                        <ItemsControl ItemsSource="{Binding Sources}" Margin="0,8,0,0" MinWidth="0">
-                                                            <ItemsControl.ItemsPanel>
-                                                                <ItemsPanelTemplate>
-                                                                    <WrapPanel Orientation="Horizontal" />
-                                                                </ItemsPanelTemplate>
-                                                            </ItemsControl.ItemsPanel>
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <Border Background="{DynamicResource CardBackgroundPrimaryBrush}"
-                                                                            BorderBrush="{DynamicResource SidebarBorderBrush}"
-                                                                            BorderThickness="1"
-                                                                            CornerRadius="10"
-                                                                            Padding="8,4"
-                                                                            Margin="0,0,6,6">
-                                                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/file-text.svg"
-                                                                                              Width="12" Height="12"
-                                                                                              Color="{DynamicResource TextSecondaryBrush}"/>
-                                                                            <TextBlock Text="{Binding}"
-                                                                                       FontSize="11"
-                                                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                                                        </StackPanel>
-                                                                    </Border>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
+                                                        <StackPanel Margin="0,14,0,0"
+                                                                    IsVisible="{Binding Sources, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                                            <TextBlock Classes="chatMicroCaps"
+                                                                       Text="{markup:T Ns=Chat, Key=SourcesLabel}"
+                                                                       Margin="0,0,0,8"/>
+                                                            <ItemsControl ItemsSource="{Binding Sources}" MinWidth="0">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <WrapPanel Orientation="Horizontal"/>
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Background="{DynamicResource SurfaceSubtleBrush}"
+                                                                                BorderBrush="{DynamicResource SidebarBorderBrush}"
+                                                                                BorderThickness="1"
+                                                                                CornerRadius="{StaticResource Radius.Md}"
+                                                                                Padding="8,7"
+                                                                                Margin="0,0,8,8">
+                                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                                <Border Width="22" Height="22"
+                                                                                        CornerRadius="{StaticResource Radius.Sm}"
+                                                                                        Background="{DynamicResource AccentSubtleBackgroundBrush}">
+                                                                                    <controls:AppIcon Icon="Common/globe"
+                                                                                                      Width="12" Height="12"
+                                                                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                                      Color="{DynamicResource AccentBrush}"/>
+                                                                                </Border>
+                                                                                <TextBlock Text="{Binding}"
+                                                                                           FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                                                                           FontFamily="{DynamicResource Font.Medium}"
+                                                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                                           MaxWidth="240"
+                                                                                           TextTrimming="CharacterEllipsis"
+                                                                                           VerticalAlignment="Center"/>
+                                                                            </StackPanel>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
 
                                                         <!-- Follow-up suggestions -->
                                                         <ItemsControl ItemsSource="{Binding Suggestions}" Margin="0,10,0,0" HorizontalAlignment="Stretch" MinWidth="0">
                                                             <ItemsControl.ItemsPanel>
                                                                 <ItemsPanelTemplate>
-                                                                    <WrapPanel Orientation="Horizontal" />
+                                                                    <WrapPanel Orientation="Horizontal"/>
                                                                 </ItemsPanelTemplate>
                                                             </ItemsControl.ItemsPanel>
                                                             <ItemsControl.ItemTemplate>
@@ -1047,118 +834,224 @@
                                                                     <Button Classes="SuggestionChip" Margin="0,0,8,8"
                                                                             Command="{Binding #ChatRoot.DataContext, Converter={StaticResource ChatViewModelDataContextCommandConverter}, ConverterParameter=Suggestion}"
                                                                             CommandParameter="{Binding}">
-                                                                        <TextBlock Text="{Binding}"
-                                                                                   FontSize="{DynamicResource FontSize.Body.Small}"
-                                                                                   FontFamily="{DynamicResource Font.Medium}"/>
+                                                                        <TextBlock Text="{Binding}"/>
                                                                     </Button>
                                                                 </DataTemplate>
                                                             </ItemsControl.ItemTemplate>
                                                         </ItemsControl>
 
-                                                        <!-- Message actions -->
-                                                        <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,8,0,0" HorizontalAlignment="Left">
-                                                            <Button Classes="MessageActionIcon"
-                                                                    Command="{Binding #ChatRoot.DataContext, Converter={StaticResource ChatViewModelDataContextCommandConverter}, ConverterParameter=Regenerate}"
-                                                                    CommandParameter="{Binding}"
-                                                                    ToolTip.Tip="{markup:T Ns=Chat, Key=Regenerate}">
-                                                                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/refresh.svg"
-                                                                                  Width="16" Height="16"
-                                                                                  Color="{DynamicResource TextFadedBrush}"/>
+                                                        <!-- Action bar: icon-only thumbs · divider · Copy · Regenerate -->
+                                                        <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,10,0,0"
+                                                                    HorizontalAlignment="Left"
+                                                                    IsVisible="{Binding !IsStreaming}">
+                                                            <Button Classes="chatIconBtn"
+                                                                    Classes.active="{Binding IsThumbUp}"
+                                                                    ToolTip.Tip="{markup:T Ns=Chat, Key=GoodResponse}"
+                                                                    Command="{Binding #ChatRoot.DataContext, Converter={StaticResource ChatViewModelDataContextCommandConverter}, ConverterParameter=ThumbUp}"
+                                                                    CommandParameter="{Binding}">
+                                                                <controls:AppIcon Icon="Common/thumbs-up" Width="15" Height="15"
+                                                                                  Color="{Binding $parent[Button].Foreground}"/>
                                                             </Button>
-                                                            <Button Classes="MessageActionIcon"
+                                                            <Button Classes="chatIconBtn"
+                                                                    Classes.active="{Binding IsThumbDown}"
+                                                                    ToolTip.Tip="{markup:T Ns=Chat, Key=BadResponse}"
+                                                                    Command="{Binding #ChatRoot.DataContext, Converter={StaticResource ChatViewModelDataContextCommandConverter}, ConverterParameter=ThumbDown}"
+                                                                    CommandParameter="{Binding}">
+                                                                <controls:AppIcon Icon="Common/thumbs-down" Width="15" Height="15"
+                                                                                  Color="{Binding $parent[Button].Foreground}"/>
+                                                            </Button>
+                                                            <Border Width="1" Height="16" Margin="5,0"
+                                                                    Background="{DynamicResource SidebarBorderBrush}"
+                                                                    VerticalAlignment="Center"/>
+                                                            <Button Classes="chatTextBtn"
                                                                     Command="{Binding #ChatRoot.DataContext, Converter={StaticResource ChatViewModelDataContextCommandConverter}, ConverterParameter=Copy}"
                                                                     CommandParameter="{Binding}"
-                                                                    ToolTip.Tip="{markup:T Ns=Chat, Key=CopyMessage}"
                                                                     IsEnabled="{Binding HasCopiableAssistantContent}">
-                                                                <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/copy.svg"
-                                                                                  Width="16" Height="16"
-                                                                                  Color="{DynamicResource TextFadedBrush}"/>
+                                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                    <controls:AppIcon Icon="Common/copy" Width="13" Height="13"
+                                                                                      VerticalAlignment="Center"
+                                                                                      Color="{Binding $parent[Button].Foreground}"/>
+                                                                    <TextBlock Text="{markup:T Ns=Chat, Key=CopyMessage}" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Classes="chatTextBtn"
+                                                                    Command="{Binding #ChatRoot.DataContext, Converter={StaticResource ChatViewModelDataContextCommandConverter}, ConverterParameter=Regenerate}"
+                                                                    CommandParameter="{Binding}">
+                                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                    <controls:AppIcon Icon="Common/refresh" Width="13" Height="13"
+                                                                                      VerticalAlignment="Center"
+                                                                                      Color="{Binding $parent[Button].Foreground}"/>
+                                                                    <TextBlock Text="{markup:T Ns=Chat, Key=Regenerate}" VerticalAlignment="Center"/>
+                                                                </StackPanel>
                                                             </Button>
                                                         </StackPanel>
                                                     </StackPanel>
                                                 </Grid>
 
-                                                <!-- User Message: bubble + avatar -->
-                                                <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsUser}" MinWidth="0">
-                                                    <Border Grid.Column="0"
-                                                            HorizontalAlignment="Right"
-                                                            MaxWidth="520"
-                                                            CornerRadius="18"
-                                                            Padding="16,12"
-                                                            Background="{DynamicResource CardBackgroundPrimaryBrush}"
-                                                            BorderBrush="{DynamicResource SidebarBorderBrush}"
-                                                            BorderThickness="1"
-                                                            BoxShadow="0 4 12 -6 #1A000000">
-                                                        <StackPanel Spacing="8">
-                                                            <ItemsControl ItemsSource="{Binding Attachments}"
-                                                                          IsVisible="{Binding HasAttachments}">
-                                                                <ItemsControl.ItemsPanel>
-                                                                    <ItemsPanelTemplate>
-                                                                        <WrapPanel Orientation="Horizontal"/>
-                                                                    </ItemsPanelTemplate>
-                                                                </ItemsControl.ItemsPanel>
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate DataType="vm:ChatAttachmentViewModel">
-                                                                        <Panel Margin="0,0,8,8">
-                                                                            <!-- Image Attachment (clickable to open overlay preview) -->
-                                                                            <Button Command="{Binding #ChatRoot.DataContext, Converter={StaticResource ChatViewModelDataContextCommandConverter}, ConverterParameter=OpenImagePreview}"
-                                                                                    CommandParameter="{Binding Path}"
-                                                                                    Background="Transparent"
-                                                                                    BorderThickness="0"
-                                                                                    Padding="0"
-                                                                                    CornerRadius="12"
-                                                                                    ClipToBounds="True"
-                                                                                    Cursor="Hand"
-                                                                                    IsVisible="{Binding Kind, Converter={StaticResource ChatAttachmentKindToBoolConverter}, ConverterParameter=Image}">
-                                                                                <Border CornerRadius="12"
+                                                <!-- ============ USER TURN ============ -->
+                                                <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsUser}" MinWidth="0"
+                                                      Classes="userTurn" Background="Transparent">
+                                                    <StackPanel Grid.Column="0" HorizontalAlignment="Right" MinWidth="0">
+                                                        <!-- Bubble -->
+                                                        <Border HorizontalAlignment="Right"
+                                                                MaxWidth="420"
+                                                                CornerRadius="14,14,4,14"
+                                                                Padding="14,10"
+                                                                Background="{DynamicResource CardBackgroundSecondaryBrush}"
+                                                                IsVisible="{Binding !IsEditing}">
+                                                            <StackPanel Spacing="8">
+                                                                <ItemsControl ItemsSource="{Binding Attachments}"
+                                                                              IsVisible="{Binding HasAttachments}">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate>
+                                                                            <WrapPanel Orientation="Horizontal"/>
+                                                                        </ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate DataType="vm:ChatAttachmentViewModel">
+                                                                            <Panel Margin="0,0,8,8">
+                                                                                <!-- Image attachment (click to preview) -->
+                                                                                <Button Command="{Binding #ChatRoot.DataContext, Converter={StaticResource ChatViewModelDataContextCommandConverter}, ConverterParameter=OpenImagePreview}"
+                                                                                        CommandParameter="{Binding Path}"
+                                                                                        Background="Transparent"
+                                                                                        BorderThickness="0"
+                                                                                        Padding="0"
+                                                                                        CornerRadius="{StaticResource Radius.Md}"
                                                                                         ClipToBounds="True"
+                                                                                        Cursor="Hand"
+                                                                                        IsVisible="{Binding Kind, Converter={StaticResource ChatAttachmentKindToBoolConverter}, ConverterParameter=Image}">
+                                                                                    <Border CornerRadius="{StaticResource Radius.Md}"
+                                                                                            ClipToBounds="True"
+                                                                                            BorderBrush="{DynamicResource SidebarBorderBrush}"
+                                                                                            BorderThickness="1"
+                                                                                            Background="{DynamicResource CardBackgroundPrimaryBrush}">
+                                                                                        <Image Source="{Binding Path, Converter={StaticResource LocalPathToBitmapConverter}}"
+                                                                                               Stretch="Uniform"
+                                                                                               MaxWidth="128"
+                                                                                               MaxHeight="96"
+                                                                                               MinWidth="32"
+                                                                                               MinHeight="32"/>
+                                                                                    </Border>
+                                                                                </Button>
+                                                                                <!-- File attachment -->
+                                                                                <Border Background="{DynamicResource CardBackgroundPrimaryBrush}"
                                                                                         BorderBrush="{DynamicResource SidebarBorderBrush}"
                                                                                         BorderThickness="1"
-                                                                                        Background="{DynamicResource CardBackgroundPrimaryBrush}">
-                                                                                    <Image Source="{Binding Path, Converter={StaticResource LocalPathToBitmapConverter}}"
-                                                                                           Stretch="Uniform"
-                                                                                           MaxWidth="128"
-                                                                                           MaxHeight="128"
-                                                                                           MinWidth="32"
-                                                                                           MinHeight="32"/>
+                                                                                        CornerRadius="{StaticResource Radius.Md}"
+                                                                                        Padding="10,7"
+                                                                                        IsVisible="{Binding Kind, Converter={StaticResource ChatAttachmentKindToBoolConverter}, ConverterParameter=File}">
+                                                                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                                                        <Border Width="26" Height="26"
+                                                                                                CornerRadius="{StaticResource Radius.Sm}"
+                                                                                                Background="{DynamicResource AccentSubtleBackgroundBrush}">
+                                                                                            <controls:AppIcon Icon="Common/file-text"
+                                                                                                              Width="13" Height="13"
+                                                                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                                              Color="{DynamicResource AccentBrush}"/>
+                                                                                        </Border>
+                                                                                        <StackPanel VerticalAlignment="Center" Spacing="1">
+                                                                                            <TextBlock Text="{Binding DisplayName}"
+                                                                                                       FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
+                                                                                                       FontFamily="{DynamicResource Font.Medium}"
+                                                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                                                       TextTrimming="CharacterEllipsis"
+                                                                                                       MaxWidth="180"/>
+                                                                                            <TextBlock Text="{Binding SizeText}"
+                                                                                                       IsVisible="{Binding HasSizeText}"
+                                                                                                       FontSize="{DynamicResource FontSize.Body.Caption}"
+                                                                                                       Foreground="{DynamicResource TextFadedBrush}"/>
+                                                                                        </StackPanel>
+                                                                                    </StackPanel>
                                                                                 </Border>
-                                                                            </Button>
+                                                                            </Panel>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                                <!-- LineHeight matches assistant markdown prose: Body.Medium 16 x 1.5 leading -->
+                                                                <TextBlock Text="{Binding Content}"
+                                                                           FontSize="{DynamicResource FontSize.Body.Medium}"
+                                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                           TextWrapping="Wrap"
+                                                                           LineHeight="24"/>
+                                                            </StackPanel>
+                                                        </Border>
 
-                                                                            <!-- File Attachment -->
-                                                                            <Border Background="{DynamicResource CardBackgroundSecondaryBrush}"
-                                                                                    BorderBrush="{DynamicResource SidebarBorderBrush}"
-                                                                                    BorderThickness="1"
-                                                                                    CornerRadius="8"
-                                                                                    Padding="10,8"
-                                                                                    IsVisible="{Binding Kind, Converter={StaticResource ChatAttachmentKindToBoolConverter}, ConverterParameter=File}">
-                                                                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                                                                    <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/file-text.svg"
-                                                                                                      Width="16" Height="16"
-                                                                                                      Color="{DynamicResource TextPrimaryBrush}"/>
-                                                                                    <TextBlock Text="{Binding DisplayName}"
-                                                                                               FontSize="{DynamicResource FontSize.Body.Small}"
-                                                                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                                               FontFamily="{DynamicResource Font.Medium}"
-                                                                                               TextTrimming="CharacterEllipsis"
-                                                                                               MaxWidth="200"
-                                                                                               VerticalAlignment="Center"/>
-                                                                                </StackPanel>
-                                                                            </Border>
-                                                                        </Panel>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
-                                                            <TextBlock Text="{Binding Content}"
-                                                                       FontSize="{DynamicResource FontSize.Body.Small}"
-                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                       TextWrapping="Wrap"
-                                                                       LineHeight="20"/>
+                                                        <!-- Inline edit state -->
+                                                        <Border IsVisible="{Binding IsEditing}"
+                                                                HorizontalAlignment="Stretch"
+                                                                MaxWidth="520"
+                                                                CornerRadius="{StaticResource Radius.Lg}"
+                                                                Background="{DynamicResource CardBackgroundPrimaryBrush}"
+                                                                BorderBrush="{DynamicResource AccentBrush}"
+                                                                BorderThickness="1.5"
+                                                                Padding="12,10">
+                                                            <StackPanel Spacing="10">
+                                                                <TextBox Classes="TransparentBackground"
+                                                                         Text="{Binding EditText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                         AcceptsReturn="True"
+                                                                         TextWrapping="Wrap"
+                                                                         MinHeight="40"
+                                                                         MaxHeight="180"
+                                                                         BorderThickness="0"
+                                                                         Background="{DynamicResource TextControlTransparentBackgroundBrush}"
+                                                                         FontSize="{DynamicResource FontSize.Body.Small}"
+                                                                         Padding="2,2"/>
+                                                                <Grid ColumnDefinitions="*,Auto,Auto">
+                                                                    <TextBlock Grid.Column="0"
+                                                                               Text="{markup:T Ns=Chat, Key=EditSendNote}"
+                                                                               FontSize="{DynamicResource FontSize.Body.Caption}"
+                                                                               Foreground="{DynamicResource TextFadedBrush}"
+                                                                               VerticalAlignment="Center"/>
+                                                                    <Button Grid.Column="1"
+                                                                            Classes="chatGhostPillBtn"
+                                                                            Margin="8,0,0,0"
+                                                                            Command="{Binding #ChatRoot.DataContext, Converter={StaticResource ChatViewModelDataContextCommandConverter}, ConverterParameter=CancelEdit}"
+                                                                            CommandParameter="{Binding}">
+                                                                        <TextBlock Text="{markup:T Ns=Common, Key=Cancel}"/>
+                                                                    </Button>
+                                                                    <Button Grid.Column="2"
+                                                                            Classes="chatAccentPillBtn"
+                                                                            Margin="8,0,0,0"
+                                                                            Command="{Binding #ChatRoot.DataContext, Converter={StaticResource ChatViewModelDataContextCommandConverter}, ConverterParameter=SubmitEdit}"
+                                                                            CommandParameter="{Binding}">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                            <controls:AppIcon Icon="Common/check" Width="12" Height="12"
+                                                                                              VerticalAlignment="Center"
+                                                                                              Color="{DynamicResource AccentButtonIconBrush}"/>
+                                                                            <TextBlock Text="{markup:T Ns=Chat, Key=SaveAndSubmit}" VerticalAlignment="Center"/>
+                                                                        </StackPanel>
+                                                                    </Button>
+                                                                </Grid>
+                                                            </StackPanel>
+                                                        </Border>
+
+                                                        <!-- Hover actions (reserved height; fades in) -->
+                                                        <StackPanel Classes="msgActions"
+                                                                    Orientation="Horizontal" Spacing="2"
+                                                                    HorizontalAlignment="Right"
+                                                                    Height="26" Margin="0,4,0,0"
+                                                                    IsVisible="{Binding !IsEditing}">
+                                                            <Button Classes="chatIconBtn" Width="26" Height="26"
+                                                                    Command="{Binding #ChatRoot.DataContext, Converter={StaticResource ChatViewModelDataContextCommandConverter}, ConverterParameter=Copy}"
+                                                                    CommandParameter="{Binding}"
+                                                                    ToolTip.Tip="{markup:T Ns=Chat, Key=CopyMessage}">
+                                                                <controls:AppIcon Icon="Common/copy" Width="13" Height="13"
+                                                                                  Color="{Binding $parent[Button].Foreground}"/>
+                                                            </Button>
+                                                            <Button Classes="chatIconBtn" Width="26" Height="26"
+                                                                    Command="{Binding #ChatRoot.DataContext, Converter={StaticResource ChatViewModelDataContextCommandConverter}, ConverterParameter=BeginEdit}"
+                                                                    CommandParameter="{Binding}"
+                                                                    ToolTip.Tip="{markup:T Ns=Chat, Key=EditMessage}">
+                                                                <controls:AppIcon Icon="Common/pencil" Width="13" Height="13"
+                                                                                  Color="{Binding $parent[Button].Foreground}"/>
+                                                            </Button>
                                                         </StackPanel>
-                                                    </Border>
+                                                    </StackPanel>
+
                                                     <!-- User avatar -->
                                                     <Border Grid.Column="1"
-                                                            Width="30" Height="30" CornerRadius="15"
-                                                            Margin="12,2,0,0"
+                                                            Width="26" Height="26" CornerRadius="13"
+                                                            Margin="10,2,0,0"
                                                             VerticalAlignment="Top"
                                                             ClipToBounds="True"
                                                             BorderBrush="{DynamicResource SidebarBorderBrush}"
@@ -1175,180 +1068,35 @@
                             </StackPanel>
                         </Border>
                     </ScrollViewer>
-                </Panel>
+                </Grid>
+            </Panel>
 
-                <!-- Bottom input bar (active conversation only; landing has its own composer) -->
-                <Grid Grid.Row="1" RowDefinitions="Auto, Auto, Auto"
-                      IsVisible="{Binding !ShowWelcomeIntro}"
-                      MinWidth="0">
-                    <Button x:Name="ScrollToBottomButton"
-                            Classes="ScrollToBottomLink"
-                            Grid.Row="0"
-                            IsVisible="{Binding ShowScrollToBottomButton}"
-                            Command="{Binding ScrollToBottomCommand}"
-                            Padding="0,6,0,0"
-                            VerticalAlignment="Bottom"
-                            HorizontalAlignment="Center">
+            <!-- Bottom dock: scroll pill + composer + disclaimer -->
+            <StackPanel Grid.Row="1" IsVisible="{Binding !ShowWelcomeIntro}" MinWidth="0">
+                <Button Classes="chatScrollPill"
+                        IsVisible="{Binding ShowScrollToBottomButton}"
+                        Command="{Binding ScrollToBottomCommand}"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,10">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <controls:AppIcon Icon="Common/arrow-down" Width="11" Height="11"
+                                          VerticalAlignment="Center"
+                                          Color="{Binding $parent[Button].Foreground}"/>
                         <TextBlock Text="{markup:T Ns=Chat, Key=ScrollToBottom}"
                                    FontSize="{DynamicResource FontSize.Body.Caption}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                    </Button>
-
-                    <Border Grid.Row="1"
-                            HorizontalAlignment="Stretch"
-                            MaxWidth="820"
-                            MinWidth="0"
-                            Margin="28,14,28,0">
-                        <Border Background="{DynamicResource CardBackgroundPrimaryBrush}"
-                                CornerRadius="22"
-                                BoxShadow="0 10 28 -12 #22000000"
-                                BorderThickness="1"
-                                BorderBrush="{DynamicResource SidebarBorderBrush}"
-                                Padding="0">
-                            <Grid RowDefinitions="Auto, Auto, Auto">
-                                <!-- Pending Attachments -->
-                                <ItemsControl Grid.Row="0"
-                                              ItemsSource="{Binding PendingAttachments}"
-                                              ItemTemplate="{StaticResource PendingAttachmentTemplate}"
-                                              Margin="14,10,14,0">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel Orientation="Horizontal"/>
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                </ItemsControl>
-
-                                <!-- Text input -->
-                                <TextBox x:Name="InputBox"
-                                         Grid.Row="1"
-                                         Classes="TransparentBackground"
-                                         PlaceholderText="{markup:T Ns=Chat, Key=LandingPlaceholder}"
-                                         AcceptsReturn="False"
-                                         TextWrapping="Wrap"
-                                         MinHeight="48"
-                                         MaxHeight="140"
-                                         BorderThickness="0"
-                                         Background="{DynamicResource TextControlTransparentBackgroundBrush}"
-                                         Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
-                                         Padding="18,14,18,6"/>
-
-                                <!-- Toolbar row -->
-                                <Grid Grid.Row="2" ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, *, Auto"
-                                      MinWidth="0"
-                                      Margin="10,0,10,10">
-                                    <Button Grid.Column="0" Classes="PromptActionButton" Margin="0,0,2,0"
-                                            VerticalAlignment="Center"
-                                            ToolTip.Tip="{markup:T Ns=Chat, Key=AddAttachment}" Click="AddAttachment_Click">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/link.svg"
-                                                          Width="16" Height="16"
-                                                          Color="{DynamicResource TextFadedBrush}"/>
-                                    </Button>
-                                    <ToggleButton Grid.Column="1" Classes="ToolbarPill" Margin="0,0,2,0"
-                                                  Padding="8"
-                                                  BorderThickness="0"
-                                                  VerticalAlignment="Center"
-                                                  IsChecked="{Binding IsWebSearchEnabled, Mode=TwoWay}"
-                                                  ToolTip.Tip="{markup:T Ns=Chat, Key=WebSearch}">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/search.svg"
-                                                          Width="16" Height="16"
-                                                          Color="{DynamicResource TextFadedBrush}"/>
-                                    </ToggleButton>
-                                    <Button Grid.Column="2" Classes="PromptActionButton" Margin="0,0,2,0"
-                                            VerticalAlignment="Center"
-                                            ToolTip.Tip="{markup:T Ns=Chat, Key=AddImage}" Click="AddImage_Click">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/FormattingToolbar/polaroid.svg"
-                                                          Width="16" Height="16"
-                                                          Color="{DynamicResource TextFadedBrush}"/>
-                                    </Button>
-                                    <Button Grid.Column="3" Classes="PromptActionButton" Margin="0,0,6,0"
-                                            VerticalAlignment="Center"
-                                            ToolTip.Tip="{markup:T Ns=Chat, Key=AddScreenshot}" Click="AddScreenshot_Click">
-                                        <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/screenshot.svg"
-                                                          Width="16" Height="16"
-                                                          Color="{DynamicResource TextFadedBrush}"/>
-                                    </Button>
-                                    <controls:ModernComboBox Grid.Column="4"
-                                                             Classes="PromptPill"
-                                                             ItemsSource="{Binding AssistantModes}"
-                                                             SelectedItem="{Binding SelectedAssistantMode}"
-                                                             MinWidth="80"
-                                                             Margin="0,0,6,0"
-                                                             VerticalAlignment="Center"
-                                                             ToolTip.Tip="{markup:T Ns=Chat, Key=AssistantMode}">
-                                        <controls:ModernComboBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Converter={StaticResource AssistantModeToLabelConverter}}"
-                                                           FontSize="{DynamicResource FontSize.Body.Caption}"
-                                                           FontFamily="{DynamicResource Font.Medium}"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                            </DataTemplate>
-                                        </controls:ModernComboBox.ItemTemplate>
-                                    </controls:ModernComboBox>
-                                    <Border Grid.Column="5"
-                                            IsVisible="{Binding ShowMemoryPill}"
-                                            VerticalAlignment="Center"
-                                            Margin="0,0,8,0"
-                                            Background="{DynamicResource CardBackgroundSecondaryBrush}"
-                                            BorderBrush="{DynamicResource SidebarBorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="14"
-                                            Padding="10,5"
-                                            MaxWidth="200"
-                                            Cursor="Help">
-                                        <ToolTip.Tip>
-                                            <TextBlock Text="{Binding MemoryPillTooltipText}"
-                                                       TextWrapping="Wrap"
-                                                       MaxWidth="420"
-                                                       FontSize="{DynamicResource FontSize.Body.Small}"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                        </ToolTip.Tip>
-                                        <TextBlock Text="{Binding MemoryPillDisplayText}"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   FontSize="{DynamicResource FontSize.Body.Caption}"
-                                                   FontFamily="{DynamicResource Font.Medium}"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                    </Border>
-                                    <Border Grid.Column="6" MinWidth="0"/>
-                                    <Panel Grid.Column="7" VerticalAlignment="Center">
-                                        <Button Command="{Binding SendMessageCommand}"
-                                                IsVisible="{Binding !IsBusy}"
-                                                Classes="SendCircle"
-                                                Width="36" Height="36" CornerRadius="18"
-                                                ToolTip.Tip="{markup:T Ns=Chat, Key=SendEnter}">
-                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chevron-right.svg"
-                                                              Width="16" Height="16"
-                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                              Color="{DynamicResource AccentButtonIconBrush}">
-                                                <controls:SvgIcon.RenderTransform>
-                                                    <RotateTransform Angle="-90"/>
-                                                </controls:SvgIcon.RenderTransform>
-                                            </controls:SvgIcon>
-                                        </Button>
-                                        <Button Command="{Binding StopCommand}"
-                                                IsVisible="{Binding IsBusy}"
-                                                Classes="StopCircle"
-                                                Width="36" Height="36" CornerRadius="18"
-                                                ToolTip.Tip="{markup:T Ns=Chat, Key=Stop}">
-                                            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/player-pause.svg"
-                                                              Width="16" Height="16"
-                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                              Color="{DynamicResource StopButtonForegroundBrush}"/>
-                                        </Button>
-                                    </Panel>
-                                </Grid>
-                            </Grid>
-                        </Border>
-                    </Border>
-
-                    <!-- Disclaimer -->
-                    <TextBlock Grid.Row="2"
-                               Text="{markup:T Ns=Chat, Key=Disclaimer}"
-                               HorizontalAlignment="Center"
-                               FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
-                               Foreground="{DynamicResource TextFadedBrush}"
-                               Margin="0,10,0,14"/>
-                </Grid>
-            </Grid>
-        </Panel>
+                                   FontFamily="{DynamicResource Font.Medium}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <views:ChatComposerView MaxWidth="680"
+                                        Margin="28,0,28,0"
+                                        Placeholder="{markup:T Ns=Chat, Key=FollowUpPlaceholder}"/>
+                <TextBlock Text="{markup:T Ns=Chat, Key=Disclaimer}"
+                           HorizontalAlignment="Center"
+                           FontSize="{DynamicResource FontSize.Body.Caption}"
+                           Foreground="{DynamicResource TextFadedBrush}"
+                           Margin="0,9,0,12"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </UserControl>

@@ -4,15 +4,11 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.UI.Modules.Chat.ViewModels;
-using Mnemo.UI.Services;
 
 namespace Mnemo.UI.Modules.Chat.Views;
 
@@ -30,16 +26,12 @@ public partial class ChatView : UserControl
     private ScrollViewer? _chatScrollViewer;
     private ItemsRepeater? _chatMessagesRepeater;
     private ChatViewModel? _currentVm;
-    private TextBox? _inputBox;
-    private TextBox? _landingInputBox;
-    private readonly EventHandler<KeyEventArgs> _inputBoxKeyDownHandler;
     private readonly IPerfDiagnostics? _perf;
     private DispatcherTimer? _chatMetricsDebounce;
 
     public ChatView()
     {
         InitializeComponent();
-        _inputBoxKeyDownHandler = InputBox_KeyDown;
         if (Application.Current is App app)
             _perf = app.Services?.GetService(typeof(IPerfDiagnostics)) as IPerfDiagnostics;
     }
@@ -51,10 +43,6 @@ public partial class ChatView : UserControl
         _chatMessagesRepeater = this.FindControl<ItemsRepeater>("ChatMessagesRepeater");
         if (_chatScrollViewer != null)
             _chatScrollViewer.ScrollChanged += OnScrollChanged;
-        _inputBox = this.FindControl<TextBox>("InputBox");
-        _inputBox?.AddHandler(InputElement.KeyDownEvent, _inputBoxKeyDownHandler, RoutingStrategies.Tunnel);
-        _landingInputBox = this.FindControl<TextBox>("LandingInputBox");
-        _landingInputBox?.AddHandler(InputElement.KeyDownEvent, _inputBoxKeyDownHandler, RoutingStrategies.Tunnel);
         DataContextChanged += OnDataContextChanged;
         AttachViewModel(DataContext as ChatViewModel);
     }
@@ -63,16 +51,6 @@ public partial class ChatView : UserControl
     {
         DataContextChanged -= OnDataContextChanged;
         AttachViewModel(null);
-        if (_inputBox != null)
-        {
-            _inputBox.RemoveHandler(InputElement.KeyDownEvent, _inputBoxKeyDownHandler);
-            _inputBox = null;
-        }
-        if (_landingInputBox != null)
-        {
-            _landingInputBox.RemoveHandler(InputElement.KeyDownEvent, _inputBoxKeyDownHandler);
-            _landingInputBox = null;
-        }
         if (_chatScrollViewer != null)
         {
             _chatScrollViewer.ScrollChanged -= OnScrollChanged;
@@ -164,89 +142,6 @@ public partial class ChatView : UserControl
         }
         _perf.RecordMetric("Chat", "messages.total", total, detail: "bound collection count");
         _perf.RecordMetric("Chat", "messages.realized", realized, detail: "ItemsRepeater visual children (approx realized)");
-    }
-
-    private void InputBox_KeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter) return;
-        if (sender is not TextBox tb) return;
-
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
-        {
-            var text = tb.Text ?? string.Empty;
-            var caret = Math.Clamp(tb.CaretIndex, 0, text.Length);
-            tb.Text = text.Insert(caret, "\n");
-            tb.CaretIndex = caret + 1;
-            e.Handled = true;
-            return;
-        }
-
-        if (e.KeyModifiers != KeyModifiers.None) return;
-
-        if (DataContext is not ChatViewModel vm) return;
-        if (vm.SendMessageCommand.CanExecute(null))
-        {
-            vm.SendMessageCommand.Execute(null);
-            e.Handled = true;
-        }
-    }
-
-    private async void AddAttachment_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : TopLevel.GetTopLevel(this);
-        if (topLevel?.StorageProvider == null || DataContext is not ChatViewModel vm) return;
-
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Select files",
-            AllowMultiple = true
-        }).ConfigureAwait(true);
-
-        foreach (var file in files ?? Enumerable.Empty<IStorageFile>())
-        {
-            var path = file.Path.LocalPath;
-            var kind = ChatViewModel.IsImagePath(path) ? ChatAttachmentKind.Image : ChatAttachmentKind.File;
-            vm.AddPendingAttachment(path, kind);
-        }
-    }
-
-    private async void AddImage_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : TopLevel.GetTopLevel(this);
-        if (topLevel?.StorageProvider == null || DataContext is not ChatViewModel vm) return;
-
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Select image(s)",
-            AllowMultiple = true,
-            FileTypeFilter = new[]
-            {
-                new FilePickerFileType("Images")
-                {
-                    Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp" }
-                }
-            }
-        }).ConfigureAwait(true);
-
-        foreach (var file in files ?? Enumerable.Empty<IStorageFile>())
-        {
-            var path = file.Path.LocalPath;
-            vm.AddPendingAttachment(path, ChatAttachmentKind.Image);
-        }
-    }
-
-    private void AddScreenshot_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null || DataContext is not ChatViewModel vm) return;
-
-        var path = ScreenshotService.CaptureToTempFile(topLevel);
-        if (!string.IsNullOrEmpty(path))
-            vm.AddPendingAttachment(path, ChatAttachmentKind.Image, "Screenshot");
     }
 
     private void ChatHistoryRowSegment_PointerEntered(object? sender, PointerEventArgs e)

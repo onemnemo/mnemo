@@ -29,6 +29,12 @@ public interface IAIOrchestrator
     /// <param name="conversationRoutingKey">Optional. Thread id for session continuity (same as chat session id).</param>
     /// <param name="onToolCall">Optional. Called for each tool call the assistant makes during an agentic turn (for UI process-step display).</param>
     /// <param name="onAssistantReasoningUpdate">Optional. Receives cumulative reasoning text from thinking models (not mixed into yielded tokens).</param>
+    /// <param name="onAssistantNarration">
+    /// Optional. Receives mid-turn visible text — assistant prose emitted in a round that then calls tools.
+    /// This is narration, not the answer: it belongs in the reasoning trace, not the final message. When
+    /// provided, such text is routed here instead of the yielded token stream, so the answer is only the
+    /// final post-tool text block. When null, mid-turn text is yielded as answer content (legacy behavior).
+    /// </param>
     IAsyncEnumerable<string> PromptStreamingWithHistoryAsync(
         string systemPrompt,
         IReadOnlyList<ConversationTurn> history,
@@ -37,5 +43,6 @@ public interface IAIOrchestrator
         IProgress<string>? pipelineStatus = null,
         string? conversationRoutingKey = null,
         Action<ChatToolCall>? onToolCall = null,
-        Action<string>? onAssistantReasoningUpdate = null);
+        Action<string>? onAssistantReasoningUpdate = null,
+        Action<string>? onAssistantNarration = null);
 }

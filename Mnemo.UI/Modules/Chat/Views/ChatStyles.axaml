@@ -1,0 +1,307 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Mnemo.UI.Controls">
+
+    <!-- Shared styles for the Chat module (ChatView + ChatComposerView). -->
+
+    <!-- Quiet 28px icon button (message actions, header actions, composer utilities) -->
+    <Style Selector="Button.chatIconBtn">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="{StaticResource Radius.Sm}"/>
+        <Setter Property="Width" Value="28"/>
+        <Setter Property="Height" Value="28"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextFadedBrush}"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+            </Transitions>
+        </Setter>
+        <Style Selector="^:pointerover">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        </Style>
+        <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Opacity" Value="0.35"/>
+        </Style>
+        <!-- Selected (e.g. an active thumbs vote): accent ink -->
+        <Style Selector="^.active">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+    </Style>
+
+    <!-- Quiet icon+label text button (Copy / Regenerate action bar) -->
+    <Style Selector="Button.chatTextBtn">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="{StaticResource Radius.Sm}"/>
+        <Setter Property="Height" Value="28"/>
+        <Setter Property="Padding" Value="9,0"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextFadedBrush}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+            </Transitions>
+        </Setter>
+        <Style Selector="^:pointerover">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        </Style>
+        <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Opacity" Value="0.35"/>
+        </Style>
+    </Style>
+
+    <!-- Composer toggle pill (Web search): ghost at rest, accent-tinted when on -->
+    <Style Selector="ToggleButton.chatTogglePill">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="{StaticResource Radius.Md}"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+    </Style>
+    <Style Selector="ToggleButton.chatTogglePill /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="ToggleButton.chatTogglePill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+    </Style>
+    <Style Selector="ToggleButton.chatTogglePill:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentSubtleBackgroundBrush}"/>
+    </Style>
+    <Style Selector="ToggleButton.chatTogglePill:checked">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <!-- Accent-filled pill button (Save & submit) -->
+    <Style Selector="Button.chatAccentPillBtn">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="{StaticResource Radius.Md}"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="Padding" Value="13,0"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentButtonIconBrush}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+        <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Opacity" Value="0.92"/>
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Opacity" Value="0.4"/>
+        </Style>
+    </Style>
+
+    <!-- Ghost pill button (Cancel) -->
+    <Style Selector="Button.chatGhostPillBtn">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="{StaticResource Radius.Md}"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="Padding" Value="11,0"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+        <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+        </Style>
+    </Style>
+
+    <!-- Landing quick-action pill: outline at rest, accent lift on hover -->
+    <Style Selector="Button.chatQuickPill">
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundPrimaryBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource SidebarBorderBrush}"/>
+        <Setter Property="CornerRadius" Value="{StaticResource Radius.Pill}"/>
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="Padding" Value="13,0"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+                <BrushTransition Property="Foreground" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+            </Transitions>
+        </Setter>
+        <Style Selector="^:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+        <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentSubtleBackgroundBrush}"/>
+        </Style>
+    </Style>
+
+    <!-- Circular send / stop buttons -->
+    <Style Selector="Button.chatSendCircle">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="17"/>
+        <Setter Property="Width" Value="34"/>
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Opacity" Value="0.92"/>
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Opacity" Value="0.4"/>
+        </Style>
+    </Style>
+    <Style Selector="Button.chatStopCircle">
+        <Setter Property="Background" Value="{DynamicResource StopButtonBackgroundBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="17"/>
+        <Setter Property="Width" Value="34"/>
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Opacity" Value="0.92"/>
+        </Style>
+    </Style>
+
+    <!-- Micro caps section label (SOURCES, sidebar day groups) -->
+    <Style Selector="TextBlock.chatMicroCaps">
+        <Setter Property="FontSize" Value="{DynamicResource FontSize.CaptionButton}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}"/>
+        <Setter Property="LetterSpacing" Value="1.1"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextFadedBrush}"/>
+    </Style>
+
+    <!-- Spinner arc rotation (pair with States/spinner-track + States/spinner-arc).
+         Type selectors match the exact type, so target AppIcon, not its SvgIcon base. -->
+    <Style Selector="controls|AppIcon.ActiveSpin">
+        <Setter Property="RenderTransformOrigin" Value="50%,50%"/>
+        <Style.Animations>
+            <Animation Duration="0:0:0.9" IterationCount="Infinite">
+                <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="0"/></KeyFrame>
+                <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="360"/></KeyFrame>
+            </Animation>
+        </Style.Animations>
+    </Style>
+
+    <!-- Shimmer placeholder bars: soft opacity breathing until the first token lands -->
+    <Style Selector="Border.chatShimmerBar">
+        <Setter Property="Height" Value="11"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundSecondaryBrush}"/>
+        <Style.Animations>
+            <Animation Duration="0:0:1.4" IterationCount="Infinite">
+                <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1.0"/></KeyFrame>
+                <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.45"/></KeyFrame>
+                <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1.0"/></KeyFrame>
+            </Animation>
+        </Style.Animations>
+    </Style>
+
+    <!-- Trace-card header toggle: the full-width clickable header of the bordered trace card. Whole
+         row is the target; hover lifts the header fill (clipped to the card's rounded top corners). -->
+    <Style Selector="ToggleButton.chatTraceHeader">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Padding" Value="14,10"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="ToggleButton.chatTraceHeader /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="ToggleButton.chatTraceHeader:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <!-- Declared after :checked so hover wins in both open and closed states -->
+    <Style Selector="ToggleButton.chatTraceHeader:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ListItemHoverBackgroundBrush}"/>
+    </Style>
+    <Style Selector="ToggleButton.chatTraceHeader controls|AppIcon.chevron">
+        <Setter Property="RenderTransformOrigin" Value="50%,50%"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut"/>
+            </Transitions>
+        </Setter>
+        <Setter Property="RenderTransform" Value="rotate(0deg)"/>
+    </Style>
+    <Style Selector="ToggleButton.chatTraceHeader:checked controls|AppIcon.chevron">
+        <Setter Property="RenderTransform" Value="rotate(180deg)"/>
+    </Style>
+
+    <!-- Trace rail step label: faded when done, primary while active -->
+    <Style Selector="TextBlock.chatStepLabel">
+        <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextFadedBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style Selector="TextBlock.chatStepLabel.active">
+        <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+    </Style>
+
+    <!-- Inline tool-call suffix chip: quiet by default, brightens on hover -->
+    <Style Selector="ToggleButton.chatToolSuffix">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="3,0"/>
+        <Setter Property="CornerRadius" Value="{StaticResource Radius.Sm}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextFadedBrush}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.Caption}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Medium}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Style Selector="^:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        </Style>
+        <Style Selector="^ TextBlock.failed">
+            <Setter Property="Foreground" Value="{DynamicResource ChatProcessStateFailedGlyphBrush}"/>
+        </Style>
+    </Style>
+    <Style Selector="ToggleButton.chatToolSuffix /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="ToggleButton.chatToolSuffix:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="ToggleButton.chatToolSuffix:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+
+</Styles>

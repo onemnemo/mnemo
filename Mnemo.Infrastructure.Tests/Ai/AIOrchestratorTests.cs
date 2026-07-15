@@ -126,6 +126,59 @@ public class AIOrchestratorTests
     }
 
     [Fact]
+    public async Task Narration_sink_diverts_mid_turn_text_and_keeps_answer_final_only()
+    {
+        var call = new ToolCallRequest("call-1", "get_time", "{}");
+        var client = new ScriptedChatModelClient()
+            // Round 1: the model narrates, then calls a tool. That prose is narration, not the answer.
+            .Enqueue(
+                new ChatStreamDelta.Content("Let me check the time "),
+                new ChatStreamDelta.ToolCall(call),
+                new ChatStreamDelta.Finish(ChatFinishReason.ToolCalls))
+            // Round 2 (terminal): the real answer.
+            .Enqueue(
+                new ChatStreamDelta.Content("It is noon."),
+                new ChatStreamDelta.Finish(ChatFinishReason.Stop));
+        var gateway = new FakeAiToolGateway(
+            definitions: new[] { Def("get_time") },
+            resultFactory: c => new ToolCallResult(c.Id, c.Name, "12:00"));
+        var orchestrator = NewOrchestrator(FakeModelRouter.Available(client), gateway);
+
+        var narration = new List<string>();
+        var tokens = await CollectAsync(orchestrator.PromptStreamingWithHistoryAsync(
+            "sys", NoHistory, "what time is it?",
+            onAssistantNarration: narration.Add));
+
+        // The answer stream carries only the final post-tool text; the mid-turn prose went to narration.
+        Assert.Equal("It is noon.", string.Concat(tokens));
+        Assert.Equal(new[] { "Let me check the time " }, narration);
+    }
+
+    [Fact]
+    public async Task Without_narration_sink_mid_turn_text_stays_in_answer()
+    {
+        var call = new ToolCallRequest("call-1", "get_time", "{}");
+        var client = new ScriptedChatModelClient()
+            .Enqueue(
+                new ChatStreamDelta.Content("Let me check. "),
+                new ChatStreamDelta.ToolCall(call),
+                new ChatStreamDelta.Finish(ChatFinishReason.ToolCalls))
+            .Enqueue(
+                new ChatStreamDelta.Content("It is noon."),
+                new ChatStreamDelta.Finish(ChatFinishReason.Stop));
+        var gateway = new FakeAiToolGateway(
+            definitions: new[] { Def("get_time") },
+            resultFactory: c => new ToolCallResult(c.Id, c.Name, "12:00"));
+        var orchestrator = NewOrchestrator(FakeModelRouter.Available(client), gateway);
+
+        // Legacy behavior (no sink): mid-turn text is still part of the yielded answer stream.
+        var tokens = await CollectAsync(orchestrator.PromptStreamingWithHistoryAsync(
+            "sys", NoHistory, "what time is it?"));
+
+        Assert.Equal("Let me check. It is noon.", string.Concat(tokens));
+    }
+
+    [Fact]
     public async Task Tool_call_loop_stops_at_round_cap()
     {
         var call = new ToolCallRequest("c", "loop_tool", "{}");

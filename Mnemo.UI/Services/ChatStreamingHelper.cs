@@ -151,7 +151,8 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
         string? conversationRoutingKey = null,
         ChatStreamingDisplayOptions? displayOptions = null,
         Action<ChatToolCall>? onToolCall = null,
-        Action<string>? onAssistantReasoningUpdate = null)
+        Action<string>? onAssistantReasoningUpdate = null,
+        Action<string>? onAssistantNarration = null)
     {
         var options = displayOptions ?? ChatStreamingDisplayOptions.Balanced;
         var throttledPipeline = ThrottlePipeline(pipelineStatus, minIntervalMs: 80);
@@ -168,7 +169,8 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
                 throttledPipeline,
                 conversationRoutingKey,
                 onToolCall,
-                onAssistantReasoningUpdate).ConfigureAwait(false);
+                onAssistantReasoningUpdate,
+                onAssistantNarration).ConfigureAwait(false);
 
         return await RunRevealWithHistoryAsync(
             orchestrator,
@@ -181,7 +183,8 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
             conversationRoutingKey,
             options,
             onToolCall,
-            onAssistantReasoningUpdate).ConfigureAwait(false);
+            onAssistantReasoningUpdate,
+            onAssistantNarration).ConfigureAwait(false);
     }
 
     private static IProgress<string>? ThrottlePipeline(IProgress<string>? inner, int minIntervalMs)
@@ -226,7 +229,8 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
         IProgress<string>? pipelineStatus,
         string? conversationRoutingKey,
         Action<ChatToolCall>? onToolCall = null,
-        Action<string>? onAssistantReasoningUpdate = null)
+        Action<string>? onAssistantReasoningUpdate = null,
+        Action<string>? onAssistantNarration = null)
     {
         var buffer = new StringBuilder();
         var lockObj = new object();
@@ -234,7 +238,7 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
 
         try
         {
-            await foreach (var token in orchestrator.PromptStreamingWithHistoryAsync(systemPrompt, history, userMessage, cancellationToken, pipelineStatus, conversationRoutingKey, onToolCall, onAssistantReasoningUpdate)
+            await foreach (var token in orchestrator.PromptStreamingWithHistoryAsync(systemPrompt, history, userMessage, cancellationToken, pipelineStatus, conversationRoutingKey, onToolCall, onAssistantReasoningUpdate, onAssistantNarration)
                 .ConfigureAwait(false))
             {
                 lock (lockObj)
@@ -285,7 +289,8 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
         string? conversationRoutingKey,
         ChatStreamingDisplayOptions options,
         Action<ChatToolCall>? onToolCall = null,
-        Action<string>? onAssistantReasoningUpdate = null)
+        Action<string>? onAssistantReasoningUpdate = null,
+        Action<string>? onAssistantNarration = null)
     {
         var buffer = new StringBuilder();
         var lockObj = new object();
@@ -300,7 +305,7 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
         {
             try
             {
-                await foreach (var token in orchestrator.PromptStreamingWithHistoryAsync(systemPrompt, history, userMessage, cancellationToken, pipelineStatus, conversationRoutingKey, onToolCall, onAssistantReasoningUpdate)
+                await foreach (var token in orchestrator.PromptStreamingWithHistoryAsync(systemPrompt, history, userMessage, cancellationToken, pipelineStatus, conversationRoutingKey, onToolCall, onAssistantReasoningUpdate, onAssistantNarration)
                     .ConfigureAwait(false))
                 {
                     lock (lockObj)

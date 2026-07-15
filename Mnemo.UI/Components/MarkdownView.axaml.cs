@@ -48,6 +48,7 @@ public partial class MarkdownView : UserControl
     private bool _isRendering = false;
     private bool _renderRequested = false;
     private DispatcherTimer? _streamingThrottleTimer;
+    private double? _explicitFontSize;
 
     public MarkdownView()
     {
@@ -94,9 +95,19 @@ public partial class MarkdownView : UserControl
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == SourceProperty ||
-            change.Property == ForegroundProperty ||
-            change.Property == IsVisibleProperty)
+        if (change.Property == FontSizeProperty)
+        {
+            // Only a FontSize set on this view itself (locally or via DynamicResource) overrides the
+            // user's Markdown.* size settings; the ambient inherited font size must not leak into
+            // rendered documents. Inherited changes never fire while a local value is in effect.
+            _explicitFontSize = change.Priority <= Avalonia.Data.BindingPriority.LocalValue
+                ? FontSize
+                : null;
+            ScheduleRender();
+        }
+        else if (change.Property == SourceProperty ||
+                 change.Property == ForegroundProperty ||
+                 change.Property == IsVisibleProperty)
         {
             ScheduleRender();
         }
@@ -192,9 +203,9 @@ public partial class MarkdownView : UserControl
                 // Render the processed markdown - must be on UI thread
                 await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
                 {
-                    try 
+                    try
                     {
-                        var renderedControl = await _markdownRenderer.RenderAsync(processedSource, specialInlines, Foreground);
+                        var renderedControl = await _markdownRenderer.RenderAsync(processedSource, specialInlines, Foreground, _explicitFontSize);
                         _contentHost.Content = renderedControl;
                     }
                     catch (Exception ex)

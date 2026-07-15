@@ -36,5 +36,24 @@ public sealed class ChatConversationRowViewModel : ViewModelBase
         set => SetProperty(ref _isRowHovered, value);
     }
 
+    /// <summary>Last activity of the underlying session; drives the day-section bucketing, not bound directly.</summary>
+    public System.DateTime LastActivityUtc { get; set; }
+
+    private string _sectionLabel = string.Empty;
+    /// <summary>Localized day-group label ("Today", "Yesterday", …) this row belongs to.</summary>
+    public string SectionLabel
+    {
+        get => _sectionLabel;
+        set => SetProperty(ref _sectionLabel, value);
+    }
+
+    private bool _showSectionLabel;
+    /// <summary>True when this row is the first of its day group and should render the section header above it.</summary>
+    public bool ShowSectionLabel
+    {
+        get => _showSectionLabel;
+        set => SetProperty(ref _showSectionLabel, value);
+    }
+
     public ICommand SelectCommand { get; }
 }
