@@ -4,7 +4,6 @@ using Mnemo.Core.Services;
 using Mnemo.Core.Services.Keybinds;
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Infrastructure.Services.Tools;
-using Mnemo.UI.Ai.Overlay;
 using Mnemo.UI.Components;
 using Mnemo.UI.Components.Sidebar;
 using Mnemo.UI.Services;
@@ -21,10 +20,6 @@ public class CoreUIModule : IModule
         services.AddTransient<SidebarViewModel>();
         services.AddTransient<TopbarViewModel>();
         services.AddSingleton<ITopbarTrailService, TopbarTrailService>();
-
-        // Centralized AI assistant: one engine, reachable anywhere via the Ask overlay.
-        services.AddSingleton<IAssistantOverlayService, AssistantOverlayService>();
-        services.AddTransient<AskOverlayViewModel>();
     }
 
     public void RegisterTranslationSources(ITranslationSourceRegistry registry)

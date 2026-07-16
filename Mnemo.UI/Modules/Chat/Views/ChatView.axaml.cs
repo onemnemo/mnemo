@@ -191,7 +191,7 @@ public partial class ChatView : UserControl
         ReferenceEquals(pointerOver, rowHost) || pointerOver.GetVisualAncestors().Contains(rowHost);
 
     private static Border? FindChatHistoryRowBorder(Control control) =>
-        control.GetVisualAncestors().OfType<Border>().FirstOrDefault(b => b.Classes.Contains("chat-history-row"));
+        control.GetVisualAncestors().OfType<Border>().FirstOrDefault(b => b.Classes.Contains("chatHistoryRow"));
 
     private void InitializeComponent()
     {

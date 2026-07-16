@@ -5,7 +5,6 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -16,7 +15,9 @@ using Avalonia.Layout;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
 using Mnemo.Core.Models;
+using Mnemo.Core.Models.Ai;
 using Mnemo.Core.Services;
+using Mnemo.Core.Services.Ai;
 using Mnemo.UI.Components.Overlays;
 using Mnemo.UI.Services;
 using Mnemo.UI.ViewModels;
@@ -44,12 +45,9 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     /// <summary>Settings key for the user's display name (shared with Overview greeting).</summary>
     private const string UserDisplayNameKey = "User.DisplayName";
 
-    /// <summary>Settings key for the user's profile picture (shared with Overview / Topbar).</summary>
-    private const string UserProfilePictureKey = "User.ProfilePicture";
-
-    private const string DefaultProfilePicture = "avares://Mnemo.UI/Assets/ProfilePictures/img2.png";
-
     private readonly IAIOrchestrator _orchestrator;
+    private readonly IModelRouter _modelRouter;
+    private readonly INavigationService _navigationService;
     private readonly ILoggerService _logger;
     private readonly ILocalizationService _localizationService;
     private readonly IOverlayService _overlayService;
@@ -146,14 +144,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     /// <summary>Lighter subtitle shown under the greeting headline on the landing state.</summary>
     public string GreetingSubtitle => _localizationService.T("GreetingSubtitle", "Chat");
 
-    private string _profilePicturePath = DefaultProfilePicture;
-    /// <summary>User's avatar shown beside their messages (shared setting with Overview / Topbar).</summary>
-    public string ProfilePicturePath
-    {
-        get => _profilePicturePath;
-        private set => SetProperty(ref _profilePicturePath, value);
-    }
-
     /// <summary>Compact quick-action pills shown under the landing composer; sends the prompt on click.</summary>
     public ObservableCollection<ChatLandingSuggestionViewModel> LandingQuickActions { get; } = new();
 
@@ -195,53 +185,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     /// <summary>Id of the active thread; parameter for the session-header rename/delete commands.</summary>
     public string ActiveConversationId => _conversationId;
 
-    private static readonly Avalonia.Media.IBrush AiOfflineBrush =
-        new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#9CA3AF"));
-    private static readonly Avalonia.Media.IBrush AiWarmingBrush =
-        new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F59E0B"));
-    private static readonly Avalonia.Media.IBrush AiReadyBrush =
-        new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#22C55E"));
-
-    private Avalonia.Media.IBrush _aiStatusBrush = AiOfflineBrush;
-    /// <summary>Dot color of the model pill: gray offline, amber warming, green ready.</summary>
-    public Avalonia.Media.IBrush AiStatusBrush
-    {
-        get => _aiStatusBrush;
-        private set => SetProperty(ref _aiStatusBrush, value);
-    }
-
-    private string _aiStatusTooltip = string.Empty;
-    /// <summary>Localized readiness description shown when hovering the model pill.</summary>
-    public string AiStatusTooltip
-    {
-        get => _aiStatusTooltip;
-        private set => SetProperty(ref _aiStatusTooltip, value);
-    }
-
-    private bool _showMemoryPill;
-    /// <summary>True when this thread has working memory, a rolling summary, or long-term recall.</summary>
-    public bool ShowMemoryPill
-    {
-        get => _showMemoryPill;
-        private set => SetProperty(ref _showMemoryPill, value);
-    }
-
-    private string _memoryPillDisplayText = string.Empty;
-    /// <summary>Short label for the memory pill (e.g. “Memory · 3”).</summary>
-    public string MemoryPillDisplayText
-    {
-        get => _memoryPillDisplayText;
-        private set => SetProperty(ref _memoryPillDisplayText, value);
-    }
-
-    private string _memoryPillTooltipText = string.Empty;
-    /// <summary>Full memory snapshot for hover tooltip.</summary>
-    public string MemoryPillTooltipText
-    {
-        get => _memoryPillTooltipText;
-        private set => SetProperty(ref _memoryPillTooltipText, value);
-    }
-
     public bool IsChatHistorySidebarOpen
     {
         get => _isChatHistorySidebarOpen;
@@ -253,9 +196,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     }
 
     public double ChatHistorySidebarWidth => IsChatHistorySidebarOpen ? 272 : 48;
-
-    /// <summary>Available assistant modes for the mode dropdown.</summary>
-    public IReadOnlyList<string> AssistantModes { get; } = new[] { "Short", "Normal", "Detailed" };
 
     private string _selectedAssistantMode = "Normal";
     public string SelectedAssistantMode
@@ -282,6 +222,10 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
     public ICommand SendMessageCommand { get; }
     public ICommand StopCommand { get; }
     public ICommand NewChatCommand { get; }
+    /// <summary>Sets the per-session response length from the composer tools menu ("Short" / "Normal" / "Detailed").</summary>
+    public ICommand SetAssistantModeCommand { get; }
+    /// <summary>Jumps to Settings from the missing-API-key notice.</summary>
+    public ICommand OpenAiSettingsCommand { get; }
     public ICommand ToggleChatHistorySidebarCommand { get; }
     public ICommand SuggestionSelectedCommand { get; }
     /// <summary>Fills the input with a suggestion prompt and immediately sends it (used by landing suggestion cards).</summary>
@@ -324,6 +268,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
 
     public ChatViewModel(
         IAIOrchestrator orchestrator,
+        IModelRouter modelRouter,
+        INavigationService navigationService,
         ILoggerService logger,
         ILocalizationService localizationService,
         IOverlayService overlayService,
@@ -338,13 +284,14 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         IConversationMemoryInjector memoryInjector)
     {
         _orchestrator = orchestrator;
+        _modelRouter = modelRouter;
+        _navigationService = navigationService;
         _logger = logger;
         _localizationService = localizationService;
         _overlayService = overlayService;
         _settingsService = settingsService;
         _skillSystemPromptComposer = skillSystemPromptComposer;
         _aiSystemMonitor = aiSystemMonitor;
-        _aiSystemMonitor.StateChanged += OnAiSystemStateChanged;
         _chatHistoryService = chatHistoryService;
         _chatHistoryClearService = chatHistoryClearService;
         _chatHistoryClearService.Cleared += OnChatHistoryClearServiceCleared;
@@ -354,11 +301,16 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         // Typing is the strongest "about to ask the AI" signal we get; use it to
         // heat the chat models so Send never waits on a cold load.
         _typingPrefetch = new ChatTypingPrefetchHelper(pauseToSendEstimator, _aiSystemMonitor.WarmChatModels);
-        RefreshAiStatusUi(_aiSystemMonitor.State);
 
         SendMessageCommand = new AsyncRelayCommand(SendMessageAsync, () => !string.IsNullOrWhiteSpace(InputText) && !IsBusy && _isHistoryReady);
         StopCommand = new RelayCommand(StopGeneration, () => IsBusy);
         NewChatCommand = new RelayCommand(NewChat, () => _isHistoryReady);
+        SetAssistantModeCommand = new RelayCommand<string>(m =>
+        {
+            if (!string.IsNullOrEmpty(m))
+                SelectedAssistantMode = m;
+        });
+        OpenAiSettingsCommand = new RelayCommand(() => _navigationService.NavigateTo("settings"));
         ToggleChatHistorySidebarCommand = new RelayCommand(() => IsChatHistorySidebarOpen = !IsChatHistorySidebarOpen);
         SuggestionSelectedCommand = new RelayCommand<string>(ApplySuggestion);
         SendSuggestionCommand = new AsyncRelayCommand<string>(SendSuggestionAsync);
@@ -438,12 +390,10 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         try
         {
             var name = await _settingsService.GetAsync(UserDisplayNameKey, string.Empty).ConfigureAwait(false);
-            var picture = await _settingsService.GetAsync(UserProfilePictureKey, DefaultProfilePicture).ConfigureAwait(false);
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _greetingUserName = name ?? string.Empty;
                 OnPropertyChanged(nameof(GreetingText));
-                ProfilePicturePath = string.IsNullOrWhiteSpace(picture) ? DefaultProfilePicture : picture;
             });
         }
         catch (Exception ex)
@@ -454,7 +404,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
 
     private void OnSettingsServiceSettingChanged(object? sender, string key)
     {
-        if (key is UserDisplayNameKey or UserProfilePictureKey)
+        if (key == UserDisplayNameKey)
             _ = LoadGreetingNameAsync();
         else if (key == WebSearchEnabledKey)
             _ = LoadWebSearchEnabledAsync();
@@ -467,7 +417,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             RefreshLandingQuickActions();
             OnPropertyChanged(nameof(GreetingText));
             OnPropertyChanged(nameof(GreetingSubtitle));
-            RefreshAiStatusUi(_aiSystemMonitor.State);
             RebucketConversationRows();
             RefreshActiveConversationHeader();
         });
@@ -493,31 +442,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         if (_historyLoadStarted) return;
         _historyLoadStarted = true;
         _ = LoadHistoryAsync();
-    }
-
-    private void OnAiSystemStateChanged(object? sender, AiSystemState state)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (!_disposed)
-                RefreshAiStatusUi(state);
-        });
-    }
-
-    private void RefreshAiStatusUi(AiSystemState state)
-    {
-        AiStatusBrush = state switch
-        {
-            AiSystemState.Ready => AiReadyBrush,
-            AiSystemState.Warming => AiWarmingBrush,
-            _ => AiOfflineBrush,
-        };
-        AiStatusTooltip = state switch
-        {
-            AiSystemState.Ready => _localizationService.T("ModelStatusReady", "Chat"),
-            AiSystemState.Warming => _localizationService.T("ModelStatusWarming", "Chat"),
-            _ => _localizationService.T("ModelStatusOffline", "Chat"),
-        };
     }
 
     /// <summary>Called by the view when scroll position changes; updates <see cref="ShowScrollToBottomButton"/> and auto-scroll attachment.</summary>
@@ -549,6 +473,23 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         if (e.Action == NotifyCollectionChangedAction.Add && _isAutoScrollAttached)
             RequestScrollToBottom?.Invoke(this, EventArgs.Empty);
         SubscribeToLastMessage();
+        RefreshLatestAssistantIndicator();
+    }
+
+    /// <summary>
+    /// Marks the newest assistant message so its action bar stays pinned while
+    /// earlier turns reveal theirs on hover only.
+    /// </summary>
+    private void RefreshLatestAssistantIndicator()
+    {
+        var latestFound = false;
+        for (var i = Messages.Count - 1; i >= 0; i--)
+        {
+            var m = Messages[i];
+            if (m.IsUser) continue;
+            m.IsLatestAssistantTurn = !latestFound;
+            latestFound = true;
+        }
     }
 
     private void SubscribeToLastMessage()
@@ -677,7 +618,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             PersistFireAndForget();
         NotifyShowWelcomeIntroChanged();
         RefreshActiveConversationHeader();
-        RefreshMemoryPillUi();
     }
 
     /// <summary>Starts a new thread that only appears in the sidebar and storage after the first user message.</summary>
@@ -704,7 +644,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         NotifyShowWelcomeIntroChanged();
         RequestScrollToBottom?.Invoke(this, EventArgs.Empty);
         RefreshActiveConversationHeader();
-        RefreshMemoryPillUi();
     }
 
     private void MaterializeEphemeralConversation()
@@ -734,7 +673,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         OnPropertyChanged(nameof(SelectedAssistantMode));
         NotifyShowWelcomeIntroChanged();
         RefreshActiveConversationHeader();
-        RefreshMemoryPillUi();
     }
 
     private async Task LoadHistoryAsync()
@@ -831,7 +769,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         NotifyShowWelcomeIntroChanged();
         RequestScrollToBottom?.Invoke(this, EventArgs.Empty);
         RefreshActiveConversationHeader();
-        RefreshMemoryPillUi();
     }
 
     private void ClearSessionsAndRows()
@@ -929,31 +866,53 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         return vm;
     }
 
-    private static void HydrateAssistantProcessState(ChatMessageViewModel vm, ChatModulePersistedMessage m)
+    private void HydrateAssistantProcessState(ChatMessageViewModel vm, ChatModulePersistedMessage m)
     {
         vm.Thoughts = m.Thoughts;
         vm.ThoughtsCount = m.ThoughtsCount;
         if (!string.IsNullOrEmpty(m.ProcessHeaderText))
             vm.ProcessHeaderText = m.ProcessHeaderText!;
         if (!string.IsNullOrEmpty(m.ElapsedText))
-            vm.ElapsedText = m.ElapsedText;
+            vm.ElapsedText = NormalizeLegacyElapsed(m.ElapsedText!);
         vm.ProcessSummaryText = m.ProcessSummaryText;
         vm.Feedback = m.Feedback is >= 0 and <= 2 ? (MessageFeedback)m.Feedback : MessageFeedback.None;
-        vm.IsProcessThreadExpanded = m.ProcessThreadExpanded ?? false;
+        // Expansion is transient view state: a finished turn always loads collapsed, whatever
+        // an older build happened to persist.
+        vm.IsProcessThreadExpanded = false;
 
         if (m.ProcessSteps is not { Count: > 0 }) return;
 
         foreach (var step in m.ProcessSteps)
-            vm.ProcessSteps.Add(MapStepFromPersisted(step));
+        {
+            if (MapStepFromPersisted(step) is { } mapped)
+                vm.ProcessSteps.Add(mapped);
+        }
 
-        vm.ProcessSteps[^1].IsLast = true;
+        if (vm.ProcessSteps.Count > 0)
+            vm.ProcessSteps[^1].IsLast = true;
     }
 
-    private static ChatProcessStepViewModel MapStepFromPersisted(ChatModulePersistedProcessStep s)
+    /// <summary>Converts pre-redesign "mm:ss" timer strings from old saves to the "20s" / "1m 20s" form.</summary>
+    private static string NormalizeLegacyElapsed(string elapsed)
+    {
+        var parts = elapsed.Split(':');
+        if (parts.Length != 2
+            || !int.TryParse(parts[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var minutes)
+            || !int.TryParse(parts[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var seconds))
+            return elapsed;
+        return ChatProcessThreadTracker.FormatShortDuration(new TimeSpan(0, minutes, seconds));
+    }
+
+    private ChatProcessStepViewModel? MapStepFromPersisted(ChatModulePersistedProcessStep s)
     {
         var phase = Enum.TryParse<ChatProcessPhaseKind>(s.PhaseKind, ignoreCase: true, out var pk)
             ? pk
             : ChatProcessPhaseKind.Routing;
+
+        // Pre-vocabulary saves recorded pipeline noise ("Writing the answer · 197 chars returned")
+        // the tracker no longer emits; drop those rows instead of rendering them forever.
+        if (phase is ChatProcessPhaseKind.Generating or ChatProcessPhaseKind.Continuing)
+            return null;
 
         var vm = new ChatProcessStepViewModel
         {
@@ -965,6 +924,18 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             IsActive = false,
             IsPending = false
         };
+
+        // Legacy tool rows carried the raw tool id as a mono detail ("Using a tool · list_settings");
+        // re-humanize them through the same vocabulary live turns use.
+        if (phase == ChatProcessPhaseKind.Tool
+            && s.ToolCalls is not { Count: > 0 }
+            && !string.IsNullOrWhiteSpace(s.Detail))
+        {
+            var vocab = ChatToolVocabulary.Resolve(
+                s.Detail!.Trim(), null, null, key => _localizationService.T(key, "Chat"));
+            vm.SimpleLabel = vocab.DoneLabel;
+            vm.Detail = null;
+        }
 
         if (s.ToolCalls is not { Count: > 0 }) return vm;
 
@@ -1019,7 +990,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         msg.ElapsedText = m.ElapsedText;
         msg.ProcessSummaryText = m.ProcessSummaryText;
         msg.Feedback = (int)m.Feedback;
-        msg.ProcessThreadExpanded = m.IsProcessThreadExpanded;
 
         if (m.ProcessSteps.Count == 0) return;
 
@@ -1073,7 +1043,8 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
                     LastActivityUtc = s.LastActivityUtc,
                     AssistantMode = s.AssistantMode,
                     CustomTitle = s.CustomTitle,
-                    Messages = s.Messages.Select(MapToPersistedMessage).ToList(),
+                    // Error notices are transient UI rows; a reloaded thread starts clean.
+                    Messages = s.Messages.Where(m => !m.IsErrorNotice).Select(MapToPersistedMessage).ToList(),
                     MemorySnapshotJson = memoryJson
                 };
             })
@@ -1107,6 +1078,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         _messagesSubscriptionTarget = Messages;
         _messagesSubscriptionTarget.CollectionChanged += OnMessagesCollectionChanged;
         SubscribeToLastMessage();
+        RefreshLatestAssistantIndicator();
     }
 
     private void NotifyHistorySensitiveCommands()
@@ -1530,9 +1502,12 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
 
         _turnIndex++;
 
+        // Error notices are UI-only rows; keep them out of anything the model sees.
+        var historyMessages = streamingTurn.Messages.Where(m => !m.IsErrorNotice).ToList();
+
         // Build raw turns for summarizer input (excludes current user turn to avoid duplication)
         var rawConversationHistory = ChatStreamingHelper.BuildConversationHistory(
-            streamingTurn.Messages, aiMessage, m => m.IsUser, m => m.Content,
+            historyMessages, aiMessage, m => m.IsUser, m => m.Content,
             excludeLastUserTurn: true);
 
         // Build memory-aware history: summary turn + K raw tail (falls back to raw when no summary yet)
@@ -1625,10 +1600,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
             });
 
             if (!foundResponse && toolCallCount == 0)
-            {
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                    aiMessage.Content = _localizationService.T("ErrorSorry", "Chat"));
-            }
+                await ApplyTurnFailureNoticeAsync(aiMessage).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -1646,13 +1618,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         {
             _logger.Error("Chat", $"SendMessage failed: {ex}");
             await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                aiMessage.Content = _localizationService.T("ErrorUnexpected", "Chat");
-                processThread?.CompleteThread();
-                FinalizeProcessHeader(aiMessage, processThread);
-                aiMessage.PipelineStatusText = null;
-                aiMessage.IsStreaming = false;
-            });
+                ApplyNotice(aiMessage, ChatNoticeKind.Error, _localizationService.T("ErrorUnexpected", "Chat")));
         }
         finally
         {
@@ -1662,7 +1628,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
 
             // Increment the memory turn counter and trigger summarization if due.
             var fullTranscriptForMemory = ChatStreamingHelper.BuildFullConversationHistory(
-                streamingTurn.Messages,
+                streamingTurn.Messages.Where(m => !m.IsErrorNotice).ToList(),
                 m => m.IsUser,
                 m => m.Content);
             _memoryStore.IncrementTurn(streamingTurn.ConversationId);
@@ -1673,93 +1639,9 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
                 IsBusy = false;
                 if (!_disposed && _chatSessions.TryGetValue(streamingTurn.ConversationId, out var finishedSession))
                     finishedSession.LastActivityUtc = DateTime.UtcNow;
-                RefreshMemoryPillUi();
                 PersistFireAndForget();
             });
         }
-    }
-
-    private void RefreshMemoryPillUi()
-    {
-        if (string.IsNullOrEmpty(_conversationId))
-        {
-            ShowMemoryPill = false;
-            MemoryPillDisplayText = string.Empty;
-            MemoryPillTooltipText = string.Empty;
-            return;
-        }
-
-        var snap = _memoryStore.Get(_conversationId);
-        if (snap == null)
-        {
-            ShowMemoryPill = false;
-            MemoryPillDisplayText = string.Empty;
-            MemoryPillTooltipText = string.Empty;
-            return;
-        }
-
-        var hasSummary = snap.LatestSummary != null && !string.IsNullOrWhiteSpace(snap.LatestSummary.Summary);
-        var hasFacts = snap.Facts.Count > 0;
-        var tier3 = snap.HasLongTermMemory;
-
-        if (!hasSummary && !hasFacts && !tier3)
-        {
-            ShowMemoryPill = false;
-            MemoryPillDisplayText = string.Empty;
-            MemoryPillTooltipText = string.Empty;
-            return;
-        }
-
-        ShowMemoryPill = true;
-        var baseLabel = _localizationService.T("MemoryPill", "Chat");
-        MemoryPillDisplayText = hasFacts ? $"{baseLabel} · {snap.Facts.Count}" : baseLabel;
-
-        MemoryPillTooltipText = BuildMemoryTooltipText(snap);
-    }
-
-    private string BuildMemoryTooltipText(ConversationMemorySnapshot snap)
-    {
-        var sb = new StringBuilder(512);
-        sb.AppendLine(_localizationService.T("MemoryPillTooltipHint", "Chat"));
-        sb.AppendLine();
-
-        if (snap.LatestSummary != null && !string.IsNullOrWhiteSpace(snap.LatestSummary.Summary))
-        {
-            sb.AppendLine(_localizationService.T("MemoryPillSectionSummary", "Chat"));
-            sb.AppendLine(snap.LatestSummary.Summary.Trim());
-            sb.AppendLine();
-            sb.AppendLine($"{_localizationService.T("MemoryPillActiveSkill", "Chat")}: {snap.LatestSummary.ActiveSkill}");
-            if (snap.LatestSummary.ActiveEntities.Count > 0)
-            {
-                foreach (var kvp in snap.LatestSummary.ActiveEntities.OrderBy(x => x.Key))
-                    sb.AppendLine($"{kvp.Key}={kvp.Value}");
-            }
-            if (snap.LatestSummary.KeyFacts.Count > 0)
-            {
-                sb.AppendLine(_localizationService.T("MemoryPillKeyFacts", "Chat"));
-                foreach (var f in snap.LatestSummary.KeyFacts.Take(12))
-                    sb.AppendLine($"• {f}");
-            }
-            sb.AppendLine();
-        }
-
-        if (snap.Facts.Count > 0)
-        {
-            sb.AppendLine(_localizationService.T("MemoryPillSectionWorking", "Chat"));
-            foreach (var f in snap.Facts.OrderByDescending(x => x.TurnNumber))
-                sb.AppendLine($"{f.Key}={f.Value}  ({f.Source})");
-            sb.AppendLine();
-        }
-
-        sb.AppendLine($"{_localizationService.T("MemoryPillTurnCount", "Chat")}: {snap.TurnCount}");
-        if (snap.LastSummarizedTurn > 0)
-            sb.AppendLine($"{_localizationService.T("MemoryPillLastSummarized", "Chat")}: {snap.LastSummarizedTurn}");
-        if (snap.HasLongTermMemory)
-            sb.AppendLine(_localizationService.T("MemoryPillTier3On", "Chat"));
-
-        var s = sb.ToString().TrimEnd();
-        const int maxLen = 6000;
-        return s.Length <= maxLen ? s : s[..maxLen] + "…";
     }
 
     /// <summary>
@@ -1817,17 +1699,54 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         {
             _logger.Warning("Memory", $"PostTurn: maintenance failed conv={conversationId}: {ex.Message}");
         }
-        finally
+    }
+
+    /// <summary>
+    /// The turn ended with no visible answer and no tool activity. Distinguish "not set up yet"
+    /// (no API key / no model bound) from a plain generation failure so the notice can say
+    /// something actionable instead of a generic apology.
+    /// </summary>
+    private async Task ApplyTurnFailureNoticeAsync(ChatMessageViewModel aiMessage)
+    {
+        var kind = ChatNoticeKind.Error;
+        var textKey = "ErrorSorry";
+        try
         {
-            try
+            var route = await _modelRouter.ResolveChatAsync(AiRole.Assistant).ConfigureAwait(false);
+            switch (route.Status)
             {
-                Dispatcher.UIThread.Post(RefreshMemoryPillUi);
-            }
-            catch
-            {
-                // ignore UI teardown
+                case AiRouteStatus.MissingApiKey:
+                    kind = ChatNoticeKind.MissingApiKey;
+                    textKey = "ErrorMissingApiKey";
+                    break;
+                case AiRouteStatus.NoBinding:
+                    kind = ChatNoticeKind.ModelUnavailable;
+                    textKey = "ErrorNoModel";
+                    break;
             }
         }
+        catch (Exception ex)
+        {
+            _logger.Warning("Chat", $"Failure-notice route probe failed: {ex.Message}");
+        }
+
+        var text = _localizationService.T(textKey, "Chat");
+        await Dispatcher.UIThread.InvokeAsync(() => ApplyNotice(aiMessage, kind, text));
+    }
+
+    /// <summary>Replaces the turn's trace/answer with an inline notice row (transient — never persisted, never model context).</summary>
+    private static void ApplyNotice(ChatMessageViewModel message, ChatNoticeKind kind, string text)
+    {
+        message.ProcessSteps.Clear();
+        message.Thoughts = null;
+        message.ThoughtsCount = 0;
+        message.ElapsedText = null;
+        message.ProcessSummaryText = null;
+        message.PipelineStatusText = null;
+        message.IsProcessThreadExpanded = false;
+        message.IsStreaming = false;
+        message.NoticeKind = kind;
+        message.Content = text;
     }
 
     private void UpdateProcessHeader(ChatMessageViewModel message, ChatProcessThreadTracker tracker)
@@ -1867,7 +1786,6 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         _chatHistoryClearService.Cleared -= OnChatHistoryClearServiceCleared;
         _settingsService.SettingChanged -= OnSettingsServiceSettingChanged;
         _localizationService.LanguageChanged -= OnLocalizationLanguageChanged;
-        _aiSystemMonitor.StateChanged -= OnAiSystemStateChanged;
         _disposed = true;
         if (_messagesSubscriptionTarget != null)
             _messagesSubscriptionTarget.CollectionChanged -= OnMessagesCollectionChanged;

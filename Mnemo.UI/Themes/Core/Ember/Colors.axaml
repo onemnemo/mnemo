@@ -38,8 +38,6 @@
     <Color x:Key="GhostButtonIcon">#9d9289</Color>
 
     <!-- Chat: reasoning-trace step states (sage disc + green check, accent spinner on a soft track) -->
-    <Color x:Key="ChatProcessStateDoneFill">#2C3A29</Color>
-    <Color x:Key="ChatProcessStateDoneGlyph">#6CC592</Color>
     <Color x:Key="ChatProcessStateActive">#e95b45</Color>
     <Color x:Key="ChatProcessStatePending">#b3a89f</Color>
     <Color x:Key="ChatProcessSpinnerTrack">#46251C</Color>
@@ -75,6 +73,7 @@
     <Color x:Key="Accent">#e95b45</Color>
     <Color x:Key="AccentSubtleBackground">#26E95B45</Color>
     <Color x:Key="AccentBorderSubtle">#59E95B45</Color>
+    <Color x:Key="AccentMutedBackground">#40E95B45</Color>
     <Color x:Key="QuickActionCardBackground">#211b18</Color>
     <Color x:Key="LearnCardBackground">#211b18</Color>
     <Color x:Key="LearnCardTitleColor">#f1ebe6</Color>

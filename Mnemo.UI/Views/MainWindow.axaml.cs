@@ -39,7 +39,7 @@ public partial class MainWindow : Window
         var mindmapDispatch = app.Services.GetRequiredService<IMindmapKeybindDispatch>();
         var notesEditorDispatch = app.Services.GetRequiredService<INotesEditorViewDispatch>();
         var overlayService = app.Services.GetRequiredService<IOverlayService>();
-        var assistant = app.Services.GetRequiredService<IAssistantOverlayService>();
+        var navigation = app.Services.GetRequiredService<INavigationService>();
         var keyMap = app.Services.GetRequiredService<IKeyMap>();
 
         void RegisterGlobalWithOptionalToggle(string actionId, Action ifToggle, Action ifOpenOnly)
@@ -66,7 +66,7 @@ public partial class MainWindow : Window
             () => KeybindManagerUi.TryOpen(overlayService, keyMap));
         router.RegisterHandler("global.assistant", () =>
         {
-            assistant.OpenAsk();
+            navigation.NavigateTo("chat");
             return true;
         });
         router.RegisterHandler("editor.bold", () => editorDispatch.Apply(InlineFormatKind.Bold));

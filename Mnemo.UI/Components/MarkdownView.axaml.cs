@@ -32,6 +32,21 @@ public partial class MarkdownView : UserControl
     public static readonly StyledProperty<int> StreamingUpdateIntervalMsProperty =
         AvaloniaProperty.Register<MarkdownView, int>(nameof(StreamingUpdateIntervalMs), defaultValue: 0);
 
+    /// <summary>
+    /// Leading multiplier for rendered prose (e.g. 1.6). When 0 (default) the user's
+    /// Markdown.LineHeight setting applies; set it where a surface needs its own reading
+    /// rhythm regardless of the document-wide preference.
+    /// </summary>
+    public static readonly StyledProperty<double> ProseLineHeightProperty =
+        AvaloniaProperty.Register<MarkdownView, double>(nameof(ProseLineHeight), defaultValue: 0);
+
+    /// <summary>
+    /// Typographic profile for this surface. Document (default) keeps the classic heading ramp;
+    /// Conversation caps headings near body size and steps code down so answers read as prose.
+    /// </summary>
+    public static readonly StyledProperty<MarkdownRenderProfile> RenderProfileProperty =
+        AvaloniaProperty.Register<MarkdownView, MarkdownRenderProfile>(nameof(RenderProfile), defaultValue: MarkdownRenderProfile.Document);
+
     public string? Source
     {
         get => GetValue(SourceProperty);
@@ -42,6 +57,18 @@ public partial class MarkdownView : UserControl
     {
         get => GetValue(StreamingUpdateIntervalMsProperty);
         set => SetValue(StreamingUpdateIntervalMsProperty, value);
+    }
+
+    public double ProseLineHeight
+    {
+        get => GetValue(ProseLineHeightProperty);
+        set => SetValue(ProseLineHeightProperty, value);
+    }
+
+    public MarkdownRenderProfile RenderProfile
+    {
+        get => GetValue(RenderProfileProperty);
+        set => SetValue(RenderProfileProperty, value);
     }
 
     private ContentControl? _contentHost;
@@ -107,7 +134,9 @@ public partial class MarkdownView : UserControl
         }
         else if (change.Property == SourceProperty ||
                  change.Property == ForegroundProperty ||
-                 change.Property == IsVisibleProperty)
+                 change.Property == IsVisibleProperty ||
+                 change.Property == ProseLineHeightProperty ||
+                 change.Property == RenderProfileProperty)
         {
             ScheduleRender();
         }
@@ -205,7 +234,8 @@ public partial class MarkdownView : UserControl
                 {
                     try
                     {
-                        var renderedControl = await _markdownRenderer.RenderAsync(processedSource, specialInlines, Foreground, _explicitFontSize);
+                        var lineHeight = ProseLineHeight > 0 ? ProseLineHeight : (double?)null;
+                        var renderedControl = await _markdownRenderer.RenderAsync(processedSource, specialInlines, Foreground, _explicitFontSize, lineHeight, RenderProfile);
                         _contentHost.Content = renderedControl;
                     }
                     catch (Exception ex)

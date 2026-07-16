@@ -66,7 +66,8 @@
     "TransferImportFinishedFormat": "Importerte {0}.",
     "TransferImportPartialFormat": "Importerte {0}. Noen filer feilet:\n{1}",
     "TransferExportFinished": "Eksport fullført.",
-    "TransferExportFailed": "Eksport mislyktes."
+    "TransferExportFailed": "Eksport mislyktes.",
+    "Copy": "Kopier"
   },
   "Settings": {
     "NavAccount": "Konto",
@@ -344,12 +345,11 @@
     "WidgetUnavailableHint": "Utvidelsen til denne widgeten er ikke installert. Fjern flisen eller installer utvidelsen på nytt."
   },
   "App": {
-    "AppTitle": "Mnemo",
-    "ToggleAssistant": "Vis/skjul assistent"
+    "AppTitle": "Mnemo"
   },
   "Chat": {
     "Atlas": "Atlas",
-    "AskAnything": "Spør om hva som helst angående innholdet ditt",
+    "AssistantNoResponse": "Ingen respons.",
     "NewChat": "Ny chat",
     "ChatHistory": "Chat-historikk",
     "RecentSessions": "Nylige økter",
@@ -358,16 +358,19 @@
     "RenameChatPlaceholder": "Chat-tittel",
     "DeleteChatTitle": "Slett chat",
     "DeleteChatMessage": "Denne samtalen vil bli fjernet fra historikken din. Dette kan ikke angres.",
-    "CloseAssistant": "Lukk assistent",
     "ThoughtProcess": "Tanke prosess",
     "ScrollToBottom": "Rull til nyeste",
-    "AskPlaceholder": "Spør om noe...",
     "AddAttachment": "Legg til vedlegg",
     "AddScreenshot": "Legg til skjermbilde",
     "AssistantMode": "Svarslengde",
     "AssistantModeShort": "Kort",
     "AssistantModeNormal": "Normal",
     "AssistantModeDetailed": "Detaljert",
+    "ComposerTools": "Vedlegg og verktøy",
+    "ErrorMissingApiKey": "Atlas er ikke koblet til en modell ennå. Legg til API-nøkkelen din i innstillingene for å begynne å chatte.",
+    "ErrorNoModel": "Ingen modell er tilgjengelig akkurat nå. Sjekk modellinnstillingene og prøv igjen.",
+    "OpenSettings": "Åpne innstillinger",
+    "RetryTurn": "Prøv igjen",
     "SendEnter": "Send (Enter · Ctrl+Enter for ny linje)",
     "Stop": "Stopp",
     "ErrorSorry": "Beklager, jeg kunne ikke generere et svar.",
@@ -387,15 +390,6 @@
     "Disclaimer": "Atlas kan gjøre feil. Kontroller viktig informasjon.",
     "Regenerate": "Regenerer",
     "CopyMessage": "Kopier",
-    "MemoryPill": "Minne",
-    "MemoryPillTooltipHint": "Samtaleminne for denne tråden (fakta fra verktøy, rullerende sammendrag og valgfri langtidsgjenkalling).",
-    "MemoryPillSectionSummary": "Rullerende sammendrag",
-    "MemoryPillActiveSkill": "Aktiv ferdighet",
-    "MemoryPillKeyFacts": "Nøkkelfakta",
-    "MemoryPillSectionWorking": "Arbeidsminne (fakta)",
-    "MemoryPillTurnCount": "Turer",
-    "MemoryPillLastSummarized": "Sist oppsummert gjennom tur",
-    "MemoryPillTier3On": "Langtidsgjenkalling: lagret i kunnskapslageret for denne chatten.",
     "GreetingFormat": "Klar til å lære, {0}?",
     "GreetingNoName": "Klar til å lære?",
     "GreetingSubtitle": "Hva skal vi studere i dag?",
@@ -415,9 +409,6 @@
     "ToolCallCompleted": "Ferdig",
     "ToolCallLinesFormat": "{0} linjer",
     "ToolCallCharsFormat": "{0} tegn",
-    "ModelStatusReady": "Atlas er klar",
-    "ModelStatusWarming": "Atlas varmes opp…",
-    "ModelStatusOffline": "Atlas er frakoblet — modeller lastes ved første bruk",
     "ThinkingLabel": "Tenker",
     "WorkingOnIt": "Jobber med det",
     "ThoughtFor": "Tenkte i",
@@ -835,6 +826,8 @@
     "category.general": "Generelt",
     "global.search": "Globalt søk",
     "global.search.description": "Åpne søk i hele arbeidsområdet.",
+    "global.assistant": "Åpne chat",
+    "global.assistant.description": "Gå til AI-chatten fra hvor som helst.",
     "global.quick-actions": "Hurtighandlinger",
     "global.quick-actions.description": "Åpne katalogen over hurtighandlinger (tastatursnarveier)."
   }

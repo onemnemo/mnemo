@@ -15,6 +15,24 @@ public enum MessageFeedback
     Down = 2,
 }
 
+/// <summary>
+/// Why an assistant turn produced no answer. Rendered as an inline notice row instead of
+/// answer prose; notices are transient (never persisted, never fed back into model history).
+/// </summary>
+public enum ChatNoticeKind
+{
+    None = 0,
+
+    /// <summary>The configured provider needs an API key and none is set — points the user at Settings.</summary>
+    MissingApiKey = 1,
+
+    /// <summary>No model is bound / the model can't be reached right now.</summary>
+    ModelUnavailable = 2,
+
+    /// <summary>The turn failed for any other reason; offers a retry.</summary>
+    Error = 3,
+}
+
 public class ChatMessageViewModel : ViewModelBase
 {
     public ChatMessageViewModel()
@@ -41,8 +59,46 @@ public class ChatMessageViewModel : ViewModelBase
                 OnPropertyChanged(nameof(IsActivelyThinking));
                 OnPropertyChanged(nameof(HasFinishedThinking));
                 OnPropertyChanged(nameof(IsAwaitingFirstToken));
+                OnPropertyChanged(nameof(ShowAnswerBody));
             }
         }
+    }
+
+    private ChatNoticeKind _noticeKind = ChatNoticeKind.None;
+    /// <summary>Failure state of this assistant turn; anything but None renders the inline notice row.</summary>
+    public ChatNoticeKind NoticeKind
+    {
+        get => _noticeKind;
+        set
+        {
+            if (SetProperty(ref _noticeKind, value))
+            {
+                OnPropertyChanged(nameof(IsErrorNotice));
+                OnPropertyChanged(nameof(ShowOpenSettings));
+                OnPropertyChanged(nameof(ShowAnswerBody));
+                OnPropertyChanged(nameof(ShowActionBar));
+                OnPropertyChanged(nameof(HasCopiableAssistantContent));
+            }
+        }
+    }
+
+    public bool IsErrorNotice => _noticeKind != ChatNoticeKind.None;
+
+    /// <summary>True when the notice should offer a jump to Settings (no API key configured).</summary>
+    public bool ShowOpenSettings => _noticeKind == ChatNoticeKind.MissingApiKey;
+
+    /// <summary>True when <see cref="Content"/> should render as the normal markdown answer body.</summary>
+    public bool ShowAnswerBody => _content.Length > 0 && _noticeKind == ChatNoticeKind.None;
+
+    private bool _isLatestAssistantTurn;
+    /// <summary>
+    /// True only on the newest assistant message in the thread — its action bar stays visible
+    /// while earlier turns reveal theirs on hover.
+    /// </summary>
+    public bool IsLatestAssistantTurn
+    {
+        get => _isLatestAssistantTurn;
+        set => SetProperty(ref _isLatestAssistantTurn, value);
     }
 
     private bool _isUser;
@@ -52,7 +108,10 @@ public class ChatMessageViewModel : ViewModelBase
         set
         {
             if (SetProperty(ref _isUser, value))
+            {
                 OnPropertyChanged(nameof(HasCopiableAssistantContent));
+                OnPropertyChanged(nameof(ShowActionBar));
+            }
         }
     }
 
@@ -92,18 +151,22 @@ public class ChatMessageViewModel : ViewModelBase
     }
 
     private string? _elapsedText;
-    /// <summary>Formatted elapsed time string (e.g. "00:04") updated while streaming.</summary>
+    /// <summary>Formatted elapsed time string (e.g. "4s") updated while streaming.</summary>
     public string? ElapsedText
     {
         get => _elapsedText;
         set
         {
             if (SetProperty(ref _elapsedText, value))
-                OnPropertyChanged(nameof(HasElapsedText));
+                OnPropertyChanged(nameof(ElapsedSuffixText));
         }
     }
 
-    public bool HasElapsedText => !string.IsNullOrEmpty(_elapsedText);
+    /// <summary>
+    /// <see cref="ElapsedText"/> with a leading space, so the header renders as one naturally
+    /// spaced sentence ("Thought for 4s") instead of two gapped blocks. Empty when no elapsed.
+    /// </summary>
+    public string ElapsedSuffixText => string.IsNullOrEmpty(_elapsedText) ? string.Empty : $" {_elapsedText}";
 
     private string _processHeaderText = "Thought process";
     /// <summary>Single header text: active step label while streaming, thought process title when done.</summary>
@@ -258,11 +321,15 @@ public class ChatMessageViewModel : ViewModelBase
                 OnPropertyChanged(nameof(IsActivelyThinking));
                 OnPropertyChanged(nameof(HasFinishedThinking));
                 OnPropertyChanged(nameof(IsAwaitingFirstToken));
+                OnPropertyChanged(nameof(ShowActionBar));
             }
         }
     }
 
+    /// <summary>True when the thumbs/copy/regenerate action bar applies to this message.</summary>
+    public bool ShowActionBar => !IsUser && !IsStreaming && !IsErrorNotice;
+
     /// <summary>True when this assistant bubble has finished text suitable for copying to the clipboard.</summary>
     public bool HasCopiableAssistantContent =>
-        !IsUser && !IsStreaming && !string.IsNullOrWhiteSpace(Content);
+        !IsUser && !IsStreaming && !IsErrorNotice && !string.IsNullOrWhiteSpace(Content);
 }

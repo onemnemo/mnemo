@@ -45,8 +45,6 @@
     <SolidColorBrush x:Key="ListItemIconColorBrush" Color="{DynamicResource ListItemIconColor}"/>
     <SolidColorBrush x:Key="AccentButtonIconBrush" Color="{DynamicResource AccentButtonIcon}"/>
     <SolidColorBrush x:Key="GhostButtonIconBrush" Color="{DynamicResource GhostButtonIcon}"/>
-    <SolidColorBrush x:Key="ChatProcessStateDoneFillBrush" Color="{DynamicResource ChatProcessStateDoneFill}"/>
-    <SolidColorBrush x:Key="ChatProcessStateDoneGlyphBrush" Color="{DynamicResource ChatProcessStateDoneGlyph}"/>
     <SolidColorBrush x:Key="ChatProcessStateActiveBrush" Color="{DynamicResource ChatProcessStateActive}"/>
     <SolidColorBrush x:Key="ChatProcessStatePendingBrush" Color="{DynamicResource ChatProcessStatePending}"/>
     <SolidColorBrush x:Key="ChatProcessSpinnerTrackBrush" Color="{DynamicResource ChatProcessSpinnerTrack}"/>
@@ -117,6 +115,7 @@
     <SolidColorBrush x:Key="MindmapPalette7Brush" Color="{DynamicResource MindmapPalette7}"/>
     <SolidColorBrush x:Key="MindmapPalette8Brush" Color="{DynamicResource MindmapPalette8}"/>
     <SolidColorBrush x:Key="AccentSubtleBackgroundBrush" Color="{DynamicResource AccentSubtleBackground}"/>
+    <SolidColorBrush x:Key="AccentMutedBackgroundBrush" Color="{DynamicResource AccentMutedBackground}"/>
     <SolidColorBrush x:Key="AccentBorderSubtleBrush" Color="{DynamicResource AccentBorderSubtle}"/>
     <SolidColorBrush x:Key="QuickActionCardBackgroundBrush" Color="{DynamicResource QuickActionCardBackground}"/>
     <SolidColorBrush x:Key="CardIconBackgroundBrush" Color="{DynamicResource CardIconBackground}"/>

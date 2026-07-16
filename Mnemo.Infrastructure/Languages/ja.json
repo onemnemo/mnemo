@@ -66,7 +66,8 @@
     "TransferImportFinishedFormat": "{0}をインポートしました。",
     "TransferImportPartialFormat": "{0}をインポートしました。一部のファイルは失敗しました:\n{1}",
     "TransferExportFinished": "エクスポートが完了しました。",
-    "TransferExportFailed": "エクスポートに失敗しました。"
+    "TransferExportFailed": "エクスポートに失敗しました。",
+    "Copy": "コピー"
   },
   "Settings": {
     "NavAccount": "アカウント",
@@ -344,12 +345,11 @@
     "WidgetUnavailableHint": "このウィジェットの拡張機能がインストールされていません。タイルを削除するか、拡張機能を再インストールしてください。"
   },
   "App": {
-    "AppTitle": "Mnemo",
-    "ToggleAssistant": "アシスタントを切り替えます"
+    "AppTitle": "Mnemo"
   },
   "Chat": {
     "Atlas": "アトラス",
-    "AskAnything": "コンテンツについて質問できます。",
+    "AssistantNoResponse": "応答がありません。",
     "NewChat": "新しいチャット",
     "ChatHistory": "チャット履歴",
     "RecentSessions": "最近のセッション",
@@ -358,16 +358,19 @@
     "RenameChatPlaceholder": "チャットのタイトル",
     "DeleteChatTitle": "チャットを削除",
     "DeleteChatMessage": "この会話を履歴から削除します。元に戻せません。",
-    "CloseAssistant": "アシスタントを閉じる",
     "ThoughtProcess": "思考過程",
     "ScrollToBottom": "最新までスクロール",
-    "AskPlaceholder": "何か質問してください...",
     "AddAttachment": "添付ファイルを追加",
     "AddScreenshot": "スクリーンショットを追加",
     "AssistantMode": "応答の長さ",
     "AssistantModeShort": "短く",
     "AssistantModeNormal": "普通",
     "AssistantModeDetailed": "詳しく",
+    "ComposerTools": "添付とツール",
+    "ErrorMissingApiKey": "Atlasはまだモデルに接続されていません。設定でAPIキーを追加するとチャットを開始できます。",
+    "ErrorNoModel": "現在利用できるモデルがありません。モデル設定を確認して、もう一度お試しください。",
+    "OpenSettings": "設定を開く",
+    "RetryTurn": "再試行",
     "SendEnter": "送信 (Enter · Ctrl+Enter で改行)",
     "Stop": "停止",
     "ErrorSorry": "すみません、レスポンスを生成できませんでした。",
@@ -387,15 +390,6 @@
     "Disclaimer": "Atlasは間違える可能性があります。重要な情報は確認してください。",
     "Regenerate": "再生成",
     "CopyMessage": "コピー",
-    "MemoryPill": "メモリ",
-    "MemoryPillTooltipHint": "このスレッドの会話メモリ（ツールの事実、要約、長期リコールの有無）。",
-    "MemoryPillSectionSummary": "ローリング要約",
-    "MemoryPillActiveSkill": "アクティブスキル",
-    "MemoryPillKeyFacts": "重要な事実",
-    "MemoryPillSectionWorking": "ワーキングメモリ（事実）",
-    "MemoryPillTurnCount": "ターン数",
-    "MemoryPillLastSummarized": "最終要約までのターン",
-    "MemoryPillTier3On": "長期リコール: このチャット用に知識ストアへ埋め込み済み。",
     "GreetingFormat": "{0}さん、学ぶ準備はいい？",
     "GreetingNoName": "学ぶ準備はいい？",
     "GreetingSubtitle": "今日は何を勉強しますか？",
@@ -415,9 +409,6 @@
     "ToolCallCompleted": "完了",
     "ToolCallLinesFormat": "{0}行",
     "ToolCallCharsFormat": "{0}文字",
-    "ModelStatusReady": "Atlas は準備完了",
-    "ModelStatusWarming": "Atlas を準備中…",
-    "ModelStatusOffline": "Atlas はオフライン — モデルは初回使用時に読み込まれます",
     "ThinkingLabel": "考え中",
     "WorkingOnIt": "作業中",
     "ThoughtFor": "思考時間",
@@ -835,6 +826,8 @@
     "category.general": "一般",
     "global.search": "全体検索",
     "global.search.description": "ワークスペース全体で検索を開きます。",
+    "global.assistant": "チャットを開く",
+    "global.assistant.description": "どこからでもAIチャットに移動します。",
     "global.quick-actions": "クイックアクション",
     "global.quick-actions.description": "クイックアクションとキーボードショートカットの一覧を開きます。"
   }

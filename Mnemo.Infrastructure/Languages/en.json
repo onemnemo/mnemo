@@ -66,7 +66,8 @@
     "TransferImportFinishedFormat": "Imported {0}.",
     "TransferImportPartialFormat": "Imported {0}. Some files failed:\n{1}",
     "TransferExportFinished": "Export finished.",
-    "TransferExportFailed": "Export failed."
+    "TransferExportFailed": "Export failed.",
+    "Copy": "Copy"
   },
   "Settings": {
     "NavAccount": "Account",
@@ -343,15 +344,10 @@
     "WidgetUnavailableHint": "This widget's extension is not installed. Remove the tile or reinstall the extension."
   },
   "App": {
-    "AppTitle": "Mnemo",
-    "ToggleAssistant": "Toggle Assistant"
+    "AppTitle": "Mnemo"
   },
   "Chat": {
     "Atlas": "Atlas",
-    "AskAnything": "Ask anything about your content",
-    "AskTitle": "Ask Atlas",
-    "AskOpenFull": "Open in chat",
-    "AskExplainThis": "Explain this",
     "AssistantNoResponse": "No response.",
     "NewChat": "New Chat",
     "ChatHistory": "Chat History",
@@ -361,16 +357,19 @@
     "RenameChatPlaceholder": "Chat title",
     "DeleteChatTitle": "Delete chat",
     "DeleteChatMessage": "This conversation will be removed from your history. This cannot be undone.",
-    "CloseAssistant": "Close assistant",
     "ThoughtProcess": "Thought process",
     "ScrollToBottom": "Scroll to latest",
-    "AskPlaceholder": "Ask a question or type /quiz…",
     "AddAttachment": "Add attachment",
     "AddScreenshot": "Add screenshot",
     "AssistantMode": "Response length",
     "AssistantModeShort": "Short",
     "AssistantModeNormal": "Normal",
     "AssistantModeDetailed": "Detailed",
+    "ComposerTools": "Attachments & tools",
+    "ErrorMissingApiKey": "Atlas isn't connected to a model yet. Add your API key in Settings to start chatting.",
+    "ErrorNoModel": "No model is available right now. Check the model settings and try again.",
+    "OpenSettings": "Open Settings",
+    "RetryTurn": "Retry",
     "SendEnter": "Send (Enter · Ctrl+Enter new line)",
     "Stop": "Stop",
     "ErrorSorry": "I'm sorry, I couldn't generate a response.",
@@ -395,15 +394,6 @@
     "MoreActions": "More",
     "SaveToNotes": "Save to notes",
     "ShareAnswer": "Share",
-    "MemoryPill": "Memory",
-    "MemoryPillTooltipHint": "Conversation memory for this thread (facts from tools, rolling summary, and optional long-term recall).",
-    "MemoryPillSectionSummary": "Rolling summary",
-    "MemoryPillActiveSkill": "Active skill",
-    "MemoryPillKeyFacts": "Key facts",
-    "MemoryPillSectionWorking": "Working memory (facts)",
-    "MemoryPillTurnCount": "Turns",
-    "MemoryPillLastSummarized": "Last summarized through turn",
-    "MemoryPillTier3On": "Long-term recall: embedded in knowledge store for this chat.",
     "GreetingFormat": "Ready to learn, {0}?",
     "GreetingNoName": "Ready to learn?",
     "GreetingSubtitle": "What are we studying today?",
@@ -423,9 +413,6 @@
     "ToolCallCompleted": "Done",
     "ToolCallLinesFormat": "{0} lines",
     "ToolCallCharsFormat": "{0} characters",
-    "ModelStatusReady": "Atlas is ready",
-    "ModelStatusWarming": "Atlas is warming up…",
-    "ModelStatusOffline": "Atlas is offline — models load on first use",
     "ThinkingLabel": "Thinking",
     "WorkingOnIt": "Working on it",
     "ThoughtFor": "Thought for",
@@ -840,7 +827,7 @@
     "global.search.description": "Open search across the workspace.",
     "global.quick-actions": "Quick actions",
     "global.quick-actions.description": "Open the quick actions catalog (keyboard shortcuts).",
-    "global.assistant": "Ask Atlas",
-    "global.assistant.description": "Open the AI assistant from anywhere."
+    "global.assistant": "Open chat",
+    "global.assistant.description": "Jump to the AI chat from anywhere."
   }
 }

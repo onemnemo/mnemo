@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
@@ -25,6 +26,7 @@ public class MarkdownRenderer : IMarkdownRenderer
     private readonly ISettingsService _settingsService;
     private readonly ITextMateSyntaxHighlighter _syntaxHighlighter;
     private readonly IPerfDiagnostics _perf;
+    private readonly ILocalizationService _localization;
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .Build();
@@ -42,12 +44,14 @@ public class MarkdownRenderer : IMarkdownRenderer
         ILaTeXEngine latexEngine,
         ISettingsService settingsService,
         ITextMateSyntaxHighlighter syntaxHighlighter,
-        IPerfDiagnostics perf)
+        IPerfDiagnostics perf,
+        ILocalizationService localization)
     {
         _latexEngine = latexEngine;
         _settingsService = settingsService;
         _syntaxHighlighter = syntaxHighlighter;
         _perf = perf;
+        _localization = localization;
         _settingsService.SettingChanged += OnSettingChanged;
     }
 
@@ -76,7 +80,8 @@ public class MarkdownRenderer : IMarkdownRenderer
         double CodeFontSize,
         double MathFontSize,
         double LineHeight,
-        double LetterSpacing)
+        double LetterSpacing,
+        MarkdownRenderProfile Profile)
     {
         public double LineHeightPx => BaseFontSize * LineHeight;
         public double DisplayMathFontSize => MathFontSize + 2;
@@ -85,17 +90,30 @@ public class MarkdownRenderer : IMarkdownRenderer
     private static FontFamily GetFontFamily(string resourceKey) =>
         (FontFamily)Application.Current!.FindResource(resourceKey)!;
 
-    public async Task<Control> RenderAsync(string markdown, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground = null, double? baseFontSizeOverride = null)
+    public async Task<Control> RenderAsync(
+        string markdown,
+        Dictionary<string, MarkdownSpecialInline> specialInlines,
+        IBrush? foreground = null,
+        double? baseFontSizeOverride = null,
+        double? lineHeightOverride = null,
+        MarkdownRenderProfile profile = MarkdownRenderProfile.Document)
     {
         using var scope = _perf.Measure("Render", "MarkdownRenderer.RenderAsync", $"{markdown.Length} chars");
         var document = Markdig.Markdown.Parse(markdown, Pipeline);
+        var baseFontSize = baseFontSizeOverride ?? await GetBaseFontSizeAsync();
+        // Conversational code steps down from prose (16 -> 14) so snippets read as part of the
+        // answer; documents keep the user's explicit code-size setting.
+        var codeFontSize = profile == MarkdownRenderProfile.Conversation
+            ? Math.Round(baseFontSize * 0.875)
+            : baseFontSizeOverride ?? await GetCodeFontSizeAsync();
         var options = new RenderOptions(
             await GetBlockSpacingAsync(),
-            baseFontSizeOverride ?? await GetBaseFontSizeAsync(),
-            baseFontSizeOverride ?? await GetCodeFontSizeAsync(),
+            baseFontSize,
+            codeFontSize,
             baseFontSizeOverride ?? await GetMathFontSizeAsync(),
-            await GetLineHeightAsync(),
-            await GetLetterSpacingAsync());
+            lineHeightOverride ?? await GetLineHeightAsync(),
+            await GetLetterSpacingAsync(),
+            profile);
         var container = new StackPanel { Spacing = options.BlockSpacing };
 
         foreach (var block in document)
@@ -479,8 +497,10 @@ public class MarkdownRenderer : IMarkdownRenderer
             case EmphasisInline emphasis:
                 var span = new Span();
                 if (emphasis.DelimiterCount == 2)
-                    // Geist ships as per-weight files; FontWeight.Bold on the regular cut would synthesize a faux bold.
-                    span.FontFamily = GetFontFamily("Font.SemiBold");
+                    // Geist ships as per-weight files; FontWeight.Bold on the regular cut would synthesize
+                    // a faux bold. Conversation drops to Medium — models bold liberally, and a chat page
+                    // full of semibold reads shouty rather than emphasized.
+                    span.FontFamily = GetFontFamily(options.Profile == MarkdownRenderProfile.Conversation ? "Font.Medium" : "Font.SemiBold");
                 else if (emphasis.DelimiterCount == 1)
                     span.FontStyle = FontStyle.Italic;
 
@@ -492,9 +512,10 @@ public class MarkdownRenderer : IMarkdownRenderer
                 break;
 
             case CodeInline code:
+                // Runs can't carry padding; thin spaces keep the tint from hugging the glyphs.
                 inlines.Add(new Run
                 {
-                    Text = code.Content,
+                    Text = $" {code.Content} ",
                     FontFamily = GetFontFamily("Font.Monospace"),
                     Foreground = foreground ?? (IBrush)Application.Current!.FindResource("TextPrimaryBrush")!,
                     Background = (IBrush)Application.Current!.FindResource("TextControlBackgroundBrush")!
@@ -677,20 +698,36 @@ public class MarkdownRenderer : IMarkdownRenderer
 
     private async Task<Control> RenderHeadingAsync(HeadingBlock heading, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, RenderOptions options)
     {
-        // Heading ramp scales with the base size so a compact caller (e.g. chat at 14px)
-        // doesn't get 32px H1s towering over its prose. At the default 16px base this
-        // yields the classic 32/24/20/18/16/14.
-        var fontSize = Math.Round(options.BaseFontSize * heading.Level switch
-        {
-            1 => 2.0,
-            2 => 1.5,
-            3 => 1.25,
-            4 => 1.125,
-            5 => 1.0,
-            _ => 0.875
-        });
+        // Two ramps, both scaled from the base size. Documents keep the classic reading scale
+        // (32/24/20/18/16/14 at 16px). Conversation caps headings just above body size so an
+        // answer keeps a spoken rhythm — hierarchy comes from weight and space, not poster type.
+        var scale = options.Profile == MarkdownRenderProfile.Conversation
+            ? heading.Level switch
+            {
+                1 => 1.375,
+                2 => 1.25,
+                3 => 1.125,
+                4 => 1.0,
+                5 => 1.0,
+                _ => 0.875
+            }
+            : heading.Level switch
+            {
+                1 => 2.0,
+                2 => 1.5,
+                3 => 1.25,
+                4 => 1.125,
+                5 => 1.0,
+                _ => 0.875
+            };
+        var fontSize = Math.Round(options.BaseFontSize * scale);
         // Headings read best with tighter leading than body copy; cap the user's prose setting.
         var headingLineHeightPx = fontSize * Math.Min(options.LineHeight, 1.3);
+        // Space belongs above a heading, where it separates sections; below it stays close
+        // to the content it introduces. Conversation halves the document's air.
+        var headingMargin = options.Profile == MarkdownRenderProfile.Conversation
+            ? new Thickness(0, heading.Level == 1 ? 8 : 6, 0, 0)
+            : new Thickness(0, heading.Level == 1 ? 16 : 12, 0, 8);
 
         var textBlock = new TextBlock
         {
@@ -699,7 +736,7 @@ public class MarkdownRenderer : IMarkdownRenderer
             FontSize = fontSize,
             LineHeight = headingLineHeightPx,
             LetterSpacing = options.LetterSpacing,
-            Margin = new Thickness(0, heading.Level == 1 ? 16 : 12, 0, 8),
+            Margin = headingMargin,
             Foreground = (IBrush)Application.Current!.FindResource("TextPrimaryBrush")!
         };
 
@@ -725,24 +762,19 @@ public class MarkdownRenderer : IMarkdownRenderer
             ? sb
             : (IBrush)app.FindResource("TextPrimaryBrush")!;
 
+        // One flat well: a single tinted surface with a hairline edge. No header bar, no
+        // line-number gutter — the code is the content, everything else stays out of its way.
         var container = new Border
         {
             Background = (IBrush)app.FindResource("TextControlBackgroundBrush")!,
             BorderBrush = (IBrush)app.FindResource("RichTextSeparationLineBrush")!,
             BorderThickness = new Thickness(1),
             CornerRadius = (CornerRadius)app.FindResource("Radius.Lg")!,
+            ClipToBounds = true,
             Margin = new Thickness(0, 8)
         };
 
-        var headerBorder = new Border
-        {
-            Background = (IBrush)app.FindResource("TextControlBackgroundBrush")!,
-            BorderBrush = (IBrush)app.FindResource("NotesEditorSeparatorBrush")!,
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(12, 8)
-        };
-
-        var header = new Grid();
+        var header = new Grid { Margin = new Thickness(14, 6, 6, 0) };
         header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
@@ -750,27 +782,25 @@ public class MarkdownRenderer : IMarkdownRenderer
         var languageLabel = new TextBlock
         {
             Text = SketchSyntaxHighlighter.GetDisplayLanguageLabel(language),
-            FontFamily = GetFontFamily("Font.SemiBold"),
-            FontSize = (double)app.FindResource("FontSize.Body.ExtraSmall")!,
-            Foreground = (IBrush)app.FindResource("TextTertiaryBrush")!,
+            FontFamily = GetFontFamily("Font.Monospace"),
+            FontSize = (double)app.FindResource("FontSize.Body.Caption")!,
+            Foreground = (IBrush)app.FindResource("TextFadedBrush")!,
             VerticalAlignment = VerticalAlignment.Center
         };
         Grid.SetColumn(languageLabel, 0);
 
-        var copyButton = new Button
+        var copyButton = new AppButton
         {
-            Content = "Copy",
-            FontSize = (double)app.FindResource("FontSize.Body.Caption")!,
-            Padding = new Thickness(10, 6),
+            Classes = { "ghost" },
+            IconName = "Common/copy",
+            IconSize = 13,
+            Padding = new Thickness(6),
             HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Background = (IBrush)app.FindResource("TextControlBackgroundBrush")!,
-            Foreground = (IBrush)app.FindResource("TextSecondaryBrush")!,
-            BorderBrush = (IBrush)app.FindResource("RichTextSeparationLineBrush")!,
-            BorderThickness = new Thickness(1),
-            CornerRadius = (CornerRadius)app.FindResource("Radius.Md")!
+            VerticalAlignment = VerticalAlignment.Center
         };
+        ToolTip.SetTip(copyButton, _localization.T("Copy", "Common"));
         Grid.SetColumn(copyButton, 2);
+        DispatcherTimer? revertTimer = null;
         copyButton.Click += async (_, _) =>
         {
             try
@@ -783,11 +813,20 @@ public class MarkdownRenderer : IMarkdownRenderer
             {
                 // Clipboard access might fail
             }
+            // Brief confirmation, then back to the copy glyph.
+            copyButton.IconName = "States/done-check";
+            revertTimer?.Stop();
+            revertTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+            revertTimer.Tick += (_, _) =>
+            {
+                revertTimer.Stop();
+                copyButton.IconName = "Common/copy";
+            };
+            revertTimer.Start();
         };
 
         header.Children.Add(languageLabel);
         header.Children.Add(copyButton);
-        headerBorder.Child = header;
 
         var codeFont = GetFontFamily("Font.Monospace");
         var lineHeight = codeFontSize * (20.0 / 13.0);
@@ -798,33 +837,10 @@ public class MarkdownRenderer : IMarkdownRenderer
             LineHeight = lineHeight,
             TextWrapping = TextWrapping.NoWrap,
             Foreground = defaultFg,
-            Padding = new Thickness(10, 8, 10, 10)
+            Padding = new Thickness(14, 4, 14, 12)
         };
 
         _syntaxHighlighter.ApplyToTextBlock(codeTextBlock, code, string.IsNullOrEmpty(language) ? null : language, defaultFg);
-
-        var lineNumberBlock = new TextBlock
-        {
-            Text = SketchSyntaxHighlighter.BuildLineNumberText(code),
-            Padding = new Thickness(6, 8, 8, 10),
-            FontFamily = codeFont,
-            FontSize = codeFontSize,
-            LineHeight = lineHeight,
-            Foreground = (IBrush)app.FindResource("TextTertiaryBrush")!,
-            TextAlignment = TextAlignment.Right,
-            TextWrapping = TextWrapping.NoWrap,
-            VerticalAlignment = VerticalAlignment.Top
-        };
-
-        var gutter = new Border
-        {
-            Width = 48,
-            MinHeight = 120,
-            Background = (IBrush)app.FindResource("NotesEditorSeparatorBrush")!,
-            BorderBrush = (IBrush)app.FindResource("RichTextSeparationLineBrush")!,
-            BorderThickness = new Thickness(0, 0, 1, 0),
-            Child = lineNumberBlock
-        };
 
         var codeScroll = new ScrollViewer
         {
@@ -833,25 +849,16 @@ public class MarkdownRenderer : IMarkdownRenderer
             Content = codeTextBlock
         };
 
-        var bodyGrid = new Grid();
-        bodyGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        bodyGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        Grid.SetColumn(gutter, 0);
-        Grid.SetColumn(codeScroll, 1);
-        bodyGrid.Children.Add(gutter);
-        bodyGrid.Children.Add(codeScroll);
-
         var outerScroll = new ScrollViewer
         {
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             MaxHeight = 420,
-            Background = (IBrush)app.FindResource("TextControlBackgroundBrush")!,
-            Content = bodyGrid
+            Content = codeScroll
         };
 
         var stackPanel = new StackPanel();
-        stackPanel.Children.Add(headerBorder);
+        stackPanel.Children.Add(header);
         stackPanel.Children.Add(outerScroll);
         container.Child = stackPanel;
         return Task.FromResult<Control>(container);
@@ -859,11 +866,12 @@ public class MarkdownRenderer : IMarkdownRenderer
 
     private async Task<Control> RenderQuoteAsync(QuoteBlock quote, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, RenderOptions options)
     {
+        // A 2px bar and breathing room; the quote stays prose, not a callout box.
         var border = new Border
         {
             BorderBrush = (IBrush)Application.Current!.FindResource("RichTextSeparationLineBrush")!,
-            BorderThickness = new Thickness(4, 0, 0, 0),
-            Padding = new Thickness(12, 0, 0, 0),
+            BorderThickness = new Thickness(2, 0, 0, 0),
+            Padding = new Thickness(14, 2, 0, 2),
             Margin = new Thickness(0, 4)
         };
 
@@ -939,8 +947,8 @@ public class MarkdownRenderer : IMarkdownRenderer
 
     private async Task<Control> RenderListAsync(ListBlock list, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, RenderOptions options, int depth = 0)
     {
-        // Use same spacing as document block spacing so intro line → list matches list item → list item
-        var container = new StackPanel { Spacing = options.BlockSpacing, Margin = new Thickness(0, 0) };
+        // Items sit closer than paragraphs — a list is one thought, not a run of sections.
+        var container = new StackPanel { Spacing = Math.Max(4, options.BlockSpacing / 2), Margin = new Thickness(0, 0) };
         var fontSize = options.BaseFontSize;
         var letterSpacing = options.LetterSpacing;
         var lineHeightPx = options.LineHeightPx;
@@ -965,16 +973,18 @@ public class MarkdownRenderer : IMarkdownRenderer
                 VerticalAlignment = VerticalAlignment.Top
             };
 
-            var bulletSize = depth == 0 ? fontSize * 1.1 : fontSize * 0.75;
+            // Markers are wayfinding, not content: body-size glyphs in the secondary ink,
+            // never louder than the text they introduce.
+            var bulletSize = depth == 0 ? fontSize : fontSize * 0.75;
             var bullet = new TextBlock
             {
                 Text = GetBulletSymbol(depth, list.IsOrdered, index),
                 VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(0, bulletTopOffset, list.IsOrdered ? 6 : 8, 0),
+                Margin = new Thickness(0, bulletTopOffset, list.IsOrdered ? 8 : 10, 0),
                 FontSize = bulletSize,
                 LineHeight = lineHeightPx,
                 LetterSpacing = letterSpacing,
-                Foreground = foreground ?? (IBrush)Application.Current!.FindResource("TextSecondaryBrush")!
+                Foreground = (IBrush)Application.Current!.FindResource("TextSecondaryBrush")!
             };
             Grid.SetColumn(bullet, 0);
 
@@ -1012,11 +1022,13 @@ public class MarkdownRenderer : IMarkdownRenderer
             return new TextBlock { Text = "Invalid table format" };
         }
         
+        // Horizontal dividers only: no outer box, no zebra fills, no vertical rules.
+        // The first column sits flush with the surrounding prose.
         var grid = new Grid
         {
             HorizontalAlignment = HorizontalAlignment.Left
         };
-        
+
         var scrollViewer = new ScrollViewer
         {
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
@@ -1024,16 +1036,8 @@ public class MarkdownRenderer : IMarkdownRenderer
             Margin = new Thickness(0, 8),
             HorizontalAlignment = HorizontalAlignment.Left
         };
-        
-        var tableBorder = new Border
-        {
-            BorderBrush = (IBrush)Application.Current!.FindResource("RichTextSeparationLineBrush")!,
-            BorderThickness = new Thickness(1),
-            CornerRadius = (CornerRadius)Application.Current!.FindResource("Radius.Sm")!,
-            Background = (IBrush)Application.Current!.FindResource("TextControlBackgroundBrush")!,
-            Child = grid,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
+
+        var divider = (IBrush)Application.Current!.FindResource("RichTextSeparationLineBrush")!;
 
         for (int i = 0; i < markdigTable.ColumnDefinitions.Count; i++)
         {
@@ -1042,6 +1046,7 @@ public class MarkdownRenderer : IMarkdownRenderer
             grid.ColumnDefinitions.Add(columnDef);
         }
 
+        int lastRowIndex = markdigTable.Count - 1;
         for (int rowIndex = 0; rowIndex < markdigTable.Count; rowIndex++)
         {
             var row = markdigTable[rowIndex];
@@ -1049,6 +1054,7 @@ public class MarkdownRenderer : IMarkdownRenderer
 
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             bool isHeaderRow = rowIndex == 0;
+            bool isLastRow = rowIndex == lastRowIndex;
 
             for (int cellIndex = 0; cellIndex < tableRow.Count; cellIndex++)
             {
@@ -1057,10 +1063,9 @@ public class MarkdownRenderer : IMarkdownRenderer
 
                 var cellBorder = new Border
                 {
-                    BorderBrush = (IBrush)Application.Current!.FindResource("RichTextSeparationLineBrush")!,
-                    BorderThickness = new Thickness(cellIndex == 0 ? 1 : 0, 0, 1, 1),
-                    Padding = new Thickness(12, 8),
-                    Background = GetCellBackground(rowIndex, isHeaderRow)
+                    BorderBrush = divider,
+                    BorderThickness = new Thickness(0, 0, 0, isLastRow ? 0 : 1),
+                    Padding = new Thickness(cellIndex == 0 ? 0 : 16, 8, 16, 8)
                 };
 
                 var cellContent = new StackPanel { Spacing = 4 };
@@ -1072,7 +1077,7 @@ public class MarkdownRenderer : IMarkdownRenderer
                     {
                         if (isHeaderRow && rendered is TextBlock headerTextBlock)
                         {
-                            headerTextBlock.FontFamily = GetFontFamily("Font.SemiBold");
+                            headerTextBlock.FontFamily = GetFontFamily("Font.Medium");
                             headerTextBlock.Foreground = (IBrush)Application.Current!.FindResource("TextPrimaryBrush")!;
                         }
                         cellContent.Children.Add(rendered);
@@ -1086,22 +1091,8 @@ public class MarkdownRenderer : IMarkdownRenderer
             }
         }
 
-        scrollViewer.Content = tableBorder;
+        scrollViewer.Content = grid;
         return scrollViewer;
-    }
-
-    private IBrush GetCellBackground(int rowIndex, bool isHeaderRow)
-    {
-        if (isHeaderRow)
-        {
-            return (IBrush)Application.Current!.FindResource("CardBackgroundSecondaryBrush")!;
-        }
-        else
-        {
-            return (rowIndex % 2 == 0) 
-                ? (IBrush)Application.Current!.FindResource("TextControlBackgroundBrush")!
-                : (IBrush)Application.Current!.FindResource("CardBackgroundPrimaryBrush")!;
-        }
     }
 
     private void HandleLinkClick(string? url)

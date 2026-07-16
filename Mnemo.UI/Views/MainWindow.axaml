@@ -41,29 +41,9 @@
         <components:ToastHost ZIndex="9000"
                               HorizontalAlignment="Right"
                               VerticalAlignment="Bottom"
-                              Margin="0,0,20,88"
+                              Margin="0,0,20,24"
                               MaxWidth="460"
                               DataContext="{Binding ToastPresenter}" />
-
-        <!-- Floating assistant access point: opens the centralized Ask overlay -->
-        <Button HorizontalAlignment="Right"
-                VerticalAlignment="Bottom"
-                Margin="0,0,20,24"
-                Width="48"
-                Height="48"
-                Padding="0"
-                CornerRadius="24"
-                BorderThickness="0"
-                Background="{DynamicResource AccentBrush}"
-                Foreground="{DynamicResource AccentButtonIconBrush}"
-                Command="{Binding OpenAssistantCommand}"
-                IsVisible="{Binding IsAssistantEnabled}"
-                ToolTip.Tip="{markup:T Ns=App, Key=ToggleAssistant}">
-            <controls:SvgIcon SvgPath="avares://Mnemo.UI/Icons/Common/chart-bubble.svg"
-                              Color="{DynamicResource AccentButtonIconBrush}"
-                              Width="24"
-                              Height="24"/>
-        </Button>
 
         <!-- Global Overlay Layer (ZIndex above extended client area / siblings) -->
         <components:OverlayPopupHost ZIndex="10000"

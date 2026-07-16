@@ -66,7 +66,8 @@
     "TransferImportFinishedFormat": "Se importaron {0}.",
     "TransferImportPartialFormat": "Se importaron {0}. Algunos archivos fallaron:\n{1}",
     "TransferExportFinished": "Exportación finalizada.",
-    "TransferExportFailed": "Error al exportar."
+    "TransferExportFailed": "Error al exportar.",
+    "Copy": "Copiar"
   },
   "Settings": {
     "NavAccount": "Cuenta",
@@ -344,12 +345,11 @@
     "WidgetUnavailableHint": "La extensión de este widget no está instalada. Quita la tarjeta o reinstala la extensión."
   },
   "App": {
-    "AppTitle": "Mnemo",
-    "ToggleAssistant": "Alternar asistente"
+    "AppTitle": "Mnemo"
   },
   "Chat": {
     "Atlas": "Atlas",
-    "AskAnything": "Pregunte cualquier cosa sobre su contenido",
+    "AssistantNoResponse": "Sin respuesta.",
     "NewChat": "Nuevo chat",
     "ChatHistory": "Historial de chat",
     "RecentSessions": "Sesiones recientes",
@@ -358,16 +358,19 @@
     "RenameChatPlaceholder": "Título del chat",
     "DeleteChatTitle": "Eliminar chat",
     "DeleteChatMessage": "Esta conversación se eliminará de su historial. Esto no se puede deshacer.",
-    "CloseAssistant": "Cerrar asistente",
     "ThoughtProcess": "Proceso de pensamiento",
     "ScrollToBottom": "Desplazarse a lo más reciente",
-    "AskPlaceholder": "Pregunte algo...",
     "AddAttachment": "Añadir archivo adjunto",
     "AddScreenshot": "Añadir captura de pantalla",
     "AssistantMode": "Longitud de la respuesta",
     "AssistantModeShort": "Corta",
     "AssistantModeNormal": "Normal",
     "AssistantModeDetailed": "Detallada",
+    "ComposerTools": "Adjuntos y herramientas",
+    "ErrorMissingApiKey": "Atlas aún no está conectado a un modelo. Añada su clave de API en Configuración para empezar a chatear.",
+    "ErrorNoModel": "No hay ningún modelo disponible en este momento. Revise la configuración del modelo e inténtelo de nuevo.",
+    "OpenSettings": "Abrir configuración",
+    "RetryTurn": "Reintentar",
     "SendEnter": "Enviar (Intro · Ctrl+Intro nueva línea)",
     "Stop": "Detener",
     "ErrorSorry": "Lo siento, no pude generar una respuesta.",
@@ -387,15 +390,6 @@
     "Disclaimer": "Atlas puede cometer errores. Verifique la información importante.",
     "Regenerate": "Regenerar",
     "CopyMessage": "Copiar",
-    "MemoryPill": "Memoria",
-    "MemoryPillTooltipHint": "Memoria de conversación para este hilo (hechos de las herramientas, resumen móvil y recuperación opcional a largo plazo).",
-    "MemoryPillSectionSummary": "Resumen en curso",
-    "MemoryPillActiveSkill": "Habilidad activa",
-    "MemoryPillKeyFacts": "Datos clave",
-    "MemoryPillSectionWorking": "Memoria de trabajo (hechos)",
-    "MemoryPillTurnCount": "Turnos",
-    "MemoryPillLastSummarized": "Último resumen en el turno",
-    "MemoryPillTier3On": "Recuerdo a largo plazo: incrustado en el almacén de conocimiento para este chat.",
     "GreetingFormat": "¿Listo para aprender, {0}?",
     "GreetingNoName": "¿Listo para aprender?",
     "GreetingSubtitle": "¿Qué estudiamos hoy?",
@@ -415,9 +409,6 @@
     "ToolCallCompleted": "Listo",
     "ToolCallLinesFormat": "{0} líneas",
     "ToolCallCharsFormat": "{0} caracteres",
-    "ModelStatusReady": "Atlas está listo",
-    "ModelStatusWarming": "Atlas se está preparando…",
-    "ModelStatusOffline": "Atlas está desconectado — los modelos se cargan al primer uso",
     "ThinkingLabel": "Pensando",
     "WorkingOnIt": "Trabajando en ello",
     "ThoughtFor": "Pensó durante",
@@ -835,6 +826,8 @@
     "category.general": "General",
     "global.search": "Búsqueda global",
     "global.search.description": "Abrir la búsqueda en todo el espacio de trabajo.",
+    "global.assistant": "Abrir chat",
+    "global.assistant.description": "Ir al chat de IA desde cualquier lugar.",
     "global.quick-actions": "Acciones rápidas",
     "global.quick-actions.description": "Abrir el catálogo de acciones rápidas (atajos de teclado)."
   }
