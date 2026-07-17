@@ -5,6 +5,7 @@ import './index.css'
 import App from './App.tsx'
 import { SettingsProvider } from '@/app/SettingsProvider'
 import { EventStreamProvider } from '@/events/EventStreamProvider'
+import { KeybindProvider } from '@/keybinds/KeybindProvider'
 
 // Desktop webview: no other tab/window competes for network focus, and a
 // refetch storm on every Alt-Tab back into the app is just wasted requests.
@@ -22,7 +23,9 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
         <EventStreamProvider>
-          <App />
+          <KeybindProvider>
+            <App />
+          </KeybindProvider>
         </EventStreamProvider>
       </SettingsProvider>
     </QueryClientProvider>

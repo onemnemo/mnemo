@@ -13,6 +13,7 @@ using Mnemo.Host.Composition;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Events;
 using Mnemo.Host.I18n;
+using Mnemo.Host.Keybinds;
 using Mnemo.Host.Settings;
 using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
@@ -100,6 +101,7 @@ public static class Program
 
         app.MapEventStream();
         app.MapSettings();
+        app.MapKeybinds();
 
         if (options.DevMode)
         {
