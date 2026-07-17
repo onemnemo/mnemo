@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
+using Mnemo.Host.Chat;
 using Mnemo.Host.Composition;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Events;
@@ -104,6 +105,7 @@ public static class Program
         app.MapSettings();
         app.MapKeybinds();
         app.MapNav();
+        app.MapChat();
 
         if (options.DevMode)
         {
