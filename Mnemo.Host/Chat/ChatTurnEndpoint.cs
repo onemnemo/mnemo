@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Ai;
 using Mnemo.Core.Services;
+using Mnemo.Host.Ai;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Events;
 using Mnemo.UI.Services;
@@ -141,7 +142,7 @@ public static class ChatTurnEndpoint
             catch (AiClientException ex)
             {
                 outcome.Errored = true;
-                writer.TryWrite(new AppEvent("error", new { kind = MapErrorKind(ex.Kind), message = ex.Message }));
+                writer.TryWrite(new AppEvent("error", new { kind = AiErrorMapping.ToWire(ex.Kind), message = ex.Message }));
             }
             catch (Exception ex)
             {
@@ -266,18 +267,6 @@ public static class ChatTurnEndpoint
         public bool Stopped;
         public bool Errored;
     }
-
-    private static string MapErrorKind(AiClientErrorKind kind) => kind switch
-    {
-        AiClientErrorKind.InvalidApiKey => "invalid_api_key",
-        AiClientErrorKind.InsufficientCredits => "insufficient_credits",
-        AiClientErrorKind.RateLimited => "rate_limited",
-        AiClientErrorKind.ModelUnavailable => "model_unavailable",
-        AiClientErrorKind.Network => "network",
-        AiClientErrorKind.Timeout => "timeout",
-        AiClientErrorKind.InvalidRequest => "invalid_request",
-        _ => "unknown",
-    };
 
     /// <summary>An <see cref="IProgress{T}"/> that runs its handler inline, preserving the order
     /// of pipeline-status reports relative to the tokens and tool events around them (the default

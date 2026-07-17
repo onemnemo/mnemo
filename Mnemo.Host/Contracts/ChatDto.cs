@@ -96,6 +96,9 @@ public sealed record ChatToolCallDto(string Name, string Arguments, string Resul
         new(t.Name, t.Arguments, t.Result, t.Summary);
 }
 
+/// <summary>The conversation's response-length mode after normalization (Short/Normal/Detailed).</summary>
+public sealed record AssistantModeDto(string Mode);
+
 /// <summary>
 /// A message attachment as the browser sees it: kind + display name only. The absolute
 /// local path stored on disk never crosses to the client; a served asset id is added
