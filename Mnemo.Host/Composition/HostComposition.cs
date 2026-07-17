@@ -309,6 +309,14 @@ public static class HostComposition
             module.RegisterSidebarItems(sidebar);
         }
 
+        // Load the saved UI language so server-emitted strings (e.g. the persisted chat trace)
+        // resolve to the same text the desktop would write. Mirrors Bootstrapper.LoadSavedLanguageAsync.
+        var settings = services.GetRequiredService<ISettingsService>();
+        var localization = services.GetRequiredService<ILocalizationService>();
+        var savedLanguage = await settings.GetAsync<string>("App.Language", "en").ConfigureAwait(false);
+        await localization.SetLanguageAsync(string.IsNullOrWhiteSpace(savedLanguage) ? "en" : savedLanguage)
+            .ConfigureAwait(false);
+
         try
         {
             await services.GetRequiredService<IFlashcardStoreMigrator>()

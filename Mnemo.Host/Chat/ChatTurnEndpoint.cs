@@ -37,7 +37,8 @@ public static class ChatTurnEndpoint
         ChatTurnRequestDto request,
         IAIOrchestrator orchestrator,
         IChatModuleHistoryService history,
-        ChatTurnRegistry turns)
+        ChatTurnRegistry turns,
+        ILocalizationService localization)
     {
         var response = context.Response;
         response.Headers.CacheControl = "no-cache";
@@ -45,6 +46,9 @@ public static class ChatTurnEndpoint
         // Ask any intermediary (the Vite proxy in dev) not to buffer the stream.
         response.Headers["X-Accel-Buffering"] = "no";
         context.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+
+        var turnStartUtc = DateTime.UtcNow;
+        Func<string, string> localize = key => localization.T(key, "Chat");
 
         // Prior turns feed the context window; the new user message rides in the request
         // body and is not yet persisted, so the stored messages are strictly the history.
@@ -63,6 +67,11 @@ public static class ChatTurnEndpoint
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(registration.Token, context.RequestAborted);
         var token = linked.Token;
 
+        // The same signals stream to the SPA (which renders its own live trace) and feed the trace
+        // builder, so the persisted trace is exactly what the client just watched.
+        var trace = new ChatTraceBuilder();
+        var outcome = new TurnOutcome();
+
         var channel = Channel.CreateUnbounded<AppEvent>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
         var writer = channel.Writer;
@@ -74,13 +83,25 @@ public static class ChatTurnEndpoint
             try
             {
                 IProgress<string> pipeline = new SyncProgress<string>(key =>
-                    writer.TryWrite(new AppEvent("status", new { key })));
+                {
+                    trace.OnPipelineKey(key, localize);
+                    writer.TryWrite(new AppEvent("status", new { key }));
+                });
                 Action<ChatToolCall> onTool = call =>
+                {
+                    trace.AddToolCall(call, localize);
                     writer.TryWrite(new AppEvent("tool", ChatToolEventDto.From(call)));
+                };
                 Action<string> onReasoning = text =>
+                {
+                    trace.SetReasoning(text);
                     writer.TryWrite(new AppEvent("reasoning", new { text }));
+                };
                 Action<string> onNarration = text =>
+                {
+                    trace.AddNarration(text);
                     writer.TryWrite(new AppEvent("narration", new { text }));
+                };
 
                 await foreach (var chunk in orchestrator.PromptStreamingWithHistoryAsync(
                     systemPrompt, conversationHistory, request.Message, token,
@@ -93,20 +114,27 @@ public static class ChatTurnEndpoint
                     writer.TryWrite(new AppEvent("delta", new { text = chunk }));
                 }
 
+                outcome.Content = content.ToString();
+                outcome.FoundResponse = foundResponse;
                 writer.TryWrite(new AppEvent("done",
-                    new { foundResponse, content = content.ToString(), stopped = false }));
+                    new { foundResponse, content = outcome.Content, stopped = false }));
             }
             catch (OperationCanceledException)
             {
+                outcome.Content = content.ToString();
+                outcome.FoundResponse = foundResponse;
+                outcome.Stopped = true;
                 writer.TryWrite(new AppEvent("done",
-                    new { foundResponse, content = content.ToString(), stopped = true }));
+                    new { foundResponse, content = outcome.Content, stopped = true }));
             }
             catch (AiClientException ex)
             {
+                outcome.Errored = true;
                 writer.TryWrite(new AppEvent("error", new { kind = MapErrorKind(ex.Kind), message = ex.Message }));
             }
             catch (Exception ex)
             {
+                outcome.Errored = true;
                 writer.TryWrite(new AppEvent("error", new { kind = "unknown", message = ex.Message }));
             }
             finally
@@ -129,7 +157,81 @@ public static class ChatTurnEndpoint
         {
             await producer.ConfigureAwait(false);
             turns.Complete(request.TurnId);
+            await PersistTurnAsync(history, trace, localize, id, mode, turnStartUtc, request.Message, outcome)
+                .ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Writes the finished turn back. A stopped turn keeps whatever it produced (falling back to the
+    /// "generation stopped" line when empty). A hard error, or an empty answer that ran no tools, is a
+    /// failed turn and nothing is written — the whole (user, assistant) pair is dropped. That diverges
+    /// intentionally from the desktop, which keeps the lone user message: the host persists a turn
+    /// lazily as one unit at completion, so a failed turn leaves no half-written state for the SPA to
+    /// reconcile or double-append when it retries. The failed turn (with the user's text) stays in the
+    /// SPA's own memory until it succeeds or is dismissed.
+    /// </summary>
+    private static async Task PersistTurnAsync(
+        IChatModuleHistoryService history,
+        ChatTraceBuilder trace,
+        Func<string, string> localize,
+        string conversationId,
+        string mode,
+        DateTime turnStartUtc,
+        string userMessage,
+        TurnOutcome outcome)
+    {
+        if (outcome.Errored)
+            return;
+        if (!outcome.FoundResponse && !outcome.Stopped && trace.ToolCallCount == 0)
+            return;
+
+        trace.Complete();
+
+        var assistantContent = outcome.Content;
+        if (outcome.Stopped && string.IsNullOrEmpty(assistantContent))
+            assistantContent = localize("GenerationStopped");
+
+        // The desktop collapses whitespace-only reasoning to null on a normal finish but leaves it as
+        // the model emitted it when the turn was stopped mid-stream; mirror both branches.
+        var thoughts = trace.Thoughts;
+        if (!outcome.Stopped && string.IsNullOrWhiteSpace(thoughts))
+            thoughts = null;
+
+        var userMsg = new ChatModulePersistedMessage
+        {
+            Content = userMessage,
+            IsUser = true,
+            TimestampUtc = turnStartUtc,
+        };
+
+        var steps = trace.BuildPersistedSteps();
+        var assistantMsg = new ChatModulePersistedMessage
+        {
+            Content = assistantContent,
+            IsUser = false,
+            TimestampUtc = turnStartUtc,
+            Thoughts = thoughts,
+            ThoughtsCount = trace.ThoughtsCount,
+            ProcessHeaderText = localize("ThoughtFor"),
+            ElapsedText = ChatProcessThreadTracker.FormatShortDuration(trace.Elapsed),
+            ProcessSummaryText = trace.BuildCompletionSummary(localize),
+            ProcessSteps = steps.Count == 0 ? null : steps,
+        };
+
+        // Last-activity reflects turn COMPLETION (the desktop stamps it after streaming), so the
+        // sidebar sort and day-bucketing land the same in either app.
+        await ChatTurnPersistence.AppendTurnAsync(history, conversationId, mode, DateTime.UtcNow, userMsg, assistantMsg)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Turn result captured by the producer and read once the stream has drained.</summary>
+    private sealed class TurnOutcome
+    {
+        public string Content = string.Empty;
+        public bool FoundResponse;
+        public bool Stopped;
+        public bool Errored;
     }
 
     private static string MapErrorKind(AiClientErrorKind kind) => kind switch
