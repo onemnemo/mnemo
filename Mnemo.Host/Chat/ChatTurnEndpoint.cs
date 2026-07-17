@@ -38,7 +38,11 @@ public static class ChatTurnEndpoint
         IAIOrchestrator orchestrator,
         IChatModuleHistoryService history,
         ChatTurnRegistry turns,
-        ILocalizationService localization)
+        ILocalizationService localization,
+        IConversationMemoryStore memoryStore,
+        IConversationMemoryInjector memoryInjector,
+        IConversationSummarizer summarizer,
+        ILoggerService logger)
     {
         var response = context.Response;
         response.Headers.CacheControl = "no-cache";
@@ -53,12 +57,19 @@ public static class ChatTurnEndpoint
         // Prior turns feed the context window; the new user message rides in the request
         // body and is not yet persisted, so the stored messages are strictly the history.
         var load = await history.LoadAsync(context.RequestAborted).ConfigureAwait(false);
-        var priorMessages = (load.IsSuccess
-            ? load.Value!.Conversations.FirstOrDefault(c => c.Id == id)?.Messages
-            : null) ?? new List<ChatModulePersistedMessage>();
+        var conversation = load.IsSuccess
+            ? load.Value!.Conversations.FirstOrDefault(c => c.Id == id)
+            : null;
+        var priorMessages = conversation?.Messages ?? new List<ChatModulePersistedMessage>();
 
-        var conversationHistory = ChatStreamingHelper.BuildConversationHistory(
+        // Hydrate this conversation's rolling memory so the injector can fold its summary into context.
+        ChatTurnMemory.Hydrate(memoryStore, logger, conversation?.MemorySnapshotJson);
+
+        var rawHistory = ChatStreamingHelper.BuildConversationHistory(
             priorMessages, (ChatModulePersistedMessage?)null, m => m.IsUser, m => m.Content);
+        var conversationHistory = await memoryInjector
+            .BuildHistoryWithMemoryAsync(id, rawHistory, request.Message, context.RequestAborted)
+            .ConfigureAwait(false);
 
         var mode = ChatStreamingHelper.NormalizeAssistantMode(request.AssistantMode);
         var systemPrompt = ChatStreamingHelper.GetSystemPromptForMode(mode);
@@ -157,8 +168,8 @@ public static class ChatTurnEndpoint
         {
             await producer.ConfigureAwait(false);
             turns.Complete(request.TurnId);
-            await PersistTurnAsync(history, trace, localize, id, mode, turnStartUtc, request.Message, outcome)
-                .ConfigureAwait(false);
+            await PersistTurnAsync(history, trace, localize, id, mode, turnStartUtc, request.Message, outcome,
+                priorMessages, memoryStore, summarizer, logger).ConfigureAwait(false);
         }
     }
 
@@ -170,6 +181,13 @@ public static class ChatTurnEndpoint
     /// lazily as one unit at completion, so a failed turn leaves no half-written state for the SPA to
     /// reconcile or double-append when it retries. The failed turn (with the user's text) stays in the
     /// SPA's own memory until it succeeds or is dismissed.
+    ///
+    /// A dropped turn also skips its conversation-memory increment (memory maintenance runs past these
+    /// early returns). That keeps the host self-consistent: the memory turn counter tracks exactly the
+    /// persisted [user, assistant] pairs, so the summarizer's turn slicing always lines up with the
+    /// stored transcript. The desktop instead counts every attempt, so after a failed turn the two apps'
+    /// rolling-summary cadence drifts by one — a deliberate consequence of the lazy model, since counting
+    /// a turn whose messages were never stored would eventually push the slice past the transcript.
     /// </summary>
     private static async Task PersistTurnAsync(
         IChatModuleHistoryService history,
@@ -179,7 +197,11 @@ public static class ChatTurnEndpoint
         string mode,
         DateTime turnStartUtc,
         string userMessage,
-        TurnOutcome outcome)
+        TurnOutcome outcome,
+        IReadOnlyList<ChatModulePersistedMessage> priorMessages,
+        IConversationMemoryStore memoryStore,
+        IConversationSummarizer summarizer,
+        ILoggerService logger)
     {
         if (outcome.Errored)
             return;
@@ -219,9 +241,20 @@ public static class ChatTurnEndpoint
             ProcessSteps = steps.Count == 0 ? null : steps,
         };
 
+        // Post-turn memory: advance the turn counter and roll up a fresh summary when due, off the full
+        // transcript this turn just extended. Runs after the stream has drained (the client already has
+        // its answer), so its latency doesn't delay the visible reply.
+        var transcript = new List<ChatModulePersistedMessage>(priorMessages) { userMsg, assistantMsg };
+        var fullTranscript = ChatStreamingHelper.BuildFullConversationHistory(
+            transcript, m => m.IsUser, m => m.Content);
+        var memorySnapshotJson = await ChatTurnMemory
+            .RunPostTurnAsync(memoryStore, summarizer, logger, conversationId, fullTranscript)
+            .ConfigureAwait(false);
+
         // Last-activity reflects turn COMPLETION (the desktop stamps it after streaming), so the
         // sidebar sort and day-bucketing land the same in either app.
-        await ChatTurnPersistence.AppendTurnAsync(history, conversationId, mode, DateTime.UtcNow, userMsg, assistantMsg)
+        await ChatTurnPersistence.AppendTurnAsync(
+                history, conversationId, mode, DateTime.UtcNow, userMsg, assistantMsg, memorySnapshotJson)
             .ConfigureAwait(false);
     }
 

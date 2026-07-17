@@ -17,7 +17,8 @@ public static class ChatTurnPersistence
         string assistantMode,
         DateTime lastActivityUtc,
         ChatModulePersistedMessage userMessage,
-        ChatModulePersistedMessage assistantMessage)
+        ChatModulePersistedMessage assistantMessage,
+        string? memorySnapshotJson = null)
     {
         // Independent of the request lifetime: a client disconnect must not lose a finished turn.
         var load = await history.LoadAsync().ConfigureAwait(false);
@@ -36,6 +37,8 @@ public static class ChatTurnPersistence
         conversation.LastActivityUtc = lastActivityUtc;
         conversation.Messages.Add(userMessage);
         conversation.Messages.Add(assistantMessage);
+        if (memorySnapshotJson is not null)
+            conversation.MemorySnapshotJson = memorySnapshotJson;
 
         await history.SaveAsync(document).ConfigureAwait(false);
     }
