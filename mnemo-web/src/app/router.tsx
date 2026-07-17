@@ -1,8 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react"
 
-import { DecksPage } from "@/pages/DecksPage"
-
-const DEFAULT_ROUTE = "#/decks"
+import { DEFAULT_ROUTE } from "@/app/routes"
 
 function subscribe(onStoreChange: () => void): () => void {
   window.addEventListener("hashchange", onStoreChange)
@@ -13,31 +11,21 @@ function getHash(): string {
   return window.location.hash
 }
 
-/** Current URL hash (e.g. "#/decks"), kept live via the `hashchange` event. */
+/** Current URL hash (e.g. "#/mindmap/abc"), kept live via `hashchange`. */
 export function useHashRoute(): string {
   return useSyncExternalStore(subscribe, getHash, getHash)
 }
 
 /**
- * Minimal hash-based route dispatch - no router dependency. Intentionally
- * tiny; a real router library is not worth it until there is more than
- * one real page.
+ * Normalizes an empty hash to the default route once on mount, without growing
+ * browser history. Unknown routes are handled by resolveRoute (falls back to the
+ * default page) so a wrong hash never blanks the shell.
  */
-export function AppRouter() {
+export function useRouteNormalization(): void {
   const hash = useHashRoute()
-
   useEffect(() => {
-    if (hash !== DEFAULT_ROUTE) {
-      // Empty or unknown hash: normalize the address bar without growing
-      // browser history.
-      window.location.replace(DEFAULT_ROUTE)
+    if (hash === "" || hash === "#" || hash === "#/") {
+      window.location.replace(`#/${DEFAULT_ROUTE}`)
     }
   }, [hash])
-
-  switch (hash) {
-    case DEFAULT_ROUTE:
-      return <DecksPage />
-    default:
-      return <DecksPage />
-  }
 }

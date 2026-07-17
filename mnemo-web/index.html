@@ -5,6 +5,18 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>mnemo-web</title>
+    <script>
+      // Apply the persisted theme before the bundle paints, to avoid a flash of
+      // the default theme. Kept in lockstep with src/stores/theme.ts.
+      (function () {
+        try {
+          var t = localStorage.getItem("mnemo.theme");
+          if (t === "dawn" || t === "dusk" || t === "ember" || t === "noon") {
+            document.documentElement.setAttribute("data-theme", t);
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

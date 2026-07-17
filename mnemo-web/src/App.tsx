@@ -1,7 +1,9 @@
-import { AppRouter } from "@/app/router"
+import { useRouteNormalization } from "@/app/router"
+import { AppShell } from "@/components/shell/AppShell"
 
 function App() {
-  return <AppRouter />
+  useRouteNormalization()
+  return <AppShell />
 }
 
 export default App
