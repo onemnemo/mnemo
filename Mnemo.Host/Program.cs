@@ -106,6 +106,7 @@ public static class Program
         app.MapKeybinds();
         app.MapNav();
         app.MapChat();
+        app.MapChatTurns();
 
         if (options.DevMode)
         {

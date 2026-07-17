@@ -172,6 +172,9 @@ public static class HostComposition
         services.AddSingleton<IAITaskManager, AITaskManager>();
         services.AddSingleton<IAiSystemMonitor, StubAiSystemMonitor>();
 
+        // Tracks in-flight chat turns so the SSE stream endpoint and the stop button share cancellation.
+        services.AddSingleton<Chat.ChatTurnRegistry>();
+
         services.AddSingleton<INoteService, NoteService>();
         services.AddSingleton<INoteFolderService, NoteFolderService>();
         services.AddSingleton<INotePdfExportService, NotePdfExportService>();
