@@ -90,26 +90,12 @@ public static class Program
             return decks.Select(DeckSummaryDto.FromModel).ToList();
         });
 
-        var spaMode = Environment.GetEnvironmentVariable("MNEMO_SPA_MODE");
         if (!options.DevMode)
         {
-            if (spaMode == "hello")
-            {
-                // Test 4: no SPA middleware — bare HTML from MapGet.
-                app.MapGet("/", () => Results.Content("<h1>Hello</h1>", "text/html"));
-                Console.WriteLine("[Mnemo.Host] MNEMO_SPA_MODE=hello — SPA disabled, serving MapGet hello");
-            }
-            else
-            {
-                var spaRoot = ResolveSpaRoot(options);
-                var templatedIndex = spaMode == "stub"
-                    ? "<!DOCTYPE html><html><body>HELLO</body></html>"
-                    : SpaHosting.LoadTemplatedIndex(spaRoot, bearerToken);
-                SpaHosting.MapSpa(app, spaRoot, templatedIndex);
-                Console.WriteLine(spaMode == "stub"
-                    ? "[Mnemo.Host] MNEMO_SPA_MODE=stub — serving minimal HELLO page"
-                    : $"[Mnemo.Host] Serving SPA from {spaRoot}");
-            }
+            var spaRoot = ResolveSpaRoot(options);
+            var templatedIndex = SpaHosting.LoadTemplatedIndex(spaRoot, bearerToken);
+            SpaHosting.MapSpa(app, spaRoot, templatedIndex);
+            Console.WriteLine($"[Mnemo.Host] Serving SPA from {spaRoot}");
         }
 
         // Migration and storage warm-up complete before Kestrel accepts a request,
