@@ -1,19 +1,12 @@
 import { useState } from "react"
 
-import { activeNavRoute, NAV_GROUPS, resolveRoute } from "@/app/routes"
+import { activeNavRoute, resolveRoute, routeLabel } from "@/app/routes"
 import { useHashRoute } from "@/app/router"
-import { Sidebar } from "@/components/shell/Sidebar"
-import { Topbar } from "@/components/shell/Topbar"
+import { Sidebar } from "@/components/shell/sidebar/Sidebar"
+import { Topbar } from "@/components/shell/topbar/Topbar"
 
-function routeTitle(activeRoute: string): string {
-  for (const group of NAV_GROUPS) {
-    for (const item of group.items) {
-      if (item.route === activeRoute) return item.label
-    }
-  }
-  return activeRoute.charAt(0).toUpperCase() + activeRoute.slice(1)
-}
-
+// Mirrors MainWindow.axaml: full-height sidebar on the left, topbar + module host
+// on the right.
 export function AppShell() {
   const hash = useHashRoute()
   const [collapsed, setCollapsed] = useState(false)
@@ -22,10 +15,10 @@ export function AppShell() {
   const activeRoute = activeNavRoute(resolved.key)
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar activeRoute={activeRoute} collapsed={collapsed} />
+    <div className="flex h-screen overflow-hidden bg-surface">
+      <Sidebar activeRoute={activeRoute} collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar title={routeTitle(activeRoute)} onToggleSidebar={() => setCollapsed((c) => !c)} />
+        <Topbar title={routeLabel(activeRoute)} />
         <main className="min-h-0 flex-1 overflow-y-auto">{resolved.element}</main>
       </div>
     </div>

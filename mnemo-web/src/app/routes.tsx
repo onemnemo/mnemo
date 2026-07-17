@@ -1,55 +1,71 @@
-import { LayoutDashboard, Layers, NotebookText, Settings, Sparkles, Waypoints, type LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { StubPage } from "@/components/shell/StubPage"
 import { DecksPage } from "@/pages/DecksPage"
+import { SettingsPage } from "@/pages/SettingsPage"
 
-// The sidebar nav, mirroring the Avalonia module RegisterSidebarItems groups
-// (MainHub / Modules / Ecosystem). `childRoutes` keep the parent highlighted
-// while a deep route is open. Once GET /nav exists this becomes server-sourced.
-export interface NavItem {
+// Sidebar model, mirroring the Avalonia module RegisterSidebarItems groups and
+// SidebarService's footer handling: MainHub (Overview, no header), Modules
+// (headered), and the footer-rendered Ecosystem (Settings, Assistant). Once
+// GET /nav exists this becomes server-sourced. Icon names resolve against the
+// ported Mnemo SVGs (src/assets/icons).
+export interface NavItemDef {
   route: string
   label: string
-  icon: LucideIcon
+  icon: string
   childRoutes?: readonly string[]
+  /** Gated by AI.EnableAssistant in the real app; the guard lands with settings/events. */
+  requiresAi?: boolean
 }
 
-export interface NavGroup {
-  id: string
-  label?: string
-  items: readonly NavItem[]
+export interface NavCategoryDef {
+  key: string
+  label: string
+  /** Footer categories render flat at the bottom, with no section header. */
+  footer: boolean
+  /** The MainHub category suppresses its header (Order 0 in the reference). */
+  showHeader: boolean
+  items: readonly NavItemDef[]
 }
 
-export const NAV_GROUPS: readonly NavGroup[] = [
-  { id: "main", items: [{ route: "overview", label: "Overview", icon: LayoutDashboard }] },
+export const NAV_CATEGORIES: readonly NavCategoryDef[] = [
   {
-    id: "modules",
+    key: "main",
+    label: "",
+    footer: false,
+    showHeader: false,
+    items: [{ route: "overview", label: "Overview", icon: "sidebar/overview" }],
+  },
+  {
+    key: "modules",
     label: "Modules",
+    footer: false,
+    showHeader: true,
     items: [
-      { route: "notes", label: "Notes", icon: NotebookText },
-      { route: "mindmap", label: "Mindmaps", icon: Waypoints, childRoutes: ["mindmap-detail"] },
+      { route: "notes", label: "Notes", icon: "sidebar/notes" },
+      { route: "mindmap", label: "Mindmaps", icon: "sidebar/mindmap", childRoutes: ["mindmap-detail"] },
       {
         route: "flashcards",
         label: "Flashcards",
-        icon: Layers,
+        icon: "sidebar/flashcard",
         childRoutes: ["flashcard-deck", "flashcard-session", "flashcard-test"],
       },
     ],
   },
   {
-    id: "ecosystem",
+    key: "ecosystem",
+    label: "Ecosystem",
+    footer: true,
+    showHeader: false,
     items: [
-      { route: "settings", label: "Settings", icon: Settings },
-      // Route is gated by AI.EnableAssistant in the real app; the guard lands
-      // when the settings/events plumbing does.
-      { route: "chat", label: "Assistant", icon: Sparkles },
+      { route: "settings", label: "Settings", icon: "sidebar/settings" },
+      { route: "chat", label: "Assistant", icon: "sidebar/sparkles", requiresAi: true },
     ],
   },
 ]
 
 export const DEFAULT_ROUTE = "overview"
 
-// route key -> renderer, receiving any remaining hash segments as params.
 type PageRenderer = (params: readonly string[]) => ReactNode
 
 const PAGES: Record<string, PageRenderer> = {
@@ -61,7 +77,7 @@ const PAGES: Record<string, PageRenderer> = {
   "flashcard-deck": (p) => <StubPage title="Deck" subtitle={p[0]} />,
   "flashcard-session": (p) => <StubPage title="Study session" subtitle={p[0]} />,
   "flashcard-test": (p) => <StubPage title="Test" subtitle={p[0]} />,
-  settings: () => <StubPage title="Settings" />,
+  settings: () => <SettingsPage />,
   chat: () => <StubPage title="Assistant" />,
 }
 
@@ -79,17 +95,26 @@ export function resolveRoute(hash: string): ResolvedRoute {
   if (!renderer) {
     return { key: DEFAULT_ROUTE, params: [], element: PAGES[DEFAULT_ROUTE]([]) }
   }
-  const params = segments.slice(1)
-  return { key, params, element: renderer(params) }
+  return { key, params: segments.slice(1), element: renderer(segments.slice(1)) }
 }
 
 /** Which sidebar item should read as active for a given route key. */
 export function activeNavRoute(routeKey: string): string {
-  for (const group of NAV_GROUPS) {
-    for (const item of group.items) {
+  for (const category of NAV_CATEGORIES) {
+    for (const item of category.items) {
       if (item.route === routeKey) return item.route
       if (item.childRoutes?.includes(routeKey)) return item.route
     }
   }
   return routeKey
+}
+
+/** Human label for a route key, from the nav model (falls back to a capitalized key). */
+export function routeLabel(routeKey: string): string {
+  for (const category of NAV_CATEGORIES) {
+    for (const item of category.items) {
+      if (item.route === routeKey) return item.label
+    }
+  }
+  return routeKey.charAt(0).toUpperCase() + routeKey.slice(1)
 }
