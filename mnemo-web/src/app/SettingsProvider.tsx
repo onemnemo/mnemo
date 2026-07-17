@@ -3,14 +3,17 @@ import { type ReactNode, useEffect, useState } from "react"
 import { fetchAppSettings } from "@/api/settings"
 import { DEFAULT_LANGUAGE, useI18nStore } from "@/i18n/store"
 import { DEFAULT_THEME, isThemeId } from "@/lib/themes"
+import { fetchNav } from "@/nav/api"
+import { useNavStore } from "@/nav/store"
 import { useThemeStore } from "@/stores/theme"
 
-// Startup gate: hydrate the app preferences (theme, language) from backend
-// settings before the first paint, then load the matching translation bundle.
-// Ordering matters - the theme applies before render and the language is known
-// before the i18n bundle loads, so there is no flash of the wrong theme or of
-// translation keys. On any failure (e.g. the host is unreachable) it falls back
-// to defaults and still renders.
+// Startup gate: hydrate from the backend before first paint - app preferences
+// (theme, language) and the sidebar nav model - then load the matching
+// translation bundle. Ordering matters: the theme applies before render, the
+// nav is present so the sidebar does not pop in, and the language is known
+// before the i18n bundle loads, so there is no flash of the wrong theme, an
+// empty sidebar, or translation keys. On any failure (e.g. the host is
+// unreachable) it falls back to defaults and still renders.
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
 
@@ -18,8 +21,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     let cancelled = false
 
     async function hydrate(): Promise<void> {
-      const settings = await fetchAppSettings().catch(() => null)
+      const [settings, nav] = await Promise.all([
+        fetchAppSettings().catch(() => null),
+        fetchNav().catch(() => []),
+      ])
       if (cancelled) return
+
+      useNavStore.getState().setCategories(nav)
 
       const theme = isThemeId(settings?.theme) ? settings.theme : DEFAULT_THEME
       useThemeStore.getState().hydrate(theme)

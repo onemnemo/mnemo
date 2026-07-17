@@ -1,14 +1,14 @@
-import { NAV_CATEGORIES } from "@/app/routes"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { NavItem } from "@/components/shell/sidebar/NavItem"
 import { useT } from "@/i18n/useT"
 import { useShortcutLabel } from "@/keybinds/store"
+import { useNavCategories } from "@/nav/store"
 
 // Footer: the quick-actions launcher, the flat footer categories (Ecosystem:
-// Settings, Assistant), and the version label.
+// Atlas, Settings), and the version label.
 export function SidebarFooter({ activeRoute }: { activeRoute: string }) {
   const t = useT()
-  const footerCategories = NAV_CATEGORIES.filter((category) => category.footer)
+  const footerCategories = useNavCategories().filter((category) => category.footer)
   const quickActionsShortcut = useShortcutLabel("global.quick-actions")
 
   return (
@@ -27,7 +27,9 @@ export function SidebarFooter({ activeRoute }: { activeRoute: string }) {
       </button>
 
       {footerCategories.flatMap((category) =>
-        category.items.map((item) => <NavItem key={item.route} item={item} active={activeRoute === item.route} />),
+        category.items
+          .filter((item) => item.visible)
+          .map((item) => <NavItem key={item.route} item={item} active={activeRoute === item.route} />),
       )}
 
       <div className="ml-2 mt-2.5 text-body-caption text-[var(--version-text)]">v0.0.0</div>

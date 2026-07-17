@@ -1,10 +1,10 @@
-import type { NavItemDef } from "@/app/routes"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
+import type { NavItemModel } from "@/nav/types"
 
 interface NavItemProps {
-  item: NavItemDef
+  item: NavItemModel
   active: boolean
   collapsed?: boolean
 }
@@ -14,7 +14,7 @@ interface NavItemProps {
 // NavigationButtonForeground token split.
 export function NavItem({ item, active, collapsed = false }: NavItemProps) {
   const t = useT()
-  const label = t("Sidebar", item.labelKey)
+  const label = t(item.namespace, item.labelKey)
   const iconClass = active
     ? "text-[var(--navigation-button-icon-selected)]"
     : "text-[var(--navigation-button-icon)]"

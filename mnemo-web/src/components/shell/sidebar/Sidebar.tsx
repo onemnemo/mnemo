@@ -1,8 +1,8 @@
-import { NAV_CATEGORIES } from "@/app/routes"
 import { NavItem } from "@/components/shell/sidebar/NavItem"
 import { SidebarFooter } from "@/components/shell/sidebar/SidebarFooter"
 import { SidebarHeader } from "@/components/shell/sidebar/SidebarHeader"
 import { SidebarNav } from "@/components/shell/sidebar/SidebarNav"
+import { useNavCategories } from "@/nav/store"
 
 interface SidebarProps {
   activeRoute: string
@@ -11,8 +11,9 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeRoute, collapsed, onToggle }: SidebarProps) {
+  const categories = useNavCategories()
   if (collapsed) {
-    const items = NAV_CATEGORIES.flatMap((category) => category.items)
+    const items = categories.flatMap((category) => category.items).filter((item) => item.visible)
     return (
       <aside
         className="flex shrink-0 flex-col items-center border-r border-[var(--sidebar-border)] bg-sidebar-surface p-2.5"

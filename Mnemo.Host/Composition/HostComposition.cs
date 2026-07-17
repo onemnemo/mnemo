@@ -226,7 +226,8 @@ public static class HostComposition
         services.AddSingleton<INavigationService>(sp => sp.GetRequiredService<HeadlessNavigationService>());
         services.AddSingleton<INavigationRegistry>(sp => sp.GetRequiredService<HeadlessNavigationService>());
 
-        services.AddSingleton<ISidebarService, HeadlessSidebarService>();
+        services.AddSingleton<HeadlessSidebarService>();
+        services.AddSingleton<ISidebarService>(sp => sp.GetRequiredService<HeadlessSidebarService>());
 
         services.AddSingleton<IFunctionRegistry, FunctionRegistry>();
         services.AddSingleton<IWidgetRegistry, WidgetRegistry>();
@@ -295,6 +296,16 @@ public static class HostComposition
         foreach (var failure in moduleDiscoveryFailures)
         {
             logger.Error("Mnemo.Host", $"Module discovery: {failure}");
+        }
+
+        // Replay the module sidebar registrations against the headless sidebar
+        // service so the nav endpoint serves the same items the desktop builds.
+        // These registrations are pure metadata (labels, routes, icons), so unlike
+        // the other UI-side module hooks they are safe to run in the host.
+        var sidebar = services.GetRequiredService<ISidebarService>();
+        foreach (var module in services.GetRequiredService<IReadOnlyList<IModule>>())
+        {
+            module.RegisterSidebarItems(sidebar);
         }
 
         try

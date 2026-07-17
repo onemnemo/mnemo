@@ -4,67 +4,8 @@ import { StubPage } from "@/components/shell/StubPage"
 import { DecksPage } from "@/pages/DecksPage"
 import { SettingsPage } from "@/pages/SettingsPage"
 
-// Sidebar model, mirroring the Avalonia module RegisterSidebarItems groups and
-// SidebarService's footer handling: MainHub (Overview, no header), Modules
-// (headered), and the footer-rendered Ecosystem (Settings, Assistant). Once
-// GET /nav exists this becomes server-sourced. Icon names resolve against the
-// ported Mnemo SVGs (src/assets/icons).
-export interface NavItemDef {
-  route: string
-  /** Key in the Sidebar i18n namespace. */
-  labelKey: string
-  icon: string
-  childRoutes?: readonly string[]
-  /** Gated by AI.EnableAssistant in the real app; the guard lands with settings/events. */
-  requiresAi?: boolean
-}
-
-export interface NavCategoryDef {
-  key: string
-  /** Key in the Sidebar i18n namespace (empty for the header-less hub). */
-  labelKey: string
-  /** Footer categories render flat at the bottom, with no section header. */
-  footer: boolean
-  /** The MainHub category suppresses its header (Order 0 in the reference). */
-  showHeader: boolean
-  items: readonly NavItemDef[]
-}
-
-export const NAV_CATEGORIES: readonly NavCategoryDef[] = [
-  {
-    key: "main",
-    labelKey: "MainHub",
-    footer: false,
-    showHeader: false,
-    items: [{ route: "overview", labelKey: "Overview", icon: "sidebar/overview" }],
-  },
-  {
-    key: "modules",
-    labelKey: "Modules",
-    footer: false,
-    showHeader: true,
-    items: [
-      { route: "notes", labelKey: "Notes", icon: "sidebar/notes" },
-      { route: "mindmap", labelKey: "Mindmap", icon: "sidebar/mindmap", childRoutes: ["mindmap-detail"] },
-      {
-        route: "flashcards",
-        labelKey: "Flashcards",
-        icon: "sidebar/flashcard",
-        childRoutes: ["flashcard-deck", "flashcard-session", "flashcard-test"],
-      },
-    ],
-  },
-  {
-    key: "ecosystem",
-    labelKey: "Ecosystem",
-    footer: true,
-    showHeader: false,
-    items: [
-      { route: "settings", labelKey: "Settings", icon: "sidebar/settings" },
-      { route: "chat", labelKey: "AIChat", icon: "sidebar/sparkles", requiresAi: true },
-    ],
-  },
-]
+// Client-side routing: which page renders for a route key. The sidebar model
+// (categories, items, order, visibility) is server-sourced - see src/nav.
 
 export const DEFAULT_ROUTE = "overview"
 
@@ -98,25 +39,4 @@ export function resolveRoute(hash: string): ResolvedRoute {
     return { key: DEFAULT_ROUTE, params: [], element: PAGES[DEFAULT_ROUTE]([]) }
   }
   return { key, params: segments.slice(1), element: renderer(segments.slice(1)) }
-}
-
-/** Which sidebar item should read as active for a given route key. */
-export function activeNavRoute(routeKey: string): string {
-  for (const category of NAV_CATEGORIES) {
-    for (const item of category.items) {
-      if (item.route === routeKey) return item.route
-      if (item.childRoutes?.includes(routeKey)) return item.route
-    }
-  }
-  return routeKey
-}
-
-/** The Sidebar i18n key for a route, or null if it is not a top-level nav item. */
-export function navLabelKey(routeKey: string): string | null {
-  for (const category of NAV_CATEGORIES) {
-    for (const item of category.items) {
-      if (item.route === routeKey) return item.labelKey
-    }
-  }
-  return null
 }
