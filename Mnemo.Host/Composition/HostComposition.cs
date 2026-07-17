@@ -28,7 +28,6 @@ using Mnemo.Infrastructure.Services.TextShortcuts;
 using Mnemo.Infrastructure.Services.Tools;
 using Mnemo.Infrastructure.Services.Updates;
 using Mnemo.Infrastructure.Services.Widgets;
-using Mnemo.UI.Ai;
 using Mnemo.UI.Services;
 
 namespace Mnemo.Host.Composition;
@@ -151,9 +150,8 @@ public static class HostComposition
         // Conversation memory
         services.AddSingleton<IConversationMemoryStore>(sp =>
             new ConversationMemoryStore(sp.GetRequiredService<ILoggerService>()));
-        // IConversationSummarizer: unbound. ConversationSummarizer is internal to
-        // Mnemo.UI; it becomes bindable here when it relocates to Infrastructure
-        // alongside the chat endpoints. Nothing resolves it until then.
+        services.AddSingleton<IConversationSummarizer>(sp =>
+            new ConversationSummarizer(sp.GetRequiredService<IAIOrchestrator>()));
         services.AddSingleton<IConversationMemoryInjector, ConversationMemoryInjector>();
 
         // MnemoMcpOptions / MnemoMcpServer: unbound. The MCP server keeps running

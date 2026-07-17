@@ -6,14 +6,14 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Models.Ai;
 using Mnemo.Core.Services;
 
-namespace Mnemo.UI.Ai;
+namespace Mnemo.Infrastructure.Services.AI;
 
 /// <summary>
 /// Summarizes conversation history for session continuity. Runs as
 /// <see cref="AiRole.Summarizer"/> so the router can serve it with a cheaper model
 /// than the assistant.
 /// </summary>
-internal sealed class ConversationSummarizer : IConversationSummarizer
+public sealed class ConversationSummarizer : IConversationSummarizer
 {
     private const string SystemPrompt =
         "You are a conversation summarizer. Given a set of conversation turns, " +

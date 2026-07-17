@@ -32,7 +32,6 @@ using Mnemo.Infrastructure.Services.Search;
 using Mnemo.Infrastructure.Services.Widgets;
 using Mnemo.Core.Services.Search;
 using Mnemo.Core.Services.Ai;
-using Mnemo.UI.Ai;
 using Mnemo.UI.Mcp;
 using Mnemo.UI.Modules.Notes.Services;
 
