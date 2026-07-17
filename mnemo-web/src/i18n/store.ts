@@ -1,21 +1,10 @@
 import { create } from "zustand"
 
+import { putLanguage } from "@/api/settings"
 import { fetchBundle } from "@/i18n/api"
 import type { TranslationBundle } from "@/i18n/types"
 
 export const DEFAULT_LANGUAGE = "en"
-
-// Interim persistence, like the theme: the desktop app stores the language in
-// backend settings, which is where this belongs eventually.
-const STORAGE_KEY = "mnemo.language"
-
-function readStoredLanguage(): string {
-  try {
-    return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_LANGUAGE
-  } catch {
-    return DEFAULT_LANGUAGE
-  }
-}
 
 interface I18nState {
   language: string
@@ -23,7 +12,7 @@ interface I18nState {
   ready: boolean
   /** Load a language's bundle without changing the persisted preference (startup). */
   load: (code: string) => Promise<void>
-  /** Change and persist the active language. */
+  /** Change the active language and persist it to backend settings. */
   setLanguage: (code: string) => Promise<void>
 }
 
@@ -38,16 +27,14 @@ async function applyBundle(set: (partial: Partial<I18nState>) => void, code: str
 }
 
 export const useI18nStore = create<I18nState>((set) => ({
-  language: readStoredLanguage(),
+  language: DEFAULT_LANGUAGE,
   bundle: {},
   ready: false,
   load: (code) => applyBundle(set, code),
   setLanguage: async (code) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, code)
-    } catch {
-      // Non-fatal.
-    }
     await applyBundle(set, code)
+    // Persist after the switch so the UI updates immediately; the write is durable
+    // background work shared with the desktop app (App.Language).
+    void putLanguage(code)
   },
 }))

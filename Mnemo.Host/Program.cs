@@ -13,6 +13,7 @@ using Mnemo.Host.Composition;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Events;
 using Mnemo.Host.I18n;
+using Mnemo.Host.Settings;
 using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
 using Photino.NET;
@@ -98,6 +99,7 @@ public static class Program
             i18n.GetBundleAsync(culture, cancellationToken));
 
         app.MapEventStream();
+        app.MapSettings();
 
         if (options.DevMode)
         {

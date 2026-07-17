@@ -88,3 +88,25 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const data: unknown = await response.json()
   return data as T
 }
+
+/**
+ * Like {@link apiFetch} but for requests with no response body to parse (e.g. a
+ * PUT that returns 204). Adds the same auth header and error handling.
+ */
+export async function apiSend(path: string, init?: RequestInit): Promise<void> {
+  const headers = new Headers(init?.headers)
+
+  const token = apiToken()
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`)
+  }
+
+  const response = await fetch(`/api${path}`, { ...init, headers })
+
+  if (!response.ok) {
+    const body = await readErrorBody(response)
+    const message =
+      body?.message ?? body?.error ?? response.statusText ?? `Request failed with status ${response.status}`
+    throw new ApiError(message, response.status, body?.error)
+  }
+}

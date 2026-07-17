@@ -6,8 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>mnemo-web</title>
     <script>
-      // Apply the persisted theme before the bundle paints, to avoid a flash of
-      // the default theme. Kept in lockstep with src/stores/theme.ts.
+      // First-paint hint only: apply the last-known theme before React hydrates
+      // settings from the backend, to avoid a flash of the default theme. The
+      // backend (Appearance.Theme) is the source of truth; this cache is written
+      // by src/stores/theme.ts and kept in lockstep with it.
       (function () {
         try {
           var t = localStorage.getItem("mnemo.theme");
