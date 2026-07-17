@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import App from './App.tsx'
+import { EventStreamProvider } from '@/events/EventStreamProvider'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 // Desktop webview: no other tab/window competes for network focus, and a
@@ -20,7 +21,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
-        <App />
+        <EventStreamProvider>
+          <App />
+        </EventStreamProvider>
       </I18nProvider>
     </QueryClientProvider>
   </StrictMode>,

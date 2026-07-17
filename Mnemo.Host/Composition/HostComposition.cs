@@ -4,6 +4,7 @@ using Mnemo.Core.History;
 using Mnemo.Core.Services;
 using Mnemo.Core.Services.Ai;
 using Mnemo.Core.Services.Search;
+using Mnemo.Host.Events;
 using Mnemo.Host.HeadlessShell;
 using Mnemo.Host.I18n;
 using Mnemo.Infrastructure.History;
@@ -210,6 +211,12 @@ public static class HostComposition
         services.AddSingleton<IContentFormatAdapter, MindmapsMnemoFormatAdapter>();
 
         // 2. Shell services: headless substitutions for the Avalonia-bound set.
+        // App-events channel: the fan-out the headless shell pushes toasts (and
+        // later theme/navigation changes) through to reach the SPA over SSE.
+        services.AddSingleton<AppEventHub>();
+        services.AddSingleton<IAppEventPublisher>(sp => sp.GetRequiredService<AppEventHub>());
+        services.AddSingleton<IAppEventSource>(sp => sp.GetRequiredService<AppEventHub>());
+
         services.AddSingleton<IThemeService, HeadlessThemeService>();
         services.AddSingleton<IOverlayService, HeadlessOverlayService>();
         services.AddSingleton<IToastService, HeadlessToastService>();

@@ -55,11 +55,20 @@ async function readErrorBody(response: Response): Promise<ApiErrorBody | undefin
   }
 }
 
+/**
+ * The bearer token for the Mnemo.Host API, or undefined in dev (where the Vite
+ * proxy injects the Authorization header instead). Shared with non-JSON callers
+ * such as the SSE event stream, which cannot go through {@link apiFetch}.
+ */
+export function apiToken(): string | undefined {
+  return window.__MNEMO_TOKEN__
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   headers.set("Accept", "application/json")
 
-  const token = window.__MNEMO_TOKEN__
+  const token = apiToken()
   if (token) {
     headers.set("Authorization", `Bearer ${token}`)
   }

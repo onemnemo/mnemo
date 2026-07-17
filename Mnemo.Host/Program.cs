@@ -7,9 +7,11 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Host.Composition;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.Events;
 using Mnemo.Host.I18n;
 using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
@@ -94,6 +96,19 @@ public static class Program
         app.MapGet("/api/i18n/languages", (TranslationBundleService i18n) => i18n.GetLanguagesAsync());
         app.MapGet("/api/i18n/{culture}", (string culture, TranslationBundleService i18n, CancellationToken cancellationToken) =>
             i18n.GetBundleAsync(culture, cancellationToken));
+
+        app.MapEventStream();
+
+        if (options.DevMode)
+        {
+            // Dev-only: poke the app-events channel end to end (server -> SSE -> SPA toast).
+            app.MapPost("/api/dev/toast", (IToastService toasts) =>
+            {
+                toasts.SpawnToast(ToastType.Info, TimeSpan.FromSeconds(4), "Server toast",
+                    "Pushed from Mnemo.Host over /api/events.");
+                return Results.NoContent();
+            });
+        }
 
         if (!options.DevMode)
         {
