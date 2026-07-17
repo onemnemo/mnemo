@@ -1,6 +1,7 @@
 import { Popover } from "radix-ui"
 
 import { AppIcon } from "@/components/icon/AppIcon"
+import { useT } from "@/i18n/useT"
 import { useToastStore } from "@/stores/toast"
 
 const MAX_SHOWN = 20
@@ -8,16 +9,18 @@ const MAX_SHOWN = 20
 // Bell + unread dot + history flyout, fed by the toast store's notification
 // history (the same source the desktop app's flyout reads).
 export function NotificationBell() {
+  const t = useT()
   const history = useToastStore((s) => s.history)
   const hasItems = history.length > 0
+  const title = t("Topbar", "NotificationsTitle")
 
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
         <button
           type="button"
-          aria-label="Notifications"
-          title="Notifications"
+          aria-label={title}
+          title={title}
           className="relative grid size-8 place-items-center rounded-md text-text-tertiary transition-colors hover:bg-[var(--nav-button-hover)] hover:text-text-primary"
         >
           <AppIcon name="common/bell" size={14} />
@@ -32,7 +35,7 @@ export function NotificationBell() {
           sideOffset={6}
           className="z-50 w-80 rounded-xl border bg-[var(--overlay-background)] p-3 shadow-elevation-3 focus:outline-none"
         >
-          <div className="mb-1 px-1 text-body-small font-semibold text-foreground">Notifications</div>
+          <div className="mb-1 px-1 text-body-small font-semibold text-foreground">{title}</div>
           {hasItems ? (
             <ul className="flex flex-col">
               {history.slice(0, MAX_SHOWN).map((n) => (
@@ -49,7 +52,9 @@ export function NotificationBell() {
               ))}
             </ul>
           ) : (
-            <div className="px-2 py-6 text-center text-body-small text-text-secondary">No notifications yet</div>
+            <div className="px-2 py-6 text-center text-body-small text-text-secondary">
+              {t("Topbar", "NotificationsEmpty")}
+            </div>
           )}
         </Popover.Content>
       </Popover.Portal>

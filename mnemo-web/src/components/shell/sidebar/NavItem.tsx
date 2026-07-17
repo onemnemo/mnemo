@@ -1,5 +1,6 @@
 import type { NavItemDef } from "@/app/routes"
 import { AppIcon } from "@/components/icon/AppIcon"
+import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 interface NavItemProps {
@@ -12,6 +13,8 @@ interface NavItemProps {
 // independently of the label, matching the reference's NavigationButtonIcon vs
 // NavigationButtonForeground token split.
 export function NavItem({ item, active, collapsed = false }: NavItemProps) {
+  const t = useT()
+  const label = t("Sidebar", item.labelKey)
   const iconClass = active
     ? "text-[var(--navigation-button-icon-selected)]"
     : "text-[var(--navigation-button-icon)]"
@@ -20,7 +23,7 @@ export function NavItem({ item, active, collapsed = false }: NavItemProps) {
     return (
       <a
         href={`#/${item.route}`}
-        title={item.label}
+        title={label}
         aria-current={active ? "page" : undefined}
         className={cn(
           "grid size-9 place-items-center rounded-md transition-colors",
@@ -37,7 +40,7 @@ export function NavItem({ item, active, collapsed = false }: NavItemProps) {
   return (
     <a
       href={`#/${item.route}`}
-      title={item.label}
+      title={label}
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex h-[29px] items-center rounded-md px-2 text-navigation transition-colors",
@@ -47,7 +50,7 @@ export function NavItem({ item, active, collapsed = false }: NavItemProps) {
       )}
     >
       <AppIcon name={item.icon} size={16} className={iconClass} />
-      <span className="ml-[9px] truncate">{item.label}</span>
+      <span className="ml-[9px] truncate">{label}</span>
     </a>
   )
 }

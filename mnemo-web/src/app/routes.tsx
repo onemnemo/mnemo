@@ -11,7 +11,8 @@ import { SettingsPage } from "@/pages/SettingsPage"
 // ported Mnemo SVGs (src/assets/icons).
 export interface NavItemDef {
   route: string
-  label: string
+  /** Key in the Sidebar i18n namespace. */
+  labelKey: string
   icon: string
   childRoutes?: readonly string[]
   /** Gated by AI.EnableAssistant in the real app; the guard lands with settings/events. */
@@ -20,7 +21,8 @@ export interface NavItemDef {
 
 export interface NavCategoryDef {
   key: string
-  label: string
+  /** Key in the Sidebar i18n namespace (empty for the header-less hub). */
+  labelKey: string
   /** Footer categories render flat at the bottom, with no section header. */
   footer: boolean
   /** The MainHub category suppresses its header (Order 0 in the reference). */
@@ -31,22 +33,22 @@ export interface NavCategoryDef {
 export const NAV_CATEGORIES: readonly NavCategoryDef[] = [
   {
     key: "main",
-    label: "",
+    labelKey: "MainHub",
     footer: false,
     showHeader: false,
-    items: [{ route: "overview", label: "Overview", icon: "sidebar/overview" }],
+    items: [{ route: "overview", labelKey: "Overview", icon: "sidebar/overview" }],
   },
   {
     key: "modules",
-    label: "Modules",
+    labelKey: "Modules",
     footer: false,
     showHeader: true,
     items: [
-      { route: "notes", label: "Notes", icon: "sidebar/notes" },
-      { route: "mindmap", label: "Mindmaps", icon: "sidebar/mindmap", childRoutes: ["mindmap-detail"] },
+      { route: "notes", labelKey: "Notes", icon: "sidebar/notes" },
+      { route: "mindmap", labelKey: "Mindmap", icon: "sidebar/mindmap", childRoutes: ["mindmap-detail"] },
       {
         route: "flashcards",
-        label: "Flashcards",
+        labelKey: "Flashcards",
         icon: "sidebar/flashcard",
         childRoutes: ["flashcard-deck", "flashcard-session", "flashcard-test"],
       },
@@ -54,12 +56,12 @@ export const NAV_CATEGORIES: readonly NavCategoryDef[] = [
   },
   {
     key: "ecosystem",
-    label: "Ecosystem",
+    labelKey: "Ecosystem",
     footer: true,
     showHeader: false,
     items: [
-      { route: "settings", label: "Settings", icon: "sidebar/settings" },
-      { route: "chat", label: "Assistant", icon: "sidebar/sparkles", requiresAi: true },
+      { route: "settings", labelKey: "Settings", icon: "sidebar/settings" },
+      { route: "chat", labelKey: "AIChat", icon: "sidebar/sparkles", requiresAi: true },
     ],
   },
 ]
@@ -109,12 +111,12 @@ export function activeNavRoute(routeKey: string): string {
   return routeKey
 }
 
-/** Human label for a route key, from the nav model (falls back to a capitalized key). */
-export function routeLabel(routeKey: string): string {
+/** The Sidebar i18n key for a route, or null if it is not a top-level nav item. */
+export function navLabelKey(routeKey: string): string | null {
   for (const category of NAV_CATEGORIES) {
     for (const item of category.items) {
-      if (item.route === routeKey) return item.label
+      if (item.route === routeKey) return item.labelKey
     }
   }
-  return routeKey.charAt(0).toUpperCase() + routeKey.slice(1)
+  return null
 }

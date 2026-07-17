@@ -5,6 +5,7 @@ using Mnemo.Core.Services;
 using Mnemo.Core.Services.Ai;
 using Mnemo.Core.Services.Search;
 using Mnemo.Host.HeadlessShell;
+using Mnemo.Host.I18n;
 using Mnemo.Infrastructure.History;
 using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.AI;
@@ -246,6 +247,10 @@ public static class HostComposition
             translationRegistry.Sources,
             sp.GetRequiredService<ILoggerService>(),
             "en"));
+        // Expose the ordered sources so the i18n endpoints can serve the SPA the
+        // same merged bundle the desktop app builds.
+        services.AddSingleton<IReadOnlyList<ITranslationSource>>(translationRegistry.Sources);
+        services.AddSingleton<TranslationBundleService>();
         services.AddSingleton<IDateDisplayService, DateDisplayService>();
 
         var registrar = new ServiceRegistrar(services);

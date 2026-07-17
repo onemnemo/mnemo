@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Mnemo.Core.Services;
 using Mnemo.Host.Composition;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.I18n;
 using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
 using Photino.NET;
@@ -89,6 +90,10 @@ public static class Program
             var decks = await library.ListDecksAsync(cancellationToken).ConfigureAwait(false);
             return decks.Select(DeckSummaryDto.FromModel).ToList();
         });
+
+        app.MapGet("/api/i18n/languages", (TranslationBundleService i18n) => i18n.GetLanguagesAsync());
+        app.MapGet("/api/i18n/{culture}", (string culture, TranslationBundleService i18n, CancellationToken cancellationToken) =>
+            i18n.GetBundleAsync(culture, cancellationToken));
 
         if (!options.DevMode)
         {
