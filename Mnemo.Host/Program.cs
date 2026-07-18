@@ -92,6 +92,7 @@ public static class Program
         app.UseApiBearerToken(bearerToken, "/api/health");
 
         app.MapGet("/api/health", () => new HealthDto("ok"));
+        app.MapGet("/api/app/info", (IUpdateService updates) => new AppInfoDto(updates.CurrentDisplayVersion));
         app.MapGet("/api/decks", async (IFlashcardLibraryService library, CancellationToken cancellationToken) =>
         {
             var decks = await library.ListDecksAsync(cancellationToken).ConfigureAwait(false);

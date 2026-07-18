@@ -6,3 +6,10 @@ namespace Mnemo.Host.Contracts;
 /// capitalized name); <see cref="Language"/> is the culture code.
 /// </summary>
 public sealed record AppSettingsDto(string Theme, string Language);
+
+/// <summary>
+/// Build identity for the surfaces that display it (the Updates settings row, the
+/// onboarding footer). Checking for and applying updates is a separate concern that
+/// stays with the update orchestration phase.
+/// </summary>
+public sealed record AppInfoDto(string Version);

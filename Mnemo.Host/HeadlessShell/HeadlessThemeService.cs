@@ -54,12 +54,38 @@ public sealed class HeadlessThemeService : IThemeService
     public Task<IEnumerable<ThemeManifest>> GetAllThemesAsync()
     {
         // The bundled catalog, mirroring Mnemo.UI ThemeService.GetAllThemesAsync.
+        // The preview colors are the swatch strip on each gallery card, so they are
+        // carried over verbatim rather than re-derived from the SPA's theme variables.
         IEnumerable<ThemeManifest> themes =
         [
-            new() { Name = "Dawn", DisplayName = "Dawn", Description = "Default light theme" },
-            new() { Name = "Noon", DisplayName = "Noon", Description = "Warm editorial light theme" },
-            new() { Name = "Dusk", DisplayName = "Dusk", Description = "Default dark theme" },
-            new() { Name = "Ember", DisplayName = "Ember", Description = "Warm dark theme with walnut surfaces and coral accents" },
+            new()
+            {
+                Name = "Dawn",
+                DisplayName = "Dawn",
+                Description = "Default light theme",
+                PreviewColors = ["#F5F5F7", "#FFFFFF", "#E5E5E7"],
+            },
+            new()
+            {
+                Name = "Noon",
+                DisplayName = "Noon",
+                Description = "Warm editorial light theme",
+                PreviewColors = ["#FBF8F0", "#F5EFE3", "#EADFCB"],
+            },
+            new()
+            {
+                Name = "Dusk",
+                DisplayName = "Dusk",
+                Description = "Default dark theme",
+                PreviewColors = ["#1A1A1C", "#2A2A2C", "#3A3A3C"],
+            },
+            new()
+            {
+                Name = "Ember",
+                DisplayName = "Ember",
+                Description = "Warm dark theme with walnut surfaces and coral accents",
+                PreviewColors = ["#171311", "#241E1A", "#1E1916"],
+            },
         ];
         return Task.FromResult(themes);
     }
