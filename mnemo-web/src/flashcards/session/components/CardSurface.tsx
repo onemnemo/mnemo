@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { Markdown } from "@/chat/components/Markdown"
 import { useSettingValue } from "@/settings/store"
 
-import { answerText, promptText } from "../session"
+import { answerText, promptText } from "../../study"
 import { AttachmentCarousel } from "./AttachmentCarousel"
 
 /**

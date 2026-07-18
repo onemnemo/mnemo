@@ -5,6 +5,7 @@ import { StubPage } from "@/components/shell/StubPage"
 import { DeckPage } from "@/flashcards/deck/DeckPage"
 import { LibraryPage } from "@/flashcards/library/LibraryPage"
 import { SessionPage } from "@/flashcards/session/SessionPage"
+import { TestPage } from "@/flashcards/test/TestPage"
 import { SettingsPage } from "@/pages/SettingsPage"
 
 // Client-side routing: which page renders for a route key. The sidebar model
@@ -22,7 +23,7 @@ const PAGES: Record<string, PageRenderer> = {
   flashcards: () => <LibraryPage />,
   "flashcard-deck": (p) => <DeckPage deckId={p[0]} />,
   "flashcard-session": (p) => <SessionPage deckId={p[0]} mode={p[1]} scope={p[2]} />,
-  "flashcard-test": (p) => <StubPage title="Test" subtitle={p[0]} />,
+  "flashcard-test": (p) => <TestPage deckId={p[0]} />,
   settings: () => <SettingsPage />,
   chat: () => <ChatPage />,
 }

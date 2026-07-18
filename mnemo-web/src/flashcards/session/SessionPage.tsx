@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react"
 import type { ReviewGrade, SessionMode, SessionScope } from "@/api/types"
 import { navigate } from "@/app/router"
 import { useT } from "@/i18n/useT"
-import { isMac } from "@/keybinds/chord"
+import { isEditableTarget, isMac } from "@/keybinds/chord"
 import { dialog } from "@/stores/dialog"
 
 import { useFlagCards } from "../deck/api"
@@ -20,13 +20,6 @@ import { SessionTopbar } from "./components/SessionTopbar"
 const AUTO_REVEAL_SECONDS: Record<string, number> = { "five-seconds": 5, "ten-seconds": 10 }
 
 const GRADE_KEYS: Record<string, ReviewGrade> = { "1": "again", "2": "hard", "3": "good", "4": "easy" }
-
-/** Keys typed into a field are the field's, not the session's. */
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable
-}
 
 /**
  * The review and cram study screen. The queue, the scheduling and the undo stack all live in the

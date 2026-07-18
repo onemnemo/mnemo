@@ -1,71 +1,70 @@
-import type { StudySessionDto } from "@/api/types"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
-import { sessionFillWidth } from "../session"
+import { progressFillWidth } from "../../study"
+import type { TestTally } from "../test"
 
 /**
- * The session's own bar, below the app topbar. The left side (close, deck, mode) stays put in
- * every state; the counters and progress only mean anything while a card is up, so they go with
- * it on the end screens.
+ * The test's own bar. The amber chip says "practice only" because nothing here touches the
+ * schedule, and the tallies stay in their three colours so the run of a test is readable at a
+ * glance without a legend.
  */
-export function SessionTopbar({
-  session,
+export function TestTopbar({
+  deckName,
+  tally,
+  completed,
+  total,
   active,
   onClose,
 }: {
-  session: StudySessionDto | null
+  deckName: string
+  tally: TestTally
+  completed: number
+  total: number
   active: boolean
   onClose: () => void
 }) {
   const t = useT()
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
-  const cram = session?.mode === "cram"
-  const progress = session?.progress
 
   return (
     <div className="flex h-11 shrink-0 items-center gap-2.5 border-b border-line bg-card px-2.5">
       <IconBtn icon="common/x" label={fc("StudyClose")} onClick={onClose} />
 
-      <span className="max-w-[240px] shrink-0 truncate text-[12.5px] font-medium">{session?.deckName ?? ""}</span>
+      <span className="max-w-[240px] shrink-0 truncate text-[12.5px] font-medium">{deckName}</span>
 
-      {session && (
-        <span
-          className={cn(
-            "shrink-0 rounded-pill px-2.5 py-[3px] font-semibold text-caption whitespace-nowrap",
-            cram
-              ? "bg-[var(--toast-icon-badge-warning)] text-[var(--flashcard-state-learning)]"
-              : "bg-brand-subtle text-brand",
-          )}
-        >
-          {fc(cram ? "StudyModeChipCram" : "StudyModeChipReview")}
-        </span>
-      )}
+      <span className="shrink-0 rounded-pill bg-[var(--toast-icon-badge-warning)] px-2.5 py-[3px] font-semibold text-caption whitespace-nowrap text-[var(--flashcard-state-learning)]">
+        {fc("TestModeChip")}
+      </span>
 
       <div className="flex-1" />
 
-      {active && progress && (
+      {active && (
         <>
           <div className="flex items-center gap-2 font-mono text-[11.5px] tabular-nums">
-            <Counter count={progress.new} label={fc("StudyCounterNew")} className="text-[var(--flashcard-state-new)]" />
             <Counter
-              count={progress.learning}
-              label={fc("StudyCounterLearning")}
+              count={tally.gotIt}
+              label={fc("GradeGotIt")}
+              className="text-[var(--flashcard-retention-high)]"
+            />
+            <Counter
+              count={tally.close}
+              label={fc("TestGradeClose")}
               className="text-[var(--flashcard-state-learning)]"
             />
-            <Counter count={progress.due} label={fc("StudyCounterDue")} className="text-brand" />
+            <Counter count={tally.missed} label={fc("TestGradeMissed")} className="text-brand" />
           </div>
 
           <div className="h-1 w-40 shrink-0 overflow-hidden rounded-[2px] bg-[var(--widget-background-primary)]">
             <div
-              className={cn("h-full rounded-[2px]", cram ? "bg-[var(--flashcard-state-learning)]" : "bg-brand")}
-              style={{ width: `${sessionFillWidth(progress)}px` }}
+              className="h-full rounded-[2px] bg-[var(--flashcard-state-learning)]"
+              style={{ width: `${progressFillWidth(completed, total)}px` }}
             />
           </div>
 
           <span className="shrink-0 font-mono text-[11.5px] tabular-nums whitespace-nowrap text-text-secondary">
-            {fc("StudyProgressFormat", { 0: progress.completed, 1: progress.total })}
+            {fc("StudyProgressFormat", { 0: completed, 1: total })}
           </span>
         </>
       )}

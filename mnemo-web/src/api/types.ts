@@ -250,3 +250,41 @@ export interface UpdateCardDto {
   /** Re-homes the card when it names a different deck; null leaves it where it is. */
   deckId: string | null
 }
+
+// Test practice. Test scores itself and writes no schedule, so there is no session to hold: the
+// whole queue crosses once and the client runs it, coming back only to record what happened.
+
+/** Mirrors Mnemo.Host/Contracts/TestSessionDto.cs TestQueueDto. */
+export interface TestQueueDto {
+  deckId: string
+  deckName: string
+  /** Server-stamped and echoed back, so the elapsed time is measured on one clock. */
+  startedAt: string
+  cards: CardDto[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/TestSessionDto.cs RecordTestAttemptDto. The score is derived server-side. */
+export interface RecordTestAttemptDto {
+  startedAt: string
+  gotIt: number
+  close: number
+  missed: number
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/TestSessionDto.cs TestResultDto. `trend` is chronological and
+ * includes the attempt just recorded, so it takes two points before a line says anything.
+ */
+export interface TestResultDto {
+  scorePct: number
+  deltaVsPrevious: number | null
+  hasBest: boolean
+  bestScorePct: number
+  trend: number[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/TestSessionDto.cs RecordTestActivityDto. Sent when the screen goes away. */
+export interface RecordTestActivityDto {
+  startedAt: string
+  cardsTested: number
+}

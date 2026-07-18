@@ -1,15 +1,9 @@
 import { type ReactNode, useEffect } from "react"
 
-import { matchesEvent, parseChord } from "./chord"
+import { isEditableTarget, matchesEvent, parseChord } from "./chord"
 import { fetchKeybinds } from "./api"
 import { getKeybindHandler } from "./registry"
 import { useKeybindStore } from "./store"
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable
-}
 
 // Loads the keybind catalog and runs the global matcher for the session. Mounted
 // once near the app root; renders children unchanged. Only Global-scope actions

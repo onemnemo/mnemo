@@ -1,39 +1,13 @@
-import type { CardDto, StudyProgressDto, StudySessionDto } from "@/api/types"
+import type { StudyProgressDto, StudySessionDto } from "@/api/types"
 
-// Pure view helpers for the study screen. Kept out of the components so the cloze rules and the
-// panel-choice logic can be read - and corrected - without wading through JSX.
+import { progressFillWidth } from "../study"
 
-/**
- * Matches one cloze deletion, e.g. `{{c1::mitochondria}}`. Non-greedy so adjacent deletions stay
- * separate, and `[\s\S]` rather than `.` because a deletion may span lines - the C# original uses
- * RegexOptions.Singleline for the same reason.
- */
-const CLOZE = /\{\{c\d+::([\s\S]*?)\}\}/g
+// Pure view helpers for the review and cram screen. The card-text and progress-bar rules it
+// shares with the test screen live in ../study; what is left here is what only a session has.
 
-/** Front of a cloze card: every deletion becomes a placeholder, whatever its ordinal. */
-export function maskCloze(front: string): string {
-  return front.replace(CLOZE, "[…]")
-}
-
-/** Answer side of a cloze card: the deletions come back in bold. The card's back is never shown. */
-export function revealCloze(front: string): string {
-  return front.replace(CLOZE, "**$1**")
-}
-
-/** What the card's front shows before the answer is revealed. */
-export function promptText(card: CardDto): string {
-  return card.type === "cloze" ? maskCloze(card.front) : card.front
-}
-
-/** What the answer half shows. For cloze that is the front again, deletions filled in. */
-export function answerText(card: CardDto): string {
-  return card.type === "cloze" ? revealCloze(card.front) : card.back
-}
-
-/** Filled width in px of the 160px progress track. */
-export function progressFillWidth(progress: StudyProgressDto): number {
-  if (progress.total <= 0) return 0
-  return 160 * Math.min(Math.max(progress.completed / progress.total, 0), 1)
+/** Filled width in px of the progress track, from the session's own progress shape. */
+export function sessionFillWidth(progress: StudyProgressDto): number {
+  return progressFillWidth(progress.completed, progress.total)
 }
 
 /**

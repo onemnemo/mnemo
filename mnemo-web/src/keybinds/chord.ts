@@ -15,6 +15,13 @@ export interface ParsedChord {
 export const isMac =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent)
 
+/** Keys typed into a field are the field's, not a shortcut's. */
+export function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable
+}
+
 export function parseChord(canonical: string): ParsedChord {
   const parts = canonical.split("+").map((p) => p.trim()).filter(Boolean)
   const key = parts.pop() ?? ""
