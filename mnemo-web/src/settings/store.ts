@@ -72,9 +72,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 }))
 
+/**
+ * The base type behind a literal fallback. Without it `useSettingValue(key, "")` reads
+ * back as the type `""` rather than `string`, since the fallback is what the type
+ * parameter is inferred from.
+ */
+type Widen<T> = T extends string ? string : T extends boolean ? boolean : T
+
 /** Reads one setting, falling back to the schema default while nothing is stored. */
-export function useSettingValue<T extends SettingValue>(key: string, fallback: T): T {
-  return useSettingsStore((s) => (s.values[key] as T | undefined) ?? fallback)
+export function useSettingValue<T extends SettingValue>(key: string, fallback: T): Widen<T> {
+  return useSettingsStore((s) => (s.values[key] as Widen<T> | undefined) ?? (fallback as Widen<T>))
 }
 
 /** True when a write-only key currently has a value stored. */
@@ -83,8 +90,8 @@ export function useSecretIsSet(key: string): boolean {
 }
 
 /** Non-reactive read, for callers outside React. */
-export function getSettingValue<T extends SettingValue>(key: string, fallback: T): T {
-  return (useSettingsStore.getState().values[key] as T | undefined) ?? fallback
+export function getSettingValue<T extends SettingValue>(key: string, fallback: T): Widen<T> {
+  return (useSettingsStore.getState().values[key] as Widen<T> | undefined) ?? (fallback as Widen<T>)
 }
 
 /**

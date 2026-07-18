@@ -36,7 +36,7 @@ export function CardSurface({
   const fc = (key: string) => t("Flashcards", key)
   // The desktop's markdown view honours the global size setting; .chat-prose reads its size from
   // this variable, so overriding it here scopes the setting to the card without touching chat.
-  const mdSize = useSettingValue<string>("Markdown.FontSize", "16px")
+  const mdSize = useSettingValue("Markdown.FontSize", "16px")
   const proseSize = { "--font-size-body-medium": mdSize } as CSSProperties
 
   const reveal = (event: MouseEvent<HTMLDivElement>) => {

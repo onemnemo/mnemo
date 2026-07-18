@@ -33,7 +33,7 @@ export function OnboardingWizard() {
   const setValue = useSettingsStore((s) => s.setValue)
   // Explicit type argument: the fallback would otherwise pin this to the empty-string literal,
   // and the name box could then only ever be set back to "".
-  const savedName = useSettingValue<string>("User.DisplayName", "")
+  const savedName = useSettingValue("User.DisplayName", "")
 
   const [index, setIndex] = useState(0)
   const [name, setName] = useState(savedName)
