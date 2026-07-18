@@ -14,6 +14,7 @@ using Mnemo.Host.Chat;
 using Mnemo.Host.Composition;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Events;
+using Mnemo.Host.Flashcards;
 using Mnemo.Host.I18n;
 using Mnemo.Host.Keybinds;
 using Mnemo.Host.Nav;
@@ -93,11 +94,6 @@ public static class Program
 
         app.MapGet("/api/health", () => new HealthDto("ok"));
         app.MapGet("/api/app/info", (IUpdateService updates) => new AppInfoDto(updates.CurrentDisplayVersion));
-        app.MapGet("/api/decks", async (IFlashcardLibraryService library, CancellationToken cancellationToken) =>
-        {
-            var decks = await library.ListDecksAsync(cancellationToken).ConfigureAwait(false);
-            return decks.Select(DeckSummaryDto.FromModel).ToList();
-        });
 
         app.MapGet("/api/i18n/languages", (TranslationBundleService i18n) => i18n.GetLanguagesAsync());
         app.MapGet("/api/i18n/{culture}", (string culture, TranslationBundleService i18n, CancellationToken cancellationToken) =>
@@ -111,6 +107,7 @@ public static class Program
         app.MapChatTurns();
         app.MapChatAssets();
         app.MapAi();
+        app.MapFlashcardLibrary();
 
         if (options.DevMode)
         {
