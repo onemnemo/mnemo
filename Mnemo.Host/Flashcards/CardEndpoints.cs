@@ -119,13 +119,16 @@ public static class CardEndpoints
             if (deck is null)
                 return Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{deckId}'."));
 
+            if (!TryResolveAttachments(body.Attachments, Array.Empty<FlashcardAttachment>(), out var attachments, out var attachmentError))
+                return Results.BadRequest(attachmentError);
+
             var draft = new FlashcardCardDraft(
                 deckId,
                 FlashcardWire.ParseType(body.Type),
                 front,
                 body.Back?.Trim() ?? string.Empty,
                 NormalizeTags(body.Tags),
-                Array.Empty<FlashcardAttachment>());
+                attachments);
 
             var card = await cards.CreateCardAsync(draft, cancellationToken).ConfigureAwait(false);
             return Results.Ok(CardDto.FromModel(card));
@@ -135,6 +138,8 @@ public static class CardEndpoints
             string id,
             UpdateCardDto body,
             IFlashcardCardService cards,
+            IFlashcardLibraryService library,
+            IImageAssetService images,
             CancellationToken cancellationToken) =>
         {
             var front = body.Front?.Trim();
@@ -145,17 +150,129 @@ public static class CardEndpoints
             if (existing is null)
                 return Results.NotFound(new ErrorDto("unknown_card", $"No card '{id}'."));
 
+            var deckId = existing.DeckId;
+            if (!string.IsNullOrWhiteSpace(body.DeckId) && body.DeckId != deckId)
+            {
+                var target = await library.GetDeckAsync(body.DeckId, cancellationToken).ConfigureAwait(false);
+                if (target is null)
+                    return Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{body.DeckId}'."));
+                deckId = body.DeckId;
+            }
+
+            if (!TryResolveAttachments(body.Attachments, existing.Attachments, out var attachments, out var attachmentError))
+                return Results.BadRequest(attachmentError);
+
             var updated = existing with
             {
+                DeckId = deckId,
                 Type = FlashcardWire.ParseType(body.Type),
                 Front = front,
                 Back = body.Back?.Trim() ?? string.Empty,
                 Tags = NormalizeTags(body.Tags),
+                Attachments = attachments,
+                // The stored blocks are a render cache over the canonical text, so a content
+                // edit has to drop them or the card would keep rendering its previous body.
+                FrontBlocks = null,
+                BackBlocks = null,
             };
 
             await cards.UpdateCardAsync(updated, cancellationToken).ConfigureAwait(false);
+            await DeleteDroppedAttachmentsAsync(existing.Attachments, attachments, images, cancellationToken).ConfigureAwait(false);
             return Results.NoContent();
         });
+    }
+
+    /// <summary>
+    /// Maps the editor's attachment list onto stored attachments, keeping the order it was sent
+    /// in. Entries naming an attachment the card already has are reused untouched; entries
+    /// naming an uploaded asset become new attachments sized from the file on disk, so a client
+    /// cannot claim a size it did not upload.
+    /// </summary>
+    private static bool TryResolveAttachments(
+        IReadOnlyList<CardAttachmentInputDto>? inputs,
+        IReadOnlyList<FlashcardAttachment> existing,
+        out IReadOnlyList<FlashcardAttachment> resolved,
+        out ErrorDto? error)
+    {
+        error = null;
+        resolved = Array.Empty<FlashcardAttachment>();
+        if (inputs is null || inputs.Count == 0)
+            return true;
+
+        var byId = existing.ToDictionary(a => a.Id, StringComparer.Ordinal);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var list = new List<FlashcardAttachment>(inputs.Count);
+
+        foreach (var input in inputs)
+        {
+            var side = string.Equals(input.Side, FlashcardAttachment.BackSide, StringComparison.OrdinalIgnoreCase)
+                ? FlashcardAttachment.BackSide
+                : FlashcardAttachment.FrontSide;
+
+            FlashcardAttachment? attachment = null;
+            if (!string.IsNullOrEmpty(input.Id) && byId.TryGetValue(input.Id, out var carried))
+            {
+                attachment = carried with { Side = side, Caption = input.Caption };
+            }
+            else if (FlashcardAssetStore.ResolvePath(input.AssetId) is { } path && File.Exists(path))
+            {
+                var assetId = input.AssetId!;
+                var displayName = string.IsNullOrWhiteSpace(input.DisplayName) ? assetId : input.DisplayName;
+                attachment = new FlashcardAttachment(
+                    FlashcardAssetStore.AttachmentIdForAssetId(assetId),
+                    side,
+                    path,
+                    displayName,
+                    new FileInfo(path).Length,
+                    input.Caption);
+            }
+
+            // A duplicate id would let one attachment be counted twice against the per-side cap
+            // and would break the reuse lookup on the next save.
+            if (attachment is null || !seen.Add(attachment.Id))
+                continue;
+
+            list.Add(attachment);
+        }
+
+        foreach (var side in new[] { FlashcardAttachment.FrontSide, FlashcardAttachment.BackSide })
+        {
+            var count = list.Count(a => string.Equals(a.Side, side, StringComparison.OrdinalIgnoreCase));
+            if (count > IFlashcardCardService.MaxAttachmentsPerSide)
+            {
+                error = new ErrorDto(
+                    "too_many_attachments",
+                    $"A card side takes at most {IFlashcardCardService.MaxAttachmentsPerSide} attachments.");
+                return false;
+            }
+        }
+
+        resolved = list;
+        return true;
+    }
+
+    /// <summary>
+    /// Removes the stored files of attachments the edit dropped, once the card that referenced
+    /// them has been saved. The desktop deletes on the click instead, which loses the file even
+    /// if the dialog is then cancelled; waiting until the save has landed costs nothing and
+    /// keeps a cancelled edit non-destructive. A failed delete only leaves an orphan file, so it
+    /// must not fail the request.
+    /// </summary>
+    private static async Task DeleteDroppedAttachmentsAsync(
+        IReadOnlyList<FlashcardAttachment> before,
+        IReadOnlyList<FlashcardAttachment> after,
+        IImageAssetService images,
+        CancellationToken cancellationToken)
+    {
+        var kept = after.Select(a => a.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var dropped in before.Where(a => !kept.Contains(a.Id)))
+        {
+            // Only managed copies are ours to delete - an imported card can point at a file the
+            // user still has elsewhere on disk.
+            if (FlashcardAssetStore.AssetIdForPath(dropped.FilePath) is null)
+                continue;
+            await images.DeleteStoredFileAsync(dropped.FilePath, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private static void MapBatchOperations(IEndpointRouteBuilder endpoints)

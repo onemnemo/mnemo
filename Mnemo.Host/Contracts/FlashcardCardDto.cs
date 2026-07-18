@@ -1,4 +1,5 @@
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Host.Flashcards;
 
 namespace Mnemo.Host.Contracts;
 
@@ -9,19 +10,35 @@ namespace Mnemo.Host.Contracts;
 /// <remarks>
 /// The stored <see cref="FlashcardAttachment.FilePath"/> is an absolute local path and is
 /// deliberately left off the wire: a browser cannot render it, and a client that could name
-/// file paths would get to choose which files a future asset route serves. Attachments are
-/// addressed by id.
+/// file paths would get to choose which files the asset route serves. <see cref="AssetId"/> is
+/// the servable filename instead, and is null when the stored file lives outside the managed
+/// images directory - an imported deck can point at images anywhere on disk, and the host will
+/// not serve those.
 /// </remarks>
 public sealed record CardAttachmentDto(
     string Id,
     string Side,
     string DisplayName,
     long SizeBytes,
-    string? Caption)
+    string? Caption,
+    string? AssetId)
 {
     public static CardAttachmentDto FromModel(FlashcardAttachment model)
-        => new(model.Id, model.Side, model.DisplayName, model.SizeBytes, model.Caption);
+        => new(
+            model.Id,
+            model.Side,
+            model.DisplayName,
+            model.SizeBytes,
+            model.Caption,
+            FlashcardAssetStore.AssetIdForPath(model.FilePath));
 }
+
+/// <summary>
+/// The result of uploading an attachment image. The attachment id is handed back alongside the
+/// asset id because the two are derived from one another, and the client has to send the
+/// attachment id when it saves the card.
+/// </summary>
+public sealed record CardAssetDto(string AssetId, string AttachmentId, string DisplayName, long SizeBytes);
 
 /// <summary>
 /// A card's content. Hand-mirrored in <c>mnemo-web/src/api/types.ts</c>; the C# side is
@@ -104,18 +121,51 @@ public sealed record CardPageDto(
 }
 
 /// <summary>
-/// Card create body. The server assigns the id, timestamps and the initial (New, due now)
-/// schedule, and always creates the card active and unflagged.
+/// One attachment as the editor sends it back when saving a card.
 /// </summary>
-public sealed record CreateCardDto(string Type, string Front, string Back, IReadOnlyList<string>? Tags);
+/// <remarks>
+/// Either identifier may be set. <see cref="Id"/> names an attachment the card already has and
+/// keeps its stored file untouched, which is how an attachment the host cannot serve survives a
+/// round trip through the browser. <see cref="AssetId"/> names a freshly uploaded image. An
+/// entry that resolves to neither is dropped rather than failing the save, so one broken
+/// reference cannot cost the user the rest of their edit.
+/// </remarks>
+public sealed record CardAttachmentInputDto(
+    string? Id,
+    string? AssetId,
+    string Side,
+    string? DisplayName,
+    string? Caption);
+
+/// <summary>
+/// Card create body. The server assigns the id, timestamps and the initial (New, due now)
+/// schedule, and always creates the card active and unflagged. Attachments must name uploaded
+/// assets - a new card has nothing to carry over.
+/// </summary>
+public sealed record CreateCardDto(
+    string Type,
+    string Front,
+    string Back,
+    IReadOnlyList<string>? Tags,
+    IReadOnlyList<CardAttachmentInputDto>? Attachments);
 
 /// <summary>
 /// Full replace of the editable content fields rather than a patch: with JSON alone an absent
-/// field and an explicit null are indistinguishable, so a patch shape could never clear the
-/// tag list. Suspended/flagged state and attachments are not editable here - they have their
-/// own routes - and are carried over from the stored card.
+/// field and an explicit null are indistinguishable, so a patch shape could never clear the tag
+/// list or drop the last attachment. Suspended and flagged state are not editable here - they
+/// have their own routes - and are carried over from the stored card.
 /// </summary>
-public sealed record UpdateCardDto(string Type, string Front, string Back, IReadOnlyList<string>? Tags);
+/// <remarks>
+/// <see cref="DeckId"/> re-homes the card when it names a different deck, matching the desktop
+/// editor's deck picker, and leaves the card where it is when null.
+/// </remarks>
+public sealed record UpdateCardDto(
+    string Type,
+    string Front,
+    string Back,
+    IReadOnlyList<string>? Tags,
+    IReadOnlyList<CardAttachmentInputDto>? Attachments,
+    string? DeckId);
 
 /// <summary>Batch body for operations that only need to name cards, such as delete.</summary>
 public sealed record CardIdsDto(IReadOnlyList<string>? CardIds);

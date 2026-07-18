@@ -109,6 +109,7 @@ public static class Program
         app.MapAi();
         app.MapFlashcardLibrary();
         app.MapFlashcardCards();
+        app.MapFlashcardAssets();
 
         if (options.DevMode)
         {

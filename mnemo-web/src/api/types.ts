@@ -84,12 +84,38 @@ export type CardStateFilter = "all" | "due" | "new" | "learning" | "suspended" |
 
 export type CardSort = "due" | "front" | "type" | "reps" | "lapses" | "created"
 
+/** One side of a card an attachment belongs to. */
+export type CardSide = "front" | "back"
+
 /** Mirrors Mnemo.Host/Contracts/FlashcardCardDto.cs CardAttachmentDto. */
 export interface CardAttachmentDto {
   id: string
   side: string
   displayName: string
   sizeBytes: number
+  caption: string | null
+  /** Null when the stored file sits outside the managed images directory and cannot be served. */
+  assetId: string | null
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardCardDto.cs CardAssetDto. */
+export interface CardAssetDto {
+  assetId: string
+  attachmentId: string
+  displayName: string
+  sizeBytes: number
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/FlashcardCardDto.cs CardAttachmentInputDto. `id` names an
+ * attachment the card already has, `assetId` a freshly uploaded image. Either may be set, and
+ * an unchanged attachment carries both; `id` wins, which is what keeps its stored file.
+ */
+export interface CardAttachmentInputDto {
+  id: string | null
+  assetId: string | null
+  side: CardSide
+  displayName: string | null
   caption: string | null
 }
 
@@ -140,6 +166,7 @@ export interface CreateCardDto {
   front: string
   back: string
   tags: string[]
+  attachments: CardAttachmentInputDto[]
 }
 
 /** Body for updating a card. Full replace of the editable content fields, not a patch. */
@@ -148,4 +175,7 @@ export interface UpdateCardDto {
   front: string
   back: string
   tags: string[]
+  attachments: CardAttachmentInputDto[]
+  /** Re-homes the card when it names a different deck; null leaves it where it is. */
+  deckId: string | null
 }
