@@ -1,70 +1,138 @@
-import { useQuery } from "@tanstack/react-query"
+import { useEffect, useMemo, useState } from "react"
 
-import { fetchLanguages } from "@/i18n/api"
-import { useI18nStore } from "@/i18n/store"
 import { useT } from "@/i18n/useT"
-import { THEMES } from "@/lib/themes"
-import { cn } from "@/lib/utils"
-import { useThemeStore } from "@/stores/theme"
+import { SettingRow } from "@/settings/components/SettingRow"
+import { SettingsGroupView } from "@/settings/components/SettingsGroupView"
+import { SettingsNav } from "@/settings/components/SettingsNav"
+import { UNTRANSLATED_CATEGORY_TITLES, visibleCategories } from "@/settings/schema"
+import { searchSettings, type SettingsSearchMatch } from "@/settings/search"
+import { useSettingsStore, useSettingValue } from "@/settings/store"
 
-// Interim Settings surface. The full grouped/searchable settings tree is its own
-// phase; for now it hosts Appearance (theme) and Language, which the shell chrome
-// no longer owns. Both persist via their stores.
+const DEFAULT_CATEGORY = "General"
+
+/**
+ * The settings page: a category rail beside the selected category's rows, or the
+ * search results that replace them while a query is active.
+ *
+ * Everything on screen comes from walking the schema, so adding a setting is a schema
+ * edit — there is no second place listing what settings exist.
+ */
 export function SettingsPage() {
   const t = useT()
-  const theme = useThemeStore((s) => s.theme)
-  const setTheme = useThemeStore((s) => s.setTheme)
-  const language = useI18nStore((s) => s.language)
-  const setLanguage = useI18nStore((s) => s.setLanguage)
-  const { data: languages } = useQuery({ queryKey: ["i18n", "languages"], queryFn: fetchLanguages })
+  const load = useSettingsStore((s) => s.load)
+  const loaded = useSettingsStore((s) => s.loaded)
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const developerGateUnlocked = useSettingValue("App.DeveloperModeGateUnlocked", false)
+  const developerMode = useSettingValue("App.DeveloperMode", false)
+  const context = useMemo(
+    () => ({ developerGateUnlocked, developerMode }),
+    [developerGateUnlocked, developerMode],
+  )
+
+  const categories = visibleCategories(context)
+  const [requestedId, setRequestedId] = useState(DEFAULT_CATEGORY)
+  const [query, setQuery] = useState("")
+
+  // Turning developer mode off while on its page falls back rather than blanking.
+  const selected =
+    categories.find((c) => c.id === requestedId) ??
+    categories.find((c) => c.id === DEFAULT_CATEGORY) ??
+    categories[0]
+
+  const matches = useMemo(() => searchSettings(query, t, context), [query, t, context])
+  const searching = query.trim().length > 0
+
+  function selectCategory(id: string) {
+    // Selecting a category leaves search, matching the desktop.
+    setQuery("")
+    setRequestedId(id)
+  }
 
   return (
-    <div className="p-[var(--page-padding)]">
-      <h1 className="text-heading-3 font-semibold text-foreground">{t("Sidebar", "Settings")}</h1>
+    <div className="flex gap-10 p-[var(--page-padding)]">
+      <SettingsNav
+        categories={categories}
+        selectedId={searching ? "" : (selected?.id ?? "")}
+        onSelect={selectCategory}
+        query={query}
+        onQueryChange={setQuery}
+      />
 
-      <section className="mt-6 max-w-3xl">
-        <h2 className="text-body-medium font-semibold text-foreground">Appearance</h2>
-        <p className="mt-0.5 text-body-small text-muted-foreground">Choose a theme.</p>
+      <main className="min-w-0 max-w-3xl flex-1">
+        {searching ? (
+          <SearchResults query={query} matches={matches} />
+        ) : selected ? (
+          <>
+            <header>
+              <h1 className="text-heading-4 font-semibold text-text-primary">
+                {UNTRANSLATED_CATEGORY_TITLES[selected.id] ?? t("Settings", selected.title)}
+              </h1>
+              {selected.subtitle ? (
+                <p className="mt-0.5 text-body-small text-text-tertiary">
+                  {t("Settings", selected.subtitle)}
+                </p>
+              ) : null}
+            </header>
 
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {THEMES.map((th) => (
-            <button
-              key={th.id}
-              type="button"
-              onClick={() => setTheme(th.id)}
-              aria-pressed={theme === th.id}
-              className={cn(
-                "rounded-xl border p-2 text-left transition-colors",
-                theme === th.id ? "border-brand ring-1 ring-brand" : "hover:border-text-faded",
-              )}
-            >
-              {/* Live preview: scoping data-theme applies that theme's tokens to this subtree only. */}
-              <div data-theme={th.id} className="mb-2 flex h-14 overflow-hidden rounded-md border bg-surface">
-                <div className="w-1/3 bg-sidebar-surface" />
-                <div className="flex-1" />
-                <div className="w-1.5 bg-brand" />
-              </div>
-              <div className="text-body-small font-medium text-foreground">{th.name}</div>
-              <div className="text-caption capitalize text-muted-foreground">{th.appearance}</div>
-            </button>
-          ))}
-        </div>
-      </section>
+            <div className="mt-5">
+              {selected.groups.map((group) => (
+                <SettingsGroupView key={group.id} group={group} context={context} />
+              ))}
+            </div>
+          </>
+        ) : null}
 
-      <section className="mt-8 max-w-3xl">
-        <h2 className="text-body-medium font-semibold text-foreground">Language</h2>
-        <select
-          value={language}
-          onChange={(e) => void setLanguage(e.target.value)}
-          className="mt-2 h-9 rounded-md border bg-[var(--text-control-background)] px-3 text-body-small text-foreground focus:border-[var(--text-control-border-focused)] focus:outline-none"
-        >
-          {(languages ?? []).map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.nativeName}
-            </option>
-          ))}
-        </select>
-      </section>
+        {/* Rows read from a snapshot; until it lands they show schema defaults. */}
+        {!loaded ? <p className="sr-only">Loading settings…</p> : null}
+      </main>
     </div>
+  )
+}
+
+/** The synthetic results category: matched rows, each tagged with where it lives. */
+function SearchResults({ query, matches }: { query: string; matches: SettingsSearchMatch[] }) {
+  const t = useT()
+
+  const groups = matches.reduce<Map<string, SettingsSearchMatch[]>>((acc, match) => {
+    const bucket = acc.get(match.breadcrumb)
+    if (bucket) bucket.push(match)
+    else acc.set(match.breadcrumb, [match])
+    return acc
+  }, new Map())
+
+  return (
+    <>
+      <header>
+        <h1 className="text-heading-4 font-semibold text-text-primary">
+          {t("Settings", "SearchResults")}
+        </h1>
+        <p className="mt-0.5 text-body-small text-text-tertiary">
+          {matches.length > 0
+            ? t("Settings", "SearchResultsSubtitleFormat", { 0: matches.length, 1: query })
+            : t("Settings", "SearchNoResultsFormat", { 0: query })}
+        </p>
+      </header>
+
+      <div className="mt-5">
+        {[...groups].map(([breadcrumb, rows]) => (
+          <section key={breadcrumb} className="mt-7 first:mt-0">
+            <h2 className="mb-1 text-micro font-semibold uppercase tracking-[1px] text-text-faded">
+              {breadcrumb}
+            </h2>
+            {rows.map((match, i) => (
+              <SettingRow
+                key={`${breadcrumb}:${i}`}
+                row={match.row}
+                divider={i < rows.length - 1}
+              />
+            ))}
+          </section>
+        ))}
+      </div>
+    </>
   )
 }

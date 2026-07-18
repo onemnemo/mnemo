@@ -5,6 +5,7 @@ import { ApiError } from "@/api/client"
 import { useI18nStore } from "@/i18n/store"
 import { createTranslate } from "@/i18n/translate"
 import type { TranslateFn } from "@/i18n/types"
+import { useSettingsStore } from "@/settings/store"
 import { toast } from "@/stores/toast"
 
 import {
@@ -29,6 +30,9 @@ import type {
 } from "./types"
 
 const DEFAULT_MODE: AssistantMode = "Normal"
+
+/** Mirrors the settings key the AI section writes for the same toggle. */
+const WEB_SEARCH_KEY = "AI.WebSearch.Enabled"
 
 // Live per-turn scratch. Held outside zustand state because the trace builder is
 // mutable and only one turn runs at a time. The visible trace/content it produces
@@ -534,4 +538,14 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (active) void cancelTurn(active.turnId).catch(() => {})
     },
   }
+})
+
+// Web search is editable from two places: the composer toggle here and the AI
+// settings row. Both write the same key, so the database never disagrees — but the
+// composer would keep showing its own cached value for the rest of the session, so
+// mirror settings changes back into it.
+useSettingsStore.subscribe((state, previous) => {
+  const enabled = state.values[WEB_SEARCH_KEY]
+  if (enabled === previous.values[WEB_SEARCH_KEY]) return
+  if (typeof enabled === "boolean") useChatStore.setState({ webSearchEnabled: enabled })
 })
