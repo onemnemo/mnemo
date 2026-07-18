@@ -42,6 +42,7 @@ interface ActiveTurn {
   stopped: boolean
   done: boolean
   foundResponse: boolean
+  failureKind: string | null
   error: ChatTurnNotice | null
 }
 
@@ -148,6 +149,21 @@ function noticeForError(kind: string | undefined, message: string | undefined, t
   }
 }
 
+/**
+ * The notice for an empty-answer turn, using the server's route-status diagnosis: a missing key gets
+ * the Settings deep-link, an unbound model its own line, anything else the generic apology.
+ */
+function noticeForFailureKind(failureKind: string | null, t: TranslateFn): ChatTurnNotice {
+  switch (failureKind) {
+    case "missing_api_key":
+      return { kind: "missing_api_key", text: t("Chat", "ErrorMissingApiKey") }
+    case "model_unavailable":
+      return { kind: "model_unavailable", text: t("Chat", "ErrorNoModel") }
+    default:
+      return { kind: "error", text: t("Chat", "ErrorSorry") }
+  }
+}
+
 export const useChatStore = create<ChatState>((set, get) => {
   // The turn in flight, if any. Never read by React — only orchestrates the stream.
   let active: ActiveTurn | null = null
@@ -201,6 +217,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         active.foundResponse = evt.data.foundResponse
         active.stopped = evt.data.stopped
         active.content = evt.data.content
+        active.failureKind = evt.data.failureKind ?? null
         break
       case "error":
         active.error = noticeForError(evt.data.kind, evt.data.message, t)
@@ -225,6 +242,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       stopped: false,
       done: false,
       foundResponse: false,
+      failureKind: null,
       error: null,
     }
     active = turn
@@ -262,8 +280,11 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
       void refreshConversations()
     } else {
-      const notice = turn.error ?? { kind: "error", text: t("Chat", "ErrorSorry") }
+      const notice = turn.error ?? noticeForFailureKind(turn.failureKind, t)
       patchStreaming({ streaming: false, notice, content: "", processSteps: null, thoughts: null })
+      // A failed turn persists nothing, so drop any optimistic sidebar row it floated
+      // (a brand-new conversation whose first turn failed leaves no server-side thread).
+      void refreshConversations()
     }
 
     active = null

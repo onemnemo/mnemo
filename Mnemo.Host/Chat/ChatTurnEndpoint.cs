@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Ai;
 using Mnemo.Core.Services;
+using Mnemo.Core.Services.Ai;
 using Mnemo.Host.Ai;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Events;
@@ -40,6 +41,7 @@ public static class ChatTurnEndpoint
         IAIOrchestrator orchestrator,
         IChatModuleHistoryService history,
         ChatTurnRegistry turns,
+        IModelRouter modelRouter,
         ILocalizationService localization,
         IConversationMemoryStore memoryStore,
         IConversationMemoryInjector memoryInjector,
@@ -135,8 +137,18 @@ public static class ChatTurnEndpoint
 
                 outcome.Content = content.ToString();
                 outcome.FoundResponse = foundResponse;
+
+                // Empty answer + no tools = a failed turn. Probe the model route so the SPA can show
+                // an actionable notice ("add your API key" / "no model bound") instead of a generic
+                // apology — the orchestrator degrades a bad key/binding to an empty stream rather than
+                // throwing, so this diagnosis (mirroring the desktop's post-failure route probe) is the
+                // only place that distinction is recovered.
+                string? failureKind = null;
+                if (!foundResponse && trace.ToolCallCount == 0)
+                    failureKind = await ProbeFailureKindAsync(modelRouter, token).ConfigureAwait(false);
+
                 writer.TryWrite(new AppEvent("done",
-                    new { foundResponse, content = outcome.Content, stopped = false }));
+                    new { foundResponse, content = outcome.Content, stopped = false, failureKind }));
             }
             catch (OperationCanceledException)
             {
@@ -267,6 +279,29 @@ public static class ChatTurnEndpoint
         await ChatTurnPersistence.AppendTurnAsync(
                 history, conversationId, mode, DateTime.UtcNow, userMsg, assistantMsg, memorySnapshotJson, truncateFromIndex)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Resolves why an empty turn produced nothing: a missing API key or an unbound model becomes a
+    /// specific, actionable notice kind for the SPA; anything else (or a probe failure) is null, so the
+    /// client falls back to the generic apology. The strings are the SPA's own notice-kind vocabulary.
+    /// </summary>
+    private static async Task<string?> ProbeFailureKindAsync(IModelRouter modelRouter, CancellationToken ct)
+    {
+        try
+        {
+            var route = await modelRouter.ResolveChatAsync(AiRole.Assistant, ct).ConfigureAwait(false);
+            return route.Status switch
+            {
+                AiRouteStatus.MissingApiKey => "missing_api_key",
+                AiRouteStatus.NoBinding => "model_unavailable",
+                _ => null,
+            };
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>

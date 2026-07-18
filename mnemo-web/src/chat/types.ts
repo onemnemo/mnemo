@@ -121,7 +121,12 @@ export type TurnEvent =
   | { type: "reasoning"; data: { text: string } }
   | { type: "narration"; data: { text: string } }
   | { type: "delta"; data: { text: string } }
-  | { type: "done"; data: { foundResponse: boolean; content: string; stopped: boolean } }
+  | {
+      type: "done"
+      // `failureKind` names an actionable failure (missing_api_key / model_unavailable) diagnosed
+      // server-side when the turn ends empty; null/absent falls back to the generic notice.
+      data: { foundResponse: boolean; content: string; stopped: boolean; failureKind?: string | null }
+    }
   | { type: "error"; data: { kind: string; message: string } }
 
 /**

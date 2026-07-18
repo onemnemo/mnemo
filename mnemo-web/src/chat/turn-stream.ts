@@ -128,7 +128,10 @@ function coerceTurnEvent(type: string, data: unknown): TurnEvent | null {
     case "delta":
       return { type, data: data as { text: string } }
     case "done":
-      return { type, data: data as { foundResponse: boolean; content: string; stopped: boolean } }
+      return {
+        type,
+        data: data as { foundResponse: boolean; content: string; stopped: boolean; failureKind?: string | null },
+      }
     case "error":
       return { type, data: data as { kind: string; message: string } }
     default:
