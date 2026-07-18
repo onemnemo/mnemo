@@ -5,6 +5,8 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import type { IconName } from "@/components/icon/icon-registry"
 import { cn } from "@/lib/utils"
 
+import { CONTENT_CLASS, ITEM_CLASS, itemClass } from "./menu-styles"
+
 // The app's flyout menu, styled once. Mirrors the desktop MenuFlyout: an icon
 // column, an optional right-aligned gesture hint, danger and section-header
 // variants, and nested submenus.
@@ -13,11 +15,6 @@ export const Menu = DropdownMenu.Root
 export const MenuTrigger = DropdownMenu.Trigger
 export const MenuSub = DropdownMenu.Sub
 
-const CONTENT_CLASS =
-  "z-50 min-w-[168px] rounded-lg border border-line bg-popover p-1 shadow-elevation-2"
-
-const ITEM_CLASS =
-  "flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-body-extra-small outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45"
 
 export function MenuContent({
   children,
@@ -51,17 +48,7 @@ export interface MenuItemProps {
 
 export function MenuItem({ children, onSelect, icon, hint, danger, emphasis, disabled }: MenuItemProps) {
   return (
-    <DropdownMenu.Item
-      disabled={disabled}
-      onSelect={onSelect}
-      className={cn(
-        ITEM_CLASS,
-        danger
-          ? "text-destructive data-[highlighted]:bg-destructive/10"
-          : "text-text-secondary data-[highlighted]:bg-surface-subtle data-[highlighted]:text-foreground",
-        emphasis && !danger && "font-medium text-foreground",
-      )}
-    >
+    <DropdownMenu.Item disabled={disabled} onSelect={onSelect} className={itemClass(danger, emphasis)}>
       <MenuItemBody icon={icon} hint={hint}>
         {children}
       </MenuItemBody>
@@ -105,7 +92,7 @@ export function MenuSubMenu({
   )
 }
 
-function MenuItemBody({
+export function MenuItemBody({
   children,
   icon,
   hint,

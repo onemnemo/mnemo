@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 
 import { ChatPage } from "@/chat/components/ChatPage"
 import { StubPage } from "@/components/shell/StubPage"
+import { DeckPage } from "@/flashcards/deck/DeckPage"
 import { LibraryPage } from "@/flashcards/library/LibraryPage"
 import { SettingsPage } from "@/pages/SettingsPage"
 
@@ -18,7 +19,7 @@ const PAGES: Record<string, PageRenderer> = {
   mindmap: () => <StubPage title="Mindmaps" />,
   "mindmap-detail": (p) => <StubPage title="Mindmap" subtitle={p[0] ? `Map ${p[0]}` : undefined} />,
   flashcards: () => <LibraryPage />,
-  "flashcard-deck": (p) => <StubPage title="Deck" subtitle={p[0]} />,
+  "flashcard-deck": (p) => <DeckPage deckId={p[0]} />,
   "flashcard-session": (p) => <StubPage title="Study session" subtitle={p[0]} />,
   "flashcard-test": (p) => <StubPage title="Test" subtitle={p[0]} />,
   settings: () => <SettingsPage />,

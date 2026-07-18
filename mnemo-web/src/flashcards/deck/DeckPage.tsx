@@ -1,0 +1,177 @@
+import { useEffect, useMemo } from "react"
+
+import { navigate } from "@/app/router"
+import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/ui/empty-state"
+import { useT } from "@/i18n/useT"
+import { dialog } from "@/stores/dialog"
+
+import { useDecksQuery } from "../api"
+import {
+  useCardTagsQuery,
+  useCardsQuery,
+  useDeckQuery,
+  useDeleteCards,
+  useFlagCards,
+  useMoveCards,
+  useSuspendCards,
+  useTagCards,
+} from "./api"
+import { PAGE_SIZE, SEARCH_DEBOUNCE_MS } from "./cards"
+import { CardTable } from "./components/CardTable"
+import { DeckHeader } from "./components/DeckHeader"
+import { DeckToolbar } from "./components/DeckToolbar"
+import { SelectionBar } from "./components/SelectionBar"
+import { useDeckView } from "./store"
+
+export function DeckPage({ deckId }: { deckId?: string }) {
+  const t = useT()
+  const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
+
+  const openDeck = useDeckView((s) => s.openDeck)
+  const search = useDeckView((s) => s.search)
+  const commitSearch = useDeckView((s) => s.commitSearch)
+  const query = useDeckView((s) => s.query)
+  const stateFilter = useDeckView((s) => s.stateFilter)
+  const tagFilter = useDeckView((s) => s.tagFilter)
+  const sortDescending = useDeckView((s) => s.sortDescending)
+  const offset = useDeckView((s) => s.offset)
+  const selected = useDeckView((s) => s.selected)
+  const clearSelection = useDeckView((s) => s.clearSelection)
+
+  useEffect(() => {
+    if (deckId) openDeck(deckId)
+  }, [deckId, openDeck])
+
+  // Debounced so a fast typist issues one request, not one per keystroke.
+  useEffect(() => {
+    const timer = setTimeout(commitSearch, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [search, commitSearch])
+
+  const id = deckId ?? ""
+  const deck = useDeckQuery(id)
+  const decks = useDecksQuery()
+  const tags = useCardTagsQuery(id)
+  const cards = useCardsQuery(id, {
+    text: query,
+    state: stateFilter,
+    tag: tagFilter,
+    sort: "due",
+    sortDescending,
+    offset,
+    limit: PAGE_SIZE,
+  })
+
+  const deleteCards = useDeleteCards(id)
+  const moveCards = useMoveCards(id)
+  const suspendCards = useSuspendCards(id)
+  const flagCards = useFlagCards(id)
+  const tagCards = useTagCards(id)
+
+  // A deck that has been deleted (in another window, or by this page's own menu)
+  // sends you back to the library rather than showing an error.
+  const missing = !deckId || deck.error?.status === 404
+  useEffect(() => {
+    if (missing) navigate("flashcards")
+  }, [missing])
+
+  const page = cards.data
+  const moveTargets = useMemo(
+    () => (decks.data ?? []).filter((d) => d.id !== id).sort((a, b) => a.name.localeCompare(b.name)),
+    [decks.data, id],
+  )
+
+  // Due labels are day-granularity, so reading the clock per render is stable enough.
+  const now = Date.now()
+
+  const selectedViews = useMemo(
+    () => (page?.items ?? []).filter((item) => selected.has(item.card.id)),
+    [page, selected],
+  )
+  const selectedIds = selectedViews.map((item) => item.card.id)
+
+  const run = async (action: Promise<unknown>) => {
+    await action
+    clearSelection()
+  }
+
+  const confirmDelete = async (ids: string[]) => {
+    const ok = await dialog.confirm({
+      title: fc("DeleteCard"),
+      message: ids.length === 1 ? fc("DeleteCardConfirm") : fc("DeleteCardsConfirmFormat", { 0: ids.length }),
+      destructive: true,
+      confirmLabel: t("Common", "Delete"),
+      cancelLabel: t("Common", "Cancel"),
+    })
+    if (ok) await run(deleteCards.mutateAsync(ids))
+  }
+
+  if (missing || !deck.data) return null
+
+  const filtered = stateFilter !== "all" || tagFilter !== null || query.trim().length > 0
+  const hasRows = (page?.items.length ?? 0) > 0
+  const loaded = cards.isSuccess
+  const showEmpty = loaded && !hasRows && !filtered
+  const showNoResults = loaded && !hasRows && filtered
+
+  return (
+    <div className="flex flex-col gap-3.5 px-10 pt-[26px] pb-6">
+      <DeckHeader deck={deck.data} />
+
+      {!showEmpty ? <DeckToolbar knownTags={tags.data ?? []} totalCount={page?.totalCount ?? 0} /> : null}
+
+      {hasRows && page ? (
+        <CardTable
+          page={page}
+          moveTargets={moveTargets}
+          now={now}
+          actions={{
+            onFlag: (cardId, value) => void run(flagCards.mutateAsync({ cardIds: [cardId], value })),
+            onSuspend: (cardId, value) => void run(suspendCards.mutateAsync({ cardIds: [cardId], value })),
+            onMove: (cardId, targetDeckId) => void run(moveCards.mutateAsync({ cardIds: [cardId], targetDeckId })),
+            onDelete: (cardId) => void confirmDelete([cardId]),
+          }}
+        />
+      ) : null}
+
+      {showEmpty ? (
+        <EmptyState
+          className="mt-12"
+          icon="common/book"
+          title={fc("DeckEmptyTitle")}
+          description={fc("DeckEmptyDescription")}
+          action={
+            <Button size="sm" disabled>
+              {fc("DeckAddCards")}
+            </Button>
+          }
+        />
+      ) : null}
+
+      {showNoResults ? (
+        <EmptyState
+          className="mt-12"
+          icon="common/search"
+          title={fc("NoResultsTitle")}
+          description={fc("DeckNoResultsDescription")}
+        />
+      ) : null}
+
+      {selectedIds.length > 0 ? (
+        <SelectionBar
+          count={selectedIds.length}
+          allSuspended={selectedViews.every((item) => item.card.state === "suspended")}
+          allFlagged={selectedViews.every((item) => item.card.isFlagged)}
+          moveTargets={moveTargets}
+          onMove={(targetDeckId) => void run(moveCards.mutateAsync({ cardIds: selectedIds, targetDeckId }))}
+          onTag={(tag) => void run(tagCards.mutateAsync({ cardIds: selectedIds, tag }))}
+          onSuspend={(value) => void run(suspendCards.mutateAsync({ cardIds: selectedIds, value }))}
+          onFlag={(value) => void run(flagCards.mutateAsync({ cardIds: selectedIds, value }))}
+          onDelete={() => void confirmDelete(selectedIds)}
+          onClear={clearSelection}
+        />
+      ) : null}
+    </div>
+  )
+}

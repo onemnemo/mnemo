@@ -70,3 +70,82 @@ export interface RetentionTrendPointDto {
   retentionPercent: number
   reviewsCount: number
 }
+
+// Card shapes. The host maps every flashcard enum to a lowercase token rather than
+// letting it serialize as an integer, so these mirror as string unions - see
+// Mnemo.Host/Contracts/FlashcardWire.cs.
+
+export type CardType = "classic" | "cloze"
+export type CardState = "active" | "suspended"
+export type FsrsState = "new" | "learning" | "review" | "relearning"
+
+/** The card-table filter chips. Note "flagged" is the one filter that also matches suspended cards. */
+export type CardStateFilter = "all" | "due" | "new" | "learning" | "suspended" | "flagged"
+
+export type CardSort = "due" | "front" | "type" | "reps" | "lapses" | "created"
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardCardDto.cs CardAttachmentDto. */
+export interface CardAttachmentDto {
+  id: string
+  side: string
+  displayName: string
+  sizeBytes: number
+  caption: string | null
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardCardDto.cs CardDto. */
+export interface CardDto {
+  id: string
+  deckId: string
+  type: CardType
+  front: string
+  back: string
+  tags: string[]
+  state: CardState
+  isFlagged: boolean
+  attachments: CardAttachmentDto[]
+  createdAt: string
+  updatedAt: string
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardCardDto.cs CardScheduleDto. */
+export interface CardScheduleDto {
+  dueDate: string
+  stability: number | null
+  difficulty: number | null
+  reps: number
+  lapses: number
+  fsrsState: FsrsState
+  learningStepIndex: number
+  lastReviewedAt: string | null
+}
+
+/** A card paired with its schedule, as the deck table renders it. */
+export interface CardViewDto {
+  card: CardDto
+  schedule: CardScheduleDto
+}
+
+/** One page of cards. `offset` and `limit` are the effective values the server used. */
+export interface CardPageDto {
+  items: CardViewDto[]
+  totalCount: number
+  offset: number
+  limit: number
+}
+
+/** Body for creating a card. The server assigns id, timestamps and the initial schedule. */
+export interface CreateCardDto {
+  type: CardType
+  front: string
+  back: string
+  tags: string[]
+}
+
+/** Body for updating a card. Full replace of the editable content fields, not a patch. */
+export interface UpdateCardDto {
+  type: CardType
+  front: string
+  back: string
+  tags: string[]
+}
