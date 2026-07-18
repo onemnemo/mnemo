@@ -2,7 +2,6 @@ import { cn } from "@/lib/utils"
 
 import { assetUrl } from "../../assets"
 import { useSettingsStore, useSettingValue } from "../../store"
-import { SettingRowShell } from "../SettingRowShell"
 
 /**
  * The picker shared by the profile-picture and app-icon rows: a strip of image tiles

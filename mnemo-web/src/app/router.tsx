@@ -16,6 +16,11 @@ export function useHashRoute(): string {
   return useSyncExternalStore(subscribe, getHash, getHash)
 }
 
+/** Navigates to a route key, appending any path parameters ("flashcard-deck", id). */
+export function navigate(key: string, ...params: readonly string[]): void {
+  window.location.hash = ["#", key, ...params].join("/")
+}
+
 /**
  * Normalizes an empty hash to the default route once on mount, without growing
  * browser history. Unknown routes are handled by resolveRoute (falls back to the

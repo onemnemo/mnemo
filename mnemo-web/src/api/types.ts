@@ -28,3 +28,45 @@ export interface DeckSummaryDto {
   createdAt: string
   updatedAt: string
 }
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardLibraryDto.cs FolderDto. */
+export interface FolderDto {
+  id: string
+  name: string
+  parentId: string | null
+  order: number
+}
+
+/** Body for creating or updating a folder. */
+export interface SaveFolderDto {
+  name: string
+  parentId: string | null
+  order: number
+}
+
+/** Body for creating a deck. A null preset falls back to the shared Standard preset. */
+export interface CreateDeckDto {
+  name: string
+  folderId: string | null
+  presetId: string | null
+}
+
+/** Body for updating a deck. Full replace of the editable header fields, not a patch. */
+export interface UpdateDeckDto {
+  name: string
+  description: string | null
+  tags: string[]
+}
+
+/** Body for re-homing a deck; a null folder is the library root. */
+export interface MoveDeckDto {
+  folderId: string | null
+  sortOrder: number
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardLibraryDto.cs RetentionTrendPointDto. */
+export interface RetentionTrendPointDto {
+  day: string
+  retentionPercent: number
+  reviewsCount: number
+}

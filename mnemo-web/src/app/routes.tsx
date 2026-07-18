@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 
 import { ChatPage } from "@/chat/components/ChatPage"
 import { StubPage } from "@/components/shell/StubPage"
-import { DecksPage } from "@/pages/DecksPage"
+import { LibraryPage } from "@/flashcards/library/LibraryPage"
 import { SettingsPage } from "@/pages/SettingsPage"
 
 // Client-side routing: which page renders for a route key. The sidebar model
@@ -17,7 +17,7 @@ const PAGES: Record<string, PageRenderer> = {
   notes: (p) => <StubPage title="Notes" subtitle={p[0] ? `Note ${p[0]}` : undefined} />,
   mindmap: () => <StubPage title="Mindmaps" />,
   "mindmap-detail": (p) => <StubPage title="Mindmap" subtitle={p[0] ? `Map ${p[0]}` : undefined} />,
-  flashcards: () => <DecksPage />,
+  flashcards: () => <LibraryPage />,
   "flashcard-deck": (p) => <StubPage title="Deck" subtitle={p[0]} />,
   "flashcard-session": (p) => <StubPage title="Study session" subtitle={p[0]} />,
   "flashcard-test": (p) => <StubPage title="Test" subtitle={p[0]} />,
