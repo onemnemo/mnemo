@@ -114,3 +114,59 @@
         font-size: var(--text-body-small);
     }
 }
+
+/*
+ * Rendered assistant markdown (react-markdown output). Token-based prose; no
+ * typography plugin. Line height matches the desktop MarkdownView (~1.6).
+ */
+.chat-prose {
+    color: var(--text-primary);
+    font-size: var(--font-size-body-medium);
+    line-height: 1.6;
+}
+.chat-prose > :first-child { margin-top: 0; }
+.chat-prose > :last-child { margin-bottom: 0; }
+.chat-prose p { margin: 0.6em 0; }
+.chat-prose h1, .chat-prose h2, .chat-prose h3, .chat-prose h4 {
+    margin: 1.2em 0 0.5em;
+    font-weight: 600;
+    line-height: 1.3;
+}
+.chat-prose h1 { font-size: var(--font-size-heading-4); }
+.chat-prose h2 { font-size: var(--font-size-heading-5); }
+.chat-prose h3 { font-size: var(--font-size-heading-6); }
+.chat-prose ul, .chat-prose ol { margin: 0.6em 0; padding-left: 1.4em; }
+.chat-prose ul { list-style: disc; }
+.chat-prose ol { list-style: decimal; }
+.chat-prose li { margin: 0.25em 0; }
+.chat-prose li > ul, .chat-prose li > ol { margin: 0.25em 0; }
+.chat-prose a { color: var(--links); text-decoration: underline; text-underline-offset: 2px; }
+.chat-prose strong { font-weight: 600; }
+.chat-prose em { font-style: italic; }
+.chat-prose code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    background: var(--surface-subtle);
+    padding: 0.15em 0.35em;
+    border-radius: var(--radius-sm);
+}
+.chat-prose pre {
+    margin: 0.8em 0;
+    padding: 0.85em 1em;
+    background: var(--surface-subtle);
+    border: 1px solid var(--line-color);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+}
+.chat-prose pre code { background: none; padding: 0; font-size: 0.85em; }
+.chat-prose blockquote {
+    margin: 0.8em 0;
+    padding-left: 0.9em;
+    border-left: 3px solid var(--line-color);
+    color: var(--text-tertiary);
+}
+.chat-prose hr { margin: 1.2em 0; border: 0; border-top: 1px solid var(--line-color); }
+.chat-prose table { margin: 0.8em 0; border-collapse: collapse; display: block; overflow-x: auto; }
+.chat-prose th, .chat-prose td { border: 1px solid var(--line-color); padding: 0.4em 0.7em; text-align: left; }
+.chat-prose th { background: var(--surface-subtle); font-weight: 600; }
+.chat-prose img { max-width: 100%; border-radius: var(--radius-md); }

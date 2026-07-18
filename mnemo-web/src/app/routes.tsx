@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 
+import { ChatPage } from "@/chat/components/ChatPage"
 import { StubPage } from "@/components/shell/StubPage"
 import { DecksPage } from "@/pages/DecksPage"
 import { SettingsPage } from "@/pages/SettingsPage"
@@ -21,7 +22,7 @@ const PAGES: Record<string, PageRenderer> = {
   "flashcard-session": (p) => <StubPage title="Study session" subtitle={p[0]} />,
   "flashcard-test": (p) => <StubPage title="Test" subtitle={p[0]} />,
   settings: () => <SettingsPage />,
-  chat: () => <StubPage title="Assistant" />,
+  chat: () => <ChatPage />,
 }
 
 export interface ResolvedRoute {
