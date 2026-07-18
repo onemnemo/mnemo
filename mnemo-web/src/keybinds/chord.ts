@@ -49,7 +49,51 @@ function eventKeyToken(event: KeyboardEvent): string | null {
   if (digit) return `D${digit[1]}`
   const fn = /^F([1-9]|1[0-2])$/.exec(code)
   if (fn) return code
-  return NAMED_CODES[code] ?? null
+  const named = NAMED_CODES[code]
+  if (named) return named
+
+  // `code` describes the physical key and is what chords are defined against, but it
+  // is not always populated: virtual keyboards, IMEs and some remote-input and
+  // accessibility paths dispatch key events with it empty. Fall back to the logical
+  // key so shortcuts still match there, at the cost of being layout-dependent.
+  return code ? null : logicalKeyToken(event.key)
+}
+
+function logicalKeyToken(key: string): string | null {
+  if (/^[a-zA-Z]$/.test(key)) return key.toUpperCase()
+  if (/^[0-9]$/.test(key)) return `D${key}`
+  if (/^F([1-9]|1[0-2])$/.test(key)) return key
+  if (key === " ") return "Space"
+  return NAMED_KEYS[key] ?? null
+}
+
+// The subset of NAMED_CODES whose KeyboardEvent.key matches its code, plus the
+// punctuation the Oem names cover.
+const NAMED_KEYS: Record<string, string> = {
+  Enter: "Enter",
+  Escape: "Escape",
+  Tab: "Tab",
+  Backspace: "Back",
+  Delete: "Delete",
+  ArrowLeft: "Left",
+  ArrowRight: "Right",
+  ArrowUp: "Up",
+  ArrowDown: "Down",
+  Home: "Home",
+  End: "End",
+  PageUp: "PageUp",
+  PageDown: "PageDown",
+  ",": "OemComma",
+  ".": "OemPeriod",
+  "/": "OemQuestion",
+  ";": "OemSemicolon",
+  "'": "OemQuotes",
+  "[": "OemOpenBrackets",
+  "]": "OemCloseBrackets",
+  "\\": "OemPipe",
+  "-": "OemMinus",
+  "=": "OemPlus",
+  "`": "OemTilde",
 }
 
 // Enough named keys for the current catalog; the Oem names track Avalonia's Key
@@ -80,6 +124,25 @@ const NAMED_CODES: Record<string, string> = {
   Minus: "OemMinus",
   Equal: "OemPlus",
   Backquote: "OemTilde",
+}
+
+/**
+ * Builds a canonical chord from a key press, for the keybind manager's capture field.
+ * Returns null while only modifiers are held, or for a key the catalog has no token
+ * for — both mean "keep listening" rather than "bind this".
+ */
+export function chordFromEvent(event: KeyboardEvent): string | null {
+  const key = eventKeyToken(event)
+  if (!key) return null
+
+  const parts: string[] = []
+  // Canonical order is alphabetical, matching CanonicalKeyGestureCodec's output.
+  if (event.altKey) parts.push("Alt")
+  if (isMac ? event.ctrlKey : false) parts.push("Ctrl")
+  if (isMac ? event.metaKey : event.ctrlKey) parts.push("Primary")
+  if (event.shiftKey) parts.push("Shift")
+  parts.push(key)
+  return parts.join("+")
 }
 
 export function matchesEvent(chord: ParsedChord, event: KeyboardEvent): boolean {

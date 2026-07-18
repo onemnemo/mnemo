@@ -4,6 +4,7 @@ import { useRouteNormalization } from "@/app/router"
 import { AppShell } from "@/components/shell/AppShell"
 import { DialogHost } from "@/components/shell/DialogHost"
 import { ToastHost } from "@/components/shell/ToastHost"
+import { KeybindManagerOverlay } from "@/keybinds/manager/KeybindManagerOverlay"
 import { registerKeybindAction } from "@/keybinds/registry"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
@@ -29,6 +30,7 @@ function App() {
       <AppShell />
       <ToastHost />
       <DialogHost />
+      <KeybindManagerOverlay />
     </>
   )
 }
