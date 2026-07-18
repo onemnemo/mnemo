@@ -63,20 +63,25 @@ public static class StudySessionEndpoints
             ? FlashcardSessionScope.Due
             : FlashcardWire.ParseSessionScope(body.Scope);
 
-        // Re-entering a deck supersedes whatever was left running on it.
-        foreach (var superseded in registry.RemoveForDeck(body.DeckId))
-            await EndEntryAsync(superseded, DateTimeOffset.UtcNow, statistics, logger).ConfigureAwait(false);
+        // Superseding and registering have to look atomic to another start on this deck, or both
+        // end up live and grade over each other.
+        var entry = await registry.StartExclusiveAsync(body.DeckId, async () =>
+        {
+            // Re-entering a deck supersedes whatever was left running on it.
+            foreach (var superseded in registry.RemoveForDeck(body.DeckId))
+                await EndEntryAsync(superseded, DateTimeOffset.UtcNow, statistics, logger).ConfigureAwait(false);
 
-        var session = await study
-            .StartSessionAsync(new FlashcardSessionRequest(body.DeckId, mode, scope), cancellationToken)
-            .ConfigureAwait(false);
+            var session = await study
+                .StartSessionAsync(new FlashcardSessionRequest(body.DeckId, mode, scope), cancellationToken)
+                .ConfigureAwait(false);
 
-        // Auto-reveal is a preset setting the session engine has no reason to carry, but the
-        // screen needs it from the first paint, so it is resolved once here rather than leaving
-        // the client to fetch the preset separately.
-        var preset = await presets.GetPresetAsync(deck.Header.PresetId, cancellationToken).ConfigureAwait(false);
-        var entry = registry.Add(
-            session, deck.Name, scope, preset?.AutoReveal ?? FlashcardAutoReveal.Off, DateTimeOffset.UtcNow);
+            // Auto-reveal is a preset setting the session engine has no reason to carry, but the
+            // screen needs it from the first paint, so it is resolved once here rather than leaving
+            // the client to fetch the preset separately.
+            var preset = await presets.GetPresetAsync(deck.Header.PresetId, cancellationToken).ConfigureAwait(false);
+            return registry.Add(
+                session, deck.Name, scope, preset?.AutoReveal ?? FlashcardAutoReveal.Off, DateTimeOffset.UtcNow);
+        }, cancellationToken).ConfigureAwait(false);
 
         return Results.Ok(StudySessionDto.FromEntry(entry));
     }

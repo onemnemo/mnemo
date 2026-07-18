@@ -25,6 +25,33 @@ public sealed class StudySessionRegistry
 
     private readonly ConcurrentDictionary<string, StudySessionEntry> _sessions = new(StringComparer.Ordinal);
 
+    // One gate per deck, never removed. A deck's gate is two pointers and the set of decks is
+    // small and long-lived, whereas retiring one safely would mean proving nobody is about to
+    // wait on it - the wrong trade for the size of what is being kept.
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _startGates = new(StringComparer.Ordinal);
+
+    /// <summary>Runs a deck's session setup with no other start on that deck interleaving.</summary>
+    /// <remarks>
+    /// Superseding is a check-then-act: the caller clears the deck's old sessions, builds the new
+    /// one over several awaited reads, and only then registers it. Two starts arriving inside that
+    /// window each find nothing to supersede and both register, which is precisely the two-live-
+    /// sessions state <see cref="RemoveForDeck"/> exists to prevent. The gate is per deck so
+    /// starting one deck never waits on another.
+    /// </remarks>
+    public async Task<T> StartExclusiveAsync<T>(string deckId, Func<Task<T>> action, CancellationToken cancellationToken)
+    {
+        var gate = _startGates.GetOrAdd(deckId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await action().ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     public StudySessionEntry Add(
         IFlashcardSession session,
         string deckName,
