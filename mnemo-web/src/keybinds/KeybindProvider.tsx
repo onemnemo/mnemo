@@ -1,5 +1,7 @@
 import { type ReactNode, useEffect } from "react"
 
+import { isModalOpen } from "@/lib/modal"
+
 import { isEditableTarget, matchesEvent, parseChord } from "./chord"
 import { fetchKeybinds } from "./api"
 import { getKeybindHandler } from "./registry"
@@ -23,6 +25,10 @@ export function KeybindProvider({ children }: { children: ReactNode }) {
 
     function onKeyDown(event: KeyboardEvent): void {
       if (event.defaultPrevented || event.repeat) return
+      // A dialog owns the keyboard while it is up. Navigating out from under one would unmount
+      // whatever it was editing, and the text-capture gate below does not stop the shortcuts
+      // that are allowed to run while typing.
+      if (isModalOpen()) return
       const inTextCapture = isEditableTarget(event.target)
 
       for (const keybind of useKeybindStore.getState().keybinds) {

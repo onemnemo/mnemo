@@ -59,6 +59,30 @@ public static class FlashcardWire
     };
 
     /// <summary>
+    /// Strict: this one crosses on the write path too. Falling back to <c>off</c> for an
+    /// unrecognized token would quietly save a setting the reader did not choose.
+    /// </summary>
+    public static bool TryParseAutoReveal(string? value, out FlashcardAutoReveal autoReveal)
+    {
+        switch (value?.ToLowerInvariant())
+        {
+            case "off": autoReveal = FlashcardAutoReveal.Off; return true;
+            case "five-seconds": autoReveal = FlashcardAutoReveal.FiveSeconds; return true;
+            case "ten-seconds": autoReveal = FlashcardAutoReveal.TenSeconds; return true;
+            default: autoReveal = FlashcardAutoReveal.Off; return false;
+        }
+    }
+
+    /// <summary>
+    /// Read-only today - FSRS is the only algorithm, and presets are saved without asking the
+    /// client which one to use. The token exists so the settings dialog can name what it shows.
+    /// </summary>
+    public static string SchedulingAlgorithm(FlashcardSchedulingAlgorithm value) => value switch
+    {
+        _ => "fsrs",
+    };
+
+    /// <summary>
     /// Strict, unlike the filter parsers below: an unrecognized mode has no sensible default,
     /// since silently starting a Review for a client that asked for a Cram would write the
     /// schedule it expected to be left alone.

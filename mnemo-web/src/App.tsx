@@ -5,6 +5,7 @@ import { AppShell } from "@/components/shell/AppShell"
 import { DialogHost } from "@/components/shell/DialogHost"
 import { ToastHost } from "@/components/shell/ToastHost"
 import { CardEditorOverlay } from "@/flashcards/editor/CardEditorOverlay"
+import { ReviewSettingsOverlay } from "@/flashcards/presets/ReviewSettingsOverlay"
 import { KeybindManagerOverlay } from "@/keybinds/manager/KeybindManagerOverlay"
 import { registerKeybindAction } from "@/keybinds/registry"
 import { OnboardingWizard } from "@/onboarding/OnboardingWizard"
@@ -34,6 +35,7 @@ function App() {
       <DialogHost />
       <KeybindManagerOverlay />
       <CardEditorOverlay />
+      <ReviewSettingsOverlay />
       <OnboardingWizard />
     </>
   )

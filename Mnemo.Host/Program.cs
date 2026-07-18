@@ -112,6 +112,7 @@ public static class Program
         app.MapFlashcardAssets();
         app.MapFlashcardStudySessions();
         app.MapFlashcardTests();
+        app.MapFlashcardPresets();
 
         if (options.DevMode)
         {

@@ -2,6 +2,7 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
+import { useReviewSettings } from "../../presets/store"
 import { progressFillWidth } from "../../study"
 import type { TestTally } from "../test"
 
@@ -11,6 +12,7 @@ import type { TestTally } from "../test"
  * glance without a legend.
  */
 export function TestTopbar({
+  deckId,
   deckName,
   tally,
   completed,
@@ -18,6 +20,7 @@ export function TestTopbar({
   active,
   onClose,
 }: {
+  deckId: string | undefined
   deckName: string
   tally: TestTally
   completed: number
@@ -69,8 +72,14 @@ export function TestTopbar({
         </>
       )}
 
-      {/* No destination yet - the review-settings dialog is still to be built. */}
-      <IconBtn icon="flyout/settings" label={fc("ReviewSettingsMenu")} disabled />
+      {/* Only shuffle applies to a test, but the desktop opens the same dialog from here and
+          the preset is shared - editing it from a test still changes the deck's reviews. */}
+      <IconBtn
+        icon="flyout/settings"
+        label={fc("ReviewSettingsMenu")}
+        disabled={!deckId}
+        onClick={() => deckId && useReviewSettings.getState().open(deckId, deckName)}
+      />
     </div>
   )
 }

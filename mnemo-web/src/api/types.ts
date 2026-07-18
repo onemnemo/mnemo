@@ -18,6 +18,7 @@ export interface DeckSummaryDto {
   name: string
   description: string | null
   tags: string[]
+  presetId: string
   sortOrder: number
   totalCards: number
   activeCards: number
@@ -287,4 +288,44 @@ export interface TestResultDto {
 export interface RecordTestActivityDto {
   startedAt: string
   cardsTested: number
+}
+
+// Scheduling presets. A deck names exactly one, and several decks can name the same one - which
+// is why a preset carries the count of decks it would affect.
+
+export type SchedulingAlgorithm = "fsrs"
+
+/** Mirrors Mnemo.Host/Contracts/PresetDto.cs PresetDto. */
+export interface PresetDto {
+  id: string
+  name: string
+  newPerDay: number
+  maxReviewsPerDay: number
+  algorithm: SchedulingAlgorithm
+  /** A fraction, not a percentage: 0.9 is the 90% the dialog shows. */
+  desiredRetention: number
+  learningSteps: number[]
+  shuffleOrder: boolean
+  buryRelated: boolean
+  autoReveal: AutoReveal
+  deckCount: number
+  isStandard: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/PresetDto.cs SavePresetDto. Smaller than PresetDto on purpose:
+ * the id and timestamps are the server's, and the fields with no editor are carried forward
+ * there rather than round-tripped through here.
+ */
+export interface SavePresetDto {
+  name: string
+  newPerDay: number
+  maxReviewsPerDay: number
+  desiredRetention: number
+  learningSteps: number[]
+  shuffleOrder: boolean
+  buryRelated: boolean
+  autoReveal: AutoReveal
 }

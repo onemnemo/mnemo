@@ -6,6 +6,7 @@ import { dialog } from "@/stores/dialog"
 import type { DeckSummaryDto } from "@/api/types"
 
 import { useDeleteDeck, useUpdateDeck } from "../../api"
+import { useReviewSettings } from "../../presets/store"
 
 /**
  * The per-deck flyout. Study comes first and pre-highlights whichever mode fits
@@ -107,7 +108,10 @@ export function DeckRowMenu({ deck, upToDate }: { deck: DeckSummaryDto; upToDate
           <MenuItem disabled>{fc("ExportFormatCsv")}</MenuItem>
           <MenuItem disabled>{fc("ChooseFormat")}</MenuItem>
         </MenuSubMenu>
-        <MenuItem icon="flyout/settings" disabled>
+        <MenuItem
+          icon="flyout/settings"
+          onSelect={() => useReviewSettings.getState().open(deck.id, deck.name)}
+        >
           {fc("ReviewSettingsMenu")}
         </MenuItem>
 

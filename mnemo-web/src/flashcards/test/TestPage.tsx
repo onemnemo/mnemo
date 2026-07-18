@@ -8,6 +8,8 @@ import { isEditableTarget, isMac } from "@/keybinds/chord"
 import { dialog } from "@/stores/dialog"
 
 import { useFlagCards } from "../deck/api"
+import { isModalOpen } from "@/lib/modal"
+
 import { useCardEditor } from "../editor/store"
 import { fetchCard } from "../session/api"
 import { Kbd } from "../session/components/KeyHints"
@@ -120,8 +122,9 @@ export function TestPage({ deckId }: { deckId?: string }) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat) return
-      // The editor is a focus-trapped dialog, but this listener is on the window and still fires.
-      if (useCardEditor.getState().target !== null) return
+      // A dialog is focus-trapped, but this listener is on the window and still fires - including
+      // behind the app's own "leave test?" confirm, where Enter would grade the card it asks about.
+      if (isModalOpen()) return
 
       const bare = !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
 
@@ -174,6 +177,7 @@ export function TestPage({ deckId }: { deckId?: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <TestTopbar
+        deckId={deckId}
         deckName={deckName}
         tally={tally}
         completed={index}

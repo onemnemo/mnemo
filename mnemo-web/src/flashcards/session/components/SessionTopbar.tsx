@@ -3,6 +3,7 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
+import { useReviewSettings } from "../../presets/store"
 import { sessionFillWidth } from "../session"
 
 /**
@@ -70,8 +71,14 @@ export function SessionTopbar({
         </>
       )}
 
-      {/* No destination yet - the review-settings dialog is still to be built. */}
-      <IconBtn icon="flyout/settings" label={fc("ReviewSettingsMenu")} disabled />
+      {/* Editing the preset mid-session is allowed, but the queue this session is running was
+          already built - the new limits and order apply from the next one, as on the desktop. */}
+      <IconBtn
+        icon="flyout/settings"
+        label={fc("ReviewSettingsMenu")}
+        disabled={!session}
+        onClick={() => session && useReviewSettings.getState().open(session.deckId, session.deckName)}
+      />
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 
 import { useDecksQuery, useDeleteDeck, useFoldersQuery, useMoveDeck, useUpdateDeck } from "../../api"
+import { useReviewSettings } from "../../presets/store"
 import { fetchAllCardIds, useSuspendCards } from "../api"
 
 /** The deck's own flyout, opened from the ellipsis button beside Study. */
@@ -87,9 +88,12 @@ export function DeckMenu({ deck }: { deck: DeckSummaryDto }) {
           ))}
         </MenuSubMenu>
 
-        {/* Review settings and export arrive with the preset and transfer work
-            later this phase; the rows stay visible but inert until then. */}
-        <MenuItem icon="flyout/settings" disabled>
+        {/* Export arrives with the transfer work later this phase; the row stays
+            visible but inert until then. */}
+        <MenuItem
+          icon="flyout/settings"
+          onSelect={() => useReviewSettings.getState().open(deck.id, deck.name)}
+        >
           {fc("ReviewSettingsMenu")}
         </MenuItem>
         <MenuItem icon="flyout/export" hint=".apkg · .csv" disabled>

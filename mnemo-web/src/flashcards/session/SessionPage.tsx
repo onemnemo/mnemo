@@ -7,6 +7,8 @@ import { isEditableTarget, isMac } from "@/keybinds/chord"
 import { dialog } from "@/stores/dialog"
 
 import { useFlagCards } from "../deck/api"
+import { isModalOpen } from "@/lib/modal"
+
 import { useCardEditor } from "../editor/store"
 import { fetchCard } from "./api"
 import { isActive, isAllCaughtUp } from "./session"
@@ -125,8 +127,9 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat) return
-      // The editor is a focus-trapped dialog, but this listener is on the window and still fires.
-      if (useCardEditor.getState().target !== null) return
+      // A dialog is focus-trapped, but this listener is on the window and still fires - including
+      // behind the app's own "leave session?" confirm, where Space would grade the card it asks about.
+      if (isModalOpen()) return
       if (isEditableTarget(event.target)) return
 
       const state = useSession.getState()
