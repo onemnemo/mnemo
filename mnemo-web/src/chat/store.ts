@@ -5,6 +5,7 @@ import { ApiError } from "@/api/client"
 import { useI18nStore } from "@/i18n/store"
 import { createTranslate } from "@/i18n/translate"
 import type { TranslateFn } from "@/i18n/types"
+import { toast } from "@/stores/toast"
 
 import {
   deleteConversation as apiDeleteConversation,
@@ -13,11 +14,14 @@ import {
   renameConversation as apiRenameConversation,
   setConversationMode,
   setMessageFeedback,
+  uploadChatAsset,
 } from "./api"
 import { LiveTraceBuilder } from "./trace"
 import { cancelTurn, streamTurn } from "./turn-stream"
 import type {
   AssistantMode,
+  ChatAsset,
+  ChatAttachment,
   ChatConversationSummary,
   ChatMessage,
   ChatMessageView,
@@ -56,6 +60,10 @@ interface ChatState {
   // Turn
   isBusy: boolean
 
+  // Composer attachments (uploaded, awaiting the next send)
+  pendingAttachments: ChatAsset[]
+  uploadingCount: number
+
   // Global feature settings
   webSearchEnabled: boolean
 
@@ -68,6 +76,9 @@ interface ChatState {
   setMode: (mode: AssistantMode) => void
   setWebSearch: (enabled: boolean) => void
   setFeedback: (index: number, value: number) => void
+  addAttachments: (files: FileList | File[]) => Promise<void>
+  removeAttachment: (assetId: string) => void
+  clearAttachments: () => void
   sendMessage: (text: string) => Promise<void>
   retryLastTurn: () => Promise<void>
   regenerateLastTurn: () => Promise<void>
@@ -102,6 +113,19 @@ function makeMessage(partial: Partial<ChatMessageView> & Pick<ChatMessage, "cont
     notice: null,
     ...partial,
   }
+}
+
+/** An uploaded asset as it rides on a user message for display. */
+function toAttachment(asset: ChatAsset): ChatAttachment {
+  return { kind: asset.kind, displayName: asset.displayName, assetId: asset.assetId }
+}
+
+/** A message's attachments as asset refs to re-send on regenerate/edit (only servable ones). */
+function toAssets(attachments: ChatAttachment[] | null | undefined): ChatAsset[] | null {
+  const list = (attachments ?? [])
+    .filter((a): a is ChatAttachment & { assetId: string } => a.assetId !== null)
+    .map((a) => ({ assetId: a.assetId, kind: a.kind, displayName: a.displayName }))
+  return list.length > 0 ? list : null
 }
 
 /** Sidebar title preview for an optimistic new-conversation row (server re-derives on refetch). */
@@ -189,6 +213,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     message: string,
     mode: AssistantMode,
     truncateFromIndex: number | null = null,
+    attachments: ChatAsset[] | null = null,
   ): Promise<void> {
     const t = currentT()
     const turn: ActiveTurn = {
@@ -207,7 +232,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     try {
       await streamTurn(
         conversationId,
-        { turnId: turn.turnId, message, assistantMode: mode, truncateFromIndex },
+        { turnId: turn.turnId, message, assistantMode: mode, truncateFromIndex, attachments },
         { signal: turn.abort.signal, onEvent: (evt) => handleEvent(evt, t) },
       )
     } catch (err) {
@@ -254,6 +279,8 @@ export const useChatStore = create<ChatState>((set, get) => {
     assistantMode: DEFAULT_MODE,
     activeLoaded: false,
     isBusy: false,
+    pendingAttachments: [],
+    uploadingCount: 0,
     webSearchEnabled: false,
 
     async init() {
@@ -267,12 +294,19 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     newChat() {
       get().stop()
-      set({ activeId: null, isEphemeral: true, messages: [], assistantMode: DEFAULT_MODE, activeLoaded: true })
+      set({
+        activeId: null,
+        isEphemeral: true,
+        messages: [],
+        assistantMode: DEFAULT_MODE,
+        activeLoaded: true,
+        pendingAttachments: [],
+      })
     },
 
     async selectConversation(id) {
       get().stop()
-      set({ activeId: id, isEphemeral: false, activeLoaded: false })
+      set({ activeId: id, isEphemeral: false, activeLoaded: false, pendingAttachments: [] })
       try {
         const convo = await fetchConversation(id)
         // Ignore a late response if the user has since navigated away.
@@ -339,16 +373,49 @@ export const useChatStore = create<ChatState>((set, get) => {
       })
     },
 
+    async addAttachments(files) {
+      const list = Array.from(files)
+      if (list.length === 0) return
+      const t = currentT()
+      set((s) => ({ uploadingCount: s.uploadingCount + list.length }))
+      await Promise.all(
+        list.map(async (file) => {
+          try {
+            const asset = await uploadChatAsset(file)
+            set((s) => ({ pendingAttachments: [...s.pendingAttachments, asset] }))
+          } catch (err) {
+            const message = err instanceof ApiError ? err.message : t("Chat", "ErrorUnexpected")
+            toast.warning(message)
+          } finally {
+            set((s) => ({ uploadingCount: Math.max(0, s.uploadingCount - 1) }))
+          }
+        }),
+      )
+    },
+
+    removeAttachment(assetId) {
+      set((s) => ({ pendingAttachments: s.pendingAttachments.filter((a) => a.assetId !== assetId) }))
+    },
+
+    clearAttachments() {
+      set({ pendingAttachments: [] })
+    },
+
     async sendMessage(text) {
       const trimmed = text.trim()
       const state = get()
       if (!trimmed || state.isBusy) return
 
       const mode = state.assistantMode
+      const attachments = state.pendingAttachments
       const isNew = state.isEphemeral || !state.activeId
       const conversationId = state.activeId ?? crypto.randomUUID()
 
-      const userMsg = makeMessage({ content: trimmed, isUser: true })
+      const userMsg = makeMessage({
+        content: trimmed,
+        isUser: true,
+        attachments: attachments.length > 0 ? attachments.map(toAttachment) : null,
+      })
       const assistantMsg = makeMessage({ content: "", isUser: false, streaming: true, processThreadExpanded: true })
 
       set((s) => ({
@@ -356,6 +423,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         isEphemeral: false,
         activeLoaded: true,
         isBusy: true,
+        pendingAttachments: [],
         messages: [...s.messages, userMsg, assistantMsg],
         // Optimistically float a sidebar row for a brand-new conversation; the
         // canonical row (with the server-derived title) arrives on the post-turn refetch.
@@ -364,7 +432,7 @@ export const useChatStore = create<ChatState>((set, get) => {
           : s.conversations,
       }))
 
-      await runTurn(conversationId, trimmed, mode)
+      await runTurn(conversationId, trimmed, mode, null, attachments.length > 0 ? attachments : null)
     },
 
     async retryLastTurn() {
@@ -411,13 +479,14 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (idx < 0) return
 
       const userText = s.messages[idx].content
+      const attachments = toAssets(s.messages[idx].attachments)
       const assistantMsg = makeMessage({ content: "", isUser: false, streaming: true, processThreadExpanded: true })
 
       // Drop the old answer, keep the user message, stream a fresh one. truncateFromIndex
       // cuts the persisted pair server-side — but only if this turn succeeds, so a failed
-      // regenerate leaves the previous answer intact.
+      // regenerate leaves the previous answer intact. The user message's attachments ride along.
       set({ messages: [...s.messages.slice(0, idx + 1), assistantMsg], isBusy: true })
-      await runTurn(activeId, userText, s.assistantMode, idx)
+      await runTurn(activeId, userText, s.assistantMode, idx, attachments)
     },
 
     async editAndResend(index, text) {
@@ -430,13 +499,14 @@ export const useChatStore = create<ChatState>((set, get) => {
       const { activeId, isEphemeral } = s
       if (!activeId || isEphemeral) return
 
-      const userMsg = makeMessage({ content: trimmed, isUser: true })
+      const userMsg = makeMessage({ content: trimmed, isUser: true, attachments: target.attachments })
       const assistantMsg = makeMessage({ content: "", isUser: false, streaming: true, processThreadExpanded: true })
 
       // Replace the edited message, drop everything after it, and run from there.
-      // truncateFromIndex applies the same cut server-side on success.
+      // truncateFromIndex applies the same cut server-side on success; the original
+      // message's attachments carry over to the resent one.
       set({ messages: [...s.messages.slice(0, index), userMsg, assistantMsg], isBusy: true })
-      await runTurn(activeId, trimmed, s.assistantMode, index)
+      await runTurn(activeId, trimmed, s.assistantMode, index, toAssets(target.attachments))
     },
 
     stop() {

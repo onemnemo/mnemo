@@ -3,6 +3,7 @@ import { apiFetch, apiSend } from "@/api/client"
 import type {
   AssistantMode,
   AssistantModeResult,
+  ChatAsset,
   ChatConversation,
   ChatConversationSummary,
 } from "./types"
@@ -62,4 +63,14 @@ export function deleteConversation(id: string): Promise<void> {
 /** Clears all chat history (every conversation). */
 export function clearChatHistory(): Promise<void> {
   return apiSend("/chat/history", { method: "DELETE" })
+}
+
+/**
+ * Uploads one file as a chat asset and returns its reference. The browser sets the
+ * multipart Content-Type (with boundary) itself, so we pass FormData without a header.
+ */
+export function uploadChatAsset(file: File): Promise<ChatAsset> {
+  const body = new FormData()
+  body.append("file", file)
+  return apiFetch<ChatAsset>("/chat/assets", { method: "POST", body })
 }

@@ -12,8 +12,17 @@ namespace Mnemo.Host.Contracts;
 /// leaves both the context window and the stored transcript. The cut is applied only when
 /// the turn succeeds (a failed turn persists nothing), so a failed edit/regenerate never
 /// destroys the messages it was replacing.
+///
+/// <see cref="Attachments"/> are files the client already uploaded (via the assets endpoint)
+/// and now attaches to this user message; they are recorded on the persisted message for
+/// display and reload. Like the desktop, they are not fed to the model.
 /// </summary>
-public sealed record ChatTurnRequestDto(string TurnId, string Message, string? AssistantMode, int? TruncateFromIndex = null);
+public sealed record ChatTurnRequestDto(
+    string TurnId,
+    string Message,
+    string? AssistantMode,
+    int? TruncateFromIndex = null,
+    IReadOnlyList<ChatAssetDto>? Attachments = null);
 
 /// <summary>
 /// A tool call as it crosses the turn stream. The same call arrives twice — once

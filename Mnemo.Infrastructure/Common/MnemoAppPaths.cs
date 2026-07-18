@@ -41,10 +41,27 @@ public static class MnemoAppPaths
         => Path.Combine(GetLocalUserDataRoot(), "images");
 
     /// <summary>
+    /// Returns the directory where chat attachments uploaded through the web host are
+    /// stored: <c>%LocalAppData%\Mnemo\chat-attachments\</c>. Files land here as managed
+    /// copies so the host can serve them back by id without exposing arbitrary paths.
+    /// </summary>
+    public static string GetChatAttachmentsDirectory()
+        => Path.Combine(GetLocalUserDataRoot(), "chat-attachments");
+
+    /// <summary>
     /// True when <paramref name="absolutePath"/> resolves to a file under <see cref="GetImagesDirectory"/>.
     /// Used so we only delete managed copies, never arbitrary user-selected paths.
     /// </summary>
     public static bool IsPathUnderImagesDirectory(string absolutePath)
+        => IsPathUnderDirectory(absolutePath, GetImagesDirectory());
+
+    /// <summary>
+    /// True when <paramref name="absolutePath"/> resolves to a file under <see cref="GetChatAttachmentsDirectory"/>.
+    /// </summary>
+    public static bool IsPathUnderChatAttachmentsDirectory(string absolutePath)
+        => IsPathUnderDirectory(absolutePath, GetChatAttachmentsDirectory());
+
+    private static bool IsPathUnderDirectory(string absolutePath, string directory)
     {
         if (string.IsNullOrWhiteSpace(absolutePath))
             return false;
@@ -52,7 +69,7 @@ public static class MnemoAppPaths
         try
         {
             var fullFile = Path.GetFullPath(absolutePath);
-            var dir = Path.GetFullPath(GetImagesDirectory());
+            var dir = Path.GetFullPath(directory);
             if (fullFile.Length <= dir.Length)
                 return false;
             if (!fullFile.StartsWith(dir, StringComparison.OrdinalIgnoreCase))

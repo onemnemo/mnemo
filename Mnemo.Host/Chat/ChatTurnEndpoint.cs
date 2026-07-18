@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text;
 using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
@@ -176,7 +177,7 @@ public static class ChatTurnEndpoint
             await producer.ConfigureAwait(false);
             turns.Complete(request.TurnId);
             await PersistTurnAsync(history, trace, localize, id, mode, turnStartUtc, request.Message, outcome,
-                priorMessages, request.TruncateFromIndex, memoryStore, summarizer, logger).ConfigureAwait(false);
+                priorMessages, request.TruncateFromIndex, request.Attachments, memoryStore, summarizer, logger).ConfigureAwait(false);
         }
     }
 
@@ -207,6 +208,7 @@ public static class ChatTurnEndpoint
         TurnOutcome outcome,
         IReadOnlyList<ChatModulePersistedMessage> priorMessages,
         int? truncateFromIndex,
+        IReadOnlyList<ChatAssetDto>? attachments,
         IConversationMemoryStore memoryStore,
         IConversationSummarizer summarizer,
         ILoggerService logger)
@@ -233,6 +235,7 @@ public static class ChatTurnEndpoint
             Content = userMessage,
             IsUser = true,
             TimestampUtc = turnStartUtc,
+            Attachments = BuildAttachments(attachments),
         };
 
         var steps = trace.BuildPersistedSteps();
@@ -264,6 +267,35 @@ public static class ChatTurnEndpoint
         await ChatTurnPersistence.AppendTurnAsync(
                 history, conversationId, mode, DateTime.UtcNow, userMsg, assistantMsg, memorySnapshotJson, truncateFromIndex)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Maps the client's uploaded-asset references to persisted attachments, dropping any whose
+    /// id is malformed or whose file is missing so the message never records a dangling reference.
+    /// Kind is re-derived from the extension server-side rather than trusting the client's claim.
+    /// </summary>
+    private static List<ChatModulePersistedAttachment>? BuildAttachments(IReadOnlyList<ChatAssetDto>? attachments)
+    {
+        if (attachments is null || attachments.Count == 0)
+            return null;
+
+        List<ChatModulePersistedAttachment>? result = null;
+        foreach (var asset in attachments)
+        {
+            var path = ChatAssetStore.ResolvePath(asset.AssetId);
+            if (path is null || !File.Exists(path))
+                continue;
+
+            result ??= new List<ChatModulePersistedAttachment>();
+            result.Add(new ChatModulePersistedAttachment
+            {
+                Path = path,
+                Kind = ChatAssetStore.KindForExtension(Path.GetExtension(path)),
+                DisplayName = asset.DisplayName,
+            });
+        }
+
+        return result;
     }
 
     /// <summary>Turn result captured by the producer and read once the stream has drained.</summary>

@@ -4,7 +4,9 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
+import { useChatStore } from "../store"
 import { ASSISTANT_MODES, type AssistantMode } from "../types"
+import { PendingAttachments } from "./Attachment"
 
 interface ChatComposerProps {
   value: string
@@ -37,6 +39,12 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const t = useT()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const pendingAttachments = useChatStore((s) => s.pendingAttachments)
+  const uploadingCount = useChatStore((s) => s.uploadingCount)
+  const addAttachments = useChatStore((s) => s.addAttachments)
+  const removeAttachment = useChatStore((s) => s.removeAttachment)
 
   // Grow with content, then scroll past MAX_HEIGHT.
   useEffect(() => {
@@ -46,7 +54,13 @@ export function ChatComposer({
     el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`
   }, [value])
 
-  const canSend = value.trim().length > 0 && !isBusy
+  const uploading = uploadingCount > 0
+  const canSend = value.trim().length > 0 && !isBusy && !uploading
+
+  const onFilesPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) void addAttachments(e.target.files)
+    e.target.value = "" // let the same file be re-picked later
+  }
 
   const submit = () => {
     if (canSend) onSend()
@@ -76,6 +90,10 @@ export function ChatComposer({
 
   return (
     <div className="rounded-xl border border-input bg-[var(--text-control-background)] p-2 transition-colors focus-within:border-[var(--text-control-border-focused)]">
+      <PendingAttachments attachments={pendingAttachments} onRemove={removeAttachment} />
+
+      <input ref={fileInputRef} type="file" multiple onChange={onFilesPicked} className="hidden" />
+
       <textarea
         ref={textareaRef}
         value={value}
@@ -88,6 +106,16 @@ export function ChatComposer({
       />
 
       <div className="mt-1 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          title={t("Chat", "Attach")}
+          aria-label={t("Chat", "Attach")}
+          className="grid size-8 place-items-center rounded-lg text-text-tertiary transition-colors hover:bg-surface-subtle hover:text-text-secondary"
+        >
+          <AppIcon name="common/paperclip" size={16} />
+        </button>
+
         <ToolbarToggle
           icon="common/globe"
           label={t("Chat", "WebSearch")}

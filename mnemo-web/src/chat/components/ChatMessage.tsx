@@ -7,6 +7,7 @@ import { toast } from "@/stores/toast"
 
 import { useChatStore } from "../store"
 import type { ChatMessageView } from "../types"
+import { MessageAttachments } from "./Attachment"
 import { ChatTracePanel } from "./ChatTracePanel"
 import { FailureNotice } from "./FailureNotice"
 import { Markdown } from "./Markdown"
@@ -104,9 +105,14 @@ function UserMessage({
 
   return (
     <div className="group flex flex-col items-end gap-1">
-      <div className="max-w-[560px] rounded-xl bg-card px-4 py-2.5 text-body-medium whitespace-pre-wrap text-foreground">
-        {message.content}
-      </div>
+      {message.attachments && message.attachments.length > 0 ? (
+        <MessageAttachments attachments={message.attachments} />
+      ) : null}
+      {message.content ? (
+        <div className="max-w-[560px] rounded-xl bg-card px-4 py-2.5 text-body-medium whitespace-pre-wrap text-foreground">
+          {message.content}
+        </div>
+      ) : null}
       {onEdit && !isBusy ? (
         <button
           type="button"

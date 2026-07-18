@@ -103,15 +103,25 @@ public sealed record AssistantModeDto(string Mode);
 public sealed record ChatFeedbackDto(int Value);
 
 /// <summary>
-/// A message attachment as the browser sees it: kind + display name only. The absolute
-/// local path stored on disk never crosses to the client; a served asset id is added
-/// when the /assets surface lands (attachment upload path).
+/// A message attachment as the browser sees it: kind, display name, and a served asset
+/// id. The absolute local path stored on disk never crosses to the client — the client
+/// fetches the bytes via <c>GET /api/chat/assets/{assetId}</c>. AssetId is null for a
+/// path the host will not serve (e.g. a desktop-picked file outside the managed store).
 /// </summary>
-public sealed record ChatAttachmentDto(string Kind, string? DisplayName)
+public sealed record ChatAttachmentDto(string Kind, string? DisplayName, string? AssetId)
 {
-    public static ChatAttachmentDto FromModel(ChatModulePersistedAttachment a) =>
-        new(a.Kind == ChatAttachmentKind.Image ? "image" : "file", a.DisplayName);
+    public static ChatAttachmentDto FromModel(ChatModulePersistedAttachment a) => new(
+        a.Kind == ChatAttachmentKind.Image ? "image" : "file",
+        a.DisplayName,
+        Mnemo.Host.Chat.ChatAssetStore.AssetIdForPath(a.Path));
 }
+
+/// <summary>
+/// An uploaded chat asset: the id the client references it by, its kind (image/file), and
+/// the original file name. Returned by the upload endpoint and echoed back on the turn
+/// request so the finished user message can record its attachments.
+/// </summary>
+public sealed record ChatAssetDto(string AssetId, string Kind, string? DisplayName);
 
 /// <summary>Resolves a conversation's sidebar title the same way the desktop app does.</summary>
 internal static class ChatTitle

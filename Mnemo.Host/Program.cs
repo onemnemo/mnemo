@@ -108,6 +108,7 @@ public static class Program
         app.MapNav();
         app.MapChat();
         app.MapChatTurns();
+        app.MapChatAssets();
         app.MapAi();
 
         if (options.DevMode)

@@ -43,8 +43,17 @@ export interface ChatProcessStep {
   toolCalls: ChatToolCall[] | null
 }
 
-/** A message attachment as the browser sees it: kind + display name only (no local path crosses the wire). */
+/** A message attachment as the browser sees it: kind, display name, and a served asset id. */
 export interface ChatAttachment {
+  kind: "image" | "file"
+  displayName: string | null
+  /** Fetch the bytes from /api/chat/assets/{assetId}. Null for a path the host won't serve. */
+  assetId: string | null
+}
+
+/** An uploaded chat asset, returned by POST /api/chat/assets and echoed back on the turn request. */
+export interface ChatAsset {
+  assetId: string
   kind: "image" | "file"
   displayName: string | null
 }
@@ -85,6 +94,8 @@ export interface ChatTurnRequest {
    * failed edit/regenerate leaves the replaced messages in place.
    */
   truncateFromIndex: number | null
+  /** Already-uploaded assets to record on this user message (display only; not sent to the model). */
+  attachments: ChatAsset[] | null
 }
 
 /** Stage of a tool call as it crosses the turn stream; a call arrives running then terminal, correlated by id. */
