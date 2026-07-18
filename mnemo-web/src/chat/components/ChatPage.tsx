@@ -25,6 +25,8 @@ export function ChatPage() {
   const setMode = useChatStore((s) => s.setMode)
   const setWebSearch = useChatStore((s) => s.setWebSearch)
   const retryLastTurn = useChatStore((s) => s.retryLastTurn)
+  const regenerateLastTurn = useChatStore((s) => s.regenerateLastTurn)
+  const editAndResend = useChatStore((s) => s.editAndResend)
 
   useEffect(() => {
     void init()
@@ -72,7 +74,13 @@ export function ChatPage() {
           </div>
         ) : (
           <>
-            <ChatThread messages={messages} onRetry={() => void retryLastTurn()} onSuggestion={setInput} />
+            <ChatThread
+              messages={messages}
+              onRetry={() => void retryLastTurn()}
+              onSuggestion={setInput}
+              onRegenerate={() => void regenerateLastTurn()}
+              onEdit={(index, text) => void editAndResend(index, text)}
+            />
             <div className="border-t border-line px-6 py-3">
               <div className="mx-auto max-w-[700px]">
                 {composer}

@@ -63,6 +63,12 @@ public static class ChatTurnEndpoint
             : null;
         var priorMessages = conversation?.Messages ?? new List<ChatModulePersistedMessage>();
 
+        // Edit-and-resend / regenerate: drop the message tail this turn replaces from the
+        // context window. The same cut is re-applied at persist time (below), so history and
+        // transcript stay in step; an out-of-range index means "nothing to cut" (append only).
+        if (request.TruncateFromIndex is int cut && cut >= 0 && cut < priorMessages.Count)
+            priorMessages = priorMessages.Take(cut).ToList();
+
         // Hydrate this conversation's rolling memory so the injector can fold its summary into context.
         ChatTurnMemory.Hydrate(memoryStore, logger, conversation?.MemorySnapshotJson);
 
@@ -170,7 +176,7 @@ public static class ChatTurnEndpoint
             await producer.ConfigureAwait(false);
             turns.Complete(request.TurnId);
             await PersistTurnAsync(history, trace, localize, id, mode, turnStartUtc, request.Message, outcome,
-                priorMessages, memoryStore, summarizer, logger).ConfigureAwait(false);
+                priorMessages, request.TruncateFromIndex, memoryStore, summarizer, logger).ConfigureAwait(false);
         }
     }
 
@@ -200,6 +206,7 @@ public static class ChatTurnEndpoint
         string userMessage,
         TurnOutcome outcome,
         IReadOnlyList<ChatModulePersistedMessage> priorMessages,
+        int? truncateFromIndex,
         IConversationMemoryStore memoryStore,
         IConversationSummarizer summarizer,
         ILoggerService logger)
@@ -255,7 +262,7 @@ public static class ChatTurnEndpoint
         // Last-activity reflects turn COMPLETION (the desktop stamps it after streaming), so the
         // sidebar sort and day-bucketing land the same in either app.
         await ChatTurnPersistence.AppendTurnAsync(
-                history, conversationId, mode, DateTime.UtcNow, userMsg, assistantMsg, memorySnapshotJson)
+                history, conversationId, mode, DateTime.UtcNow, userMsg, assistantMsg, memorySnapshotJson, truncateFromIndex)
             .ConfigureAwait(false);
     }
 

@@ -70,6 +70,8 @@ interface ChatState {
   setFeedback: (index: number, value: number) => void
   sendMessage: (text: string) => Promise<void>
   retryLastTurn: () => Promise<void>
+  regenerateLastTurn: () => Promise<void>
+  editAndResend: (index: number, text: string) => Promise<void>
   stop: () => void
 }
 
@@ -182,7 +184,12 @@ export const useChatStore = create<ChatState>((set, get) => {
     }
   }
 
-  async function runTurn(conversationId: string, message: string, mode: AssistantMode): Promise<void> {
+  async function runTurn(
+    conversationId: string,
+    message: string,
+    mode: AssistantMode,
+    truncateFromIndex: number | null = null,
+  ): Promise<void> {
     const t = currentT()
     const turn: ActiveTurn = {
       turnId: crypto.randomUUID(),
@@ -200,7 +207,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     try {
       await streamTurn(
         conversationId,
-        { turnId: turn.turnId, message, assistantMode: mode },
+        { turnId: turn.turnId, message, assistantMode: mode, truncateFromIndex },
         { signal: turn.abort.signal, onEvent: (evt) => handleEvent(evt, t) },
       )
     } catch (err) {
@@ -385,6 +392,51 @@ export const useChatStore = create<ChatState>((set, get) => {
         isEphemeral: false,
       })
       await runTurn(conversationId, userText, s.assistantMode)
+    },
+
+    async regenerateLastTurn() {
+      const s = get()
+      if (s.isBusy) return
+      const { activeId, isEphemeral } = s
+      if (!activeId || isEphemeral) return
+
+      // Regenerate replaces the answer to the last user message.
+      let idx = -1
+      for (let i = s.messages.length - 1; i >= 0; i--) {
+        if (s.messages[i].isUser) {
+          idx = i
+          break
+        }
+      }
+      if (idx < 0) return
+
+      const userText = s.messages[idx].content
+      const assistantMsg = makeMessage({ content: "", isUser: false, streaming: true, processThreadExpanded: true })
+
+      // Drop the old answer, keep the user message, stream a fresh one. truncateFromIndex
+      // cuts the persisted pair server-side — but only if this turn succeeds, so a failed
+      // regenerate leaves the previous answer intact.
+      set({ messages: [...s.messages.slice(0, idx + 1), assistantMsg], isBusy: true })
+      await runTurn(activeId, userText, s.assistantMode, idx)
+    },
+
+    async editAndResend(index, text) {
+      const s = get()
+      if (s.isBusy) return
+      const trimmed = text.trim()
+      const target = s.messages[index]
+      if (!trimmed || !target || !target.isUser) return
+
+      const { activeId, isEphemeral } = s
+      if (!activeId || isEphemeral) return
+
+      const userMsg = makeMessage({ content: trimmed, isUser: true })
+      const assistantMsg = makeMessage({ content: "", isUser: false, streaming: true, processThreadExpanded: true })
+
+      // Replace the edited message, drop everything after it, and run from there.
+      // truncateFromIndex applies the same cut server-side on success.
+      set({ messages: [...s.messages.slice(0, index), userMsg, assistantMsg], isBusy: true })
+      await runTurn(activeId, trimmed, s.assistantMode, index)
     },
 
     stop() {

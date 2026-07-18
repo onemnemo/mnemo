@@ -18,7 +18,8 @@ public static class ChatTurnPersistence
         DateTime lastActivityUtc,
         ChatModulePersistedMessage userMessage,
         ChatModulePersistedMessage assistantMessage,
-        string? memorySnapshotJson = null)
+        string? memorySnapshotJson = null,
+        int? truncateFromIndex = null)
     {
         // Independent of the request lifetime: a client disconnect must not lose a finished turn.
         var load = await history.LoadAsync().ConfigureAwait(false);
@@ -32,6 +33,12 @@ public static class ChatTurnPersistence
             conversation = new ChatModulePersistedConversation { Id = conversationId };
             document.Conversations.Add(conversation);
         }
+
+        // Edit-and-resend / regenerate cut the replaced tail here, at persist time, so it is
+        // dropped atomically with appending the fresh pair — a failed turn never reaches this
+        // method, leaving the messages it would have replaced intact.
+        if (truncateFromIndex is int cut && cut >= 0 && cut < conversation.Messages.Count)
+            conversation.Messages.RemoveRange(cut, conversation.Messages.Count - cut);
 
         conversation.AssistantMode = assistantMode;
         conversation.LastActivityUtc = lastActivityUtc;

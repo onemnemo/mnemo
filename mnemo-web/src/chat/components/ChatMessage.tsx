@@ -1,3 +1,5 @@
+import { useState } from "react"
+
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
@@ -11,27 +13,116 @@ import { Markdown } from "./Markdown"
 
 interface ChatMessageProps {
   index: number
+  isLast?: boolean
   message: ChatMessageView
   onRetry?: () => void
   onSuggestion?: (text: string) => void
+  onRegenerate?: () => void
+  onEdit?: (index: number, text: string) => void
 }
 
-export function ChatMessage({ index, message, onRetry, onSuggestion }: ChatMessageProps) {
-  if (message.isUser) return <UserMessage message={message} />
-  return <AssistantMessage index={index} message={message} onRetry={onRetry} onSuggestion={onSuggestion} />
-}
-
-function UserMessage({ message }: { message: ChatMessageView }) {
+export function ChatMessage({ index, isLast, message, onRetry, onSuggestion, onRegenerate, onEdit }: ChatMessageProps) {
+  if (message.isUser) return <UserMessage index={index} message={message} onEdit={onEdit} />
   return (
-    <div className="flex justify-end">
+    <AssistantMessage
+      index={index}
+      isLast={isLast}
+      message={message}
+      onRetry={onRetry}
+      onSuggestion={onSuggestion}
+      onRegenerate={onRegenerate}
+    />
+  )
+}
+
+function UserMessage({
+  index,
+  message,
+  onEdit,
+}: {
+  index: number
+  message: ChatMessageView
+  onEdit?: (index: number, text: string) => void
+}) {
+  const t = useT()
+  const isBusy = useChatStore((s) => s.isBusy)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(message.content)
+
+  const begin = () => {
+    setDraft(message.content)
+    setEditing(true)
+  }
+  const submit = () => {
+    const text = draft.trim()
+    if (!text) return
+    setEditing(false)
+    onEdit?.(index, text)
+  }
+
+  if (editing) {
+    return (
+      <div className="flex justify-end">
+        <div className="w-full max-w-[560px] rounded-xl border border-input bg-[var(--text-control-background)] p-2 focus-within:border-[var(--text-control-border-focused)]">
+          <textarea
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault()
+                setEditing(false)
+              } else if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault()
+                submit()
+              }
+            }}
+            rows={Math.min(8, draft.split("\n").length)}
+            className="block w-full resize-none bg-transparent px-2 py-1.5 text-body-medium text-foreground focus:outline-none"
+          />
+          <div className="mt-1 flex justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="rounded-lg px-3 py-1 text-body-small text-text-tertiary transition-colors hover:text-text-secondary"
+            >
+              {t("Common", "Cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!draft.trim()}
+              className="rounded-lg bg-brand px-3 py-1 text-body-small text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              {t("Common", "Save")}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="group flex flex-col items-end gap-1">
       <div className="max-w-[560px] rounded-xl bg-card px-4 py-2.5 text-body-medium whitespace-pre-wrap text-foreground">
         {message.content}
       </div>
+      {onEdit && !isBusy ? (
+        <button
+          type="button"
+          onClick={begin}
+          title={t("Chat", "EditMessage")}
+          aria-label={t("Chat", "EditMessage")}
+          className="grid size-7 place-items-center rounded-md text-text-tertiary opacity-0 transition hover:bg-surface-subtle hover:text-text-primary group-hover:opacity-100"
+        >
+          <AppIcon name="common/pencil" size={13} />
+        </button>
+      ) : null}
     </div>
   )
 }
 
-function AssistantMessage({ index, message, onRetry, onSuggestion }: ChatMessageProps) {
+function AssistantMessage({ index, isLast, message, onRetry, onSuggestion, onRegenerate }: ChatMessageProps) {
   const streaming = message.streaming === true
   const awaitingFirstToken = streaming && message.content.length === 0 && !message.notice
   const showBody = message.content.length > 0 && !message.notice
@@ -53,7 +144,14 @@ function AssistantMessage({ index, message, onRetry, onSuggestion }: ChatMessage
         <Suggestions suggestions={message.suggestions} onSuggestion={onSuggestion} />
       ) : null}
 
-      {showActions ? <ActionBar index={index} content={message.content} feedback={message.feedback} /> : null}
+      {showActions ? (
+        <ActionBar
+          index={index}
+          content={message.content}
+          feedback={message.feedback}
+          onRegenerate={isLast ? onRegenerate : undefined}
+        />
+      ) : null}
     </div>
   )
 }
@@ -105,7 +203,17 @@ function Suggestions({ suggestions, onSuggestion }: { suggestions: string[]; onS
   )
 }
 
-function ActionBar({ index, content, feedback }: { index: number; content: string; feedback: number }) {
+function ActionBar({
+  index,
+  content,
+  feedback,
+  onRegenerate,
+}: {
+  index: number
+  content: string
+  feedback: number
+  onRegenerate?: () => void
+}) {
   const t = useT()
   const setFeedback = useChatStore((s) => s.setFeedback)
   const copy = () => {
@@ -132,6 +240,9 @@ function ActionBar({ index, content, feedback }: { index: number; content: strin
         active={feedback === 2}
         onClick={() => vote(2)}
       />
+      {onRegenerate ? (
+        <ActionButton icon="common/refresh" label={t("Chat", "Regenerate")} onClick={onRegenerate} />
+      ) : null}
     </div>
   )
 }

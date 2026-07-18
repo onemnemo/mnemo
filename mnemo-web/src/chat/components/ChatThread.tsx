@@ -10,11 +10,13 @@ interface ChatThreadProps {
   messages: ChatMessageView[]
   onRetry: () => void
   onSuggestion: (text: string) => void
+  onRegenerate: () => void
+  onEdit: (index: number, text: string) => void
 }
 
 const BOTTOM_THRESHOLD = 24
 
-export function ChatThread({ messages, onRetry, onSuggestion }: ChatThreadProps) {
+export function ChatThread({ messages, onRetry, onSuggestion, onRegenerate, onEdit }: ChatThreadProps) {
   const t = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
@@ -50,7 +52,16 @@ export function ChatThread({ messages, onRetry, onSuggestion }: ChatThreadProps)
       <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto">
         <div className="mx-auto flex max-w-[700px] flex-col gap-6 px-6 py-8">
           {messages.map((message, i) => (
-            <ChatMessage key={i} index={i} message={message} onRetry={onRetry} onSuggestion={onSuggestion} />
+            <ChatMessage
+              key={i}
+              index={i}
+              isLast={i === messages.length - 1}
+              message={message}
+              onRetry={onRetry}
+              onSuggestion={onSuggestion}
+              onRegenerate={onRegenerate}
+              onEdit={onEdit}
+            />
           ))}
         </div>
       </div>

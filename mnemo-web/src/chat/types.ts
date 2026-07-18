@@ -79,6 +79,12 @@ export interface ChatTurnRequest {
   turnId: string
   message: string
   assistantMode: AssistantMode | null
+  /**
+   * Edit-and-resend / regenerate: cut the conversation to this message index before the
+   * turn runs. Null for a normal turn. The cut lands only if the turn succeeds, so a
+   * failed edit/regenerate leaves the replaced messages in place.
+   */
+  truncateFromIndex: number | null
 }
 
 /** Stage of a tool call as it crosses the turn stream; a call arrives running then terminal, correlated by id. */
