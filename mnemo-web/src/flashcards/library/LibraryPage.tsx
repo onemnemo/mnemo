@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, useRef } from "react"
 
 import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
@@ -7,11 +7,24 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu"
 import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
+import { toast } from "@/stores/toast"
 
-import { useAggregateDueQuery, useCreateDeck, useCreateFolder, useDecksQuery, useFoldersQuery } from "../api"
+import {
+  useAggregateDueQuery,
+  useApplyLibraryMove,
+  useCreateDeck,
+  useCreateFolder,
+  useDecksQuery,
+  useFoldersQuery,
+  type LibraryWrites,
+} from "../api"
 import { DueBanner } from "./components/DueBanner"
 import { LibraryToolbar } from "./components/LibraryToolbar"
 import { LibraryTree } from "./components/LibraryTree"
+import { DragLayer } from "./dnd/DragLayer"
+import type { DragHandle, DropTarget } from "./dnd/model"
+import { planDeckMove, planFolderMove } from "./dnd/plan"
+import { useLibraryDrag } from "./dnd/useLibraryDrag"
 import { useLibraryView } from "./store"
 import { buildLibrary } from "./tree"
 
@@ -65,6 +78,31 @@ export function LibraryPage() {
 
   const folderIds = useMemo(() => (folders.data ?? []).map((f) => f.id), [folders.data])
 
+  const surfaceRef = useRef<HTMLDivElement>(null)
+  const applyMove = useApplyLibraryMove()
+
+  const plan = (handle: DragHandle, target: DropTarget): LibraryWrites | null => {
+    // Planned from the orders currently in hand, so while a move is still settling there is
+    // nothing to plan against: a second drop would renumber using figures the server has
+    // already replaced and undo the one in flight.
+    if (applyMove.isPending) return null
+
+    const writes =
+      handle.kind === "deck"
+        ? planDeckMove(handle.id, target.parentId, decks.data ?? [])
+        : planFolderMove(handle.id, target, folders.data ?? [])
+
+    return writes.folders.length === 0 && !writes.deck ? null : writes
+  }
+
+  const onDrop = (writes: LibraryWrites) =>
+    applyMove.mutate(writes, {
+      onError: () =>
+        toast.warning(fc("LibraryMoveErrorTitle"), { description: fc("LibraryMoveErrorMessage") }),
+    })
+
+  const drag = useLibraryDrag({ surfaceRef, folders: folders.data ?? [], plan, onDrop })
+
   return (
     <div className="mx-auto flex max-w-[900px] flex-col gap-4 px-10 pt-[26px] pb-8">
       <header className="flex items-start justify-between gap-4">
@@ -115,8 +153,12 @@ export function LibraryPage() {
           totals={model.totals}
           onOpenDeck={(id) => navigate("flashcard-deck", id)}
           onToggleFolder={toggleFolder}
+          drag={drag}
+          surfaceRef={surfaceRef}
         />
       ) : null}
+
+      <DragLayer {...drag} />
 
       {showEmpty ? (
         <EmptyState

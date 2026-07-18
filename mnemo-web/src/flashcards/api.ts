@@ -95,3 +95,31 @@ export function useSaveFolder() {
 export function useDeleteFolder() {
   return useLibraryMutation((id: string) => apiSend(`/deck-folders/${id}`, { method: "DELETE" }))
 }
+
+/** One reorganize's worth of writes: folder rows to save, and at most one deck to re-home. */
+export interface LibraryWrites {
+  folders: (SaveFolderDto & { id: string })[]
+  deck?: MoveDeckDto & { id: string }
+}
+
+/**
+ * Applies a reorganize as a single unit of work. Reordering renumbers every sibling that
+ * shifted and there is no batch endpoint for folders, so the writes go out one at a time - but
+ * the library is invalidated once at the end rather than per write, or the tree would repaint
+ * itself mid-move. Invalidated on failure too: a run that stops half way still moved rows.
+ */
+export function useApplyLibraryMove() {
+  const client = useQueryClient()
+  return useMutation<void, ApiError, LibraryWrites>({
+    mutationFn: async ({ folders, deck }) => {
+      for (const { id, ...body } of folders) {
+        await apiSend(`/deck-folders/${id}`, { ...json(body), method: "PUT" })
+      }
+      if (deck) {
+        const { id, ...body } = deck
+        await apiSend(`/decks/${id}/move`, json(body))
+      }
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: libraryKey }),
+  })
+}

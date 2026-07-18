@@ -1,8 +1,9 @@
-import type { ReactNode } from "react"
+import type { ReactNode, RefObject } from "react"
 
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
+import type { LibraryDrag } from "../dnd/useLibraryDrag"
 import type { LibraryRow, LibraryTotals } from "../tree"
 import { DeckRow } from "./DeckRow"
 import { FolderRow } from "./FolderRow"
@@ -14,17 +15,22 @@ export function LibraryTree({
   totals,
   onOpenDeck,
   onToggleFolder,
+  drag,
+  surfaceRef,
 }: {
   rows: LibraryRow[]
   totals: LibraryTotals
   onOpenDeck: (id: string) => void
   onToggleFolder: (id: string) => void
+  drag: LibraryDrag
+  /** The whole card is the drop surface: anywhere on it that is not a row means the root. */
+  surfaceRef: RefObject<HTMLDivElement | null>
 }) {
   const t = useT()
   const fc = (key: string) => t("Flashcards", key)
 
   return (
-    <div className="overflow-hidden rounded-lg border border-line bg-surface">
+    <div ref={surfaceRef} className="overflow-hidden rounded-lg border border-line bg-surface">
       <div className={cn(ROW_GRID, "h-8 border-b border-divider-subtle")}>
         <HeadCell className="text-left">{fc("ColDeck")}</HeadCell>
         <HeadCell>{fc("ColNew")}</HeadCell>
@@ -37,9 +43,9 @@ export function LibraryTree({
       <div role="rowgroup">
         {rows.map((row) =>
           row.kind === "folder" ? (
-            <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} />
+            <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} drag={drag} />
           ) : (
-            <DeckRow key={`deck:${row.id}`} row={row} onOpen={onOpenDeck} />
+            <DeckRow key={`deck:${row.id}`} row={row} onOpen={onOpenDeck} drag={drag} />
           ),
         )}
       </div>

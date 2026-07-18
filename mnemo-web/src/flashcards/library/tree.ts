@@ -89,6 +89,11 @@ function sortDecks(decks: DeckSummaryDto[], mode: SortMode): DeckSummaryDto[] {
   }
 }
 
+/** Sibling order among folders: the stored order, with name breaking ties. */
+export function compareFolders(a: FolderDto, b: FolderDto): number {
+  return a.order - b.order || collator.compare(a.name, b.name)
+}
+
 /** Nests the flat folder list, ordering siblings by their stored order then name. */
 function buildFolderNodes(folders: FolderDto[]): FolderNode[] {
   const known = new Set(folders.map((f) => f.id))
@@ -109,11 +114,8 @@ function buildFolderNodes(folders: FolderDto[]): FolderNode[] {
     else roots.push(node)
   }
 
-  const orderThenName = (a: FolderNode, b: FolderNode) =>
-    a.folder.order - b.folder.order || collator.compare(a.folder.name, b.folder.name)
-
   const sortTree = (list: FolderNode[]) => {
-    list.sort(orderThenName)
+    list.sort((a, b) => compareFolders(a.folder, b.folder))
     for (const node of list) sortTree(node.children)
   }
   sortTree(roots)

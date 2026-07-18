@@ -1,6 +1,8 @@
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
+import type { DragHandle } from "../dnd/model"
+import type { LibraryDrag } from "../dnd/useLibraryDrag"
 import { RETENTION_HIGH_THRESHOLD, RETENTION_TRACK_WIDTH, retentionFillWidth, type DeckRowModel } from "../tree"
 import { DeckRowMenu } from "./DeckRowMenu"
 import { DEPTH_INDENT, METRIC_CLASS, ROW_GRID } from "./rowLayout"
@@ -9,23 +11,49 @@ import { DEPTH_INDENT, METRIC_CLASS, ROW_GRID } from "./rowLayout"
  * One deck in the library table. A deck with nothing waiting fades back and
  * trades its three count columns for a single "Up to date" note.
  */
-export function DeckRow({ row, onOpen }: { row: DeckRowModel; onOpen: (id: string) => void }) {
+export function DeckRow({
+  row,
+  onOpen,
+  drag,
+}: {
+  row: DeckRowModel
+  onOpen: (id: string) => void
+  drag: LibraryDrag
+}) {
   const t = useT()
   const { deck, dueToday } = row
   const upToDate = dueToday === 0
   const retentionHigh = deck.retentionPercent >= RETENTION_HIGH_THRESHOLD
 
+  const handle: DragHandle = {
+    key: `deck:${deck.id}`,
+    kind: "deck",
+    id: deck.id,
+    parentId: deck.folderId,
+    label: deck.name,
+    subtitle: t("Flashcards", "DeckCardCountFormat", { 0: deck.totalCards }),
+  }
+
   return (
     <div
       role="row"
       tabIndex={0}
-      onClick={() => onOpen(deck.id)}
+      data-row-key={handle.key}
+      data-row-kind="deck"
+      data-row-id={deck.id}
+      data-row-depth={row.depth}
+      data-row-folder={deck.folderId ?? ""}
+      onPointerDown={(event) => drag.press(event, handle)}
+      onClick={() => !drag.suppressClick(handle.key) && onOpen(deck.id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault()
           onOpen(deck.id)
         }
       }}
+      // The dimming while dragging has to beat the "up to date" fade, so it is set here
+      // rather than added as another opacity class.
+      style={{ opacity: drag.sourceKey === handle.key ? 0.35 : undefined }}
       className={cn(
         ROW_GRID,
         "group relative h-[38px] cursor-pointer border-b border-divider-subtle outline-none",

@@ -162,6 +162,8 @@
     "ReviewSettingsDeleteConfirmMessage": "Delete \"{0}\"? This cannot be undone.",
     "ReviewSettingsDeleteBlockedTitle": "Can't delete preset",
     "ReviewSettingsDeleteBlockedMessage": "This preset is still used by one or more decks.",
+    "LibraryMoveErrorTitle": "Couldn't finish moving that",
+    "LibraryMoveErrorMessage": "Part of the move may not have been saved. The library has been refreshed.",
     "ReviewSettingsLoadErrorTitle": "Couldn't load review settings",
     "ReviewSettingsErrorTitle": "Something went wrong",
     "ReviewSettingsSaveErrorTitle": "Couldn't save review settings",

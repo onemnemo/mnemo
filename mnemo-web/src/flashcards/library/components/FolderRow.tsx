@@ -7,17 +7,36 @@ import { cn } from "@/lib/utils"
 import { dialog } from "@/stores/dialog"
 
 import { useDeleteFolder, useSaveFolder } from "../../api"
+import type { DragHandle } from "../dnd/model"
+import type { LibraryDrag } from "../dnd/useLibraryDrag"
 import type { FolderRowModel } from "../tree"
 import { DEPTH_INDENT, METRIC_CLASS, ROW_GRID } from "./rowLayout"
 
 /** A folder in the library table: its own row, plus its subtree's totals. */
-export function FolderRow({ row, onToggle }: { row: FolderRowModel; onToggle: (id: string) => void }) {
+export function FolderRow({
+  row,
+  onToggle,
+  drag,
+}: {
+  row: FolderRowModel
+  onToggle: (id: string) => void
+  drag: LibraryDrag
+}) {
   const t = useT()
   const saveFolder = useSaveFolder()
   const deleteFolder = useDeleteFolder()
   const [editing, setEditing] = useState(false)
   const { folder, counts } = row
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
+
+  const handle: DragHandle = {
+    key: `folder:${folder.id}`,
+    kind: "folder",
+    id: folder.id,
+    parentId: folder.parentId,
+    label: folder.name,
+    subtitle: fc("DeckCountFormat", { 0: counts.deckCount }),
+  }
 
   const commitRename = async (name: string) => {
     setEditing(false)
@@ -41,7 +60,13 @@ export function FolderRow({ row, onToggle }: { row: FolderRowModel; onToggle: (i
     <div
       role="row"
       tabIndex={0}
-      onClick={() => !editing && onToggle(folder.id)}
+      data-row-key={handle.key}
+      data-row-kind="folder"
+      data-row-id={folder.id}
+      data-row-depth={row.depth}
+      data-row-folder={folder.id}
+      onPointerDown={(event) => !editing && drag.press(event, handle)}
+      onClick={() => !drag.suppressClick(handle.key) && !editing && onToggle(folder.id)}
       onDoubleClick={() => setEditing(true)}
       onKeyDown={(event) => {
         if (editing) return
@@ -50,6 +75,7 @@ export function FolderRow({ row, onToggle }: { row: FolderRowModel; onToggle: (i
           onToggle(folder.id)
         }
       }}
+      style={{ opacity: drag.sourceKey === handle.key ? 0.35 : undefined }}
       className={cn(
         ROW_GRID,
         "group h-[38px] cursor-pointer border-b border-divider-subtle outline-none",
