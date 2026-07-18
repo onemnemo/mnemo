@@ -227,7 +227,12 @@ public sealed class FsrsScheduler : IFsrsScheduler
             * Math.Pow(difficulty, -weights[12])
             * (Math.Pow(stability + 1d, weights[13]) - 1d)
             * Math.Exp(weights[14] * (1d - retrievability));
-        return Math.Max(updated, MinStability);
+
+        // Without this ceiling the term above overtakes the stability the card already had, so a
+        // card forgotten after a long absence comes back scheduled further out than if it had never
+        // lapsed. It bites hardest on weak cards: at a stability of one day, a month away is enough.
+        var cap = stability / Math.Exp(weights[17] * weights[18]);
+        return Math.Max(Math.Min(updated, cap), MinStability);
     }
 
     private static double Clamp(double value, double min, double max) => Math.Min(max, Math.Max(min, value));
