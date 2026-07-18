@@ -12,7 +12,7 @@ export function DueBanner({ due, deckCount }: { due: DueCountsDto; deckCount: nu
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
 
   return (
-    <div className="rounded-xl border border-line bg-surface px-[18px] py-[13px] text-right">
+    <div className="rounded-lg border border-line bg-surface px-[18px] py-[13px] text-right">
       <p className="text-body-small font-semibold text-text-primary">
         {fc("DueTodayCountFormat", { 0: due.total.toLocaleString() })}
       </p>

@@ -24,7 +24,7 @@ export function LibraryTree({
   const fc = (key: string) => t("Flashcards", key)
 
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-surface">
+    <div className="overflow-hidden rounded-lg border border-line bg-surface">
       <div className={cn(ROW_GRID, "h-8 border-b border-divider-subtle")}>
         <HeadCell className="text-left">{fc("ColDeck")}</HeadCell>
         <HeadCell>{fc("ColNew")}</HeadCell>
