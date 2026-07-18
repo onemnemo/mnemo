@@ -113,6 +113,7 @@ public static class Program
         app.MapFlashcardStudySessions();
         app.MapFlashcardTests();
         app.MapFlashcardPresets();
+        app.MapFlashcardTransfer();
 
         if (options.DevMode)
         {

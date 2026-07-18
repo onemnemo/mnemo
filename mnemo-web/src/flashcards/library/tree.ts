@@ -164,10 +164,21 @@ export interface BuildLibraryOptions {
   collapsed: ReadonlySet<string>
 }
 
+/**
+ * The decks a search leaves in scope, collapsed folders included. Separate from the row list
+ * because a collapsed folder hides its decks from the table without taking them out of scope -
+ * anything acting on "what the library is showing", like an export, has to ask this rather than
+ * count rows, or twirling a folder shut would quietly change what it operates on.
+ */
+export function decksInScope(decks: DeckSummaryDto[], search: string): DeckSummaryDto[] {
+  const term = search.trim().toLowerCase()
+  return term.length === 0 ? decks : decks.filter((d) => d.name.toLowerCase().includes(term))
+}
+
 export function buildLibrary({ folders, decks, search, sort, collapsed }: BuildLibraryOptions): LibraryModel {
   const term = search.trim().toLowerCase()
   const searching = term.length > 0
-  const visible = searching ? decks.filter((d) => d.name.toLowerCase().includes(term)) : decks
+  const visible = decksInScope(decks, search)
 
   const known = new Set(folders.map((f) => f.id))
   // A deck whose folder was deleted out from under it belongs at the root, not nowhere.

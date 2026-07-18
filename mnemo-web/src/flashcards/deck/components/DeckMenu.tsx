@@ -7,6 +7,7 @@ import { dialog } from "@/stores/dialog"
 
 import { useDecksQuery, useDeleteDeck, useFoldersQuery, useMoveDeck, useUpdateDeck } from "../../api"
 import { useReviewSettings } from "../../presets/store"
+import { useTransfer } from "../../transfer/store"
 import { fetchAllCardIds, useSuspendCards } from "../api"
 
 /** The deck's own flyout, opened from the ellipsis button beside Study. */
@@ -88,15 +89,22 @@ export function DeckMenu({ deck }: { deck: DeckSummaryDto }) {
           ))}
         </MenuSubMenu>
 
-        {/* Export arrives with the transfer work later this phase; the row stays
-            visible but inert until then. */}
         <MenuItem
           icon="flyout/settings"
           onSelect={() => useReviewSettings.getState().open(deck.id, deck.name)}
         >
           {fc("ReviewSettingsMenu")}
         </MenuItem>
-        <MenuItem icon="flyout/export" hint=".apkg · .csv" disabled>
+        <MenuItem
+          icon="flyout/export"
+          hint=".apkg · .csv · .mnemo"
+          onSelect={() =>
+            useTransfer.getState().open({
+              direction: "export",
+              scope: { label: deck.name, deckIds: [deck.id] },
+            })
+          }
+        >
           {fc("Export")}
         </MenuItem>
 

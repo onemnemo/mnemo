@@ -25,8 +25,9 @@ import { DragLayer } from "./dnd/DragLayer"
 import type { DragHandle, DropTarget } from "./dnd/model"
 import { planDeckMove, planFolderMove } from "./dnd/plan"
 import { useLibraryDrag } from "./dnd/useLibraryDrag"
+import { useTransfer } from "../transfer/store"
 import { useLibraryView } from "./store"
-import { buildLibrary } from "./tree"
+import { buildLibrary, decksInScope } from "./tree"
 
 export function LibraryPage() {
   const t = useT()
@@ -103,6 +104,18 @@ export function LibraryPage() {
 
   const drag = useLibraryDrag({ surfaceRef, folders: folders.data ?? [], plan, onDrop })
 
+  // Export from here covers what the search leaves in scope, the way the desktop scopes it -
+  // deliberately NOT the visible rows, because a collapsed folder hides its decks from the table
+  // while they are still very much part of "All decks".
+  const openTransfer = () =>
+    useTransfer.getState().open({
+      direction: "both",
+      scope: {
+        label: fc("TransferScopeAllDecks"),
+        deckIds: decksInScope(decks.data ?? [], search).map((deck) => deck.id),
+      },
+    })
+
   return (
     <div className="mx-auto flex max-w-[900px] flex-col gap-4 px-10 pt-[26px] pb-8">
       <header className="flex items-start justify-between gap-4">
@@ -117,8 +130,7 @@ export function LibraryPage() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {/* Import lands with the transfer work later this phase. */}
-          <Button variant="outline" size="sm" disabled>
+          <Button variant="outline" size="sm" onClick={openTransfer}>
             <AppIcon name="common/download" size={14} />
             {fc("Import")}
           </Button>

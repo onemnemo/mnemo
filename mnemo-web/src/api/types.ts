@@ -329,3 +329,53 @@ export interface SavePresetDto {
   buryRelated: boolean
   autoReveal: AutoReveal
 }
+
+// --- Import / export -------------------------------------------------------
+
+/** How an import resolves an item that already exists. Only .mnemo packages carry ids to collide on. */
+export type ConflictPolicy = "KeepBoth" | "Skip" | "Replace"
+
+/** Mirrors Mnemo.Host/Contracts/TransferDto.cs TransferFormatDto. */
+export interface TransferFormatDto {
+  formatId: string
+  displayName: string
+  /** Lowercase and dotted, e.g. ".apkg". The first one is what an export of this format produces. */
+  extensions: string[]
+  supportsImport: boolean
+  supportsExport: boolean
+}
+
+/** Mirrors Mnemo.Host/Contracts/TransferDto.cs TransferUploadDto. */
+export interface TransferUploadDto {
+  uploadId: string
+  fileName: string
+  sizeBytes: number
+  formatId: string
+  formatName: string
+  /** False when the file staged but could not be read; the warnings say why. */
+  canImport: boolean
+  /** Null when the format cannot say how many cards it holds until it is imported (.mnemo). */
+  cardCount: number | null
+  warnings: string[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/TransferDto.cs TransferImportDto. */
+export interface TransferImportDto {
+  uploadIds: string[]
+  conflictPolicy: ConflictPolicy
+}
+
+/** Mirrors Mnemo.Host/Contracts/TransferDto.cs TransferImportResultDto. */
+export interface TransferImportResultDto {
+  succeededFiles: number
+  failedFiles: number
+  importedCards: number
+  warnings: string[]
+  errors: string[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/TransferDto.cs TransferExportDto. */
+export interface TransferExportDto {
+  formatId: string
+  deckIds: string[]
+}
