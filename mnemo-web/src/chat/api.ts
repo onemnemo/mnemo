@@ -42,6 +42,19 @@ export function setConversationMode(id: string, mode: AssistantMode): Promise<As
   })
 }
 
+/**
+ * Sets reader feedback on an assistant message, keyed by its position in the
+ * conversation: 0 none, 1 up, 2 down. Messages are positional server-side, so the
+ * index is the same one the SPA rendered from the conversation DTO.
+ */
+export function setMessageFeedback(id: string, index: number, value: number): Promise<{ value: number }> {
+  return apiFetch<{ value: number }>(`/chat/conversations/${encodeURIComponent(id)}/messages/${index}/feedback`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ value }),
+  })
+}
+
 export function deleteConversation(id: string): Promise<void> {
   return apiSend(`/chat/conversations/${encodeURIComponent(id)}`, { method: "DELETE" })
 }

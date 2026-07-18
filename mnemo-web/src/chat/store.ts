@@ -12,6 +12,7 @@ import {
   fetchConversations,
   renameConversation as apiRenameConversation,
   setConversationMode,
+  setMessageFeedback,
 } from "./api"
 import { LiveTraceBuilder } from "./trace"
 import { cancelTurn, streamTurn } from "./turn-stream"
@@ -66,6 +67,7 @@ interface ChatState {
   deleteConversation: (id: string) => Promise<void>
   setMode: (mode: AssistantMode) => void
   setWebSearch: (enabled: boolean) => void
+  setFeedback: (index: number, value: number) => void
   sendMessage: (text: string) => Promise<void>
   retryLastTurn: () => Promise<void>
   stop: () => void
@@ -302,6 +304,32 @@ export const useChatStore = create<ChatState>((set, get) => {
     setWebSearch(enabled) {
       set({ webSearchEnabled: enabled })
       void putWebSearchEnabled(enabled).catch(() => {})
+    },
+
+    setFeedback(index, value) {
+      const { activeId, isEphemeral, messages } = get()
+      const target = messages[index]
+      // Only a persisted assistant message can carry feedback; a streaming/failed
+      // one has no server position to key on.
+      if (!activeId || isEphemeral || !target || target.isUser || target.streaming) return
+
+      const previous = target.feedback
+      if (previous === value) return
+
+      set((s) => {
+        const next = s.messages.slice()
+        next[index] = { ...next[index], feedback: value }
+        return { messages: next }
+      })
+
+      void setMessageFeedback(activeId, index, value).catch(() => {
+        // Roll back the optimistic set if the write didn't land.
+        set((s) => {
+          const next = s.messages.slice()
+          if (next[index]) next[index] = { ...next[index], feedback: previous }
+          return { messages: next }
+        })
+      })
     },
 
     async sendMessage(text) {

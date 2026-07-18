@@ -88,6 +88,38 @@ public static class ChatEndpoints
             return Results.Ok(new AssistantModeDto(mode));
         });
 
+        endpoints.MapPut("/api/chat/conversations/{id}/messages/{index:int}/feedback", async (string id, int index, ChatFeedbackDto body, IChatModuleHistoryService history, CancellationToken ct) =>
+        {
+            // 0 none, 1 up, 2 down; the client sends the desired final value (it owns the toggle).
+            if (body.Value is < 0 or > 2)
+                return Results.BadRequest(new ErrorDto("invalid_feedback", "Feedback must be 0 (none), 1 (up), or 2 (down)."));
+
+            var load = await history.LoadAsync(ct).ConfigureAwait(false);
+            if (!load.IsSuccess)
+                return HistoryError(load.ErrorMessage);
+
+            var doc = load.Value!;
+            var convo = doc.Conversations.FirstOrDefault(c => c.Id == id);
+            if (convo is null)
+                return Results.NotFound();
+
+            // Messages are positional (no id); the SPA feeds the same index it rendered from the DTO.
+            if (index < 0 || index >= convo.Messages.Count)
+                return Results.NotFound();
+
+            var message = convo.Messages[index];
+            if (message.IsUser)
+                return Results.BadRequest(new ErrorDto("feedback_on_user_message", "Feedback applies to assistant messages only."));
+
+            message.Feedback = body.Value;
+
+            var save = await history.SaveAsync(doc, ct).ConfigureAwait(false);
+            if (!save.IsSuccess)
+                return HistoryError(save.ErrorMessage);
+
+            return Results.Ok(new ChatFeedbackDto(body.Value));
+        });
+
         endpoints.MapDelete("/api/chat/conversations/{id}", async (string id, IChatModuleHistoryService history, CancellationToken ct) =>
         {
             var load = await history.LoadAsync(ct).ConfigureAwait(false);

@@ -99,6 +99,9 @@ public sealed record ChatToolCallDto(string Name, string Arguments, string Resul
 /// <summary>The conversation's response-length mode after normalization (Short/Normal/Detailed).</summary>
 public sealed record AssistantModeDto(string Mode);
 
+/// <summary>Body (and echo) of a reader-feedback update on an assistant message: 0 none, 1 up, 2 down.</summary>
+public sealed record ChatFeedbackDto(int Value);
+
 /// <summary>
 /// A message attachment as the browser sees it: kind + display name only. The absolute
 /// local path stored on disk never crosses to the client; a served asset id is added

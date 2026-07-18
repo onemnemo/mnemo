@@ -1,21 +1,24 @@
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
+import { cn } from "@/lib/utils"
 import { toast } from "@/stores/toast"
 
+import { useChatStore } from "../store"
 import type { ChatMessageView } from "../types"
 import { ChatTracePanel } from "./ChatTracePanel"
 import { FailureNotice } from "./FailureNotice"
 import { Markdown } from "./Markdown"
 
 interface ChatMessageProps {
+  index: number
   message: ChatMessageView
   onRetry?: () => void
   onSuggestion?: (text: string) => void
 }
 
-export function ChatMessage({ message, onRetry, onSuggestion }: ChatMessageProps) {
+export function ChatMessage({ index, message, onRetry, onSuggestion }: ChatMessageProps) {
   if (message.isUser) return <UserMessage message={message} />
-  return <AssistantMessage message={message} onRetry={onRetry} onSuggestion={onSuggestion} />
+  return <AssistantMessage index={index} message={message} onRetry={onRetry} onSuggestion={onSuggestion} />
 }
 
 function UserMessage({ message }: { message: ChatMessageView }) {
@@ -28,7 +31,7 @@ function UserMessage({ message }: { message: ChatMessageView }) {
   )
 }
 
-function AssistantMessage({ message, onRetry, onSuggestion }: ChatMessageProps) {
+function AssistantMessage({ index, message, onRetry, onSuggestion }: ChatMessageProps) {
   const streaming = message.streaming === true
   const awaitingFirstToken = streaming && message.content.length === 0 && !message.notice
   const showBody = message.content.length > 0 && !message.notice
@@ -50,7 +53,7 @@ function AssistantMessage({ message, onRetry, onSuggestion }: ChatMessageProps) 
         <Suggestions suggestions={message.suggestions} onSuggestion={onSuggestion} />
       ) : null}
 
-      {showActions ? <ActionBar content={message.content} /> : null}
+      {showActions ? <ActionBar index={index} content={message.content} feedback={message.feedback} /> : null}
     </div>
   )
 }
@@ -102,25 +105,61 @@ function Suggestions({ suggestions, onSuggestion }: { suggestions: string[]; onS
   )
 }
 
-function ActionBar({ content }: { content: string }) {
+function ActionBar({ index, content, feedback }: { index: number; content: string; feedback: number }) {
   const t = useT()
+  const setFeedback = useChatStore((s) => s.setFeedback)
   const copy = () => {
     void navigator.clipboard?.writeText(content).then(
       () => toast.success(t("Common", "Copied")),
       () => {},
     )
   }
+  // Clicking the active vote clears it (toggle); otherwise it replaces the other.
+  const vote = (value: number) => setFeedback(index, feedback === value ? 0 : value)
+
   return (
     <div className="mt-2 flex items-center gap-1">
-      <button
-        type="button"
-        onClick={copy}
-        title={t("Chat", "CopyMessage")}
-        aria-label={t("Chat", "CopyMessage")}
-        className="grid size-7 place-items-center rounded-md text-text-tertiary transition-colors hover:bg-surface-subtle hover:text-text-primary"
-      >
-        <AppIcon name="common/copy" size={14} />
-      </button>
+      <ActionButton icon="common/copy" label={t("Chat", "CopyMessage")} onClick={copy} />
+      <ActionButton
+        icon="common/thumbs-up"
+        label={t("Chat", "GoodResponse")}
+        active={feedback === 1}
+        onClick={() => vote(1)}
+      />
+      <ActionButton
+        icon="common/thumbs-down"
+        label={t("Chat", "BadResponse")}
+        active={feedback === 2}
+        onClick={() => vote(2)}
+      />
     </div>
+  )
+}
+
+function ActionButton({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: string
+  label: string
+  active?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      className={cn(
+        "grid size-7 place-items-center rounded-md transition-colors hover:bg-surface-subtle",
+        active ? "text-brand" : "text-text-tertiary hover:text-text-primary",
+      )}
+    >
+      <AppIcon name={icon} size={14} />
+    </button>
   )
 }

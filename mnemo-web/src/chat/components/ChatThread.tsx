@@ -50,7 +50,7 @@ export function ChatThread({ messages, onRetry, onSuggestion }: ChatThreadProps)
       <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto">
         <div className="mx-auto flex max-w-[700px] flex-col gap-6 px-6 py-8">
           {messages.map((message, i) => (
-            <ChatMessage key={i} message={message} onRetry={onRetry} onSuggestion={onSuggestion} />
+            <ChatMessage key={i} index={i} message={message} onRetry={onRetry} onSuggestion={onSuggestion} />
           ))}
         </div>
       </div>
