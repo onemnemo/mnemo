@@ -160,6 +160,77 @@ export interface CardPageDto {
   limit: number
 }
 
+// Study session shapes. The session lives on the server; the client names it by id and
+// re-renders from the whole state every call returns.
+
+export type SessionMode = "review" | "cram" | "test"
+export type SessionScope = "due" | "all"
+export type ReviewGrade = "again" | "hard" | "good" | "easy"
+export type AutoReveal = "off" | "five-seconds" | "ten-seconds"
+
+/**
+ * Mirrors Mnemo.Host/Contracts/StudySessionDto.cs StudyProgressDto. New/learning/due count what
+ * is left to see, completed counts what has left the queue, so they do not sum to total
+ * mid-session: a card graded back into a learning step is in neither group until it graduates.
+ */
+export interface StudyProgressDto {
+  "new": number
+  learning: number
+  due: number
+  completed: number
+  total: number
+}
+
+/** Mirrors Mnemo.Host/Contracts/StudySessionDto.cs StudyIntervalsDto. Preformatted, e.g. "10m". */
+export interface StudyIntervalsDto {
+  again: string
+  hard: string
+  good: string
+  easy: string
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/StudySessionDto.cs StudySessionDto. `current.front` carries the
+ * card's stored text, cloze markers included - masking the prompt and revealing the answer is
+ * the client's job. `startedEmpty` with `isFinished` is the "all caught up" case, as opposed to
+ * a session the reader worked through.
+ */
+export interface StudySessionDto {
+  sessionId: string
+  deckId: string
+  deckName: string
+  mode: SessionMode
+  scope: SessionScope
+  writesSchedule: boolean
+  autoReveal: AutoReveal
+  startedEmpty: boolean
+  isFinished: boolean
+  canUndo: boolean
+  /** Grades still standing; drives the confirm-on-leave prompt and the recorded effort. */
+  graded: number
+  current: CardDto | null
+  progress: StudyProgressDto
+  /** Null exactly when there is no current card. */
+  intervals: StudyIntervalsDto | null
+}
+
+/** Body for starting a session. Scope only applies to cram; review always draws the schedule. */
+export interface StartStudySessionDto {
+  deckId: string
+  mode: SessionMode
+  scope: SessionScope | null
+}
+
+/**
+ * Body for grading. `cardId` must be the card the reader is looking at: the server refuses a
+ * grade aimed at anything but the head of its queue (409), so a double-tap or a retried request
+ * cannot land on the next card instead of repeating the one it meant.
+ */
+export interface GradeCardDto {
+  cardId: string
+  grade: ReviewGrade
+}
+
 /** Body for creating a card. The server assigns id, timestamps and the initial schedule. */
 export interface CreateCardDto {
   type: CardType

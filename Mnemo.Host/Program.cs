@@ -110,6 +110,7 @@ public static class Program
         app.MapFlashcardLibrary();
         app.MapFlashcardCards();
         app.MapFlashcardAssets();
+        app.MapFlashcardStudySessions();
 
         if (options.DevMode)
         {

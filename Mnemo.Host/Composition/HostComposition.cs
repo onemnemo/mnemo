@@ -198,6 +198,9 @@ public static class HostComposition
         services.AddSingleton<IFlashcardStudyService, FlashcardStudyService>();
         services.AddSingleton<IFlashcardPresetService, FlashcardPresetService>();
         services.AddSingleton<IFlashcardStatsService, FlashcardStatsService>();
+
+        // Holds live study sessions, which the desktop kept in the study screen's ViewModel.
+        services.AddSingleton<Flashcards.StudySessionRegistry>();
         services.AddSingleton<IMnemoPackageService, MnemoPackageService>();
         services.AddSingleton<IMnemoPayloadHandler, NotesMnemoPayloadHandler>();
         services.AddSingleton<IMnemoPayloadHandler, SettingsMnemoPayloadHandler>();
