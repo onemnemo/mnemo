@@ -6,6 +6,7 @@ import { DialogHost } from "@/components/shell/DialogHost"
 import { ToastHost } from "@/components/shell/ToastHost"
 import { KeybindManagerOverlay } from "@/keybinds/manager/KeybindManagerOverlay"
 import { registerKeybindAction } from "@/keybinds/registry"
+import { OnboardingWizard } from "@/onboarding/OnboardingWizard"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
 
@@ -31,6 +32,7 @@ function App() {
       <ToastHost />
       <DialogHost />
       <KeybindManagerOverlay />
+      <OnboardingWizard />
     </>
   )
 }

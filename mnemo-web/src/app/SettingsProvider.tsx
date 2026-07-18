@@ -5,6 +5,7 @@ import { DEFAULT_LANGUAGE, useI18nStore } from "@/i18n/store"
 import { DEFAULT_THEME, isThemeId } from "@/lib/themes"
 import { fetchNav } from "@/nav/api"
 import { useNavStore } from "@/nav/store"
+import { useSettingsStore } from "@/settings/store"
 import { useThemeStore } from "@/stores/theme"
 
 // Startup gate: hydrate from the backend before first paint - app preferences
@@ -21,9 +22,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     let cancelled = false
 
     async function hydrate(): Promise<void> {
+      // The settings snapshot joins the startup fetch because two things need it
+      // before first paint: the first-run gate, and the user's display name in the
+      // chat greeting.
       const [settings, nav] = await Promise.all([
         fetchAppSettings().catch(() => null),
         fetchNav().catch(() => []),
+        useSettingsStore.getState().load(),
       ])
       if (cancelled) return
 

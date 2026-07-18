@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
+import { useSettingValue } from "@/settings/store"
 
 // The empty-conversation state: greeting, the shared composer, and four
 // quick-start pills that send their prompt immediately (as the desktop does).
@@ -19,9 +20,13 @@ interface ChatLandingProps {
 
 export function ChatLanding({ composer, onQuickAction }: ChatLandingProps) {
   const t = useT()
+  // Falls back to the nameless greeting until a display name is set, as the desktop does.
+  const name = useSettingValue("User.DisplayName", "").trim()
+  const greeting = name ? t("Chat", "GreetingFormat", { 0: name }) : t("Chat", "GreetingNoName")
+
   return (
     <div className="mx-auto flex min-h-full w-full max-w-[700px] flex-col justify-center px-6 py-10">
-      <h1 className="text-center text-heading-3 font-semibold text-foreground">{t("Chat", "GreetingNoName")}</h1>
+      <h1 className="text-center text-heading-3 font-semibold text-foreground">{greeting}</h1>
       <p className="mt-1 text-center text-body-medium text-text-tertiary">{t("Chat", "GreetingSubtitle")}</p>
 
       <div className="mt-6">{composer}</div>

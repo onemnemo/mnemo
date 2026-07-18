@@ -21,7 +21,10 @@ interface SettingsState {
   values: Record<string, SettingValue>
   /** Which write-only keys currently have a value stored. Secrets themselves never arrive. */
   secrets: Record<string, boolean>
+  /** A load has finished, successfully or not. */
   loaded: boolean
+  /** The last load failed, so `values` holds nothing rather than the stored state. */
+  failed: boolean
 
   load: () => Promise<void>
   setValue: (key: string, value: SettingValue) => Promise<void>
@@ -31,15 +34,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   values: {},
   secrets: {},
   loaded: false,
+  failed: false,
 
   load: async () => {
     try {
       const snapshot = await fetchSettingValues()
-      set({ values: snapshot.values, secrets: snapshot.secrets, loaded: true })
+      set({ values: snapshot.values, secrets: snapshot.secrets, loaded: true, failed: false })
     } catch {
       // Render the schema's defaults rather than blocking the page; the first
       // successful write reconciles them.
-      set({ loaded: true })
+      set({ loaded: true, failed: true })
     }
   },
 
@@ -81,4 +85,13 @@ export function useSecretIsSet(key: string): boolean {
 /** Non-reactive read, for callers outside React. */
 export function getSettingValue<T extends SettingValue>(key: string, fallback: T): T {
   return (useSettingsStore.getState().values[key] as T | undefined) ?? fallback
+}
+
+/**
+ * Whether to run first-time setup. Deliberately requires a successful load: if the
+ * snapshot could not be read, an already-onboarded user would otherwise be walked
+ * through the wizard again on every launch.
+ */
+export function useNeedsOnboarding(): boolean {
+  return useSettingsStore((s) => s.loaded && !s.failed && s.values["Onboarding.Completed"] !== true)
 }

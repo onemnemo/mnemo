@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 
 import { fetchAppInfo } from "../../api"
+import { formatVersion } from "../../version"
 import { SettingRowShell } from "../SettingRowShell"
 
 /**
@@ -20,7 +21,7 @@ export function CheckForUpdatesRow({ title, divider }: { title: string; divider:
   return (
     <SettingRowShell
       title={title}
-      description={t("Settings", "CurrentVersionLabelFormat", { 0: data?.version ?? "…" })}
+      description={t("Settings", "CurrentVersionLabelFormat", { 0: formatVersion(data?.version) })}
       divider={divider}
     >
       <Button variant="outline" size="sm" disabled>
