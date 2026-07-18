@@ -108,6 +108,7 @@ public static class Program
         app.MapChatAssets();
         app.MapAi();
         app.MapFlashcardLibrary();
+        app.MapFlashcardCards();
 
         if (options.DevMode)
         {
