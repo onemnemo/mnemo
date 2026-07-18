@@ -16,6 +16,7 @@ import { dueLabel, frontPreview } from "../cards"
 import { MONO_CELL, ROW_GRID } from "./rowLayout"
 
 export interface CardRowActions {
+  onEdit: (id: string) => void
   onFlag: (id: string, value: boolean) => void
   onSuspend: (id: string, value: boolean) => void
   onMove: (id: string, targetDeckId: string) => void
@@ -55,6 +56,7 @@ export function CardRow({
       <ContextMenuTrigger asChild>
         <div
           role="row"
+          onDoubleClick={() => actions.onEdit(card.id)}
           className={cn(
             ROW_GRID,
             "h-[37px] border-b border-divider-subtle",
@@ -109,8 +111,7 @@ export function CardRow({
       </ContextMenuTrigger>
 
       <ContextMenuContent>
-        {/* Editing arrives with the card editor, next in this phase. */}
-        <ContextMenuItem icon="flyout/rename" disabled>
+        <ContextMenuItem icon="flyout/rename" onSelect={() => actions.onEdit(card.id)}>
           {fc("EditCard")}
         </ContextMenuItem>
         <ContextMenuItem icon="common/flag" onSelect={() => actions.onFlag(card.id, !card.isFlagged)}>

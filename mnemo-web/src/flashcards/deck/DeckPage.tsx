@@ -7,6 +7,7 @@ import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 
 import { useDecksQuery } from "../api"
+import { useCardEditor } from "../editor/store"
 import {
   useCardTagsQuery,
   useCardsQuery,
@@ -38,6 +39,8 @@ export function DeckPage({ deckId }: { deckId?: string }) {
   const offset = useDeckView((s) => s.offset)
   const selected = useDeckView((s) => s.selected)
   const clearSelection = useDeckView((s) => s.clearSelection)
+  const openAdd = useCardEditor((s) => s.openAdd)
+  const openEdit = useCardEditor((s) => s.openEdit)
 
   useEffect(() => {
     if (deckId) openDeck(deckId)
@@ -127,6 +130,7 @@ export function DeckPage({ deckId }: { deckId?: string }) {
           moveTargets={moveTargets}
           now={now}
           actions={{
+            onEdit: (cardId) => openEdit(id, cardId),
             onFlag: (cardId, value) => void run(flagCards.mutateAsync({ cardIds: [cardId], value })),
             onSuspend: (cardId, value) => void run(suspendCards.mutateAsync({ cardIds: [cardId], value })),
             onMove: (cardId, targetDeckId) => void run(moveCards.mutateAsync({ cardIds: [cardId], targetDeckId })),
@@ -142,7 +146,7 @@ export function DeckPage({ deckId }: { deckId?: string }) {
           title={fc("DeckEmptyTitle")}
           description={fc("DeckEmptyDescription")}
           action={
-            <Button size="sm" disabled>
+            <Button size="sm" onClick={() => openAdd(id)}>
               {fc("DeckAddCards")}
             </Button>
           }

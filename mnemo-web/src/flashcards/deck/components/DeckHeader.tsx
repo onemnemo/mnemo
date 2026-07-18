@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 import { formatRelative } from "@/lib/relative-date"
 
+import { useCardEditor } from "../../editor/store"
 import { RETENTION_TRACK_WIDTH } from "../cards"
 import { DeckMenu } from "./DeckMenu"
 import { StudySplitButton } from "./StudySplitButton"
@@ -20,6 +21,7 @@ import { StudySplitButton } from "./StudySplitButton"
 export function DeckHeader({ deck }: { deck: DeckSummaryDto }) {
   const t = useT()
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
+  const openAdd = useCardEditor((state) => state.openAdd)
 
   const { learning, due, total: dueToday } = deck.dueCounts
   const retention = Math.min(100, Math.max(0, deck.retentionPercent))
@@ -79,8 +81,7 @@ export function DeckHeader({ deck }: { deck: DeckSummaryDto }) {
       </div>
 
       <div className="mt-0.5 flex shrink-0 items-center gap-2">
-        {/* Enabled with the card editor, next in this phase. */}
-        <Button variant="outline" size="sm" disabled>
+        <Button variant="outline" size="sm" onClick={() => openAdd(deck.id)}>
           <AppIcon name="common/plus" size={14} />
           {fc("DeckAddCards")}
         </Button>

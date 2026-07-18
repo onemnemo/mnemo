@@ -11,7 +11,8 @@ export interface ParsedChord {
   key: string
 }
 
-const isMac =
+/** Whether the primary modifier is Cmd rather than Ctrl, and how shortcuts should be spelled. */
+export const isMac =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent)
 
 export function parseChord(canonical: string): ParsedChord {
