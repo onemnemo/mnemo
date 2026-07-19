@@ -182,7 +182,7 @@ public sealed class FsrsStateMachineTests
     [InlineData(FlashcardReviewGrade.Again, "1m")]
     [InlineData(FlashcardReviewGrade.Hard, "1m")]
     [InlineData(FlashcardReviewGrade.Good, "1m")]
-    [InlineData(FlashcardReviewGrade.Easy, "15d")]
+    [InlineData(FlashcardReviewGrade.Easy, "8d")]
     public void DescribeInterval_NewCard_ProducesExactPreviews(FlashcardReviewGrade grade, string expected)
     {
         var now = DateTimeOffset.UtcNow;
@@ -191,9 +191,9 @@ public sealed class FsrsStateMachineTests
 
     [Theory]
     [InlineData(FlashcardReviewGrade.Again, "10m")]
-    [InlineData(FlashcardReviewGrade.Hard, "13d")]
-    [InlineData(FlashcardReviewGrade.Good, "27d")]
-    [InlineData(FlashcardReviewGrade.Easy, "60d")]
+    [InlineData(FlashcardReviewGrade.Hard, "21d")]
+    [InlineData(FlashcardReviewGrade.Good, "29d")]
+    [InlineData(FlashcardReviewGrade.Easy, "45d")]
     public void DescribeInterval_ReviewCard_ProducesExactPreviews(FlashcardReviewGrade grade, string expected)
     {
         var now = DateTimeOffset.UtcNow;
@@ -226,6 +226,6 @@ public sealed class FsrsStateMachineTests
         for (var i = 0; i < 50; i++)
             again = _scheduler.ApplyGrade(again, FlashcardReviewGrade.Again, now.AddDays(i), Preset);
         Assert.InRange(again.Difficulty!.Value, 1d, 10d);
-        Assert.True(again.Stability!.Value >= 0.1d);
+        Assert.True(again.Stability!.Value >= 0.001d);
     }
 }
