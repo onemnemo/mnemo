@@ -379,3 +379,66 @@ export interface TransferExportDto {
   formatId: string
   deckIds: string[]
 }
+
+// --- Notes -----------------------------------------------------------------
+
+/** Mirrors Mnemo.Host/Contracts/NoteDto.cs NoteSummaryDto. Dates are ISO 8601 strings. */
+export interface NoteSummaryDto {
+  id: string
+  title: string
+  folderId: string | null
+  parentNoteId: string | null
+  order: number
+  isFavorite: boolean
+  createdAt: string
+  modifiedAt: string
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/NoteDto.cs NoteDto.
+ *
+ * `blocks` is the stored block JSON exactly as the editor persisted it, so it is
+ * typed as unknown here on purpose: the wire shape has legacy variants that only
+ * the notes model knows how to read. Run it through `parseBlocks` from
+ * `@/notes/model/wire` rather than reaching into it. Null means a note written
+ * before the block editor existed, which has only `content`.
+ */
+export interface NoteDto extends NoteSummaryDto {
+  content: string
+  blocks: unknown[] | null
+}
+
+/** Mirrors Mnemo.Host/Contracts/NoteDto.cs CreateNoteDto. */
+export interface CreateNoteDto {
+  title?: string | null
+  folderId?: string | null
+  parentNoteId?: string | null
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/NoteDto.cs UpdateNoteMetadataDto. A full replace of
+ * everything a client may set about a note; there is no content field because
+ * content is never written this way.
+ */
+export interface UpdateNoteMetadataDto {
+  title: string
+  folderId: string | null
+  parentNoteId: string | null
+  order: number
+  isFavorite: boolean
+}
+
+/** Mirrors Mnemo.Host/Contracts/NoteDto.cs NoteFolderDto. */
+export interface NoteFolderDto {
+  id: string
+  name: string
+  parentId: string | null
+  order: number
+}
+
+/** Mirrors Mnemo.Host/Contracts/NoteDto.cs SaveNoteFolderDto. */
+export interface SaveNoteFolderDto {
+  name: string
+  parentId: string | null
+  order: number
+}

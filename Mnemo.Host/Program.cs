@@ -18,6 +18,7 @@ using Mnemo.Host.Flashcards;
 using Mnemo.Host.I18n;
 using Mnemo.Host.Keybinds;
 using Mnemo.Host.Nav;
+using Mnemo.Host.Notes;
 using Mnemo.Host.Settings;
 using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
@@ -114,6 +115,8 @@ public static class Program
         app.MapFlashcardTests();
         app.MapFlashcardPresets();
         app.MapFlashcardTransfer();
+        app.MapNotes();
+        app.MapNoteFolders();
 
         if (options.DevMode)
         {

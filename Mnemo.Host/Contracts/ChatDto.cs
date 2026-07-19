@@ -16,7 +16,7 @@ public sealed record ChatConversationSummaryDto(
     public static ChatConversationSummaryDto FromModel(ChatModulePersistedConversation c) => new(
         c.Id,
         ChatTitle.Derive(c),
-        ChatDtoTime.AsUtc(c.LastActivityUtc));
+        DtoTime.AsUtc(c.LastActivityUtc));
 }
 
 /// <summary>A full conversation with its messages, restored when the SPA opens a thread.</summary>
@@ -32,7 +32,7 @@ public sealed record ChatConversationDto(
         c.Id,
         ChatTitle.Derive(c),
         string.IsNullOrWhiteSpace(c.CustomTitle) ? null : c.CustomTitle.Trim(),
-        ChatDtoTime.AsUtc(c.LastActivityUtc),
+        DtoTime.AsUtc(c.LastActivityUtc),
         ChatStreamingHelper.NormalizeAssistantMode(c.AssistantMode),
         (c.Messages ?? new List<ChatModulePersistedMessage>()).Select(ChatMessageDto.FromModel).ToList());
 }
@@ -57,7 +57,7 @@ public sealed record ChatMessageDto(
     public static ChatMessageDto FromModel(ChatModulePersistedMessage m) => new(
         m.Content,
         m.IsUser,
-        ChatDtoTime.AsUtc(m.TimestampUtc),
+        DtoTime.AsUtc(m.TimestampUtc),
         m.Suggestions,
         m.Sources,
         m.Attachments?.Select(ChatAttachmentDto.FromModel).ToList(),
@@ -144,19 +144,4 @@ internal static class ChatTitle
     }
 
     private static string Clamp(string t) => t.Length > MaxLength ? t[..45] + "…" : t;
-}
-
-internal static class ChatDtoTime
-{
-    /// <summary>
-    /// Persisted timestamps are UTC by contract but may round-trip through storage with
-    /// an unspecified kind; stamping them Utc makes the JSON carry the trailing Z so the
-    /// SPA reads them as UTC instead of local time.
-    /// </summary>
-    public static DateTime AsUtc(DateTime value) => value.Kind switch
-    {
-        DateTimeKind.Utc => value,
-        DateTimeKind.Local => value.ToUniversalTime(),
-        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
-    };
 }
