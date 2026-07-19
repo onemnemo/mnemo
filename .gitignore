@@ -162,3 +162,9 @@ logs/
 docs/
 lucid-icons/
 Claude.md
+# Improvement notes and deferred rework, not part of the shipped repo
+future-review/
+
+# Local working notes, not shipped repo content
+plans/
+PHASE6_NOTES_PLAN.md
