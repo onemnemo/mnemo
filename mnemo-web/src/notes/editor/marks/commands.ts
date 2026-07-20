@@ -28,7 +28,7 @@
  * type at the right size for free, with no glyph sampling.
  */
 
-import { TextSelection, type Command, type SelectionRange } from 'prosemirror-state';
+import { TextSelection, type Command, type EditorState, type SelectionRange } from 'prosemirror-state';
 import type { Mark, MarkType, Node as PMNode } from 'prosemirror-model';
 
 /**
@@ -186,4 +186,72 @@ export function toggleFormat(kind: ToggleKind, token?: string): Command {
     }
     return true;
   };
+}
+
+/**
+ * Whether a format reads as "on" for the current selection — the state a toolbar
+ * button highlights by. This is the *same* decision `toggleFormat` makes about
+ * whether a click would clear or set, taken from the same helpers: a collapsed
+ * caret reads its stored/inherited marks, a range reads all-on/any-off, and a
+ * swatch reads all-on-with-this-token. One function, so the button can never
+ * disagree with what pressing it does — the readout/applier asymmetry the
+ * Avalonia toolbar had to guard against by hand cannot arise here.
+ *
+ * A swatch needs the token it is being tested for; without one it is not "active"
+ * in any specific colour, so this returns false rather than guessing.
+ */
+export function isFormatActive(state: EditorState, kind: ToggleKind, token?: string): boolean {
+  const policy = POLICY[kind];
+  const type = state.schema.marks[policy.markName];
+  if (!type) return false;
+  if (policy.family === 'swatch' && !token) return false;
+  const wantToken = policy.family === 'swatch' ? (token as string) : null;
+
+  const sel = state.selection;
+  if (sel instanceof TextSelection && sel.$cursor) {
+    const current = state.storedMarks ?? sel.$cursor.marks();
+    return policy.family === 'swatch'
+      ? swatchToken(markOfType(current, type)) === wantToken
+      : !!markOfType(current, type);
+  }
+  return rangeAllHave(state.doc, sel.ranges, type, wantToken);
+}
+
+/**
+ * The swatch token currently in force across the selection, or null when there
+ * is none or the selection mixes tokens. This is what a colour control reads to
+ * show its active swatch; `isFormatActive(state, family, token)` is the same
+ * answer narrowed to one candidate. Uniformity, not "appears anywhere", so a
+ * partly-coloured selection reads as mixed rather than falsely committed.
+ */
+export function activeSwatchToken(state: EditorState, kind: SwatchKind): string | null {
+  const policy = POLICY[kind];
+  const type = state.schema.marks[policy.markName];
+  if (!type) return null;
+
+  const sel = state.selection;
+  if (sel instanceof TextSelection && sel.$cursor) {
+    const current = state.storedMarks ?? sel.$cursor.marks();
+    return swatchToken(markOfType(current, type));
+  }
+
+  let token: string | null = null;
+  let uniform = true;
+  let sawInline = false;
+  let first = true;
+  for (const { $from, $to } of sel.ranges) {
+    state.doc.nodesBetween($from.pos, $to.pos, (node) => {
+      if (!node.isInline) return true;
+      sawInline = true;
+      const t = swatchToken(markOfType(node.marks, type));
+      if (first) {
+        token = t;
+        first = false;
+      } else if (t !== token) {
+        uniform = false;
+      }
+      return false;
+    });
+  }
+  return sawInline && uniform ? token : null;
 }
