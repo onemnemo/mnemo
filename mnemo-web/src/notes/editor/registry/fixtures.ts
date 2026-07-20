@@ -108,6 +108,10 @@ function headingPositionOf(_node: PMNode, offset: number): number {
 export const headingModule: AnyBlockModule = {
   nodeName: 'heading',
   wireTypes: ['Heading1', 'Heading2', 'Heading3', 'Heading4'],
+  // The one fixture where this is not the default: four wire types, one node.
+  wireTypeOf: (node) =>
+    (['Heading1', 'Heading2', 'Heading3', 'Heading4'] as const)[Number(node.attrs.level) - 1] ??
+    'Heading1',
   node: {
     content: 'line block*',
     group: 'block',
@@ -174,6 +178,7 @@ function paragraphPositionOf(_node: PMNode, offset: number): number {
 export const paragraphModule: AnyBlockModule = {
   nodeName: 'paragraph',
   wireTypes: ['Text'],
+  wireTypeOf: () => 'Text',
   node: {
     content: 'line block*',
     group: 'block',
@@ -309,6 +314,7 @@ export function makeTestBlockModule(overrides: BlockModuleFixture): AnyBlockModu
   const base: AnyBlockModule = {
     nodeName,
     wireTypes: overrides.wireTypes,
+    wireTypeOf: () => overrides.wireTypes[0],
     node: { group: 'block' },
     serialize: {
       toNode() {

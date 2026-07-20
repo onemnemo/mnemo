@@ -359,6 +359,17 @@ export interface BlockModule<TAttrs extends Record<string, unknown> = Record<str
    */
   realizedView?(args: RealizedBlockViewArgs<TAttrs>): RealizedBlockView;
 
+  /**
+   * The wire discriminant this specific node represents.
+   *
+   * `wireTypes` says what a module *may* produce; this says which one a given
+   * node *is*, which only differs for heading. Separate from `fromNode` because
+   * the outline needs the type of every block in the document and nothing else
+   * — going through `fromNode` would serialize the whole note, spans and
+   * payloads included, to read one enum per block.
+   */
+  wireTypeOf(node: PMNode): BlockType;
+
   /** Model <-> doc. Pure, synchronous, no editor access. Differentially testable. */
   readonly serialize: {
     toNode(block: Block, schema: BlockSchema, ctx: SerializeContext): PMNode;

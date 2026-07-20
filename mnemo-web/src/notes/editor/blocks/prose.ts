@@ -47,6 +47,10 @@ export function quoteBlock(deps: BlockDeps): AnyBlockModule {
 
 const headingTypes: readonly BlockType[] = ['Heading1', 'Heading2', 'Heading3', 'Heading4'];
 
+function headingTypeOf(node: PMNode): BlockType {
+  return headingTypes[Number(node.attrs.level) - 1] ?? 'Heading1';
+}
+
 export function headingBlock(deps: BlockDeps): AnyBlockModule {
   return defineBlock<{ level: number }>(
     {
@@ -62,11 +66,8 @@ export function headingBlock(deps: BlockDeps): AnyBlockModule {
         const level = headingTypes.indexOf(block.type) + 1;
         return { level: level > 0 ? level : 1 };
       },
-      wireFrom: (node) => {
-        const level = Number(node.attrs.level);
-        const type = headingTypes[level - 1] ?? 'Heading1';
-        return { type, payload: { kind: 'empty' as const } };
-      },
+      wireFrom: (node) => ({ type: headingTypeOf(node), payload: { kind: 'empty' as const } }),
+      wireTypeFrom: headingTypeOf,
       toMarkdown: (node, _ctx, inline) =>
         `${'#'.repeat(Number(node.attrs.level) || 1)} ${inline}\n`,
       estimate: (node: PMNode, ctx, text) => {

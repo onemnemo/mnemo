@@ -88,6 +88,13 @@ export interface BlockDefinition<TAttrs extends Record<string, unknown>> {
   /** The wire type and payload this node represents. */
   wireFrom(node: PMNode): { type: BlockType; payload: BlockPayload };
   /**
+   * The wire type alone, when the module owns more than one.
+   *
+   * Defaults to the module's sole wire type. Only heading needs this, and only
+   * because it maps four discriminants onto one node.
+   */
+  wireTypeFrom?(node: PMNode): BlockType;
+  /**
    * What goes in the line, when it is not simply `block.spans`.
    *
    * Two block types store one string twice: `Code` keeps its source in both
@@ -229,6 +236,8 @@ export function defineBlock<TAttrs extends Record<string, unknown>>(
     nodeName: def.nodeName,
     wireTypes: def.wireTypes,
     node,
+
+    wireTypeOf: def.wireTypeFrom ?? (() => def.wireTypes[0]),
 
     serialize: {
       toNode(block: Block, schema: BlockSchema, ctx: SerializeContext): PMNode {
