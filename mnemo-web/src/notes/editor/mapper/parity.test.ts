@@ -14,6 +14,7 @@ import { createEditorSchema } from '../schema';
 import { createDocumentMapper } from './document';
 import { parseBlock, parseSpans, serializeBlock } from '../../model/wire';
 import { defaultTextStyle, type Block, type InlineSpan } from '../../model/types';
+import { isWellFormedBlockSid } from '../../model/sid';
 
 const { schema, registry } = createEditorSchema();
 const mapper = createDocumentMapper(schema, registry);
@@ -200,6 +201,30 @@ describe('payload and type agreement', () => {
       const result = mapper.toDoc([blockOf({ type, payload: { kind: 'empty' } })]);
       expect(result.ok, `${type} with an empty payload was rejected`).toBe(true);
     }
+  });
+});
+
+describe('a note with no blocks', () => {
+  // `Note.Blocks` is nullable and a newly created note leaves it null, so this
+  // is the state every note passes through — not a corruption case. The schema
+  // requires `block+`, so without seeding, creating a note would quarantine it.
+  it('opens as one empty text block rather than quarantining', () => {
+    const result = mapper.toDoc([]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.doc.childCount).toBe(1);
+    expect(result.doc.firstChild?.type.name).toBe('paragraph');
+    expect(result.doc.textContent).toBe('');
+  });
+
+  it('gives the seeded block a real id and a well-formed sid', () => {
+    // A block with no sid cannot be addressed by the model at all, and the
+    // first save would persist that hole.
+    const result = mapper.toDoc([]);
+    if (!result.ok) throw new Error('seeded document was quarantined');
+    const [block] = mapper.fromDoc(result.doc);
+    expect(block.id).not.toBe('');
+    expect(isWellFormedBlockSid(block.sid)).toBe(true);
   });
 });
 

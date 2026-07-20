@@ -17,6 +17,7 @@ import type { Node as PMNode, Schema } from 'prosemirror-model';
 import type { BlockRegistry } from '../registry/build';
 import type { BlockSchema, SerializeContext } from '../registry/types';
 import type { Block } from '../../model/types';
+import { seedBlock as defaultSeedBlock } from '../../model/factory';
 import { normalizeBlocks, type NormalizeIssue } from './normalize';
 
 export interface QuarantineReason {
@@ -32,11 +33,34 @@ export type ToDocResult =
 export interface DocumentMapper {
   toDoc(blocks: readonly Block[]): ToDocResult;
   fromDoc(doc: PMNode): Block[];
+  /**
+   * One block, converted through its owning module.
+   *
+   * The op compiler needs this: `add` builds a node from a freshly minted block
+   * and `type` rebuilds one through the model layer so a converted block cannot
+   * end up carrying a payload its new type has nowhere to put. Throws for an
+   * unmapped wire type, which is unreachable for a block the compiler itself
+   * created.
+   */
+  toNode(block: Block): PMNode;
+  fromNode(node: PMNode): Block;
+}
+
+export interface MapperDeps {
+  /**
+   * Supplies the block an empty note opens with.
+   *
+   * Injected rather than imported so the mapper stays a pure function of what
+   * it is built with: the default mints a real GUID and sid, which is exactly
+   * what a test wanting reproducible output does not want.
+   */
+  seedBlock(): Block;
 }
 
 export function createDocumentMapper(
   schema: Schema,
   registry: BlockRegistry,
+  deps: MapperDeps = { seedBlock: defaultSeedBlock },
 ): DocumentMapper {
   const blockSchema = schema as unknown as BlockSchema;
 
@@ -65,7 +89,13 @@ export function createDocumentMapper(
 
   return {
     toDoc(blocks) {
-      const { blocks: normalized, issues } = normalizeBlocks(blocks);
+      // A note with no blocks is an ordinary state, not corruption: `Note.Blocks`
+      // is nullable and a newly created note leaves it null. The schema requires
+      // `block+`, so seeding here is what keeps a brand-new note from opening as
+      // a quarantined document — which would look to the user exactly like their
+      // note failing to load.
+      const source = blocks.length > 0 ? blocks : [deps.seedBlock()];
+      const { blocks: normalized, issues } = normalizeBlocks(source);
       if (issues.length > 0) {
         return {
           ok: false,
@@ -104,6 +134,9 @@ export function createDocumentMapper(
       doc.forEach((child) => blocks.push(ctx.fromChild(child)));
       return blocks;
     },
+
+    toNode: (block) => ctx.toChild(block),
+    fromNode: (node) => ctx.fromChild(node),
   };
 }
 
