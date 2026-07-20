@@ -34,3 +34,4 @@ export type {
   EquationEditorHandle,
   EquationEditorOptions,
 } from './equation-editor';
+export { insertEquation } from './commands';
