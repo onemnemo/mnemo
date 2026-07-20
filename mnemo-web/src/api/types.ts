@@ -385,6 +385,10 @@ export interface TransferExportDto {
 /** Mirrors Mnemo.Host/Contracts/NoteDto.cs NoteSummaryDto. Dates are ISO 8601 strings. */
 export interface NoteSummaryDto {
   id: string
+  /** Short, corpus-unique note id. This is the one that crosses the tool boundary; `id` is internal. */
+  sid: string
+  /** Monotonic revision. Send it back as `baseVer` to commit content; it is how a stale write is caught. */
+  ver: number
   title: string
   folderId: string | null
   parentNoteId: string | null
@@ -413,6 +417,28 @@ export interface CreateNoteDto {
   title?: string | null
   folderId?: string | null
   parentNoteId?: string | null
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/NoteDto.cs CommitNoteContentDto — the only shape that
+ * writes note content.
+ *
+ * `baseVer` is the version the editor started from. The write lands only if the note is
+ * still on it; otherwise the server answers 409 with the version it actually holds and the
+ * client rebases. `requestId` must be stable across retries of the *same* edit and fresh
+ * for a new one — replaying an id is read as "this already landed", not as a second edit.
+ */
+export interface CommitNoteContentDto {
+  baseVer: number
+  requestId: string
+  blocks: unknown[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/NoteDto.cs NoteCommitResultDto. */
+export interface NoteCommitResultDto {
+  outcome: "Applied" | "AlreadyApplied" | "Stale" | "NotFound"
+  /** The note's version after the call — the new one when applied, the current one when stale. */
+  ver: number
 }
 
 /**

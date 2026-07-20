@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Mnemo.Core.Identity;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
@@ -8,16 +9,19 @@ using Mnemo.Host.Contracts;
 namespace Mnemo.Host.Notes;
 
 /// <summary>
-/// Reading, creating, retitling, filing and deleting notes.
+/// Reading, creating, retitling, filing and deleting notes, and the one endpoint that
+/// writes a note's body.
 /// <para>
-/// There is no endpoint here that writes a note's body, and adding one would be a
-/// mistake rather than an omission to fix: a note's content is only ever written
-/// through the versioned commit contract, which checks the client's base version
-/// before it accepts a change. A plain content <c>PUT</c> alongside it would be a
-/// second way to write the same bytes with none of those checks, and the two would
-/// drift the first time the commit path learned something the plain one did not.
-/// Every write below loads the stored note and replaces only metadata fields, so
-/// content cannot be lost through this file even by accident.
+/// That last one is <c>PUT /api/notes/{id}/content</c>, and it is deliberately the only
+/// one: it takes the version the client edited and applies the write only if the note is
+/// still on it. A plain content <c>PUT</c> alongside it would be a second way to write the
+/// same bytes with none of those checks, and the two would drift the first time the commit
+/// path learned something the plain one did not. The metadata endpoint keeps its half of
+/// that bargain by loading the stored note and replacing only metadata fields, so it cannot
+/// lose content even by accident.
+/// </para>
+/// <para>
+/// Every route here is closed until the sid migration completes; see <see cref="NotesReady"/>.
 /// </para>
 /// </summary>
 public static class NoteEndpoints
@@ -32,7 +36,7 @@ public static class NoteEndpoints
         {
             var all = await notes.GetAllNotesAsync().ConfigureAwait(false);
             return all.Select(NoteSummaryDto.FromModel).ToList();
-        });
+        }).RequireNotesMigrated();
 
         endpoints.MapGet("/api/notes/{id}", async (string id, INoteService notes) =>
         {
@@ -40,7 +44,7 @@ public static class NoteEndpoints
             return note is null
                 ? Results.NotFound(new ErrorDto("unknown_note", $"No note '{id}'."))
                 : Results.Ok(NoteDto.FromModel(note));
-        });
+        }).RequireNotesMigrated();
 
         endpoints.MapPost("/api/notes", async (
             CreateNoteDto body,
@@ -70,7 +74,7 @@ public static class NoteEndpoints
             return saved.IsSuccess
                 ? Results.Ok(NoteDto.FromModel(note))
                 : Results.StatusCode(StatusCodes.Status500InternalServerError);
-        });
+        }).RequireNotesMigrated();
 
         endpoints.MapPut("/api/notes/{id}/metadata", async (
             string id,
@@ -115,7 +119,7 @@ public static class NoteEndpoints
             return saved.IsSuccess
                 ? Results.NoContent()
                 : Results.StatusCode(StatusCodes.Status500InternalServerError);
-        });
+        }).RequireNotesMigrated();
 
         // Matches the desktop app: a hard delete of this note only. Child pages and
         // page blocks pointing here are left alone and render as a missing note,
@@ -129,7 +133,42 @@ public static class NoteEndpoints
             return deleted.IsSuccess
                 ? Results.NoContent()
                 : Results.StatusCode(StatusCodes.Status500InternalServerError);
-        });
+        }).RequireNotesMigrated();
+
+        // The only way a note's body is ever written.
+        endpoints.MapPut("/api/notes/{id}/content", async (
+            string id,
+            CommitNoteContentDto body,
+            INoteService notes,
+            INoteCommitStore commits) =>
+        {
+            if (string.IsNullOrWhiteSpace(body.RequestId))
+                return Results.BadRequest(new ErrorDto("invalid_request", "A commit needs a request id so a retry is not mistaken for a second edit."));
+
+            var stored = await notes.GetNoteAsync(id).ConfigureAwait(false);
+            if (stored is null)
+                return Results.NotFound(new ErrorDto("unknown_note", $"No note '{id}'."));
+
+            var blocks = body.Blocks?.ToList() ?? [];
+            if (BlockSids.TryPrepareForCommit(blocks, new SidGenerator()) is { } problem)
+                return Results.BadRequest(new ErrorDto("invalid_block_sid", problem));
+
+            // Only the body moves. Everything the metadata endpoint owns is read from storage, so a
+            // commit racing a rename cannot revert the rename.
+            stored.Blocks = blocks;
+
+            var result = await commits.CommitAsync(stored, body.BaseVer, body.RequestId).ConfigureAwait(false);
+            var payload = new NoteCommitResultDto(result.Outcome.ToString(), result.Ver);
+
+            return result.Outcome switch
+            {
+                NoteCommitOutcome.Applied or NoteCommitOutcome.AlreadyApplied => Results.Ok(payload),
+                // 409 rather than 400: the request was well formed, the note simply moved on. The
+                // client rebases on the returned version instead of correcting anything.
+                NoteCommitOutcome.Stale => Results.Conflict(payload),
+                _ => Results.NotFound(new ErrorDto("unknown_note", $"No note '{id}'.")),
+            };
+        }).RequireNotesMigrated();
     }
 
     /// <summary>

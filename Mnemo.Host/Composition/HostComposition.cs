@@ -19,6 +19,7 @@ using Mnemo.Infrastructure.Services.Mindmap;
 using Mnemo.Infrastructure.Services.Mindmap.Tools;
 using Mnemo.Infrastructure.Services.Notes;
 using Mnemo.Infrastructure.Services.Notes.Pdf;
+using Mnemo.Infrastructure.Services.Notes.Persistence;
 using Mnemo.Infrastructure.Services.Packaging;
 using Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 using Mnemo.Infrastructure.Services.Search;
@@ -175,6 +176,11 @@ public static class HostComposition
         // Tracks in-flight chat turns so the SSE stream endpoint and the stop button share cancellation.
         services.AddSingleton<Chat.ChatTurnRegistry>();
 
+        // Notes: the transactional writer, the sid/version backfill that gates note access, then the
+        // services that depend on both.
+        services.AddSingleton<NoteCommitStore>();
+        services.AddSingleton<INoteCommitStore>(sp => sp.GetRequiredService<NoteCommitStore>());
+        services.AddSingleton<INoteSidMigrator, NoteSidMigrator>();
         services.AddSingleton<INoteService, NoteService>();
         services.AddSingleton<INoteFolderService, NoteFolderService>();
         services.AddSingleton<INotePdfExportService, NotePdfExportService>();
@@ -336,5 +342,18 @@ public static class HostComposition
             .InitializeAsync().ConfigureAwait(false);
         _ = await services.GetRequiredService<IStorageProvider>()
             .LoadAsync<object>("__host_warmup__").ConfigureAwait(false);
+
+        try
+        {
+            await services.GetRequiredService<INoteSidMigrator>()
+                .MigrateAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Unlike the flashcard migration, a failure here is not shrugged off: the note endpoints
+            // read IsComplete and stay closed, so the app starts and every other module works while
+            // notes report unavailable. Serving a half-migrated corpus would be the worse outcome.
+            logger.Error("Mnemo.Host", "Note sid migration failed during startup; note endpoints stay closed.", ex);
+        }
     }
 }

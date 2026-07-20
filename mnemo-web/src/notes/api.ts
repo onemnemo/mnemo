@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { apiFetch, apiSend, ApiError } from "@/api/client"
 import type {
+  CommitNoteContentDto,
   CreateNoteDto,
+  NoteCommitResultDto,
   NoteDto,
   NoteFolderDto,
   NoteSummaryDto,
@@ -73,6 +75,20 @@ export function useCreateNote() {
 export function useUpdateNoteMetadata() {
   return useNotesMutation(({ id, ...body }: UpdateNoteMetadataDto & { id: string }) =>
     apiSend(`/notes/${id}/metadata`, { ...json(body), method: "PUT" }),
+  )
+}
+
+/**
+ * Writes a note's body. The only call that does.
+ *
+ * Send the `ver` the editor loaded as `baseVer`. A 409 means someone else committed first
+ * and the response carries the version actually stored — reload and rebase rather than
+ * retrying, which would only conflict again. Keep `requestId` stable while retrying one
+ * edit so a lost response resolves as `AlreadyApplied` instead of a spurious conflict.
+ */
+export function useCommitNoteContent() {
+  return useNotesMutation(({ id, ...body }: CommitNoteContentDto & { id: string }) =>
+    apiFetch<NoteCommitResultDto>(`/notes/${id}/content`, { ...json(body), method: "PUT" }),
   )
 }
 

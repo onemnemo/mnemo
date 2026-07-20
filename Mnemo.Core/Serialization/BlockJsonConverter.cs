@@ -55,6 +55,8 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
 
         if (TryGetPropertyCaseInsensitive(root, "id", out var idEl))
             block.Id = idEl.GetString() ?? block.Id;
+        if (TryGetPropertyCaseInsensitive(root, "sid", out var sidEl) && sidEl.ValueKind == JsonValueKind.String)
+            block.Sid = sidEl.GetString() ?? string.Empty;
         if (TryGetPropertyCaseInsensitive(root, "type", out var typeEl) && TryReadBlockType(typeEl, out BlockType bt))
             block.Type = bt;
         if (TryGetPropertyCaseInsensitive(root, "order", out var orderEl))
@@ -423,6 +425,12 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
     {
         writer.WriteStartObject();
         writer.WriteString("id", value.Id);
+
+        // Written only once assigned, so a note that has not been through the sid migration still
+        // round-trips to the exact bytes it was stored as.
+        if (!string.IsNullOrEmpty(value.Sid))
+            writer.WriteString("sid", value.Sid);
+
         writer.WriteString("type", value.Type.ToString());
         writer.WriteNumber("order", value.Order);
 

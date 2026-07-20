@@ -10,6 +10,7 @@
 
 import { normalizeSpans, plainSpan } from './spans';
 import {
+  allBlockTypes,
   defaultTextStyle,
   type Block,
   type BlockPayload,
@@ -17,12 +18,6 @@ import {
   type InlineSpan,
   type TextStyle,
 } from './types';
-
-const blockTypes: BlockType[] = [
-  'Text', 'Heading1', 'Heading2', 'Heading3', 'Heading4', 'BulletList',
-  'NumberedList', 'Checklist', 'Quote', 'Code', 'Divider', 'Image',
-  'ColumnGroup', 'TwoColumn', 'Equation', 'Page', 'Sketch',
-];
 
 type Json = Record<string, unknown>;
 
@@ -54,11 +49,11 @@ function isJson(value: unknown): value is Json {
 
 function parseBlockType(value: unknown): BlockType {
   if (typeof value === 'string') {
-    const match = blockTypes.find((t) => t.toLowerCase() === value.toLowerCase());
+    const match = allBlockTypes.find((t) => t.toLowerCase() === value.toLowerCase());
     if (match) return match;
   }
   // Older files stored the enum's ordinal.
-  if (typeof value === 'number' && blockTypes[value] !== undefined) return blockTypes[value];
+  if (typeof value === 'number' && allBlockTypes[value] !== undefined) return allBlockTypes[value];
   return 'Text';
 }
 
@@ -212,6 +207,10 @@ export function parseBlock(value: unknown): Block {
 
   return {
     id: str(prop(raw, 'id')) || crypto.randomUUID(),
+    // Deliberately not minted here the way `id` is: sids must be unique within
+    // the note, which only the server can check. Empty is the correct way to
+    // tell it this block is new.
+    sid: str(prop(raw, 'sid')),
     type,
     spans: normalizeSpans(spans),
     payload,
@@ -268,7 +267,15 @@ export function serializeBlock(block: Block): Json {
     meta: block.meta,
     order: block.order,
   };
-  if (block.children !== null) out.children = block.children.map(serializeBlock);
+  // Written only once assigned, matching BlockJsonConverter: a note that has
+  // not been through the sid migration must not gain empty sid fields.
+  if (block.sid !== '') out.sid = block.sid;
+  // Only when non-empty, matching the C# writer's `Count > 0`. An empty array
+  // is a shape that side never emits and drops on the next read, so writing one
+  // would make the two serializers disagree on a document neither can represent.
+  if (block.children !== null && block.children.length > 0) {
+    out.children = block.children.map(serializeBlock);
+  }
   return out;
 }
 

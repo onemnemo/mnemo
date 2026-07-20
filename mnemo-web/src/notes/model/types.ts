@@ -25,6 +25,23 @@ export type BlockType =
   | 'Page'
   | 'Sketch';
 
+/**
+ * Every block type, in the C# enum's declaration order — the ordinal fallback
+ * in `wire.ts` depends on that order.
+ *
+ * Built from an exhaustive record so adding an 18th `BlockType` without listing
+ * it here is a compile error. A plain array would type-check while silently
+ * shrinking every completeness check that walks it.
+ */
+const blockTypeMembers = {
+  Text: true, Heading1: true, Heading2: true, Heading3: true, Heading4: true,
+  BulletList: true, NumberedList: true, Checklist: true, Quote: true,
+  Code: true, Divider: true, Image: true, ColumnGroup: true, TwoColumn: true,
+  Equation: true, Page: true, Sketch: true,
+} satisfies Record<BlockType, true>;
+
+export const allBlockTypes = Object.keys(blockTypeMembers) as readonly BlockType[];
+
 /** Text-only annotations. Inline equations are their own span kind, never a style flag. */
 export interface TextStyle {
   bold: boolean;
@@ -100,6 +117,17 @@ export type BlockPayload =
 
 export interface Block {
   id: string;
+  /**
+   * Short id, unique within the note. Empty means "not yet assigned" — the
+   * server mints one on commit, and only the server may, because minting is
+   * check-and-retry against the ids already in scope.
+   *
+   * `id` stays the durable storage key; `sid` is the only identifier that
+   * crosses the model boundary to the AI surface, so it must survive every
+   * round trip. Dropping it on parse or on write reads to the server as a brand
+   * new block and re-mints an id the user has already seen in chat history.
+   */
+  sid: string;
   type: BlockType;
   /** Rich inline content. Equation/code/image blocks carry their data in `payload` instead. */
   spans: InlineSpan[];

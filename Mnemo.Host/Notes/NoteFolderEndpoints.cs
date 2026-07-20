@@ -18,7 +18,7 @@ public static class NoteFolderEndpoints
         {
             var all = await folders.GetAllFoldersAsync().ConfigureAwait(false);
             return all.Select(NoteFolderDto.FromModel).ToList();
-        });
+        }).RequireNotesMigrated();
 
         endpoints.MapPost("/api/note-folders", async (SaveNoteFolderDto body, INoteFolderService folders) =>
         {
@@ -38,7 +38,7 @@ public static class NoteFolderEndpoints
             return saved.IsSuccess
                 ? Results.Ok(NoteFolderDto.FromModel(folder))
                 : Results.StatusCode(StatusCodes.Status500InternalServerError);
-        });
+        }).RequireNotesMigrated();
 
         endpoints.MapPut("/api/note-folders/{id}", async (string id, SaveNoteFolderDto body, INoteFolderService folders) =>
         {
@@ -65,7 +65,7 @@ public static class NoteFolderEndpoints
             return saved.IsSuccess
                 ? Results.NoContent()
                 : Results.StatusCode(StatusCodes.Status500InternalServerError);
-        });
+        }).RequireNotesMigrated();
 
         // Deleting a folder lifts its contents to the root instead of cascading, so a
         // folder delete never destroys a note. The desktop app does this across several
@@ -100,7 +100,7 @@ public static class NoteFolderEndpoints
             return deleted.IsSuccess
                 ? Results.NoContent()
                 : Results.StatusCode(StatusCodes.Status500InternalServerError);
-        });
+        }).RequireNotesMigrated();
     }
 
     /// <summary>Null and empty both mean the root, and a client may send either.</summary>

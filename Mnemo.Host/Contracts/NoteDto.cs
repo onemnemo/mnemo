@@ -8,6 +8,8 @@ namespace Mnemo.Host.Contracts;
 /// </summary>
 public sealed record NoteSummaryDto(
     string Id,
+    string Sid,
+    long Ver,
     string Title,
     string? FolderId,
     string? ParentNoteId,
@@ -18,6 +20,8 @@ public sealed record NoteSummaryDto(
 {
     public static NoteSummaryDto FromModel(Note model) => new(
         model.NoteId,
+        model.Sid,
+        model.Ver,
         model.Title,
         model.FolderId,
         model.ParentNoteId,
@@ -39,6 +43,8 @@ public sealed record NoteSummaryDto(
 /// </summary>
 public sealed record NoteDto(
     string Id,
+    string Sid,
+    long Ver,
     string Title,
     string? FolderId,
     string? ParentNoteId,
@@ -51,6 +57,8 @@ public sealed record NoteDto(
 {
     public static NoteDto FromModel(Note model) => new(
         model.NoteId,
+        model.Sid,
+        model.Ver,
         model.Title,
         model.FolderId,
         model.ParentNoteId,
@@ -85,6 +93,28 @@ public sealed record UpdateNoteMetadataDto(
     string? ParentNoteId,
     int Order,
     bool IsFavorite);
+
+/// <summary>
+/// A complete replacement body for a note, and the only shape that writes note content.
+/// <para>
+/// <c>BaseVer</c> is the version the client edited. The write applies only if the note is still on
+/// it, so two clients editing the same note cannot silently overwrite each other — the second one
+/// is told it is stale and rebases instead. <c>RequestId</c> makes a retry safe: replaying the same
+/// id after a lost response is recognised as the write that already landed rather than rejected as
+/// a conflict.
+/// </para>
+/// <para>
+/// A whole snapshot rather than a delta because storage holds one JSON value per note; a delta
+/// protocol would need a second persistence format to be worth anything.
+/// </para>
+/// </summary>
+public sealed record CommitNoteContentDto(
+    long BaseVer,
+    string RequestId,
+    IReadOnlyList<Block> Blocks);
+
+/// <summary>The outcome of a content commit. <c>Ver</c> is the note's version after the call.</summary>
+public sealed record NoteCommitResultDto(string Outcome, long Ver);
 
 /// <summary>A folder in the notes tree.</summary>
 public sealed record NoteFolderDto(string Id, string Name, string? ParentId, int Order)

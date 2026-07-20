@@ -17,6 +17,7 @@ using Mnemo.Infrastructure.Services.Mindmap;
 using Mnemo.Infrastructure.Services.Mindmap.Tools;
 using Mnemo.Infrastructure.Services.Notes;
 using Mnemo.Infrastructure.Services.Notes.Pdf;
+using Mnemo.Infrastructure.Services.Notes.Persistence;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Services.Statistics;
@@ -111,6 +112,9 @@ public static class Bootstrapper
         services.AddSingleton<IAITaskManager, AITaskManager>();
         services.AddSingleton<IAiSystemMonitor, StubAiSystemMonitor>();
 
+        services.AddSingleton<NoteCommitStore>();
+        services.AddSingleton<INoteCommitStore>(sp => sp.GetRequiredService<NoteCommitStore>());
+        services.AddSingleton<INoteSidMigrator, NoteSidMigrator>();
         services.AddSingleton<INoteService, NoteService>();
         services.AddSingleton<INoteFolderService, NoteFolderService>();
         services.AddSingleton<INotePdfLatexImageRenderer, NotePdfLatexImageRenderer>();
@@ -247,6 +251,21 @@ public static class Bootstrapper
             catch (Exception ex)
             {
                 logger.Error("Bootstrapper", "Flashcard store migration failed during startup.", ex);
+            }
+        }
+
+        // Blocking, and before anything reads a note: the sid backfill has to finish before the notes
+        // module can assume every block is addressable. It is a fast no-op once complete.
+        using (perf.Measure("Startup", "NoteSidMigration"))
+        {
+            try
+            {
+                serviceProvider.GetRequiredService<INoteSidMigrator>()
+                    .MigrateAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                logger.Error("Bootstrapper", "Note sid migration failed during startup.", ex);
             }
         }
 

@@ -14,6 +14,22 @@ public class Note
     public string NoteId { get; set; } = Guid.NewGuid().ToString();
 
     /// <summary>
+    /// Short, corpus-unique identifier. This is the note id that crosses the model and tool
+    /// boundary; <see cref="NoteId"/> stays internal because it is the durable storage key.
+    /// Empty until the sid migration has run over this note.
+    /// </summary>
+    public string Sid { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Monotonic revision counter, incremented once per converged logical document change. Content
+    /// writes compare against it and swap, so it is what makes a stale write fail instead of
+    /// clobbering. It must never decrease — not even when content is restored to an earlier state,
+    /// because an old edit token would then become valid again for different content.
+    /// Zero means the note predates the migration.
+    /// </summary>
+    public long Ver { get; set; }
+
+    /// <summary>
     /// Display title of the note.
     /// </summary>
     public string Title { get; set; } = string.Empty;
