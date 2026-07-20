@@ -15,6 +15,7 @@
 
 import type {
   AttributeSpec,
+  Mark,
   MarkSpec,
   MarkType,
   Node as PMNode,
@@ -432,6 +433,11 @@ export interface InlineModule {
 export interface BlockSchema {
   nodes: Record<string, NodeType>;
   marks: Record<string, MarkType>;
+  /**
+   * Text nodes have no other constructor: `NodeType.create` throws on a text
+   * type, so a serializer that builds inline content needs this specifically.
+   */
+  text(text: string, marks?: readonly Mark[] | null): PMNode;
 }
 
 /**
