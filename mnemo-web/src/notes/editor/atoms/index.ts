@@ -28,3 +28,9 @@ export function withAtomViews(modules: readonly InlineModule[]): readonly Inline
 export { equationView } from './equation-view';
 export { fractionView } from './fraction-view';
 export { renderMath, fallbackClass } from './katex';
+export { mountEquationEditor } from './equation-editor';
+export type {
+  ArrowEscape,
+  EquationEditorHandle,
+  EquationEditorOptions,
+} from './equation-editor';
