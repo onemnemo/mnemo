@@ -4,4 +4,4 @@
  * what toggling one *does*.
  */
 
-export { toggleFormat, type ToggleKind } from './commands';
+export { toggleFormat, clearStoredMarks, type ToggleKind } from './commands';

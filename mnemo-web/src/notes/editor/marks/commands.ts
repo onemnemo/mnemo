@@ -31,6 +31,25 @@
 import { TextSelection, type Command, type SelectionRange } from 'prosemirror-state';
 import type { Mark, MarkType, Node as PMNode } from 'prosemirror-model';
 
+/**
+ * The sticky-typing escape: force the next character to carry no marks, even
+ * where the caret sits inside formatted text and would otherwise inherit it.
+ *
+ * This is the case an inherited-format model cannot express. `setStoredMarks([])`
+ * is not `setStoredMarks(null)` — null means "inherit from the caret position",
+ * the empty array means "explicitly none", which is the whole point. Refuses on a
+ * range (there is nothing to arm) and when there is nothing to clear, so a
+ * keybinding falls through instead of consuming the key for a no-op.
+ */
+export const clearStoredMarks: Command = (state, dispatch) => {
+  const sel = state.selection;
+  if (!(sel instanceof TextSelection) || !sel.$cursor) return false;
+  const current = state.storedMarks ?? sel.$cursor.marks();
+  if (current.length === 0) return false;
+  if (dispatch) dispatch(state.tr.setStoredMarks([]));
+  return true;
+};
+
 type FlagKind = 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'highlight';
 type SwatchKind = 'backgroundColor' | 'foregroundColor';
 type ScriptKind = 'subscript' | 'superscript';
