@@ -6,6 +6,14 @@
  */
 
 export { createViewHandle } from './handle';
+export { NodeViewPortals } from './NodeViewPortal';
+export {
+  createPortalRegistry,
+  mountPortalNodeView,
+  type PortalRegistry,
+  type PortalEntry,
+  type PortalNodeView,
+} from './portal-registry';
 export { toNodeViews, resolveServices } from './nodeviews';
 export { mountEditor, type MountEditorOptions, type MountedEditor } from './mount';
 export {
