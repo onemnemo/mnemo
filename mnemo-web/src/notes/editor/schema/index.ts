@@ -16,6 +16,7 @@ import type { BlockSchema } from '../registry/types';
 import { createInlineMapper, type InlineMapper } from '../mapper/inline';
 import { createBlockModules } from '../blocks';
 import { atomProjector } from '../blocks/shared';
+import { withAtomViews } from '../atoms';
 import { baseNodes } from './base';
 import { markModules } from './marks';
 import { inlineModules } from './inlines';
@@ -38,12 +39,17 @@ export function editorSchema(): EditorSchema {
 }
 
 export function createEditorSchema(): EditorSchema {
-  const inline = createInlineMapper(markModules, inlineModules);
-  const deps = { inline, projectAtom: atomProjector(inlineModules) };
+  // The atoms carry their KaTeX renderers only once composed here; the schema
+  // modules themselves stay render-free. Mapper and projector read serialize
+  // and projectText, which composition leaves untouched, so they get the same
+  // list the registry does.
+  const inlines = withAtomViews(inlineModules);
+  const inline = createInlineMapper(markModules, inlines);
+  const deps = { inline, projectAtom: atomProjector(inlines) };
   const blocks = createBlockModules(deps);
 
   const registry = buildBlockRegistry(
-    { blocks, marks: markModules, inlines: inlineModules },
+    { blocks, marks: markModules, inlines },
     { baseNodes },
   );
 
