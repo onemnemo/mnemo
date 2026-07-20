@@ -57,6 +57,38 @@ function parseBlockType(value: unknown): BlockType {
   return 'Text';
 }
 
+/**
+ * Themed colors that earlier builds wrote *instead of* a highlight flag.
+ *
+ * A build before `Highlight` existed persisted a highlight as nothing but one
+ * of these background colors, so reading them literally turns a highlight into
+ * a background swatch. That matters more here than it would in C#: the port
+ * models background as a design *token* (`"swatch5"`), so a raw hex fed through
+ * as if it were a token is not merely the wrong shade, it is not a token at all.
+ */
+const legacyHighlightColors = new Set(['#ffd7aa', '#5b3717', '#ffff00']);
+
+/**
+ * Applied when reading a stored *note*, not inside the span parser.
+ *
+ * C# promotes inside `ReadTextStyle`, which amounts to the same thing for a
+ * saved note. It cannot go there here because `parseSpans` is also what the
+ * cross-language differential uses to rebuild in-memory span state from its
+ * frozen fixture, and that fixture's palette contains `#FFD7AA` as an ordinary
+ * background color. Promoting in the parser rewrites the differential's inputs
+ * and it starts disagreeing with C# about operations that have nothing to do
+ * with legacy data — which is exactly how this was caught.
+ */
+function promoteLegacyHighlight(spans: InlineSpan[]): InlineSpan[] {
+  return spans.map((span) => {
+    const bg = span.style.backgroundColor;
+    if (span.style.highlight || bg === null || !legacyHighlightColors.has(bg.toLowerCase())) {
+      return span;
+    }
+    return { ...span, style: { ...span.style, highlight: true, backgroundColor: null } };
+  });
+}
+
 function parseTextStyle(value: unknown): TextStyle {
   if (!isJson(value)) return { ...defaultTextStyle };
   return {
@@ -144,6 +176,16 @@ function parsePayload(value: unknown): BlockPayload {
   }
 }
 
+/**
+ * Mirrors `NormalizeSplitRatio`. Applied **only** on the legacy meta path — a
+ * ratio stored in the payload is read verbatim on both sides, so normalizing it
+ * here would rewrite ratios the user set deliberately.
+ */
+function normalizeSplitRatio(raw: number): number {
+  if (!Number.isFinite(raw) || raw <= 0 || raw >= 1) return 0.5;
+  return Math.min(0.9, Math.max(0.1, raw));
+}
+
 /** Before payloads existed, typed data lived in `meta` alongside a plain `content` string. */
 function payloadFromLegacyMeta(type: BlockType, meta: Json, legacyContent: string | null): BlockPayload {
   switch (type) {
@@ -161,10 +203,8 @@ function payloadFromLegacyMeta(type: BlockType, meta: Json, legacyContent: strin
       };
     case 'Checklist':
       return { kind: 'checklist', checked: bool(prop(meta, 'checked')) };
-    case 'TwoColumn': {
-      const ratio = num(prop(meta, 'columnSplitRatio'), 0.5);
-      return { kind: 'twoColumn', splitRatio: ratio > 0 && ratio < 1 ? ratio : 0.5 };
-    }
+    case 'TwoColumn':
+      return { kind: 'twoColumn', splitRatio: normalizeSplitRatio(num(prop(meta, 'columnSplitRatio'))) };
     case 'Page':
       return { kind: 'page', referenceNoteId: str(prop(meta, 'reference_note_id')) };
     default:
@@ -185,8 +225,13 @@ export function parseBlock(value: unknown): Block {
   const payload =
     payloadValue !== undefined ? parsePayload(payloadValue) : payloadFromLegacyMeta(type, meta, legacyContent);
 
-  let spans = parseSpans(prop(raw, 'spans'));
-  if (spans.length === 0) {
+  // A present `spans` array is authoritative even when empty — C#'s reader
+  // returns one blank span for it and never consults the legacy fields. Falling
+  // back on an empty array would resurrect `content` on a block whose text the
+  // user had deliberately cleared.
+  const spansValue = prop(raw, 'spans');
+  let spans = parseSpans(spansValue);
+  if (spans.length === 0 && !Array.isArray(spansValue)) {
     const runs = prop(raw, 'inlineRuns');
     if (Array.isArray(runs)) spans = parseSpans(runs);
     else if (legacyContent !== null) spans = [plainSpan(legacyContent)];
@@ -195,8 +240,13 @@ export function parseBlock(value: unknown): Block {
   // A code block that only ever had its text in the payload still needs spans
   // to be editable.
   if (type === 'Code' && payload.kind === 'code' && payload.source.length > 0) {
-    const empty = spans.every((s) => s.kind === 'text' && s.text.trim().length === 0);
-    if (empty) spans = [plainSpan(payload.source)];
+    // Blank means the block's *displayed* text is blank, which is how C# asks
+    // the question. Testing only text spans would call a block holding one
+    // empty-latex equation non-blank and skip a backfill the other side does.
+    const displayed = spans
+      .map((s) => (s.kind === 'text' ? s.text : s.kind === 'equation' ? s.latex : 'x'))
+      .join('');
+    if (displayed.trim().length === 0) spans = [plainSpan(payload.source)];
   }
 
   // Equation and page blocks render entirely from their payload; carrying stale
@@ -212,7 +262,7 @@ export function parseBlock(value: unknown): Block {
     // tell it this block is new.
     sid: str(prop(raw, 'sid')),
     type,
-    spans: normalizeSpans(spans),
+    spans: normalizeSpans(promoteLegacyHighlight(spans)),
     payload,
     meta,
     order: num(prop(raw, 'order')),
@@ -242,9 +292,43 @@ function serializeStyle(style: TextStyle): Json {
   return out;
 }
 
+/**
+ * The object-replacement and interlinear-annotation characters.
+ *
+ * These are an artifact of Avalonia's flat-string editing model, where inline
+ * atoms had to occupy a character position so caret arithmetic worked. The port
+ * has no equivalent: ProseMirror positions *are* the logical space, so nothing
+ * here ever needs a placeholder character.
+ *
+ * That makes their appearance in persisted text a certain bug — either a paste
+ * carrying them in from the old editor, or a mapper writing an atom as text.
+ * Both silently corrupt the note, and both are invisible in the UI, so this
+ * fails loudly in development rather than saving the damage.
+ */
+const sentinelChars = /[￼￹￺￻]/;
+
+function assertNoSentinels(text: string): void {
+  if (import.meta.env.DEV && sentinelChars.test(text)) {
+    // Loud, but not fatal. The plan asked this to throw, and on the reasoning
+    // that these characters can only come from a flattened atom it would be
+    // right. They can also come from an ordinary paste — U+FFFC is what Word,
+    // PDF viewers and browsers put in the clipboard for an embedded object — and
+    // this runs on the *writer*, so throwing would leave the user holding a note
+    // they cannot save, over content they legitimately pasted. Sanitizing
+    // belongs at the paste boundary; this stays a tripwire.
+    console.error(
+      'persisting a text span containing an inline placeholder character ' +
+        '(U+FFFC/U+FFF9-FFFB). Expected from a paste; if it came from the mapper, ' +
+        'an atom was flattened into text.',
+      { text },
+    );
+  }
+}
+
 function serializeSpan(span: InlineSpan): Json {
   switch (span.kind) {
     case 'text':
+      assertNoSentinels(span.text);
       return { kind: 'text', text: span.text, style: serializeStyle(span.style) };
     case 'equation':
       return { kind: 'equation', latex: span.latex, style: serializeStyle(span.style) };
@@ -258,13 +342,64 @@ function serializeSpan(span: InlineSpan): Json {
   }
 }
 
+/**
+ * Meta keys that are now typed payload fields, per block type.
+ *
+ * Legacy notes stored these in the passthrough bag. Parsing promotes them into
+ * the payload, so writing them back out as well would store the same value
+ * twice — and once the user edits the block, the two copies disagree and the
+ * stale one is the more convincing. `BlockJsonConverter` drops them on write for
+ * the same reason; this is the parity fix that keeps the two writers producing
+ * the same bytes for the same block.
+ */
+const shadowMetaKeys: Partial<Record<BlockType, readonly string[]>> = {
+  TwoColumn: ['columnSplitRatio'],
+  Page: ['reference_note_id'],
+  Image: ['imagePath', 'imageAlt', 'imageWidth', 'imageAlign'],
+};
+
+function serializeMeta(block: Block): Json {
+  const shadowed = shadowMetaKeys[block.type];
+  if (!shadowed) return block.meta;
+  const meta: Json = { ...block.meta };
+  for (const key of shadowed) delete meta[key];
+  return meta;
+}
+
+/**
+ * Rescues a legacy value out of `meta` before the key is stripped.
+ *
+ * Stripping without this loses data outright: a block whose payload never got
+ * built from its meta — because it was constructed in code rather than parsed —
+ * would have the meta key removed and nothing written in its place. The C#
+ * writer does the same backfill immediately before the same strip, and the two
+ * have to agree or the note changes depending on which side saved it.
+ *
+ * Image is deliberately absent. The C# writer strips its four meta keys without
+ * a backfill, and that is safe on both sides because the *reader* always builds
+ * an image payload from them, so a parsed block never reaches here empty.
+ */
+function backfillPayload(block: Block): BlockPayload {
+  if (block.payload.kind !== 'empty') return block.payload;
+  if (block.type === 'TwoColumn') {
+    return {
+      kind: 'twoColumn',
+      splitRatio: normalizeSplitRatio(num(prop(block.meta as Json, 'columnSplitRatio'))),
+    };
+  }
+  if (block.type === 'Page') {
+    return { kind: 'page', referenceNoteId: str(prop(block.meta as Json, 'reference_note_id')) };
+  }
+  return block.payload;
+}
+
 export function serializeBlock(block: Block): Json {
   const out: Json = {
     id: block.id,
     type: block.type,
     spans: block.spans.map(serializeSpan),
-    payload: { ...block.payload },
-    meta: block.meta,
+    payload: { ...backfillPayload(block) },
+    meta: serializeMeta(block),
     order: block.order,
   };
   // Written only once assigned, matching BlockJsonConverter: a note that has
