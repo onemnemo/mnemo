@@ -12,6 +12,7 @@ import type { AnyBlockModule } from '../registry/types';
 import type { BlockType } from '../../model/types';
 import { defineBlock, lineOf, metrics, wrappedHeight, type BlockDeps } from './shared';
 import type { InvariantContribution } from '../registry/types';
+import { markdownShortcutTriggers } from '../commands/markdown-shortcuts';
 
 const emptyPayload = () => ({ type: 'Text' as BlockType, payload: { kind: 'empty' as const } });
 
@@ -24,6 +25,10 @@ export function paragraphBlock(deps: BlockDeps): AnyBlockModule {
       attrsFrom: () => ({}),
       wireFrom: emptyPayload,
       toMarkdown: (_node, _ctx, inline) => `${inline}\n`,
+      // The markdown block shortcuts all launch from a paragraph, so the whole
+      // set rides the paragraph module's triggers — which is what the input
+      // plugin's per-block filter keys on.
+      inputTriggers: markdownShortcutTriggers(),
     },
     deps,
   );

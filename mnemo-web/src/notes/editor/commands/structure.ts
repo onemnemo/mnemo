@@ -43,11 +43,11 @@ const LIST_NODE_NAMES: ReadonlySet<string> = new Set([
  * whitespace-only after the legacy sentinel is stripped. An empty line, a line of
  * spaces, and a lone sentinel all read as empty, because to the user they are.
  */
-function isVisuallyEmpty(text: string): boolean {
+export function isVisuallyEmpty(text: string): boolean {
   return text.split(ZERO_WIDTH_SPACE).join('').trim() === '';
 }
 
-interface BlockContext {
+export interface BlockContext {
   /** The block whose line holds the caret — the innermost one, so a nested cell works. */
   readonly block: PMNode;
   /** Position immediately before `block`. */
@@ -63,7 +63,7 @@ interface BlockContext {
  * editable line (a node selection on an atom, say). Every structural command
  * needs the same three coordinates, computed once here.
  */
-function blockContext(state: Parameters<Command>[0]): BlockContext | null {
+export function blockContext(state: Parameters<Command>[0]): BlockContext | null {
   const { $from } = state.selection;
   const line = $from.parent;
   // The caret must be in inline content; doc > block > line means the line's
