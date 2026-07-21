@@ -46,10 +46,12 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry } = editorSchema();
     const plugins = editorPlugins(registry);
-    expect(plugins).toHaveLength(9);
-    // The last position carries meaning rather than tidiness: the history
+    expect(plugins).toHaveLength(10);
+    // Two positions carry meaning rather than tidiness. The nested-input guard
+    // has to be asked before the keymaps it stands down, and the history
     // boundary has to close the undo group after the repair plugins have
-    // appended into it.
+    // appended into it — so one is first and the other is last.
+    expect(plugins[0].props.handleDOMEvents?.keydown).toBeTypeOf('function');
     expect(plugins.at(-1)?.spec.appendTransaction).toBeTypeOf('function');
   });
 
