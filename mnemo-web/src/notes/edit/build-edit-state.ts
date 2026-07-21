@@ -21,7 +21,11 @@ import { EditorState, type Plugin } from 'prosemirror-state';
 import { keymap } from 'prosemirror-keymap';
 import { baseKeymap } from 'prosemirror-commands';
 import { editorSchema } from '../editor/schema';
-import { createDocumentMapper, type QuarantineReason } from '../editor/mapper/document';
+import {
+  createDocumentMapper,
+  type DocumentMapper,
+  type QuarantineReason,
+} from '../editor/mapper/document';
 import { blockIdentityPlugin } from '../editor/pipeline/block-identity';
 import { invariantPipeline } from '../editor/pipeline/invariants';
 import { inputTriggerPlugin } from '../editor/pipeline/input-triggers';
@@ -32,7 +36,19 @@ import type { BlockRegistry } from '../editor/registry/build';
 import type { Block } from '../model/types';
 
 export type NoteEditState =
-  | { readonly ok: true; readonly state: EditorState; readonly registry: BlockRegistry }
+  | {
+      readonly ok: true;
+      readonly state: EditorState;
+      readonly registry: BlockRegistry;
+      /**
+       * The same mapper the state was built with, for the way back out.
+       *
+       * Saving has to serialize through it, and a second mapper built from a
+       * second `editorSchema()` would compare node types by identity against a
+       * schema this document was never made from.
+       */
+      readonly mapper: DocumentMapper;
+    }
   | { readonly ok: false; readonly reason: QuarantineReason };
 
 /**
@@ -87,5 +103,6 @@ export function buildNoteEditState(blocks: readonly Block[]): NoteEditState {
     ok: true,
     state: EditorState.create({ schema, doc: result.doc, plugins: editorPlugins(registry) }),
     registry,
+    mapper,
   };
 }

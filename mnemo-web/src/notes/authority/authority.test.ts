@@ -428,6 +428,19 @@ describe('saving', () => {
     expect(docText(authority.snapshot())).toBe('ahello');
   });
 
+  it('keeps reporting the conflict when editing continues', async () => {
+    const authority = authorityOf();
+    await typeInto(authority, 'a');
+    await authority.save(async () => ({ status: 'conflict', ver: 12 }));
+
+    await typeInto(authority, 'b');
+
+    // Not "dirty". Autosave has stopped on purpose — writing again would
+    // overwrite the other writer — so a state meaning "this will be saved
+    // shortly" would be a promise nothing intends to keep.
+    expect(authority.snapshot()).toMatchObject({ saveState: 'version_conflict', dirty: true });
+  });
+
   it('keeps the document and the dirty flag when the write throws', async () => {
     const authority = authorityOf();
     await typeInto(authority, 'a');

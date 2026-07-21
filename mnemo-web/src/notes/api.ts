@@ -109,6 +109,30 @@ export function commitNoteContent(id: string, body: CommitNoteContentDto): Promi
   }).then((response) => response.data)
 }
 
+/**
+ * The commit autosave uses, with the cached note patched to match what landed.
+ *
+ * Deliberately not an invalidation. Autosave writes every few seconds, and a
+ * refetch per write would re-download and re-parse the whole body — on a note
+ * built for tens of thousands of blocks, repeatedly, for bytes this client
+ * already has. Patching in what was just sent leaves the cache holding the
+ * truth at no cost, which matters because reopening the note reads it: without
+ * this, a second visit would build the editor from the version that predates
+ * everything typed in the first one.
+ */
+export function useNoteContentCommitter() {
+  const client = useQueryClient()
+  return async (id: string, body: CommitNoteContentDto): Promise<NoteCommitResultDto> => {
+    const result = await commitNoteContent(id, body)
+    if (result.outcome === "Applied" || result.outcome === "AlreadyApplied") {
+      client.setQueryData<NoteDto>(noteKey(id), (previous) =>
+        previous ? { ...previous, blocks: body.blocks, ver: result.ver } : previous,
+      )
+    }
+    return result
+  }
+}
+
 /** Deletes one note. Child pages and links to it survive and render as missing. */
 export function useDeleteNote() {
   return useNotesMutation((id: string) => apiSend(`/notes/${id}`, { method: "DELETE" }))

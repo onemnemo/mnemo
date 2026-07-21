@@ -57,7 +57,15 @@
     "EmptyNoteTitle": "This note is empty",
     "EmptyNoteDescription": "There's nothing in it yet.",
     "QuarantineTitle": "This note can't be displayed",
-    "QuarantineDescription": "Its content is in a format this version can't render. Nothing has been changed — the note is stored exactly as it was."
+    "QuarantineDescription": "Its content is in a format this version can't render. Nothing has been changed — the note is stored exactly as it was.",
+    "SaveStateSaved": "Saved",
+    "SaveStateSaving": "Saving…",
+    "SaveStateUnsaved": "Unsaved changes",
+    "SaveStateFailed": "Couldn't save",
+    "SaveStateFailedDescription": "Your changes are still here. Saving will be retried when you keep typing.",
+    "SaveStateConflict": "Changed somewhere else",
+    "SaveStateConflictDescription": "This note was written by something else since you opened it. Reload to see that version — your changes here have not been saved.",
+    "SaveStateReload": "Reload"
   },
   "Keybinds": {
     "module.editor": "Editor",

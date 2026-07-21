@@ -214,10 +214,17 @@ export function createNoteAuthority(options: AuthorityOptions): NoteAuthority {
     if (!changed) return { rev, changed: false };
 
     rev += 1;
-    // An edit during a save must not overwrite `saving`. The save's completion
-    // notices the newer revision and lands on `dirty` itself; clobbering the
-    // state here would leave a save in flight that nothing is tracking.
-    if (saveState !== 'saving') saveState = 'dirty';
+    // Two states survive an edit.
+    //
+    // `saving`, because the save in flight is still tracked and its completion
+    // notices the newer revision and lands on `dirty` itself; clobbering it here
+    // would leave a round trip nothing is watching.
+    //
+    // `version_conflict`, because it is terminal until the note is reloaded.
+    // Autosave has stopped, correctly — writing again would overwrite the other
+    // writer — so calling the document merely "dirty" would promise a save that
+    // is never coming, which is the one thing a save indicator must not do.
+    if (saveState !== 'saving' && saveState !== 'version_conflict') saveState = 'dirty';
     notify();
     return { rev, changed: true };
   }

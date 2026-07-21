@@ -15,14 +15,21 @@
  */
 
 import type { EditorView } from 'prosemirror-view';
+import type { EditorState } from 'prosemirror-state';
 import type { AppliedChange, EditorHandle } from '../../authority/handle';
 
 export function createViewHandle(view: EditorView): EditorHandle {
   let alive = true;
+  let last: EditorState | null = null;
 
   return {
     get state() {
-      return view.state;
+      // After teardown this answers with the last state the view held. Closing a
+      // note destroys the editor immediately — a teardown that waited for the
+      // network would leave a live view in the DOM across a note switch — while
+      // the final save is still in flight behind it, and that save has to be
+      // able to read the document it is committing.
+      return alive ? view.state : last!;
     },
 
     apply(tr): AppliedChange {
@@ -40,6 +47,7 @@ export function createViewHandle(view: EditorView): EditorHandle {
       // call twice, hence the guard.
       if (!alive) return;
       alive = false;
+      last = view.state;
       view.destroy();
     },
   };
