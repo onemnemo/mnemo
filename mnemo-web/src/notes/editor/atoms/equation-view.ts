@@ -28,6 +28,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { TextSelection } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import type { RealizedBlockView, RealizedBlockViewArgs } from '../registry/types';
+import { asOwnUndoStep } from '../history';
 import { renderMath } from './katex';
 import { mountEquationEditor, type ArrowEscape, type EquationEditorHandle } from './equation-editor';
 
@@ -71,7 +72,9 @@ export function equationView(args: RealizedBlockViewArgs<Record<string, unknown>
       const caret = escape === 'before' ? pos : pos + 1;
       tr = tr.setSelection(TextSelection.create(tr.doc, caret));
     }
-    view.dispatch(tr);
+    // Committing the source is one edit: a press takes the equation back to what
+    // it said, not into whatever was typed around it before the popover opened.
+    view.dispatch(asOwnUndoStep(tr));
   }
 
   function refocus(): void {

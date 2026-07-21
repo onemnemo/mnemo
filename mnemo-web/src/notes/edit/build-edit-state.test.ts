@@ -45,7 +45,12 @@ describe('buildNoteEditState', () => {
 describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry } = editorSchema();
-    expect(editorPlugins(registry)).toHaveLength(7);
+    const plugins = editorPlugins(registry);
+    expect(plugins).toHaveLength(9);
+    // The last position carries meaning rather than tidiness: the history
+    // boundary has to close the undo group after the repair plugins have
+    // appended into it.
+    expect(plugins.at(-1)?.spec.appendTransaction).toBeTypeOf('function');
   });
 
   it('gives a block created by an edit its own identity', () => {

@@ -24,6 +24,7 @@
 
 import { Plugin } from 'prosemirror-state';
 import type { BlockRegistry } from '../registry/build';
+import { asOwnUndoStep } from '../history';
 
 export function inputTriggerPlugin(registry: BlockRegistry): Plugin {
   const triggers = registry.inputTriggers;
@@ -63,7 +64,10 @@ export function inputTriggerPlugin(registry: BlockRegistry): Plugin {
           if (!match) continue;
           const tr = trigger.handler(state, match, from, to);
           if (tr) {
-            view.dispatch(tr.scrollIntoView());
+            // The conversion is its own undo step, so a first press takes back
+            // the block type and gives the marker text back to be edited — the
+            // repair path when a shortcut fires and was not wanted.
+            view.dispatch(asOwnUndoStep(tr.scrollIntoView()));
             return true;
           }
         }

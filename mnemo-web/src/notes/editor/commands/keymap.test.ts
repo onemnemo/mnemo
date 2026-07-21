@@ -67,7 +67,19 @@ describe('editorKeyBindings', () => {
   it('binds exactly the catalog shortcuts to their commands', () => {
     const bindings = editorKeyBindings();
     expect(Object.keys(bindings).sort()).toEqual(
-      ['Mod-,', 'Mod-.', 'Mod-Shift-h', 'Mod-Shift-s', 'Mod-b', 'Mod-i', 'Mod-u'].sort(),
+      [
+        'Mod-,',
+        'Mod-.',
+        'Mod-Shift-h',
+        'Mod-Shift-s',
+        'Mod-b',
+        'Mod-i',
+        'Mod-u',
+        'Mod-z',
+        'Mod-y',
+        // Redo's alias, bound but never shown as its name.
+        'Mod-Shift-z',
+      ].sort(),
     );
     // The binding is the very command the catalog names — same reference, so the
     // chord and the button can never run different behaviours.

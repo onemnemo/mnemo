@@ -12,9 +12,10 @@
  * What the read state omits and this adds is every plugin that reacts to a change
  * the user makes: the structural key commands, the formatting keymap, the
  * markdown input shortcuts, the invariant pipeline that repairs the document
- * after each edit, and — shared with the read path — the decoration that numbers
- * ordered lists. The order is load-bearing where two plugins bind one key, and is
- * documented on `editorPlugins`.
+ * after each edit, the undo history and its grouping, and — shared with the read
+ * path — the decoration that numbers ordered lists. The order is load-bearing
+ * where two plugins bind one key or append after another, and is documented on
+ * `editorPlugins`.
  */
 
 import { EditorState, type Plugin } from 'prosemirror-state';
@@ -32,6 +33,7 @@ import { inputTriggerPlugin } from '../editor/pipeline/input-triggers';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
 import { structureKeymap } from '../editor/commands/structure';
 import { editorKeymap } from '../editor/commands';
+import { editorHistory, historyBoundaryPlugin } from '../editor/history';
 import type { BlockRegistry } from '../editor/registry/build';
 import type { Block } from '../model/types';
 
@@ -72,6 +74,11 @@ export type NoteEditState =
  *    not load-bearing — a block the pipeline itself creates gets its identity on
  *    the next append round either way — but reading it last matches when it
  *    acts, which is once everything else has settled on a shape.
+ *  - `historyBoundaryPlugin` comes last, and that placement *is* load-bearing.
+ *    It closes the undo group after a discrete edit, and everything a repair
+ *    plugin appends has to be inside that edit rather than after it. Closing
+ *    first would leave the repair to open a group of its own, so undoing a split
+ *    would take two presses — one for the repair, one for the split.
  */
 export function editorPlugins(registry: BlockRegistry): Plugin[] {
   return [
@@ -82,6 +89,8 @@ export function editorPlugins(registry: BlockRegistry): Plugin[] {
     invariantPipeline(registry),
     numberedListPlugin(),
     blockIdentityPlugin(registry),
+    editorHistory(),
+    historyBoundaryPlugin(),
   ];
 }
 

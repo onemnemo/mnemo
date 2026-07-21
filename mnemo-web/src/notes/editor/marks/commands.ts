@@ -30,6 +30,7 @@
 
 import { TextSelection, type Command, type EditorState, type SelectionRange } from 'prosemirror-state';
 import type { Mark, MarkType, Node as PMNode } from 'prosemirror-model';
+import { asOwnUndoStep } from '../history';
 
 /**
  * The sticky-typing escape: force the next character to carry no marks, even
@@ -182,7 +183,11 @@ export function toggleFormat(kind: ToggleKind, token?: string): Command {
           if (excludeType) tr.removeMark($from.pos, $to.pos, excludeType);
         }
       }
-      dispatch(tr.scrollIntoView());
+      // Formatting a range is one undo step of its own — the desktop's "Format
+      // Selection" operation. The collapsed-caret branch above deliberately is
+      // not: it changes no document, and arming a mark mid-word should not cut
+      // the typing run it is about to be typed into.
+      dispatch(asOwnUndoStep(tr.scrollIntoView()));
     }
     return true;
   };
