@@ -138,6 +138,27 @@ export interface NoteAuthority {
   snapshot(): NoteSnapshot;
   /** Applies one transaction, serialized against everything else. */
   dispatch(tr: Transaction): Promise<DispatchResult>;
+  /**
+   * Applies one transaction *synchronously*, without going through the queue.
+   *
+   * This exists for exactly one caller: the `EditorView`'s own
+   * `dispatchTransaction`. A view cannot be driven by the queued `dispatch`.
+   * ProseMirror builds a transaction from `view.state.tr` inside its DOM-change
+   * reader and dispatches it while the browser has *already* mutated the
+   * contenteditable; deferring `updateState` even by a microtask leaves the
+   * state describing a document the DOM no longer matches, and the next
+   * observer flush diffs against that stale doc — which duplicates or drops
+   * what was typed.
+   *
+   * Skipping the queue does not create a second writer. The queue serializes
+   * writers that *await* — a save round trip, an AI edit — and a synchronous
+   * apply cannot interleave with one: it runs to completion before any pending
+   * continuation gets the thread. What it does mean is that a command holding
+   * the queue across an await may find the document changed underneath it when
+   * it resumes, which is why `AuthorityAccess.apply` reads the live state
+   * rather than one captured when the command started.
+   */
+  dispatchLocal(tr: Transaction): DispatchResult;
   /** Runs a command with exclusive access to the document. */
   run<T>(command: (access: AuthorityAccess) => T | Promise<T>): Promise<T>;
   save(persist: Persist): Promise<SaveResult>;
@@ -219,6 +240,11 @@ export function createNoteAuthority(options: AuthorityOptions): NoteAuthority {
     async dispatch(tr: Transaction): Promise<DispatchResult> {
       assertAlive();
       return queue.run(() => apply(tr));
+    },
+
+    dispatchLocal(tr: Transaction): DispatchResult {
+      assertAlive();
+      return apply(tr);
     },
 
     async run<T>(command: (access: AuthorityAccess) => T | Promise<T>): Promise<T> {

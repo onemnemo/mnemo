@@ -4,6 +4,7 @@ import { EditorState, Plugin } from 'prosemirror-state';
 import { createDocumentMapper } from '../editor/mapper/document';
 import { createEditorSchema } from '../editor/schema';
 import { defaultTextStyle, type Block } from '../model/types';
+import { createHeadlessHandle, type EditorHandle } from './handle';
 import {
   createNoteAuthority,
   type CommitOutcome,
@@ -184,6 +185,89 @@ describe('serialization', () => {
 
     await Promise.all([first, second]);
     expect(seen).toBe('ahello');
+  });
+});
+
+/**
+ * An authority plus a synchronous read of its live state.
+ *
+ * The authority exposes only snapshots, deliberately — a doc and a version have
+ * to be read together, and `run` is the only way in for a command. A test of the
+ * *synchronous* path cannot use `run` to build its transactions, because that
+ * would resolve a microtask later, so it holds the handle it built the authority
+ * with. That is exactly what the mount does with the live view handle.
+ */
+function localAuthority(): { authority: NoteAuthority; handle: EditorHandle } {
+  const handle = createHeadlessHandle(stateOf(['hello']));
+  const authority = createNoteAuthority({
+    noteId: 'note-1',
+    sid: 'n0001',
+    ver: 7,
+    state: handle.state,
+    handle,
+  });
+  return { authority, handle };
+}
+
+describe('local dispatch', () => {
+  it('applies before the call returns, with no await anywhere', () => {
+    const { authority, handle } = localAuthority();
+    const result = authority.dispatchLocal(handle.state.tr.insertText('x', 1));
+    expect(result).toEqual({ rev: 1, changed: true });
+    // The point of the whole method: readable *now*, not after a microtask.
+    expect(docText(authority.snapshot())).toBe('xhello');
+  });
+
+  it('counts a revision and goes dirty exactly as the queued path does', () => {
+    const { authority, handle } = localAuthority();
+    authority.dispatchLocal(handle.state.tr.insertText('x', 1));
+    expect(authority.snapshot()).toMatchObject({ rev: 1, dirty: true, saveState: 'dirty' });
+  });
+
+  it('does not count a transaction that changed no content', () => {
+    const { authority, handle } = localAuthority();
+    expect(authority.dispatchLocal(handle.state.tr)).toEqual({ rev: 0, changed: false });
+    expect(authority.snapshot().dirty).toBe(false);
+  });
+
+  it('notifies subscribers synchronously', () => {
+    const { authority, handle } = localAuthority();
+    const seen: number[] = [];
+    authority.subscribe((snapshot) => seen.push(snapshot.rev));
+    authority.dispatchLocal(handle.state.tr.insertText('x', 1));
+    expect(seen).toEqual([1]);
+  });
+
+  it('lands ahead of work already queued, because it never queues', async () => {
+    const { authority, handle } = localAuthority();
+    const gate = deferred<void>();
+    const order: string[] = [];
+
+    const queued = authority.run(async (access) => {
+      await gate.promise;
+      access.apply(access.state.tr.insertText('q', 1));
+      order.push('queued');
+    });
+
+    authority.dispatchLocal(handle.state.tr.insertText('L', 1));
+    order.push('local');
+
+    gate.resolve();
+    await queued;
+
+    // Not a fairness bug — it is the contract. A keystroke cannot wait behind a
+    // network round trip, and the queued command reads the live document when it
+    // resumes, so it composes with what the user typed rather than clobbering it.
+    expect(order).toEqual(['local', 'queued']);
+    expect(docText(authority.snapshot())).toBe('qLhello');
+    expect(authority.snapshot().rev).toBe(2);
+  });
+
+  it('throws on a destroyed authority rather than silently dropping the edit', () => {
+    const { authority, handle } = localAuthority();
+    const tr = handle.state.tr.insertText('x', 1);
+    authority.destroy();
+    expect(() => authority.dispatchLocal(tr)).toThrow(/destroyed/);
   });
 });
 
