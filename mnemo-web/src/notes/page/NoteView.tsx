@@ -9,8 +9,8 @@ import { useT } from "@/i18n/useT"
 
 import { useNoteQuery } from "../api"
 import { parseBlocks } from "../model/wire"
-import { buildNoteReadState } from "../read/build-state"
-import { ReadOnlyEditor } from "./ReadOnlyEditor"
+import { buildNoteEditState } from "../edit/build-edit-state"
+import { NoteEditor } from "./NoteEditor"
 
 const CONTAINER = "mx-auto flex w-full max-w-[760px] flex-col gap-4 px-10 pt-[26px] pb-16"
 
@@ -31,7 +31,7 @@ export function NoteView({ noteId }: { noteId?: string }) {
   // until a refetch, so these memos rebuild only when the note's bytes change —
   // which matters for a 10k-block document that must not re-map on every render.
   const blocks = useMemo(() => (note ? parseBlocks(note.blocks ?? []) : []), [note])
-  const built = useMemo(() => (blocks.length > 0 ? buildNoteReadState(blocks) : null), [blocks])
+  const built = useMemo(() => (blocks.length > 0 ? buildNoteEditState(blocks) : null), [blocks])
 
   if (!noteId) {
     return (
@@ -123,7 +123,7 @@ export function NoteView({ noteId }: { noteId?: string }) {
     <div className={CONTAINER}>
       {back}
       <NoteHeader title={title} />
-      {built?.ok ? <ReadOnlyEditor noteId={note.id} state={built.state} registry={built.registry} /> : null}
+      {built?.ok ? <NoteEditor noteId={note.id} state={built.state} registry={built.registry} /> : null}
     </div>
   )
 }

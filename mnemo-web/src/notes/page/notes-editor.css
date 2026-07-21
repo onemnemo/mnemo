@@ -29,7 +29,11 @@
 }
 .notes-doc .ProseMirror {
   outline: none;
-  caret-color: transparent; /* read-only: no editing caret */
+}
+/* Only the read-only mount hides the caret; an editable view keeps it. PM sets
+ * contenteditable=false on the root when the view is not editable. */
+.notes-doc .ProseMirror[contenteditable="false"] {
+  caret-color: transparent;
 }
 
 /* Block rhythm. A single owner of vertical spacing between top-level blocks. */
