@@ -64,25 +64,31 @@ export function apiToken(): string | undefined {
   return window.__MNEMO_TOKEN__
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+function send(path: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers)
-  headers.set("Accept", "application/json")
 
   const token = apiToken()
   if (token) {
     headers.set("Authorization", `Bearer ${token}`)
   }
 
-  const response = await fetch(`/api${path}`, {
-    ...init,
-    headers,
-  })
+  return fetch(`/api${path}`, { ...init, headers })
+}
 
+async function fail(response: Response): Promise<never> {
+  const body = await readErrorBody(response)
+  const message =
+    body?.message ?? body?.error ?? response.statusText ?? `Request failed with status ${response.status}`
+  throw new ApiError(message, response.status, body?.error)
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers)
+  headers.set("Accept", "application/json")
+
+  const response = await send(path, { ...init, headers })
   if (!response.ok) {
-    const body = await readErrorBody(response)
-    const message =
-      body?.message ?? body?.error ?? response.statusText ?? `Request failed with status ${response.status}`
-    throw new ApiError(message, response.status, body?.error)
+    await fail(response)
   }
 
   const data: unknown = await response.json()
@@ -94,19 +100,36 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
  * PUT that returns 204). Adds the same auth header and error handling.
  */
 export async function apiSend(path: string, init?: RequestInit): Promise<void> {
-  const headers = new Headers(init?.headers)
-
-  const token = apiToken()
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`)
-  }
-
-  const response = await fetch(`/api${path}`, { ...init, headers })
-
+  const response = await send(path, init)
   if (!response.ok) {
-    const body = await readErrorBody(response)
-    const message =
-      body?.message ?? body?.error ?? response.statusText ?? `Request failed with status ${response.status}`
-    throw new ApiError(message, response.status, body?.error)
+    await fail(response)
   }
+}
+
+/**
+ * Like {@link apiFetch}, but hands back the parsed body for statuses the caller
+ * names instead of throwing on them.
+ *
+ * A few endpoints answer a *protocol* outcome with a non-2xx status and a body
+ * that carries the answer: a content commit reports a stale write as 409 with
+ * the version actually stored, and that version is the entire point of the
+ * response. {@link apiFetch}'s error path reads only `error` and `message`, so
+ * it would discard the field precisely when it is needed. Everything not listed
+ * still throws, so this does not quietly turn real failures into values.
+ */
+export async function apiFetchExpecting<T>(
+  path: string,
+  expected: readonly number[],
+  init?: RequestInit,
+): Promise<{ status: number; data: T }> {
+  const headers = new Headers(init?.headers)
+  headers.set("Accept", "application/json")
+
+  const response = await send(path, { ...init, headers })
+  if (!response.ok && !expected.includes(response.status)) {
+    await fail(response)
+  }
+
+  const data: unknown = await response.json()
+  return { status: response.status, data: data as T }
 }

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
-import { apiFetch, apiSend, ApiError } from "@/api/client"
+import { apiFetch, apiFetchExpecting, apiSend, ApiError } from "@/api/client"
 import type {
   CommitNoteContentDto,
   CreateNoteDto,
@@ -90,9 +90,23 @@ export function useUpdateNoteMetadata() {
  * edit so a lost response resolves as `AlreadyApplied` instead of a spurious conflict.
  */
 export function useCommitNoteContent() {
-  return useNotesMutation(({ id, ...body }: CommitNoteContentDto & { id: string }) =>
-    apiFetch<NoteCommitResultDto>(`/notes/${id}/content`, { ...json(body), method: "PUT" }),
-  )
+  return useNotesMutation(({ id, ...body }: CommitNoteContentDto & { id: string }) => commitNoteContent(id, body))
+}
+
+/**
+ * The commit call itself, outside React.
+ *
+ * Autosave runs from the document authority rather than from a component, so it
+ * needs the request without a hook around it. A stale write comes back as 409
+ * carrying the version actually stored, which is an answer and not an error —
+ * hence `apiFetchExpecting`, so that version survives to the caller instead of
+ * being flattened into a thrown message.
+ */
+export function commitNoteContent(id: string, body: CommitNoteContentDto): Promise<NoteCommitResultDto> {
+  return apiFetchExpecting<NoteCommitResultDto>(`/notes/${id}/content`, [409], {
+    ...json(body),
+    method: "PUT",
+  }).then((response) => response.data)
 }
 
 /** Deletes one note. Child pages and links to it survive and render as missing. */
