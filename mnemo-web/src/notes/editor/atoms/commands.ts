@@ -15,6 +15,7 @@
  */
 
 import type { Command } from 'prosemirror-state';
+import { asOwnUndoStep } from '../history';
 
 export function insertEquation(latex = ''): Command {
   return (state, dispatch) => {
@@ -33,7 +34,14 @@ export function insertEquation(latex = ''): Command {
       // non-empty selection is overwritten. Being explicit about the range keeps
       // the inline atom inline rather than leaning on selection-shape heuristics.
       const { from, to } = state.selection;
-      dispatch(state.tr.replaceRangeWith(from, to, type.create({ latex })).scrollIntoView());
+      // Inserting an atom is its own undo step: one press takes the equation
+      // back out and leaves whatever it replaced, rather than unwinding into the
+      // typing that happened to precede it.
+      dispatch(
+        asOwnUndoStep(
+          state.tr.replaceRangeWith(from, to, type.create({ latex })).scrollIntoView(),
+        ),
+      );
     }
     return true;
   };

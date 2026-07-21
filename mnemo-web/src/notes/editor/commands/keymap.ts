@@ -31,12 +31,17 @@ export function editorKeyBindings(
   const bindings: KeyBindings = {};
   for (const command of commands) {
     if (command.kind !== 'direct' || !command.shortcut) continue;
-    // Two commands on one chord is a catalog bug, not something to merge: the
-    // later binding would silently shadow the earlier. Refuse it at build time.
-    if (Object.prototype.hasOwnProperty.call(bindings, command.shortcut)) {
-      throw new Error(`Duplicate editor shortcut "${command.shortcut}" (${command.id}).`);
+    // Aliases bind exactly as the primary chord does, and collide exactly as
+    // loudly — an alias quietly shadowing another command's shortcut would be
+    // the worse bug, because nothing in the UI names it.
+    for (const chord of [command.shortcut, ...(command.aliases ?? [])]) {
+      // Two commands on one chord is a catalog bug, not something to merge: the
+      // later binding would silently shadow the earlier. Refuse it at build time.
+      if (Object.prototype.hasOwnProperty.call(bindings, chord)) {
+        throw new Error(`Duplicate editor shortcut "${chord}" (${command.id}).`);
+      }
+      bindings[chord] = command.run;
     }
-    bindings[command.shortcut] = command.run;
   }
   return bindings;
 }

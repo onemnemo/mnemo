@@ -27,12 +27,18 @@
  *    triggered solely by that tag is a no-op. Without this an idempotent-looking
  *    invariant that always returns a transaction would spin ProseMirror's
  *    append loop forever.
+ *
+ *  - **Never reacts to an undo.** A repair rides in the same undo step as the
+ *    edit that provoked it, so undoing that edit already takes the repair back
+ *    with it. Running again on the way out would re-apply what was just removed
+ *    and leave the user looking at a document their undo did not produce.
  */
 
 import { Plugin, PluginKey, type Transaction } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { BlockRegistry } from '../registry/build';
 import type { InvariantContext } from '../registry/types';
+import { isHistoryRestore } from '../history';
 
 /** A half-open document range, `to` exclusive, in a single coordinate space. */
 export interface DocRange {
@@ -137,6 +143,9 @@ export function invariantPipeline(registry: BlockRegistry): Plugin {
       // A cycle caused only by our own appended transaction must terminate, or
       // ProseMirror's append loop never stops.
       if (transactions.every((tr) => tr.getMeta(pipelineKey) === true)) return null;
+      // Undo restores a document that was already agreed; repairing it would
+      // undo the undo.
+      if (transactions.some(isHistoryRestore)) return null;
 
       const ranges = changedRanges(transactions);
       if (ranges.length === 0) return null;

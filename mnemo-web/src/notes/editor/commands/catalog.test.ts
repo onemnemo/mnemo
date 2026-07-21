@@ -77,6 +77,8 @@ const swatchCmd = (id: string) => COMMANDS_BY_ID.get(id) as SwatchCommand;
 describe('EDITOR_COMMANDS shape', () => {
   it('lists every current command once, in toolbar order', () => {
     expect(EDITOR_COMMANDS.map((c) => c.id)).toEqual([
+      'editor.undo',
+      'editor.redo',
       'editor.bold',
       'editor.italic',
       'editor.underline',

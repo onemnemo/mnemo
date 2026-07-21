@@ -27,6 +27,7 @@ import { TextSelection, type Command, type Transaction } from 'prosemirror-state
 import { keymap } from 'prosemirror-keymap';
 import type { Plugin } from 'prosemirror-state';
 import { blockChildrenOf, lineOf } from '../blocks/shared';
+import { asOwnUndoStep } from '../history';
 
 /** Earlier builds stored a U+200B in empty paragraphs; it is never visible text. */
 const ZERO_WIDTH_SPACE = String.fromCharCode(0x200b);
@@ -105,6 +106,24 @@ export function blockContext(state: Parameters<Command>[0]): BlockContext | null
     line,
     offset: $from.parentOffset,
   };
+}
+
+/**
+ * Dispatch a structural edit: one press, one undo step.
+ *
+ * Every command here except {@link insertSoftBreak} goes through this. A split, a
+ * merge, a delete, a de-format — the desktop pushed each as its own
+ * `DocumentOperation` and flushed the open typing batch on the way in, so none of
+ * them ever shared an undo entry with the typing around it. A soft break is the
+ * exception on both sides: it inserts a character into one block, and the desktop
+ * recorded it as typing too.
+ */
+function dispatchStructural(
+  tr: Transaction,
+  dispatch?: (tr: Transaction) => void,
+): true {
+  if (dispatch) dispatch(asOwnUndoStep(tr));
+  return true;
 }
 
 /** The four attrs that must survive a type change untouched. */
@@ -250,8 +269,7 @@ function splitQuoteOnBlankLine(
   const below = schema.nodes.paragraph.create(null, schema.nodes.line.create(null, tailContent));
   tr.insert(insertAt, below);
   tr.setSelection(TextSelection.create(tr.doc, insertAt + 2));
-  if (dispatch) dispatch(tr.scrollIntoView());
-  return true;
+  return dispatchStructural(tr.scrollIntoView(), dispatch);
 }
 
 /**
@@ -299,9 +317,10 @@ export const splitBlock: Command = (state, dispatch) => {
     const tr = convertBlockType(state.tr, blockPos, block, schema.nodes.paragraph, {
       content: 'clear',
     });
-    tr.setSelection(TextSelection.create(tr.doc, blockPos + 2));
-    if (dispatch) dispatch(tr.scrollIntoView());
-    return true;
+    return dispatchStructural(
+      tr.setSelection(TextSelection.create(tr.doc, blockPos + 2)).scrollIntoView(),
+      dispatch,
+    );
   }
 
   // Caret at the logical start of a non-empty block: push an empty Text block
@@ -313,8 +332,7 @@ export const splitBlock: Command = (state, dispatch) => {
     const above = emptyTextBlock(schema);
     const tr = state.tr.insert(blockPos, above);
     tr.setSelection(TextSelection.create(tr.doc, blockPos + above.nodeSize + 2));
-    if (dispatch) dispatch(tr.scrollIntoView());
-    return true;
+    return dispatchStructural(tr.scrollIntoView(), dispatch);
   }
 
   // General split: current block keeps its type and the text before the caret;
@@ -331,8 +349,7 @@ export const splitBlock: Command = (state, dispatch) => {
   const belowBlock = belowType.create(null, schema.nodes.line.create(null, after));
   tr.insert(insertAt, belowBlock);
   tr.setSelection(TextSelection.create(tr.doc, insertAt + 2));
-  if (dispatch) dispatch(tr.scrollIntoView());
-  return true;
+  return dispatchStructural(tr.scrollIntoView(), dispatch);
 };
 
 /** Deletes the caret's empty block, focusing the previous one — but never empties the doc. */
@@ -351,8 +368,7 @@ function deleteEmptyBlock(
     const prevLineEnd = prevStart + 2 + prevLine.content.size;
     const tr = state.tr.delete(blockPos, blockPos + block.nodeSize);
     tr.setSelection(TextSelection.create(tr.doc, prevLineEnd));
-    if (dispatch) dispatch(tr.scrollIntoView());
-    return true;
+    return dispatchStructural(tr.scrollIntoView(), dispatch);
   }
 
   // No previous sibling. Delete only if a sibling remains after us, so the
@@ -360,8 +376,7 @@ function deleteEmptyBlock(
   if ($block.parent.childCount > 1) {
     const tr = state.tr.delete(blockPos, blockPos + block.nodeSize);
     tr.setSelection(TextSelection.create(tr.doc, blockPos + 2));
-    if (dispatch) dispatch(tr.scrollIntoView());
-    return true;
+    return dispatchStructural(tr.scrollIntoView(), dispatch);
   }
   return true;
 }
@@ -390,8 +405,7 @@ function mergeIntoPrevious(
   const tr = state.tr.delete(blockPos, blockPos + block.nodeSize);
   tr.insert(prevLineEnd, content);
   tr.setSelection(TextSelection.create(tr.doc, prevLineEnd));
-  if (dispatch) dispatch(tr.scrollIntoView());
-  return true;
+  return dispatchStructural(tr.scrollIntoView(), dispatch);
 }
 
 /**
@@ -421,8 +435,7 @@ export const backspaceStructural: Command = (state, dispatch) => {
       content: 'preserve',
     });
     tr.setSelection(TextSelection.create(tr.doc, blockPos + 2));
-    if (dispatch) dispatch(tr);
-    return true;
+    return dispatchStructural(tr, dispatch);
   }
 
   if (isText) return mergeIntoPrevious(state, ctx, dispatch);
@@ -432,8 +445,7 @@ export const backspaceStructural: Command = (state, dispatch) => {
     content: 'preserve',
   });
   tr.setSelection(TextSelection.create(tr.doc, blockPos + 2));
-  if (dispatch) dispatch(tr);
-  return true;
+  return dispatchStructural(tr, dispatch);
 };
 
 /** The structural keybindings, in prosemirror-keymap form. */

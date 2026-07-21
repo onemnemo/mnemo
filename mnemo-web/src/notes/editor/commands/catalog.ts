@@ -26,9 +26,10 @@ import {
   toggleFormat,
 } from '../marks/commands';
 import { insertEquation } from '../atoms/commands';
+import { redo, undo } from '../history';
 
 /** Toolbar sectioning and slash-menu grouping. */
-export type CommandGroup = 'inline-format' | 'script' | 'color' | 'insert' | 'escape';
+export type CommandGroup = 'history' | 'inline-format' | 'script' | 'color' | 'insert' | 'escape';
 
 interface CommandMeta {
   /** Stable id, shared with the desktop action id where one exists. */
@@ -39,6 +40,13 @@ interface CommandMeta {
   readonly group: CommandGroup;
   /** Default editor-scoped keybinding in prosemirror-keymap syntax, e.g. "Mod-b". */
   readonly shortcut?: string;
+  /**
+   * Further chords that run the same command but are not the one shown in the UI.
+   * Redo is the case that needs it: Windows learned Ctrl+Y and macOS learned
+   * Cmd+Shift+Z, and a user who knows one of them is not helped by being told the
+   * other is the real name for it.
+   */
+  readonly aliases?: readonly string[];
 }
 
 /** A command with a fixed behaviour — the common case. */
@@ -107,10 +115,31 @@ function swatch(
 /**
  * The catalog. Ordered as the toolbar reads it left to right; the keymap and
  * slash menu take their own subsets. Shortcuts match the desktop chords
- * (`CoreUIModule.Chords`); `code`, the swatches and the equation carry none there
- * and carry none here. Sub/sup use Primary+`,`/`.` — `OemComma`/`OemPeriod`.
+ * (`CoreUIModule.Chords`, and Ctrl+Z / Ctrl+Y for history); `code`, the swatches
+ * and the equation carry none there and carry none here. Sub/sup use Primary+`,`
+ * and `.` — `OemComma`/`OemPeriod`.
  */
 export const EDITOR_COMMANDS: readonly EditorCommand[] = [
+  {
+    kind: 'direct',
+    id: 'editor.undo',
+    titleKey: 'notes.command.undo',
+    group: 'history',
+    shortcut: 'Mod-z',
+    run: undo,
+    // Nothing to highlight — but `isCommandEnabled` dry-runs `undo`, which
+    // answers "is there anything on the stack", so a toolbar button disables
+    // itself on an empty history without a second predicate to keep in step.
+  },
+  {
+    kind: 'direct',
+    id: 'editor.redo',
+    titleKey: 'notes.command.redo',
+    group: 'history',
+    shortcut: 'Mod-y',
+    aliases: ['Mod-Shift-z'],
+    run: redo,
+  },
   flag('editor.bold', 'bold', 'formatting-toolbar/bold', 'inline-format', 'Mod-b'),
   flag('editor.italic', 'italic', 'formatting-toolbar/italic', 'inline-format', 'Mod-i'),
   flag('editor.underline', 'underline', 'formatting-toolbar/underline', 'inline-format', 'Mod-u'),
