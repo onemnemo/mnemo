@@ -33,6 +33,14 @@ export interface MountEditorOptions {
   readonly registry: BlockRegistry;
   /** Note-title and asset resolvers; defaulted where absent. */
   readonly services?: Partial<EditorServices>;
+  /**
+   * Whether the view accepts input. Defaults to `true`. M7's read path mounts
+   * with `false`, which keeps the contentEditable off and the caret out — the
+   * DOM still renders through the same NodeViews, so a read-only note and an
+   * editable one are the identical render, differing only in what the user can
+   * do to it.
+   */
+  readonly editable?: boolean;
 }
 
 export interface MountedEditor {
@@ -46,7 +54,12 @@ export function mountEditor(options: MountEditorOptions): MountedEditor {
   const services = resolveServices(options.services);
   const nodeViews = toNodeViews(options.registry, services);
 
-  const view = new EditorView(options.mount, { state: options.state, nodeViews });
+  const editable = options.editable ?? true;
+  const view = new EditorView(options.mount, {
+    state: options.state,
+    nodeViews,
+    editable: () => editable,
+  });
   const handle = createViewHandle(view);
 
   let destroyed = false;

@@ -42,7 +42,22 @@
     "PdfExportFailedTitle": "Export failed",
     "ToolbarExportPdf": "Export as PDF",
     "NoNoteSelectedTitle": "No note selected",
-    "NoNoteSelectedDescription": "Select a note from the sidebar or create a new one to start writing."
+    "NoNoteSelectedDescription": "Select a note from the sidebar or create a new one to start writing.",
+    "Title": "Notes",
+    "NoteCountFormat": "{0} notes",
+    "Untitled": "Untitled note",
+    "Retry": "Retry",
+    "BackToNotes": "All notes",
+    "ListEmptyTitle": "No notes yet",
+    "ListEmptyDescription": "Notes you create will appear here.",
+    "ListErrorTitle": "Couldn't load your notes",
+    "ListErrorDescription": "Something went wrong fetching the notes list.",
+    "LoadFailedTitle": "Couldn't open this note",
+    "LoadFailedDescription": "The note failed to load. It is safe — try again.",
+    "EmptyNoteTitle": "This note is empty",
+    "EmptyNoteDescription": "There's nothing in it yet.",
+    "QuarantineTitle": "This note can't be displayed",
+    "QuarantineDescription": "Its content is in a format this version can't render. Nothing has been changed — the note is stored exactly as it was."
   },
   "Keybinds": {
     "module.editor": "Editor",

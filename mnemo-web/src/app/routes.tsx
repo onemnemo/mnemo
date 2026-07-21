@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { lazy, Suspense, type ReactNode } from "react"
 
 import { ChatPage } from "@/chat/components/ChatPage"
 import { StubPage } from "@/components/shell/StubPage"
@@ -7,6 +7,10 @@ import { LibraryPage } from "@/flashcards/library/LibraryPage"
 import { SessionPage } from "@/flashcards/session/SessionPage"
 import { TestPage } from "@/flashcards/test/TestPage"
 import { SettingsPage } from "@/pages/SettingsPage"
+
+// The notes editor (ProseMirror + mapper + KaTeX) is loaded on demand so its
+// ~0.5 MB stays out of the initial bundle — it is needed only on this route.
+const NotesRoute = lazy(() => import("@/notes/page/NotesRoute"))
 
 // Client-side routing: which page renders for a route key. The sidebar model
 // (categories, items, order, visibility) is server-sourced - see src/nav.
@@ -17,7 +21,11 @@ type PageRenderer = (params: readonly string[]) => ReactNode
 
 const PAGES: Record<string, PageRenderer> = {
   overview: () => <StubPage title="Overview" />,
-  notes: (p) => <StubPage title="Notes" subtitle={p[0] ? `Note ${p[0]}` : undefined} />,
+  notes: (p) => (
+    <Suspense fallback={<div className="min-h-full" />}>
+      <NotesRoute noteId={p[0]} />
+    </Suspense>
+  ),
   mindmap: () => <StubPage title="Mindmaps" />,
   "mindmap-detail": (p) => <StubPage title="Mindmap" subtitle={p[0] ? `Map ${p[0]}` : undefined} />,
   flashcards: () => <LibraryPage />,

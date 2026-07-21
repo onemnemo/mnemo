@@ -52,6 +52,9 @@ export function useNoteQuery(id: string | undefined) {
     queryKey: noteKey(id ?? ""),
     queryFn: () => apiFetch<NoteDto>(`/notes/${id!}`),
     enabled: Boolean(id),
+    // A note that is gone will not come back on a retry - surface the failed
+    // state at once rather than sitting on the loading skeleton through a backoff.
+    retry: (_count, error) => error.status !== 404,
   })
 }
 

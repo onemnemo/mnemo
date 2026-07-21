@@ -1,0 +1,270 @@
+/*
+ * Baseline read-only typography for a rendered note.
+ *
+ * This is the "recognizable render" M7 asks for, not the full editor experience
+ * substrate — hover/focus chrome, the focus state machine, and the
+ * reduced-motion / high-contrast / zoom passes are M6.5's polish layer and land
+ * on top of this. What lives here is only what a note needs to read correctly:
+ * block spacing, heading scale, list markers, code and quote framing, and the
+ * inline marks the browser does not style on its own (inline code, highlight,
+ * colour swatches).
+ *
+ * Everything resolves through the shared design tokens, so a note re-themes with
+ * the rest of the app and nothing here hardcodes a colour. Selectors target the
+ * DOM the mapper's `toDOM` produces: every block wraps its inline content in a
+ * `[data-line]`, lists are flat `<li>` siblings (no `<ul>`/`<ol>`), and atoms
+ * that need an asset or another note's title (images, page cards) render as a
+ * recognizable placeholder until their owning milestone (M12, page nav) resolves
+ * the real content.
+ */
+
+/* ProseMirror appends its editable root as a child of the mount element, so the
+ * `.ProseMirror` node sits one level inside `.notes-doc`; block-level rules go
+ * through it, and everything else uses descendant selectors that reach either. */
+.notes-doc {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-medium);
+  line-height: 1.6;
+  color: var(--text-primary);
+  counter-reset: notes-ol;
+}
+.notes-doc .ProseMirror {
+  outline: none;
+  caret-color: transparent; /* read-only: no editing caret */
+}
+
+/* Block rhythm. A single owner of vertical spacing between top-level blocks. */
+.notes-doc .ProseMirror > * {
+  margin: 0 0 8px;
+}
+.notes-doc .ProseMirror > *:last-child {
+  margin-bottom: 0;
+}
+
+/* The mandatory line under every block. Reserves height so a blank block still
+ * takes up a line rather than collapsing to nothing. */
+.notes-doc [data-line] {
+  min-height: 1.5em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Headings — the app's type scale, not the browser's. */
+.notes-doc h1 {
+  font-size: var(--font-size-heading-1);
+  font-weight: 600;
+  line-height: 1.25;
+  margin-top: 20px;
+}
+.notes-doc h2 {
+  font-size: var(--font-size-heading-2);
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 16px;
+}
+.notes-doc h3 {
+  font-size: var(--font-size-heading-3);
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 12px;
+}
+.notes-doc h4 {
+  font-size: var(--font-size-heading-4);
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 8px;
+}
+.notes-doc h1:first-child,
+.notes-doc h2:first-child,
+.notes-doc h3:first-child,
+.notes-doc h4:first-child {
+  margin-top: 0;
+}
+
+/* Quote. */
+.notes-doc blockquote {
+  border-left: 3px solid var(--line-color);
+  padding-left: 14px;
+  color: var(--text-secondary);
+}
+
+/* Code block. Source, framed and monospaced; horizontal overflow scrolls inside
+ * the block rather than widening the page. */
+.notes-doc pre {
+  background: var(--surface-subtle);
+  border: 1px solid var(--line-color);
+  border-radius: var(--radius-md, 8px);
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-small);
+  line-height: 1.5;
+}
+.notes-doc pre [data-code-line] {
+  min-height: 0;
+  white-space: pre;
+}
+
+/* Divider. */
+.notes-doc hr {
+  border: none;
+  border-top: 1px solid var(--line-color);
+  margin: 16px 0;
+}
+
+/* Lists are flat siblings, so the marker is drawn on the item itself. Numbered
+ * items use a CSS counter for a recognizable sequence; the accurate,
+ * column-aware, insert-stable numbering is the decoration plugin M8 owns. */
+.notes-doc li {
+  list-style: none;
+  padding-left: 1.6em;
+  position: relative;
+}
+.notes-doc li[data-bullet]::before {
+  content: "•";
+  position: absolute;
+  left: 0.4em;
+  color: var(--text-secondary);
+}
+.notes-doc li[data-numbered] {
+  counter-increment: notes-ol;
+}
+.notes-doc li[data-numbered]::before {
+  content: counter(notes-ol) ".";
+  position: absolute;
+  left: 0;
+  width: 1.4em;
+  text-align: right;
+  color: var(--text-secondary);
+}
+.notes-doc li[data-checklist] {
+  padding-left: 1.8em;
+}
+.notes-doc li[data-checklist]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.2em;
+  width: 1em;
+  height: 1em;
+  border: 1.5px solid var(--line-color);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+.notes-doc li[data-checklist][data-checked="true"]::before {
+  content: "✓";
+  border-color: var(--text-tertiary);
+  color: var(--text-tertiary);
+  font-size: 0.85em;
+  line-height: 1em;
+  text-align: center;
+}
+.notes-doc li[data-checklist][data-checked="true"] [data-line] {
+  color: var(--text-faded);
+  text-decoration: line-through;
+}
+
+/* Two-column layout. Recursive; each cell is a lane. The container's own line is
+ * structurally empty (force-cleared), so it is hidden and the two cells share the
+ * row. The exact stored split ratio is a refinement over equal lanes and is left
+ * for the layout milestone; equal columns read correctly here. */
+.notes-doc [data-two-column] {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.notes-doc [data-two-column] > [data-line] {
+  display: none;
+}
+.notes-doc [data-column] {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Image — the bytes are resolved by M12's realized view; until then a note
+ * still shows its figure and caption so its structure reads. */
+.notes-doc figure[data-image] {
+  margin-left: 0;
+  margin-right: 0;
+}
+.notes-doc figure[data-image]::before {
+  content: "🖼";
+  display: grid;
+  place-items: center;
+  height: 120px;
+  background: var(--surface-subtle);
+  border: 1px dashed var(--line-color);
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-faded);
+  font-size: 28px;
+}
+.notes-doc figure[data-image] [data-line] {
+  margin-top: 6px;
+  font-size: var(--font-size-body-small);
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+/* Page reference — a navigation card to another note. The title lives in that
+ * note and is resolved when page navigation ships; here it reads as a link. */
+.notes-doc a[data-page-ref] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--line-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.notes-doc a[data-page-ref]::before {
+  content: "📄";
+}
+.notes-doc a[data-page-ref]:empty::after {
+  content: "Linked page";
+}
+
+/* Inline marks the browser does not style itself. */
+.notes-doc code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line-color);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+}
+.notes-doc mark {
+  background: var(--inline-highlight-color);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 0.1em;
+}
+.notes-doc a[href] {
+  color: var(--text-color-swatch-3);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Foreground colour swatches. */
+.notes-doc [data-fg-swatch="swatch1"] { color: var(--text-color-swatch-1); }
+.notes-doc [data-fg-swatch="swatch2"] { color: var(--text-color-swatch-2); }
+.notes-doc [data-fg-swatch="swatch3"] { color: var(--text-color-swatch-3); }
+.notes-doc [data-fg-swatch="swatch4"] { color: var(--text-color-swatch-4); }
+.notes-doc [data-fg-swatch="swatch5"] { color: var(--text-color-swatch-5); }
+.notes-doc [data-fg-swatch="swatch6"] { color: var(--text-color-swatch-6); }
+.notes-doc [data-fg-swatch="swatch7"] { color: var(--text-color-swatch-7); }
+.notes-doc [data-fg-swatch="swatch8"] { color: var(--text-color-swatch-8); }
+.notes-doc [data-fg-swatch="swatch9"] { color: var(--text-color-swatch-9); }
+.notes-doc [data-fg-swatch="swatch10"] { color: var(--text-color-swatch-10); }
+
+/* Background colour swatches. */
+.notes-doc [data-bg-swatch="swatch1"] { background: var(--color-swatch-1); }
+.notes-doc [data-bg-swatch="swatch2"] { background: var(--color-swatch-2); }
+.notes-doc [data-bg-swatch="swatch3"] { background: var(--color-swatch-3); }
+.notes-doc [data-bg-swatch="swatch4"] { background: var(--color-swatch-4); }
+.notes-doc [data-bg-swatch="swatch5"] { background: var(--color-swatch-5); }
+.notes-doc [data-bg-swatch="swatch6"] { background: var(--color-swatch-6); }
+.notes-doc [data-bg-swatch="swatch7"] { background: var(--color-swatch-7); }
+.notes-doc [data-bg-swatch="swatch8"] { background: var(--color-swatch-8); }
+.notes-doc [data-bg-swatch="swatch9"] { background: var(--color-swatch-9); }
+.notes-doc [data-bg-swatch="swatch10"] { background: var(--color-swatch-10); }
