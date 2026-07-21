@@ -15,9 +15,56 @@
  * persistence format does not need to share.
  */
 
-import type { AnyBlockModule } from '../registry/types';
+import type { AnyBlockModule, InvariantContribution } from '../registry/types';
 import type { BlockType } from '../../model/types';
-import { blockChildrenOf, defineBlock, type BlockDeps } from './shared';
+import { blockChildrenOf, defineBlock, lineOf, type BlockDeps } from './shared';
+
+/**
+ * A column cell must always hold at least one editable block. The schema permits
+ * a cell of just its mandatory line — real wire data has such cells and must load
+ * — so this is repair, not a structural rule: whenever a transaction empties a
+ * cell of its block children, an empty Text block is seeded back so the cell
+ * stays a place the caret can land, exactly as the desktop reinserted a
+ * placeholder Text on delete and on paste.
+ *
+ * It runs early (before the cosmetic heading-bold pass) because it moves content;
+ * a later invariant then sees the repaired document. Dissolving the split when a
+ * cell empties beside a filled one, or collapsing the whole two-column back to a
+ * single block, are delete-command behaviours, not this universal net — they land
+ * with the two-column editing commands.
+ */
+const columnNeverEmpty: InvariantContribution = {
+  id: 'column.neverEmpty',
+  order: 10,
+  apply(ctx) {
+    const { tr } = ctx;
+    const { paragraph, line } = ctx.state.schema.nodes;
+    if (!paragraph || !line) return null;
+
+    let touched = false;
+    for (const range of ctx.changedRanges) {
+      const from = Math.max(0, range.from);
+      const to = Math.min(ctx.state.doc.content.size, range.to);
+      if (from > to) continue;
+      ctx.state.doc.nodesBetween(from, to, (node, pos) => {
+        if (node.type.name !== 'columnGroup') return true;
+        // A cell with block children is fine; keep descending in case a nested
+        // one was emptied.
+        if (blockChildrenOf(node).length > 0) return true;
+        const cellLine = lineOf(node);
+        if (!cellLine) return false;
+        // Seed the placeholder right after the cell's mandatory line. Map the
+        // position through the accumulating transaction so repairs to earlier
+        // cells in the same pass do not shift this one out from under us.
+        const insertAt = tr.mapping.map(pos + 1 + cellLine.nodeSize);
+        tr.insert(insertAt, paragraph.create(null, line.create()));
+        touched = true;
+        return false;
+      });
+    }
+    return touched ? tr : null;
+  },
+};
 
 export function twoColumnBlock(deps: BlockDeps): AnyBlockModule {
   return defineBlock<{ splitRatio: number }>(
@@ -92,6 +139,7 @@ export function columnGroupBlock(deps: BlockDeps): AnyBlockModule {
       attrsFrom: () => ({}),
       wireFrom: () => ({ type: 'ColumnGroup' as BlockType, payload: { kind: 'empty' as const } }),
       toMarkdown: (node, ctx) => ctx.serializeChildren(node),
+      invariants: [columnNeverEmpty],
     },
     deps,
   );
