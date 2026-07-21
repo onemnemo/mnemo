@@ -49,6 +49,14 @@ export interface NoteSession {
   readonly authority: NoteAuthority;
   readonly view: EditorView;
   subscribe(listener: (snapshot: NoteSnapshot) => void): () => void;
+  /**
+   * Saves now and waits for it, keeping the session open.
+   *
+   * For the exits that are not this session's own: the window closing, where
+   * the note stays on screen and may still be typed into if the close is
+   * abandoned. {@link close} is for the exits that are.
+   */
+  flush(): Promise<SaveResult>;
   /** Saves now, waits for it, and releases everything. Idempotent. */
   close(): Promise<SaveResult>;
 }
@@ -87,6 +95,12 @@ export function createNoteSession(options: NoteSessionOptions): NoteSession {
     authority,
     view: mounted.view,
     subscribe: (listener) => authority.subscribe(listener),
+
+    flush(): Promise<SaveResult> {
+      // A close already under way owns the last write; joining it reports what
+      // that one did rather than racing it with a second.
+      return closing ?? autosave.flush();
+    },
 
     close(): Promise<SaveResult> {
       // A second call joins the first rather than starting a save against an

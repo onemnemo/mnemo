@@ -17,6 +17,7 @@ using Mnemo.Host.Events;
 using Mnemo.Host.Flashcards;
 using Mnemo.Host.I18n;
 using Mnemo.Host.Keybinds;
+using Mnemo.Host.Lifecycle;
 using Mnemo.Host.Nav;
 using Mnemo.Host.Notes;
 using Mnemo.Host.Settings;
@@ -46,7 +47,7 @@ public static class Program
         var server = Task.Run(() => StartServerAsync(options)).GetAwaiter().GetResult();
         try
         {
-            RunWindow(options, server.WindowUrl);
+            RunWindow(options, server);
             return 0;
         }
         finally
@@ -101,6 +102,7 @@ public static class Program
             i18n.GetBundleAsync(culture, cancellationToken));
 
         app.MapEventStream();
+        app.MapLifecycle();
         app.MapSettings();
         app.MapKeybinds();
         app.MapNav();
@@ -161,8 +163,17 @@ public static class Program
         return new ServerHandle(app, apiBaseUrl, windowUrl);
     }
 
-    private static void RunWindow(HostOptions options, string url)
+    /// <summary>
+    /// How long the window waits for the SPA to finish saving before closing
+    /// anyway. Long enough for a note commit against a local SQLite file, short
+    /// enough that nobody reads it as the app refusing to quit.
+    /// </summary>
+    private static readonly TimeSpan ShutdownGrace = TimeSpan.FromSeconds(3);
+
+    private static void RunWindow(HostOptions options, ServerHandle server)
     {
+        var url = server.WindowUrl;
+
         // Do not disable DevTools/context menu/zoom here, and do not enable
         // Transparent. PhotinoX 4.3.1/4.3.2 applies those settings *after* the
         // initial navigation and each one calls Reload(), which discards the
@@ -183,9 +194,46 @@ public static class Program
             window.SetTemporaryFilesPath(Path.Combine(MnemoAppPaths.GetLocalUserDataRoot(), "webview"));
         }
 
+        AttachShutdownGate(window, server.App.Services);
+
         Console.WriteLine($"[Mnemo.Host] Load({url})");
         window.Load(url);
         window.Show();
+    }
+
+    /// <summary>
+    /// Holds the first close request open long enough for the SPA to save.
+    /// </summary>
+    /// <remarks>
+    /// The handler returns immediately and does the waiting on a background
+    /// thread. It runs on the UI thread, and the message loop it would otherwise
+    /// block is the same one the WebView needs in order to run the save being
+    /// waited for - blocking here would deadlock against the thing it is for.
+    /// </remarks>
+    private static void AttachShutdownGate(PhotinoWindow window, IServiceProvider services)
+    {
+        var gate = services.GetRequiredService<ShutdownGate>();
+        var events = services.GetRequiredService<IAppEventPublisher>();
+
+        window.RegisterWindowClosingHandler((_, e) =>
+        {
+            // Only the first request is held. A second press of the close button
+            // means the user is done waiting, and the close we ask for ourselves
+            // below arrives through this same handler.
+            if (!gate.TryBeginDrain())
+                return;
+
+            e.Cancel = true;
+            events.Publish(new AppEvent("shutdown", new { graceMs = (int)ShutdownGrace.TotalMilliseconds }));
+
+            _ = Task.Run(async () =>
+            {
+                var ready = await gate.WaitForReadyAsync(ShutdownGrace).ConfigureAwait(false);
+                if (!ready)
+                    Console.WriteLine("[Mnemo.Host] No client reported ready before the shutdown grace expired; closing anyway.");
+                window.Invoke(window.Close);
+            });
+        });
     }
 
     private static string ResolveBoundAddress(WebApplication app)

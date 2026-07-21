@@ -7,6 +7,7 @@ using Mnemo.Core.Services.Search;
 using Mnemo.Host.Events;
 using Mnemo.Host.HeadlessShell;
 using Mnemo.Host.I18n;
+using Mnemo.Host.Lifecycle;
 using Mnemo.Infrastructure.History;
 using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.AI;
@@ -226,6 +227,9 @@ public static class HostComposition
         services.AddSingleton<AppEventHub>();
         services.AddSingleton<IAppEventPublisher>(sp => sp.GetRequiredService<AppEventHub>());
         services.AddSingleton<IAppEventSource>(sp => sp.GetRequiredService<AppEventHub>());
+
+        // The window's closing handler and the SPA's reply endpoint meet here.
+        services.AddSingleton<ShutdownGate>();
 
         services.AddSingleton<IThemeService, HeadlessThemeService>();
         services.AddSingleton<IOverlayService, HeadlessOverlayService>();

@@ -14,6 +14,11 @@ export const EventType = {
   Hello: "hello",
   /** A toast raised server-side; payload is {@link ToastEventData}. */
   Toast: "toast",
+  /**
+   * The window is closing and is being held open for us; payload is
+   * {@link ShutdownEventData}. Save now — see `@/app/shutdown`.
+   */
+  Shutdown: "shutdown",
 } as const
 
 /** Payload of a `toast` event - mirrors Mnemo.Host/Contracts/ToastEventDto. */
@@ -22,6 +27,12 @@ export interface ToastEventData {
   title: string
   description?: string | null
   durationMs: number
+}
+
+/** Payload of a `shutdown` event - mirrors the grace period Mnemo.Host waits out. */
+export interface ShutdownEventData {
+  /** How long the host will wait before closing whether or not we answer. */
+  graceMs: number
 }
 
 export type ConnectionStatus = "connecting" | "open" | "closed"

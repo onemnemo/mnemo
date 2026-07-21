@@ -99,6 +99,42 @@ describe('the view dispatch', () => {
   });
 });
 
+describe('flush', () => {
+  it('saves what has not been saved and leaves the editor mounted', async () => {
+    const h = harness();
+    h.type('x');
+
+    await h.session.flush();
+
+    expect(h.commits).toHaveLength(1);
+    // The window close that triggered this may yet be abandoned, and the note
+    // is still on screen either way.
+    expect(h.mount.querySelector('.ProseMirror')).not.toBeNull();
+  });
+
+  it('leaves the session usable', async () => {
+    const h = harness();
+    h.type('x');
+    await h.session.flush();
+
+    h.type('y');
+    await h.session.flush();
+
+    expect(h.commits).toHaveLength(2);
+    expect(h.commits[1].doc.textContent).toBe('yxhello');
+  });
+
+  it('joins a close already under way instead of racing it', async () => {
+    const h = harness();
+    h.type('x');
+
+    const [closed, flushed] = await Promise.all([h.session.close(), h.session.flush()]);
+
+    expect(flushed).toEqual(closed);
+    expect(h.commits).toHaveLength(1);
+  });
+});
+
 describe('close', () => {
   it('saves what has not been saved', async () => {
     const h = harness();

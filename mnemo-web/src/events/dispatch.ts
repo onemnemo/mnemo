@@ -1,3 +1,4 @@
+import { completeShutdown } from "@/app/shutdown"
 import { useToastStore } from "@/stores/toast"
 
 import { EventType, type AppEvent, type ToastEventData } from "./types"
@@ -15,6 +16,11 @@ export function dispatchAppEvent(event: AppEvent): void {
       })
       break
     }
+    case EventType.Shutdown:
+      // Not awaited: the dispatcher is synchronous, and the handshake reports
+      // itself to the host rather than back through here.
+      void completeShutdown()
+      break
     case EventType.Hello:
       // Handshake only; connection status is set by the provider's onOpen.
       break

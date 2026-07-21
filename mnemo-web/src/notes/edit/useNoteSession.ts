@@ -13,6 +13,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
+import { onShutdown } from '@/app/shutdown';
 import type { SaveState } from '../authority/authority';
 import { createNoteSession, type NoteSessionOptions } from './session';
 
@@ -44,8 +45,12 @@ export function useNoteSession(options: UseNoteSessionOptions): UseNoteSessionRe
     const unsubscribe = session.subscribe((snapshot) => {
       setSaveState(snapshot.saveState);
     });
+    // Closing the window is the one exit that unmounts nothing, so cleanup never
+    // runs and the debounce never fires. The host holds the close open for this.
+    const unregister = onShutdown(() => session.flush());
 
     return () => {
+      unregister();
       unsubscribe();
       // Not awaited, because a React cleanup cannot wait. The session keeps
       // itself alive until the final save settles; what is released here is
