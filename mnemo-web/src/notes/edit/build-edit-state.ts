@@ -22,6 +22,7 @@ import { keymap } from 'prosemirror-keymap';
 import { baseKeymap } from 'prosemirror-commands';
 import { editorSchema } from '../editor/schema';
 import { createDocumentMapper, type QuarantineReason } from '../editor/mapper/document';
+import { blockIdentityPlugin } from '../editor/pipeline/block-identity';
 import { invariantPipeline } from '../editor/pipeline/invariants';
 import { inputTriggerPlugin } from '../editor/pipeline/input-triggers';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
@@ -51,6 +52,10 @@ export type NoteEditState =
  *  - `baseKeymap` is the ProseMirror default of last resort.
  *  - `invariantPipeline` reacts after the fact through `appendTransaction`, and
  *    `numberedListPlugin` only decorates; neither touches key dispatch.
+ *  - `blockIdentityPlugin` also only appends. Its place after the pipeline is
+ *    not load-bearing — a block the pipeline itself creates gets its identity on
+ *    the next append round either way — but reading it last matches when it
+ *    acts, which is once everything else has settled on a shape.
  */
 export function editorPlugins(registry: BlockRegistry): Plugin[] {
   return [
@@ -60,6 +65,7 @@ export function editorPlugins(registry: BlockRegistry): Plugin[] {
     keymap(baseKeymap),
     invariantPipeline(registry),
     numberedListPlugin(),
+    blockIdentityPlugin(registry),
   ];
 }
 

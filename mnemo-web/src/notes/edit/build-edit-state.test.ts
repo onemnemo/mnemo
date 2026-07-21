@@ -45,7 +45,26 @@ describe('buildNoteEditState', () => {
 describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry } = editorSchema();
-    expect(editorPlugins(registry)).toHaveLength(6);
+    expect(editorPlugins(registry)).toHaveLength(7);
+  });
+
+  it('gives a block created by an edit its own identity', () => {
+    const result = buildNoteEditState([block('Text', [span('hi')])]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const bare = result.state.schema.nodes.paragraph.create(
+      null,
+      result.state.schema.nodes.line.create(),
+    );
+    const next = result.state.apply(result.state.tr.insert(result.state.doc.content.size, bare));
+
+    // Without this the block would be committed with an empty sid, be assigned
+    // one by the server, and be assigned a *different* one on the next save —
+    // forever, since a commit answers with a version and nothing else.
+    const created = next.doc.child(next.doc.childCount - 1);
+    expect(String(created.attrs.sid)).not.toBe('');
+    expect(String(created.attrs.id)).not.toBe('');
   });
 
   it('runs the invariant pipeline on an edit — text typed into a heading turns bold', () => {
