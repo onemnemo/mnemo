@@ -32,6 +32,13 @@ export function inputTriggerPlugin(registry: BlockRegistry): Plugin {
     props: {
       handleTextInput(view, from, to, text) {
         if (triggers.length === 0) return false;
+        // Nothing fires mid-composition. ProseMirror reaches this hook from its
+        // DOM-change reader as well as from keypress, and only the keypress path
+        // screens for composition — so an IME candidate, a dead-key sequence or
+        // a stacking script can arrive here carrying intermediate text over a
+        // range the input method still owns. Converting the block underneath it
+        // rewrites positions the IME is about to write to.
+        if (view.composing) return false;
         // Only a collapsed caret converts. A range being replaced is an edit the
         // user is making to existing content, not a marker being completed.
         if (from !== to) return false;
@@ -41,10 +48,14 @@ export function inputTriggerPlugin(registry: BlockRegistry): Plugin {
         if (!$from.parent.isTextblock || $from.depth < 1) return false;
 
         const blockName = $from.node($from.depth - 1).type.name;
-        // Line text before the caret, plus the character now being typed. Inline
-        // atoms contribute nothing here, so a marker regex simply will not match
-        // a line that opens with one — which is the correct outcome.
-        const matchText = $from.parent.textBetween(0, $from.parentOffset) + text;
+        // Line text before the caret, plus the character now being typed.
+        const textBefore = $from.parent.textBetween(0, $from.parentOffset);
+        // An inline atom holds a position but contributes no text, so the two
+        // disagree exactly when one is in the prefix. A handler that trusted the
+        // caret offset as a marker length would then delete the atom along with
+        // the marker, so no trigger is offered a prefix it cannot measure.
+        if (textBefore.length !== $from.parentOffset) return false;
+        const matchText = textBefore + text;
 
         for (const trigger of triggers) {
           if (trigger.nodeName !== blockName) continue;

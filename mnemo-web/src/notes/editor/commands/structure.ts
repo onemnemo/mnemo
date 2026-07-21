@@ -47,6 +47,35 @@ export function isVisuallyEmpty(text: string): boolean {
   return text.split(ZERO_WIDTH_SPACE).join('').trim() === '';
 }
 
+/**
+ * The same question asked of a line's content rather than of its text: empty of
+ * visible text *and* free of inline atoms.
+ *
+ * An equation contributes no text — it holds a position and renders from its
+ * attrs — so a line containing nothing but one reads as blank to
+ * {@link isVisuallyEmpty}. Every rule that treats "empty" as licence to clear or
+ * delete has to ask this instead, or typing Enter on a bullet holding a formula
+ * silently destroys it.
+ */
+export function isContentVisuallyEmpty(content: Fragment): boolean {
+  if (hasInlineAtom(content)) return false;
+  return isVisuallyEmpty(content.textBetween(0, content.size));
+}
+
+/**
+ * Whether any non-text node sits in this inline content. Two consequences follow
+ * from one: such a node is visible without being text, and it makes a text offset
+ * and a content position disagree — so anything cutting content at an offset
+ * derived from text has to check this first.
+ */
+export function hasInlineAtom(content: Fragment): boolean {
+  let found = false;
+  content.forEach((child) => {
+    if (!child.isText) found = true;
+  });
+  return found;
+}
+
 export interface BlockContext {
   /** The block whose line holds the caret — the innermost one, so a nested cell works. */
   readonly block: PMNode;
@@ -250,12 +279,16 @@ export const splitBlock: Command = (state, dispatch) => {
   const toOff = sel.empty ? fromOff : sel.$to.parentOffset;
   const before = line.content.cut(0, fromOff);
   const after = line.content.cut(toOff);
-  const effectiveText = before.textBetween(0, before.size) + after.textBetween(0, after.size);
-  const blank = isVisuallyEmpty(effectiveText);
+  const blank = isContentVisuallyEmpty(before) && isContentVisuallyEmpty(after);
 
   // Quote: an empty current line exits to a new Text block; otherwise soft-wrap.
   if (block.type.name === 'quote') {
-    if (sel.empty && caretOnBlankVisualLine(line.textContent, offset)) {
+    // The blank-line split cuts the line at offsets measured in text, which only
+    // line up with content positions while the line is all text. A quote holding
+    // an atom soft-wraps instead — the atom survives, which beats exiting the
+    // quote at a boundary computed from the wrong coordinate space.
+    const canSplitHere = sel.empty && !hasInlineAtom(line.content);
+    if (canSplitHere && caretOnBlankVisualLine(line.textContent, offset)) {
       return splitQuoteOnBlankLine(state, ctx, dispatch);
     }
     return insertSoftBreak(state, dispatch);
@@ -380,7 +413,7 @@ export const backspaceStructural: Command = (state, dispatch) => {
   const { block, blockPos, line } = ctx;
   const schema = state.schema;
   const isText = block.type.name === 'paragraph';
-  const empty = isVisuallyEmpty(line.textContent);
+  const empty = isContentVisuallyEmpty(line.content);
 
   if (empty) {
     if (isText) return deleteEmptyBlock(state, ctx, dispatch);

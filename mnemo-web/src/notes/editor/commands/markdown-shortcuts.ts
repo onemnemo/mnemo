@@ -30,7 +30,7 @@
 
 import { TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
 import type { InputTriggerContribution } from '../registry/types';
-import { blockContext, convertBlockType, isVisuallyEmpty } from './structure';
+import { blockContext, convertBlockType, isContentVisuallyEmpty } from './structure';
 
 /**
  * Converts the caret's paragraph to a list item, dropping the leading marker and
@@ -67,9 +67,11 @@ function convertWholeLine(
   const ctx = blockContext(state);
   if (!ctx) return null;
   const { block, blockPos, line, offset } = ctx;
-  // Anything after the caret means the line is not just the marker.
+  // Anything after the caret means the line is not just the marker. "Anything"
+  // has to include an inline atom: an equation carries no text, so a text-only
+  // check would read `#<equation>` as a bare marker and clear the line over it.
   const after = line.content.cut(offset);
-  if (after.size > 0 && !isVisuallyEmpty(after.textBetween(0, after.size))) return null;
+  if (!isContentVisuallyEmpty(after)) return null;
 
   const target = state.schema.nodes[targetNodeName];
   if (!target) return null;

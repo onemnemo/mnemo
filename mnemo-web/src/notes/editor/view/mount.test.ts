@@ -114,3 +114,18 @@ describe('mountEditor lifecycle', () => {
     expect(mounted.handle.state).toBe(mounted.view.state);
   });
 });
+
+describe('native spellcheck', () => {
+  it('leaves the checker on for an editable note', () => {
+    const el = container();
+    mountEditor({ mount: el, state: stateOf([textNote('teh')]), registry, editable: true });
+    expect(el.querySelector('.ProseMirror')!.getAttribute('spellcheck')).toBe('true');
+  });
+
+  it('turns the checker off for a read-only note', () => {
+    // A reader cannot act on a squiggle, so a read-only note must not draw one.
+    const el = container();
+    mountEditor({ mount: el, state: stateOf([textNote('teh')]), registry, editable: false });
+    expect(el.querySelector('.ProseMirror')!.getAttribute('spellcheck')).toBe('false');
+  });
+});
