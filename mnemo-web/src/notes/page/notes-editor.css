@@ -26,7 +26,6 @@
   font-size: var(--font-size-body-medium);
   line-height: 1.6;
   color: var(--text-primary);
-  counter-reset: notes-ol;
 }
 .notes-doc .ProseMirror {
   outline: none;
@@ -112,9 +111,10 @@
   margin: 16px 0;
 }
 
-/* Lists are flat siblings, so the marker is drawn on the item itself. Numbered
- * items use a CSS counter for a recognizable sequence; the accurate,
- * column-aware, insert-stable numbering is the decoration plugin M8 owns. */
+/* Lists are flat siblings, so the marker is drawn on the item itself. The
+ * numbered sequence is column-aware, insert-stable and run-resetting, none of
+ * which a CSS counter can express — so the number is computed by the list-number
+ * decoration plugin and read here off the `data-list-number` it paints. */
 .notes-doc li {
   list-style: none;
   padding-left: 1.6em;
@@ -126,11 +126,8 @@
   left: 0.4em;
   color: var(--text-secondary);
 }
-.notes-doc li[data-numbered] {
-  counter-increment: notes-ol;
-}
 .notes-doc li[data-numbered]::before {
-  content: counter(notes-ol) ".";
+  content: attr(data-list-number) ".";
   position: absolute;
   left: 0;
   width: 1.4em;
