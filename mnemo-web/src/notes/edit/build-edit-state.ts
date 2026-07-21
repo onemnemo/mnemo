@@ -30,6 +30,7 @@ import {
 import { blockIdentityPlugin } from '../editor/pipeline/block-identity';
 import { invariantPipeline } from '../editor/pipeline/invariants';
 import { inputTriggerPlugin } from '../editor/pipeline/input-triggers';
+import { nestedInputGuard } from '../editor/pipeline/nested-input';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
 import { structureKeymap } from '../editor/commands/structure';
 import { editorKeymap } from '../editor/commands';
@@ -59,8 +60,11 @@ export type NoteEditState =
  * ProseMirror gives an earlier plugin first refusal on a key, so the ordering is
  * a real decision, not a list:
  *
+ *  - `nestedInputGuard` is first because its whole job is to answer before the
+ *    others: an event from a text input inside the editor belongs to that input,
+ *    and every plugin below would otherwise treat it as a document edit.
  *  - `inputTriggerPlugin` runs on text input, not on a key chord, so it sits
- *    first without competing with the keymaps.
+ *    before the keymaps without competing with them.
  *  - `structureKeymap` must precede `baseKeymap`: both bind Enter and Backspace,
  *    and ours has to win so a split lands our block shapes. It declines
  *    (returns false) for the cases it does not own — a mid-line Backspace, a
@@ -82,6 +86,7 @@ export type NoteEditState =
  */
 export function editorPlugins(registry: BlockRegistry): Plugin[] {
   return [
+    nestedInputGuard(),
     inputTriggerPlugin(registry),
     structureKeymap(),
     editorKeymap(),
