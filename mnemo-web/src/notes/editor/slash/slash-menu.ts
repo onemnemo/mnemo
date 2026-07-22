@@ -1,0 +1,239 @@
+/**
+ * The slash menu: type `/` at the start of a block and pick what it becomes.
+ *
+ * The query lives in the document, exactly as on the desktop. There is no
+ * search field: the menu reads the block's own line, opens while that line
+ * starts with `/`, and closes when it stops. That is why Backspacing over the
+ * slash dismisses it without needing a rule of its own, and why the typed text
+ * is still there to be edited if the menu is escaped.
+ *
+ * Rows come from the block registry, so a block type offers itself and the menu
+ * has no list of its own to drift from. Their order is the registry's, which
+ * already reads Text, headings, lists, quote, then the inserts.
+ *
+ * DOM focus never leaves the editor while this is open, so there is no focus to
+ * restore on Escape: the caret is where it was, in the text that is still
+ * there.
+ */
+
+import { Plugin, PluginKey } from 'prosemirror-state';
+import type { EditorView } from 'prosemirror-view';
+import type { BlockRegistry, SlashEntry } from '../registry/build';
+import { asOwnUndoStep } from '../history';
+import { blockContext, hasInlineAtom } from '../commands/structure';
+import { placeMenu, type Rect } from '../floating/position';
+import { useI18nStore } from '../../../i18n/store';
+import { createTranslate } from '../../../i18n/translate';
+import { createSlashMenuView, type MenuRow } from './menu-view';
+import { matchesQuery, searchCandidates } from './search';
+
+export const slashMenuKey = new PluginKey('mnemo-slash-menu');
+
+export interface SlashMenuOptions {
+  /** Injected so a test asserts on stable keys, not on the shipped bundle. */
+  readonly translate?: (key: string) => string;
+}
+
+/**
+ * The typed query, or null for "the menu does not belong here".
+ *
+ * Three refusals, each for its own reason. A range selection is the user
+ * selecting text, not typing a command. A source line is where `/` is ordinary
+ * content, asked of the schema rather than matched against block names, the
+ * same call the equation command makes. And a line holding an inline atom is
+ * refused because picking a row clears the line, and an equation carries no
+ * text of its own to warn us it was there.
+ */
+function readQuery(state: EditorView['state']): string | null {
+  if (!state.selection.empty) return null;
+
+  const ctx = blockContext(state);
+  if (!ctx) return null;
+  if (ctx.line.type.spec.code === true) return null;
+  if (hasInlineAtom(ctx.line.content)) return null;
+
+  const text = ctx.line.textBetween(0, ctx.line.content.size);
+  return text.startsWith('/') ? text.slice(1) : null;
+}
+
+function anchorRect(view: EditorView): Rect | null {
+  try {
+    const coords = view.coordsAtPos(view.state.selection.from);
+    return { top: coords.top, bottom: coords.bottom, left: coords.left, right: coords.right };
+  } catch {
+    return null;
+  }
+}
+
+/** Reads the active bundle at call time, so it follows a language change. */
+function defaultTranslate(key: string): string {
+  return createTranslate(useI18nStore.getState().bundle)('NotesEditor', key);
+}
+
+function buildRows(
+  entries: readonly SlashEntry[],
+  translate: (key: string) => string,
+): readonly MenuRow[] {
+  return entries.map((entry) => {
+    const label = translate(entry.label);
+    return {
+      entry,
+      label,
+      // Both the resolved strings and the keys behind them: the first follows
+      // the UI language, the second keeps the English names findable in a UI
+      // that is not in English.
+      candidates: searchCandidates([
+        label,
+        translate(entry.description),
+        entry.hint,
+        entry.label,
+        entry.nodeName,
+        ...(entry.keywords ?? []),
+      ]),
+    };
+  });
+}
+
+interface MenuController {
+  sync(): void;
+  handleKey(event: KeyboardEvent): boolean;
+  destroy(): void;
+}
+
+function createController(
+  view: EditorView,
+  allRows: readonly MenuRow[],
+  translate: (key: string) => string,
+): MenuController {
+  const menu = createSlashMenuView(translate);
+  let open = false;
+  let rows: readonly MenuRow[] = [];
+  let index = 0;
+
+  function close(): void {
+    if (!open) return;
+    open = false;
+    menu.root.setAttribute('data-hidden', '');
+  }
+
+  function pick(at: number): void {
+    const row = rows[at];
+    if (!row) return;
+    // Closed first: an insert runs plugin views, and one of those seeing the
+    // menu still open could pick a second time out of a document the first
+    // pick has already changed.
+    close();
+    row.entry.insert(view.state, (tr) => {
+      // One pick is one undo step, so a single press takes the block type back
+      // and leaves the typed query there to be corrected.
+      view.dispatch(asOwnUndoStep(tr));
+    });
+  }
+
+  function reposition(): void {
+    const anchor = anchorRect(view);
+    if (!anchor) return;
+    // Measured with any previous cap cleared, so the height that feeds the
+    // placement is what the menu wants rather than what it was last allowed.
+    menu.root.style.maxHeight = '';
+    const size = { width: menu.root.offsetWidth, height: menu.root.offsetHeight };
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    const placement = placeMenu(anchor, size, viewport);
+    menu.root.style.maxHeight = `${String(placement.maxHeight)}px`;
+    menu.root.style.top = `${String(placement.top)}px`;
+    menu.root.style.left = `${String(placement.left)}px`;
+  }
+
+  function move(delta: number): void {
+    if (rows.length === 0) return;
+    // Clamped, not wrapped: the desktop clamps, and a list this short reads as
+    // a broken key when the highlight jumps end to end.
+    index = Math.min(rows.length - 1, Math.max(0, index + delta));
+    menu.select(index);
+  }
+
+  return {
+    sync(): void {
+      const query = readQuery(view.state);
+      if (query === null) {
+        close();
+        return;
+      }
+
+      const wasOpen = open;
+      rows = allRows.filter((row) => matchesQuery(row.candidates, query));
+      // Back to the top on every query change, matching the desktop: the row
+      // the user was on is rarely the one they still mean after typing more.
+      index = 0;
+      open = true;
+      menu.root.removeAttribute('data-hidden');
+      menu.render(rows, index, pick);
+      // Only on open. The menu hangs off the point the `/` was typed at, and
+      // re-anchoring as the query grows makes it crawl sideways.
+      if (!wasOpen) reposition();
+    },
+
+    handleKey(event): boolean {
+      if (!open) return false;
+      switch (event.key) {
+        case 'ArrowDown':
+          move(1);
+          return true;
+        case 'ArrowUp':
+          move(-1);
+          return true;
+        case 'Home':
+          move(-rows.length);
+          return true;
+        case 'End':
+          move(rows.length);
+          return true;
+        case 'Enter':
+          // An empty list consumes Enter too. Falling through would split the
+          // block under an open menu, which is not what the press meant.
+          pick(index);
+          return true;
+        case 'Escape':
+          close();
+          return true;
+        default:
+          return false;
+      }
+    },
+
+    destroy(): void {
+      menu.destroy();
+    },
+  };
+}
+
+export function slashMenuPlugin(registry: BlockRegistry, options: SlashMenuOptions = {}): Plugin {
+  const translate = options.translate ?? defaultTranslate;
+  const allRows = buildRows(registry.slash, translate);
+  // Keyed by view rather than captured: one plugin instance can be reached
+  // from more than one view, and the open menu is a property of the view.
+  const controllers = new WeakMap<EditorView, MenuController>();
+
+  return new Plugin({
+    key: slashMenuKey,
+    view(editorView) {
+      const controller = createController(editorView, allRows, translate);
+      controllers.set(editorView, controller);
+      controller.sync();
+      return {
+        update(): void {
+          controller.sync();
+        },
+        destroy(): void {
+          controllers.delete(editorView);
+          controller.destroy();
+        },
+      };
+    },
+    props: {
+      handleKeyDown(view, event) {
+        return controllers.get(view)?.handleKey(event) ?? false;
+      },
+    },
+  });
+}

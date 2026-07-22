@@ -275,9 +275,9 @@ export function validateRegistry(
     });
   }
 
-  const slashEntries = modules
-    .filter((m) => m.slash)
-    .map((m) => ({ label: m.slash!.label, owner: m.nodeName }));
+  const slashEntries = modules.flatMap((m) =>
+    (m.slash ?? []).map((entry) => ({ label: entry.label, owner: m.nodeName })),
+  );
   for (const [label, dupes] of findDuplicates(slashEntries, (s) => s.label)) {
     issues.push({
       code: 'duplicate-slash-label',

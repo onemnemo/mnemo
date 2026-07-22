@@ -150,11 +150,11 @@ export function buildBlockRegistry(
       realizedViews.set(module.nodeName, module.realizedView.bind(module) as RealizedViewFactory);
     }
 
-    if (module.slash) {
+    for (const entry of module.slash ?? []) {
       slash.push({
-        ...module.slash,
+        ...entry,
         nodeName: module.nodeName,
-        insert: module.slash.insert.bind(module.slash),
+        insert: entry.insert.bind(entry),
       });
     }
     for (const command of module.commands ?? []) {

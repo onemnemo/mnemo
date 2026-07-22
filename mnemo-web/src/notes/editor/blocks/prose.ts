@@ -13,6 +13,7 @@ import type { BlockType } from '../../model/types';
 import { defineBlock, lineOf, metrics, wrappedHeight, type BlockDeps } from './shared';
 import type { InvariantContribution } from '../registry/types';
 import { markdownShortcutTriggers } from '../commands/markdown-shortcuts';
+import { convertHere } from './slash-insert';
 
 const emptyPayload = () => ({ type: 'Text' as BlockType, payload: { kind: 'empty' as const } });
 
@@ -29,6 +30,14 @@ export function paragraphBlock(deps: BlockDeps): AnyBlockModule {
       // set rides the paragraph module's triggers, which is what the input
       // plugin's per-block filter keys on.
       inputTriggers: markdownShortcutTriggers(),
+      slash: [
+        {
+          label: 'Text',
+          description: 'TextDescription',
+          group: 'text',
+          insert: convertHere('paragraph'),
+        },
+      ],
     },
     deps,
   );
@@ -46,6 +55,18 @@ export function quoteBlock(deps: BlockDeps): AnyBlockModule {
       attrsFrom: () => ({}),
       wireFrom: () => ({ type: 'Quote' as BlockType, payload: { kind: 'empty' as const } }),
       toMarkdown: (_node, _ctx, inline) => `> ${inline}\n`,
+      slash: [
+        {
+          label: 'Quote',
+          description: 'QuoteDescription',
+          // The desktop advertises `"` here, which nothing in either app has
+          // ever accepted. The hint exists to teach the shortcut, so it says
+          // the one that works.
+          hint: '>',
+          group: 'text',
+          insert: convertHere('quote'),
+        },
+      ],
     },
     deps,
   );
@@ -142,6 +163,15 @@ export function headingBlock(deps: BlockDeps): AnyBlockModule {
         );
       },
       invariants: [forceHeadingBold],
+      // Four rows on one node: the level is an attr, which is what makes a
+      // level change a markup edit rather than a new block with a new sid.
+      slash: [1, 2, 3, 4].map((level) => ({
+        label: `Heading${String(level)}`,
+        description: `Heading${String(level)}Description`,
+        hint: '#'.repeat(level),
+        group: 'text' as const,
+        insert: convertHere('heading', { level }),
+      })),
     },
     deps,
   );

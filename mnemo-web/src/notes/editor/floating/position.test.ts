@@ -5,7 +5,7 @@
  * horizontal-clamp decisions independent of environment.
  */
 import { describe, expect, it } from 'vitest';
-import { MIN_ABOVE_SPACE, placeToolbar, type Rect } from './position';
+import { MENU_HEIGHT_ESTIMATE, MIN_ABOVE_SPACE, placeMenu, placeToolbar, type Rect } from './position';
 
 const SIZE = { width: 200, height: 40 };
 const VIEWPORT = { width: 1000, height: 800 };
@@ -82,5 +82,62 @@ describe('horizontal clamping', () => {
     expect(() => placeToolbar(rectAt(200, 40), SIZE, tiny)).not.toThrow();
     const placement = placeToolbar(rectAt(200, 40), SIZE, tiny);
     expect(placement.left).toBe(4);
+  });
+});
+
+/**
+ * The menu differs from the toolbar on both axes on purpose: it is a list read
+ * downward from the caret, so it is left-aligned and sits below unless below
+ * genuinely cannot hold it.
+ */
+describe('placeMenu', () => {
+  const MENU = { width: 300, height: 340 };
+
+  it('sits below the line, left-aligned to it', () => {
+    const anchor = rectAt(200, 400);
+    const placement = placeMenu(anchor, MENU, VIEWPORT);
+    expect(placement.showAbove).toBe(false);
+    expect(placement.top).toBe(anchor.bottom + 4);
+    expect(placement.left).toBe(400);
+  });
+
+  it('goes above only when below is short AND above has more room', () => {
+    // Below is short in both, and only the second has more room above.
+    const shallow = { width: 1000, height: 300 };
+    expect(placeMenu(rectAt(20, 400), MENU, shallow).showAbove).toBe(false);
+    expect(placeMenu(rectAt(240, 400), MENU, shallow).showAbove).toBe(true);
+  });
+
+  it('caps its height to the room on the side it took, rather than covering the line', () => {
+    const shallow = { width: 1000, height: 300 };
+    const placement = placeMenu(rectAt(20, 400), MENU, shallow);
+    // Anchor bottom is 40, so 300 - 40 - 4 gutter - 4 margin.
+    expect(placement.maxHeight).toBe(252);
+    expect(placement.top).toBe(44);
+    // The cap is what keeps it clear of the line it is anchored to.
+    expect(placement.top + placement.maxHeight).toBeLessThanOrEqual(shallow.height - 4);
+  });
+
+  it('caps against the room above when it goes above', () => {
+    const shallow = { width: 1000, height: 300 };
+    const placement = placeMenu(rectAt(240, 400), MENU, shallow);
+    expect(placement.showAbove).toBe(true);
+    expect(placement.maxHeight).toBe(232);
+    expect(placement.top).toBe(4);
+  });
+
+  it('never reports a negative cap for a line pressed against the edge', () => {
+    const placement = placeMenu(rectAt(VIEWPORT.height - 2, 400), MENU, VIEWPORT);
+    expect(placement.maxHeight).toBeGreaterThanOrEqual(0);
+  });
+
+  it('takes the full estimate below when there is room, and does not go above', () => {
+    const roomy = { width: 1000, height: MENU_HEIGHT_ESTIMATE * 3 };
+    expect(placeMenu(rectAt(100, 400), MENU, roomy).showAbove).toBe(false);
+  });
+
+  it('clamps to the right edge like the toolbar does', () => {
+    const placement = placeMenu(rectAt(200, 900), MENU, VIEWPORT);
+    expect(placement.left).toBe(VIEWPORT.width - MENU.width - 4);
   });
 });

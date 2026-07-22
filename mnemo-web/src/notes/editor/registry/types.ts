@@ -237,12 +237,33 @@ export type RealizedBlockViewFactory<TAttrs> = (
   args: RealizedBlockViewArgs<TAttrs>,
 ) => RealizedBlockView;
 
-export type SlashGroup = 'basic' | 'headings' | 'lists' | 'media' | 'advanced';
+/**
+ * The two sections the menu draws, separated by a rule and in this order.
+ * `text` is the block a paragraph can become, `insert` is everything that puts
+ * something new on the page.
+ */
+export type SlashGroup = 'text' | 'insert';
 
+/**
+ * One row of the slash menu, contributed by the block it creates.
+ *
+ * A row is a name and, on the right, the markdown alias that does the same
+ * thing, which is how the menu teaches the shortcuts rather than hiding them.
+ * There is no icon: the desktop menu draws none, and an invented one would be
+ * a divergence in the most visible place.
+ */
 export interface SlashContribution {
+  /** i18n key in the `NotesEditor` namespace, not display text. */
   readonly label: string;
-  readonly keywords: readonly string[];
-  readonly icon: IconName;
+  /**
+   * i18n key for a one-line description. Never drawn; it is search text, so a
+   * user who types "bulleted" finds the bullet list without knowing its name.
+   */
+  readonly description: string;
+  /** The markdown shortcut for the same conversion, shown right-aligned. */
+  readonly hint?: string;
+  /** Extra search terms beyond the label, description, hint and node name. */
+  readonly keywords?: readonly string[];
   readonly group: SlashGroup;
   /** Async is allowed: Page must await child-note creation before committing. */
   insert(state: EditorState, dispatch: Dispatch): void | Promise<void>;
@@ -392,7 +413,7 @@ export interface BlockModule<TAttrs extends Record<string, unknown> = Record<str
    */
   estimateHeight(node: PMNode, ctx: EstimateContext): number;
 
-  readonly slash?: SlashContribution;
+  readonly slash?: readonly SlashContribution[];
   readonly commands?: readonly CommandContribution[];
   readonly inputTriggers?: readonly InputTriggerContribution[];
   readonly invariants?: readonly InvariantContribution[];

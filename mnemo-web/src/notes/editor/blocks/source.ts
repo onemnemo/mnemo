@@ -11,6 +11,7 @@ import type { AiSegment, AnyBlockModule } from '../registry/types';
 import type { Block, BlockType, InlineSpan } from '../../model/types';
 import { plainSpan } from '../../model/spans';
 import { defineBlock, lineText, metrics, type BlockDeps } from './shared';
+import { convertHere } from './slash-insert';
 
 /**
  * A code block stores its source in both `spans[0].text` and `payload.source`.
@@ -72,6 +73,15 @@ export function codeBlock(deps: BlockDeps): AnyBlockModule {
         const lines = text.length === 0 ? 1 : text.split('\n').length;
         return lines * metrics.bodyLineHeight + metrics.blockPaddingY * 2;
       },
+      slash: [
+        {
+          label: 'Code',
+          description: 'CodeDescription',
+          hint: '```',
+          group: 'insert',
+          insert: convertHere('codeBlock'),
+        },
+      ],
     },
     deps,
   );
