@@ -1,12 +1,12 @@
 /**
- * The command catalog — its shape, and that its availability/active readouts
+ * The command catalog, its shape, and that its availability/active readouts
  * agree with the commands they describe. Every readout is exercised against a
  * real editor state built through the mapper, the same document shape the app
  * produces, so the catalog cannot claim a button state the toggle would contradict.
  */
 
-import { describe, expect, it } from 'vitest';
-import { EditorState, TextSelection } from 'prosemirror-state';
+import { describe, expect, it, vi } from 'vitest';
+import { EditorState, TextSelection, type Transaction } from 'prosemirror-state';
 import { createDocumentMapper } from '../mapper/document';
 import { createEditorSchema } from '../schema';
 import {
@@ -152,12 +152,22 @@ describe('active readouts agree with the applier', () => {
     expect(swatchCmd('editor.color.background').activeToken(mixed)).toBeNull();
   });
 
-  it("activeToken is isFormatActive narrowed to a candidate — no readout asymmetry", () => {
+  it("activeToken is isFormatActive narrowed to a candidate, no readout asymmetry", () => {
     const one = selectAll(stateOf(textBlock([{ text: 'hi', style: { backgroundColor: 'swatch3' } }])));
     const token = swatchCmd('editor.color.background').activeToken(one);
     expect(token).toBe('swatch3');
     expect(isFormatActive(one, 'backgroundColor', token ?? undefined)).toBe(true);
     expect(isFormatActive(one, 'backgroundColor', 'swatch5')).toBe(false);
+  });
+});
+
+describe('a swatch clears through its own command, not runWith', () => {
+  it('the clear command removes the colour a runWith call set', () => {
+    const state = selectAll(stateOf(textBlock([{ text: 'hi', style: { backgroundColor: 'swatch5' } }])));
+    const dispatch = vi.fn<(tr: Transaction) => void>();
+    expect(swatchCmd('editor.color.background').clear(state, dispatch)).toBe(true);
+    const next = state.apply(dispatch.mock.calls[0]![0]);
+    expect(swatchCmd('editor.color.background').activeToken(selectAll(next))).toBeNull();
   });
 });
 

@@ -7,13 +7,13 @@
  *
  *  - **Decision rule.** `toggleMark` strips a mark that appears *anywhere* in the
  *    selection. Mnemo sets the mark unless *every* span in the range already has
- *    it — so formatting a half-formatted selection finishes the job rather than
+ *    it, so formatting a half-formatted selection finishes the job rather than
  *    clearing the part that was already formatted. That is the behaviour the
  *    corpus was authored under.
  *
  *  - **Swatch replace.** A swatch mark carries a design token. Toggling
  *    `swatch5` over a run already coloured `swatch3` must *replace* the token,
- *    not clear the colour — `toggleMark` is attr-blind and would clear. Here the
+ *    not clear the colour, `toggleMark` is attr-blind and would clear. Here the
  *    "already has it" test is token-aware; a different token is therefore a set,
  *    and same-type mark exclusion makes that set replace.
  *
@@ -37,7 +37,7 @@ import { asOwnUndoStep } from '../history';
  * where the caret sits inside formatted text and would otherwise inherit it.
  *
  * This is the case an inherited-format model cannot express. `setStoredMarks([])`
- * is not `setStoredMarks(null)` — null means "inherit from the caret position",
+ * is not `setStoredMarks(null)`, null means "inherit from the caret position",
  * the empty array means "explicitly none", which is the whole point. Refuses on a
  * range (there is nothing to arm) and when there is nothing to clear, so a
  * keybinding falls through instead of consuming the key for a no-op.
@@ -52,7 +52,7 @@ export const clearStoredMarks: Command = (state, dispatch) => {
 };
 
 type FlagKind = 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'highlight';
-type SwatchKind = 'backgroundColor' | 'foregroundColor';
+export type SwatchKind = 'backgroundColor' | 'foregroundColor';
 type ScriptKind = 'subscript' | 'superscript';
 
 /** The inline formats a plain toggle applies. Link is set via a URL, not toggled. */
@@ -61,7 +61,7 @@ export type ToggleKind = FlagKind | SwatchKind | ScriptKind;
 interface Policy {
   readonly markName: string;
   readonly family: 'flag' | 'swatch' | 'script';
-  /** The mark this one clears when it is set — sub/sup only. */
+  /** The mark this one clears when it is set, sub/sup only. */
   readonly excludes?: string;
 }
 
@@ -89,7 +89,7 @@ function swatchToken(mark: Mark | undefined): string | null {
 }
 
 /**
- * Whether the mark can apply anywhere in the selection at all — false inside a
+ * Whether the mark can apply anywhere in the selection at all, false inside a
  * code block, whose content admits no marks. PM's own `toggleMark` guards the
  * same way; without it a toolbar toggle in a code block would report success and
  * silently do nothing.
@@ -183,7 +183,7 @@ export function toggleFormat(kind: ToggleKind, token?: string): Command {
           if (excludeType) tr.removeMark($from.pos, $to.pos, excludeType);
         }
       }
-      // Formatting a range is one undo step of its own — the desktop's "Format
+      // Formatting a range is one undo step of its own, the desktop's "Format
       // Selection" operation. The collapsed-caret branch above deliberately is
       // not: it changes no document, and arming a mark mid-word should not cut
       // the typing run it is about to be typed into.
@@ -194,12 +194,50 @@ export function toggleFormat(kind: ToggleKind, token?: string): Command {
 }
 
 /**
- * Whether a format reads as "on" for the current selection — the state a toolbar
+ * Unconditionally removes a swatch mark, whatever token it carries.
+ * `toggleFormat` cannot do this: an empty token is "nothing to apply" and it
+ * refuses, so a colour picker's "clear"/"none" cell needs its own command
+ * rather than a toggle call with no token to compare against.
+ */
+export function clearSwatch(kind: SwatchKind): Command {
+  const policy = POLICY[kind];
+  return (state, dispatch) => {
+    const type = state.schema.marks[policy.markName];
+    if (!type) return false;
+
+    const sel = state.selection;
+    if (sel instanceof TextSelection && sel.$cursor) {
+      const current = state.storedMarks ?? sel.$cursor.marks();
+      if (!markOfType(current, type)) return false;
+      if (dispatch) dispatch(state.tr.removeStoredMark(type));
+      return true;
+    }
+
+    let any = false;
+    for (const { $from, $to } of sel.ranges) {
+      state.doc.nodesBetween($from.pos, $to.pos, (node) => {
+        if (!node.isInline) return true;
+        if (markOfType(node.marks, type)) any = true;
+        return false;
+      });
+    }
+    if (!any) return false;
+    if (dispatch) {
+      let tr = state.tr;
+      for (const { $from, $to } of sel.ranges) tr = tr.removeMark($from.pos, $to.pos, type);
+      dispatch(asOwnUndoStep(tr.scrollIntoView()));
+    }
+    return true;
+  };
+}
+
+/**
+ * Whether a format reads as "on" for the current selection, the state a toolbar
  * button highlights by. This is the *same* decision `toggleFormat` makes about
  * whether a click would clear or set, taken from the same helpers: a collapsed
  * caret reads its stored/inherited marks, a range reads all-on/any-off, and a
  * swatch reads all-on-with-this-token. One function, so the button can never
- * disagree with what pressing it does — the readout/applier asymmetry the
+ * disagree with what pressing it does, the readout/applier asymmetry the
  * Avalonia toolbar had to guard against by hand cannot arise here.
  *
  * A swatch needs the token it is being tested for; without one it is not "active"

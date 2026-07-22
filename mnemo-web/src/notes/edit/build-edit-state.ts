@@ -1,6 +1,6 @@
 /**
  * Turns a note's stored blocks into an *editable* `EditorState`, or a quarantine
- * reason — the sibling of `read/build-state.ts`, differing only in the plugin
+ * reason, the sibling of `read/build-state.ts`, differing only in the plugin
  * stack it wires.
  *
  * The load-and-quarantine decision is identical to the read path and stays that
@@ -37,6 +37,7 @@ import { numberedListPlugin } from '../editor/pipeline/list-numbers';
 import { structureKeymap } from '../editor/commands/structure';
 import { editorKeymap } from '../editor/commands';
 import { editorHistory, historyBoundaryPlugin } from '../editor/history';
+import { formattingToolbarPlugin } from '../editor/toolbar/formatting-toolbar';
 import type { BlockRegistry } from '../editor/registry/build';
 import type { Block } from '../model/types';
 
@@ -69,8 +70,8 @@ export type NoteEditState =
  *    before the keymaps without competing with them.
  *  - `structureKeymap` must precede `baseKeymap`: both bind Enter and Backspace,
  *    and ours has to win so a split lands our block shapes. It declines
- *    (returns false) for the cases it does not own — a mid-line Backspace, a
- *    cross-block selection — and those fall through to the base behaviour.
+ *    (returns false) for the cases it does not own, a mid-line Backspace, a
+ *    cross-block selection, and those fall through to the base behaviour.
  *  - `editorKeymap` carries the formatting chords, which collide with nothing
  *    structural; its place before `baseKeymap` is for tidiness, not correctness.
  *  - `baseKeymap` is the ProseMirror default of last resort.
@@ -78,14 +79,19 @@ export type NoteEditState =
  *    `numberedListPlugin` and `intrinsicSizePlugin` only decorate; none of them
  *    touch key dispatch.
  *  - `blockIdentityPlugin` also only appends. Its place after the pipeline is
- *    not load-bearing — a block the pipeline itself creates gets its identity on
- *    the next append round either way — but reading it last matches when it
+ *    not load-bearing, a block the pipeline itself creates gets its identity on
+ *    the next append round either way, but reading it last matches when it
  *    acts, which is once everything else has settled on a shape.
- *  - `historyBoundaryPlugin` comes last, and that placement *is* load-bearing.
- *    It closes the undo group after a discrete edit, and everything a repair
- *    plugin appends has to be inside that edit rather than after it. Closing
- *    first would leave the repair to open a group of its own, so undoing a split
- *    would take two presses — one for the repair, one for the split.
+ *  - `historyBoundaryPlugin` comes last among the plugins this ordering
+ *    actually governs, and that placement *is* load-bearing. It closes the
+ *    undo group after a discrete edit, and everything a repair plugin
+ *    appends has to be inside that edit rather than after it. Closing first
+ *    would leave the repair to open a group of its own, so undoing a split
+ *    would take two presses, one for the repair, one for the split.
+ *  - `formattingToolbarPlugin` has neither a keymap nor an
+ *    `appendTransaction`, only a `view()` that reads the selection back,
+ *    it takes no part in the precedence this ordering describes, so its
+ *    place in the array is arbitrary and it is listed last.
  */
 export function editorPlugins(registry: BlockRegistry): Plugin[] {
   return [
@@ -100,13 +106,14 @@ export function editorPlugins(registry: BlockRegistry): Plugin[] {
     blockIdentityPlugin(registry),
     editorHistory(),
     historyBoundaryPlugin(),
+    formattingToolbarPlugin(),
   ];
 }
 
 /**
  * Build the editable `EditorState` for a note's blocks.
  *
- * An empty block list seeds a single empty block rather than failing — a new note
+ * An empty block list seeds a single empty block rather than failing, a new note
  * is editable, not quarantined. Quarantine is reserved, exactly as on the read
  * path, for content the schema cannot represent, so an unreadable note is never
  * degraded into a blank editable document the autosave would then write over its
