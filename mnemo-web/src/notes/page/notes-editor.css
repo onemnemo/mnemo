@@ -470,6 +470,107 @@
   color: var(--floating-chrome-foreground-muted);
 }
 
+/* The slash menu. Body-level and viewport-positioned for the same reasons as
+ * the toolbar: it must not inherit the note's typography and must not be
+ * clipped by a block's paint containment. */
+.notes-slash-menu {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 288px;
+  max-width: 340px;
+  max-height: 348px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--floating-chrome-background);
+  box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.32);
+  font-family: var(--font-sans);
+  color: var(--floating-chrome-foreground);
+}
+.notes-slash-menu[data-hidden] {
+  display: none;
+}
+
+.notes-slash-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 5px 10px 7px;
+  font-size: var(--font-size-caption);
+  color: var(--floating-chrome-foreground-muted);
+}
+.notes-slash-menu-esc {
+  font-family: var(--font-mono);
+}
+
+/* `min-height: 0` is what lets the list shrink below its content inside the
+ * flex column, so capping the menu's height makes the rows scroll rather than
+ * overflow the box. */
+.notes-slash-menu-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  max-height: 300px;
+}
+
+.notes-slash-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: var(--font-size-body-extra-small);
+}
+/* The rule marking a new group is drawn on the row rather than between rows,
+ * so a hovered or selected row's fill never picks it up. */
+.notes-slash-menu-row.has-separator {
+  margin-top: 11px;
+  box-shadow: 0 -6px 0 -5px var(--floating-chrome-divider);
+}
+.notes-slash-menu-row:hover {
+  background: var(--floating-chrome-hover);
+}
+.notes-slash-menu-row.is-selected {
+  background: var(--floating-chrome-active);
+}
+.notes-slash-menu-row.is-selected .notes-slash-menu-row-name {
+  color: var(--floating-chrome-foreground-strong);
+  font-weight: 500;
+}
+
+.notes-slash-menu-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The current row trades its markdown alias for the key that applies it. */
+.notes-slash-menu-row-hint,
+.notes-slash-menu-row-enter {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--floating-chrome-foreground-muted);
+}
+.notes-slash-menu-row-enter,
+.notes-slash-menu-row.is-selected .notes-slash-menu-row-hint {
+  display: none;
+}
+.notes-slash-menu-row.is-selected .notes-slash-menu-row-enter {
+  display: inline;
+}
+
+.notes-slash-menu-empty {
+  padding: 6px 10px 10px;
+  font-size: var(--font-size-body-extra-small);
+  color: var(--floating-chrome-foreground-muted);
+}
+.notes-slash-menu-empty[data-hidden] {
+  display: none;
+}
+
 /* Background colour swatches. */
 .notes-doc [data-bg-swatch="swatch1"] { background: var(--color-swatch-1); }
 .notes-doc [data-bg-swatch="swatch2"] { background: var(--color-swatch-2); }

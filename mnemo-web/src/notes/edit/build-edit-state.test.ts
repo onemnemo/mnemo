@@ -46,15 +46,17 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry } = editorSchema();
     const plugins = editorPlugins(registry);
-    expect(plugins).toHaveLength(12);
-    // Two positions carry meaning rather than tidiness. The nested-input guard
-    // has to be asked before the keymaps it stands down, and the history
-    // boundary has to close the undo group after the repair plugins have
-    // appended into it, so one is first and the history boundary is last
-    // among the plugins that ordering governs. The formatting toolbar
-    // trails everything: it has no keymap and no `appendTransaction`, only a
-    // `view()`, so its place is exempt from the precedence this test checks.
+    expect(plugins).toHaveLength(13);
+    // Three positions carry meaning rather than tidiness. The nested-input
+    // guard has to be asked before the keymaps it stands down; the slash menu
+    // has to be asked before them too, since it takes the arrow keys and Enter
+    // while it is open; and the history boundary has to close the undo group
+    // after the repair plugins have appended into it, so it is last among the
+    // plugins that ordering governs. The formatting toolbar trails everything:
+    // it has no keymap and no `appendTransaction`, only a `view()`, so its
+    // place is exempt from the precedence this test checks.
     expect(plugins[0].props.handleDOMEvents?.keydown).toBeTypeOf('function');
+    expect(plugins[1].props.handleKeyDown).toBeTypeOf('function');
     expect(plugins.at(-1)?.spec.view).toBeTypeOf('function');
     expect(plugins.at(-2)?.spec.appendTransaction).toBeTypeOf('function');
   });

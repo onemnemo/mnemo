@@ -38,6 +38,7 @@ import { structureKeymap } from '../editor/commands/structure';
 import { editorKeymap } from '../editor/commands';
 import { editorHistory, historyBoundaryPlugin } from '../editor/history';
 import { formattingToolbarPlugin } from '../editor/toolbar/formatting-toolbar';
+import { slashMenuPlugin } from '../editor/slash';
 import type { BlockRegistry } from '../editor/registry/build';
 import type { Block } from '../model/types';
 
@@ -66,6 +67,9 @@ export type NoteEditState =
  *  - `nestedInputGuard` is first because its whole job is to answer before the
  *    others: an event from a text input inside the editor belongs to that input,
  *    and every plugin below would otherwise treat it as a document edit.
+ *  - `slashMenuPlugin` takes the arrow keys and Enter while its menu is open,
+ *    so it has to precede every keymap. It declines every key when the menu is
+ *    closed, which is almost always.
  *  - `inputTriggerPlugin` runs on text input, not on a key chord, so it sits
  *    before the keymaps without competing with them.
  *  - `structureKeymap` must precede `baseKeymap`: both bind Enter and Backspace,
@@ -96,6 +100,7 @@ export type NoteEditState =
 export function editorPlugins(registry: BlockRegistry): Plugin[] {
   return [
     nestedInputGuard(),
+    slashMenuPlugin(registry),
     inputTriggerPlugin(registry),
     structureKeymap(),
     editorKeymap(),

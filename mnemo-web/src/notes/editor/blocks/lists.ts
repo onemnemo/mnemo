@@ -12,6 +12,7 @@
 import type { AnyBlockModule } from '../registry/types';
 import type { BlockType } from '../../model/types';
 import { defineBlock, type BlockDeps } from './shared';
+import { convertHere } from './slash-insert';
 
 export function bulletItemBlock(deps: BlockDeps): AnyBlockModule {
   return defineBlock(
@@ -25,6 +26,15 @@ export function bulletItemBlock(deps: BlockDeps): AnyBlockModule {
       attrsFrom: () => ({}),
       wireFrom: () => ({ type: 'BulletList' as BlockType, payload: { kind: 'empty' as const } }),
       toMarkdown: (_node, _ctx, inline) => `- ${inline}\n`,
+      slash: [
+        {
+          label: 'BulletList',
+          description: 'BulletListDescription',
+          hint: '-',
+          group: 'text',
+          insert: convertHere('bulletItem'),
+        },
+      ],
     },
     deps,
   );
@@ -58,6 +68,15 @@ export function numberedItemBlock(deps: BlockDeps): AnyBlockModule {
       wireFrom: () => ({ type: 'NumberedList' as BlockType, payload: { kind: 'empty' as const } }),
       // Markdown renumbers on its own, so a literal `1.` is correct output.
       toMarkdown: (_node, _ctx, inline) => `1. ${inline}\n`,
+      slash: [
+        {
+          label: 'NumberedList',
+          description: 'NumberedListDescription',
+          hint: '1.',
+          group: 'text',
+          insert: convertHere('numberedItem'),
+        },
+      ],
     },
     deps,
   );
@@ -93,6 +112,17 @@ export function checklistItemBlock(deps: BlockDeps): AnyBlockModule {
       }),
       toMarkdown: (node, _ctx, inline) =>
         `- [${node.attrs.checked === true ? 'x' : ' '}] ${inline}\n`,
+      slash: [
+        {
+          // The desktop names the row "To-do" but describes it as a checklist.
+          // Both are kept so neither vocabulary misses in search.
+          label: 'Todo',
+          description: 'ChecklistDescription',
+          hint: '[]',
+          group: 'text',
+          insert: convertHere('checklistItem'),
+        },
+      ],
     },
     deps,
   );

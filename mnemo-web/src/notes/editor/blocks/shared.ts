@@ -119,7 +119,11 @@ export interface BlockDefinition<TAttrs extends Record<string, unknown>> {
   /** Defaults to wrapped body text plus the children's heights. */
   estimate?(node: PMNode, ctx: EstimateContext, text: string): number;
 
-  readonly slash?: SlashContribution;
+  /**
+   * Slash-menu rows this block offers. A list because `heading` is one node
+   * behind four wire types, and the menu names all four.
+   */
+  readonly slash?: readonly SlashContribution[];
   readonly commands?: readonly CommandContribution[];
   readonly inputTriggers?: readonly InputTriggerContribution[];
   readonly invariants?: readonly InvariantContribution[];

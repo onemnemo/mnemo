@@ -17,6 +17,7 @@ import type { AnyBlockModule } from '../registry/types';
 import type { BlockType } from '../../model/types';
 import { plainSpan } from '../../model/spans';
 import { defineBlock, metrics, type BlockDeps } from './shared';
+import { convertHere } from './slash-insert';
 
 /** Spans that the C# converter force-clears, so nothing renders behind the payload. */
 const noSpans = () => [plainSpan('')];
@@ -31,6 +32,15 @@ export function dividerBlock(deps: BlockDeps): AnyBlockModule {
       wireFrom: () => ({ type: 'Divider' as BlockType, payload: { kind: 'empty' as const } }),
       toMarkdown: () => '---\n',
       estimate: () => metrics.bodyLineHeight,
+      slash: [
+        {
+          label: 'Divider',
+          description: 'DividerDescription',
+          hint: '---',
+          group: 'insert',
+          insert: convertHere('divider'),
+        },
+      ],
     },
     deps,
   );

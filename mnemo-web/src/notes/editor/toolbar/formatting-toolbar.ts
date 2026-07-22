@@ -23,7 +23,7 @@ import { getIconMarkup } from '../../../components/icon/icon-registry';
 import { useI18nStore } from '../../../i18n/store';
 import { createTranslate } from '../../../i18n/translate';
 import { BACKGROUND_SWATCHES, TEXT_SWATCHES, type SwatchCell } from './palette';
-import { placeToolbar, type Rect } from './position';
+import { placeToolbar, type Rect } from '../floating/position';
 
 const ROOT = 'notes-formatting-toolbar';
 
