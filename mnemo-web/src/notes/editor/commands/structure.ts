@@ -28,6 +28,7 @@ import { keymap } from 'prosemirror-keymap';
 import type { Plugin } from 'prosemirror-state';
 import { blockChildrenOf, lineOf } from '../blocks/shared';
 import { asOwnUndoStep } from '../history';
+import { backspaceAtCellStart, cellStartContext } from './two-column';
 
 /** Earlier builds stored a U+200B in empty paragraphs; it is never visible text. */
 const ZERO_WIDTH_SPACE = String.fromCharCode(0x200b);
@@ -153,7 +154,7 @@ function emptyTextBlock(schema: NodeType['schema']): PMNode {
 }
 
 /** Re-wraps inline content with no marks, for insertion into a mark-forbidding codeLine. */
-function stripMarks(content: Fragment): Fragment {
+export function stripMarks(content: Fragment): Fragment {
   const out: PMNode[] = [];
   content.forEach((child) => out.push(child.mark(Mark.none)));
   return Fragment.fromArray(out);
@@ -429,18 +430,19 @@ export const backspaceStructural: Command = (state, dispatch) => {
   const isText = block.type.name === 'paragraph';
   const empty = isContentVisuallyEmpty(line.content);
 
-  if (empty) {
-    if (isText) return deleteEmptyBlock(state, ctx, dispatch);
-    const tr = convertBlockType(state.tr, blockPos, block, schema.nodes.paragraph, {
-      content: 'preserve',
-    });
-    tr.setSelection(TextSelection.create(tr.doc, blockPos + 2));
-    return dispatchStructural(tr, dispatch);
+  if (isText) {
+    // At the start of a Text block that is the first block in a column cell,
+    // Backspace merges out of the cell and, when that empties the cell,
+    // dissolves the split, the same as the desktop's merge-with-previous. A
+    // formatted first block de-formats first (the branch below), so only a plain
+    // Text block reaches the split here.
+    const cell = cellStartContext(state);
+    if (cell) return backspaceAtCellStart(state, ctx, cell, dispatch);
+    if (empty) return deleteEmptyBlock(state, ctx, dispatch);
+    return mergeIntoPrevious(state, ctx, dispatch);
   }
 
-  if (isText) return mergeIntoPrevious(state, ctx, dispatch);
-
-  // Non-empty, non-Text: de-format to Text, keep the content, do not merge.
+  // Non-empty or empty non-Text: de-format to Text, keep the content, do not merge.
   const tr = convertBlockType(state.tr, blockPos, block, schema.nodes.paragraph, {
     content: 'preserve',
   });
