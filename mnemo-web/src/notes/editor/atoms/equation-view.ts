@@ -22,6 +22,14 @@
  * atom is not display-only, and it still never rewrites what the user typed —
  * invalid LaTeX commits verbatim and shows its error, rather than being
  * "corrected" into something the user did not write.
+ *
+ * ## Closing the popover goes through the shared focus scope
+ *
+ * `openTransientFocus` (`../focus`) is the contract every piece of
+ * transient editor UI resolves through: commit and arrow-escape already leave
+ * the selection somewhere correct, so they `release()` it; Escape has not, so
+ * it `restore()`s the selection this popover opened with. This is the first
+ * real consumer of that contract; the formatting toolbar and slash menu are next.
  */
 
 import type { Node as PMNode } from 'prosemirror-model';
@@ -29,6 +37,7 @@ import { TextSelection } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import type { RealizedBlockView, RealizedBlockViewArgs } from '../registry/types';
 import { asOwnUndoStep } from '../history';
+import { openTransientFocus, type TransientFocusScope } from '../focus';
 import { renderMath } from './katex';
 import { mountEquationEditor, type ArrowEscape, type EquationEditorHandle } from './equation-editor';
 
@@ -51,6 +60,7 @@ export function equationView(args: RealizedBlockViewArgs<Record<string, unknown>
   renderMath(dom, rendered, rendered);
 
   let editor: EquationEditorHandle | null = null;
+  let focusScope: TransientFocusScope | null = null;
 
   /** The node as it is *now*, at the live position — not the one captured at build. */
   function nodeAtPos(): PMNode | null {
@@ -86,22 +96,32 @@ export function equationView(args: RealizedBlockViewArgs<Record<string, unknown>
     const node = nodeAtPos();
     if (!node) return;
 
+    // Captured before the popover takes DOM focus, so cancelling it can put the
+    // selection back even if something else moved it while it was open.
+    focusScope = openTransientFocus(view);
+
     editor = mountEquationEditor({
       initialLatex: latexOf(node),
       onCommit(latex) {
         editor = null;
         commit(latex);
+        // commit() already leaves the selection where it belongs.
+        focusScope?.release();
+        focusScope = null;
         refocus();
       },
       onCancel() {
         editor = null;
-        refocus();
+        focusScope?.restore();
+        focusScope = null;
       },
       onArrowEscape(direction, latex) {
         editor = null;
-        // Committing already moves the selection past the atom, so focus follows
-        // the caret without a separate refocus.
+        // Committing already moves the selection past the atom.
         commit(latex, direction);
+        focusScope?.release();
+        focusScope = null;
+        refocus();
       },
     });
     // Placement belongs to the editor chrome; for now the editor sits right after the atom.
@@ -126,6 +146,8 @@ export function equationView(args: RealizedBlockViewArgs<Record<string, unknown>
       dom.removeEventListener('click', openEditor);
       editor?.destroy();
       editor = null;
+      // The view is going away with it; there is nothing left to restore into.
+      focusScope = null;
     },
   };
 }
