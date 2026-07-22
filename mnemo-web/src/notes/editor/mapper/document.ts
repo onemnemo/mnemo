@@ -64,6 +64,15 @@ export function createDocumentMapper(
 ): DocumentMapper {
   const blockSchema = schema as unknown as BlockSchema;
 
+  // `fromDoc` runs on every autosave, and a PM node is immutable: an edit
+  // anywhere replaces only the top-level nodes on its path, so every sibling
+  // outside that path is the exact same object it was last time. Caching by
+  // that identity turns "reserialize the whole note" into "reserialize what
+  // actually changed", with no correctness risk — two different Block
+  // outputs can never share a node reference, because a node can only
+  // change by becoming a different object.
+  const fromChildCache = new WeakMap<PMNode, Block>();
+
   /**
    * The dispatcher every container converts its children through.
    *
@@ -131,7 +140,14 @@ export function createDocumentMapper(
 
     fromDoc(doc) {
       const blocks: Block[] = [];
-      doc.forEach((child) => blocks.push(ctx.fromChild(child)));
+      doc.forEach((child) => {
+        let block = fromChildCache.get(child);
+        if (!block) {
+          block = ctx.fromChild(child);
+          fromChildCache.set(child, block);
+        }
+        blocks.push(block);
+      });
       return blocks;
     },
 
