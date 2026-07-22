@@ -1,8 +1,8 @@
 /**
- * The React↔ProseMirror portal bridge — the render half.
+ * The React↔ProseMirror portal bridge, the render half.
  *
  * ProseMirror owns the DOM; React owns component trees. A NodeView that wants to
- * render a React component cannot mount a second React root inside the editor —
+ * render a React component cannot mount a second React root inside the editor,
  * dozens of roots is dozens of reconcilers, and a root nested in PM-managed DOM
  * is exactly the kind of foreign mutation PM's MutationObserver tears down and
  * rebuilds around. The bridge keeps one React tree: a NodeView creates a plain

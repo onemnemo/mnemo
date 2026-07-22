@@ -5,7 +5,7 @@
  * The registry is compile-time-ish, not runtime. It is read exactly once, at
  * editor construction, to bake a flat set of node specs, estimators, command
  * and slash indexes. Nothing looks the registry up during a keystroke, a scroll
- * frame, or a NodeView update — the indirection is paid once, at mount, and is
+ * frame, or a NodeView update, the indirection is paid once, at mount, and is
  * O(number of block types).
  *
  * This is internal, not a public plugin API. Adding a block type is one module
@@ -36,7 +36,7 @@ export type Dispatch = (tr: Transaction) => void;
  *
  * These are the fields whose loss is silent and expensive. The negative
  * controls showed that dropping the `meta` or `sid` declaration turns the
- * corpus round trip red on every note that uses them — and a re-minted `sid` is
+ * corpus round trip red on every note that uses them, and a re-minted `sid` is
  * an identifier the user has already seen in chat history. Declaring them in
  * one place makes that a property the registry enforces rather than one 17
  * module authors have to remember.
@@ -66,7 +66,7 @@ export const commonBlockAttrNames: readonly string[] = Object.keys(commonBlockAt
  * a consumer can include or exclude a kind rather than guessing from context.
  *
  * There is no `caption` kind. Every real image block in the corpus stores its
- * caption in `spans[0].text` *and* in `payload.alt`, byte-identical — one piece
+ * caption in `spans[0].text` *and* in `payload.alt`, byte-identical, one piece
  * of text stored twice. Emitting both as segments would make find return two
  * hits for one string, one of which has no editable location.
  */
@@ -81,7 +81,7 @@ export interface AiSegment {
    * Segments partition that string in order and without gaps. If the two
    * projections could disagree, find and the AI surface would be searching
    * different strings and a reference resolved against one would land wrong in
-   * the other — the exact failure class the shared projection exists to remove.
+   * the other, the exact failure class the shared projection exists to remove.
    *
    * This is a *text* offset, not a ProseMirror position: an equation atom
    * contributes one caret position but many characters of LaTeX, so the two
@@ -92,7 +92,7 @@ export interface AiSegment {
 
 export interface BlockProjection {
   /**
-   * The block's own canonical text — its line content only, never its block
+   * The block's own canonical text, its line content only, never its block
    * children. Children are separate blocks with their own sids and their own
    * projections, so including them here would make every container's text
    * overlap its descendants' and give find two locations for one hit.
@@ -120,7 +120,7 @@ export interface BlockProjection {
  * return a complete `Block`, children included, but those children belong to
  * other modules and PM nodes are immutable, so there is no way to return a
  * shell for an outer mapper to fill. Without a dispatcher a recursive container
- * is simply not expressible — and it has to be.
+ * is simply not expressible, and it has to be.
  */
 export interface SerializeContext {
   /** Converts a child block through its owning module. */
@@ -132,7 +132,7 @@ export interface SerializeContext {
 /**
  * Markdown serialization context, supplied by the serializer that walks the doc.
  *
- * A module renders its own wrapper and delegates everything else — it must not
+ * A module renders its own wrapper and delegates everything else, it must not
  * reach into child nodes itself, or nested blocks would bypass their own
  * module's serializer. The real serializer may widen this.
  */
@@ -166,7 +166,7 @@ export interface MdToken {
  * Width is here because height is a function of it for anything that wraps, and
  * the layout signature names available width alongside font and zoom.
  * `estimateChild` is here because a column container's height is the lane
- * maximum, not the sum of its descendants — it cannot be computed without the
+ * maximum, not the sum of its descendants, it cannot be computed without the
  * other modules' estimators, which do not exist until assembly finishes.
  */
 export interface EstimateContext {
@@ -197,7 +197,7 @@ export interface EditorServices {
  * its own `contentDOM` in place: controlled NodeView recreation through public
  * APIs is an acceptable implementation, private `ViewDesc` traversal is not.
  *
- * Anything written back after realization — a measured height above all — must
+ * Anything written back after realization, a measured height above all, must
  * go through the CSSOM or a ProseMirror transaction, never a bare DOM mutation
  * on a descendant of `view.dom`. ProseMirror's own MutationObserver reads such
  * a write as an unrecognized external change and defensively tears down and
@@ -259,7 +259,7 @@ export interface CommandContribution {
   /** Stable and module-namespaced, e.g. `heading.setLevel2`. */
   readonly id: string;
   readonly command: Command;
-  /** i18n key, not display text — the catalog is rendered in five surfaces. */
+  /** i18n key, not display text, the catalog is rendered in five surfaces. */
   readonly label: string;
   readonly icon?: IconName;
   /**
@@ -364,8 +364,8 @@ export interface BlockModule<TAttrs extends Record<string, unknown> = Record<str
    *
    * `wireTypes` says what a module *may* produce; this says which one a given
    * node *is*, which only differs for heading. Separate from `fromNode` because
-   * the outline needs the type of every block in the document and nothing else
-   * — going through `fromNode` would serialize the whole note, spans and
+   * the outline needs the type of every block in the document and nothing else,
+   * going through `fromNode` would serialize the whole note, spans and
    * payloads included, to read one enum per block.
    */
   wireTypeOf(node: PMNode): BlockType;
@@ -399,7 +399,7 @@ export interface BlockModule<TAttrs extends Record<string, unknown> = Record<str
 }
 
 /**
- * A block module of unspecified attr shape — the type collections use.
+ * A block module of unspecified attr shape, the type collections use.
  *
  * Modules are written against their own `TAttrs` and stored together as this.
  */
@@ -408,8 +408,8 @@ export type AnyBlockModule = BlockModule<Record<string, unknown>>;
 /**
  * An inline atom: a PM inline *node*, not a block and not a mark.
  *
- * Equation and fraction spans are atomic — one caret position regardless of
- * content — so they cannot be marks, and they own no `BlockType`, so they
+ * Equation and fraction spans are atomic, one caret position regardless of
+ * content, so they cannot be marks, and they own no `BlockType`, so they
  * cannot be blocks. They get their own flat registry rather than being
  * smuggled in as base nodes, which would leave them with no realized view once
  * their KaTeX renderers are built.
@@ -421,7 +421,7 @@ export interface InlineModule {
   readonly node: NodeSpec;
   /**
    * Atoms carry their `TextStyle` through `node.marks` even where the spec sets
-   * `marks: "_"` — that flag governs permitted *content*, not the node's own
+   * `marks: "_"`, that flag governs permitted *content*, not the node's own
    * marks array.
    */
   readonly serialize: {
@@ -438,7 +438,7 @@ export interface InlineModule {
  *
  * Typed with ProseMirror's own `NodeType`/`MarkType` rather than its `Schema`
  * class so that the schema layer, which owns the base nodes and therefore the concrete
- * schema generic, can supply its own without this file importing it — and
+ * schema generic, can supply its own without this file importing it, and
  * without every module body needing a cast to use it.
  */
 export interface BlockSchema {
@@ -480,5 +480,5 @@ export interface MarkModule<K extends keyof TextStyle = keyof TextStyle> {
   readonly markdown?: { readonly open: string; readonly close: string };
 }
 
-/** A mark module of unspecified field — the type collections use. */
+/** A mark module of unspecified field, the type collections use. */
 export type AnyMarkModule = MarkModule<keyof TextStyle>;

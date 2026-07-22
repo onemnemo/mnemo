@@ -169,7 +169,7 @@ function noticeForFailureKind(failureKind: string | null, t: TranslateFn): ChatT
 }
 
 export const useChatStore = create<ChatState>((set, get) => {
-  // The turn in flight, if any. Never read by React — only orchestrates the stream.
+  // The turn in flight, if any. Never read by React, only orchestrates the stream.
   let active: ActiveTurn | null = null
 
   /** Rewrites the trailing streaming assistant message with a patch (content/trace/notice). */
@@ -259,7 +259,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       )
     } catch (err) {
       // A transport/HTTP failure before or during the stream (not an in-band error
-      // event). Aborting for a client stop lands here too — but a stop is graceful
+      // event). Aborting for a client stop lands here too, but a stop is graceful
       // (the server sends a done event first), so only treat a real failure as one.
       if (!turn.abort.signal.aborted) {
         const message = err instanceof ApiError ? err.message : t("Chat", "ErrorUnexpected")
@@ -268,7 +268,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     }
 
     // Resolve the turn. A failed turn (error, or an empty answer that ran no tools)
-    // is not persisted server-side — the whole pair is dropped — so we keep it in
+    // is not persisted server-side, the whole pair is dropped, so we keep it in
     // our own memory as a notice. Anything persisted is re-read canonical, which
     // also gives the resolved trace header/elapsed/summary we don't build client-side.
     turn.builder.complete()
@@ -508,7 +508,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       const assistantMsg = makeMessage({ content: "", isUser: false, streaming: true, processThreadExpanded: true })
 
       // Drop the old answer, keep the user message, stream a fresh one. truncateFromIndex
-      // cuts the persisted pair server-side — but only if this turn succeeds, so a failed
+      // cuts the persisted pair server-side, but only if this turn succeeds, so a failed
       // regenerate leaves the previous answer intact. The user message's attachments ride along.
       set({ messages: [...s.messages.slice(0, idx + 1), assistantMsg], isBusy: true })
       await runTurn(activeId, userText, s.assistantMode, idx, attachments)
@@ -541,7 +541,7 @@ export const useChatStore = create<ChatState>((set, get) => {
 })
 
 // Web search is editable from two places: the composer toggle here and the AI
-// settings row. Both write the same key, so the database never disagrees — but the
+// settings row. Both write the same key, so the database never disagrees, but the
 // composer would keep showing its own cached value for the rest of the session, so
 // mirror settings changes back into it.
 useSettingsStore.subscribe((state, previous) => {

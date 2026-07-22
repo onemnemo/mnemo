@@ -156,7 +156,7 @@ describe('splitBlock (Enter)', () => {
     expect(state.doc.child(0).textContent).toBe('mi');
     expect(state.doc.child(1).type.name).toBe('bulletItem');
     expect(state.doc.child(1).textContent).toBe('lk');
-    // The fresh sibling carries no identity — the server mints it on commit.
+    // The fresh sibling carries no identity, the server mints it on commit.
     expect(state.doc.child(1).attrs.sid).toBe('');
   });
 
@@ -246,7 +246,7 @@ describe('backspaceStructural (Backspace at column 0)', () => {
     const { state } = run(document, backspaceStructural, { from: caretAt(document, 1, 0) });
     expect(state.doc.childCount).toBe(1);
     expect(state.doc.child(0).textContent).toBe('foobar');
-    // Caret at the join — the previous block's old end.
+    // Caret at the join, the previous block's old end.
     expect(state.selection.from).toBe(caretAt(state.doc, 0, 3));
   });
 

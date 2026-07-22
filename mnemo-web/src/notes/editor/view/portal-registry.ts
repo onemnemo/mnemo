@@ -2,7 +2,7 @@
  * The portal registry store, and the primitive a React NodeView drives it by.
  *
  * The React component that renders these lives in `NodeViewPortal.tsx`; the
- * store is plain data and imperative lifecycle, so it sits here — a NodeView is
+ * store is plain data and imperative lifecycle, so it sits here, a NodeView is
  * built in ProseMirror's world and reaches for `mountPortalNodeView` without
  * importing a component, and the store stays unit-testable without a render.
  *
@@ -28,7 +28,7 @@ export interface PortalRegistry {
   unregister(key: string): void;
   subscribe(listener: () => void): () => void;
   getEntries(): readonly PortalEntry[];
-  /** Live portal count — the leak assertion in tests reads this. */
+  /** Live portal count, the leak assertion in tests reads this. */
   readonly size: number;
 }
 
@@ -90,7 +90,7 @@ export interface PortalNodeView {
  *
  * This is the primitive a React realized view is built from, not a
  * `RealizedBlockView` itself: that contract's `update(node)` returns a boolean
- * and speaks ProseMirror nodes, so a React view wraps this — recompute children
+ * and speaks ProseMirror nodes, so a React view wraps this, recompute children
  * from the node, call `update`, return true. Keeping the primitive separate is
  * what lets the same bridge serve a block body, a shell wrapper or a piece of
  * chrome without any of them knowing about the others.

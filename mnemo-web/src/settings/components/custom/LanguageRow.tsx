@@ -8,7 +8,7 @@ import { SelectControl } from "../controls/SelectControl"
 
 /**
  * The language switch. Changing it both persists App.Language and swaps the live
- * bundle, matching the desktop where those are one action — every settings label
+ * bundle, matching the desktop where those are one action, every settings label
  * re-resolves immediately.
  */
 export function LanguageRow({

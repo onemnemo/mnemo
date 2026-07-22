@@ -32,7 +32,7 @@ import { defaultTextStyle, type InlineSpan, type TextStyle } from './types';
 /**
  * The Mnemo fraction token: `\1/2`.
  *
- * Not markdown — a Mnemo extension, and it survives the markdown pass because
+ * Not markdown, a Mnemo extension, and it survives the markdown pass because
  * a backslash before a digit is not a CommonMark escape (escapes only apply to
  * ASCII punctuation), so the parser hands the backslash through in a text node.
  */

@@ -6,7 +6,7 @@
  * here and a registry that owned them would have to know what a document is.
  *
  * Everything is assembled once and handed out as a unit. Nothing in the editor
- * constructs a second schema — PM node types are compared by identity, so two
+ * constructs a second schema, PM node types are compared by identity, so two
  * schemas in one document produce errors that read like corruption.
  */
 

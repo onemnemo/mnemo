@@ -191,7 +191,7 @@ describe('serialization', () => {
 /**
  * An authority plus a synchronous read of its live state.
  *
- * The authority exposes only snapshots, deliberately — a doc and a version have
+ * The authority exposes only snapshots, deliberately, a doc and a version have
  * to be read together, and `run` is the only way in for a command. A test of the
  * *synchronous* path cannot use `run` to build its transactions, because that
  * would resolve a microtask later, so it holds the handle it built the authority
@@ -255,7 +255,7 @@ describe('local dispatch', () => {
     gate.resolve();
     await queued;
 
-    // Not a fairness bug — it is the contract. A keystroke cannot wait behind a
+    // Not a fairness bug, it is the contract. A keystroke cannot wait behind a
     // network round trip, and the queued command reads the live document when it
     // resumes, so it composes with what the user typed rather than clobbering it.
     expect(order).toEqual(['local', 'queued']);
@@ -368,7 +368,7 @@ describe('saving', () => {
 
     await typeInto(authority, 'b');
     // Reporting `dirty` here would tell a subscriber no write is happening,
-    // while one is. The edit is still recorded — `rev` moved — and the save's
+    // while one is. The edit is still recorded, `rev` moved, and the save's
     // completion is what decides where this lands.
     expect(authority.snapshot()).toMatchObject({ saveState: 'saving', rev: 2, dirty: true });
 
@@ -423,7 +423,7 @@ describe('saving', () => {
     expect(result).toEqual({ status: 'conflict', ver: 12 });
     // The version reported by the store is adopted so a rebase has something to
     // work from, but the document and its dirty state are left exactly as they
-    // were — resolving is the caller's call.
+    // were, resolving is the caller's call.
     expect(authority.snapshot()).toMatchObject({ ver: 12, dirty: true, saveState: 'version_conflict' });
     expect(docText(authority.snapshot())).toBe('ahello');
   });
@@ -435,8 +435,8 @@ describe('saving', () => {
 
     await typeInto(authority, 'b');
 
-    // Not "dirty". Autosave has stopped on purpose — writing again would
-    // overwrite the other writer — so a state meaning "this will be saved
+    // Not "dirty". Autosave has stopped on purpose, writing again would
+    // overwrite the other writer, so a state meaning "this will be saved
     // shortly" would be a promise nothing intends to keep.
     expect(authority.snapshot()).toMatchObject({ saveState: 'version_conflict', dirty: true });
   });

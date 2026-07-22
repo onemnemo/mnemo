@@ -137,7 +137,7 @@ const NAMED_CODES: Record<string, string> = {
 /**
  * Builds a canonical chord from a key press, for the keybind manager's capture field.
  * Returns null while only modifiers are held, or for a key the catalog has no token
- * for — both mean "keep listening" rather than "bind this".
+ * for, both mean "keep listening" rather than "bind this".
  */
 export function chordFromEvent(event: KeyboardEvent): string | null {
   const key = eventKeyToken(event)

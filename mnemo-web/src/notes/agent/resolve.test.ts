@@ -28,7 +28,7 @@ describe('resolveRef', () => {
   });
 
   it('prefers an exact match over blocks it is a prefix of', () => {
-    // Only reachable through corrupt data — sids are fixed length — but the
+    // Only reachable through corrupt data, sids are fixed length, but the
     // fallback order is what makes an exact hit unambiguous by construction.
     const result = resolveRef(entries('x9tk', 'x9tkd'), 'x9tk');
     expect(result.ok && result.entry.sid).toBe('x9tk');

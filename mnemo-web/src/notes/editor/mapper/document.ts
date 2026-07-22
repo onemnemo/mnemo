@@ -1,7 +1,7 @@
 /**
  * `Block[]` <-> ProseMirror document.
  *
- * The mapper itself is small, because it holds no per-type knowledge at all —
+ * The mapper itself is small, because it holds no per-type knowledge at all,
  * every block type's conversion lives in its own module and this only
  * dispatches. That is the point of the registry: adding the eighteenth block
  * type must not require editing the mapper.
@@ -9,7 +9,7 @@
  * **Failure is a value, never an exception that reaches the user.** A note whose
  * content this cannot represent goes to quarantine holding its original blocks,
  * so it can be exported and repaired. It is never degraded into an empty
- * editable note — that looks to the user exactly like their work being deleted,
+ * editable note, that looks to the user exactly like their work being deleted,
  * and the autosave that follows would make it true.
  */
 
@@ -68,7 +68,7 @@ export function createDocumentMapper(
   // anywhere replaces only the top-level nodes on its path, so every sibling
   // outside that path is the exact same object it was last time. Caching by
   // that identity turns "reserialize the whole note" into "reserialize what
-  // actually changed", with no correctness risk — two different Block
+  // actually changed", with no correctness risk, two different Block
   // outputs can never share a node reference, because a node can only
   // change by becoming a different object.
   const fromChildCache = new WeakMap<PMNode, Block>();
@@ -101,7 +101,7 @@ export function createDocumentMapper(
       // A note with no blocks is an ordinary state, not corruption: `Note.Blocks`
       // is nullable and a newly created note leaves it null. The schema requires
       // `block+`, so seeding here is what keeps a brand-new note from opening as
-      // a quarantined document — which would look to the user exactly like their
+      // a quarantined document, which would look to the user exactly like their
       // note failing to load.
       const source = blocks.length > 0 ? blocks : [deps.seedBlock()];
       const { blocks: normalized, issues } = normalizeBlocks(source);

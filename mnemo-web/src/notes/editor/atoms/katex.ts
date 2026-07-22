@@ -1,7 +1,7 @@
 /**
  * The one place KaTeX is called.
  *
- * Rendering math is display only — it reads the atom's source and writes DOM,
+ * Rendering math is display only, it reads the atom's source and writes DOM,
  * and it never touches the source. That is what "lossless invalid-LaTeX
  * fallback" means: whatever the user typed stays exactly as it is in the node's
  * attribute, and this function's only job is to draw *something* for it that a
@@ -16,7 +16,7 @@
  * that are not `ParseError` (a stack overflow on pathological nesting, an
  * internal assertion), and an inline atom in the middle of a paragraph must not
  * take the paragraph down with it. On any throw the source is shown as plain
- * text — ugly, but readable and repairable.
+ * text, ugly, but readable and repairable.
  *
  * ## Accessibility carries the source, not the rendering
  *
@@ -36,7 +36,7 @@ export const fallbackClass = 'notes-atom-fallback';
  * Renders `source` into `host`, replacing whatever was there. Never throws, and
  * never reads back from or writes to anything but `host`.
  *
- * `label` is the accessible text — the equation's LaTeX, or a fraction's
+ * `label` is the accessible text, the equation's LaTeX, or a fraction's
  * `n/d`. It is separate from `source` because a fraction renders from a
  * `\frac{}{}` string it never shows the user.
  */
@@ -52,7 +52,7 @@ export function renderMath(host: HTMLElement, source: string, label: string): vo
       output: 'html',
     });
   } catch {
-    // Not a KaTeX ParseError — those are handled above and render in place.
+    // Not a KaTeX ParseError, those are handled above and render in place.
     // Something structural threw, so draw the source verbatim rather than let
     // one atom blank the block it sits in.
     host.classList.add(fallbackClass);

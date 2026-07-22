@@ -3,7 +3,7 @@ import { Slider } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 /**
- * A slider over named steps. It persists the step's label, not an index — the
+ * A slider over named steps. It persists the step's label, not an index, the
  * desktop's step slider does the same, which is why these values are language-bound.
  */
 export function StepSliderControl({

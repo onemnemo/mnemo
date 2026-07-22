@@ -2,13 +2,13 @@
  * The inline fraction NodeView.
  *
  * A fraction has zero uses in the corpus, so it gets a renderer and nothing
- * else — no creation affordance, no editing popover. It has to draw, because a
+ * else, no creation affordance, no editing popover. It has to draw, because a
  * note that already contains one (from another client, or a future feature)
  * must open and round-trip without the fraction turning into a hole. KaTeX's
  * `\frac` is the same renderer the equation atom uses, so the two never drift.
  *
  * The accessible label is `n/d`, matching the atom's text projection so find and
- * a screen reader address it the same way — not the `\frac{}{}` string, which is
+ * a screen reader address it the same way, not the `\frac{}{}` string, which is
  * an implementation detail the user never wrote.
  */
 

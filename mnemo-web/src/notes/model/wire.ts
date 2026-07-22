@@ -2,8 +2,8 @@
  * Reads and writes the durable block JSON shared with the .NET side.
  *
  * Notes saved by earlier versions are still on disk, so parsing accepts several
- * historical shapes — `inlineRuns`, a bare `content` string, typed data living
- * in `meta` — and always emits the current canonical one. Parsing must never
+ * historical shapes, `inlineRuns`, a bare `content` string, typed data living
+ * in `meta`, and always emits the current canonical one. Parsing must never
  * throw on a real saved note: an unreadable field degrades to its default and
  * the rest of the block survives.
  */
@@ -77,7 +77,7 @@ const legacyHighlightColors = new Set(['#ffd7aa', '#5b3717', '#ffff00']);
  * frozen fixture, and that fixture's palette contains `#FFD7AA` as an ordinary
  * background color. Promoting in the parser rewrites the differential's inputs
  * and it starts disagreeing with C# about operations that have nothing to do
- * with legacy data — which is exactly how this was caught.
+ * with legacy data, which is exactly how this was caught.
  */
 function promoteLegacyHighlight(spans: InlineSpan[]): InlineSpan[] {
   return spans.map((span) => {
@@ -177,7 +177,7 @@ function parsePayload(value: unknown): BlockPayload {
 }
 
 /**
- * Mirrors `NormalizeSplitRatio`. Applied **only** on the legacy meta path — a
+ * Mirrors `NormalizeSplitRatio`. Applied **only** on the legacy meta path, a
  * ratio stored in the payload is read verbatim on both sides, so normalizing it
  * here would rewrite ratios the user set deliberately.
  */
@@ -225,7 +225,7 @@ export function parseBlock(value: unknown): Block {
   const payload =
     payloadValue !== undefined ? parsePayload(payloadValue) : payloadFromLegacyMeta(type, meta, legacyContent);
 
-  // A present `spans` array is authoritative even when empty — C#'s reader
+  // A present `spans` array is authoritative even when empty, C#'s reader
   // returns one blank span for it and never consults the legacy fields. Falling
   // back on an empty array would resurrect `content` on a block whose text the
   // user had deliberately cleared.
@@ -300,7 +300,7 @@ function serializeStyle(style: TextStyle): Json {
  * has no equivalent: ProseMirror positions *are* the logical space, so nothing
  * here ever needs a placeholder character.
  *
- * That makes their appearance in persisted text a certain bug — either a paste
+ * That makes their appearance in persisted text a certain bug, either a paste
  * carrying them in from the old editor, or a mapper writing an atom as text.
  * Both silently corrupt the note, and both are invisible in the UI, so this
  * fails loudly in development rather than saving the damage.
@@ -309,10 +309,10 @@ const sentinelChars = /[￼￹￺￻]/;
 
 function assertNoSentinels(text: string): void {
   if (import.meta.env.DEV && sentinelChars.test(text)) {
-    // Loud, but not fatal. The plan asked this to throw, and on the reasoning
-    // that these characters can only come from a flattened atom it would be
-    // right. They can also come from an ordinary paste — U+FFFC is what Word,
-    // PDF viewers and browsers put in the clipboard for an embedded object — and
+    // Loud, but not fatal. This could justifiably throw, on the reasoning
+    // that these characters can only come from a flattened atom. They can also
+    // come from an ordinary paste, U+FFFC is what Word,
+    // PDF viewers and browsers put in the clipboard for an embedded object, and
     // this runs on the *writer*, so throwing would leave the user holding a note
     // they cannot save, over content they legitimately pasted. Sanitizing
     // belongs at the paste boundary; this stays a tripwire.
@@ -347,7 +347,7 @@ function serializeSpan(span: InlineSpan): Json {
  *
  * Legacy notes stored these in the passthrough bag. Parsing promotes them into
  * the payload, so writing them back out as well would store the same value
- * twice — and once the user edits the block, the two copies disagree and the
+ * twice, and once the user edits the block, the two copies disagree and the
  * stale one is the more convincing. `BlockJsonConverter` drops them on write for
  * the same reason; this is the parity fix that keeps the two writers producing
  * the same bytes for the same block.
@@ -370,7 +370,7 @@ function serializeMeta(block: Block): Json {
  * Rescues a legacy value out of `meta` before the key is stripped.
  *
  * Stripping without this loses data outright: a block whose payload never got
- * built from its meta — because it was constructed in code rather than parsed —
+ * built from its meta, because it was constructed in code rather than parsed,
  * would have the meta key removed and nothing written in its place. The C#
  * writer does the same backfill immediately before the same strip, and the two
  * have to agree or the note changes depending on which side saved it.

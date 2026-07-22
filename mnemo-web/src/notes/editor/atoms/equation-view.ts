@@ -9,8 +9,8 @@
  * `dom` as opaque and leaves what is inside it to us.
  *
  * `update` re-renders only when the source actually changed. PM calls it on
- * every transaction that touches the node — including one that only re-marks it
- * bold — and re-running KaTeX on an unchanged string would throw away and
+ * every transaction that touches the node, including one that only re-marks it
+ * bold, and re-running KaTeX on an unchanged string would throw away and
  * rebuild identical DOM on every keystroke nearby.
  *
  * ## Editing goes through a transaction, resolved at the live position
@@ -19,7 +19,7 @@
  * at `getPos()`, read *at commit time* rather than captured at open time,
  * because the atom can move while the editor is open. The rest of the attrs are
  * carried across so nothing but the LaTeX changes. Editing is the one place the
- * atom is not display-only, and it still never rewrites what the user typed —
+ * atom is not display-only, and it still never rewrites what the user typed,
  * invalid LaTeX commits verbatim and shows its error, rather than being
  * "corrected" into something the user did not write.
  *
@@ -62,7 +62,7 @@ export function equationView(args: RealizedBlockViewArgs<Record<string, unknown>
   let editor: EquationEditorHandle | null = null;
   let focusScope: TransientFocusScope | null = null;
 
-  /** The node as it is *now*, at the live position — not the one captured at build. */
+  /** The node as it is *now*, at the live position, not the one captured at build. */
   function nodeAtPos(): PMNode | null {
     const pos = args.getPos();
     if (pos === undefined) return null;

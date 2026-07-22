@@ -36,7 +36,7 @@ export function NoteView({ noteId }: { noteId?: string }) {
 
   // The stored bytes seed an editing session; they are not a live binding to it.
   // Keying this on the fetched object would rebuild the document whenever the
-  // note was refetched — including after each autosave patches the cache — and a
+  // note was refetched, including after each autosave patches the cache, and a
   // rebuild under the caret is both a lost selection and, on a large note, a full
   // re-map of every block. So it is keyed on identity and on a deliberate reload,
   // and reads the current bytes through a ref.
@@ -117,7 +117,7 @@ export function NoteView({ noteId }: { noteId?: string }) {
   }
 
   // Invalid: the schema cannot represent this note. It is not degraded into an
-  // empty editable document — its bytes are held intact and it can be exported
+  // empty editable document, its bytes are held intact and it can be exported
   // and repaired. Autosave is what makes that non-negotiable: an editable blank
   // would be written over the real content within seconds.
   if (loaded.edit && !loaded.edit.ok) {

@@ -14,7 +14,7 @@ export const DEFAULT_MODEL_ID = "deepseek/deepseek-v4-flash"
  * A model picker over the curated shortlist.
  *
  * The saved id seeds the list before the catalog arrives, so the control never
- * flashes empty, and it stays in the list if the catalog does not contain it —
+ * flashes empty, and it stays in the list if the catalog does not contain it,
  * a hand-set model must not be silently swapped for something else.
  */
 export function ModelPickerRow({

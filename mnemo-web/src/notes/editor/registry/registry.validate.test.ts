@@ -2,7 +2,7 @@
  * Registry validation rejections.
  *
  * One test per rule in validate.ts, each asserting the specific issue code
- * rather than just "it threw" — a code is what a module author greps for, and
+ * rather than just "it threw", a code is what a module author greps for, and
  * a rule that fires under the wrong circumstances is as much a bug as one
  * that never fires. Also covers aggregation (three problems, one error) and
  * the two coverage flags, which are validate.ts concerns rather than

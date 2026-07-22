@@ -179,7 +179,7 @@ describe('close', () => {
     await Promise.resolve();
 
     // A note switch must not leave a live editor on the mount point while a
-    // commit is still in the air — StrictMode's remount would then make two.
+    // commit is still in the air, StrictMode's remount would then make two.
     expect(h.mount.querySelector('.ProseMirror')).toBeNull();
 
     landed();

@@ -8,7 +8,7 @@
  * was to make that class of bug unrepresentable.
  *
  * Everything here is a pure function of the document. Nothing caches, because
- * nothing yet knows what the invalidation key would be — the authority owns
+ * nothing yet knows what the invalidation key would be, the authority owns
  * document identity and this does not. Caching lands when a measurement says
  * where, not before.
  */
@@ -51,7 +51,7 @@ export function walkBlocks(doc: PMNode, registry: BlockRegistry): BlockEntry[] {
 
   const visit = (parent: PMNode, parentPos: number, parentSid: string | null, depth: number) => {
     // A node's content begins one position after the node itself. The document
-    // has no opening token, so it starts its children at 0 — hence the -1 seed.
+    // has no opening token, so it starts its children at 0, hence the -1 seed.
     let offset = parentPos + 1;
     let index = 0;
 

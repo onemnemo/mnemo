@@ -22,7 +22,7 @@ function doc(...blocks: PMNode[]): PMNode {
   return schema.nodes.doc.create(null, blocks);
 }
 
-/** A registry carrying only invariants — all `invariantPipeline` reads. */
+/** A registry carrying only invariants, all `invariantPipeline` reads. */
 function fakeRegistry(invariants: InvariantEntry[]): BlockRegistry {
   return { invariants } as unknown as BlockRegistry;
 }
@@ -64,7 +64,7 @@ describe('invariant pipeline engine', () => {
     let state = stateWith([noisy], doc(paragraph('a')));
     state = state.apply(state.tr.insertText('b', 2));
     expect(calls).toBe(1);
-    // Exactly one injected '!' — proof the pipeline ran once and then stopped.
+    // Exactly one injected '!', proof the pipeline ran once and then stopped.
     expect(state.doc.firstChild!.textContent.split('!').length - 1).toBe(1);
   });
 
@@ -160,7 +160,7 @@ describe('heading-forced-bold invariant', () => {
     expect(lineAllMarked(h, 'strong')).toBe(true);
   });
 
-  it('is idempotent — an already-bold heading produces no further change', () => {
+  it('is idempotent, an already-bold heading produces no further change', () => {
     const strong = schema.marks.strong.create();
     let state = EditorState.create({
       schema,

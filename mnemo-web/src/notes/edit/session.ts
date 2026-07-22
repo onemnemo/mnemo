@@ -3,8 +3,8 @@
  * and the autosave that writes it.
  *
  * These three have to be assembled together because they refer to each other in
- * a ring — the authority drives the view through its handle, and the view's
- * dispatch goes back through the authority — and because they have to be torn
+ * a ring, the authority drives the view through its handle, and the view's
+ * dispatch goes back through the authority, and because they have to be torn
  * down in one order: save what is unsaved, *then* destroy the thing holding it.
  * Left to callers, both would be got right most of the time.
  *
@@ -80,7 +80,7 @@ export function createNoteSession(options: NoteSessionOptions): NoteSession {
 
   mounted.view.setProps({
     dispatchTransaction: (tr) => {
-      // Synchronously, and deliberately outside the authority's queue — see
+      // Synchronously, and deliberately outside the authority's queue, see
       // `dispatchLocal`. A deferred `updateState` desynchronizes the view from
       // the DOM the browser has already changed.
       authority.dispatchLocal(tr);
@@ -108,7 +108,7 @@ export function createNoteSession(options: NoteSessionOptions): NoteSession {
       // that a real sequence, not a hypothetical one.
       closing ??= (() => {
         // Started before the scheduler is destroyed, since `flush` refuses once
-        // it is — and this last write is the entire point of closing.
+        // it is, and this last write is the entire point of closing.
         const saved = autosave.flush();
         autosave.destroy();
         // The editor leaves the DOM now, not when the network answers. Teardown

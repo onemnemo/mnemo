@@ -13,7 +13,7 @@
  * order below matches `TextStyle`'s field order so there is one sequence to
  * keep in mind rather than two.
  *
- * Corpus counts are noted where they are zero or near-zero — several of these
+ * Corpus counts are noted where they are zero or near-zero, several of these
  * exist for parity with data that no real note has ever produced, and are not
  * worth polishing.
  */
@@ -27,7 +27,7 @@ function defineMark<K extends keyof TextStyle>(module: MarkModule<K>): AnyMarkMo
   return module as AnyMarkModule;
 }
 
-/** A boolean flag with no attrs — the shape nine of the twelve marks have. */
+/** A boolean flag with no attrs, the shape nine of the twelve marks have. */
 function flagMark(
   markName: string,
   styleKey: keyof TextStyle,
@@ -99,7 +99,7 @@ export const highlightMark = flagMark('highlight', 'highlight', {
 });
 
 /**
- * Both swatch marks carry a **design token**, not a color — real data stores
+ * Both swatch marks carry a **design token**, not a color, real data stores
  * `"swatch5"`. Resolving it to a color at render is what lets the theme change
  * without rewriting every note.
  */
@@ -157,7 +157,7 @@ export const linkMark = defineMark<'linkUrl'>({
 });
 
 /**
- * Marks a run the autolinker must leave alone — the user typed something
+ * Marks a run the autolinker must leave alone, the user typed something
  * URL-shaped and explicitly said "not a link".
  *
  * Never true in the corpus. Worth noting only because this is the case that was
@@ -177,7 +177,7 @@ export const noAutoLinkMark = flagMark('noAutoLink', 'suppressAutoLink', {
  *
  * `MarkSpec.excludes` would be enforced inside `addToSet`, which reads as an
  * elegant way to restate what `TextStyle` already guarantees. It isn't: C#
- * clears the pair in `WithToggle`/`WithSet` — the *command* layer — while
+ * clears the pair in `WithToggle`/`WithSet`, the *command* layer, while
  * `BlockJsonConverter` reads and writes the two booleans independently. The wire
  * format therefore represents both-true, and the frozen cross-language span
  * fixture actually contains it, because its generator rolls `Subscript` and
@@ -185,7 +185,7 @@ export const noAutoLinkMark = flagMark('noAutoLink', 'suppressAutoLink', {
  *
  * With `excludes` set, `addToSet` silently evicts `sub` when `sup` follows it,
  * and the span comes back with `subscript: false`. That is a schema refusing to
- * express a state the agreed corpus asserts is valid — data loss to restate an
+ * express a state the agreed corpus asserts is valid, data loss to restate an
  * invariant that lives one layer up.
  *
  * The exclusion belongs where C# puts it: in the commands, when they arrive.

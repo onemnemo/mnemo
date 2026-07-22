@@ -12,13 +12,13 @@
  * ## The resolution is always one of three, and always final
  *
  * Enter commits, Escape cancels, an arrow at the text boundary navigates out.
- * Each closes the editor exactly once — a `closed` guard drops every event that
+ * Each closes the editor exactly once, a `closed` guard drops every event that
  * arrives after, so a stray keyup or a re-entrant callback cannot fire a second
  * resolution against a NodeView position that may no longer exist.
  *
  * ## Editing is lossless
  *
- * The input's value is the only source of truth and is never rewritten — not to
+ * The input's value is the only source of truth and is never rewritten, not to
  * "fix" invalid LaTeX, not on commit. The preview renders through the same
  * `renderMath` the atom uses, which tolerates invalid input without throwing and
  * without touching what produced it, so committing broken LaTeX stores exactly
@@ -36,8 +36,8 @@ export interface EquationEditorOptions {
   /** Escape. The atom keeps whatever it had. */
   onCancel(): void;
   /**
-   * An arrow key pressed at the matching edge of the text. Commits first — a
-   * value already carries through when you navigate out of a field — then asks
+   * An arrow key pressed at the matching edge of the text. Commits first, a
+   * value already carries through when you navigate out of a field, then asks
    * the caller to place the caret on that side of the atom.
    */
   onArrowEscape(direction: ArrowEscape, latex: string): void;

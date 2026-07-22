@@ -160,7 +160,7 @@ describe('projectDocument', () => {
   });
 
   it('projects a note with no blocks as its one seeded empty block', () => {
-    // An empty document is not representable — the schema requires `block+` —
+    // An empty document is not representable, the schema requires `block+`, 
     // so the mapper seeds one, and the projection sees a single blank line.
     const projection = projectDocument(docOf([]), registry);
     expect(projection.blocks).toHaveLength(1);

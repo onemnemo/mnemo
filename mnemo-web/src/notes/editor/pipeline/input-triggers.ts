@@ -6,14 +6,14 @@
  * as-you-type rule a module contributes. It knows nothing about markdown: it
  * builds the line text up to and including the character being inserted, and
  * offers it to every trigger registered for the block the caret is in. A trigger
- * whose regex ends in a space only matches when a space is typed — which is how
+ * whose regex ends in a space only matches when a space is typed, which is how
  * "fire on Space" falls out without being hard-coded here.
  *
  * Two properties keep it cheap and predictable:
  *
  *  - **Per-block.** Only triggers whose owning block type matches the caret's
  *    block are tested, so a note full of block types does not run every module's
- *    regex on every keystroke — the reason the registry keeps each trigger's
+ *    regex on every keystroke, the reason the registry keeps each trigger's
  *    owner alongside it.
  *
  *  - **First match wins.** Triggers are tried in registry order and the first one
@@ -35,7 +35,7 @@ export function inputTriggerPlugin(registry: BlockRegistry): Plugin {
         if (triggers.length === 0) return false;
         // Nothing fires mid-composition. ProseMirror reaches this hook from its
         // DOM-change reader as well as from keypress, and only the keypress path
-        // screens for composition — so an IME candidate, a dead-key sequence or
+        // screens for composition, so an IME candidate, a dead-key sequence or
         // a stacking script can arrive here carrying intermediate text over a
         // range the input method still owns. Converting the block underneath it
         // rewrites positions the IME is about to write to.
@@ -65,7 +65,7 @@ export function inputTriggerPlugin(registry: BlockRegistry): Plugin {
           const tr = trigger.handler(state, match, from, to);
           if (tr) {
             // The conversion is its own undo step, so a first press takes back
-            // the block type and gives the marker text back to be edited — the
+            // the block type and gives the marker text back to be edited, the
             // repair path when a shortcut fires and was not wanted.
             view.dispatch(asOwnUndoStep(tr.scrollIntoView()));
             return true;

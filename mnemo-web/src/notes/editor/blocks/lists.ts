@@ -3,7 +3,7 @@
  *
  * **These are flat sibling nodes, not a ProseMirror list.** No wrapping `<ul>`,
  * no `listItem` nesting. PM's list schema is good, and using it would let a user
- * build nested lists that the storage format has no way to persist — the C#
+ * build nested lists that the storage format has no way to persist, the C#
  * lifecycle code writes list items as flat siblings and nothing more. A schema
  * that permits states the wire cannot hold is a data-loss bug waiting for the
  * first user who presses Tab.
@@ -35,7 +35,7 @@ export function bulletItemBlock(deps: BlockDeps): AnyBlockModule {
  *
  * It is recomputed from document order by a decoration plugin, for two reasons.
  * A stored index goes stale the moment a block is inserted above it, and a CSS
- * counter would have to be scoped somewhere — but the counter must not reset at
+ * counter would have to be scoped somewhere, but the counter must not reset at
  * a column boundary, and the block tree emits a column's left cells then its
  * right cells with no break between them. Any scoping that produces correct CSS
  * nesting renumbers every existing note.

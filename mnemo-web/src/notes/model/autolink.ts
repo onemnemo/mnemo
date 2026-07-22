@@ -11,21 +11,21 @@ import { flattenForCaret, normalizeSpans, spanCaretLength } from './spans';
 import { isTextSpan, type InlineSpan } from './types';
 
 // .NET's `\b` is Unicode-aware ([\p{L}\p{Mn}\p{Nd}\p{Pc}]), but JS `\w`/`\b`
-// stay ASCII-only even under the `u` flag — so a plain `\b` here would link
+// stay ASCII-only even under the `u` flag, so a plain `\b` here would link
 // more than the C# original does (e.g. a URL glued to a non-ASCII letter
 // with no separator).
 //
 // A `(?<![\p{L}...}])` lookbehind looks like the fix, but it isn't: under
 // the `u` flag JS tests Unicode properties against full *code points*, so a
 // lookbehind combines an adjacent UTF-16 surrogate pair into one astral
-// character before testing it. .NET's regex engine never does that — it
+// character before testing it. .NET's regex engine never does that, it
 // tests each UTF-16 char/category in isolation, so a lone surrogate half is
 // always category Cs (never L/Mn/Nd/Pc), and a URL glued to an astral letter
 // (e.g. a bold-math "𝐹" right before "www...") *does* get linked in C#. A
 // lookbehind here would wrongly block that case.
 //
 // findUrlCandidates below tests the single preceding code unit as its own
-// one-character string (`flat[i - 1]`), which can never pair with anything —
+// one-character string (`flat[i - 1]`), which can never pair with anything, 
 // that reproduces .NET's per-code-unit judgment exactly, whereas a
 // full-string lookbehind cannot.
 const urlBodyPattern = /(?:https?|mailto):[^\s<>[\]]+|www\.[^\s<>[\]]+/iy;
@@ -150,7 +150,7 @@ export function applyAutoLink(spans: readonly InlineSpan[]): InlineSpan[] {
   }
 
   // Applying in reverse keeps earlier offsets meaningful, though it does not
-  // strictly matter here — applyFormat restyles in place and never shifts
+  // strictly matter here, applyFormat restyles in place and never shifts
   // caret positions.
   let result = normalizeSpans(spans);
   for (let i = filtered.length - 1; i >= 0; i--) {

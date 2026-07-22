@@ -10,7 +10,7 @@
  *    `setNodeMarkup` (or a line-kind-preserving rebuild) that carries `id`, `sid`,
  *    `order` and `meta` across unchanged. A delete-and-reinsert would hand the
  *    block a fresh `sid`, and a re-minted sid is one the AI has already named in
- *    chat history — the exact loss the sid contract exists to prevent.
+ *    chat history, the exact loss the sid contract exists to prevent.
  *
  *  - **New blocks carry no identity.** A split or an insert-above builds a block
  *    with an empty `sid`; the document authority mints one on commit, and only it
@@ -32,7 +32,7 @@ import { asOwnUndoStep } from '../history';
 /** Earlier builds stored a U+200B in empty paragraphs; it is never visible text. */
 const ZERO_WIDTH_SPACE = String.fromCharCode(0x200b);
 
-/** The list item node types — the ones a split keeps as a same-type sibling. */
+/** The list item node types, the ones a split keeps as a same-type sibling. */
 const LIST_NODE_NAMES: ReadonlySet<string> = new Set([
   'bulletItem',
   'numberedItem',
@@ -52,8 +52,8 @@ export function isVisuallyEmpty(text: string): boolean {
  * The same question asked of a line's content rather than of its text: empty of
  * visible text *and* free of inline atoms.
  *
- * An equation contributes no text — it holds a position and renders from its
- * attrs — so a line containing nothing but one reads as blank to
+ * An equation contributes no text, it holds a position and renders from its
+ * attrs, so a line containing nothing but one reads as blank to
  * {@link isVisuallyEmpty}. Every rule that treats "empty" as licence to clear or
  * delete has to ask this instead, or typing Enter on a bullet holding a formula
  * silently destroys it.
@@ -66,7 +66,7 @@ export function isContentVisuallyEmpty(content: Fragment): boolean {
 /**
  * Whether any non-text node sits in this inline content. Two consequences follow
  * from one: such a node is visible without being text, and it makes a text offset
- * and a content position disagree — so anything cutting content at an offset
+ * and a content position disagree, so anything cutting content at an offset
  * derived from text has to check this first.
  */
 export function hasInlineAtom(content: Fragment): boolean {
@@ -78,7 +78,7 @@ export function hasInlineAtom(content: Fragment): boolean {
 }
 
 export interface BlockContext {
-  /** The block whose line holds the caret — the innermost one, so a nested cell works. */
+  /** The block whose line holds the caret, the innermost one, so a nested cell works. */
   readonly block: PMNode;
   /** Position immediately before `block`. */
   readonly blockPos: number;
@@ -112,7 +112,7 @@ export function blockContext(state: Parameters<Command>[0]): BlockContext | null
  * Dispatch a structural edit: one press, one undo step.
  *
  * Every command here except {@link insertSoftBreak} goes through this. A split, a
- * merge, a delete, a de-format — the desktop pushed each as its own
+ * merge, a delete, a de-format, the desktop pushed each as its own
  * `DocumentOperation` and flushed the open typing batch on the way in, so none of
  * them ever shared an undo entry with the typing around it. A soft break is the
  * exception on both sides: it inserts a character into one block, and the desktop
@@ -137,7 +137,7 @@ function commonAttrs(node: PMNode): Record<string, unknown> {
 }
 
 /**
- * The line node a block type wants for its inline content — `codeLine` for the
+ * The line node a block type wants for its inline content, `codeLine` for the
  * source blocks, `line` for everyone else. Read off the type's own content
  * expression rather than a hardcoded name list, so a new source block type is
  * handled the day it is added.
@@ -147,7 +147,7 @@ function lineTypeFor(type: NodeType): NodeType {
   return type.contentMatch.matchType(codeLine) ? codeLine : line;
 }
 
-/** A fresh, identity-less empty Text block — what an insert-above drops in. */
+/** A fresh, identity-less empty Text block, what an insert-above drops in. */
 function emptyTextBlock(schema: NodeType['schema']): PMNode {
   return schema.nodes.paragraph.create(null, schema.nodes.line.create());
 }
@@ -162,7 +162,7 @@ function stripMarks(content: Fragment): Fragment {
 /**
  * Convert the block at `pos` to `targetType` in place, preserving identity.
  *
- * When the line kind does not change (the common case — every prose type shares
+ * When the line kind does not change (the common case, every prose type shares
  * `line`), this is a `setNodeMarkup`, so content and its marks stay put. Only a
  * cross-kind change (to or from a code block) rebuilds the node, because a
  * `codeLine` cannot hold what a `line` held and vice versa.
@@ -220,14 +220,14 @@ export const insertSoftBreak: Command = (state, dispatch) => {
   return true;
 };
 
-/** `text.LastIndexOf('\n', caret-1)+1` .. next `\n` — the visual line the caret is on. */
+/** `text.LastIndexOf('\n', caret-1)+1` .. next `\n`, the visual line the caret is on. */
 function visualLineBounds(text: string, caret: number): { start: number; endExcl: number } {
   const start = caret === 0 ? 0 : text.lastIndexOf('\n', caret - 1) + 1;
   const nl = text.indexOf('\n', start);
   return { start, endExcl: nl < 0 ? text.length : nl };
 }
 
-/** Whether the caret sits on a whitespace-only visual line — the quote exit trigger. */
+/** Whether the caret sits on a whitespace-only visual line, the quote exit trigger. */
 function caretOnBlankVisualLine(text: string, caret: number): boolean {
   const { start, endExcl } = visualLineBounds(text, caret);
   return isVisuallyEmpty(text.slice(start, endExcl));
@@ -243,7 +243,7 @@ function splitQuoteOnBlankLine(
   const text = line.textContent;
   const { start, endExcl } = visualLineBounds(text, offset);
 
-  // Trailing \r\n before the blank line belongs to neither side — trim it off the body.
+  // Trailing \r\n before the blank line belongs to neither side, trim it off the body.
   let bodyEnd = start;
   while (bodyEnd > 0 && (text[bodyEnd - 1] === '\n' || text[bodyEnd - 1] === '\r')) bodyEnd--;
 
@@ -276,7 +276,7 @@ function splitQuoteOnBlankLine(
  * Enter. The dispatch mirrors the desktop exactly: code and soft-wrapped quotes
  * insert a newline, an empty list item leaves the list, an empty-line quote exits
  * to a Text block, a caret at the very start pushes an empty block above, and
- * everything else splits — lists into a same-type sibling, all else into Text.
+ * everything else splits, lists into a same-type sibling, all else into Text.
  */
 export const splitBlock: Command = (state, dispatch) => {
   const sel = state.selection;
@@ -303,7 +303,7 @@ export const splitBlock: Command = (state, dispatch) => {
   if (block.type.name === 'quote') {
     // The blank-line split cuts the line at offsets measured in text, which only
     // line up with content positions while the line is all text. A quote holding
-    // an atom soft-wraps instead — the atom survives, which beats exiting the
+    // an atom soft-wraps instead, the atom survives, which beats exiting the
     // quote at a boundary computed from the wrong coordinate space.
     const canSplitHere = sel.empty && !hasInlineAtom(line.content);
     if (canSplitHere && caretOnBlankVisualLine(line.textContent, offset)) {
@@ -336,7 +336,7 @@ export const splitBlock: Command = (state, dispatch) => {
   }
 
   // General split: current block keeps its type and the text before the caret;
-  // the block below gets the text after — a same-type sibling for a list, a Text
+  // the block below gets the text after, a same-type sibling for a list, a Text
   // block for everything else (a split heading does not spawn another heading).
   const belowType = LIST_NODE_NAMES.has(block.type.name) ? block.type : schema.nodes.paragraph;
   const lineContentStart = blockPos + 2;
@@ -352,7 +352,7 @@ export const splitBlock: Command = (state, dispatch) => {
   return dispatchStructural(tr.scrollIntoView(), dispatch);
 };
 
-/** Deletes the caret's empty block, focusing the previous one — but never empties the doc. */
+/** Deletes the caret's empty block, focusing the previous one, but never empties the doc. */
 function deleteEmptyBlock(
   state: Parameters<Command>[0],
   ctx: BlockContext,
@@ -415,7 +415,7 @@ function mergeIntoPrevious(
  *
  * At column 0 the ladder is: an empty Text block deletes (or resets, if it is the
  * last one); an empty non-Text block de-formats to Text; a non-empty non-Text
- * block de-formats to Text keeping its content (no merge yet — that is the next
+ * block de-formats to Text keeping its content (no merge yet, that is the next
  * keystroke); and a non-empty Text block merges up into whatever precedes it.
  */
 export const backspaceStructural: Command = (state, dispatch) => {
@@ -459,8 +459,8 @@ export function structureKeyBindings(): Record<string, Command> {
 
 /**
  * The structural keymap plugin. Mounted above the base keymap so column-0
- * Backspace and Enter are ours, while every other key — including a mid-line
- * Backspace — falls through to ProseMirror's own handling.
+ * Backspace and Enter are ours, while every other key, including a mid-line
+ * Backspace, falls through to ProseMirror's own handling.
  */
 export function structureKeymap(): Plugin {
   return keymap(structureKeyBindings());

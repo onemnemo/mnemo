@@ -2,7 +2,7 @@
  * The last moment anything gets to write.
  *
  * Closing the desktop window unmounts nothing, so every "save on the way out"
- * path in the app — a note's autosave flush above all — simply never runs. The
+ * path in the app, a note's autosave flush above all, simply never runs. The
  * web platform has no fix for that on its own: `beforeunload` cannot await a
  * request, and a keepalive one would be posting to a server inside the process
  * that is exiting.
@@ -13,9 +13,9 @@
  * unsaved state registers here, and the reply is not sent until they have all
  * settled.
  *
- * It is deliberately not aware of notes, or of anything else. The alternative —
+ * It is deliberately not aware of notes, or of anything else. The alternative,
  * the event dispatcher reaching into each feature that might have something to
- * save — puts a list in the one file that should not have to be edited when a
+ * save, puts a list in the one file that should not have to be edited when a
  * feature is added.
  */
 
@@ -77,7 +77,7 @@ async function shutdownReady(): Promise<void> {
     await apiSend("/app/shutdown-ready", { method: "POST" })
   } catch (error) {
     // The host closes on its own deadline regardless, so there is nothing to
-    // recover — but a silent failure here would look exactly like a slow save.
+    // recover, but a silent failure here would look exactly like a slow save.
     console.error("[shutdown] could not report ready to the host", error)
   }
 }

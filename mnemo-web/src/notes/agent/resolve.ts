@@ -10,8 +10,8 @@
  * until then the two surfaces address blocks differently by design rather than
  * by accident.
  *
- * The resolution *shape* is ported faithfully — exact match first, then unique
- * prefix, then an ambiguity error carrying candidates — because that is a
+ * The resolution *shape* is ported faithfully, exact match first, then unique
+ * prefix, then an ambiguity error carrying candidates, because that is a
  * contract the model has been trained against by the tool descriptions, and
  * because it degrades well: a truncated id gets a list to choose from instead
  * of a wrong block.
@@ -23,7 +23,7 @@ import type { BlockEntry } from '../editor/projection/document';
  * Mirrors the C# tool result codes so a caller can map an op failure onto the
  * existing `ToolInvocationResult` vocabulary without a translation table.
  *
- * Ambiguity is a `validation_error` rather than a `not_found` — the reference
+ * Ambiguity is a `validation_error` rather than a `not_found`, the reference
  * matched, it just did not identify one block, and the model's correct response
  * is to send a longer id rather than to conclude the block is gone.
  */
@@ -45,7 +45,7 @@ export type ResolveResult =
  *
  * The C# resolver returns every match, unbounded. On the corpus that is
  * harmless, but the same code path on a large note answers a one-character
- * reference with thousands of ids — a reply that can exhaust the model's
+ * reference with thousands of ids, a reply that can exhaust the model's
  * context in a single tool result, which is a worse failure than the ambiguity
  * it is reporting. The count is always stated, so a truncated list still tells
  * the model the reference was far too short.

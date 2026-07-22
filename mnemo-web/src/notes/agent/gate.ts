@@ -4,7 +4,7 @@
  * An agent's edit is shown to the user before it lands. That opens a window
  * between "here is what I am about to do" and "do it", and the gate exists to
  * make sure nothing meaningful moved inside that window. Approving a preview
- * and getting a different edit is the failure this prevents — and it is a
+ * and getting a different edit is the failure this prevents, and it is a
  * silent one, because the document afterwards looks like something someone
  * agreed to.
  *
@@ -14,8 +14,8 @@
  * keep it, deliberately: a transaction is built against one specific document,
  * and holding one across an approval means either applying steps to a document
  * they no longer describe, or discovering that at dispatch time when there is
- * nothing useful left to say. Re-resolving at commit is cheap — the compiler is
- * pure — and it is the only way to know the ops still mean what they meant.
+ * nothing useful left to say. Re-resolving at commit is cheap, the compiler is
+ * pure, and it is the only way to know the ops still mean what they meant.
  *
  * ## Two independent checks at commit
  *
@@ -34,7 +34,7 @@
  *
  * The diff, because the diff is what the user was shown. Not the resulting
  * document: it contains freshly minted ids, so it differs on every compile even
- * when the edit is identical. That is not a detail of the hashing — it is why
+ * when the edit is identical. That is not a detail of the hashing, it is why
  * the claim "compiling twice gives the same answer" holds semantically but not
  * byte-for-byte. `add` entries are canonicalized by their position in the batch
  * rather than by the sid they happened to draw.
@@ -48,7 +48,7 @@ import type { DiffEntry, NoteOp } from './types';
 /**
  * An approved edit, bound to the document it was approved against.
  *
- * Carries the ops rather than a transaction. See the module comment — this is
+ * Carries the ops rather than a transaction. See the module comment, this is
  * the point of the whole design, not an implementation shortcut.
  */
 export interface PreparedEdit {
@@ -69,7 +69,7 @@ export type PrepareResult =
  * Why a commit refused.
  *
  * A refusal is never a partial application: the document is untouched in every
- * case. The distinctions exist because the recoveries differ — a stale version
+ * case. The distinctions exist because the recoveries differ, a stale version
  * wants a reload, a changed document wants a fresh preview, and a batch that no
  * longer compiles wants the agent to look again.
  */
@@ -88,7 +88,7 @@ export type CommitResult =
  *
  * A string rather than a hash. Hashing would only pay for itself if this
  * travelled somewhere size-constrained, and until it does, equality on the
- * canonical form is strictly stronger — there is no collision to reason about.
+ * canonical form is strictly stronger, there is no collision to reason about.
  * Built through `JSON.stringify` over arrays so that text containing separators
  * or newlines cannot forge a boundary, and so key order can never enter into it.
  */
@@ -110,7 +110,7 @@ export function digestOf(diff: readonly DiffEntry[]): string {
  * Compiles a batch and reports what it would do. Changes nothing.
  *
  * Takes an `AuthorityAccess` rather than a bare state so the snapshot behind
- * the preview is the same atomic read everything else uses — a preview built
+ * the preview is the same atomic read everything else uses, a preview built
  * from a document read at one moment and a version read at another is bound to
  * a base that never existed.
  */
@@ -168,7 +168,7 @@ export function commitEdit(
   const result = compileOps(access.state, prepared.ops, deps);
   if (!result.ok) {
     // The batch compiled at preparation and does not now, so the document moved
-    // under it — a targeted block was deleted, or a `find` no longer matches.
+    // under it, a targeted block was deleted, or a `find` no longer matches.
     return { ok: false, refusal: { reason: 'no_longer_applies', error: result.error } };
   }
 

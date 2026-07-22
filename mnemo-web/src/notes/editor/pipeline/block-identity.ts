@@ -1,13 +1,13 @@
 /**
  * Gives every block an identity the moment it exists.
  *
- * A block created by an edit — a split, an insert-above, a paste, an empty cell
- * an invariant filled in — is built from the schema's defaults, so its `id` and
+ * A block created by an edit, a split, an insert-above, a paste, an empty cell
+ * an invariant filled in, is built from the schema's defaults, so its `id` and
  * `sid` are empty strings. The server mints a sid for every empty one it
  * receives, which sounds like enough and is not: a commit answers with a version
  * and nothing else, so the editor never learns what was chosen. The block would
  * be sent with an empty sid again on the *next* save and be assigned a
- * *different* one, over and over, until the note happened to be reloaded — and a
+ * *different* one, over and over, until the note happened to be reloaded, and a
  * sid is the one identifier that crosses the AI boundary, quoted back in chat
  * history. An identifier that changes every few seconds is worse than none.
  *
@@ -20,7 +20,7 @@
  *
  * Uniqueness is document-wide, so assigning one sid means knowing every sid.
  * That walk is gated behind a cheap check over the changed ranges only, so it
- * runs when a block is *created* — an Enter, a paste — and never on a keystroke
+ * runs when a block is *created*, an Enter, a paste, and never on a keystroke
  * that merely edits text. A note built for tens of thousands of blocks cannot
  * afford the walk per character, and does not pay it.
  */

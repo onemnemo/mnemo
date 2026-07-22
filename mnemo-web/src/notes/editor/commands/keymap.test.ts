@@ -3,7 +3,7 @@
 /**
  * The keymap, at two layers: the binding map derived from the catalog (pure), and
  * a real chord firing through a mounted view. The integration case is the real
- * proof — a shortcut is not just listed, it toggles the mark when the
+ * proof, a shortcut is not just listed, it toggles the mark when the
  * key is pressed in a live editor.
  */
 
@@ -81,12 +81,12 @@ describe('editorKeyBindings', () => {
         'Mod-Shift-z',
       ].sort(),
     );
-    // The binding is the very command the catalog names — same reference, so the
+    // The binding is the very command the catalog names, same reference, so the
     // chord and the button can never run different behaviours.
     expect(bindings['Mod-b']).toBe((COMMANDS_BY_ID.get('editor.bold') as DirectCommand).run);
   });
 
-  it('omits commands with no shortcut — swatches, code, equation, escape', () => {
+  it('omits commands with no shortcut, swatches, code, equation, escape', () => {
     const bound = new Set(Object.values(editorKeyBindings()));
     expect(bound.has((COMMANDS_BY_ID.get('editor.code') as DirectCommand).run)).toBe(false);
     expect(bound.has((COMMANDS_BY_ID.get('editor.equation') as DirectCommand).run)).toBe(false);

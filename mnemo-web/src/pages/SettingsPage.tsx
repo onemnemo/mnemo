@@ -15,7 +15,7 @@ const DEFAULT_CATEGORY = "General"
  * search results that replace them while a query is active.
  *
  * Everything on screen comes from walking the schema, so adding a setting is a schema
- * edit — there is no second place listing what settings exist.
+ * edit, there is no second place listing what settings exist.
  */
 export function SettingsPage() {
   const t = useT()

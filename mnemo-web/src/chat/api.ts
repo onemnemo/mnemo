@@ -10,7 +10,7 @@ import type {
 
 // Per-conversation REST over the single stored chat-history document. The Host
 // owns the read-modify-write; the SPA only ever sees resolved resources. A
-// conversation is ephemeral until its first turn, so there is no "create" call —
+// conversation is ephemeral until its first turn, so there is no "create" call, 
 // the turn stream materializes it (see turn-stream.ts).
 
 export function fetchConversations(): Promise<ChatConversationSummary[]> {

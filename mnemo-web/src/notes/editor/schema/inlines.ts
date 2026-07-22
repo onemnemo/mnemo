@@ -1,7 +1,7 @@
 /**
  * The two inline atoms: an equation span and a fraction span.
  *
- * Both are atomic — one caret position no matter how long the LaTeX is — so
+ * Both are atomic, one caret position no matter how long the LaTeX is, so
  * they cannot be marks, and neither owns a `BlockType`, so they cannot be
  * blocks. They are inline PM *nodes*.
  *

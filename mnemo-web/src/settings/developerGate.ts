@@ -9,7 +9,7 @@ const TAP_WINDOW_MS = 2000
 /**
  * The hidden developer gate: tapping the Settings title seven times inside two
  * seconds reveals the Developer-mode switch in General. That switch, in turn, reveals
- * the Developer category — two stages, so a stray flurry of clicks cannot surface a
+ * the Developer category, two stages, so a stray flurry of clicks cannot surface a
  * whole page of diagnostics.
  */
 export function useDeveloperGateTap(): () => void {

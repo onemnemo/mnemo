@@ -85,7 +85,7 @@ export function useUpdateNoteMetadata() {
  * Writes a note's body. The only call that does.
  *
  * Send the `ver` the editor loaded as `baseVer`. A 409 means someone else committed first
- * and the response carries the version actually stored — reload and rebase rather than
+ * and the response carries the version actually stored, reload and rebase rather than
  * retrying, which would only conflict again. Keep `requestId` stable while retrying one
  * edit so a lost response resolves as `AlreadyApplied` instead of a spurious conflict.
  */
@@ -98,7 +98,7 @@ export function useCommitNoteContent() {
  *
  * Autosave runs from the document authority rather than from a component, so it
  * needs the request without a hook around it. A stale write comes back as 409
- * carrying the version actually stored, which is an answer and not an error —
+ * carrying the version actually stored, which is an answer and not an error,
  * hence `apiFetchExpecting`, so that version survives to the caller instead of
  * being flattened into a thrown message.
  */
@@ -113,7 +113,7 @@ export function commitNoteContent(id: string, body: CommitNoteContentDto): Promi
  * The commit autosave uses, with the cached note patched to match what landed.
  *
  * Deliberately not an invalidation. Autosave writes every few seconds, and a
- * refetch per write would re-download and re-parse the whole body — on a note
+ * refetch per write would re-download and re-parse the whole body, on a note
  * built for tens of thousands of blocks, repeatedly, for bytes this client
  * already has. Patching in what was just sent leaves the cache holding the
  * truth at no cost, which matters because reopening the note reads it: without

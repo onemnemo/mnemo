@@ -100,7 +100,7 @@ describe('TextStyle mark operations', () => {
   it('toggleFormat turning sub/sup OFF leaves the other flag untouched, even when both are set', () => {
     // Mirrors C#'s `this with { Subscript = !Subscript, Superscript = Subscript ? Superscript : false }`:
     // the RHS reads the ORIGINAL value, so turning a flag off is not the same
-    // as clearing the other one — only turning a flag ON does that.
+    // as clearing the other one, only turning a flag ON does that.
     const both = { ...defaultTextStyle, subscript: true, superscript: true };
     expect(toggleFormat(both, 'sub')).toMatchObject({ subscript: false, superscript: true });
     expect(toggleFormat(both, 'sup')).toMatchObject({ subscript: true, superscript: false });
@@ -148,14 +148,14 @@ describe('sliceSpans', () => {
 
     // The adjacent range on either side overlaps zero caret units of the atom
     // (since atoms are exactly one caret unit wide, there is no range that
-    // "clips into" one without covering it fully) — both must exclude it.
+    // "clips into" one without covering it fully), both must exclude it.
     expect(sliceSpans(spans, 4, 5).some((s) => s.kind === 'equation')).toBe(false);
     expect(sliceSpans(spans, 6, 7).some((s) => s.kind === 'equation')).toBe(false);
   });
 });
 
 describe('splitAt', () => {
-  it('does not clip the document — spans outside the range still come back', () => {
+  it('does not clip the document, spans outside the range still come back', () => {
     const spans: InlineSpan[] = [plainSpan('abcdef')];
     const split = splitAt(spans, 2, 4);
     expect(flattenDisplay(split)).toBe('abcdef');
@@ -341,7 +341,7 @@ describe('applyFormat', () => {
 
   it('link is driven by whether a url was passed, not by all/any coverage', () => {
     const spans: InlineSpan[] = [plainSpan('ab', { ...defaultTextStyle, linkUrl: 'https://a.com' })];
-    // Every span already has a link — under the normal all/any rule this
+    // Every span already has a link, under the normal all/any rule this
     // would clear. Passing a (different) url still sets it instead.
     const relinked = applyFormat(spans, 0, 2, 'link', 'https://b.com');
     expect(relinked).toEqual([plainSpan('ab', { ...defaultTextStyle, linkUrl: 'https://b.com' })]);

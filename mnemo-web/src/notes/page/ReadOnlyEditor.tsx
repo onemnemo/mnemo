@@ -9,7 +9,7 @@ import { useEditorView } from "../editor/view/useEditorView"
 /**
  * Renders one note's document, read-only.
  *
- * The whole load-and-quarantine decision has already been made by the caller —
+ * The whole load-and-quarantine decision has already been made by the caller,
  * this only mounts a state that is known good. `editable: false` keeps the caret
  * and contentEditable off; the DOM is produced by the same NodeViews an editable
  * mount would use, so this is the identical render, minus the ability to change

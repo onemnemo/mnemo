@@ -2,7 +2,7 @@ import { create } from "zustand"
 
 import type { SortMode } from "./tree"
 
-// View state for the library table. Like the desktop app this is session-only —
+// View state for the library table. Like the desktop app this is session-only, 
 // nothing here is persisted, so a restart reopens the tree fully expanded.
 
 interface LibraryViewState {

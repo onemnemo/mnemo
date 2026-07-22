@@ -1,8 +1,8 @@
 /**
  * The scaffolding every block module shares.
  *
- * All fourteen modules have the same structural job — carry a line, carry block
- * children, carry the common attrs — and differ only in their typed attrs,
+ * All fourteen modules have the same structural job, carry a line, carry block
+ * children, carry the common attrs, and differ only in their typed attrs,
  * their wire type and payload, and how they render. Writing that structure out
  * fourteen times would mean fourteen chances to drop `sid`, mis-order children,
  * or forget that a block with no spans still needs one empty span back.
@@ -143,8 +143,8 @@ export function blockChildrenOf(node: PMNode): PMNode[] {
  * What a block module needs from the rest of the editor.
  *
  * Passed in rather than imported so the modules stay pure functions of what
- * they are assembled with. The alternative — a module-level registry the atoms
- * write into at import time — is the exact hidden coupling the block registry
+ * they are assembled with. The alternative, a module-level registry the atoms
+ * write into at import time, is the exact hidden coupling the block registry
  * exists to remove, and it makes two schemas in one process impossible.
  */
 export interface BlockDeps {
@@ -172,7 +172,7 @@ export function defineBlock<TAttrs extends Record<string, unknown>>(
         return;
       }
       // An atom contributes its source to the projection while occupying one
-      // PM position — the reason text offsets and PM positions need `positionOf`
+      // PM position, the reason text offsets and PM positions need `positionOf`
       // to cross between them rather than simple addition.
       text += deps.projectAtom(child);
     });
@@ -191,7 +191,7 @@ export function defineBlock<TAttrs extends Record<string, unknown>>(
      * caller adds `getPos()` to get an absolute document position.
      *
      * The block starts at 0, the line node opens at 1, and the line's content
-     * begins at 2 — hence the base below.
+     * begins at 2, hence the base below.
      */
     positionOf(node, offset) {
       const line = lineOf(node);
@@ -245,7 +245,7 @@ export function defineBlock<TAttrs extends Record<string, unknown>>(
         const lineNode = schema.nodes[lineKind].create(
           null,
           // A code line forbids marks structurally, so styled spans arrive
-          // unstyled. Their text and any inline atoms still come through —
+          // unstyled. Their text and any inline atoms still come through, 
           // there is no wire field a mark would have survived in, but a dropped
           // atom is content the other side keeps.
           inline.toInline(spans, schema, { withMarks: lineKind !== 'codeLine' }),
@@ -275,7 +275,7 @@ export function defineBlock<TAttrs extends Record<string, unknown>>(
           payload,
           // Copied, not aliased. PM nodes are persistent and shared, so handing
           // out the live attr object lets any consumer that mutates the returned
-          // block's meta mutate the document itself — and the default `meta` is
+          // block's meta mutate the document itself, and the default `meta` is
           // one object shared by every node that omits it, so the blast radius
           // is every such block in the note.
           meta: { ...((node.attrs.meta ?? {}) as Record<string, unknown>) },

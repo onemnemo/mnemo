@@ -104,7 +104,7 @@ describe('the equation source editor', () => {
     const right = press(handle.input, 'ArrowRight');
     expect(right.defaultPrevented).toBe(false);
     expect(onArrowEscape).not.toHaveBeenCalled();
-    // Still open — a non-boundary arrow is not a resolution.
+    // Still open, a non-boundary arrow is not a resolution.
     expect(handle.dom.parentNode).not.toBeNull();
   });
 
@@ -118,14 +118,14 @@ describe('the equation source editor', () => {
 
   it('does not escape left from a selection anchored at the start', () => {
     const { handle, onArrowEscape } = mount('abc');
-    // Left edge is at 0, but the selection extends — not a collapsed caret.
+    // Left edge is at 0, but the selection extends, not a collapsed caret.
     handle.input.setSelectionRange(0, 2);
     const event = press(handle.input, 'ArrowLeft');
     expect(event.defaultPrevented).toBe(false);
     expect(onArrowEscape).not.toHaveBeenCalled();
   });
 
-  it('resolves exactly once — a key after closing does nothing', () => {
+  it('resolves exactly once, a key after closing does nothing', () => {
     const { handle, onCommit, onCancel } = mount('a');
     press(handle.input, 'Escape');
     press(handle.input, 'Enter');

@@ -1,12 +1,12 @@
 /**
- * LOCAL GATE — inert unless pointed at a database, so it never runs in CI.
+ * LOCAL GATE, inert unless pointed at a database, so it never runs in CI.
  *
  * Runs the production mapper over a read-only copy of the real profile
  * database. Set MNEMO_CORPUS_DB to the copy's path; without it every case skips.
  *
  * Worth keeping even though it cannot run unattended: it is the only check that
  * exercises shapes nobody thought to write a fixture for. It is also not
- * sufficient on its own — real notes are already canonical, so a mapper bug that
+ * sufficient on its own, real notes are already canonical, so a mapper bug that
  * only bites non-canonical data passes here. Both kinds of test have to exist.
  */
 
@@ -20,7 +20,7 @@ import type { Block } from '../../model/types';
 const dbPath = process.env.MNEMO_CORPUS_DB;
 
 // Imported only when the gate is actually running. `node:sqlite` prints an
-// experimental warning on load, and this file is otherwise inert — no reason to
+// experimental warning on load, and this file is otherwise inert, no reason to
 // put that on every unrelated test run forever.
 const sqlite = dbPath ? await import('node:sqlite') : null;
 
@@ -116,7 +116,7 @@ describe.skipIf(!dbPath)('real corpus round trip', () => {
   });
 
   it('preserves the first cycle against the stored bytes where the store is already canonical', () => {
-    // Not every note is expected to match its stored bytes — legacy shapes are
+    // Not every note is expected to match its stored bytes, legacy shapes are
     // normalized on the way in, which is the point of the normalization pass.
     // What this reports is how many needed it, so a surprise is visible.
     let identical = 0;

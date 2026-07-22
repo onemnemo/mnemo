@@ -25,7 +25,7 @@ export function optionLabel(option: SettingOption, t: TranslateFn): string {
 
 /**
  * What an option persists. Normally its `value`; for rows the desktop stores
- * translated labels in, the resolved label *is* the stored value — which is why those
+ * translated labels in, the resolved label *is* the stored value, which is why those
  * rows' saved values change meaning when the language changes.
  */
 export function optionValue(option: SettingOption, t: TranslateFn, localizedValues?: boolean): string {

@@ -2,7 +2,7 @@
 //
 // The desktop constructs the same tree in ~640 lines of view-model wiring
 // (SettingsViewModel.RebuildCategories). Declaring it instead means one generic
-// renderer walks the schema, and cross-category search reduces to filtering it —
+// renderer walks the schema, and cross-category search reduces to filtering it, 
 // no second traversal that can drift out of step with what is rendered.
 //
 // Storage semantics are the desktop's, not new ones: toggles persist a JSON
@@ -13,7 +13,7 @@
 export type SettingsSection = "account" | "app" | "modules"
 
 /**
- * Runtime facts the schema branches on — a few rows exist only in certain states,
+ * Runtime facts the schema branches on, a few rows exist only in certain states,
  * and the desktop rebuilds its whole tree when these change.
  */
 export interface SettingsSchemaContext {
@@ -199,7 +199,7 @@ export type SettingValue = boolean | string
 
 /**
  * A snapshot of the settings the SPA renders. Keys with nothing stored are absent,
- * so the schema's own default applies. Secrets never appear in `values` — `secrets`
+ * so the schema's own default applies. Secrets never appear in `values`, `secrets`
  * reports only whether each one currently has a value.
  */
 export interface SettingsValues {

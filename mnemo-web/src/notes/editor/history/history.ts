@@ -6,15 +6,15 @@
  * change, and a `TextEditOperation` holding one block's inline runs, opened on the
  * first keystroke and closed on an idle timer. ProseMirror's history keeps
  * inverted steps instead of snapshots and decides grouping per transaction, so
- * the two operation classes do not survive as classes — they survive as *grouping*,
+ * the two operation classes do not survive as classes, they survive as *grouping*,
  * which is all the user ever saw of them.
  *
  * ## The 300ms is the same 300ms
  *
  * `TypingBatchIdleMs` (`BlockEditor.axaml.cs:131`) restarted a timer on every
  * keystroke, so it measured the gap *since the last edit*, not since the first.
- * `newGroupDelay` is measured the same way — `prevTime` is rewritten by every
- * transaction — so the number ports across with its meaning intact rather than
+ * `newGroupDelay` is measured the same way, `prevTime` is rewritten by every
+ * transaction, so the number ports across with its meaning intact rather than
  * looking similar and behaving differently.
  *
  * ## What a repair belongs to
@@ -23,7 +23,7 @@
  * through `appendTransaction`. ProseMirror excludes appended transactions from
  * starting a new group (`applyTransaction`: the `newGroup` test is guarded by
  * `!appended`), so a repair is folded into the edit that provoked it. Typing into
- * a heading and having its bold forced back on is one undo, not two — which is
+ * a heading and having its bold forced back on is one undo, not two, which is
  * what the desktop got from ordering the flush before the structural capture, by
  * a completely different route.
  *
@@ -63,7 +63,7 @@ const restoreKey = new PluginKey<boolean>('mnemo-history-restore');
  * right or wrong depending on when you read it, and a restore that threw left it
  * stuck on. The question survives the port because our own `appendTransaction`
  * plugins would otherwise repair a document back into the state undo just took it
- * out of — but the answer travels on the transaction it is about, so there is no
+ * out of, but the answer travels on the transaction it is about, so there is no
  * window in which it is set, no clear to defer, and nothing to leak.
  */
 export function isHistoryRestore(tr: Transaction): boolean {

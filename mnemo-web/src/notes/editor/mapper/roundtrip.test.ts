@@ -10,13 +10,13 @@
  * Skipping the JSON hop would make this suite pass while the editor loses data
  * in production. `computeAttrs` iterates the *spec's* attr names, so an
  * attribute the schema does not declare is dropped on `fromJSON` with no
- * warning — and the `checkAttrs` that would report it runs on the
+ * warning, and the `checkAttrs` that would report it runs on the
  * already-filtered object, so it can never fire. That failure is invisible
  * without a `fromJSON` in the loop, and the negative controls at the bottom of
  * this file exist to prove the loop can still see it.
  *
  * Three cycles rather than one because the interesting bug is not "the mapper
- * changes something" but "the mapper changes something and then stops" — a pass
+ * changes something" but "the mapper changes something and then stops", a pass
  * that normalizes on cycle 1 and is stable after would look correct under a
  * single round trip while having silently rewritten the user's note.
  */
@@ -65,7 +65,7 @@ describe('block <-> document round trip', () => {
   for (const fixture of structuralFixtures()) {
     it(`preserves "${fixture.name}" across three cycles`, () => {
       // The wire pass normalizes legacy shapes, so the fixture's own bytes are
-      // not the baseline — the first cycle's output is. What is under test is
+      // not the baseline, the first cycle's output is. What is under test is
       // that nothing changes *after* that, which is what a user editing an
       // already-saved note experiences.
       const first = cycle(fixture.blocks);
@@ -193,7 +193,7 @@ describe('negative controls', () => {
   });
 
   it("goes red when the link mark's href attr declaration is removed", () => {
-    // Removing the whole `link` mark would also fail, but by crashing — which
+    // Removing the whole `link` mark would also fail, but by crashing, which
     // proves nothing about silent loss. Removing just its attr declaration
     // reproduces the real mechanism: the mark survives, `computeAttrs` drops the
     // href because the spec does not name it, and every link in the note comes

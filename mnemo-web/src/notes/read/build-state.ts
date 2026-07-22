@@ -9,7 +9,7 @@
  * blocks and renders the outcome.
  *
  * The schema and registry come from the shared cached `editorSchema()`, the same
- * instance the mount reads its NodeViews from — PM compares node types by
+ * instance the mount reads its NodeViews from, PM compares node types by
  * identity, so building the doc against one schema and mounting it under another
  * would read as corruption.
  */
@@ -29,7 +29,7 @@ export type NoteReadState =
 /**
  * Build the read-only `EditorState` for a note's blocks.
  *
- * An empty block list is not a failure — the mapper seeds a single empty block,
+ * An empty block list is not a failure, the mapper seeds a single empty block,
  * so a brand-new or bodyless note becomes a valid (empty) state rather than a
  * quarantine. Quarantine is reserved for content the schema genuinely cannot
  * represent, and it carries its reason so the route can say *why* rather than

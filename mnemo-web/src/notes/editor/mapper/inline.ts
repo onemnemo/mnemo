@@ -31,7 +31,7 @@ export interface InlineMapper {
    * Inline children for a `line` node. Empty spans produce empty content.
    *
    * `withMarks: false` is for a `codeLine`, whose `marks: ""` forbids them
-   * structurally — the spans still convert, they just arrive unstyled. Atoms
+   * structurally, the spans still convert, they just arrive unstyled. Atoms
    * are converted either way; dropping them is data loss, dropping their marks
    * is the documented restriction.
    */
@@ -89,7 +89,7 @@ export function createInlineMapper(
         const marks = withMarks ? marksFor(span.style, schema) : Mark.none;
         if (span.kind === 'text') {
           // PM's `TextNode` constructor throws on empty text, which is exactly
-          // the guarantee we want — but Mnemo promises every block has at least
+          // the guarantee we want, but Mnemo promises every block has at least
           // one span, so an empty one is normal input, not an error. Dropping it
           // here is correct: the inverse re-synthesizes it.
           if (span.text.length === 0) continue;

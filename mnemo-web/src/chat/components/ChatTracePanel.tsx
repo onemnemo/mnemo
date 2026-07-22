@@ -24,7 +24,7 @@ function formatRunningTimer(startIso: string): string {
 export function ChatTracePanel({ message }: { message: ChatMessageView }) {
   const t = useT()
   const streaming = message.streaming === true
-  // "Writing/continuing the answer" are answer bookkeeping, never shown — the live
+  // "Writing/continuing the answer" are answer bookkeeping, never shown, the live
   // reducer never emits them, and the desktop drops them from persisted history on
   // reload, so filter them here to keep live and reloaded traces identical.
   const steps = (message.processSteps ?? []).filter((s) => s.phaseKind !== "Generating" && s.phaseKind !== "Continuing")

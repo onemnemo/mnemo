@@ -26,7 +26,7 @@ export type BlockType =
   | 'Sketch';
 
 /**
- * Every block type, in the C# enum's declaration order — the ordinal fallback
+ * Every block type, in the C# enum's declaration order, the ordinal fallback
  * in `wire.ts` depends on that order.
  *
  * Built from an exhaustive record so adding an 18th `BlockType` without listing
@@ -79,7 +79,7 @@ export interface TextSpan {
   style: TextStyle;
 }
 
-/** Inline LaTeX. Atomic for caret and selection — it occupies one position, not `latex.length`. */
+/** Inline LaTeX. Atomic for caret and selection, it occupies one position, not `latex.length`. */
 export interface EquationSpan {
   kind: 'equation';
   latex: string;
@@ -118,7 +118,7 @@ export type BlockPayload =
 export interface Block {
   id: string;
   /**
-   * Short id, unique within the note. Empty means "not yet assigned" — the
+   * Short id, unique within the note. Empty means "not yet assigned", the
    * server mints one on commit, and only the server may, because minting is
    * check-and-retry against the ids already in scope.
    *
@@ -132,7 +132,7 @@ export interface Block {
   /** Rich inline content. Equation/code/image blocks carry their data in `payload` instead. */
   spans: InlineSpan[];
   payload: BlockPayload;
-  /** Extension point only — anything with a defined meaning belongs in `payload`. */
+  /** Extension point only, anything with a defined meaning belongs in `payload`. */
   meta: Record<string, unknown>;
   order: number;
   children: Block[] | null;

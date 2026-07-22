@@ -8,7 +8,7 @@
  * The C# surface this replaces uses `insert`/`delete`/`replace`/`convert` plus
  * a separate `set_checked`; the rename is deliberate, not drift.
  *
- * Fields are short and flat — `at`, `to`, `md`, `find` — because every op in a
+ * Fields are short and flat, `at`, `to`, `md`, `find`, because every op in a
  * batch pays for its key names, and because nesting is what degrades
  * tool-calling accuracy fastest. There is deliberately no `children` on an
  * added block: nesting is two consecutive ops (`add` a container, then `add`

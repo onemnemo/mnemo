@@ -5,7 +5,7 @@ import { isRowHidden, visibleCategories } from "./schema"
 import type { SettingsSchemaContext, SettingsRow } from "./types"
 
 // Cross-category search. Because the tree is declared as data, this is a filter over
-// the same schema the page renders — there is no second description of the settings
+// the same schema the page renders, there is no second description of the settings
 // that could fall out of step with what is on screen.
 
 /** One row that matched, tagged with where it came from. */

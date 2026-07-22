@@ -132,7 +132,7 @@ export function FolderRow({
 }
 
 /**
- * The inline name editor. It keeps the draft local so Escape genuinely reverts —
+ * The inline name editor. It keeps the draft local so Escape genuinely reverts,
  * the desktop version edits the folder in place and leaves a half-typed name on
  * screen until the next reload.
  */

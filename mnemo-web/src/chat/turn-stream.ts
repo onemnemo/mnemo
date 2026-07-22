@@ -9,7 +9,7 @@ import type { ChatToolEvent, ChatTurnRequest, TurnEvent } from "./types"
 
 interface StreamTurnOptions {
   onEvent: (event: TurnEvent) => void
-  /** Aborts the fetch (hard client disconnect — e.g. unmount). For a user "stop", call cancelTurn instead. */
+  /** Aborts the fetch (hard client disconnect, e.g. unmount). For a user "stop", call cancelTurn instead. */
   signal?: AbortSignal
 }
 
@@ -64,7 +64,7 @@ export async function streamTurn(
  * Asks the server to stop a running turn. Graceful: the turn ends with a `done`
  * event carrying stopped:true and whatever it produced so far (matching the
  * desktop "stop" button). Keyed on the client-minted turnId. A 404 (turn already
- * finished) is swallowed — the stream is about to end on its own.
+ * finished) is swallowed, the stream is about to end on its own.
  */
 export async function cancelTurn(turnId: string): Promise<void> {
   const headers = new Headers()
@@ -88,7 +88,7 @@ async function readHttpError(response: Response): Promise<ApiError> {
     code = body.error
     message = body.message ?? body.error
   } catch {
-    // Non-JSON error body — fall back to the status line.
+    // Non-JSON error body, fall back to the status line.
   }
   return new ApiError(message ?? response.statusText ?? `Turn failed (${response.status})`, response.status, code)
 }

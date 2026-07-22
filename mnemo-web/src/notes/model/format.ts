@@ -1,7 +1,7 @@
 /**
  * Inline formatting: TextStyle mark operations and the span-list algorithms
  * that apply them over a caret range. This is the pure layer editor commands
- * and the formatting toolbar sit on top of — no DOM, no selection objects.
+ * and the formatting toolbar sit on top of, no DOM, no selection objects.
  */
 
 import { caretLength, flattenDisplay, normalizeSpans, plainSpan, spanCaretLength } from './spans';
@@ -103,8 +103,8 @@ export function toggleFormat(style: TextStyle, kind: InlineFormat, color?: strin
       return style.linkUrl != null ? { ...style, linkUrl: null, suppressAutoLink: true } : style;
     // The cleared side only zeroes out when the flag being toggled is turning
     // ON; toggling one OFF leaves the other exactly as it was. (Both can be
-    // true going in — clearFormat, the fixture, or hand-built styles can all
-    // produce that state — so "was the other one already off" is not a safe
+    // true going in, clearFormat, the fixture, or hand-built styles can all
+    // produce that state, so "was the other one already off" is not a safe
     // shortcut here.)
     case 'sub': return { ...style, subscript: !style.subscript, superscript: style.subscript ? style.superscript : false };
     case 'sup': return { ...style, superscript: !style.superscript, subscript: style.superscript ? style.subscript : false };
@@ -142,7 +142,7 @@ export function sliceSpans(spans: readonly InlineSpan[], start: number, end: num
         result.push(plainSpan(span.text.slice(segStart - offset, segEnd - offset), span.style));
       } else {
         // Coverage of an atom is all-or-nothing by construction, so any
-        // overlap here is full coverage — push it through whole.
+        // overlap here is full coverage, push it through whole.
         result.push(span);
       }
     }
@@ -154,7 +154,7 @@ export function sliceSpans(spans: readonly InlineSpan[], start: number, end: num
 
 /**
  * Carves text spans at the start/end boundaries wherever they fall strictly
- * inside a span, without clipping the document to [start, end) — every span
+ * inside a span, without clipping the document to [start, end), every span
  * outside the range still comes back untouched. Atoms always pass through
  * whole; this is purely about creating clean style-application edges inside
  * text runs.
@@ -242,7 +242,7 @@ export function replaceRange(
 
 /**
  * Unconditionally overwrites the subscript/superscript flags on every span
- * overlapping [start, end) — no toggle, no all/any check. Used to make newly
+ * overlapping [start, end), no toggle, no all/any check. Used to make newly
  * typed characters obey a sticky sub/sup typing mode regardless of what was
  * selected beforehand.
  */
@@ -296,7 +296,7 @@ function applyEquation(
   if (selected.length === 1 && selected[0].kind === 'equation') {
     // Selecting exactly one existing equation atom unwraps it back to plain,
     // editable latex text. The unwrapped text always gets the default style,
-    // not the equation's — a formatting mark on an atom does not carry over
+    // not the equation's, a formatting mark on an atom does not carry over
     // to its source text.
     return replaceRange(spans, start, end, [plainSpan(selected[0].latex)]);
   }
@@ -317,7 +317,7 @@ function applyEquation(
  * The toggle rule is all-on-clears / any-off-sets: if every span overlapping
  * the range already has the mark, the whole range is cleared; otherwise the
  * whole range is set. This is a pure function of current coverage, not of
- * which span the selection was "anchored" from — a selection that starts
+ * which span the selection was "anchored" from, a selection that starts
  * inside a bold run and ends outside it still turns fully bold, not fully
  * plain, because not every overlapping span has bold yet.
  *
@@ -408,7 +408,7 @@ export function applyTextEdit(spans: readonly InlineSpan[], oldText: string, new
           // inherits from the left): an insertion at document offset 0
           // inherits style from the span to its RIGHT, since there is no
           // left span to inherit from. This branch only fires at a true
-          // start-of-document insertion — anywhere else, `runEnd ===
+          // start-of-document insertion, anywhere else, `runEnd ===
           // deleteStart` above already claimed the insertion from the left.
           result.push(plainSpan(inserted, span.style));
           result.push(span);

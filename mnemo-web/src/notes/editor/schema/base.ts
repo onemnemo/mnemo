@@ -4,7 +4,7 @@
  * The shape that governs the whole schema: **a block node's first child is
  * always a line, and its block children follow it.** Every block type therefore
  * has the content expression `"line block*"` (or `"codeLine block*"`), with no
- * exceptions — not for dividers, not for atoms, not for containers.
+ * exceptions, not for dividers, not for atoms, not for containers.
  *
  * That uniformity is what makes the mapper total. Every `Block` on the wire
  * carries `spans`, including the ones the product treats as atomic: a divider
@@ -17,7 +17,7 @@
  * The alternative considered and rejected was putting `inline*` directly on
  * each block node. It reads simpler until a container needs both inline content
  * and block children, at which point the content expression has to disambiguate
- * inline from block in the same position — and PM's `fill` behaviour there is
+ * inline from block in the same position, and PM's `fill` behaviour there is
  * subtle enough that two independent mapper prototypes disagreed about it.
  *
  * Restricting the caret is deliberately *not* done here. A divider's line is
@@ -41,7 +41,7 @@ export const docSpec: NodeSpec = {
 /**
  * A block's own inline content.
  *
- * `marks: "_"` — all marks permitted. Restriction, where it exists, belongs to
+ * `marks: "_"`, all marks permitted. Restriction, where it exists, belongs to
  * `codeLine`, not to a flag on the containing block.
  */
 export const lineSpec: NodeSpec = {
@@ -61,7 +61,7 @@ export const lineSpec: NodeSpec = {
  * carry a mark at all, so there is no guard left to forget.
  *
  * Real sketch data uses `\r\n` line endings, so this must preserve text
- * verbatim — no newline normalization anywhere on this path.
+ * verbatim, no newline normalization anywhere on this path.
  */
 export const codeLineSpec: NodeSpec = {
   // Atoms are permitted even though nothing creates one inside source. The wire

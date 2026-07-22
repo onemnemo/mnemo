@@ -1,7 +1,7 @@
 /**
  * Inline atom rendering, attached to the pure schema modules.
  *
- * `schema/inlines.ts` deliberately holds only the atoms' data conversion — it
+ * `schema/inlines.ts` deliberately holds only the atoms' data conversion, it
  * knows nothing about KaTeX or the DOM. The views live here and are grafted on
  * at assembly, so the schema module stays differentially testable and the render
  * dependency stays out of it. Composing rather than editing the modules in place

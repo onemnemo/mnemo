@@ -1,7 +1,7 @@
 /**
  * The image block.
  *
- * Its caption lives in the line — which is the concrete payoff of the mandatory
+ * Its caption lives in the line, which is the concrete payoff of the mandatory
  * line, since the image was originally specified as a childless atom and eight
  * of the nine real image blocks carry caption text in `spans[0].text`. As an
  * atom that text had nowhere to go.
@@ -22,7 +22,7 @@ import { plainSpan } from '../../model/spans';
 import { defineBlock, lineText, type BlockDeps } from './shared';
 
 /**
- * For an image, **the line is authoritative and `alt` is derived** — the exact
+ * For an image, **the line is authoritative and `alt` is derived**, the exact
  * opposite of the code block, and the difference matters.
  *
  * `payload.source` on a code block is a genuinely stored field: the C# reader
@@ -31,7 +31,7 @@ import { defineBlock, lineText, type BlockDeps } from './shared';
  * closes a feedback loop: the caption produces a plain-text `alt`, and the next
  * load rebuilds the caption from that `alt` as a single unstyled span.
  *
- * A property fixture caught this and it was a real data-loss bug — an italic or
+ * A property fixture caught this and it was a real data-loss bug, an italic or
  * linked caption, or one containing an inline equation, survived the first save
  * and was silently flattened by the second. Exactly the "changes once and then
  * stops" class the three-cycle harness exists to find, and invisible to any
@@ -72,7 +72,7 @@ export function imageBlock(deps: BlockDeps): AnyBlockModule {
             },
           },
         ],
-        // `path` is a stored reference, not a URL — real data holds both
+        // `path` is a stored reference, not a URL, real data holds both
         // `attachment:` references and absolute paths. Resolving it belongs to
         // the realized view, which has the services handle; a raw `src` here
         // would simply fail to load.

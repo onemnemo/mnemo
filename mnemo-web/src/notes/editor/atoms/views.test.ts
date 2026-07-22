@@ -35,7 +35,7 @@ describe('the equation view', () => {
   it('renders KaTeX inline for valid LaTeX', () => {
     const view = viewOf(equation('x^2'));
     expect(view.dom.querySelector('.katex')).not.toBeNull();
-    // The visual HTML layer specifically, not just any KaTeX wrapper — a
+    // The visual HTML layer specifically, not just any KaTeX wrapper, a
     // mathml-only render would produce no on-screen equation.
     expect(view.dom.querySelector('.katex-html')).not.toBeNull();
     expect(view.dom.classList.contains(fallbackClass)).toBe(false);
@@ -60,7 +60,7 @@ describe('the equation view', () => {
     expect(() => viewOf(node)).not.toThrow();
     const view = viewOf(node);
     // KaTeX's own error handling drew something in place; the catch fallback did
-    // not fire. This is what `throwOnError: false` buys — an error span, not a
+    // not fire. This is what `throwOnError: false` buys, an error span, not a
     // thrown exception the view has to mop up.
     expect(view.dom.innerHTML.length).toBeGreaterThan(0);
     expect(view.dom.classList.contains(fallbackClass)).toBe(false);
@@ -92,7 +92,7 @@ describe('the equation view', () => {
     const view = viewOf(equation('bad'));
     expect(view.dom.classList.contains(fallbackClass)).toBe(true);
     spy.mockRestore();
-    // Same host, now editing to something that renders — the marker must go.
+    // Same host, now editing to something that renders, the marker must go.
     view.update?.(equation('x'));
     expect(view.dom.classList.contains(fallbackClass)).toBe(false);
     expect(view.dom.querySelector('.katex')).not.toBeNull();

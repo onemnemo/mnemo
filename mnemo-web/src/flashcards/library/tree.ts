@@ -210,7 +210,7 @@ export function buildLibrary({ folders, decks, search, sort, collapsed }: BuildL
   const pushDeck = (deck: DeckSummaryDto, depth: number) =>
     rows.push({ kind: "deck", id: deck.id, depth, deck, dueToday: deck.dueCounts.total })
 
-  // Pre-order, and subfolders come before the parent's own decks — matching the
+  // Pre-order, and subfolders come before the parent's own decks, matching the
   // desktop tree regardless of sort mode.
   const pushFolders = (list: FolderNode[], depth: number) => {
     for (const node of list) {

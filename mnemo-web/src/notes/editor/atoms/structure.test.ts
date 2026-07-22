@@ -3,7 +3,7 @@
  * it is one indivisible caret unit, a selection can never split it, formatting a
  * range that covers it reaches it, and it selects as a single node.
  *
- * These are properties of the schema — `atom: true`, `marks: "_"` — not of the
+ * These are properties of the schema, `atom: true`, `marks: "_"`, not of the
  * renderer, so they are proven against the document and its selections directly.
  */
 
@@ -94,7 +94,7 @@ describe('a selection can never split the atom', () => {
     expect(atom?.attrs.latex).toBe('x');
   });
 
-  it('a delete crossing it removes it whole — never a fragment', () => {
+  it('a delete crossing it removes it whole, never a fragment', () => {
     const state = stateWithAtom();
     const pos = atomPosOf(state.doc);
     // From inside `ab` to inside `cd`, straddling the atom.

@@ -5,19 +5,19 @@
  * This ports `MarkdownShortcutDetector`, which fired on Space and split into two
  * families:
  *
- *  - **Leading list markers** (`- `, `* `, `+ `, `<digits>. `) — the marker is
+ *  - **Leading list markers** (`- `, `* `, `+ `, `<digits>. `), the marker is
  *    stripped and whatever follows the caret stays as the list item's body. So
  *    typing `- ` in front of existing text turns the line into a bullet without
  *    losing the text.
  *
  *  - **Whole-line shortcuts** (`# `..`#### `, `> `, `[] `/`[ ] `, ``` ``` ` `,
- *    `--- `) — the whole line is the marker, so there is nothing to keep; the
+ *    `--- `), the whole line is the marker, so there is nothing to keep; the
  *    block is converted with its content cleared.
  *
  * All of them fire from a paragraph via the `paragraph` module's triggers, which
  * is what the input-trigger plugin's per-block filter keys on. The desktop let
  * the whole-line family fire from any non-image block; scoping them to paragraph
- * is a deliberate divergence — it is the block every markdown shortcut is
+ * is a deliberate divergence, it is the block every markdown shortcut is
  * launched from in practice, and it keeps `# ` inside a quote as the literal text
  * the user typed rather than silently destroying the quote. See the migration
  * notes for the parity call.
@@ -47,7 +47,7 @@ function convertLeadingMarker(state: EditorState, targetNodeName: string): Trans
   // Same line kind (paragraph -> list item), so this is a `setNodeMarkup` that
   // leaves the body content and its marks in place; identity carries across.
   convertBlockType(tr, blockPos, block, target, { content: 'preserve' });
-  // Strip the marker — the `offset` characters that sat before the caret. The
+  // Strip the marker, the `offset` characters that sat before the caret. The
   // space that triggered us was never inserted, so nothing else needs removing.
   if (offset > 0) tr.delete(blockPos + 2, blockPos + 2 + offset);
   tr.setSelection(TextSelection.create(tr.doc, blockPos + 2));
@@ -55,7 +55,7 @@ function convertLeadingMarker(state: EditorState, targetNodeName: string): Trans
 }
 
 /**
- * Converts the caret's paragraph to `targetNodeName`, clearing its content —
+ * Converts the caret's paragraph to `targetNodeName`, clearing its content,
  * only when nothing follows the caret, so a whole-line marker like `# ` converts
  * but `#foo` (caret after the `#`) is left alone to become literal text.
  */
@@ -86,7 +86,7 @@ function convertWholeLine(
  * The paragraph module's markdown-shortcut triggers.
  *
  * Each regex is matched against the line text up to and including the just-typed
- * character, so they end in a literal space — which is what makes the whole set
+ * character, so they end in a literal space, which is what makes the whole set
  * "fire on Space" without the plugin knowing that rule. The anchors guarantee the
  * marker is the entire prefix, so the handlers can trust `offset` as the marker
  * length.
