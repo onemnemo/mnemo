@@ -1,10 +1,10 @@
 /**
- * The editor command catalog — one contract per command the Notes editor offers.
+ * The editor command catalog, one contract per command the Notes editor offers.
  *
  * Every surface that can run a command reads it from here: the editor keymap
- * (`keymap.ts`), the formatting toolbar (M11) and the slash menu (M13). Without a
+ * (`keymap.ts`), the formatting toolbar and the slash menu. Without a
  * single catalog each surface reinvents the id, label, icon, shortcut and the
- * "is it available / is it on" logic, and they drift — the Avalonia editor had
+ * "is it available / is it on" logic, and they drift, the Avalonia editor had
  * exactly that drift, with a toolbar readout that could disagree with what a
  * click did. Here a command is described once and the surfaces are projections.
  *
@@ -22,6 +22,7 @@ import type { IconName } from '../../../components/icon/icon-registry';
 import {
   activeSwatchToken,
   clearStoredMarks,
+  clearSwatch,
   isFormatActive,
   toggleFormat,
 } from '../marks/commands';
@@ -49,19 +50,19 @@ interface CommandMeta {
   readonly aliases?: readonly string[];
 }
 
-/** A command with a fixed behaviour — the common case. */
+/** A command with a fixed behaviour, the common case. */
 export interface DirectCommand extends CommandMeta {
   readonly kind: 'direct';
   readonly run: Command;
   /**
-   * Toolbar highlight state. Omitted where "active" is meaningless — inserting an
+   * Toolbar highlight state. Omitted where "active" is meaningless, inserting an
    * equation is never "on". Present readouts share the applier's helpers.
    */
   readonly isActive?: (state: EditorState) => boolean;
 }
 
 /**
- * A command parameterised by a design token — the colour swatches. It cannot be
+ * A command parameterised by a design token, the colour swatches. It cannot be
  * a single `Command` because the token is chosen at click time, so it exposes a
  * factory plus a token readout instead of a fixed `run`/`isActive`.
  */
@@ -69,6 +70,8 @@ export interface SwatchCommand extends CommandMeta {
   readonly kind: 'swatch';
   readonly family: 'backgroundColor' | 'foregroundColor';
   readonly runWith: (token: string) => Command;
+  /** Removes the mark outright, the picker's "default"/"none" cell. */
+  readonly clear: Command;
   /** The token in force across the selection, or null if none/mixed. */
   readonly activeToken: (state: EditorState) => string | null;
 }
@@ -108,6 +111,7 @@ function swatch(
     group: 'color',
     family,
     runWith: (token) => toggleFormat(kind, token),
+    clear: clearSwatch(kind),
     activeToken: (state) => activeSwatchToken(state, kind),
   };
 }
@@ -117,7 +121,7 @@ function swatch(
  * slash menu take their own subsets. Shortcuts match the desktop chords
  * (`CoreUIModule.Chords`, and Ctrl+Z / Ctrl+Y for history); `code`, the swatches
  * and the equation carry none there and carry none here. Sub/sup use Primary+`,`
- * and `.` — `OemComma`/`OemPeriod`.
+ * and `.`, `OemComma`/`OemPeriod`.
  */
 export const EDITOR_COMMANDS: readonly EditorCommand[] = [
   {
@@ -127,7 +131,7 @@ export const EDITOR_COMMANDS: readonly EditorCommand[] = [
     group: 'history',
     shortcut: 'Mod-z',
     run: undo,
-    // Nothing to highlight — but `isCommandEnabled` dry-runs `undo`, which
+    // Nothing to highlight, but `isCommandEnabled` dry-runs `undo`, which
     // answers "is there anything on the stack", so a toolbar button disables
     // itself on an empty history without a second predicate to keep in step.
   },
@@ -171,7 +175,7 @@ export const EDITOR_COMMANDS: readonly EditorCommand[] = [
     icon: 'formatting-toolbar/ban',
     group: 'escape',
     run: clearStoredMarks,
-    // A momentary escape, not a sticky state — nothing to highlight.
+    // A momentary escape, not a sticky state, nothing to highlight.
   },
 ];
 
@@ -181,7 +185,7 @@ export const COMMANDS_BY_ID: ReadonlyMap<string, EditorCommand> = new Map(
 );
 
 /**
- * Whether a direct command would do anything right now — the availability the
+ * Whether a direct command would do anything right now, the availability the
  * toolbar disables by and the keymap falls through on. A ProseMirror command
  * dry-runs when called without a dispatch, returning whether it applies, so
  * availability needs no separate predicate and cannot drift from execution. A

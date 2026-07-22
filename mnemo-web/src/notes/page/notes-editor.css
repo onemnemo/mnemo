@@ -1,9 +1,9 @@
 /*
  * Baseline read-only typography for a rendered note.
  *
- * This is the "recognizable render" M7 asks for, not the full editor experience
- * substrate — hover/focus chrome, the focus state machine, and the
- * reduced-motion / high-contrast / zoom passes are M6.5's polish layer and land
+ * This is the baseline render the read path asks for, not the full editor experience
+ * substrate, hover/focus chrome, the focus state machine, and the
+ * reduced-motion / high-contrast / zoom passes are the polish layer and land
  * on top of this. What lives here is only what a note needs to read correctly:
  * block spacing, heading scale, list markers, code and quote framing, and the
  * inline marks the browser does not style on its own (inline code, highlight,
@@ -14,7 +14,7 @@
  * DOM the mapper's `toDOM` produces: every block wraps its inline content in a
  * `[data-line]`, lists are flat `<li>` siblings (no `<ul>`/`<ol>`), and atoms
  * that need an asset or another note's title (images, page cards) render as a
- * recognizable placeholder until their owning milestone (M12, page nav) resolves
+ * recognizable placeholder until their image and page-nav work resolves
  * the real content.
  */
 
@@ -83,7 +83,7 @@
   word-break: break-word;
 }
 
-/* Headings — the app's type scale, not the browser's. */
+/* Headings, the app's type scale, not the browser's. */
 .notes-doc h1 {
   font-size: var(--font-size-heading-1);
   font-weight: 600;
@@ -148,7 +148,7 @@
 
 /* Lists are flat siblings, so the marker is drawn on the item itself. The
  * numbered sequence is column-aware, insert-stable and run-resetting, none of
- * which a CSS counter can express — so the number is computed by the list-number
+ * which a CSS counter can express, so the number is computed by the list-number
  * decoration plugin and read here off the `data-list-number` it paints. */
 .notes-doc li {
   list-style: none;
@@ -213,7 +213,7 @@
   min-width: 0;
 }
 
-/* Image — the bytes are resolved by M12's realized view; until then a note
+/* Image, the bytes are resolved by the image view; until then a note
  * still shows its figure and caption so its structure reads. */
 .notes-doc figure[data-image] {
   margin-left: 0;
@@ -237,7 +237,7 @@
   text-align: center;
 }
 
-/* Page reference — a navigation card to another note. The title lives in that
+/* Page reference, a navigation card to another note. The title lives in that
  * note and is resolved when page navigation ships; here it reads as a link. */
 .notes-doc a[data-page-ref] {
   display: inline-flex;
@@ -288,6 +288,182 @@
 .notes-doc [data-fg-swatch="swatch8"] { color: var(--text-color-swatch-8); }
 .notes-doc [data-fg-swatch="swatch9"] { color: var(--text-color-swatch-9); }
 .notes-doc [data-fg-swatch="swatch10"] { color: var(--text-color-swatch-10); }
+
+/* ── the inline formatting toolbar ─────────────────────────────────────
+ *
+ * Dark floating chrome over the page surface, matching the desktop's
+ * `InlineFormattingToolbar.axaml` and the flashcards selection bar. It is
+ * appended to `document.body` rather than nested in the note, so these rules
+ * are not scoped under `.notes-doc`: a toolbar inside the document would
+ * inherit the note's typography, and paint containment on each block would
+ * clip it. Positioned by the plugin in viewport coordinates. */
+.notes-formatting-toolbar {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--floating-chrome-background);
+  box-shadow: 0 8px 24px 0 rgba(0, 0, 0, 0.28);
+  font-family: var(--font-sans);
+  color: var(--floating-chrome-foreground);
+}
+.notes-formatting-toolbar[data-hidden] {
+  display: none;
+}
+
+.notes-formatting-toolbar-divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--floating-chrome-divider);
+}
+
+.notes-formatting-toolbar-btn,
+.notes-formatting-toolbar-color {
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.notes-formatting-toolbar-btn {
+  width: 28px;
+  height: 28px;
+}
+.notes-formatting-toolbar-btn:hover:not(:disabled),
+.notes-formatting-toolbar-color:hover:not(:disabled) {
+  background: var(--floating-chrome-hover);
+}
+.notes-formatting-toolbar-btn:active:not(:disabled),
+.notes-formatting-toolbar-color:active:not(:disabled) {
+  background: var(--floating-chrome-pressed);
+}
+.notes-formatting-toolbar-btn.is-active {
+  background: var(--floating-chrome-active);
+  color: var(--floating-chrome-foreground-strong);
+}
+/* A command the catalog refuses reads as unavailable rather than vanishing,
+ * so the toolbar's shape does not shift as the selection moves. */
+.notes-formatting-toolbar-btn:disabled,
+.notes-formatting-toolbar-color:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.notes-formatting-toolbar-btn-glyph {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.notes-formatting-toolbar-icon {
+  display: grid;
+  place-items: center;
+}
+.notes-formatting-toolbar-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.notes-formatting-toolbar-color {
+  display: flex;
+  gap: 6px;
+  height: 28px;
+  padding: 0 6px;
+}
+.notes-formatting-toolbar-color .notes-formatting-toolbar-icon svg {
+  width: 10px;
+  height: 10px;
+  color: var(--floating-chrome-foreground-muted);
+}
+/* The "A" preview takes the active text colour, so the button shows what is
+ * currently applied without opening the popover. */
+.notes-formatting-toolbar-color-preview {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--floating-chrome-divider);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* The colour popover hangs below the colour button, inside the toolbar's own
+ * stacking context so it moves with it. */
+.notes-formatting-toolbar-swatch-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  padding: 10px;
+  border-radius: var(--radius-lg, 12px);
+  background: var(--floating-chrome-background);
+  box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.32);
+}
+.notes-formatting-toolbar-swatch-popover[data-hidden] {
+  display: none;
+}
+
+.notes-formatting-toolbar-swatch-header {
+  margin: 0 4px 6px;
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: var(--floating-chrome-foreground-muted);
+}
+.notes-formatting-toolbar-swatch-row {
+  display: flex;
+  gap: 4px;
+}
+.notes-formatting-toolbar-swatch-row + .notes-formatting-toolbar-swatch-header {
+  margin-top: 12px;
+}
+
+.notes-formatting-toolbar-swatch-cell {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1.5px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--floating-chrome-foreground-strong);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.notes-formatting-toolbar-swatch-cell:hover {
+  background: var(--floating-chrome-hover);
+}
+.notes-formatting-toolbar-swatch-cell.is-selected {
+  border-color: var(--floating-chrome-accent);
+  background: var(--floating-chrome-active);
+}
+/* A background cell draws its colour as an inner tile with a faint outline, so
+ * a light fill still reads as a distinct shape against the dark chrome. */
+.notes-formatting-toolbar-swatch-cell-filled::before {
+  content: "";
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  background: var(--swatch-cell-color);
+}
+/* A text cell is the letter itself in the colour it would apply, the
+ * clearing cell has no colour set and falls back to the default foreground. */
+.notes-formatting-toolbar-swatch-cell-glyph {
+  color: var(--swatch-cell-color, var(--floating-chrome-foreground-strong));
+}
+.notes-formatting-toolbar-swatch-cell .notes-formatting-toolbar-icon svg {
+  width: 14px;
+  height: 14px;
+  color: var(--floating-chrome-foreground-muted);
+}
 
 /* Background colour swatches. */
 .notes-doc [data-bg-swatch="swatch1"] { background: var(--color-swatch-1); }

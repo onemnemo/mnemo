@@ -1,5 +1,5 @@
 /**
- * `toggleFormat` — the custom toggle behind every mark toolbar/keymap surface.
+ * `toggleFormat`, the custom toggle behind every mark toolbar/keymap surface.
  * Tested against real editor states built through the mapper, so the decision
  * rule, swatch replace and sub/sup exclusion are exercised on the same document
  * shape the app produces.
@@ -11,7 +11,7 @@ import type { Mark, MarkType, Node as PMNode } from 'prosemirror-model';
 import { createDocumentMapper } from '../mapper/document';
 import { createEditorSchema } from '../schema';
 import { defaultTextStyle, type Block, type BlockPayload, type BlockType, type TextStyle } from '../../model/types';
-import { toggleFormat } from './commands';
+import { clearSwatch, toggleFormat } from './commands';
 
 const { schema, registry } = createEditorSchema();
 const mapper = createDocumentMapper(schema, registry);
@@ -95,7 +95,7 @@ function tokenOf(node: PMNode, type: MarkType): string | null {
   return mark && typeof mark.attrs.token === 'string' ? mark.attrs.token : null;
 }
 
-describe('flag toggle — the all-have decision rule', () => {
+describe('flag toggle, the all-have decision rule', () => {
   it('sets the mark across a plain range', () => {
     const doc = run(selectAll(stateOf(textBlock([{ text: 'abcd' }]))), toggleFormat('bold'));
     expect(doc).not.toBeNull();
@@ -115,7 +115,7 @@ describe('flag toggle — the all-have decision rule', () => {
   });
 });
 
-describe('swatch toggle — token-aware replace', () => {
+describe('swatch toggle, token-aware replace', () => {
   it('applies the given token across a plain range', () => {
     const doc = run(selectAll(stateOf(textBlock([{ text: 'abcd' }]))), toggleFormat('backgroundColor', 'swatch5'));
     expect(textNodes(doc!).every((n) => tokenOf(n, schema.marks.bgSwatch) === 'swatch5')).toBe(true);
@@ -143,7 +143,7 @@ describe('swatch toggle — token-aware replace', () => {
   });
 });
 
-describe('sub/sup exclusion — enforced in the command, not the schema', () => {
+describe('sub/sup exclusion, enforced in the command, not the schema', () => {
   it('setting subscript clears superscript across the range', () => {
     const state = selectAll(stateOf(textBlock([{ text: 'abcd', style: { superscript: true } }])));
     const doc = run(state, toggleFormat('subscript'));
@@ -152,7 +152,7 @@ describe('sub/sup exclusion — enforced in the command, not the schema', () => 
     expect(nodes.some((n) => hasMark(n, schema.marks.sup))).toBe(false);
   });
 
-  it('the two never both survive a set — the second wins', () => {
+  it('the two never both survive a set, the second wins', () => {
     // Apply sub, then sup, threading the document forward.
     const afterSub = run(selectAll(stateOf(textBlock([{ text: 'abcd' }]))), toggleFormat('subscript'))!;
     const stateWithSub = EditorState.create({ doc: afterSub, schema });
@@ -172,7 +172,7 @@ describe('sub/sup exclusion — enforced in the command, not the schema', () => 
   });
 });
 
-describe('collapsed caret — sticky typing via storedMarks', () => {
+describe('collapsed caret, sticky typing via storedMarks', () => {
   it('arms the mark for the next character', () => {
     const stored = runStored(caretInFirstRun(stateOf(textBlock([{ text: 'abcd' }]))), toggleFormat('bold'));
     expect(stored).not.toBeNull();
@@ -202,7 +202,7 @@ describe('collapsed caret — sticky typing via storedMarks', () => {
 
   it('replaces an inherited swatch token rather than clearing it', () => {
     // Caret sits in swatch3 text; arming swatch5 must swap the token, the same
-    // token-aware way a range replace does — not read "a swatch is present" and
+    // token-aware way a range replace does, not read "a swatch is present" and
     // disarm.
     const state = caretInFirstRun(stateOf(textBlock([{ text: 'abcd', style: { backgroundColor: 'swatch3' } }])));
     const stored = runStored(state, toggleFormat('backgroundColor', 'swatch5'));
@@ -214,6 +214,36 @@ describe('collapsed caret — sticky typing via storedMarks', () => {
     const state = caretInFirstRun(stateOf(textBlock([{ text: 'abcd', style: { backgroundColor: 'swatch5' } }])));
     const stored = runStored(state, toggleFormat('backgroundColor', 'swatch5'));
     expect(stored!.some((m) => m.type === schema.marks.bgSwatch)).toBe(false);
+  });
+});
+
+describe('clearSwatch, the picker\'s "default"/"none" cell', () => {
+  it('removes the mark across a coloured range', () => {
+    const state = selectAll(stateOf(textBlock([{ text: 'abcd', style: { backgroundColor: 'swatch5' } }])));
+    const doc = run(state, clearSwatch('backgroundColor'));
+    expect(textNodes(doc!).some((n) => hasMark(n, schema.marks.bgSwatch))).toBe(false);
+  });
+
+  it('refuses a plain range, nothing to clear', () => {
+    const dispatch = vi.fn();
+    expect(clearSwatch('backgroundColor')(selectAll(stateOf(textBlock([{ text: 'ab' }]))), dispatch)).toBe(false);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('disarms an inherited stored token at a collapsed caret', () => {
+    const state = caretInFirstRun(stateOf(textBlock([{ text: 'abcd', style: { foregroundColor: 'swatch3' } }])));
+    const stored = runStored(state, clearSwatch('foregroundColor'));
+    expect(stored!.some((m) => m.type === schema.marks.fgSwatch)).toBe(false);
+  });
+
+  it('only clears the family it names, leaving the other colour alone', () => {
+    const state = selectAll(
+      stateOf(textBlock([{ text: 'abcd', style: { backgroundColor: 'swatch5', foregroundColor: 'swatch3' } }])),
+    );
+    const doc = run(state, clearSwatch('backgroundColor'));
+    const nodes = textNodes(doc!);
+    expect(nodes.some((n) => hasMark(n, schema.marks.bgSwatch))).toBe(false);
+    expect(nodes.every((n) => tokenOf(n, schema.marks.fgSwatch) === 'swatch3')).toBe(true);
   });
 });
 

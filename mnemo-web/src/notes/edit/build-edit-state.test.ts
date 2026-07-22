@@ -46,13 +46,17 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry } = editorSchema();
     const plugins = editorPlugins(registry);
-    expect(plugins).toHaveLength(11);
+    expect(plugins).toHaveLength(12);
     // Two positions carry meaning rather than tidiness. The nested-input guard
     // has to be asked before the keymaps it stands down, and the history
     // boundary has to close the undo group after the repair plugins have
-    // appended into it — so one is first and the other is last.
+    // appended into it, so one is first and the history boundary is last
+    // among the plugins that ordering governs. The formatting toolbar
+    // trails everything: it has no keymap and no `appendTransaction`, only a
+    // `view()`, so its place is exempt from the precedence this test checks.
     expect(plugins[0].props.handleDOMEvents?.keydown).toBeTypeOf('function');
-    expect(plugins.at(-1)?.spec.appendTransaction).toBeTypeOf('function');
+    expect(plugins.at(-1)?.spec.view).toBeTypeOf('function');
+    expect(plugins.at(-2)?.spec.appendTransaction).toBeTypeOf('function');
   });
 
   it('gives a block created by an edit its own identity', () => {
@@ -67,14 +71,14 @@ describe('editorPlugins wiring', () => {
     const next = result.state.apply(result.state.tr.insert(result.state.doc.content.size, bare));
 
     // Without this the block would be committed with an empty sid, be assigned
-    // one by the server, and be assigned a *different* one on the next save —
+    // one by the server, and be assigned a *different* one on the next save, 
     // forever, since a commit answers with a version and nothing else.
     const created = next.doc.child(next.doc.childCount - 1);
     expect(String(created.attrs.sid)).not.toBe('');
     expect(String(created.attrs.id)).not.toBe('');
   });
 
-  it('runs the invariant pipeline on an edit — text typed into a heading turns bold', () => {
+  it('runs the invariant pipeline on an edit, text typed into a heading turns bold', () => {
     const result = buildNoteEditState([block('Heading2', [span('hi')])]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
