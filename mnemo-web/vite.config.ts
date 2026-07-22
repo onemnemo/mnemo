@@ -4,8 +4,11 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-// Mnemo.Host's fixed dev-mode listen address.
-const API_PROXY_TARGET = 'http://127.0.0.1:47210'
+// Mnemo.Host's dev-mode listen port, used until the host has written its
+// handshake file. The host honours MNEMO_DEV_API_PORT, which is how a second
+// host runs beside the first one without either touching the other's profile,
+// so the port is read back from the file rather than assumed.
+const DEFAULT_API_PORT = 47210
 const DEV_API_CONFIG_PATH = path.resolve(import.meta.dirname, '.dev/api.json')
 
 /** Shape of `.dev/api.json`, written by the C# dev host at startup. */
@@ -20,6 +23,17 @@ function isDevApiConfig(value: unknown): value is DevApiConfig {
   }
   const record = value as Record<string, unknown>
   return typeof record.port === 'number' && typeof record.token === 'string'
+}
+
+function readDevApiConfig(): DevApiConfig | undefined {
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(DEV_API_CONFIG_PATH, 'utf-8'))
+    return isDevApiConfig(parsed) ? parsed : undefined
+  } catch {
+    // Missing, empty, or mid-write JSON. Callers fall back to the default port
+    // and to proxying without auth, rather than crashing the dev server.
+    return undefined
+  }
 }
 
 // Re-reading and re-parsing .dev/api.json on every proxied request would be
@@ -43,18 +57,16 @@ function readDevToken(): string | undefined {
     return cachedToken
   }
 
-  try {
-    const raw = fs.readFileSync(DEV_API_CONFIG_PATH, 'utf-8')
-    const parsed: unknown = JSON.parse(raw)
-    cachedToken = isDevApiConfig(parsed) ? parsed.token : undefined
-  } catch {
-    // Missing, empty, or mid-write JSON - proxy without auth rather than crash.
-    cachedToken = undefined
-  }
+  cachedToken = readDevApiConfig()?.token
   cachedMtimeMs = stat.mtimeMs
 
   return cachedToken
 }
+
+// The port is read once, at config load, because the target address is fixed
+// when the dev server starts. Vite restarts itself when this file changes, and
+// pointing at a different host is a restart either way.
+const API_PROXY_TARGET = `http://127.0.0.1:${readDevApiConfig()?.port ?? DEFAULT_API_PORT}`
 
 // https://vite.dev/config/
 export default defineConfig({
