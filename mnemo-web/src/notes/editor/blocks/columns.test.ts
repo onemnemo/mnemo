@@ -6,6 +6,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { createEditorSchema } from '../schema';
 import { invariantPipeline } from '../pipeline/invariants';
 import { blockChildrenOf } from './shared';
+import { displaySplitRatio } from './columns';
 
 const { schema, registry } = createEditorSchema();
 
@@ -107,3 +108,48 @@ describe('column-never-empty invariant', () => {
 function twoColumnDoc(): PMNode {
   return doc(twoColumn(column(para('a')), column(para('b'))));
 }
+
+// --- split ratio for display ------------------------------------------------
+
+describe('split ratio for display', () => {
+  it('keeps a resized ratio as the left lane share', () => {
+    expect(displaySplitRatio(0.5725)).toBe(0.5725);
+    expect(displaySplitRatio(0.517)).toBe(0.517);
+  });
+
+  it('centres a value that would collapse a lane', () => {
+    expect(displaySplitRatio(0)).toBe(0.5);
+    expect(displaySplitRatio(1)).toBe(0.5);
+    expect(displaySplitRatio(Number.NaN)).toBe(0.5);
+    expect(displaySplitRatio(Number.POSITIVE_INFINITY)).toBe(0.5);
+  });
+
+  it('holds a lopsided ratio to a visible minimum on each side', () => {
+    expect(displaySplitRatio(0.02)).toBe(0.1);
+    expect(displaySplitRatio(0.98)).toBe(0.9);
+  });
+});
+
+describe('two-column rendering', () => {
+  function renderAttrs(ratio: number): Record<string, string> {
+    const node = schema.nodes.twoColumn.create({ splitRatio: ratio }, [
+      line(),
+      column(para('a')),
+      column(para('b')),
+    ]);
+    const out = schema.nodes.twoColumn.spec.toDOM!(node) as [string, Record<string, string>, number];
+    return out[1];
+  }
+
+  it('drives the left lane width from the display ratio', () => {
+    expect(renderAttrs(0.5725).style).toBe('--notes-split:0.5725');
+  });
+
+  it('normalizes the rendered ratio without touching the stored value', () => {
+    const attrs = renderAttrs(0);
+    // Layout centres an unusable ratio,
+    expect(attrs.style).toBe('--notes-split:0.5');
+    // while the raw attribute is preserved for round-trip.
+    expect(attrs['data-split']).toBe('0');
+  });
+});

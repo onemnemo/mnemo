@@ -66,6 +66,20 @@ const columnNeverEmpty: InvariantContribution = {
   },
 };
 
+/**
+ * The share of the row the left lane takes, derived from the stored ratio for
+ * display. An unusable value (0, at or past 1, or non-finite) centres the split
+ * rather than collapsing a lane; everything else is held to a visible minimum on
+ * each side. The stored attr stays raw for round-trip, so this is the one place
+ * the ratio is normalized and only for layout. Mirrors the desktop's
+ * ReadSplitRatioFromBlock display rule, whose serializer passes the raw value
+ * through untouched.
+ */
+export function displaySplitRatio(raw: number): number {
+  if (!Number.isFinite(raw) || raw <= 0 || raw >= 1) return 0.5;
+  return Math.min(0.9, Math.max(0.1, raw));
+}
+
 export function twoColumnBlock(deps: BlockDeps): AnyBlockModule {
   return defineBlock<{ splitRatio: number }>(
     {
@@ -85,7 +99,13 @@ export function twoColumnBlock(deps: BlockDeps): AnyBlockModule {
         ],
         toDOM: (node) => [
           'div',
-          { 'data-two-column': '', 'data-split': String(node.attrs.splitRatio) },
+          {
+            'data-two-column': '',
+            'data-split': String(node.attrs.splitRatio),
+            // The left lane's share, for layout. Kept apart from data-split,
+            // which stays the raw stored value the parser reads back.
+            style: `--notes-split:${displaySplitRatio(Number(node.attrs.splitRatio))}`,
+          },
           0,
         ],
       },

@@ -198,8 +198,9 @@
 
 /* Two-column layout. Recursive; each cell is a lane. The container's own line is
  * structurally empty (force-cleared), so it is hidden and the two cells share the
- * row. The exact stored split ratio is a refinement over equal lanes and is left
- * for the layout milestone; equal columns read correctly here. */
+ * row. --notes-split is the left lane's share, derived for display on the
+ * container; the right lane takes the rest. A block with no variable falls back to
+ * an even split. */
 .notes-doc [data-two-column] {
   display: flex;
   gap: 16px;
@@ -209,8 +210,13 @@
   display: none;
 }
 .notes-doc [data-column] {
-  flex: 1 1 0;
+  flex-grow: var(--notes-split, 0.5);
+  flex-shrink: 1;
+  flex-basis: 0;
   min-width: 0;
+}
+.notes-doc [data-column] + [data-column] {
+  flex-grow: calc(1 - var(--notes-split, 0.5));
 }
 
 /* Image, the bytes are resolved by the image view; until then a note
