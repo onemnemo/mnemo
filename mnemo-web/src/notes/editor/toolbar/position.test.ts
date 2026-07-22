@@ -25,12 +25,38 @@ describe('above/below', () => {
     const anchor = rectAt(MIN_ABOVE_SPACE - 1, 400);
     const placement = placeToolbar(anchor, SIZE, VIEWPORT);
     expect(placement.showAbove).toBe(false);
-    expect(placement.top).toBe(anchor.bottom + 8); // anchor.bottom + gutter
+    // 4 below, not the 8 used above: the desktop's two anchor offsets.
+    expect(placement.top).toBe(anchor.bottom + 4);
   });
 
   it('the exact threshold still counts as room', () => {
     const placement = placeToolbar(rectAt(MIN_ABOVE_SPACE, 400), SIZE, VIEWPORT);
     expect(placement.showAbove).toBe(true);
+  });
+});
+
+describe('vertical clamping', () => {
+  it('keeps a below-placed toolbar inside a short viewport', () => {
+    // Below the flip threshold, so it is placed below, and the line sits low
+    // enough in a short viewport that the preferred top overflows the bottom.
+    const short = { width: 1000, height: 90 };
+    const placement = placeToolbar(rectAt(MIN_ABOVE_SPACE - 8, 400), SIZE, short);
+    expect(placement.showAbove).toBe(false);
+    expect(placement.top).toBe(short.height - SIZE.height - 4);
+  });
+
+  it('never places the toolbar above the top edge', () => {
+    // Taller than the room the above/below flip assumed, so the preferred top
+    // is negative and only the clamp keeps it reachable.
+    const tall = { width: 200, height: 200 };
+    const placement = placeToolbar(rectAt(60, 400), tall, VIEWPORT);
+    expect(placement.showAbove).toBe(true);
+    expect(placement.top).toBe(4);
+  });
+
+  it('clamps to the top rather than off-screen when the toolbar is taller than the viewport', () => {
+    const placement = placeToolbar(rectAt(200, 400), { width: 200, height: 900 }, VIEWPORT);
+    expect(placement.top).toBe(4);
   });
 });
 

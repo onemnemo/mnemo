@@ -31,10 +31,18 @@ function textBlock(spans: SpanSpec[]): Block {
   );
 }
 
-function stateOf(block: Block): EditorState {
-  const result = mapper.toDoc([block]);
+function stateOf(...blocks: Block[]): EditorState {
+  const result = mapper.toDoc(blocks.map((b, i) => ({ ...b, sid: `s000${String(i)}`, order: i })));
   if (!result.ok) throw new Error(`quarantined: ${result.reason.message}`);
   return EditorState.create({ doc: result.doc, schema });
+}
+
+function headingBlock(text: string): Block {
+  return blockOf(
+    'Heading1',
+    [{ kind: 'text', text, style: { ...defaultTextStyle, bold: true } }],
+    { kind: 'empty' },
+  );
 }
 
 /** Selects the entire inline content of the single text block. */
@@ -255,5 +263,49 @@ describe('availability', () => {
 
   it('reports availability on a text range without a dispatch', () => {
     expect(toggleFormat('bold')(selectAll(stateOf(textBlock([{ text: 'ab' }]))))).toBe(true);
+  });
+});
+
+/**
+ * A heading's bold is an invariant, so a toggle there would be undone by the
+ * pipeline in the same dispatch: no visible change, but an undo step and a
+ * save. The desktop returns early on the same case in both its shortcut and its
+ * apply path.
+ */
+describe('a mark a block forces cannot be toggled off in it', () => {
+  it('refuses bold on a heading range', () => {
+    expect(toggleFormat('bold')(selectAll(stateOf(headingBlock('title'))), vi.fn())).toBe(false);
+  });
+
+  it('refuses bold at a caret inside a heading', () => {
+    expect(toggleFormat('bold')(caretInFirstRun(stateOf(headingBlock('title'))), vi.fn())).toBe(false);
+  });
+
+  it('leaves every other mark alone in a heading', () => {
+    const doc = run(selectAll(stateOf(headingBlock('title'))), toggleFormat('italic'));
+    expect(textNodes(doc!).every((n) => hasMark(n, schema.marks.em))).toBe(true);
+  });
+
+  it('formats the rest of a selection that only starts in a heading', () => {
+    const state = stateOf(headingBlock('title'), textBlock([{ text: 'body' }]));
+    const doc = run(selectAll(state), toggleFormat('bold'));
+    const [heading, body] = textNodes(doc!);
+    // Guards the choice of splitting the selection over refusing it outright:
+    // an implementation that declined whenever a heading was anywhere in range
+    // would leave the paragraph unformatted here.
+    expect(hasMark(heading, schema.marks.strong)).toBe(true);
+    expect(hasMark(body, schema.marks.strong)).toBe(true);
+  });
+
+  it('does not let a heading vote on the clear-vs-set decision', () => {
+    // Both runs bold, so a decision taken over the whole selection would clear.
+    // Only the paragraph is writable, and it is already bold, so it clears, and
+    // the heading is untouched either way. The heading having voted would be
+    // visible as the paragraph *keeping* its bold.
+    const state = stateOf(headingBlock('title'), textBlock([{ text: 'body', style: { bold: true } }]));
+    const doc = run(selectAll(state), toggleFormat('bold'));
+    const [heading, body] = textNodes(doc!);
+    expect(hasMark(heading, schema.marks.strong)).toBe(true);
+    expect(hasMark(body, schema.marks.strong)).toBe(false);
   });
 });

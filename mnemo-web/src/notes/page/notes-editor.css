@@ -380,6 +380,11 @@
   height: 10px;
   color: var(--floating-chrome-foreground-muted);
 }
+.notes-formatting-toolbar-color-label {
+  font-size: var(--font-size-body-extra-small);
+  line-height: 1;
+  white-space: nowrap;
+}
 /* The "A" preview takes the active text colour, so the button shows what is
  * currently applied without opening the popover. */
 .notes-formatting-toolbar-color-preview {

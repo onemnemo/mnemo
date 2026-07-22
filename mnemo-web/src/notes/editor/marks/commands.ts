@@ -88,23 +88,45 @@ function swatchToken(mark: Mark | undefined): string | null {
   return typeof mark.attrs.token === 'string' ? mark.attrs.token : null;
 }
 
+interface Span {
+  readonly from: number;
+  readonly to: number;
+}
+
+function spansOf(ranges: readonly SelectionRange[]): Span[] {
+  return ranges.map(({ $from, $to }) => ({ from: $from.pos, to: $to.pos }));
+}
+
 /**
- * Whether the mark can apply anywhere in the selection at all, false inside a
- * code block, whose content admits no marks. PM's own `toggleMark` guards the
- * same way; without it a toolbar toggle in a code block would report success and
- * silently do nothing.
+ * The parts of the selection a mark may actually be written to: the inline
+ * content of every line whose type admits the mark and whose block does not
+ * force it. Empty when there is nowhere to write, which is how a toggle refuses
+ * inside a code block (`codeLine` admits no marks at all) and inside a heading
+ * (whose bold an invariant keeps).
+ *
+ * Splitting the selection rather than refusing outright is what lets a range
+ * running from a heading into a paragraph still format the paragraph. The
+ * desktop reaches the same place from the other direction: it applies per block
+ * and returns early on the heading ones.
  */
-function markApplies(doc: PMNode, ranges: readonly SelectionRange[], type: MarkType): boolean {
+function applicableRanges(
+  doc: PMNode,
+  ranges: readonly SelectionRange[],
+  type: MarkType,
+): Span[] {
+  const out: Span[] = [];
   for (const { $from, $to } of ranges) {
-    let can = $from.depth === 0 ? doc.type.allowsMarkType(type) : false;
-    doc.nodesBetween($from.pos, $to.pos, (node) => {
-      if (can) return false;
-      can = node.inlineContent && node.type.allowsMarkType(type);
-      return true;
+    doc.nodesBetween($from.pos, $to.pos, (node, pos, parent) => {
+      if (!node.inlineContent || !node.type.allowsMarkType(type)) return true;
+      const forced: unknown = parent?.type.spec.forcedMarks;
+      if (Array.isArray(forced) && forced.includes(type.name)) return false;
+      const from = Math.max($from.pos, pos + 1);
+      const to = Math.min($to.pos, pos + 1 + node.content.size);
+      if (to >= from) out.push({ from, to });
+      return false;
     });
-    if (can) return true;
   }
-  return false;
+  return out;
 }
 
 /**
@@ -114,14 +136,14 @@ function markApplies(doc: PMNode, ranges: readonly SelectionRange[], type: MarkT
  */
 function rangeAllHave(
   doc: PMNode,
-  ranges: readonly SelectionRange[],
+  spans: readonly Span[],
   type: MarkType,
   wantToken: string | null,
 ): boolean {
   let sawInline = false;
   let all = true;
-  for (const { $from, $to } of ranges) {
-    doc.nodesBetween($from.pos, $to.pos, (node) => {
+  for (const { from, to } of spans) {
+    doc.nodesBetween(from, to, (node) => {
       if (!node.isInline) return true;
       sawInline = true;
       const mark = markOfType(node.marks, type);
@@ -147,7 +169,8 @@ export function toggleFormat(kind: ToggleKind, token?: string): Command {
     const excludeType = policy.excludes ? state.schema.marks[policy.excludes] : undefined;
 
     const sel = state.selection;
-    if (!markApplies(state.doc, sel.ranges, type)) return false;
+    const targets = applicableRanges(state.doc, sel.ranges, type);
+    if (targets.length === 0) return false;
 
     // Collapsed caret: arm the mark for the next character (sticky typing).
     if (sel instanceof TextSelection && sel.$cursor) {
@@ -169,18 +192,23 @@ export function toggleFormat(kind: ToggleKind, token?: string): Command {
       return true;
     }
 
-    // Range: set unless every inline node in it already has the mark.
-    const allHave = rangeAllHave(state.doc, sel.ranges, type, wantToken);
     if (dispatch) {
+      // Set unless every inline node already has the mark. Decided over the
+      // writable parts, so a heading in the selection cannot vote on a change
+      // it is not going to receive. Computed here rather than above because a
+      // dry run only asks whether the command applies, and every toolbar button
+      // dry-runs on every state change: over a large selection this walk is the
+      // expensive half of the answer, and it is not part of that question.
+      const allHave = rangeAllHave(state.doc, targets, type, wantToken);
       const tr = state.tr;
-      for (const { $from, $to } of sel.ranges) {
+      for (const { from, to } of targets) {
         if (allHave) {
-          tr.removeMark($from.pos, $to.pos, type);
+          tr.removeMark(from, to, type);
         } else {
-          tr.addMark($from.pos, $to.pos, type.create(attrs ?? undefined));
+          tr.addMark(from, to, type.create(attrs ?? undefined));
           // Setting one script clears its partner across the whole range, the
           // way `WithSet` forces the opposite flag false on every span.
-          if (excludeType) tr.removeMark($from.pos, $to.pos, excludeType);
+          if (excludeType) tr.removeMark(from, to, excludeType);
         }
       }
       // Formatting a range is one undo step of its own, the desktop's "Format
@@ -257,7 +285,11 @@ export function isFormatActive(state: EditorState, kind: ToggleKind, token?: str
       ? swatchToken(markOfType(current, type)) === wantToken
       : !!markOfType(current, type);
   }
-  return rangeAllHave(state.doc, sel.ranges, type, wantToken);
+  // The whole selection, not just the writable part: "is it on" and "can you
+  // change it" are different questions, and a heading answers yes to the first
+  // and no to the second. That is the desktop's toolbar too, where bold reads
+  // active and disabled at once inside a heading.
+  return rangeAllHave(state.doc, spansOf(sel.ranges), type, wantToken);
 }
 
 /**

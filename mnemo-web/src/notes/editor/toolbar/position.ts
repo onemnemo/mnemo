@@ -30,16 +30,29 @@ export interface Placement {
 /** Desktop's `HeightEstimate`, the room a bubble needs to fit above the line. */
 export const MIN_ABOVE_SPACE = 48;
 
-const GUTTER = 8;
+/** The desktop's two anchor offsets: 8px of air above the line, 4px below it. */
+const GUTTER_ABOVE = 8;
+const GUTTER_BELOW = 4;
 const EDGE_MARGIN = 4;
+
+/** Keeps a value inside [min, max], and inside min when the two have crossed. */
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), Math.max(min, max));
+}
 
 export function placeToolbar(anchor: Rect, size: Size, viewport: Size): Placement {
   const showAbove = anchor.top >= MIN_ABOVE_SPACE;
-  const top = showAbove ? anchor.top - size.height - GUTTER : anchor.bottom + GUTTER;
+  const preferredTop = showAbove
+    ? anchor.top - size.height - GUTTER_ABOVE
+    : anchor.bottom + GUTTER_BELOW;
+
+  // Both axes are clamped for the same reason: a bubble that hangs off the
+  // viewport is a control the user cannot reach. Vertically that happens with a
+  // short window or a toolbar taller than the room the flip assumed.
+  const top = clamp(preferredTop, EDGE_MARGIN, viewport.height - size.height - EDGE_MARGIN);
 
   const center = (anchor.left + anchor.right) / 2;
-  const maxLeft = viewport.width - size.width - EDGE_MARGIN;
-  const left = Math.min(Math.max(center - size.width / 2, EDGE_MARGIN), Math.max(maxLeft, EDGE_MARGIN));
+  const left = clamp(center - size.width / 2, EDGE_MARGIN, viewport.width - size.width - EDGE_MARGIN);
 
   return { top, left, showAbove };
 }

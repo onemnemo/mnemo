@@ -9,7 +9,7 @@
  * swatch popover applies and clears tokens, and teardown leaves nothing behind.
  */
 
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { createDocumentMapper } from '../mapper/document';
@@ -30,9 +30,21 @@ beforeAll(() => {
   (document as Document & { elementFromPoint: () => Element | null }).elementFromPoint = () => null;
 });
 
+// Real timers would make every hide assertion a race against the close
+// debounce; `settle()` is how a test says "the selection has now been empty
+// long enough", which is the thing being asserted anyway.
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
 afterEach(() => {
+  vi.useRealTimers();
   document.body.replaceChildren();
 });
+
+function settle(): void {
+  vi.advanceTimersByTime(200);
+}
 
 function container(): HTMLElement {
   const el = document.createElement('div');
@@ -91,6 +103,27 @@ function button(commandId: string): HTMLButtonElement {
   return el;
 }
 
+/** Position 2 is the first offset inside the line, the block and line each cost one. */
+function collapseCaret(view: EditorView): void {
+  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 2)));
+}
+
+/** The one gesture PM itself does not report: it keeps its selection when
+ * focus leaves, so without this the bubble would hang over the page. */
+function pressOutside(): void {
+  const outside = document.createElement('div');
+  document.body.appendChild(outside);
+  outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+}
+
+function pressInEditor(view: EditorView): void {
+  view.dom.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+}
+
+function releasePointer(): void {
+  document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+}
+
 describe('show/hide follows the selection', () => {
   it('mounts hidden, the doc opens with a collapsed caret', () => {
     mount([textBlock('hello')]);
@@ -106,20 +139,85 @@ describe('show/hide follows the selection', () => {
   it('hides again once the selection collapses back to a caret', () => {
     const view = mount([textBlock('hello')]);
     selectAll(view);
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1)));
+    collapseCaret(view);
+    settle();
+    expect(toolbarEl().hasAttribute('data-hidden')).toBe(true);
+  });
+});
+
+/**
+ * The desktop gives an emptied selection 80ms to come back before closing.
+ * A selection reads empty for a frame in the middle of interactions the user
+ * experiences as continuous, and closing on the first empty report blinks.
+ */
+describe('the close debounce', () => {
+  it('stays up for a moment after the selection empties', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    collapseCaret(view);
+    vi.advanceTimersByTime(40);
+    expect(toolbarEl().hasAttribute('data-hidden')).toBe(false);
+  });
+
+  it('a range arriving inside the window cancels the close', () => {
+    const view = mount([textBlock('hello world')]);
+    selectAll(view);
+    collapseCaret(view);
+    vi.advanceTimersByTime(40);
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 2, 5)));
+    settle();
+    expect(toolbarEl().hasAttribute('data-hidden')).toBe(false);
+  });
+
+  it('an outside press closes at once rather than waiting it out', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    pressOutside();
+    expect(toolbarEl().hasAttribute('data-hidden')).toBe(true);
+  });
+});
+
+/**
+ * Nothing is shown while a selection is still being dragged out. The desktop
+ * skips its whole check while `IsPointerSelecting`; here the press hides the
+ * bubble outright, so it cannot sit over the text the pointer is crossing.
+ */
+describe('pointer-gesture suppression', () => {
+  it('hides while a press inside the editor is unreleased', () => {
+    const view = mount([textBlock('hello world')]);
+    selectAll(view);
+    pressInEditor(view);
+    expect(toolbarEl().hasAttribute('data-hidden')).toBe(true);
+  });
+
+  it('stays hidden as the dragged selection grows', () => {
+    const view = mount([textBlock('hello world')]);
+    pressInEditor(view);
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 2, 4)));
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 2, 8)));
+    expect(toolbarEl().hasAttribute('data-hidden')).toBe(true);
+  });
+
+  it('appears once, on release, over the finished selection', () => {
+    const view = mount([textBlock('hello world')]);
+    pressInEditor(view);
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 2, 8)));
+    releasePointer();
+    expect(toolbarEl().hasAttribute('data-hidden')).toBe(false);
+  });
+
+  it('a click that selects nothing leaves it hidden', () => {
+    const view = mount([textBlock('hello world')]);
+    selectAll(view);
+    pressInEditor(view);
+    collapseCaret(view);
+    releasePointer();
+    settle();
     expect(toolbarEl().hasAttribute('data-hidden')).toBe(true);
   });
 });
 
 describe('a press outside the editor dismisses the toolbar', () => {
-  /** The one gesture PM itself does not report: it keeps its selection when
-   * focus leaves, so without this the bubble would hang over the page. */
-  function pressOutside(): void {
-    const outside = document.createElement('div');
-    document.body.appendChild(outside);
-    outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-  }
-
   it('hides even though the selection is still a range', () => {
     const view = mount([textBlock('hello')]);
     selectAll(view);
@@ -156,10 +254,13 @@ describe('a press outside the editor dismisses the toolbar', () => {
     expect(toolbarEl().hasAttribute('data-hidden')).toBe(false);
   });
 
-  it('a press inside the editor is not a dismissal, PM reports that itself', () => {
-    const view = mount([textBlock('hello')]);
+  it('a press inside the editor is a new gesture, not a dismissal', () => {
+    const view = mount([textBlock('hello world')]);
     selectAll(view);
-    view.dom.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    pressInEditor(view);
+    releasePointer();
+    // Dismissed would mean staying hidden until the next deliberate selection
+    // change; this comes straight back with the selection still standing.
     expect(toolbarEl().hasAttribute('data-hidden')).toBe(false);
   });
 });
