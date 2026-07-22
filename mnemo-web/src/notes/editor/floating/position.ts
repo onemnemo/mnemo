@@ -4,11 +4,12 @@
  * `getBoundingClientRect` return meaningless zeros under jsdom, so the decision
  * logic has to be testable without either.
  *
- * Two placements, because the desktop has two and they differ on purpose. The
- * formatting toolbar is centred on the selection and prefers to sit above it,
- * where the reader's eye already is. The slash menu is left-aligned to the
- * caret and prefers to sit below, because it is a list being read downward and
- * the text above it is the context the user is typing into.
+ * Three placements, because they differ on purpose. The formatting toolbar is
+ * centred on the selection and prefers to sit above it, where the reader's eye
+ * already is. The slash menu is left-aligned to the caret and prefers to sit
+ * below, because it is a list being read downward and the text above it is the
+ * context the user is typing into. The colour popover hangs off the toolbar
+ * rather than off the text, so it is placed against that instead.
  */
 
 export interface Rect {
@@ -98,4 +99,38 @@ export function placeMenu(anchor: Rect, size: Size, viewport: Size): MenuPlaceme
   const left = clamp(anchor.left, EDGE_MARGIN, viewport.width - size.width - EDGE_MARGIN);
 
   return { top, left, showAbove, maxHeight };
+}
+
+/** The air the CSS leaves between the toolbar and a panel hanging off it. */
+const POPOVER_GUTTER = 6;
+
+export interface PopoverPlacement {
+  /**
+   * Where the panel's left edge goes, measured from the anchor's own left
+   * rather than the viewport's. The popover is drawn inside the toolbar, so it
+   * follows every move the toolbar makes without being placed again.
+   */
+  readonly left: number;
+  readonly showAbove: boolean;
+}
+
+/**
+ * Places a panel against the toolbar that opened it, rather than against the
+ * text. The toolbar has already been kept on screen; this keeps the panel on
+ * screen too, which the toolbar's own placement knows nothing about because it
+ * measured itself while the panel was still hidden.
+ *
+ * Below by default, which is where a panel opened from a button is looked for,
+ * and above only when below cannot hold it. No height cap, unlike the menu: the
+ * palette is a fixed dozen cells, and a colour grid that scrolls would be worse
+ * than one that flipped.
+ */
+export function placePopover(anchor: Rect, size: Size, viewport: Size): PopoverPlacement {
+  const roomAbove = anchor.top - POPOVER_GUTTER - EDGE_MARGIN;
+  const roomBelow = viewport.height - anchor.bottom - POPOVER_GUTTER - EDGE_MARGIN;
+  const showAbove = roomBelow < size.height && roomAbove > roomBelow;
+
+  const left = clamp(anchor.left, EDGE_MARGIN, viewport.width - size.width - EDGE_MARGIN);
+
+  return { left: left - anchor.left, showAbove };
 }

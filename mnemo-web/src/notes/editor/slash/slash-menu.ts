@@ -110,10 +110,34 @@ function createController(
   let rows: readonly MenuRow[] = [];
   let index = 0;
 
+  /**
+   * Points the editor at the open list and at the row the arrows are on.
+   *
+   * The editable element keeps DOM focus the whole time the menu is up, which
+   * is what lets the query go on being typed. That makes the editor the only
+   * element a screen reader is looking at, so the list and its current row have
+   * to be named from there rather than from the menu.
+   */
+  function syncEditorAria(): void {
+    const { dom } = view;
+    if (!open) {
+      dom.removeAttribute('aria-expanded');
+      dom.removeAttribute('aria-controls');
+      dom.removeAttribute('aria-activedescendant');
+      return;
+    }
+    dom.setAttribute('aria-expanded', 'true');
+    dom.setAttribute('aria-controls', menu.listId);
+    const active = menu.rowId(index);
+    if (active) dom.setAttribute('aria-activedescendant', active);
+    else dom.removeAttribute('aria-activedescendant');
+  }
+
   function close(): void {
     if (!open) return;
     open = false;
     menu.root.setAttribute('data-hidden', '');
+    syncEditorAria();
   }
 
   function pick(at: number): void {
@@ -150,6 +174,7 @@ function createController(
     // a broken key when the highlight jumps end to end.
     index = Math.min(rows.length - 1, Math.max(0, index + delta));
     menu.select(index);
+    syncEditorAria();
   }
 
   return {
@@ -168,6 +193,7 @@ function createController(
       open = true;
       menu.root.removeAttribute('data-hidden');
       menu.render(rows, index, pick);
+      syncEditorAria();
       // Only on open. The menu hangs off the point the `/` was typed at, and
       // re-anchoring as the query grows makes it crawl sideways.
       if (!wasOpen) reposition();
@@ -202,6 +228,9 @@ function createController(
     },
 
     destroy(): void {
+      // Before the menu goes, so the editor is not left pointing at a list that
+      // is no longer in the document.
+      close();
       menu.destroy();
     },
   };

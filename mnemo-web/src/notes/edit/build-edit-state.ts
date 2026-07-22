@@ -92,10 +92,10 @@ export type NoteEditState =
  *    appends has to be inside that edit rather than after it. Closing first
  *    would leave the repair to open a group of its own, so undoing a split
  *    would take two presses, one for the repair, one for the split.
- *  - `formattingToolbarPlugin` has neither a keymap nor an
- *    `appendTransaction`, only a `view()` that reads the selection back,
- *    it takes no part in the precedence this ordering describes, so its
- *    place in the array is arbitrary and it is listed last.
+ *  - `formattingToolbarPlugin` binds one key, the chord that moves focus into
+ *    the toolbar, and nothing else here or in `baseKeymap` claims it. It has no
+ *    `appendTransaction` either, so it takes no part in the precedence this
+ *    ordering describes and is listed last.
  */
 export function editorPlugins(registry: BlockRegistry): Plugin[] {
   return [

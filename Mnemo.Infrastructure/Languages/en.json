@@ -609,8 +609,11 @@
     "AddWordToDictionary": "Add word to dictionary",
     "TextColor": "TEXT COLOR",
     "BackgroundColor": "BACKGROUND",
+    "Color": "Color",
     "ColorDefault": "Default",
-    "ColorNone": "None"
+    "ColorNone": "None",
+    "FormattingToolbar": "Text formatting",
+    "SlashMenuLabel": "Insert a block"
   },
   "Mindmap": {
     "Title": "Mindmaps",

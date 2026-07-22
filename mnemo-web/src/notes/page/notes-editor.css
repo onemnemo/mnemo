@@ -302,6 +302,11 @@
   z-index: 40;
   display: flex;
   align-items: center;
+  /* A window narrower than the toolbar wants gets a second line rather than a
+   * row running off the edge. Placement can only clamp the left side, so
+   * without this the last buttons end up somewhere nobody can press. */
+  flex-wrap: wrap;
+  max-width: calc(100vw - 8px);
   gap: 1px;
   padding: 4px;
   border-radius: 8px;
@@ -359,6 +364,15 @@
   font-family: var(--font-mono);
   font-size: 13px;
 }
+/* The toolbar is a single tab stop with the arrows moving inside it, so the
+ * ring is the only thing saying which control a press would run.
+ * `:focus-visible` rather than `:focus`, so a pointer never draws it. */
+.notes-formatting-toolbar-btn:focus-visible,
+.notes-formatting-toolbar-color:focus-visible,
+.notes-formatting-toolbar-swatch-cell:focus-visible {
+  outline: 2px solid var(--floating-chrome-accent);
+  outline-offset: -2px;
+}
 
 .notes-formatting-toolbar-icon {
   display: grid;
@@ -399,7 +413,9 @@
 }
 
 /* The colour popover hangs below the colour button, inside the toolbar's own
- * stacking context so it moves with it. */
+ * stacking context so it moves with it. The plugin adjusts `left` and may flip
+ * the popover above, leaving the 6px of air the same on whichever side it
+ * takes. */
 .notes-formatting-toolbar-swatch-popover {
   position: absolute;
   top: calc(100% + 6px);
@@ -408,6 +424,10 @@
   border-radius: var(--radius-lg, 12px);
   background: var(--floating-chrome-background);
   box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.32);
+}
+.notes-formatting-toolbar-swatch-popover-above {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 .notes-formatting-toolbar-swatch-popover[data-hidden] {
   display: none;

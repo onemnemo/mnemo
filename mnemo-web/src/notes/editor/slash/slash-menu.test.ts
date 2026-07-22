@@ -348,10 +348,104 @@ describe('picking a row', () => {
   });
 });
 
+/**
+ * DOM focus never leaves the editor while the menu is up, which is what lets
+ * the query go on being typed. That makes the editor the only element a screen
+ * reader is watching, so it is the editor that has to point at the list and at
+ * the row the arrows are on.
+ */
+describe('what the menu tells a screen reader', () => {
+  function openMenu(query = ''): EditorView {
+    const view = mount([block('Text', [span('')])]);
+    caretAtStart(view);
+    type(view, `/${query}`);
+    return view;
+  }
+
+  function listEl(): HTMLElement {
+    const el = menuEl().querySelector('.notes-slash-menu-list');
+    if (!el) throw new Error('list not in the document');
+    return el as HTMLElement;
+  }
+
+  function activeRow(view: EditorView): HTMLElement | null {
+    const id = view.dom.getAttribute('aria-activedescendant');
+    return id ? document.getElementById(id) : null;
+  }
+
+  it('the list names itself', () => {
+    openMenu();
+    expect(listEl().getAttribute('role')).toBe('listbox');
+    // The fixture's translate splits a key into words, as the real bundle does.
+    expect(listEl().getAttribute('aria-label')).toBe('Slash Menu Label');
+  });
+
+  it('the editor points at the open list', () => {
+    const view = openMenu();
+    expect(view.dom.getAttribute('aria-expanded')).toBe('true');
+    expect(view.dom.getAttribute('aria-controls')).toBe(listEl().id);
+  });
+
+  it('the active descendant is the highlighted row, and follows the arrows', () => {
+    const view = openMenu();
+    expect(activeRow(view)?.dataset.label).toBe('Text');
+    press(view, 'ArrowDown');
+    expect(activeRow(view)?.dataset.label).toBe('Heading1');
+    press(view, 'End');
+    expect(activeRow(view)?.dataset.label).toBe('Divider');
+  });
+
+  it('follows a filter down to the row it leaves standing', () => {
+    const view = openMenu('quo');
+    expect(activeRow(view)?.dataset.label).toBe('Quote');
+  });
+
+  /** Pointing at a row that does not exist is worse than pointing at nothing. */
+  it('points at no row when the query matches none', () => {
+    const view = openMenu('zzz');
+    expect(view.dom.hasAttribute('aria-activedescendant')).toBe(false);
+    expect(view.dom.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('lets go of all of it when the menu closes', () => {
+    const view = openMenu('quo');
+    press(view, 'Escape');
+    expect(view.dom.hasAttribute('aria-expanded')).toBe(false);
+    expect(view.dom.hasAttribute('aria-controls')).toBe(false);
+    expect(view.dom.hasAttribute('aria-activedescendant')).toBe(false);
+  });
+
+  it('lets go of it after a pick too', () => {
+    const view = openMenu('quo');
+    press(view, 'Enter');
+    expect(view.dom.hasAttribute('aria-expanded')).toBe(false);
+    expect(view.dom.hasAttribute('aria-activedescendant')).toBe(false);
+  });
+
+  it('every row has its own id, so the pointer is never ambiguous', () => {
+    openMenu();
+    const ids = rows().map((row) => row.id);
+    expect(ids.every(Boolean)).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
 describe('teardown', () => {
   it('destroy takes the menu out of the document', () => {
     const view = mount([block('Text', [span('')])]);
     view.destroy();
     expect(document.querySelector('.notes-slash-menu')).toBeNull();
+  });
+
+  /** The editor outlives its menu on a remount; it must not be left pointing
+   * at a list that is no longer in the document. */
+  it('destroy leaves nothing pointing at the menu', () => {
+    const view = mount([block('Text', [span('')])]);
+    caretAtStart(view);
+    type(view, '/');
+    const { dom } = view;
+    view.destroy();
+    expect(dom.hasAttribute('aria-controls')).toBe(false);
+    expect(dom.hasAttribute('aria-activedescendant')).toBe(false);
   });
 });

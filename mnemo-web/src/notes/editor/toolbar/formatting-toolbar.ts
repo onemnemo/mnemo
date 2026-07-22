@@ -8,6 +8,11 @@
  *
  * Buttons and their highlights both read the command catalog, so a button
  * cannot disagree with what its own shortcut does.
+ *
+ * The desktop toolbar is `Focusable="False"`, so nothing here has a keyboard
+ * story to port. It gets one anyway: Alt+F10 moves into it, the arrows walk it,
+ * and Escape hands the caret back where it was. A control that only a pointer
+ * can reach is a control some people do not have.
  */
 
 import { Plugin, PluginKey } from 'prosemirror-state';
@@ -23,9 +28,21 @@ import { getIconMarkup } from '../../../components/icon/icon-registry';
 import { useI18nStore } from '../../../i18n/store';
 import { createTranslate } from '../../../i18n/translate';
 import { BACKGROUND_SWATCHES, TEXT_SWATCHES, type SwatchCell } from './palette';
-import { placeToolbar, type Rect } from '../floating/position';
+import { placePopover, placeToolbar, type Rect } from '../floating/position';
+import { createRovingFocus } from '../floating/roving-focus';
+import { openTransientFocus, type TransientFocusScope } from '../focus';
 
 const ROOT = 'notes-formatting-toolbar';
+
+/**
+ * The chord that moves focus into the toolbar, as CKEditor and TinyMCE have
+ * both spelled it for years. Alt is what keeps it off F10's own browser
+ * meaning, and an editor user who knows the convention already knows this.
+ */
+const FOCUS_CHORD = 'F10';
+
+/** Distinguishes one editor's swatch headings from another's on the same page. */
+let instanceCount = 0;
 
 /**
  * Counts transactions that set the selection deliberately rather than having
@@ -130,13 +147,19 @@ function buildSwatchRow(
   cells: readonly SwatchCell[],
   variant: 'text' | 'background',
   translate: (key: string) => string,
+  headerId: string,
 ): { readonly row: HTMLElement; readonly cellButtons: readonly SwatchCellButton[] } {
   const row = document.createElement('div');
   row.className = `${ROOT}-swatch-row`;
+  // Named by the heading already drawn above it, so the two rows are told apart
+  // without a second string that could drift from the visible one.
+  row.setAttribute('role', 'group');
+  row.setAttribute('aria-labelledby', headerId);
   const cellButtons = cells.map((cell): SwatchCellButton => {
     const el = document.createElement('button');
     el.type = 'button';
     el.className = `${ROOT}-swatch-cell`;
+    el.tabIndex = -1;
     // The token identifies the cell for styling and for tests, which must not
     // key off a label that changes with the active language.
     el.dataset.token = cell.token ?? 'none';
@@ -165,6 +188,9 @@ function buildToolbarDom(
   const root = document.createElement('div');
   root.className = ROOT;
   root.setAttribute('data-hidden', '');
+  root.setAttribute('role', 'toolbar');
+  root.setAttribute('aria-orientation', 'horizontal');
+  root.setAttribute('aria-label', translate('FormattingToolbar'));
   // Keeps focus, and with it the selection, from leaving the editor when a
   // control here is pressed. One guard at the root covers every control.
   root.addEventListener('mousedown', (event) => event.preventDefault());
@@ -172,6 +198,11 @@ function buildToolbarDom(
   const colorButton = document.createElement('button');
   colorButton.type = 'button';
   colorButton.className = `${ROOT}-color`;
+  // The group's entry point until the arrows move it, so the toolbar is one
+  // tab stop rather than nine.
+  colorButton.tabIndex = 0;
+  colorButton.setAttribute('aria-haspopup', 'true');
+  colorButton.setAttribute('aria-expanded', 'false');
   // `Color`, not `TextColor`: the button opens both rows, and `TextColor` is
   // the popover's own heading, which is upper case and reads as shouting in a
   // tooltip. Matches the key the desktop toolbar uses for this button.
@@ -198,8 +229,17 @@ function buildToolbarDom(
       el.type = 'button';
       el.className = `${ROOT}-btn`;
       el.dataset.command = id;
+      el.tabIndex = -1;
       const tooltipKey = TOOLTIP_KEYS[id];
-      if (tooltipKey) el.title = translate(tooltipKey);
+      if (tooltipKey) {
+        el.title = translate(tooltipKey);
+        // Spelled out rather than left to the title fallback: the equation
+        // button draws a sigma, and a glyph wins over `title` as the name.
+        el.setAttribute('aria-label', el.title);
+      }
+      // A toggle says whether it is on; an insert has nothing to be on about,
+      // and the catalog already draws that line with `isActive`.
+      if (command.isActive) el.setAttribute('aria-pressed', 'false');
       if (id === 'editor.equation') {
         el.classList.add(`${ROOT}-btn-glyph`);
         el.textContent = 'Σ';
@@ -216,16 +256,19 @@ function buildToolbarDom(
   popover.className = `${ROOT}-swatch-popover`;
   popover.setAttribute('data-hidden', '');
 
+  const scope = `${ROOT}-${String(++instanceCount)}`;
   const textHeader = document.createElement('div');
   textHeader.className = `${ROOT}-swatch-header`;
+  textHeader.id = `${scope}-text-header`;
   textHeader.textContent = translate('TextColor');
   const backgroundHeader = document.createElement('div');
   backgroundHeader.className = `${ROOT}-swatch-header`;
+  backgroundHeader.id = `${scope}-background-header`;
   backgroundHeader.textContent = translate('BackgroundColor');
 
   // Clicks are wired in by the plugin, which is what holds the live view.
-  const text = buildSwatchRow(TEXT_SWATCHES, 'text', translate);
-  const background = buildSwatchRow(BACKGROUND_SWATCHES, 'background', translate);
+  const text = buildSwatchRow(TEXT_SWATCHES, 'text', translate, textHeader.id);
+  const background = buildSwatchRow(BACKGROUND_SWATCHES, 'background', translate, backgroundHeader.id);
   popover.append(textHeader, text.row, backgroundHeader, background.row);
   root.appendChild(popover);
 
@@ -275,6 +318,9 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
   const background = commandsById.get('editor.color.background') as SwatchCommand | undefined;
   const translate = options.translate ?? defaultTranslate;
   const closeDelayMs = options.closeDelayMs ?? CLOSE_DELAY_MS;
+  // Keyed by view rather than captured: one plugin instance can be reached from
+  // more than one view, and the toolbar to focus is the one this view owns.
+  const focusEntries = new WeakMap<EditorView, () => boolean>();
 
   return new Plugin({
     state: {
@@ -296,6 +342,24 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
       // is being dragged out and every intermediate state is noise.
       let selecting = false;
       let closeTimer: ReturnType<typeof setTimeout> | null = null;
+      // Non-null exactly while the keyboard is driving the toolbar. It holds the
+      // selection to hand back, so Escape returns the caret rather than leaving
+      // it wherever the document happens to have moved it.
+      let focusScope: TransientFocusScope | null = null;
+
+      // The toolbar is a row; the palette is a grid of two. Both read their
+      // controls live, because which ones are available moves with the caret.
+      const toolbarFocus = createRovingFocus(() => [
+        [dom.colorButton, ...dom.buttons.map((button) => button.el)],
+      ]);
+      const paletteFocus = createRovingFocus(() => [
+        dom.textCells.map((cell) => cell.el),
+        dom.backgroundCells.map((cell) => cell.el),
+      ]);
+
+      function holdsFocus(): boolean {
+        return dom.root.contains(document.activeElement);
+      }
 
       function cancelScheduledClose(): void {
         if (closeTimer === null) return;
@@ -307,20 +371,71 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
         if (!popoverOpen) return;
         popoverOpen = false;
         dom.popover.setAttribute('data-hidden', '');
+        dom.colorButton.setAttribute('aria-expanded', 'false');
+        // Focus cannot stay on a cell that is no longer drawn; it goes back to
+        // the control that opened the popover, never out of the toolbar.
+        if (dom.popover.contains(document.activeElement)) dom.colorButton.focus();
+      }
+
+      /**
+       * Keeps the palette on screen. Measured only while it is showing: a
+       * hidden popover is `display: none`, and placing against nothing gives
+       * the answer for a panel with no size.
+       */
+      function positionPopover(): void {
+        if (!popoverOpen) return;
+        const anchor = dom.root.getBoundingClientRect();
+        const size = { width: dom.popover.offsetWidth, height: dom.popover.offsetHeight };
+        const viewport = { width: window.innerWidth, height: window.innerHeight };
+        const placement = placePopover(anchor, size, viewport);
+        dom.popover.style.left = `${String(placement.left)}px`;
+        dom.popover.classList.toggle(`${ROOT}-swatch-popover-above`, placement.showAbove);
       }
 
       function openPopover(): void {
         if (popoverOpen) return;
         popoverOpen = true;
         dom.popover.removeAttribute('data-hidden');
+        dom.colorButton.setAttribute('aria-expanded', 'true');
+        positionPopover();
+        paletteFocus.reset();
+        // Only when the keyboard opened it. A click already left focus in the
+        // document on purpose, and pulling it into the palette would take the
+        // caret away from a user who never asked to leave the text.
+        if (holdsFocus()) paletteFocus.focus();
       }
 
       function hide(): void {
         cancelScheduledClose();
         if (!visible) return;
+        const hadFocus = holdsFocus();
         visible = false;
         dom.root.setAttribute('data-hidden', '');
         closePopover();
+        toolbarFocus.reset();
+        if (focusScope) {
+          // Whatever emptied the selection has already put it where it wants
+          // it, so the scope stands down rather than restoring the old one.
+          focusScope.release();
+          focusScope = null;
+          if (hadFocus) editorView.focus();
+        }
+      }
+
+      /** Moves the keyboard into the toolbar, capturing what to hand back. */
+      function focusToolbar(): boolean {
+        if (!visible || !toolbarFocus.focus()) return false;
+        focusScope ??= openTransientFocus(editorView);
+        return true;
+      }
+
+      /** Escape's answer: the caret goes back exactly where it was. */
+      function returnFocusToEditor(): void {
+        const scope = focusScope;
+        focusScope = null;
+        toolbarFocus.reset();
+        if (scope) scope.restore();
+        else editorView.focus();
       }
 
       /**
@@ -342,34 +457,49 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
 
       function reposition(view: EditorView): void {
         const anchor = measureAnchor(view);
-        if (!anchor) return;
-        const size = { width: dom.root.offsetWidth, height: dom.root.offsetHeight };
-        const viewport = { width: window.innerWidth, height: window.innerHeight };
-        const placement = placeToolbar(anchor, size, viewport);
-        dom.root.style.top = `${String(placement.top)}px`;
-        dom.root.style.left = `${String(placement.left)}px`;
-        dom.root.classList.toggle(`${ROOT}-below`, !placement.showAbove);
+        if (anchor) {
+          const size = { width: dom.root.offsetWidth, height: dom.root.offsetHeight };
+          const viewport = { width: window.innerWidth, height: window.innerHeight };
+          const placement = placeToolbar(anchor, size, viewport);
+          dom.root.style.top = `${String(placement.top)}px`;
+          dom.root.style.left = `${String(placement.left)}px`;
+          dom.root.classList.toggle(`${ROOT}-below`, !placement.showAbove);
+        }
+        // Outside that, because the palette hangs off the toolbar rather than
+        // off the text: it has to be placed again whenever the toolbar moves or
+        // the window changes size under it, and it needs no anchor to do so.
+        positionPopover();
+      }
+
+      function markSelected(el: HTMLButtonElement, selected: boolean): void {
+        el.classList.toggle('is-selected', selected);
+        el.setAttribute('aria-pressed', String(selected));
       }
 
       function updateActiveStates(view: EditorView): void {
         const { state } = view;
         for (const { el, command } of dom.buttons) {
-          el.classList.toggle('is-active', command.isActive?.(state) ?? false);
+          const active = command.isActive?.(state) ?? false;
+          el.classList.toggle('is-active', active);
+          if (command.isActive) el.setAttribute('aria-pressed', String(active));
           el.disabled = !isCommandEnabled(command, state);
         }
 
         const activeForeground = foreground?.activeToken(state) ?? null;
         for (const { el, cell } of dom.textCells) {
-          el.classList.toggle('is-selected', cell.token === activeForeground);
+          markSelected(el, cell.token === activeForeground);
         }
         const activeBackground = background?.activeToken(state) ?? null;
         for (const { el, cell } of dom.backgroundCells) {
-          el.classList.toggle('is-selected', cell.token === activeBackground);
+          markSelected(el, cell.token === activeBackground);
         }
 
         const swatch = TEXT_SWATCHES.find((cell) => cell.token === activeForeground);
         dom.colorPreview.style.color = swatch?.cssVar ? `var(${swatch.cssVar})` : '';
         dom.colorButton.disabled = !foreground || !isCommandEnabled(foreground, state);
+        // Last, so the single tab stop lands on a control that is still
+        // available after this pass decided which ones are.
+        toolbarFocus.sync();
       }
 
       /**
@@ -456,6 +586,11 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
         }
         if (dom.root.contains(target)) return;
         dismissed = true;
+        // Stood down before hiding, because at mousedown the press has not
+        // taken focus yet: leaving the scope alive would let `hide` pull focus
+        // into the editor behind whatever the user just clicked.
+        focusScope?.release();
+        focusScope = null;
         hide();
       }
       document.addEventListener('mousedown', onDocumentMouseDown, true);
@@ -467,12 +602,45 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
       }
       document.addEventListener('mouseup', onDocumentMouseUp, true);
 
+      /**
+       * One press stands down one layer, the same rule the mouse follows: with
+       * the palette open Escape closes just the palette, and only then does it
+       * reach the toolbar and give the caret back.
+       */
+      function onToolbarKeyDown(event: KeyboardEvent): void {
+        if (event.defaultPrevented) return;
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          if (popoverOpen) closePopover();
+          else returnFocusToEditor();
+          return;
+        }
+        const inPalette = popoverOpen && dom.popover.contains(event.target as Node | null);
+        const group = inPalette ? paletteFocus : toolbarFocus;
+        if (group.handleKey(event)) event.preventDefault();
+      }
+      dom.root.addEventListener('keydown', onToolbarKeyDown);
+
+      /**
+       * Focus left by a route the toolbar does not own, a Tab or a click
+       * somewhere else. The selection is wherever that route put it, so the
+       * scope stands down instead of dragging it back.
+       */
+      function onToolbarFocusOut(event: FocusEvent): void {
+        const next = event.relatedTarget as Node | null;
+        if (next && dom.root.contains(next)) return;
+        focusScope?.release();
+        focusScope = null;
+      }
+      dom.root.addEventListener('focusout', onToolbarFocusOut);
+
       function onViewportChange(): void {
         if (visible) reposition(editorView);
       }
       window.addEventListener('scroll', onViewportChange, true);
       window.addEventListener('resize', onViewportChange);
 
+      focusEntries.set(editorView, focusToolbar);
       sync(editorView, true);
 
       return {
@@ -496,9 +664,20 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
           window.removeEventListener('resize', onViewportChange);
           document.removeEventListener('mousedown', onDocumentMouseDown, true);
           document.removeEventListener('mouseup', onDocumentMouseUp, true);
+          focusEntries.delete(editorView);
+          // Never restored: the view is going away, and there is no document
+          // left to put a selection back into.
+          focusScope?.release();
+          focusScope = null;
           dom.root.remove();
         },
       };
+    },
+    props: {
+      handleKeyDown(view, event) {
+        if (event.key !== FOCUS_CHORD || !event.altKey) return false;
+        return focusEntries.get(view)?.() ?? false;
+      },
     },
   });
 }

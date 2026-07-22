@@ -5,7 +5,14 @@
  * horizontal-clamp decisions independent of environment.
  */
 import { describe, expect, it } from 'vitest';
-import { MENU_HEIGHT_ESTIMATE, MIN_ABOVE_SPACE, placeMenu, placeToolbar, type Rect } from './position';
+import {
+  MENU_HEIGHT_ESTIMATE,
+  MIN_ABOVE_SPACE,
+  placeMenu,
+  placePopover,
+  placeToolbar,
+  type Rect,
+} from './position';
 
 const SIZE = { width: 200, height: 40 };
 const VIEWPORT = { width: 1000, height: 800 };
@@ -139,5 +146,50 @@ describe('placeMenu', () => {
   it('clamps to the right edge like the toolbar does', () => {
     const placement = placeMenu(rectAt(200, 900), MENU, VIEWPORT);
     expect(placement.left).toBe(VIEWPORT.width - MENU.width - 4);
+  });
+});
+
+/**
+ * The colour palette, placed against the toolbar rather than against the text.
+ * `left` is an offset from the toolbar's own left edge, so 0 means "as drawn".
+ */
+describe('the palette hanging off the toolbar', () => {
+  const PALETTE = { width: 240, height: 130 };
+
+  /** A toolbar rect: 40 tall, the two rows the buttons can wrap to. */
+  function toolbarAt(top: number, left: number, width = 300): Rect {
+    return { top, bottom: top + 40, left, right: left + width };
+  }
+
+  it('opens below the toolbar when there is room under it', () => {
+    expect(placePopover(toolbarAt(200, 400), PALETTE, VIEWPORT).showAbove).toBe(false);
+  });
+
+  it('flips above when the toolbar is against the bottom edge', () => {
+    const placement = placePopover(toolbarAt(VIEWPORT.height - 60, 400), PALETTE, VIEWPORT);
+    expect(placement.showAbove).toBe(true);
+  });
+
+  it('stays below when neither side can hold it and below has more room', () => {
+    // A window too short for the palette on either side of a centred toolbar.
+    const shallow = { width: 1000, height: 200 };
+    const placement = placePopover(toolbarAt(60, 400), PALETTE, shallow);
+    expect(placement.showAbove).toBe(false);
+  });
+
+  it('leaves the popover where the CSS drew it when nothing is in the way', () => {
+    expect(placePopover(toolbarAt(200, 400), PALETTE, VIEWPORT).left).toBe(0);
+  });
+
+  it('pulls the popover left when it would run off the right edge', () => {
+    // The toolbar is clamped to the edge, and the palette is wider than the
+    // room left of it, so the offset has to be negative.
+    const placement = placePopover(toolbarAt(200, 860), PALETTE, VIEWPORT);
+    expect(placement.left).toBe(VIEWPORT.width - PALETTE.width - 4 - 860);
+    expect(placement.left).toBeLessThan(0);
+  });
+
+  it('pushes the popover right when the toolbar sits past the left margin', () => {
+    expect(placePopover(toolbarAt(200, 0), PALETTE, VIEWPORT).left).toBe(4);
   });
 });
