@@ -18,6 +18,7 @@ import { EditorState } from 'prosemirror-state';
 import { editorSchema } from '../editor/schema';
 import { createDocumentMapper, type QuarantineReason } from '../editor/mapper/document';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
+import { intrinsicSizePlugin } from '../editor/pipeline/intrinsic-size';
 import type { BlockRegistry } from '../editor/registry/build';
 import type { Block } from '../model/types';
 
@@ -39,11 +40,18 @@ export function buildNoteReadState(blocks: readonly Block[]): NoteReadState {
   const mapper = createDocumentMapper(schema, registry);
   const result = mapper.toDoc(blocks);
   if (!result.ok) return { ok: false, reason: result.reason };
-  // Even read-only, the numbered-list numbers are computed by a decoration
-  // plugin, not stored — so a rendered note needs it to show a sequence at all.
+  // Both decorations are needed even read-only. The numbered-list numbers are
+  // computed rather than stored, so without that plugin a list shows no sequence
+  // at all; and a long note is just as expensive to lay out when nobody can edit
+  // it, so the reserved heights that let the engine skip off-screen blocks
+  // belong here too.
   return {
     ok: true,
-    state: EditorState.create({ schema, doc: result.doc, plugins: [numberedListPlugin()] }),
+    state: EditorState.create({
+      schema,
+      doc: result.doc,
+      plugins: [numberedListPlugin(), intrinsicSizePlugin(registry)],
+    }),
     registry,
   };
 }
