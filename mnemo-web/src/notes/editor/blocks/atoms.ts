@@ -17,7 +17,8 @@ import type { AnyBlockModule } from '../registry/types';
 import type { BlockType } from '../../model/types';
 import { plainSpan } from '../../model/spans';
 import { defineBlock, metrics, type BlockDeps } from './shared';
-import { convertHere } from './slash-insert';
+import { insertAtomicBlock } from './slash-insert';
+import { equationBlockView } from './equation-block-view';
 
 /** Spans that the C# converter force-clears, so nothing renders behind the payload. */
 const noSpans = () => [plainSpan('')];
@@ -32,13 +33,14 @@ export function dividerBlock(deps: BlockDeps): AnyBlockModule {
       wireFrom: () => ({ type: 'Divider' as BlockType, payload: { kind: 'empty' as const } }),
       toMarkdown: () => '---\n',
       estimate: () => metrics.bodyLineHeight,
+      holdsCaret: false,
       slash: [
         {
           label: 'Divider',
           description: 'DividerDescription',
           hint: '---',
           group: 'insert',
-          insert: convertHere('divider'),
+          insert: insertAtomicBlock('divider'),
         },
       ],
     },
@@ -80,6 +82,20 @@ export function equationBlockModule(deps: BlockDeps): AnyBlockModule {
         return latex.length > 0 ? [{ kind: 'equation' as const, text: latex, offset: 0 }] : [];
       },
       estimate: () => 64,
+      holdsCaret: false,
+      realizedView: equationBlockView,
+      slash: [
+        {
+          label: 'Equation',
+          description: 'EquationDescription',
+          // The fence syntax the importer and exporter use, shown so the menu
+          // teaches it. Nothing turns `$$` into a block as it is typed, on
+          // either side.
+          hint: '$$',
+          group: 'insert',
+          insert: insertAtomicBlock('equationBlock'),
+        },
+      ],
     },
     deps,
   );
@@ -126,6 +142,7 @@ export function pageBlock(deps: BlockDeps): AnyBlockModule {
       // and emitting it here would give find two hits for one string.
       segmentsFor: () => [],
       estimate: () => 56,
+      holdsCaret: false,
     },
     deps,
   );

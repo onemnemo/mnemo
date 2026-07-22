@@ -25,6 +25,7 @@ import type {
   CommandContribution,
   InputTriggerContribution,
   InvariantContribution,
+  RealizedBlockViewFactory,
 } from '../registry/types';
 import type { Block, BlockPayload, BlockType, InlineSpan } from '../../model/types';
 import type { InlineMapper } from '../mapper/inline';
@@ -91,6 +92,16 @@ export interface BlockDefinition<TAttrs extends Record<string, unknown>> {
    * puts straight back: no visible effect, but an undo step and a save.
    */
   readonly forcedMarks?: readonly string[];
+  /**
+   * Whether this block's line is somewhere the caret can land. False for the
+   * types that draw entirely from their payload, whose realized view renders no
+   * editable content, so the position inside their line has no DOM to sit at.
+   *
+   * Declared on the node for the same reason `forcedMarks` is: a command that
+   * has to leave the caret somewhere can ask the schema rather than carry a list
+   * of block names that drifts the moment a type is added.
+   */
+  readonly holdsCaret?: boolean;
 
   /** Typed attrs read off the wire block. */
   attrsFrom(block: Block): TAttrs;
@@ -127,6 +138,12 @@ export interface BlockDefinition<TAttrs extends Record<string, unknown>> {
   readonly commands?: readonly CommandContribution[];
   readonly inputTriggers?: readonly InputTriggerContribution[];
   readonly invariants?: readonly InvariantContribution[];
+  /**
+   * How the block draws itself, for the types that need more than a `toDOM`.
+   * Without one the schema's own serializer renders the node, which is enough
+   * for anything whose content is its line.
+   */
+  readonly realizedView?: RealizedBlockViewFactory<TAttrs>;
 }
 
 /** The line is always the first child; block children always follow it. */
@@ -247,6 +264,7 @@ export function defineBlock<TAttrs extends Record<string, unknown>>(
     // presence test, and a declared-but-undefined key is harder to read in a
     // dumped spec than an absent one.
     ...(def.forcedMarks ? { forcedMarks: def.forcedMarks } : {}),
+    ...(def.holdsCaret === false ? { holdsCaret: false } : {}),
   };
 
   return {
@@ -328,6 +346,9 @@ export function defineBlock<TAttrs extends Record<string, unknown>>(
     commands: def.commands,
     inputTriggers: def.inputTriggers,
     invariants: def.invariants,
+    // The module type erases the attrs, the registry hands every view the same
+    // args shape and only the module itself knows which attrs it declared.
+    realizedView: def.realizedView as RealizedBlockViewFactory<Record<string, unknown>> | undefined,
   };
 }
 

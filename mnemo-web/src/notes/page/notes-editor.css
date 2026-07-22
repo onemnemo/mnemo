@@ -256,6 +256,33 @@
   content: "Linked page";
 }
 
+/* Block equation. Left-aligned like the desktop's, rather than centred the way
+ * KaTeX draws display math by default. Long formulas scroll inside the block
+ * instead of widening the column and giving the whole note a scrollbar. */
+.notes-equation-block {
+  padding: 4px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  cursor: pointer;
+  border-radius: var(--radius-md, 8px);
+}
+.notes-equation-block .katex-display {
+  margin: 0;
+  text-align: left;
+}
+/* The block is a tab stop, because activating it is the only way to edit it,
+ * and the ring is the only thing saying a press would open the source. */
+.notes-equation-block:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* An equation with no source yet: says what it is and that it can be filled in,
+ * because an empty block is otherwise indistinguishable from a missing one. */
+.notes-equation-block-empty {
+  color: var(--text-faded);
+  font-style: italic;
+}
+
 /* Inline marks the browser does not style itself. */
 .notes-doc code {
   font-family: var(--font-mono);

@@ -32,6 +32,15 @@ import katex from 'katex';
 /** Marks a host whose math could not be rendered and fell back to plain source. */
 export const fallbackClass = 'notes-atom-fallback';
 
+export interface RenderMathOptions {
+  /**
+   * Display style: bigger operators, and limits above and below rather than
+   * beside. Off by default, which is what an atom sitting in a line of prose
+   * wants; the block equation is the one caller that turns it on.
+   */
+  readonly display?: boolean;
+}
+
 /**
  * Renders `source` into `host`, replacing whatever was there. Never throws, and
  * never reads back from or writes to anything but `host`.
@@ -40,7 +49,12 @@ export const fallbackClass = 'notes-atom-fallback';
  * `n/d`. It is separate from `source` because a fraction renders from a
  * `\frac{}{}` string it never shows the user.
  */
-export function renderMath(host: HTMLElement, source: string, label: string): void {
+export function renderMath(
+  host: HTMLElement,
+  source: string,
+  label: string,
+  options: RenderMathOptions = {},
+): void {
   host.setAttribute('role', 'math');
   host.setAttribute('aria-label', label);
   host.classList.remove(fallbackClass);
@@ -48,7 +62,7 @@ export function renderMath(host: HTMLElement, source: string, label: string): vo
   try {
     host.innerHTML = katex.renderToString(source, {
       throwOnError: false,
-      displayMode: false,
+      displayMode: options.display === true,
       output: 'html',
     });
   } catch {
