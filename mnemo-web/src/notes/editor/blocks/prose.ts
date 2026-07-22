@@ -114,6 +114,11 @@ export function headingBlock(deps: BlockDeps): AnyBlockModule {
       nodeName: 'heading',
       wireTypes: headingTypes,
       attrs: { level: { default: 1 } },
+      // The other half of the forced-bold rule below: the invariant puts the
+      // mark back, this stops a toggle command from taking it off in the first
+      // place. The desktop refuses the same way, in both the shortcut and the
+      // apply path.
+      forcedMarks: ['strong'],
       nodeOptions: {
         defining: true,
         parseDOM: [1, 2, 3, 4].map((level) => ({ tag: `h${String(level)}`, attrs: { level } })),

@@ -64,6 +64,14 @@ const BUTTON_GROUPS: readonly (readonly string[])[] = [
   ['editor.subscript', 'editor.superscript', 'editor.equation'],
 ];
 
+/**
+ * How long an emptied selection is given to come back before the toolbar goes
+ * away. Ports the desktop's 80ms close debounce: a selection can be empty for a
+ * frame in the middle of an interaction, and hiding on the first empty report
+ * makes the bubble blink.
+ */
+const CLOSE_DELAY_MS = 80;
+
 export interface FormattingToolbarOptions {
   readonly commands?: readonly EditorCommand[];
   /**
@@ -72,6 +80,8 @@ export interface FormattingToolbarOptions {
    * keys instead of on whatever the shipped bundle currently says.
    */
   readonly translate?: (key: string) => string;
+  /** Overridable so a test can prove the delay rather than wait it out. */
+  readonly closeDelayMs?: number;
 }
 
 interface ToolbarButton {
@@ -88,6 +98,7 @@ interface ToolbarDom {
   readonly root: HTMLElement;
   readonly colorButton: HTMLButtonElement;
   readonly colorPreview: HTMLElement;
+  readonly colorLabel: HTMLElement;
   readonly buttons: readonly ToolbarButton[];
   readonly popover: HTMLElement;
   readonly textCells: readonly SwatchCellButton[];
@@ -168,7 +179,13 @@ function buildToolbarDom(
   const colorPreview = document.createElement('span');
   colorPreview.className = `${ROOT}-color-preview`;
   colorPreview.textContent = 'A';
-  colorButton.append(colorPreview, iconSpan('common/chevron-down'));
+  // The desktop draws this button as swatch, word, chevron. It is the only
+  // labelled control on the toolbar, which is what makes the colour row
+  // findable without hovering everything.
+  const colorLabel = document.createElement('span');
+  colorLabel.className = `${ROOT}-color-label`;
+  colorLabel.textContent = translate('Color');
+  colorButton.append(colorPreview, colorLabel, iconSpan('common/chevron-down'));
   root.appendChild(colorButton);
   root.appendChild(divider());
 
@@ -216,6 +233,7 @@ function buildToolbarDom(
     root,
     colorButton,
     colorPreview,
+    colorLabel,
     buttons,
     popover,
     textCells: text.cellButtons,
@@ -256,6 +274,7 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
   const foreground = commandsById.get('editor.color.foreground') as SwatchCommand | undefined;
   const background = commandsById.get('editor.color.background') as SwatchCommand | undefined;
   const translate = options.translate ?? defaultTranslate;
+  const closeDelayMs = options.closeDelayMs ?? CLOSE_DELAY_MS;
 
   return new Plugin({
     state: {
@@ -273,6 +292,16 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
       // bubble would hang over the page after the user has moved on. Cleared
       // by the next deliberate selection change.
       let dismissed = false;
+      // True between a press inside the editor and its release: the selection
+      // is being dragged out and every intermediate state is noise.
+      let selecting = false;
+      let closeTimer: ReturnType<typeof setTimeout> | null = null;
+
+      function cancelScheduledClose(): void {
+        if (closeTimer === null) return;
+        clearTimeout(closeTimer);
+        closeTimer = null;
+      }
 
       function closePopover(): void {
         if (!popoverOpen) return;
@@ -287,10 +316,28 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
       }
 
       function hide(): void {
+        cancelScheduledClose();
         if (!visible) return;
         visible = false;
         dom.root.setAttribute('data-hidden', '');
         closePopover();
+      }
+
+      /**
+       * Hides once the selection has been empty for {@link CLOSE_DELAY_MS},
+       * rather than the moment it first reads empty.
+       *
+       * A selection can be momentarily empty in the middle of an interaction
+       * the user experiences as continuous, and hiding on the first such report
+       * makes the bubble blink. Any range arriving before the timer fires
+       * cancels it, so the common case costs nothing.
+       */
+      function scheduleHide(): void {
+        if (!visible || closeTimer !== null) return;
+        closeTimer = setTimeout(() => {
+          closeTimer = null;
+          hide();
+        }, closeDelayMs);
       }
 
       function reposition(view: EditorView): void {
@@ -332,10 +379,19 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
        * on every keystroke is exactly the cost this editor avoids.
        */
       function sync(view: EditorView, moved: boolean): void {
-        if (dismissed || view.state.selection.empty) {
+        // Nothing happens mid-drag. The selection is still being drawn, so
+        // showing now means a bubble that appears after one character and then
+        // chases the pointer across the text being selected.
+        if (selecting) return;
+        if (dismissed) {
           hide();
           return;
         }
+        if (view.state.selection.empty) {
+          scheduleHide();
+          return;
+        }
+        cancelScheduledClose();
         visible = true;
         dom.root.removeAttribute('data-hidden');
         updateActiveStates(view);
@@ -382,6 +438,15 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
       function onDocumentMouseDown(event: MouseEvent): void {
         const target = event.target as Node | null;
         if (!target) return;
+        if (editorView.dom.contains(target)) {
+          // A press in the document is the start of a selection gesture, even
+          // if it turns out to be a plain click. Whatever the toolbar was
+          // pointing at is about to stop being the selection, so it goes away
+          // now and comes back once the gesture finishes.
+          selecting = true;
+          hide();
+          return;
+        }
         // The colour button owns its own toggle; let its click handler answer.
         if (dom.colorButton.contains(target)) return;
         if (popoverOpen) {
@@ -389,11 +454,18 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
           closePopover();
           return;
         }
-        if (dom.root.contains(target) || editorView.dom.contains(target)) return;
+        if (dom.root.contains(target)) return;
         dismissed = true;
         hide();
       }
       document.addEventListener('mousedown', onDocumentMouseDown, true);
+
+      function onDocumentMouseUp(): void {
+        if (!selecting) return;
+        selecting = false;
+        sync(editorView, true);
+      }
+      document.addEventListener('mouseup', onDocumentMouseUp, true);
 
       function onViewportChange(): void {
         if (visible) reposition(editorView);
@@ -419,9 +491,11 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
           sync(view, moved);
         },
         destroy(): void {
+          cancelScheduledClose();
           window.removeEventListener('scroll', onViewportChange, true);
           window.removeEventListener('resize', onViewportChange);
           document.removeEventListener('mousedown', onDocumentMouseDown, true);
+          document.removeEventListener('mouseup', onDocumentMouseUp, true);
           dom.root.remove();
         },
       };

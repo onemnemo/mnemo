@@ -82,6 +82,15 @@ export interface BlockDefinition<TAttrs extends Record<string, unknown>> {
     NodeSpec,
     'parseDOM' | 'toDOM' | 'defining' | 'isolating' | 'atom' | 'selectable' | 'draggable'
   >;
+  /**
+   * Marks an invariant keeps on every run of this block's line, by mark name.
+   *
+   * Declared on the node so a toggle command can ask the schema instead of
+   * matching block names, the way it already asks `spec.code` whether a line is
+   * source. Toggling one of these would dispatch a change the invariant pipeline
+   * puts straight back: no visible effect, but an undo step and a save.
+   */
+  readonly forcedMarks?: readonly string[];
 
   /** Typed attrs read off the wire block. */
   attrsFrom(block: Block): TAttrs;
@@ -230,6 +239,10 @@ export function defineBlock<TAttrs extends Record<string, unknown>>(
     content,
     group: 'block',
     attrs: def.attrs,
+    // Omitted rather than set to undefined: `spec.forcedMarks` is read with a
+    // presence test, and a declared-but-undefined key is harder to read in a
+    // dumped spec than an absent one.
+    ...(def.forcedMarks ? { forcedMarks: def.forcedMarks } : {}),
   };
 
   return {
