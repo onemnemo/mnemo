@@ -46,7 +46,7 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry } = editorSchema();
     const plugins = editorPlugins(registry);
-    expect(plugins).toHaveLength(10);
+    expect(plugins).toHaveLength(11);
     // Two positions carry meaning rather than tidiness. The nested-input guard
     // has to be asked before the keymaps it stands down, and the history
     // boundary has to close the undo group after the repair plugins have

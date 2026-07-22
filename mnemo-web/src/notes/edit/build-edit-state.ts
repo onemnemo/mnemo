@@ -12,8 +12,9 @@
  * What the read state omits and this adds is every plugin that reacts to a change
  * the user makes: the structural key commands, the formatting keymap, the
  * markdown input shortcuts, the invariant pipeline that repairs the document
- * after each edit, the undo history and its grouping, and — shared with the read
- * path — the decoration that numbers ordered lists. The order is load-bearing
+ * after each edit, the undo history and its grouping, plus the two decorations
+ * shared with the read path: the ordered-list numbers and the reserved block
+ * heights that let the engine skip what is off screen. The order is load-bearing
  * where two plugins bind one key or append after another, and is documented on
  * `editorPlugins`.
  */
@@ -30,6 +31,7 @@ import {
 import { blockIdentityPlugin } from '../editor/pipeline/block-identity';
 import { invariantPipeline } from '../editor/pipeline/invariants';
 import { inputTriggerPlugin } from '../editor/pipeline/input-triggers';
+import { intrinsicSizePlugin } from '../editor/pipeline/intrinsic-size';
 import { nestedInputGuard } from '../editor/pipeline/nested-input';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
 import { structureKeymap } from '../editor/commands/structure';
@@ -73,7 +75,8 @@ export type NoteEditState =
  *    structural; its place before `baseKeymap` is for tidiness, not correctness.
  *  - `baseKeymap` is the ProseMirror default of last resort.
  *  - `invariantPipeline` reacts after the fact through `appendTransaction`, and
- *    `numberedListPlugin` only decorates; neither touches key dispatch.
+ *    `numberedListPlugin` and `intrinsicSizePlugin` only decorate; none of them
+ *    touch key dispatch.
  *  - `blockIdentityPlugin` also only appends. Its place after the pipeline is
  *    not load-bearing — a block the pipeline itself creates gets its identity on
  *    the next append round either way — but reading it last matches when it
@@ -93,6 +96,7 @@ export function editorPlugins(registry: BlockRegistry): Plugin[] {
     keymap(baseKeymap),
     invariantPipeline(registry),
     numberedListPlugin(),
+    intrinsicSizePlugin(registry),
     blockIdentityPlugin(registry),
     editorHistory(),
     historyBoundaryPlugin(),

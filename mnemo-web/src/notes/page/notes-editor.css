@@ -40,6 +40,37 @@
 .notes-doc .ProseMirror > * {
   margin: 0 0 8px;
 }
+
+/* Off-screen blocks stay in the DOM and are skipped by the engine rather than
+ * removed by us. That is the whole rendering strategy for a large note: no
+ * virtualizer, no shell/realize lifecycle, just a document the engine is allowed
+ * not to lay out.
+ *
+ * The reserved height below is only the fallback for a block the size plugin has
+ * not decorated; that plugin writes a per-block estimate inline, and `auto` lets
+ * the engine replace either one with the real size once the block has been laid
+ * out. An engine that supports neither declaration renders everything, which is
+ * correct and merely slower.
+ *
+ * Two consequences worth knowing before adding block chrome. Paint containment
+ * clips anything drawn outside the block's own box, so a hover handle in a
+ * left-hand gutter has to live inside the block. And a selection makes a block
+ * relevant again, so selecting the whole document lays all of it out. */
+.notes-doc .ProseMirror > * {
+  content-visibility: auto;
+  contain-intrinsic-size: 34px;
+  contain-intrinsic-size: auto 34px;
+}
+/* The explicit full-DOM escape: everything laid out, nothing skipped. */
+.notes-doc[data-render="full"] .ProseMirror > * {
+  content-visibility: visible;
+}
+/* Printing has no viewport to be outside of, and a skipped block prints blank. */
+@media print {
+  .notes-doc .ProseMirror > * {
+    content-visibility: visible;
+  }
+}
 .notes-doc .ProseMirror > *:last-child {
   margin-bottom: 0;
 }
