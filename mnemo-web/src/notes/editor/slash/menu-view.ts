@@ -13,6 +13,9 @@ import type { SlashEntry } from '../registry/build';
 
 const ROOT = 'notes-slash-menu';
 
+/** Distinguishes one editor's rows from another's on the same page. */
+let instanceCount = 0;
+
 export interface MenuRow {
   readonly entry: SlashEntry;
   /** Resolved once, so the language is read at build and matching agrees with it. */
@@ -22,6 +25,15 @@ export interface MenuRow {
 
 export interface SlashMenuView {
   readonly root: HTMLElement;
+  /**
+   * The list's own id. DOM focus stays in the editor while the menu is open, so
+   * the editor is what has to point at this list for a screen reader to follow
+   * along; it cannot be found by walking up from the focused element, because
+   * the menu is a sibling of the editor rather than inside it.
+   */
+  readonly listId: string;
+  /** The id of the row at `index`, or null when there is no such row. */
+  rowId(index: number): string | null;
   /** Redraws the rows and selects `index`. A row click reports its own index. */
   render(rows: readonly MenuRow[], index: number, onPick: (index: number) => void): void;
   select(index: number): void;
@@ -50,8 +62,11 @@ export function createSlashMenuView(translate: (key: string) => string): SlashMe
     element('span', `${ROOT}-esc`, 'esc'),
   );
 
+  const listId = `${ROOT}-list-${String(++instanceCount)}`;
   const list = element('div', `${ROOT}-list`);
+  list.id = listId;
   list.setAttribute('role', 'listbox');
+  list.setAttribute('aria-label', translate('SlashMenuLabel'));
   const empty = element('div', `${ROOT}-empty`, translate('NoSuggestions'));
   empty.setAttribute('data-hidden', '');
 
@@ -79,6 +94,7 @@ export function createSlashMenuView(translate: (key: string) => string): SlashMe
     list.replaceChildren();
     rowElements = rows.map((row, i) => {
       const el = element('div', `${ROOT}-row`);
+      el.id = `${listId}-row-${String(i)}`;
       el.setAttribute('role', 'option');
       el.dataset.node = row.entry.nodeName;
       el.dataset.label = row.entry.label;
@@ -105,6 +121,10 @@ export function createSlashMenuView(translate: (key: string) => string): SlashMe
 
   return {
     root,
+    listId,
+    rowId(index): string | null {
+      return rowElements[index]?.id ?? null;
+    },
     render,
     select,
     destroy(): void {
