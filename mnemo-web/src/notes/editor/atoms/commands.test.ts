@@ -1,5 +1,5 @@
 /**
- * `insertEquation` — the one creation behaviour the later menu/keymap surfaces
+ * `insertEquation`, the one creation behaviour the later menu/keymap surfaces
  * share. Tested against real states: it inserts an inline atom where the content
  * model allows one, and refuses where it does not.
  */
@@ -72,7 +72,7 @@ describe('insertEquation', () => {
 
   it('replaces a non-empty selection', () => {
     const base = paragraphState('ab');
-    // Select the text `ab` itself — inline content lives inside a `line` node,
+    // Select the text `ab` itself, inline content lives inside a `line` node,
     // so its range is found rather than assumed.
     let from = -1;
     let to = -1;
@@ -103,5 +103,47 @@ describe('insertEquation', () => {
     const dispatch = vi.fn<(tr: Transaction) => void>();
     expect(insertEquation()(state, dispatch)).toBe(false);
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The case above resolves to the code *block*, which never admitted an atom.
+   * These put the selection in the source line itself, which does admit one so
+   * that wire data carrying an equation survives a round trip. Creating one
+   * there is still refused, and a range is covered separately because that is
+   * what a toolbar press acts on and it replaces the code it spans.
+   */
+  function inCodeLine(state: EditorState, from: number, to = from): EditorState {
+    let pos = -1;
+    state.doc.descendants((node, at) => {
+      if (pos < 0 && node.type.name === 'codeLine') pos = at + 1;
+      return pos < 0;
+    });
+    if (pos < 0) throw new Error('no code line in fixture');
+    return state.apply(
+      state.tr.setSelection(TextSelection.create(state.doc, pos + from, pos + to)),
+    );
+  }
+
+  it('refuses at a caret inside the source line, which the schema would allow', () => {
+    const state = inCodeLine(codeState('const x = 1;'), 2);
+    expect(state.selection.$from.parent.type.name).toBe('codeLine');
+    const dispatch = vi.fn<(tr: Transaction) => void>();
+    expect(insertEquation()(state, dispatch)).toBe(false);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('refuses over a selected run of source rather than replacing it', () => {
+    const state = inCodeLine(codeState('const x = 1;'), 0, 5);
+    const dispatch = vi.fn<(tr: Transaction) => void>();
+    expect(insertEquation()(state, dispatch)).toBe(false);
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(state.doc.textContent).toContain('const');
+  });
+
+  it('still inserts in ordinary prose', () => {
+    const state = withCaret(paragraphState('ab'), 2);
+    const dispatch = vi.fn<(tr: Transaction) => void>();
+    expect(insertEquation()(state, dispatch)).toBe(true);
+    expect(firstEquation(dispatch.mock.calls[0]![0].doc)).not.toBeNull();
   });
 });

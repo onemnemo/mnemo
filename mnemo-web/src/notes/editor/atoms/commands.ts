@@ -2,16 +2,16 @@
  * Creating an inline equation.
  *
  * A command, not a menu entry. The slash menu, the keymap and the toolbar are
- * later surfaces (M8, M6) that decide *how* an equation is offered; this decides
+ * later surfaces that decide *how* an equation is offered; this decides
  * *what* offering one does, so those surfaces share one behaviour instead of
- * each reimplementing the insert. Only the equation has this — the fraction has
+ * each reimplementing the insert. Only the equation has this, the fraction has
  * no creation affordance until there is evidence anyone wants one, and the
  * block-level Equation type has none until it has an editing contract, so that
  * nothing discoverable can create an object a user cannot then repair.
  *
  * The command inserts the atom and stops. Opening its editor is the NodeView's
- * job and needs a mounted view, which arrives with M6; an equation created here
- * is edited by the same path as any other — click it.
+ * job and needs a mounted view; an equation created here
+ * is edited by the same path as any other, click it.
  */
 
 import type { Command } from 'prosemirror-state';
@@ -22,10 +22,16 @@ export function insertEquation(latex = ''): Command {
     const type = state.schema.nodes.equationSpan;
     if (!type) return false;
 
-    // Only where the surrounding content model actually admits an inline atom.
-    // A code block's content is plain text, so this refuses there rather than
-    // producing a document the schema would reject.
     const { $from } = state.selection;
+
+    // A source line admits an atom in the schema, but only so wire data that
+    // already contains one survives the round trip. Creating one there is a
+    // different thing: it drops an equation into the middle of code the user
+    // then cannot edit as code. Availability is this dry run, so refusing here
+    // is also what greys the toolbar button out.
+    if ($from.parent.type.spec.code) return false;
+
+    // Only where the surrounding content model actually admits an inline atom.
     const index = $from.index();
     if (!$from.parent.canReplaceWith(index, index, type)) return false;
 
