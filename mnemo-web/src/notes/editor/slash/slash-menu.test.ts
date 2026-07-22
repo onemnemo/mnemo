@@ -185,6 +185,7 @@ describe('the rows', () => {
       'Quote',
       'Code',
       'Divider',
+      'Equation',
     ]);
   });
 
@@ -242,13 +243,13 @@ describe('keyboard', () => {
     press(view, 'ArrowUp');
     expect(selectedLabel()).toBe('Text');
     for (let i = 0; i < 30; i++) press(view, 'ArrowDown');
-    expect(selectedLabel()).toBe('Divider');
+    expect(selectedLabel()).toBe('Equation');
   });
 
   it('Home and End reach the ends in one press', () => {
     const view = openMenu();
     press(view, 'End');
-    expect(selectedLabel()).toBe('Divider');
+    expect(selectedLabel()).toBe('Equation');
     press(view, 'Home');
     expect(selectedLabel()).toBe('Text');
   });
@@ -349,6 +350,77 @@ describe('picking a row', () => {
 });
 
 /**
+ * The rows whose block draws itself from its payload and has no line to type
+ * in. Picking one has to leave the caret somewhere real, because the position
+ * inside such a block's line renders no DOM at all.
+ */
+describe('picking a row for a block with nowhere to type', () => {
+  function pick(label: string, blocks?: Block[]): EditorView {
+    const view = mount(blocks ?? [block('Text', [span('')])]);
+    caretAtStart(view);
+    type(view, `/${label}`);
+    press(view, 'Enter');
+    return view;
+  }
+
+  function blockAt(view: EditorView, index: number): PMNode {
+    return view.state.doc.child(index);
+  }
+
+  it('converts the block the caret was in', () => {
+    const view = pick('equation');
+    expect(firstBlock(view).type.name).toBe('equationBlock');
+    expect(firstBlock(view).attrs.latex).toBe('');
+  });
+
+  it('keeps the block identity, the same as every other row', () => {
+    const original = block('Text', [span('')], { kind: 'empty' }, { sid: 'abc12', order: 7 });
+    const view = pick('equation', [original]);
+    expect(firstBlock(view).attrs.sid).toBe('abc12');
+    expect(firstBlock(view).attrs.order).toBe(7);
+  });
+
+  it('puts a block below to carry on typing in', () => {
+    const view = pick('equation');
+    expect(view.state.doc.childCount).toBe(2);
+    expect(blockAt(view, 1).type.name).toBe('paragraph');
+  });
+
+  it('leaves the caret in that block rather than in the converted one', () => {
+    const view = pick('equation');
+    const { $from } = view.state.selection;
+    expect($from.node($from.depth - 1).type.name).toBe('paragraph');
+  });
+
+  it('uses the block already below instead of adding a second one', () => {
+    const view = pick('equation', [block('Text', [span('')]), block('Text', [span('after')])]);
+    expect(view.state.doc.childCount).toBe(2);
+    expect(lineText(blockAt(view, 1))).toBe('after');
+  });
+
+  it('still adds one when the block below cannot hold a caret either', () => {
+    const view = pick('equation', [block('Text', [span('')]), block('Divider', [span('')])]);
+    expect(view.state.doc.childCount).toBe(3);
+    expect(blockAt(view, 1).type.name).toBe('paragraph');
+    expect(blockAt(view, 2).type.name).toBe('divider');
+  });
+
+  it('does the same for the divider row, which has the same problem', () => {
+    const view = pick('divider');
+    expect(firstBlock(view).type.name).toBe('divider');
+    expect(blockAt(view, 1).type.name).toBe('paragraph');
+  });
+
+  it('is one undo step, taking the new block back with the conversion', () => {
+    const view = pick('equation');
+    undo(view.state, view.dispatch);
+    expect(view.state.doc.childCount).toBe(1);
+    expect(firstBlock(view).type.name).toBe('paragraph');
+    expect(lineText(firstBlock(view))).toBe('/equation');
+  });
+});
+
+/**
  * DOM focus never leaves the editor while the menu is up, which is what lets
  * the query go on being typed. That makes the editor the only element a screen
  * reader is watching, so it is the editor that has to point at the list and at
@@ -392,7 +464,7 @@ describe('what the menu tells a screen reader', () => {
     press(view, 'ArrowDown');
     expect(activeRow(view)?.dataset.label).toBe('Heading1');
     press(view, 'End');
-    expect(activeRow(view)?.dataset.label).toBe('Divider');
+    expect(activeRow(view)?.dataset.label).toBe('Equation');
   });
 
   it('follows a filter down to the row it leaves standing', () => {
