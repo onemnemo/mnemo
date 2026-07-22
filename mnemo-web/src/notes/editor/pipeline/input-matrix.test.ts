@@ -10,13 +10,13 @@
  * can turn a shortcut into data loss, so each is pinned rather than reasoned
  * about:
  *
- *  - **Composition** (CJK IME, dead keys, Vietnamese/Indic stacking) — the text
+ *  - **Composition** (CJK IME, dead keys, Vietnamese/Indic stacking), the text
  *    passed to `handleTextInput` mid-composition is intermediate, and the caret
  *    positions describe a range the IME still owns.
- *  - **Inline atoms in the line** — an equation occupies a position but
+ *  - **Inline atoms in the line**: an equation occupies a position but
  *    contributes no text, so the line's text and the caret's offset disagree and
  *    marker arithmetic derived from one cannot be applied to the other.
- *  - **Astral characters, combining marks and RTL** — one "character" is not one
+ *  - **Astral characters, combining marks and RTL**: one "character" is not one
  *    position, and the visual order is not the logical order.
  */
 
@@ -96,7 +96,7 @@ function type(
   return { state: view.state, handled: Boolean(handled) };
 }
 
-/** The equation sources in a document, in order — empty when they were destroyed. */
+/** The equation sources in a document, in order, empty when they were destroyed. */
 function equations(document: PMNode): string[] {
   const found: string[] = [];
   document.descendants((node) => {
@@ -269,7 +269,7 @@ describe('astral, combining and bidirectional text', () => {
   });
 
   it('does not fire when an astral character precedes the marker', () => {
-    // "𝔘-" — the marker is not at the start of the line, so nothing converts.
+    // "𝔘-", the marker is not at the start of the line, so nothing converts.
     const d = doc(para(text('𝔘-')));
     const { state, handled } = type(d, caretAt(3), ' ');
 

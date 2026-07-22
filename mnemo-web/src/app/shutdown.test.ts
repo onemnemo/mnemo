@@ -2,7 +2,7 @@
 
 /**
  * The handshake that keeps the window open. What matters here is not that
- * participants run — it is that the host is told *after* they finish, exactly
+ * participants run, it is that the host is told *after* they finish, exactly
  * once, and even when one of them fails.
  */
 

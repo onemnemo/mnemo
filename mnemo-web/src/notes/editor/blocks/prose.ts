@@ -26,7 +26,7 @@ export function paragraphBlock(deps: BlockDeps): AnyBlockModule {
       wireFrom: emptyPayload,
       toMarkdown: (_node, _ctx, inline) => `${inline}\n`,
       // The markdown block shortcuts all launch from a paragraph, so the whole
-      // set rides the paragraph module's triggers — which is what the input
+      // set rides the paragraph module's triggers, which is what the input
       // plugin's per-block filter keys on.
       inputTriggers: markdownShortcutTriggers(),
     },
@@ -58,7 +58,7 @@ function headingTypeOf(node: PMNode): BlockType {
 }
 
 /**
- * A heading's text is always bold — a real `strong` mark on every run, not a
+ * A heading's text is always bold, a real `strong` mark on every run, not a
  * font-weight the theme paints, because it has to survive a copy out of the
  * heading and round-trip through the wire the same way the desktop editor's
  * `EnsureHeadingBold` did. The desktop re-applied it in every setter that could
@@ -92,7 +92,7 @@ const forceHeadingBold: InvariantContribution = {
         const line = lineOf(node);
         if (!line || line.content.size === 0) return false;
         // The heading opens at `pos`, its line one position in, the line's
-        // content one more — so inline text begins at `pos + 2`. Map through the
+        // content one more, so inline text begins at `pos + 2`. Map through the
         // accumulating transaction in case an earlier invariant already shifted
         // the document under us.
         const start = tr.mapping.map(pos + 2);

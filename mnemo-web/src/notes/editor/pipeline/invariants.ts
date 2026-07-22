@@ -3,7 +3,7 @@
  * structural rules true after every edit.
  *
  * The desktop editor enforced its invariants ad hoc, at every mutation site that
- * could break one — heading-bold re-applied in a dozen setters, the two-column
+ * could break one, heading-bold re-applied in a dozen setters, the two-column
  * never-empty rule reimplemented identically in six places. That is the shape
  * that rots: a new command is one more site that has to remember all of them. So
  * here the rules live once, as module contributions, and one pipeline replays
@@ -20,7 +20,7 @@
  *  - **Ordered, single-pass.** Invariants run low `order` first, and structural
  *    ones (which move content) are ordered before cosmetic ones (which mark it),
  *    so one pass converges. The pipeline does not loop internally hoping for a
- *    fixpoint — it relies on the ordering being right, which is a property a test
+ *    fixpoint, it relies on the ordering being right, which is a property a test
  *    can pin rather than a runtime gamble.
  *
  *  - **Never reacts to itself.** The appended transaction is tagged, and a cycle
@@ -54,7 +54,7 @@ const pipelineKey = new PluginKey('notes-invariant-pipeline');
  * place.
  *
  * A single transaction has several step maps and each map's output positions are
- * in the space *after* that step, not the final one — so each range is mapped
+ * in the space *after* that step, not the final one, so each range is mapped
  * forward through every later map, in this transaction and in every transaction
  * after it. Skipping that would put the ranges in an intermediate space that
  * drifts further from the truth with every step, which is exactly the class of
@@ -100,7 +100,7 @@ function mergeRanges(ranges: DocRange[]): DocRange[] {
 }
 
 /**
- * Whether any node of `nodeName` overlaps a changed range — the fast skip that
+ * Whether any node of `nodeName` overlaps a changed range, the fast skip that
  * keeps an invariant from running when its block type was not touched at all.
  *
  * `nodesBetween` visits every node overlapping a range, ancestors included, so a
@@ -129,7 +129,7 @@ function touchesNodeType(doc: PMNode, ranges: readonly DocRange[], nodeName: str
 
 /**
  * The plugin. Built from the registry so it stays a pure function of the module
- * list — the invariants it runs are exactly the ones the modules contributed,
+ * list, the invariants it runs are exactly the ones the modules contributed,
  * already sorted by `order` at registry assembly.
  */
 export function invariantPipeline(registry: BlockRegistry): Plugin {
@@ -164,7 +164,7 @@ export function invariantPipeline(registry: BlockRegistry): Plugin {
 
       // The contract lets an invariant return null for "nothing to do", but the
       // authority on whether the pipeline contributed is whether steps were
-      // actually added — an addMark over already-marked content is a no-op that
+      // actually added, an addMark over already-marked content is a no-op that
       // still hands back the transaction, and tagging an empty transaction would
       // burn an append cycle for nothing.
       if (!tr.docChanged) return null;

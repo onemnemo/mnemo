@@ -52,7 +52,7 @@ function identities(doc: PMNode): { sid: string; id: string }[] {
   return out;
 }
 
-/** Inserts a bare paragraph — what a split or an invariant leaves behind. */
+/** Inserts a bare paragraph, what a split or an invariant leaves behind. */
 function insertBareBlock(state: EditorState, at: number): EditorState {
   const bare = schema.nodes.paragraph.create(null, schema.nodes.line.create());
   return state.apply(state.tr.insert(at, bare));
@@ -146,7 +146,7 @@ describe('when it stays out of the way', () => {
   it('settles in one round rather than appending forever', () => {
     const state = stateOf(['hello']);
     const next = insertBareBlock(state, state.doc.content.size);
-    // Applying an ordinary edit on top must not find anything left to do — if
+    // Applying an ordinary edit on top must not find anything left to do, if
     // it did, the append loop would never terminate in the real editor.
     const after = next.apply(next.tr.insertText('x', 2));
     expect(identities(after.doc)).toEqual([

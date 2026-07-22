@@ -1,7 +1,7 @@
 /**
  * The one path every realized view reaches ProseMirror through.
  *
- * The registry hands out `RealizedViewFactory`s — the same `{ dom, contentDOM?,
+ * The registry hands out `RealizedViewFactory`s, the same `{ dom, contentDOM?,
  * update?, destroy? }` contract for blocks and atoms alike. ProseMirror wants a
  * `NodeViewConstructor` with a different signature (`node, view, getPos, …`) and
  * a different args shape. This adapts one to the other in a single place, so a
@@ -12,7 +12,7 @@
  * host is the shell lifecycle; until that builds real
  * shelling every block is permanently realized, so the host here is a stub that
  * only reports `realized` and refuses mode changes. `services` resolve note
- * titles and asset URLs — supplied by the mount, defaulted to "unknown" so a
+ * titles and asset URLs, supplied by the mount, defaulted to "unknown" so a
  * missing resolver renders a blank rather than throwing.
  */
 
@@ -67,7 +67,7 @@ export function toNodeViews(
         dom: realized.dom,
         contentDOM: realized.contentDOM ?? null,
         // Bound through arrow functions so the realized view keeps its own
-        // `this`, and only forwarded when it defines them — a NodeView that
+        // `this`, and only forwarded when it defines them, a NodeView that
         // declares `update`/`destroy` and then no-ops is not the same to PM as
         // one that omits them (omitting `update` forces a rebuild every time).
         update: realized.update ? (updated) => realized.update!(updated) : undefined,

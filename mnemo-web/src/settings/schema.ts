@@ -3,7 +3,7 @@ import type { SettingsCategory } from "./types"
 // The settings tree. Mirrors SettingsViewModel.RebuildCategories: same categories in
 // the same order, same storage keys, same defaults, same option lists.
 //
-// Keys named here must also be registered in Mnemo.Host/Settings/SettingsKeyRegistry —
+// Keys named here must also be registered in Mnemo.Host/Settings/SettingsKeyRegistry, 
 // that allowlist is what makes them readable and writable over the API.
 
 /** Every category, in nav order. Filter with `visibleCategories` before rendering. */

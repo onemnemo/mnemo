@@ -67,7 +67,7 @@ describe('buildNoteReadState', () => {
       expect(() => result.state.doc.check()).not.toThrow();
     });
 
-    it('is deterministic — the same fixture yields an equal document', () => {
+    it('is deterministic, the same fixture yields an equal document', () => {
       const a = buildNoteReadState(scaleFixture(2_000).blocks);
       const b = buildNoteReadState(scaleFixture(2_000).blocks);
       expect(a.ok && b.ok).toBe(true);

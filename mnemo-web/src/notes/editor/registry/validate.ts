@@ -2,7 +2,7 @@
  * Registry validation.
  *
  * Everything here runs once, at editor construction, and reports every problem
- * it finds rather than throwing on the first — a module list with three
+ * it finds rather than throwing on the first, a module list with three
  * mistakes should take one fix cycle, not three.
  *
  * The checks are the ones that fail late and confusingly if left to ProseMirror
@@ -44,7 +44,7 @@ export interface RegistryInput {
 
 export interface ValidateOptions {
   /**
-   * Node names the registry knows about but no module owns — the base schema's
+   * Node names the registry knows about but no module owns, the base schema's
    * `doc`, `text` and `line`. Content expressions may reference them, and a
    * module may not claim one.
    */
@@ -74,7 +74,7 @@ function groupsOf(spec: NodeSpec): string[] {
 /**
  * Whether a pattern is anchored to the end of the input.
  *
- * Escapes are stripped first: `/\$\$/` — the display-math trigger — ends in a
+ * Escapes are stripped first: `/\$\$/`, the display-math trigger, ends in a
  * `$` character while being completely unanchored, so a plain `endsWith('$')`
  * accepts exactly the pattern this check exists to reject.
  */

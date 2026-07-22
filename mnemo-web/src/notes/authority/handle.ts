@@ -5,7 +5,7 @@
  * The authority never touches an `EditorView`, so the same authority drives a
  * visible note and a headless one. Only this file knows which it is.
  *
- * The contract is deliberately narrow — read the state, apply a transaction —
+ * The contract is deliberately narrow, read the state, apply a transaction,
  * but `apply` returns *every* transaction the apply produced, not just the one
  * that went in. That is the part the authority cannot do without: invariant
  * plugins append transactions through `appendTransaction`, and a version
@@ -31,7 +31,7 @@ export interface EditorHandle {
  *
  * The view layer supplies the live one. It cannot simply call `view.dispatch(tr)`, because
  * that returns nothing and the appended transactions would be lost; it has to
- * do what this does — `applyTransaction` for the full list, then
+ * do what this does, `applyTransaction` for the full list, then
  * `view.updateState` with the result.
  */
 export function createHeadlessHandle(initial: EditorState): EditorHandle {

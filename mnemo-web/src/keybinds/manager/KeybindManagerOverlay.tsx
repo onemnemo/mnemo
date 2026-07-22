@@ -23,7 +23,7 @@ const NS = "Keybinds"
  * rebind or restore it.
  *
  * The server owns definitions and overrides, so each edit writes through and the
- * catalog is refetched — only the server can produce the merged result of manifest
+ * catalog is refetched, only the server can produce the merged result of manifest
  * defaults under user overrides.
  */
 export function KeybindManagerOverlay() {

@@ -4,7 +4,7 @@ import { useT } from "@/i18n/useT"
 import { estimatedMinutes } from "../tree"
 
 /**
- * The "N cards due today" summary. Informational only — the desktop banner has
+ * The "N cards due today" summary. Informational only, the desktop banner has
  * no actions either, and its counts cover every deck regardless of any search.
  */
 export function DueBanner({ due, deckCount }: { due: DueCountsDto; deckCount: number }) {

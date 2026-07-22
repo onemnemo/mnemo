@@ -22,7 +22,7 @@ const TITLES: Record<Step, { title: string; description: string }> = {
 /**
  * First-run setup: welcome, language, then personalization.
  *
- * Not dismissible — no escape, no outside click, no close button — because the app
+ * Not dismissible, no escape, no outside click, no close button, because the app
  * behind it has no name, theme or language chosen yet. It reuses the settings
  * pickers, which write through as they are clicked; only the display name is held
  * until the step is left.

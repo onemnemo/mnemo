@@ -351,7 +351,7 @@ describe('add', () => {
   });
 
   it('rejects where: in when the content expression forbids it', () => {
-    // A two-column block is `line columnGroup columnGroup` — it holds cells,
+    // A two-column block is `line columnGroup columnGroup`, it holds cells,
     // not arbitrary blocks. Asking the content expression is what makes this
     // exact rather than a guess about which types are containers.
     const error = expectFailure(

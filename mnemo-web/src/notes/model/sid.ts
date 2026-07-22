@@ -5,7 +5,7 @@
  * block in real user data, a persisted sid is durable from the moment it is
  * issued, and the model quotes them back in chat history. If collision pressure
  * ever justifies more space, mint *longer* ids for new blocks and leave the
- * existing ones alone — the lengths below are minimums, never assumptions, and
+ * existing ones alone, the lengths below are minimums, never assumptions, and
  * a re-backfill is never the answer.
  *
  * The alphabet drops every pair that is confusable in a proportional font or in
@@ -56,7 +56,7 @@ const cryptoRandom: RandomSource = (out) => {
  *
  * Bytes at or above it are discarded rather than folded in with `%`. The
  * alphabet is 30 characters and 256 is not a multiple of 30, so a plain modulo
- * would make the first 16 characters measurably likelier than the rest —
+ * would make the first 16 characters measurably likelier than the rest,
  * shrinking the real id space for no reason.
  */
 const unbiasedCeiling = Math.floor(256 / sidAlphabet.length) * sidAlphabet.length;
@@ -80,7 +80,7 @@ function randomSid(length: number, random: RandomSource): string {
  *
  * Uniqueness is checked rather than assumed. At five characters the space is
  * ~24 million and a note holds thousands of blocks at most, so a collision is
- * rare — but "rare" over every block of every note is not "never", and a
+ * rare, but "rare" over every block of every note is not "never", and a
  * duplicate sid makes both blocks permanently ambiguous to the model.
  */
 export function mintSid(

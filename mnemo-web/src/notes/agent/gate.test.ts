@@ -150,7 +150,7 @@ describe('the digest', () => {
     const first = prepared(access, ops);
     const second = prepared(access, ops);
 
-    // The sids genuinely differ — that is the whole reason the digest cannot be
+    // The sids genuinely differ, that is the whole reason the digest cannot be
     // taken over the resulting document.
     expect(second.diff[0].sid).not.toBe(first.diff[0].sid);
     expect(second.digest).toBe(first.digest);
@@ -226,7 +226,7 @@ describe('committing', () => {
 
     typeInto(access, 2, 'wait ');
 
-    // The version has not moved — nothing was persisted — so only the digest
+    // The version has not moved, nothing was persisted, so only the digest
     // can catch this.
     expect(refusal(access, edit).reason).toBe('document_changed');
     expect(textsOf(access.state)).toEqual(['wait hello']);
@@ -237,7 +237,7 @@ describe('committing', () => {
     const edit = prepared(access, [{ op: 'set', id: 's0001', md: 'goodbye' }]);
 
     // The user promotes the block to a heading. Not a character moves, so the
-    // before and after text the preview showed are both still accurate — the
+    // before and after text the preview showed are both still accurate, the
     // block type is the only thing that says this is no longer the same edit.
     const converted = compileOps(access.state, [{ op: 'type', id: 's0001', to: 'h1' }], deps);
     expect(converted.ok).toBe(true);
@@ -285,7 +285,7 @@ describe('committing', () => {
     const edit = prepared(access, [{ op: 'set', id: 's0002', md: 'goodbye' }]);
 
     // Removing the block *before* the target shifts every position after it.
-    // Nothing the user approved changed, and the commit lands — which it only
+    // Nothing the user approved changed, and the commit lands, which it only
     // can because the batch re-resolves by sid rather than replaying positions
     // captured at preparation.
     access.apply(access.state.tr.delete(0, access.state.doc.firstChild!.nodeSize));

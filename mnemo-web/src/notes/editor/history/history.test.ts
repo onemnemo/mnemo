@@ -29,7 +29,7 @@ function run(
   return next;
 }
 
-/** Types text at the caret, as one transaction — one keystroke's worth. */
+/** Types text at the caret, as one transaction, one keystroke's worth. */
 function type(state: EditorState, text: string): EditorState {
   return state.apply(state.tr.insertText(text));
 }
@@ -54,7 +54,7 @@ describe('typing runs', () => {
 
     state = run(state, undo);
 
-    // Five keystrokes, one press to take them all back — the desktop's open
+    // Five keystrokes, one press to take them all back, the desktop's open
     // typing batch, expressed as a group rather than as an object.
     expect(textOf(state)).toBe('');
   });
@@ -90,7 +90,7 @@ describe('typing runs', () => {
 
     state = run(state, undo);
 
-    // No explicit boundary does this — ProseMirror ends a run at an edit that is
+    // No explicit boundary does this, ProseMirror ends a run at an edit that is
     // not adjacent to the last one, which is what a block switch always is.
     expect(textOf(state)).toBe('oneX\ntwo');
   });
@@ -237,7 +237,7 @@ describe('the boundary plugin', () => {
       new Event('paste') as ClipboardEvent,
     );
 
-    // Declined, so ProseMirror still does the paste itself — the handler exists
+    // Declined, so ProseMirror still does the paste itself, the handler exists
     // only to fence the group off first.
     expect(handled).toBe(false);
     expect(dispatched).toHaveLength(1);

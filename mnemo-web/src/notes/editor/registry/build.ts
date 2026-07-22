@@ -52,7 +52,7 @@ export interface CommandEntry extends CommandContribution {
 
 /**
  * Input triggers keep their owner because this is the one contribution list
- * genuinely walked per keystroke — without it, every module's regex runs
+ * genuinely walked per keystroke, without it, every module's regex runs
  * against every text input regardless of which block type the caret is in.
  */
 export interface InputTriggerEntry extends InputTriggerContribution {

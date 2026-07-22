@@ -59,7 +59,7 @@ export function normalizeSpans(spans: readonly InlineSpan[]): InlineSpan[] {
 
 /**
  * Human-readable text: equations render as their LaTeX source and fractions as
- * `n/d`. For markdown export, search indexing and accessibility — never for
+ * `n/d`. For markdown export, search indexing and accessibility, never for
  * caret arithmetic, since an atom's display width is not its caret width.
  */
 export function flattenDisplay(spans: readonly InlineSpan[]): string {

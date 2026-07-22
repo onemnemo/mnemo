@@ -1,7 +1,7 @@
 /**
  * Numbered-list numbering, as decorations rather than stored data.
  *
- * A numbered item's displayed number is never persisted — the frozen list schema
+ * A numbered item's displayed number is never persisted, the frozen list schema
  * keeps `data-numbered` items as flat siblings with no index attr, because a
  * stored number goes stale the instant a block is inserted above it. So the
  * number is recomputed from document order on every change and painted through a
@@ -12,13 +12,13 @@
  *
  *  - A run of consecutive numbered items counts 1, 2, 3…; every run restarts at 1
  *    (the desktop seeded from a stored index, but the port stores none, so a
- *    `5. ` shortcut still starts wherever its position dictates — the documented
+ *    `5. ` shortcut still starts wherever its position dictates, the documented
  *    number-not-stored divergence).
  *
  *  - **Any** non-numbered block resets the run. A paragraph, a heading, a bullet
  *    between two numbered items breaks the sequence.
  *
- *  - A two-column block is flattened **left column top-to-bottom, then right** —
+ *  - A two-column block is flattened **left column top-to-bottom, then right**,
  *    and neither the container nor the boundary between its columns resets the
  *    run. The desktop's enumerator never yields the container itself, only its
  *    cells' contents, so a run flows straight through a two-column and out the
@@ -63,7 +63,7 @@ export function listNumberDecorations(doc: PMNode): Decoration[] {
   doc.forEach((block, offset) => {
     if (block.type.name === 'twoColumn') {
       // Flatten the two cells in order without resetting for the container or the
-      // column boundary — only the cells' own contents advance the run.
+      // column boundary, only the cells' own contents advance the run.
       block.forEach((cellGroup, groupOffset) => {
         if (cellGroup.type.name !== 'columnGroup') return; // skip the container's line
         const groupPos = offset + 1 + groupOffset;

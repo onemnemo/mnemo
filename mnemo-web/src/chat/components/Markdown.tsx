@@ -45,7 +45,7 @@ function openExternally(event: React.MouseEvent<HTMLAnchorElement>, href: string
 
 interface MarkdownProps {
   content: string
-  /** True while the message is still streaming — enables re-render throttling. */
+  /** True while the message is still streaming, enables re-render throttling. */
   streaming?: boolean
 }
 

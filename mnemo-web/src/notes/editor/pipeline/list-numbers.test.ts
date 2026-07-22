@@ -55,7 +55,7 @@ describe('numbered-list numbering', () => {
     expect(numbers(doc(num('a'), bullet('b'), num('c')))).toEqual(['1', '1']);
   });
 
-  it('starts every run at 1 — the leading number is not stored', () => {
+  it('starts every run at 1, the leading number is not stored', () => {
     // Two separate runs; neither remembers a prior index.
     expect(numbers(doc(num(), para(), num(), num()))).toEqual(['1', '1', '2']);
   });

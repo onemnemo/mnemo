@@ -68,7 +68,7 @@ describe('toNodeViews', () => {
     expect(seen!.services).toBe(services);
   });
 
-  it('passes contentDOM straight through — present for editable blocks, null for atoms', () => {
+  it('passes contentDOM straight through, present for editable blocks, null for atoms', () => {
     const content = document.createElement('div');
     const nodeViews = toNodeViews(
       registryWith({
@@ -97,7 +97,7 @@ describe('toNodeViews', () => {
     expect(update).toHaveBeenCalledWith(next);
   });
 
-  it('omits update when the view has none — so PM rebuilds rather than silently skipping', () => {
+  it('omits update when the view has none, so PM rebuilds rather than silently skipping', () => {
     const nodeViews = toNodeViews(
       registryWith({ w: () => ({ dom: document.createElement('div') }) }),
       resolveServices(),

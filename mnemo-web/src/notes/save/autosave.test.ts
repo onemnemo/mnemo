@@ -117,7 +117,7 @@ function harness() {
     type(text: string) {
       authority.dispatchLocal(handle.state.tr.insertText(text, 1));
     },
-    /** A dispatch that changes no content — a selection move, in effect. */
+    /** A dispatch that changes no content, a selection move, in effect. */
     noop() {
       authority.dispatchLocal(handle.state.tr);
     },
@@ -167,7 +167,7 @@ describe('when it writes', () => {
 
   it('writes anyway for someone who never pauses', async () => {
     // An edit every 700ms never leaves an 800ms gap, so the quiet period alone
-    // would never fire — as the control below shows. The ceiling on the oldest
+    // would never fire, as the control below shows. The ceiling on the oldest
     // unsaved change is the whole reason this is a case autosave handles rather
     // than one it loses.
     async function typeSteadily(maxWaitMs: number): Promise<number> {
@@ -294,7 +294,7 @@ describe('when a write conflicts', () => {
     expect(h.commits).toHaveLength(1);
     expect(h.authority.snapshot().saveState).toBe('version_conflict');
 
-    // The authority has adopted version 12, so a retry would *succeed* — and
+    // The authority has adopted version 12, so a retry would *succeed*, and
     // overwrite whatever the other writer stored with a document that never saw
     // it. Not retrying is the point.
     h.type('b');

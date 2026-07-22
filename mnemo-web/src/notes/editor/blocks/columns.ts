@@ -4,14 +4,14 @@
  * **Exactly two columns is enforced by the content expression, not by
  * convention.** Three separate C# readers index `Children[0]` and `Children[1]`
  * positionally, so a `TwoColumn` with one or three cells is not a layout
- * variant — it is a crash. Saying `columnGroup columnGroup` in the schema means
+ * variant, it is a crash. Saying `columnGroup columnGroup` in the schema means
  * no transaction can produce one, rather than every command remembering not to.
  *
  * The wire format is recursive and the schema keeps it that way: a `columnGroup`
  * accepts any block, `twoColumn` included. Deeper imported data therefore
- * renders and round-trips losslessly. What limits nesting is the command set —
+ * renders and round-trips losslessly. What limits nesting is the command set,
  * product commands create at most three levels, because past that the drag and
- * layout affordances stop being usable — and that is a UI decision the
+ * layout affordances stop being usable, and that is a UI decision the
  * persistence format does not need to share.
  */
 
@@ -21,8 +21,8 @@ import { blockChildrenOf, defineBlock, lineOf, type BlockDeps } from './shared';
 
 /**
  * A column cell must always hold at least one editable block. The schema permits
- * a cell of just its mandatory line — real wire data has such cells and must load
- * — so this is repair, not a structural rule: whenever a transaction empties a
+ * a cell of just its mandatory line, real wire data has such cells and must load,
+ * so this is repair, not a structural rule: whenever a transaction empties a
  * cell of its block children, an empty Text block is seeded back so the cell
  * stays a place the caret can land, exactly as the desktop reinserted a
  * placeholder Text on delete and on paste.
@@ -30,7 +30,7 @@ import { blockChildrenOf, defineBlock, lineOf, type BlockDeps } from './shared';
  * It runs early (before the cosmetic heading-bold pass) because it moves content;
  * a later invariant then sees the repaired document. Dissolving the split when a
  * cell empties beside a filled one, or collapsing the whole two-column back to a
- * single block, are delete-command behaviours, not this universal net — they land
+ * single block, are delete-command behaviours, not this universal net, they land
  * with the two-column editing commands.
  */
 const columnNeverEmpty: InvariantContribution = {
@@ -90,7 +90,7 @@ export function twoColumnBlock(deps: BlockDeps): AnyBlockModule {
         ],
       },
       // The ratio lives on the container and never on a cell. Real notes have
-      // been resized — the stored values are not all 0.5 — so each keeps its own.
+      // been resized, the stored values are not all 0.5, so each keeps its own.
       attrsFrom: (block) => ({
         splitRatio: block.payload.kind === 'twoColumn' ? block.payload.splitRatio : 0.5,
       }),

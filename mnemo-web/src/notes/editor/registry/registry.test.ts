@@ -10,7 +10,7 @@
  * of every contribution declared as a method, and the `contract.ts` helpers a
  * real module's own tests lean on.
  *
- * Validation *rejections* live in registry.validate.test.ts — this file is
+ * Validation *rejections* live in registry.validate.test.ts, this file is
  * about what a valid module list produces, not about catching an invalid one.
  */
 
@@ -231,7 +231,7 @@ describe('this-binding for method-style contributions', () => {
   // distinction matters: the spread copies every data property onto the entry,
   // so a method reading `this.label` returns the right value whether or not it
   // was bound, and a test written that way passes against the unfixed code.
-  // Only comparing `this` to the original object can tell the two apart —
+  // Only comparing `this` to the original object can tell the two apart, 
   // confirmed by reverting the bind and watching these fail.
   //
   // no-this-alias is off here for the same reason: capturing `this` is the

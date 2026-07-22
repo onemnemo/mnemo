@@ -1,5 +1,5 @@
 /**
- * `clearStoredMarks` — the sticky-typing escape. The one behaviour an
+ * `clearStoredMarks`, the sticky-typing escape. The one behaviour an
  * inherited-format editor cannot express: at a caret inside formatted text, arm
  * the next character to carry *no* marks. Tested for the empty-array vs null
  * distinction that makes "none" mean none, not "inherit".
@@ -54,7 +54,7 @@ describe('clearStoredMarks', () => {
   it('arms an explicit empty mark set inside formatted text', () => {
     const tr = dispatched(caretInRun(stateOf(textBlock('abcd', { bold: true }))));
     expect(tr).not.toBeNull();
-    // Empty array — "none" — not null, which would inherit the surrounding bold.
+    // Empty array, "none", not null, which would inherit the surrounding bold.
     expect(tr!.storedMarks).toEqual([]);
     expect(schema.marks.strong.isInSet(tr!.storedMarks!)).toBeFalsy();
   });
@@ -71,7 +71,7 @@ describe('clearStoredMarks', () => {
     expect(clearStoredMarks(caretInRun(stateOf(textBlock('abcd'))), vi.fn())).toBe(false);
   });
 
-  it('refuses on a range selection — it is a caret-only affordance', () => {
+  it('refuses on a range selection, it is a caret-only affordance', () => {
     const state = stateOf(textBlock('abcd', { bold: true }));
     let from = -1;
     let to = -1;

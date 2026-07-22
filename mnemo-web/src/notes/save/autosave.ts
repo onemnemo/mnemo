@@ -1,8 +1,8 @@
 /**
  * Autosave: the policy that decides *when* a note is written.
  *
- * The authority already owns what a save is — take a snapshot, commit it,
- * account for the answer — and refuses to run two at once. Everything left is
+ * The authority already owns what a save is (take a snapshot, commit it,
+ * account for the answer) and refuses to run two at once. Everything left is
  * timing, and timing is the whole difficulty: save on every keystroke and a long
  * note is a write storm; wait for a pause and someone who types without pausing
  * never gets saved at all.
@@ -15,15 +15,15 @@
  *
  * ## What it does with each answer
  *
- * - **saved** — start over. Anything typed during the round trip is still dirty
+ * - **saved**: start over. Anything typed during the round trip is still dirty
  *   and gets its own quiet period rather than an immediate second write.
- * - **failed** — retry on a widening backoff, then stop and stay stopped until
+ * - **failed**: retry on a widening backoff, then stop and stay stopped until
  *   the document changes again. Retrying a broken connection forever burns
  *   battery and tells the user nothing new; the next keystroke is a much better
  *   signal that conditions may have changed.
- * - **conflict** — stop, permanently. This is the one answer autosave must not
+ * - **conflict**: stop, permanently. This is the one answer autosave must not
  *   act on. The authority adopts the version the server reported, so simply
- *   trying again *would succeed* — and would overwrite whatever the other
+ *   trying again *would succeed*, and would overwrite whatever the other
  *   writer put there with a document that never saw it. Rebasing is a decision
  *   with a person in it.
  */
@@ -70,7 +70,7 @@ export interface Autosave {
    * Saves now if there is anything to save, and resolves once it has settled.
    *
    * For the moments with no later chance: unmount, note switch, window close.
-   * It does not retry — the caller is on its way out, and the outcome comes back
+   * It does not retry, the caller is on its way out, and the outcome comes back
    * so it can say so.
    */
   flush(): Promise<SaveResult>;
@@ -137,7 +137,7 @@ export function startAutosave(options: AutosaveOptions): Autosave {
 
     dirtySince ??= clock.now();
     // Rescheduled from scratch on every edit, so the quiet period really is
-    // measured from the *last* one — but never past the ceiling, which is
+    // measured from the *last* one, but never past the ceiling, which is
     // anchored to the first.
     schedule(Math.min(debounceMs, dirtySince + maxWaitMs - clock.now()));
   }
@@ -208,7 +208,7 @@ export function startAutosave(options: AutosaveOptions): Autosave {
       // That save's own accounting may have queued a retry while we waited.
       cancel();
       // Conflict is not overridden by urgency. The authority has adopted the
-      // server's version, so this write would land — over content it never saw.
+      // server's version, so this write would land, over content it never saw.
       if (destroyed || conflicted) return { status: 'skipped' };
       if (!authority.snapshot().dirty) return { status: 'skipped' };
       return run();

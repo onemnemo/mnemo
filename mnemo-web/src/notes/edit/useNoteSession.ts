@@ -3,7 +3,7 @@
  *
  * The session is created in an effect and closed in cleanup, so unmount, note
  * switch and StrictMode's deliberate double-invoke all release it through the
- * same path — and closing *saves first*, which is what keeps navigating away
+ * same path, and closing *saves first*, which is what keeps navigating away
  * from being the way to lose the last few seconds of typing.
  *
  * `noteId` is the only dependency. Everything else is read from a ref at mount

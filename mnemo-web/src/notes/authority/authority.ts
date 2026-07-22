@@ -2,7 +2,7 @@
  * The document authority: one per loaded note, owning its document, its
  * versions and its save state, and serializing everything that touches them.
  *
- * Every writer goes through here — typing, undo, import, AI edits, autosave —
+ * Every writer goes through here (typing, undo, import, AI edits, autosave)
  * so there is exactly one place where a document changes and exactly one place
  * where a version moves. That is the whole point of the single-writer seam: two
  * writers with their own version counters is how a save silently overwrites an
@@ -14,13 +14,13 @@
  *
  * - **`ver`** is the *persisted* version: what the store holds, and the base
  *   for the next commit. It only ever moves when a commit lands, and it is set
- *   from what the store reports rather than computed here — the store assigns
+ *   from what the store reports rather than computed here, the store assigns
  *   it, and a client that guessed would be wrong the moment anyone else wrote.
  * - **`rev`** is the *local* revision: it increments once per converged logical
  *   change, and never decreases. It is what "dirty" is measured against.
  *
  * Five edits then one save leaves `rev` five ahead of where it started and
- * `ver` one ahead — the two count different things. Collapsing them into one
+ * `ver` one ahead, the two count different things. Collapsing them into one
  * counter loses the ability to say whether the document currently in memory is
  * the one that was persisted, which is precisely what a late save
  * acknowledgement has to ask before it clears the dirty flag.
@@ -30,7 +30,7 @@
  * One dispatch is one logical change, however many transactions it turns into.
  * Invariant plugins append transactions to normalize what an edit did; those
  * are part of the same change converging, not further changes. A dispatch that
- * leaves the document untouched — a selection move — is not a change at all and
+ * leaves the document untouched (a selection move) is not a change at all and
  * moves nothing.
  *
  * ## What lives outside
@@ -75,7 +75,7 @@ export type SaveState =
  * enough for each getter to be correct on its own: a caller that reads the doc,
  * awaits anything, then reads the version has read two different moments and
  * will commit one document under another's version. There is no separate `doc`
- * or `ver` accessor for exactly that reason — the torn read is not expressible.
+ * or `ver` accessor for exactly that reason, the torn read is not expressible.
  */
 export interface NoteSnapshot {
   readonly noteId: string;
@@ -92,7 +92,7 @@ export interface NoteSnapshot {
 
 /** What one dispatch did. */
 export interface DispatchResult {
-  /** The revision after the dispatch — unchanged if it changed nothing. */
+  /** The revision after the dispatch, unchanged if it changed nothing. */
   readonly rev: number;
   /** Whether it counted as a logical change. */
   readonly changed: boolean;
@@ -116,7 +116,7 @@ export interface AuthorityAccess {
  * `AlreadyApplied` from the C# store maps to `applied`: a retry whose original
  * response was lost did land, and reporting it as anything else would turn a
  * dropped acknowledgement into a conflict the user has to resolve by hand.
- * `NotFound` maps to `failed` — the note is gone, and no version the caller
+ * `NotFound` maps to `failed`, the note is gone, and no version the caller
  * could rebase onto exists.
  */
 export type CommitOutcome =
@@ -147,11 +147,11 @@ export interface NoteAuthority {
    * reader and dispatches it while the browser has *already* mutated the
    * contenteditable; deferring `updateState` even by a microtask leaves the
    * state describing a document the DOM no longer matches, and the next
-   * observer flush diffs against that stale doc — which duplicates or drops
+   * observer flush diffs against that stale doc, which duplicates or drops
    * what was typed.
    *
    * Skipping the queue does not create a second writer. The queue serializes
-   * writers that *await* — a save round trip, an AI edit — and a synchronous
+   * writers that *await*, a save round trip, an AI edit, and a synchronous
    * apply cannot interleave with one: it runs to completion before any pending
    * continuation gets the thread. What it does mean is that a command holding
    * the queue across an await may find the document changed underneath it when
@@ -221,8 +221,8 @@ export function createNoteAuthority(options: AuthorityOptions): NoteAuthority {
     // would leave a round trip nothing is watching.
     //
     // `version_conflict`, because it is terminal until the note is reloaded.
-    // Autosave has stopped, correctly — writing again would overwrite the other
-    // writer — so calling the document merely "dirty" would promise a save that
+    // Autosave has stopped, correctly, writing again would overwrite the other
+    // writer, so calling the document merely "dirty" would promise a save that
     // is never coming, which is the one thing a save indicator must not do.
     if (saveState !== 'saving' && saveState !== 'version_conflict') saveState = 'dirty';
     notify();
@@ -309,8 +309,8 @@ export function createNoteAuthority(options: AuthorityOptions): NoteAuthority {
         ver = outcome.ver;
         // The revision that was *sent*, not the current one. Anything typed
         // during the round trip was never persisted, so counting it as saved
-        // would drop it. Two saves cannot overlap — the `saving` check above is
-        // what guarantees that — so this can only ever move forward.
+        // would drop it. Two saves cannot overlap, the `saving` check above is
+        // what guarantees that, so this can only ever move forward.
         savedRev = started.rev;
         const stillDirty = rev > savedRev;
         saveState = stillDirty ? 'dirty' : 'saved';
@@ -330,7 +330,7 @@ export function createNoteAuthority(options: AuthorityOptions): NoteAuthority {
 
     destroy(): void {
       destroyed = true;
-      // Not observable — nothing can dispatch after this, so nothing notifies.
+      // Not observable, nothing can dispatch after this, so nothing notifies.
       // It is here to drop the references: a listener is usually a closure over
       // a component, and an app that switches between thousands of notes would
       // otherwise retain one graph per note it ever opened.

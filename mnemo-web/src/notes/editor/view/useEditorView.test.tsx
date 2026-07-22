@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 /**
- * The React hook, under StrictMode — whose deliberate mount/unmount/mount
+ * The React hook, under StrictMode, whose deliberate mount/unmount/mount
  * double-invoke is exactly the teardown stress this exercises. If the
  * cleanup did not fully release the view, StrictMode would leave two editors in
  * the DOM; these assert one. Note switch and unmount are checked the same way.
@@ -62,7 +62,7 @@ beforeEach(() => {
   disposed = false;
 });
 
-/** Unmount once, whether the test did it or the teardown does — roots warn on a double unmount. */
+/** Unmount once, whether the test did it or the teardown does, roots warn on a double unmount. */
 function dispose(): void {
   if (disposed) return;
   disposed = true;

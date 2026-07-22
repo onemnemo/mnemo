@@ -9,7 +9,7 @@ import { SettingRowShell } from "../SettingRowShell"
 
 /**
  * The theme picker. The catalog comes from the server so it agrees with the desktop,
- * but only themes the SPA has token blocks for are offered — an unknown id would
+ * but only themes the SPA has token blocks for are offered, an unknown id would
  * apply a data-theme attribute nothing is styled for.
  */
 export function ThemeGalleryRow({

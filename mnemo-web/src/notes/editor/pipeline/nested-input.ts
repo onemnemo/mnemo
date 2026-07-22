@@ -4,7 +4,7 @@
  * The editor is one contentEditable, but not everything inside it is document
  * content: the equation source popover is a real `<input>`, and later surfaces
  * will be too. Events there bubble to `view.dom` like any other, so without this
- * every editor binding fires on them — `Mod-z` in the equation source would undo
+ * every editor binding fires on them, `Mod-z` in the equation source would undo
  * the *note*, `Mod-b` would embolden the text behind the popover, and a paste
  * would land in the document rather than in the field the caret is in.
  *
@@ -21,8 +21,8 @@
  * Here there is one gate, so there is one predicate. The window-level half of the
  * problem does not exist: these bindings live on the note's `EditorState` and
  * fire only while its view holds the selection, so a field elsewhere in the app
- * is already out of reach. What remains is exactly the narrower question — is
- * this event coming from a text input the editor contains — and that is the one
+ * is already out of reach. What remains is exactly the narrower question, is
+ * this event coming from a text input the editor contains, and that is the one
  * this asks.
  *
  * ## Declining is not handling
@@ -30,7 +30,7 @@
  * The guard reports the event as handled so ProseMirror's own handlers stand
  * down, and deliberately does not `preventDefault`: the browser still delivers
  * the keystroke to the input, which is the whole point. That is why this hooks
- * `handleDOMEvents` and not `handleKeyDown` — ProseMirror calls `preventDefault`
+ * `handleDOMEvents` and not `handleKeyDown`, ProseMirror calls `preventDefault`
  * on a `handleKeyDown` that returns true, which would swallow the character
  * before the field ever saw it.
  */
@@ -49,7 +49,7 @@ export function isNestedTextInput(target: EventTarget | null): boolean {
 const defer = (_view: unknown, event: Event): boolean => isNestedTextInput(event.target);
 
 /**
- * The guard plugin. Include it **first** — it can only stand the other plugins
+ * The guard plugin. Include it **first**, it can only stand the other plugins
  * down if it is asked before them.
  *
  * The six events are the ones ProseMirror would otherwise turn into a document

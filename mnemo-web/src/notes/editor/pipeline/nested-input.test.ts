@@ -3,7 +3,7 @@
 /**
  * The nested-input guard, proved against a live view.
  *
- * The predicate on its own is nearly untestable-by-inspection — of course an
+ * The predicate on its own is nearly untestable-by-inspection, of course an
  * `<input>` is an input. What matters is whether the editor's bindings actually
  * stand down for one, and that only shows up with a real `EditorView`, real
  * bubbling and the plugin stack in the order it ships. So each case here is a
@@ -100,7 +100,7 @@ describe('a shortcut typed in a field inside the editor', () => {
 
     input.dispatchEvent(event);
 
-    // Standing ProseMirror down must not also cancel the keystroke — the field
+    // Standing ProseMirror down must not also cancel the keystroke, the field
     // is where it was going. This is why the guard hooks `handleDOMEvents` and
     // not `handleKeyDown`, which calls `preventDefault` on a handled key.
     expect(event.defaultPrevented).toBe(false);

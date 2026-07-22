@@ -2,7 +2,7 @@
  * The outline: how a model sees a note's structure without reading its content.
  *
  * Deliberately not JSON. The same facts wrapped in braces, quotes and repeated
- * key names cost roughly 40% more tokens, and nothing here needs a parser — a
+ * key names cost roughly 40% more tokens, and nothing here needs a parser, a
  * model reads fixed columns fine. On a 300-line outline that difference, plus
  * `Heading1` -> `h1`, is the margin between an outline that fits in a small
  * local model's window and one that cannot exist.
@@ -62,7 +62,7 @@ const defaultPreviewLength = 80;
  *
  * `sid code [indent]preview (n)`, where `(n)` appears only on a block that has
  * block children. Indentation is inside the preview column so the sid and code
- * columns stay aligned at any depth — a model scanning for an id should not
+ * columns stay aligned at any depth, a model scanning for an id should not
  * have to find it at a different offset on every line.
  */
 export function renderOutline(

@@ -2,7 +2,7 @@
  * Minting new blocks.
  *
  * Every block that comes into existence after a note is loaded goes through
- * here — the seed block an empty note opens with, and everything the `add` op
+ * here, the seed block an empty note opens with, and everything the `add` op
  * inserts. Centralized because a block born without a `sid` is invisible to the
  * model, and one born with a *duplicate* sid is worse: it makes two blocks
  * permanently ambiguous to every tool that addresses them.
@@ -51,8 +51,8 @@ export function createBlock(taken: ReadonlySet<string>, options: NewBlockOptions
  *
  * `Note.Blocks` is nullable and a newly created note leaves it null, so "no
  * blocks" is an ordinary state rather than corruption. The C# editor handles it
- * the same way — `BlockEditor` appends a default Text block when a note
- * deserializes to zero rows — and the schema requires `block+`, so an empty
+ * the same way, `BlockEditor` appends a default Text block when a note
+ * deserializes to zero rows, and the schema requires `block+`, so an empty
  * document is not representable and quarantining one would mean a new note
  * opening as unreadable.
  */

@@ -9,7 +9,7 @@ import { TestPage } from "@/flashcards/test/TestPage"
 import { SettingsPage } from "@/pages/SettingsPage"
 
 // The notes editor (ProseMirror + mapper + KaTeX) is loaded on demand so its
-// ~0.5 MB stays out of the initial bundle — it is needed only on this route.
+// ~0.5 MB stays out of the initial bundle, it is needed only on this route.
 const NotesRoute = lazy(() => import("@/notes/page/NotesRoute"))
 
 // Client-side routing: which page renders for a route key. The sidebar model

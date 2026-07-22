@@ -9,7 +9,7 @@
  *
  * This pass is deliberately conservative. It fixes shapes that are
  * *unambiguously* repairable and reports everything else as invalid rather than
- * guessing — a note that reaches quarantine keeps its original bytes and can be
+ * guessing, a note that reaches quarantine keeps its original bytes and can be
  * exported, whereas a note that was silently "repaired" into the wrong shape has
  * lost data with no record that it happened.
  */
@@ -98,7 +98,7 @@ function normalizeBlock(
   if (block.type === 'TwoColumn') {
     // Three C# readers index `Children[0]` and `Children[1]` positionally, so a
     // TwoColumn with any other arity is not a layout variant to be rendered
-    // leniently — it is a shape that crashes the other side of the wire. The
+    // leniently, it is a shape that crashes the other side of the wire. The
     // schema refuses to build it, and inventing or discarding a cell to make it
     // fit would be exactly the silent data change quarantine exists to prevent.
     const cells = children ?? [];
@@ -127,7 +127,7 @@ function normalizeBlock(
     ...block,
     // Mnemo guarantees at least one span per block; PM allows a genuinely empty
     // line. This is the two-line case that reconciles them, and it is the one
-    // canonical empty shape — a sole empty, default-styled text span.
+    // canonical empty shape, a sole empty, default-styled text span.
     spans: block.spans.length > 0 ? block.spans : [plainSpan('')],
     children: children ?? null,
   };

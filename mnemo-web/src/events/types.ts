@@ -16,7 +16,7 @@ export const EventType = {
   Toast: "toast",
   /**
    * The window is closing and is being held open for us; payload is
-   * {@link ShutdownEventData}. Save now — see `@/app/shutdown`.
+   * {@link ShutdownEventData}. Save now, see `@/app/shutdown`.
    */
   Shutdown: "shutdown",
 } as const

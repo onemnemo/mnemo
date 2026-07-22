@@ -1,8 +1,8 @@
 /**
  * Contract checks a module must satisfy, written so they can fail.
  *
- * Two of the registry's load-bearing rules — "segments partition plainText" and
- * "estimateHeight must not touch the DOM" — are otherwise just comments, and a
+ * Two of the registry's load-bearing rules, "segments partition plainText" and
+ * "estimateHeight must not touch the DOM", are otherwise just comments, and a
  * comment has never stopped anyone. These turn them into assertions the block modules'
  * module tests can run against every module as it is written, which is the
  * moment the fix is cheap.
@@ -75,8 +75,8 @@ export function checkProjectionConsistency(
  * Every global is restored, including when `fn` throws and including the case
  * where the global did not exist to begin with (the normal one under vitest's
  * node environment). Note that the trap fires on *any* property access, so
- * nothing that inspects `document`/`window` — an assertion library formatting a
- * failure message, for instance — may run inside `fn`.
+ * nothing that inspects `document`/`window`, an assertion library formatting a
+ * failure message, for instance, may run inside `fn`.
  */
 export function withoutDom<T>(fn: () => T): T {
   const globals = globalThis as Record<string, unknown>;
@@ -106,8 +106,8 @@ export function withoutDom<T>(fn: () => T): T {
       },
     );
 
-  // Inside the try: if defining the second global throws — some environments
-  // make one of these non-configurable — the first must still be restored, or
+  // Inside the try: if defining the second global throws, some environments
+  // make one of these non-configurable, the first must still be restored, or
   // every later test in the run fails against a poisoned global.
   try {
     for (const name of poisoned) {

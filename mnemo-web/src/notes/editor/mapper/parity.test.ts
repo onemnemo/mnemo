@@ -3,7 +3,7 @@
  *
  * Every case here is a shape the wire format represents and an earlier version
  * of this code silently destroyed. They are all cycle-1 losses that are stable
- * afterwards — the class the three-cycle round-trip harness structurally cannot
+ * afterwards, the class the three-cycle round-trip harness structurally cannot
  * see, because it baselines on cycle 1's output. That is why they live in their
  * own file with explicit before/after expectations rather than as fixtures.
  */
@@ -53,7 +53,7 @@ const text = (t: string, style: Partial<typeof defaultTextStyle> = {}): InlineSp
 describe('mark coverage', () => {
   it('keeps subscript and superscript when a span has both', () => {
     // C# clears the pair in its command layer, not its serializer, so the wire
-    // format represents both — and the frozen span fixture contains 228 such
+    // format represents both, and the frozen span fixture contains 228 such
     // styles. A `MarkSpec.excludes` here evicted `sub` on load.
     const out = cycle([blockOf({ spans: [text('x', { subscript: true, superscript: true })] })]);
     const style = out[0].spans[0].style;
@@ -185,7 +185,7 @@ describe('wire reader and writer parity with BlockJsonConverter', () => {
 
 describe('payload and type agreement', () => {
   it('reports a payload whose kind does not match its block type', () => {
-    // The wire format lets these disagree — C# never cross-validates them — but
+    // The wire format lets these disagree, C# never cross-validates them, but
     // the schema decomposes a payload into type-specific attrs, so a wrong-kind
     // payload has nowhere to live and would vanish on the first save.
     const result = mapper.toDoc([
@@ -206,7 +206,7 @@ describe('payload and type agreement', () => {
 
 describe('a note with no blocks', () => {
   // `Note.Blocks` is nullable and a newly created note leaves it null, so this
-  // is the state every note passes through — not a corruption case. The schema
+  // is the state every note passes through, not a corruption case. The schema
   // requires `block+`, so without seeding, creating a note would quarantine it.
   it('opens as one empty text block rather than quarantining', () => {
     const result = mapper.toDoc([]);
@@ -242,7 +242,7 @@ describe('robustness', () => {
 
   it('does not hand out the live document node as a block meta bag', () => {
     // PM nodes are shared and persistent, so aliasing lets a consumer mutating
-    // a returned block mutate the document — and the default meta object is
+    // a returned block mutate the document, and the default meta object is
     // shared by every node that omits one.
     const meta = { keep: 1 };
     const out = cycle([blockOf({ meta })]);

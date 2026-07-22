@@ -4,7 +4,7 @@
  *
  * All the real work is in `mountEditor`; this is the thin React seam. It creates
  * the view in an effect and destroys it in cleanup, so unmount and note switch
- * both release the view through the same path — and so StrictMode's deliberate
+ * both release the view through the same path, and so StrictMode's deliberate
  * mount/unmount/mount double-invoke leaves exactly one live view rather than a
  * leaked one, which is the cheapest place to catch a teardown that does not.
  *
@@ -12,7 +12,7 @@
  * initial `state`, `registry` and `services` are read from a ref at mount time,
  * so a new `state` object on a keystroke re-render does not tear down and
  * rebuild the view under the user. Switching notes means a new `key`, which is
- * a full destroy-then-remount — never a state swap into the surviving view.
+ * a full destroy-then-remount, never a state swap into the surviving view.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -26,7 +26,7 @@ import { mountEditor } from './mount';
 export interface UseEditorViewOptions {
   /** The open note's identity. A change remounts the view. */
   readonly key: string;
-  /** The initial state, read once per mount — later objects do not remount. */
+  /** The initial state, read once per mount, later objects do not remount. */
   readonly state: EditorState;
   readonly registry: BlockRegistry;
   readonly services?: Partial<EditorServices>;
@@ -46,7 +46,7 @@ export function useEditorView(options: UseEditorViewOptions): UseEditorViewResul
   const [handle, setHandle] = useState<EditorHandle | null>(null);
 
   // The mount reads these at effect time, not from the closure, so they can
-  // change between renders without forcing a remount — only `key` does that.
+  // change between renders without forcing a remount, only `key` does that.
   const latest = useRef(options);
   latest.current = options;
 

@@ -28,7 +28,7 @@ describe('editor schema', () => {
       const wire = `Heading${String(level)}` as BlockType;
       expect(registry.byWireType.get(wire)?.nodeName).toBe('heading');
     }
-    // One node, four types — the property that lets a level change keep the sid.
+    // One node, four types, the property that lets a level change keep the sid.
     const nodes = new Set(
       (['Heading1', 'Heading2', 'Heading3', 'Heading4'] as BlockType[]).map(
         (t) => registry.byWireType.get(t)?.nodeName,
@@ -93,7 +93,7 @@ describe('editor schema', () => {
   it('lets a span carry both sub and sup, because the wire format does', () => {
     // Tempting to exclude these. But C# clears the
     // pair in its command layer, not its serializer, so both-true is
-    // representable — and the frozen cross-language span fixture contains it,
+    // representable, and the frozen cross-language span fixture contains it,
     // since its generator rolls the two flags independently. `excludes` here
     // would silently drop `sub` on load.
     const sub = schema.marks.sub.create();

@@ -63,13 +63,13 @@ describe('createViewHandle', () => {
     const tr = view.state.tr.insertText('Z', view.state.selection.from).setMeta('echo', true);
     const applied = handle.apply(tr);
 
-    // The insert plus the plugin's appended echo — two, not one.
+    // The insert plus the plugin's appended echo, two, not one.
     expect(applied.transactions).toHaveLength(2);
     expect(applied.state.doc.textContent).toContain('Z');
     expect(applied.state.doc.textContent).toContain('!');
   });
 
-  it('drives the view — the live state advances with each apply', () => {
+  it('drives the view, the live state advances with each apply', () => {
     const { view } = mountView('ab');
     const handle = createViewHandle(view);
 

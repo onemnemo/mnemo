@@ -5,7 +5,7 @@
  * for everything else: a paste landing where you were just typing is adjacent and
  * fast, so by default it joins the typing run and one `Mod-z` takes back both. The
  * desktop never had that problem because a structural change went down a
- * different path — `BeginStructuralChange` flushed the open typing batch before
+ * different path, `BeginStructuralChange` flushed the open typing batch before
  * capturing, and pushed its own entry after. So a structural edit was fenced on
  * *both* sides, and that is what this file restores.
  *
@@ -14,7 +14,7 @@
  * The near side is the transaction itself: {@link asOwnUndoStep} closes the group
  * before it, so it cannot join what came before. The far side has to be a second
  * transaction, because the group a transaction opens can only be closed by a later
- * one — that is {@link historyBoundaryPlugin}'s `appendTransaction`, which carries
+ * one, that is {@link historyBoundaryPlugin}'s `appendTransaction`, which carries
  * no steps and so costs a state apply and no re-render.
  *
  * Paste, cut and drop are ProseMirror's own transactions, not ours, so their near
@@ -27,7 +27,7 @@
  * 300ms timer flushed it when typing stopped. Both existed because an open batch
  * was a live object that had to be closed by *something*. ProseMirror decides
  * grouping when the next transaction arrives, looking back at how long ago the
- * last one was — so a run that ended is already closed by the time anything cares,
+ * last one was, so a run that ended is already closed by the time anything cares,
  * and there is nothing to close on the way out. Dispatching on blur would also be
  * actively harmful: the equation source popover takes focus out of the editor by
  * design, and a transaction dispatched from that blur is a chance to pull the
@@ -49,7 +49,7 @@ const boundaryKey = new PluginKey<boolean>('mnemo-history-boundary');
 const BOUNDARY_UI_EVENTS: ReadonlySet<unknown> = new Set(['paste', 'cut', 'drop']);
 
 /**
- * Mark a transaction as an edit of its own — one `Mod-z`, no more and no less.
+ * Mark a transaction as an edit of its own, one `Mod-z`, no more and no less.
  *
  * Every structural command uses this: a split, a merge, a block delete, a type
  * conversion. These are the desktop's `DocumentOperation`s, and the property that
@@ -74,8 +74,8 @@ function closeBeforeEvent(view: EditorView): boolean {
 /**
  * Fences discrete edits off from the typing runs on either side of them.
  *
- * Include it after the history plugin. It changes no document and holds no state
- * — every decision is read off the transactions themselves.
+ * Include it after the history plugin. It changes no document and holds no state;
+ * every decision is read off the transactions themselves.
  */
 export function historyBoundaryPlugin(): Plugin {
   return new Plugin({

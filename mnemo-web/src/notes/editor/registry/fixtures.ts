@@ -2,7 +2,7 @@
  * Shared fixtures for the block registry test suite.
  *
  * `heading` and `paragraph` here are test doubles, not the real block
- * modules — they exist to exercise the registry contract (wire-type fan-in,
+ * modules, they exist to exercise the registry contract (wire-type fan-in,
  * sid round-tripping, the build-time bind) against real ProseMirror NodeSpecs
  * and real Schema instances, never against faked PM nodes. `makeTestBlockModule`
  * exists because validate.ts's rejection tests each need a module that is
@@ -11,7 +11,7 @@
  * `makeTestInlineModule` is the same idea for the inline-atom registry.
  *
  * Exported from its own file (rather than living inside registry.test.ts)
- * because the real module suites need the same base nodes
+ * because the real module tests need the same base nodes
  * and the same "otherwise valid" module builders.
  */
 
@@ -42,7 +42,7 @@ export const baseNodes: Readonly<Record<string, NodeSpec>> = Object.freeze({
 
 // ---------------------------------------------------------------------------
 // Context stubs. Modules in this file don't have block children or inline
-// atoms of their own, so these throw if actually exercised — a test that
+// atoms of their own, so these throw if actually exercised, a test that
 // needs a working toChild/estimateChild belongs in the real module suite,
 // not here.
 // ---------------------------------------------------------------------------
@@ -157,7 +157,7 @@ export const headingModule: AnyBlockModule = {
 
 // ---------------------------------------------------------------------------
 // paragraph: one wire type, deliberately `this`-free so it can double as the
-// hot-path fixture — a module whose estimator and view read nothing off
+// hot-path fixture, a module whose estimator and view read nothing off
 // `this` makes "zero property reads after build" a meaningful assertion
 // rather than a fluke of what happens not to be exercised.
 // ---------------------------------------------------------------------------
@@ -370,7 +370,7 @@ export function makeTestInlineModule(overrides: InlineModuleFixture): InlineModu
 
 // ---------------------------------------------------------------------------
 // Runs `buildBlockRegistry` expecting it to reject the input, and hands back
-// the issues rather than the error — every rejection test wants the former
+// the issues rather than the error, every rejection test wants the former
 // and would otherwise repeat this try/catch itself.
 // ---------------------------------------------------------------------------
 

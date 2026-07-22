@@ -4,7 +4,7 @@
  *
  * They still carry a line, and they still accept block children. Every `Block`
  * on the wire has `spans` and a nullable `children`, and a schema that refuses
- * to hold either is a schema that drops them — worse, it rejects the whole
+ * to hold either is a schema that drops them, worse, it rejects the whole
  * document, so one stray child on one divider would quarantine an entire note
  * the user could otherwise read. Nothing creates these shapes; the schema
  * simply declines to be the reason a note fails to open.
@@ -77,7 +77,7 @@ export function equationBlockModule(deps: BlockDeps): AnyBlockModule {
 
 /**
  * A navigation card, not a transclusion. The referenced note's **title is never
- * copied into the document** — it is resolved from the note store at render.
+ * copied into the document**, it is resolved from the note store at render.
  * Storing it would mean every rename dirties every note that links to it, and
  * autosave would churn on a field the user never edited.
  */

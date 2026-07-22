@@ -15,8 +15,8 @@ import { defineBlock, lineText, metrics, type BlockDeps } from './shared';
 /**
  * A code block stores its source in both `spans[0].text` and `payload.source`.
  *
- * Here the payload genuinely is authoritative — the C# reader treats it that
- * way — and unlike an image caption it is safe to trust on read, because a
+ * Here the payload genuinely is authoritative, the C# reader treats it that
+ * way, and unlike an image caption it is safe to trust on read, because a
  * `codeLine` forbids marks structurally so there is no styling for the plain
  * text to lose. Falling back to the spans when the payload is empty keeps the
  * text of a block whose two copies ever disagreed, and since the fallback
@@ -102,7 +102,7 @@ export function sketchBlock(deps: BlockDeps): AnyBlockModule {
         },
       }),
       // The DSL is the block's text, not a payload field, so it round-trips
-      // through the line like any other content — `\r\n` endings included, which
+      // through the line like any other content, `\r\n` endings included, which
       // real sketch data has and nothing on this path normalizes.
       toMarkdown: (node) => `\`\`\`mnemo-sketch\n${lineText(node)}\n\`\`\`\n`,
       segmentsFor: (_node, text): readonly AiSegment[] =>

@@ -10,7 +10,7 @@ import { ImageGalleryRow } from "@/settings/components/custom/ImageGalleryRow"
 import { ThemeGalleryRow } from "@/settings/components/custom/ThemeGalleryRow"
 
 /**
- * Name, theme, app icon and avatar — the same pickers the settings page uses, under
+ * Name, theme, app icon and avatar, the same pickers the settings page uses, under
  * the wizard's own labels. They write through as they are clicked, so only the name
  * is held for the step transition to commit.
  */

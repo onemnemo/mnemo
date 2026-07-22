@@ -420,13 +420,13 @@ export interface CreateNoteDto {
 }
 
 /**
- * Mirrors Mnemo.Host/Contracts/NoteDto.cs CommitNoteContentDto — the only shape that
+ * Mirrors Mnemo.Host/Contracts/NoteDto.cs CommitNoteContentDto, the only shape that
  * writes note content.
  *
  * `baseVer` is the version the editor started from. The write lands only if the note is
  * still on it; otherwise the server answers 409 with the version it actually holds and the
  * client rebases. `requestId` must be stable across retries of the *same* edit and fresh
- * for a new one — replaying an id is read as "this already landed", not as a second edit.
+ * for a new one, replaying an id is read as "this already landed", not as a second edit.
  */
 export interface CommitNoteContentDto {
   baseVer: number
@@ -437,7 +437,7 @@ export interface CommitNoteContentDto {
 /** Mirrors Mnemo.Host/Contracts/NoteDto.cs NoteCommitResultDto. */
 export interface NoteCommitResultDto {
   outcome: "Applied" | "AlreadyApplied" | "Stale" | "NotFound"
-  /** The note's version after the call — the new one when applied, the current one when stale. */
+  /** The note's version after the call, the new one when applied, the current one when stale. */
   ver: number
 }
 

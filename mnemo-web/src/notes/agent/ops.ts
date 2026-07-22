@@ -3,7 +3,7 @@
  *
  * **ProseMirror is the only writer.** The C# `NotesToolService` mutates
  * `List<Block>` directly, and keeping that path alongside this one would mean
- * two edit engines with different validation — where the C# one happily
+ * two edit engines with different validation, where the C# one happily
  * produces documents the schema rejects (a code block carrying marks, a column
  * cell holding another two-column block, a block converted to `Equation` that
  * kept its old text spans and never got an equation payload). Those are not
@@ -18,7 +18,7 @@
  *
  * **All-or-nothing.** Every op accumulates into one transaction, so a batch is
  * one undo entry, one preview and one validation boundary. The first op that
- * fails aborts the batch and nothing is dispatched — matching the C# service,
+ * fails aborts the batch and nothing is dispatched, matching the C# service,
  * which applies ops to a clone and simply drops it on failure.
  */
 
@@ -61,7 +61,7 @@ export interface CompileError {
 /**
  * A discriminated union rather than a `{tr, diff, errors}` triple. A batch is
  * all-or-nothing, so there is never a transaction *and* an
- * error, and never more than one error — an array of at most one would invite
+ * error, and never more than one error, an array of at most one would invite
  * callers to write partial-application logic for a case that cannot occur.
  */
 export type CompileResult =
@@ -77,7 +77,7 @@ export interface CompileDeps {
    * Parses an op's `md` field into inline spans.
    *
    * Required, with no default on purpose. A fallback that treated `md` as plain
-   * text would turn `**bold**` into four literal asterisks — a wrong-but-valid
+   * text would turn `**bold**` into four literal asterisks, a wrong-but-valid
    * result, which is precisely the failure mode that is hardest for a model to
    * notice and recover from.
    */
@@ -235,7 +235,7 @@ function applySet(tr: Transaction, op: SetOp, diff: DiffEntry[], deps: CompileDe
 }
 
 // ---------------------------------------------------------------------------
-// edit and fmt — both resolve a `find` to a range first
+// edit and fmt, both resolve a `find` to a range first
 // ---------------------------------------------------------------------------
 
 interface FoundRange {
@@ -276,8 +276,8 @@ function findRange(
     );
   }
 
-  // Text offsets and PM positions are not related by addition — an inline atom
-  // projects as its whole LaTeX source but occupies one position — so both ends
+  // Text offsets and PM positions are not related by addition, an inline atom
+  // projects as its whole LaTeX source but occupies one position, so both ends
   // go through the block's own projection.
   return {
     entry,
@@ -396,7 +396,7 @@ function insertionPoint(
 
   // `in` appends as the anchor's last block child, just inside its closing
   // token. Whether that is legal is a question only the content expression can
-  // answer — a two-column block is `line columnGroup columnGroup` and takes no
+  // answer, a two-column block is `line columnGroup columnGroup` and takes no
   // ordinary block, while most types end in `block*` and take anything.
   if (!canAppend(entry.node, fragment)) {
     return fail('validation_error', `block ${entry.sid} cannot contain these blocks.`);
@@ -472,7 +472,7 @@ function applyDel(tr: Transaction, op: DelOp, diff: DiffEntry[], deps: CompileDe
   // Each id resolves against the document as it stands after the previous
   // deletion, so index shifts take care of themselves. Deleting a block removes
   // its children with it, so naming both a parent and its child in one op makes
-  // the second reference genuinely absent — reported rather than ignored.
+  // the second reference genuinely absent, reported rather than ignored.
   for (const id of ids) {
     const found = locate(tr, id, deps);
     if ('failure' in found) return found.failure;
@@ -500,7 +500,7 @@ function applyMove(tr: Transaction, op: MoveOp, diff: DiffEntry[], deps: Compile
 
   // Both are resolved before anything moves. The C# implementation removes the
   // block first and only then looks up the anchor, so moving a block relative
-  // to itself reports `not_found` for an id that was plainly there — a
+  // to itself reports `not_found` for an id that was plainly there, a
   // confusing error for what is really an unsatisfiable request.
   if (moving.sid === anchor.sid) {
     return fail('validation_error', `block ${moving.sid} cannot move relative to itself.`);
@@ -614,7 +614,7 @@ function convertedPayload(target: BlockType, before: Block, op: TypeOp): BlockPa
       };
     case 'Image':
       // A converted block has no asset, so it becomes an image with an empty
-      // path — the same shape the wire reader produces for one, rather than a
+      // path, the same shape the wire reader produces for one, rather than a
       // payload with fields missing.
       return before.payload.kind === 'image'
         ? before.payload

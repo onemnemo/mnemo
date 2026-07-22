@@ -10,7 +10,7 @@ import type { ChatProcessStep, ChatToolEvent } from "./types"
 // resolution in Mnemo.UI/Services/ChatToolVocabulary.cs. It only drives the
 // transient streaming view: on a successful turn the store swaps in the server's
 // canonical persisted message (resolved header/elapsed/summary and all), so the
-// authoritative trace shape always comes from one place — the server. Keeping a
+// authoritative trace shape always comes from one place, the server. Keeping a
 // light client mirror here just avoids a blank panel while tokens arrive.
 
 const NS = "Chat"
@@ -238,7 +238,7 @@ const LABEL_KEYS: Record<string, [string, string]> = {
   open_settings: ["ToolRunNavigate", "ToolDoneNavigate"],
   web_search: ["ToolRunWebSearch", "ToolDoneWebSearch"],
   search_web: ["ToolRunWebSearch", "ToolDoneWebSearch"],
-  // Internal orchestration plumbing — surfaced quietly as "getting ready", never by name.
+  // Internal orchestration plumbing, surfaced quietly as "getting ready", never by name.
   get_skills: ["ToolRunPreparing", "ToolDonePreparing"],
   fetch_skill: ["ToolRunPreparing", "ToolDonePreparing"],
   inject_skill: ["ToolRunPreparing", "ToolDonePreparing"],
@@ -345,7 +345,7 @@ function readStringArg(argumentsJson: string | null, name: string): string | nul
 }
 
 /**
- * Counts result rows only when the shape is unambiguous — a top-level array, or an
+ * Counts result rows only when the shape is unambiguous, a top-level array, or an
  * object carrying a recognized array property (or a numeric `count`). Returns null
  * (no suffix) rather than risk a wrong number.
  */

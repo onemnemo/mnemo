@@ -71,7 +71,7 @@ describe('openTransientFocus', () => {
     expect(view.focus).not.toHaveBeenCalled();
   });
 
-  it('resolves only once — restore() after release() is a no-op', () => {
+  it('resolves only once, restore() after release() is a no-op', () => {
     const view = mockView(editState());
     const original = view.state.selection;
     const scope = openTransientFocus(view);
@@ -87,7 +87,7 @@ describe('openTransientFocus', () => {
     expect(original).toBeDefined();
   });
 
-  it('resolves only once — a second restore() is a no-op', () => {
+  it('resolves only once, a second restore() is a no-op', () => {
     const view = mockView(editState());
     const scope = openTransientFocus(view);
     scope.restore();

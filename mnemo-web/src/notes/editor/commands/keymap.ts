@@ -1,7 +1,7 @@
 /**
  * The editor keymap, derived from the command catalog.
  *
- * Shortcuts are not a second list — they are the `shortcut` field of the same
+ * Shortcuts are not a second list, they are the `shortcut` field of the same
  * catalog the toolbar and slash menu read, projected into the binding map
  * ProseMirror's keymap plugin wants. A command's chord lives with the command,
  * so there is one place to change it and no way for the keymap to bind a chord to
@@ -32,7 +32,7 @@ export function editorKeyBindings(
   for (const command of commands) {
     if (command.kind !== 'direct' || !command.shortcut) continue;
     // Aliases bind exactly as the primary chord does, and collide exactly as
-    // loudly — an alias quietly shadowing another command's shortcut would be
+    // loudly, an alias quietly shadowing another command's shortcut would be
     // the worse bug, because nothing in the UI names it.
     for (const chord of [command.shortcut, ...(command.aliases ?? [])]) {
       // Two commands on one chord is a catalog bug, not something to merge: the

@@ -3,7 +3,7 @@
 /**
  * The portal bridge, at two layers: the registry store on its own (no React),
  * and the full render lifecycle through `<NodeViewPortals>`. The lifecycle
- * assertions are the point here — a registered React child renders
+ * assertions are the point here, a registered React child renders
  * into its container, an update swaps it, and destroy unmounts it and leaves no
  * entry behind, across churn.
  */

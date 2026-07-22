@@ -2,9 +2,9 @@
  * Structural fixtures for the round-trip proof.
  *
  * Shaped after the real corpus rather than after the type list: the counts and
- * quirks that appear here — a code block storing its source twice, an image
+ * quirks that appear here, a code block storing its source twice, an image
  * whose caption equals its alt text, two-column blocks with user-resized
- * ratios, meta keys nothing in the editor reads — are the things real notes
+ * ratios, meta keys nothing in the editor reads, are the things real notes
  * actually contain. A fixture set built from the schema instead would prove
  * only that the schema agrees with itself.
  */
