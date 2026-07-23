@@ -21,6 +21,7 @@
 import type { MarkSpec } from 'prosemirror-model';
 import type { AnyMarkModule, MarkModule } from '../registry/types';
 import type { TextStyle } from '../../model/types';
+import { isSafeUrl } from './safe-url';
 
 /** Narrows at the definition site so each module body sees its own field type. */
 function defineMark<K extends keyof TextStyle>(module: MarkModule<K>): AnyMarkModule {
@@ -147,10 +148,23 @@ export const linkMark = defineMark<'linkUrl'>({
     parseDOM: [
       {
         tag: 'a[href]',
-        getAttrs: (n) => ({ href: (n as HTMLElement).getAttribute('href') ?? '' }),
+        getAttrs: (n) => {
+          const href = (n as HTMLElement).getAttribute('href') ?? '';
+          // An unsafe scheme is not a link: keep the text, drop the mark.
+          return isSafeUrl(href) ? { href } : false;
+        },
       },
     ],
-    toDOM: (mark) => ['a', { href: String(mark.attrs.href), rel: 'noopener noreferrer' }, 0],
+    // The render-time gate every path funnels through: an unsafe href renders as
+    // plain text in a bare anchor, never as a live javascript: link, whatever put
+    // it in the model (a crafted clipboard payload reconstructs marks directly,
+    // skipping the parse rule above).
+    toDOM: (mark) => {
+      const href = String(mark.attrs.href);
+      return isSafeUrl(href)
+        ? ['a', { href, rel: 'noopener noreferrer' }, 0]
+        : ['a', { rel: 'noopener noreferrer' }, 0];
+    },
   },
   toAttrs: (value) => (value === null || value === '' ? null : { href: value }),
   fromAttrs: (attrs) => (typeof attrs.href === 'string' && attrs.href !== '' ? attrs.href : null),
