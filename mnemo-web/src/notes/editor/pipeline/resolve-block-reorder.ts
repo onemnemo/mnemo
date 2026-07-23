@@ -59,8 +59,12 @@ export interface ResolveReorderInput {
   rows: readonly BlockRow[];
   /** Total top-level blocks, so "past the last row" can mean the true end. */
   blockCount: number;
-  /** The dragged block's document-child index. */
-  sourceIndex: number;
+  /**
+   * The dragged block's document-child index, or null for a nested block being
+   * extracted out of a container: extraction has no home gap, so no insert index
+   * is a no-op and none is suppressed.
+   */
+  sourceIndex: number | null;
   pointerY: number;
   /** The drop line's horizontal extent, the note column. */
   left: number;
@@ -140,15 +144,22 @@ function lineYFor(input: ResolveReorderInput, insertIndex: number): number | nul
  * that will not happen.
  */
 export function resolveBlockReorder(input: ResolveReorderInput): ReorderTarget | null {
-  if (input.blockCount <= 1) return null;
+  // One top-level block still leaves an extraction two real gaps (above and
+  // below the row the nested block leaves); only a same-level move is moot.
+  if (input.blockCount <= 1 && input.sourceIndex !== null) return null;
 
   const insertIndex = insertIndexAt(input);
-  if (insertIndex === input.sourceIndex || insertIndex === input.sourceIndex + 1) return null;
+  if (input.sourceIndex !== null && (insertIndex === input.sourceIndex || insertIndex === input.sourceIndex + 1)) {
+    return null;
+  }
 
   const lineY = lineYFor(input, insertIndex);
   if (lineY === null) return null;
 
-  const moveTo = input.sourceIndex < insertIndex ? insertIndex - 1 : insertIndex;
+  // An extraction removes nothing from the top level, so its gap index is its
+  // landing index unshifted.
+  const moveTo =
+    input.sourceIndex !== null && input.sourceIndex < insertIndex ? insertIndex - 1 : insertIndex;
   return {
     insertIndex,
     moveTo,

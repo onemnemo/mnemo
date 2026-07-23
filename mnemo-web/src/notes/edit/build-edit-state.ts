@@ -38,6 +38,7 @@ import { imageClipboardPlugin } from '../editor/pipeline/image-clipboard';
 import { nestedInputGuard } from '../editor/pipeline/nested-input';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
 import { findPlugin } from '../find/find-plugin';
+import { blockSelectionPlugin } from '../selection/block-selection-plugin';
 import { resolveServices } from '../editor/view/nodeviews';
 import type { EditorServices } from '../editor/registry/types';
 import { structureKeymap } from '../editor/commands/structure';
@@ -76,6 +77,10 @@ export type NoteEditState =
  *  - `slashMenuPlugin` takes the arrow keys and Enter while its menu is open,
  *    so it has to precede every keymap. It declines every key when the menu is
  *    closed, which is almost always.
+ *  - `blockSelectionPlugin` claims Backspace/Delete and Escape only while a
+ *    block selection is live, and Ctrl+A for select-all; it must precede the
+ *    structural keymap so those win over the per-character handlers, and it
+ *    declines everything else, so it is invisible until a selection exists.
  *  - `inputTriggerPlugin` runs on text input, not on a key chord, so it sits
  *    before the keymaps without competing with them.
  *  - `structureKeymap` must precede `baseKeymap`: both bind Enter and Backspace,
@@ -111,6 +116,14 @@ export function editorPlugins(registry: BlockRegistry, services?: Partial<Editor
     // drops carrying image files and declines everything else.
     imageClipboardPlugin(resolveServices(services)),
     slashMenuPlugin(registry),
+    // Before the structural keymap so that, while a block selection is live, it
+    // claims Backspace/Delete (delete the selection) and Escape (clear it)
+    // before the per-character handlers see them, and claims Ctrl+A to select
+    // every block. It declines every key when nothing is selected and the chord
+    // is not select-all, so the editor behaves exactly as before until a block
+    // selection exists. Its highlight is a decoration and it appends no step, so
+    // it never dirties the note.
+    blockSelectionPlugin(registry),
     inputTriggerPlugin(registry),
     structureKeymap(),
     editorKeymap(),

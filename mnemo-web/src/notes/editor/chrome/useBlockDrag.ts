@@ -11,20 +11,30 @@ import {
   type BlockRow,
   type ReorderTarget,
 } from '../pipeline/resolve-block-reorder';
-import { moveBlockTransaction } from './block-move';
+import { extractBlockTransaction, moveBlockTransaction } from './block-move';
 
 /**
  * The note-block side of {@link usePointerDrag}: measure the top-level blocks,
- * resolve a same-container vertical reorder, and commit it as one transaction.
+ * resolve a vertical reorder, and commit it as one transaction.
  *
  * All of the pointer machinery - the two thresholds, the ghost, Escape, pointer
  * loss, the swallowed trailing click, edge auto-scroll - is the shared hook. This
  * supplies only what a note knows: where the blocks are and how to move one.
+ *
+ * Two kinds of source, one drop model. A top-level block moves between the
+ * document's child gaps. A block nested in a two-column cell drags by the same
+ * handle but *extracts*: it leaves its cell and lands in the chosen top-level
+ * gap, the way the desktop's per-cell grips and Notion's drag-out both read.
+ * Dropping *into* a column is out of scope here; the drop gaps here are
+ * top-level boundaries only.
  */
 
 export interface BlockDragHandle {
-  /** Document-child index at drag start; the document does not change during a drag. */
-  index: number;
+  /**
+   * Document-child index at drag start for a top-level block, or null for a
+   * nested one; the document does not change during a drag.
+   */
+  index: number | null;
   /** Position before the block, for realizing it and reading its geometry. */
   pos: number;
   sid: string;
@@ -32,10 +42,9 @@ export interface BlockDragHandle {
   label: string;
 }
 
-interface DropPlan {
-  sourceIndex: number;
-  moveTo: number;
-}
+type DropPlan =
+  | { kind: 'move'; sourceIndex: number; moveTo: number }
+  | { kind: 'extract'; pos: number; sid: string; insertIndex: number };
 
 /** Measure a little past the fold so a boundary just off screen is still honest. */
 const VIEWPORT_MARGIN = 200;
@@ -177,10 +186,16 @@ export function useBlockDrag(view: EditorView | null): PointerDrag<BlockDragHand
     // pointer without changing which gap it is, and the indicator has to follow.
     sameTarget: (a, b) => a?.insertIndex === b?.insertIndex && a?.line.top === b?.line.top,
     resolve,
-    plan: (handle, target) => ({ sourceIndex: handle.index, moveTo: target.moveTo }),
+    plan: (handle, target) =>
+      handle.index !== null
+        ? { kind: 'move', sourceIndex: handle.index, moveTo: target.moveTo }
+        : { kind: 'extract', pos: handle.pos, sid: handle.sid, insertIndex: target.moveTo },
     onDrop: (planned) => {
       if (!view) return;
-      const tr = moveBlockTransaction(view.state, planned.sourceIndex, planned.moveTo);
+      const tr =
+        planned.kind === 'move'
+          ? moveBlockTransaction(view.state, planned.sourceIndex, planned.moveTo)
+          : extractBlockTransaction(view.state, planned.pos, planned.sid, planned.insertIndex);
       if (tr) view.dispatch(tr);
     },
   });

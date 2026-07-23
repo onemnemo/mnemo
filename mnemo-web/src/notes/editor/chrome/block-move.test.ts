@@ -5,7 +5,7 @@ import type { EditorState } from 'prosemirror-state';
 import { buildNoteEditState } from '../../edit/build-edit-state';
 import { block, span } from '../mapper/fixtures';
 import { undo } from '../history';
-import { moveBlockTransaction } from './block-move';
+import { extractBlockTransaction, moveBlockTransaction } from './block-move';
 
 type Blocks = Parameters<typeof buildNoteEditState>[0];
 
@@ -77,5 +77,84 @@ describe('moveBlockTransaction', () => {
     expect(moveBlockTransaction(state, -1, 0)).toBeNull();
     expect(moveBlockTransaction(state, 3, 0)).toBeNull();
     expect(moveBlockTransaction(state, 0, 3)).toBeNull();
+  });
+});
+
+/** [one] [twoColumn: left(a, b) | right(c)] - a nested run beside a lone cell child. */
+function columnDoc(): EditorState {
+  return mount([
+    block('Text', [span('one')]),
+    block('TwoColumn', [span('')], { kind: 'twoColumn', splitRatio: 0.5 }, {
+      children: [
+        block('ColumnGroup', [span('')], { kind: 'empty' }, {
+          children: [block('Text', [span('a')]), block('Text', [span('b')])],
+        }),
+        block('ColumnGroup', [span('')], { kind: 'empty' }, {
+          children: [block('Text', [span('c')])],
+        }),
+      ],
+    }),
+  ]);
+}
+
+/** Position and sid of the first paragraph whose text is `text`, at any depth. */
+function findParagraph(state: EditorState, text: string): { pos: number; sid: string } {
+  let found: { pos: number; sid: string } | null = null;
+  state.doc.descendants((node, pos) => {
+    if (found) return false;
+    if (node.type.name === 'paragraph' && node.textContent === text) {
+      found = { pos, sid: String(node.attrs.sid) };
+      return false;
+    }
+    return true;
+  });
+  if (!found) throw new Error(`no paragraph "${text}"`);
+  return found;
+}
+
+describe('extractBlockTransaction', () => {
+  it('moves a cell child to a top-level gap, sid intact', () => {
+    const state = columnDoc();
+    const target = findParagraph(state, 'a');
+    const next = state.apply(extractBlockTransaction(state, target.pos, target.sid, 0)!);
+    expect(order(next)).toEqual(['a', 'one', 'bc']);
+    expect(String(next.doc.child(0).attrs.sid)).toBe(target.sid);
+    // The cell keeps its remaining child.
+    expect(findParagraph(next, 'b').pos).toBeGreaterThan(0);
+  });
+
+  it('reseeds an emptied cell through the column-repair invariant, in the same step', () => {
+    const state = columnDoc();
+    const target = findParagraph(state, 'c');
+    const next = state.apply(extractBlockTransaction(state, target.pos, target.sid, 2)!);
+    expect(order(next)).toEqual(['one', 'ab', 'c']);
+    // The right cell was emptied and repaired with a placeholder paragraph.
+    const rightCell = next.doc.child(1).child(2);
+    expect(rightCell.type.name).toBe('columnGroup');
+    const children: string[] = [];
+    rightCell.forEach((child) => {
+      if (child.type.name === 'paragraph') children.push(child.textContent);
+    });
+    expect(children).toEqual(['']);
+  });
+
+  it('is one undo step, repair included', () => {
+    const state = columnDoc();
+    const target = findParagraph(state, 'c');
+    const moved = state.apply(extractBlockTransaction(state, target.pos, target.sid, 2)!);
+    let restored = moved;
+    undo(moved, (tr) => {
+      restored = moved.apply(tr);
+    });
+    expect(order(restored)).toEqual(['one', 'abc']);
+    expect(findParagraph(restored, 'c').sid).toBe(target.sid);
+  });
+
+  it('refuses a stale position, a top-level source, and an out-of-range gap', () => {
+    const state = columnDoc();
+    const target = findParagraph(state, 'a');
+    expect(extractBlockTransaction(state, target.pos, 'not-the-sid', 0)).toBeNull();
+    expect(extractBlockTransaction(state, 0, String(state.doc.child(0).attrs.sid), 1)).toBeNull();
+    expect(extractBlockTransaction(state, target.pos, target.sid, 5)).toBeNull();
   });
 });

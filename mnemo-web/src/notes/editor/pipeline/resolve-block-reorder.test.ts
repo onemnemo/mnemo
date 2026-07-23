@@ -31,6 +31,30 @@ function input(overrides: Partial<ResolveReorderInput>): ResolveReorderInput {
   };
 }
 
+describe('resolveBlockReorder nested source (extraction)', () => {
+  it('suppresses no gap: every top-level boundary is a real landing', () => {
+    // Around the top of the document, where a top-level source at 0 would be
+    // suppressed, an extraction still resolves.
+    const target = resolveBlockReorder(input({ sourceIndex: null, pointerY: 10 }));
+    expect(target?.insertIndex).toBe(0);
+    expect(target?.moveTo).toBe(0);
+  });
+
+  it('lands unshifted: nothing leaves the top level, so moveTo equals the gap', () => {
+    const target = resolveBlockReorder(input({ sourceIndex: null, pointerY: 490 }));
+    expect(target?.insertIndex).toBe(5);
+    expect(target?.moveTo).toBe(5);
+  });
+
+  it('resolves against a single-block document, where a top-level move cannot', () => {
+    const rows = [ROWS[0]];
+    expect(resolveBlockReorder(input({ rows, blockCount: 1, sourceIndex: 0, pointerY: 90 }))).toBeNull();
+    const target = resolveBlockReorder(input({ rows, blockCount: 1, sourceIndex: null, pointerY: 90 }));
+    expect(target?.insertIndex).toBe(1);
+    expect(target?.moveTo).toBe(1);
+  });
+});
+
 describe('resolveBlockReorder bands', () => {
   it('top quarter of a row inserts before it', () => {
     // 110 is inside block 1's top band [100, 125).
