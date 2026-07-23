@@ -882,3 +882,167 @@
 .notes-doc [data-bg-swatch="swatch8"] { background: var(--color-swatch-8); }
 .notes-doc [data-bg-swatch="swatch9"] { background: var(--color-swatch-9); }
 .notes-doc [data-bg-swatch="swatch10"] { background: var(--color-swatch-10); }
+
+/* Find and replace match highlights. Painted as decorations, so they never
+ * enter the document; the current match reads brighter than the rest. */
+.notes-find-match {
+  background-color: rgba(250, 204, 21, 0.32);
+  border-radius: 2px;
+}
+.notes-find-match-current {
+  background-color: rgba(249, 168, 37, 0.72);
+  box-shadow: 0 0 0 1px rgba(180, 120, 10, 0.55);
+}
+
+/* The find/replace bar. Same floating chrome as the slash menu, pinned to the
+ * top-right of the editor viewport. */
+.notes-find-replace {
+  position: fixed;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background: var(--floating-chrome-background);
+  box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.32);
+  font-family: var(--font-sans);
+  color: var(--floating-chrome-foreground);
+  overflow: hidden;
+}
+
+.notes-find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+}
+.notes-find-field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--floating-chrome-hover);
+}
+.notes-find-field-icon {
+  flex: none;
+  color: var(--floating-chrome-foreground-muted);
+}
+.notes-find-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--floating-chrome-foreground-strong);
+  font-size: var(--font-size-body-extra-small);
+}
+.notes-find-input::placeholder {
+  color: var(--floating-chrome-foreground-muted);
+}
+
+.notes-find-band {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--floating-chrome-divider);
+  border-bottom: 1px solid var(--floating-chrome-divider);
+}
+.notes-find-count {
+  min-width: 40px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--floating-chrome-foreground-muted);
+}
+.notes-find-nav {
+  display: flex;
+  gap: 2px;
+}
+.notes-find-spacer {
+  flex: 1;
+}
+
+.notes-find-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 14px;
+  color: var(--floating-chrome-foreground-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 500;
+}
+.notes-find-toggle:hover {
+  background: var(--floating-chrome-hover);
+  color: var(--floating-chrome-foreground-strong);
+}
+.notes-find-toggle-active {
+  background: var(--floating-chrome-active);
+  color: var(--floating-chrome-foreground-strong);
+}
+
+.notes-find-options,
+.notes-find-replace-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.notes-find-options {
+  padding: 6px 8px;
+}
+.notes-find-replace-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+.notes-find-replace-input {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--floating-chrome-hover);
+}
+
+.notes-find-chip {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 13px;
+  border: 1px solid var(--floating-chrome-divider);
+  color: var(--floating-chrome-foreground-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.notes-find-chip:hover {
+  background: var(--floating-chrome-hover);
+}
+.notes-find-chip-active {
+  border-color: var(--floating-chrome-accent);
+  background: var(--floating-chrome-active);
+  color: var(--floating-chrome-foreground-strong);
+}
+
+.notes-find-action {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 15px;
+  background: var(--floating-chrome-hover);
+  color: var(--floating-chrome-foreground-strong);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+}
+.notes-find-action:hover:not(:disabled) {
+  background: var(--floating-chrome-active);
+}
+.notes-find-action-primary {
+  background: var(--floating-chrome-accent);
+  color: var(--floating-chrome-background);
+}
+.notes-find-action-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.notes-find-action:disabled {
+  opacity: 0.5;
+}

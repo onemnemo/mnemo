@@ -37,6 +37,7 @@ import { containerCaretGuard } from '../editor/pipeline/container-caret';
 import { imageClipboardPlugin } from '../editor/pipeline/image-clipboard';
 import { nestedInputGuard } from '../editor/pipeline/nested-input';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
+import { findPlugin } from '../find/find-plugin';
 import { resolveServices } from '../editor/view/nodeviews';
 import type { EditorServices } from '../editor/registry/types';
 import { structureKeymap } from '../editor/commands/structure';
@@ -85,8 +86,9 @@ export type NoteEditState =
  *    structural; its place before `baseKeymap` is for tidiness, not correctness.
  *  - `baseKeymap` is the ProseMirror default of last resort.
  *  - `invariantPipeline` reacts after the fact through `appendTransaction`, and
- *    `numberedListPlugin` and `intrinsicSizePlugin` only decorate; none of them
- *    touch key dispatch.
+ *    `numberedListPlugin`, `findPlugin` and `intrinsicSizePlugin` only decorate;
+ *    none of them touch key dispatch except `findPlugin`, which claims Ctrl+F
+ *    (unclaimed by anything above) and Escape only while find is open.
  *  - `blockIdentityPlugin` also only appends. Its place after the pipeline is
  *    not load-bearing, a block the pipeline itself creates gets its identity on
  *    the next append round either way, but reading it last matches when it
@@ -118,6 +120,12 @@ export function editorPlugins(registry: BlockRegistry, services?: Partial<Editor
     // like them it appends rather than touching key dispatch.
     containerCaretGuard(),
     numberedListPlugin(),
+    // A decoration plugin like the two around it: it paints match highlights and
+    // claims Ctrl+F (so the browser's own find never opens). View-only, appending
+    // no document step, so it never dirties the note or moves its version. Its
+    // handleKeyDown claims only Ctrl+F, and Escape while find is open, neither of
+    // which any earlier plugin takes.
+    findPlugin(),
     intrinsicSizePlugin(registry),
     columnSplitterPlugin(),
     blockIdentityPlugin(registry),
