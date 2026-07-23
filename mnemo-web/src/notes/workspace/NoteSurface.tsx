@@ -8,6 +8,7 @@ import { useT } from '@/i18n/useT';
 import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
 
 import { useNoteContentCommitter } from '../api';
+import { PasteProgressOverlay } from '../clipboard/PasteProgressOverlay';
 import type { DocumentMapper } from '../editor/mapper/document';
 import type { BlockRegistry } from '../editor/registry/build';
 import type { EditorServices } from '../editor/registry/types';
@@ -109,6 +110,7 @@ export function NoteSurface({
       {view ? <BlockSelectionAnnouncer view={view} /> : null}
       {view ? <BlockGutter view={view} registry={registry} /> : null}
       {view ? <FindReplaceOverlay view={view} registry={registry} /> : null}
+      <PasteProgressOverlay />
     </div>
   );
 }

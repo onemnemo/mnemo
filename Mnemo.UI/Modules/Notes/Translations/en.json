@@ -119,6 +119,9 @@
     "editor.clipboard.paste": "Paste",
     "editor.clipboard.copy.description": "Copy the selection or selected blocks.",
     "editor.clipboard.cut.description": "Cut the selection or selected blocks.",
-    "editor.clipboard.paste.description": "Paste from the clipboard into the note."
+    "editor.clipboard.paste.description": "Paste from the clipboard into the note.",
+    "editor.clipboard.pasteStagingImage": "Adding image…",
+    "editor.clipboard.pasteStagingImages": "Adding image {0} of {1}…",
+    "editor.clipboard.pasteCancel": "Cancel"
   }
 }
