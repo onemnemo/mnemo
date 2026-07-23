@@ -35,6 +35,7 @@ import { intrinsicSizePlugin } from '../editor/pipeline/intrinsic-size';
 import { columnSplitterPlugin } from '../editor/pipeline/column-splitter';
 import { containerCaretGuard } from '../editor/pipeline/container-caret';
 import { imageClipboardPlugin } from '../editor/pipeline/image-clipboard';
+import { clipboardPlugin } from '../clipboard/clipboard-plugin';
 import { nestedInputGuard } from '../editor/pipeline/nested-input';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
 import { findPlugin } from '../find/find-plugin';
@@ -47,6 +48,7 @@ import { editorHistory, historyBoundaryPlugin } from '../editor/history';
 import { formattingToolbarPlugin } from '../editor/toolbar/formatting-toolbar';
 import { slashMenuPlugin } from '../editor/slash';
 import type { BlockRegistry } from '../editor/registry/build';
+import type { InlineMapper } from '../editor/mapper/inline';
 import type { Block } from '../model/types';
 
 export type NoteEditState =
@@ -109,12 +111,20 @@ export type NoteEditState =
  *    `appendTransaction` either, so it takes no part in the precedence this
  *    ordering describes and is listed last.
  */
-export function editorPlugins(registry: BlockRegistry, services?: Partial<EditorServices>): Plugin[] {
+export function editorPlugins(
+  registry: BlockRegistry,
+  inline: InlineMapper,
+  services?: Partial<EditorServices>,
+): Plugin[] {
   return [
     nestedInputGuard(),
     // Before anything that could read a paste as text input; it claims only pastes and
     // drops carrying image files and declines everything else.
     imageClipboardPlugin(resolveServices(services)),
+    // Directly after the image plugin so an image-file paste is still claimed
+    // first: it owns copy and cut (and later paste), reads the document rather
+    // than the DOM, and dispatches no step on copy, so it never dirties the note.
+    clipboardPlugin(registry, inline),
     slashMenuPlugin(registry),
     // Before the structural keymap so that, while a block selection is live, it
     // claims Backspace/Delete (delete the selection) and Escape (clear it)
@@ -161,13 +171,13 @@ export function buildNoteEditState(
   blocks: readonly Block[],
   services?: Partial<EditorServices>,
 ): NoteEditState {
-  const { schema, registry } = editorSchema();
+  const { schema, registry, inline } = editorSchema();
   const mapper = createDocumentMapper(schema, registry);
   const result = mapper.toDoc(blocks);
   if (!result.ok) return { ok: false, reason: result.reason };
   return {
     ok: true,
-    state: EditorState.create({ schema, doc: result.doc, plugins: editorPlugins(registry, services) }),
+    state: EditorState.create({ schema, doc: result.doc, plugins: editorPlugins(registry, inline, services) }),
     registry,
     mapper,
   };
