@@ -182,6 +182,32 @@ describe('clipboardPlugin paste', () => {
     expect(pasted?.id).not.toBe('s1');
   });
 
+  it('replaces an active block selection with the pasted run instead of inserting beside it', () => {
+    const view = mountFull(docOf(para('one', 's1'), para('two', 's2'), para('three', 's3')));
+
+    // Copy block one.
+    view.dispatch(
+      view.state.tr.setMeta(blockSelectionKey, {
+        type: 'set',
+        selection: { selected: new Set(['s1']), anchorSid: 's1' },
+      }),
+    );
+    const { data } = fire(view, 'copy');
+
+    // Select block two, then paste over it: "two" is replaced, not appended beside.
+    view.dispatch(
+      view.state.tr.setMeta(blockSelectionKey, {
+        type: 'set',
+        selection: { selected: new Set(['s2']), anchorSid: 's2' },
+      }),
+    );
+    expect(firePaste(view, data)).toBe(true);
+
+    const out: string[] = [];
+    view.state.doc.forEach((node) => out.push(node.textContent));
+    expect(out).toEqual(['one', 'one', 'three']);
+  });
+
   it('rebuilds from our trusted HTML when the session buffer is gone', () => {
     const view = mountFull(docOf(para('one', 's1'), para('two', 's2')));
     view.dispatch(

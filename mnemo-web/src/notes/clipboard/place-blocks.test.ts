@@ -5,7 +5,7 @@ import { Fragment, Slice, type Node as PMNode } from 'prosemirror-model';
 
 import { createEditorSchema } from '../editor/schema';
 import { blockSelectionPlugin } from '../selection/block-selection-plugin';
-import { placeBlockRun } from './place-blocks';
+import { placeBlockRun, replaceSelectedBlocks } from './place-blocks';
 
 const { schema, registry } = createEditorSchema();
 
@@ -98,5 +98,46 @@ describe('placeBlockRun', () => {
     expect(next.doc.child(1).type.name).toBe('heading');
     expect(next.doc.child(2).type.name).toBe('paragraph');
     expect(texts(next)).toEqual(['tail', 'Title', 'body']);
+  });
+
+  it('replaces a selection spanning a heading without bleeding its style onto the paste', () => {
+    // Select from inside the heading (after "He") into the paragraph (after "bo").
+    const state = stateWith(docOf(heading('Head'), para('body')), 4);
+    const ranged = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 4, 12)));
+    const next = ranged.apply(placeBlockRun(ranged, run('pasted')));
+    expect(texts(next)).toEqual(['He', 'pasted', 'dy']);
+    expect(next.doc.child(0).type.name).toBe('heading'); // the head keeps its type...
+    expect(next.doc.child(1).type.name).toBe('paragraph'); // ...but the paste does not inherit it
+    expect(next.doc.child(2).type.name).toBe('paragraph'); // the tail is a Text block
+  });
+
+  it('drops an endpoint the spanning selection emptied', () => {
+    // Select all of the heading's text plus part of the paragraph.
+    const state = stateWith(docOf(heading('Head'), para('body')), 2);
+    const ranged = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 2, 12)));
+    const next = ranged.apply(placeBlockRun(ranged, run('pasted')));
+    // The emptied heading is gone rather than left blank above the paste.
+    expect(texts(next)).toEqual(['pasted', 'dy']);
+    expect(next.doc.child(0).type.name).toBe('paragraph');
+  });
+});
+
+describe('replaceSelectedBlocks', () => {
+  it('replaces the covered blocks with the pasted run', () => {
+    const state = stateWith(docOf(para('one', 's1'), para('two', 's2'), para('three', 's3')), 2);
+    const next = state.apply(replaceSelectedBlocks(state, run('X', 'Y'), registry, new Set(['s1', 's2'])));
+    expect(texts(next)).toEqual(['X', 'Y', 'three']);
+  });
+
+  it('replaces the whole document when every block is selected', () => {
+    const state = stateWith(docOf(para('one', 's1'), para('two', 's2')), 2);
+    const next = state.apply(replaceSelectedBlocks(state, run('only'), registry, new Set(['s1', 's2'])));
+    expect(texts(next)).toEqual(['only']);
+  });
+
+  it('falls back to a caret placement when the set covers nothing', () => {
+    const state = stateWith(docOf(para('one', 's1')), 4); // caret mid "one"
+    const next = state.apply(replaceSelectedBlocks(state, run('X'), registry, new Set(['ghost'])));
+    expect(texts(next)).toEqual(['on', 'X', 'e']);
   });
 });

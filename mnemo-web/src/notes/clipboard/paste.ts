@@ -50,7 +50,8 @@ import { withFreshIdentity } from './clear-identity';
 import { dropUnsafeLinks } from './scrub-marks';
 import { parseMarkdownToBlocks } from './markdown-blocks';
 import { parseExternalHtml } from './parse-html';
-import { placeBlockRun } from './place-blocks';
+import { placeBlockRun, replaceSelectedBlocks } from './place-blocks';
+import { getBlockSelection } from '../selection/block-selection-plugin';
 import {
   collectStageablePaths,
   remapImagePaths,
@@ -165,8 +166,11 @@ function placeInternal(
 ): boolean {
   try {
     const prepared = dropUnsafeLinks(withFreshIdentity(slice, registry));
-    const place: Placement = (state, content) =>
-      mode === 'blocks' ? placeBlockRun(state, content) : state.tr.replaceSelection(content);
+    const place: Placement = (state, content) => {
+      const selected = getBlockSelection(state).selected;
+      if (selected.size > 0) return replaceSelectedBlocks(state, content, registry, selected);
+      return mode === 'blocks' ? placeBlockRun(state, content) : state.tr.replaceSelection(content);
+    };
     return commitPaste(view, prepared, place, support, progress);
   } catch {
     // A structurally invalid payload can throw only when placed, not when
@@ -227,7 +231,13 @@ function pastePlainText(
 
     const nodes = blocks.map((block) => mapper.toNode(block));
     const run = dropUnsafeLinks(new Slice(Fragment.fromArray(nodes), 0, 0));
-    return commitPaste(view, run, (state, content) => placeBlockRun(state, content), support, progress);
+    const place: Placement = (state, content) => {
+      const selected = getBlockSelection(state).selected;
+      return selected.size > 0
+        ? replaceSelectedBlocks(state, content, registry, selected)
+        : placeBlockRun(state, content);
+    };
+    return commitPaste(view, run, place, support, progress);
   } catch {
     // A hostile or malformed paste threw while parsing or placing: fall back to a
     // literal insert so the event is still handled and never native-pasted.
