@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EditorState, Selection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
-import type { Node as PMNode } from 'prosemirror-model';
+import { Fragment, Slice, type Node as PMNode } from 'prosemirror-model';
 import type { Plugin } from 'prosemirror-state';
 
 import { createEditorSchema } from '../editor/schema';
@@ -108,11 +108,14 @@ describe('clipboardPlugin copy/cut', () => {
     const html = data.getData('text/html');
     expect(html).toContain(MNEMO_NONCE_ATTR);
     expect(data.getData('text/plain')).toBe('one');
-    // The private MIME carries the same payload as the HTML fallback.
-    expect(data.getData(MNEMO_CLIPBOARD_MIME)).toBe(html);
-
+    // The private MIME carries the exact slice as JSON, keyed by the same nonce.
     const nonce = nonceOf(html);
     expect(nonce).toBeTruthy();
+    const payload = JSON.parse(data.getData(MNEMO_CLIPBOARD_MIME));
+    expect(payload.nonce).toBe(nonce);
+    expect(payload.mode).toBe('blocks');
+    expect(payload.slice).toBeTruthy();
+
     const stashed = readStashedSlice(nonce!);
     expect(stashed?.mode).toBe('blocks');
     expect(stashed?.slice.content.child(0).attrs.sid).toBe('s1');
@@ -177,11 +180,158 @@ describe('clipboardPlugin paste', () => {
     expect(pasted?.id).not.toBe('s1');
   });
 
-  it('declines a paste that carries no Mnemo payload', () => {
-    const view = mountFull(docOf(para('one', 's1')));
+  it('rebuilds from our trusted HTML when the session buffer is gone', () => {
+    const view = mountFull(docOf(para('one', 's1'), para('two', 's2')));
+    view.dispatch(
+      view.state.tr.setMeta(blockSelectionKey, {
+        type: 'set',
+        selection: { selected: new Set(['s1']), anchorSid: 's1' },
+      }),
+    );
+    const { data } = fire(view, 'copy');
+    // Simulate a copy that outlived its run: the nonce is on the clipboard, the
+    // stashed slice is gone, so paste must reconstruct from the HTML.
+    clearStashedSlice();
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePaste(view, data)).toBe(true);
+
+    const ones = paragraphsReading(view, 'one');
+    expect(ones).toHaveLength(2);
+    const pasted = ones.find((b) => b.sid !== 's1');
+    expect(pasted?.sid).toBeTruthy();
+    expect(pasted?.sid).not.toBe('s1');
+  });
+});
+
+describe('clipboardPlugin external paste', () => {
+  beforeEach(() => clearStashedSlice());
+  afterEach(() => {
+    for (const view of views.splice(0)) view.destroy();
+    document.body.innerHTML = '';
+  });
+
+  it('sanitises and inserts foreign HTML, dropping script and image', () => {
+    const view = mountFull(docOf(para('start', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
     const foreign = fakeClipboard();
-    foreign.setData('text/html', '<p>from elsewhere</p>');
-    expect(firePaste(view, foreign)).toBe(false);
-    expect(view.state.doc.childCount).toBe(1);
+    foreign.setData('text/html', '<p>pasted</p><script>alert(1)</script><img src="http://t/x.png">');
+    foreign.setData('text/plain', 'pasted');
+
+    expect(firePaste(view, foreign)).toBe(true);
+    const text = view.state.doc.textContent;
+    expect(text).toContain('pasted');
+    expect(text).not.toContain('alert');
+    // No image node made it in from the remote <img>.
+    let images = 0;
+    view.state.doc.descendants((node) => {
+      if (node.type.name === 'image') images += 1;
+      return true;
+    });
+    expect(images).toBe(0);
+  });
+
+  it('claims an over-large HTML paste and degrades to its plain text', () => {
+    const view = mountFull(docOf(para('start', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    const foreign = fakeClipboard();
+    foreign.setData('text/html', `<p>${'a'.repeat(2_100_000)}</p>`);
+    foreign.setData('text/plain', 'plain fallback');
+
+    expect(firePaste(view, foreign)).toBe(true);
+    expect(view.state.doc.textContent).toContain('plain fallback');
+  });
+});
+
+describe('clipboardPlugin paste hardening', () => {
+  beforeEach(() => clearStashedSlice());
+  afterEach(() => {
+    for (const view of views.splice(0)) view.destroy();
+    document.body.innerHTML = '';
+  });
+
+  /** The JSON a hostile page would put under the private MIME, with a link mark href. */
+  function craftedPayload(href: string): string {
+    const mark = schema.marks.link.create({ href });
+    const block = schema.nodes.paragraph.create(
+      { sid: 'a', id: 'a' },
+      schema.nodes.line.create(null, schema.text('click me', [mark])),
+    );
+    const slice = new Slice(Fragment.fromArray([block]), 0, 0);
+    return JSON.stringify({ v: 1, nonce: 'attacker', mode: 'blocks', slice: slice.toJSON() });
+  }
+
+  function linkHrefs(view: EditorView): string[] {
+    const out: string[] = [];
+    view.state.doc.descendants((node) => {
+      for (const mark of node.marks) {
+        if (mark.type.name === 'link') out.push(String(mark.attrs.href));
+      }
+      return true;
+    });
+    return out;
+  }
+
+  it('strips a javascript: link carried in a crafted private-MIME payload', () => {
+    const view = mountFull(docOf(para('start', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    const hostile = fakeClipboard();
+    hostile.setData(MNEMO_CLIPBOARD_MIME, craftedPayload('javascript:alert(document.cookie)'));
+
+    expect(firePaste(view, hostile)).toBe(true);
+    // The text lands, but no link mark (and certainly no javascript: href) with it.
+    expect(view.state.doc.textContent).toContain('click me');
+    expect(linkHrefs(view)).toEqual([]);
+  });
+
+  it('keeps a safe link from a private-MIME payload', () => {
+    const view = mountFull(docOf(para('start', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    const clip = fakeClipboard();
+    clip.setData(MNEMO_CLIPBOARD_MIME, craftedPayload('https://ok.test'));
+
+    expect(firePaste(view, clip)).toBe(true);
+    expect(linkHrefs(view)).toEqual(['https://ok.test']);
+  });
+
+  it('does not throw on a malformed private-MIME payload; it degrades to the sanitised HTML', () => {
+    const view = mountFull(docOf(para('start', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    const hostile = fakeClipboard();
+    // A well-formed envelope whose slice references a node type that does not
+    // exist: Slice.fromJSON throws, and handlePaste must not.
+    hostile.setData(
+      MNEMO_CLIPBOARD_MIME,
+      JSON.stringify({ v: 1, nonce: 'attacker', mode: 'blocks', slice: { openStart: 0, openEnd: 0, content: [{ type: 'nope' }] } }),
+    );
+    hostile.setData('text/html', '<p>fallback</p>');
+
+    expect(() => firePaste(view, hostile)).not.toThrow();
+    expect(view.state.doc.textContent).toContain('fallback');
+  });
+
+  it('rejects an out-of-range open-depth payload without throwing, degrading to HTML', () => {
+    const view = mountFull(docOf(para('start', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    const hostile = fakeClipboard();
+    // Deserializes fine, but throws only when placed (replaceSelection descends
+    // 99 non-existent open levels): the placement guard must catch it and fall
+    // through to the sanitised HTML rather than let handlePaste throw.
+    hostile.setData(
+      MNEMO_CLIPBOARD_MIME,
+      JSON.stringify({ v: 1, nonce: 'attacker', mode: 'text', slice: { openStart: 99, openEnd: 99, content: [{ type: 'text', text: 'a' }] } }),
+    );
+    hostile.setData('text/html', '<p>recovered</p>');
+
+    let handled: boolean | undefined;
+    expect(() => { handled = firePaste(view, hostile); }).not.toThrow();
+    expect(handled).toBe(true);
+    expect(view.state.doc.textContent).toContain('recovered');
   });
 });

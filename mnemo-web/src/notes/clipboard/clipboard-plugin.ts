@@ -44,7 +44,7 @@ export function clipboardPlugin(registry: BlockRegistry, inline: InlineMapper): 
       copy.mode === 'blocks'
         ? markdown.fragment(content)
         : content.textBetween(0, content.size, '\n');
-    writeSliceToClipboard(view, data, copy.slice, nonce, plainText);
+    writeSliceToClipboard(view, data, copy.slice, nonce, plainText, copy.mode);
     return true;
   }
 
