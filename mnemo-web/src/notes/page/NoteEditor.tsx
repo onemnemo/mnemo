@@ -10,6 +10,7 @@ import type { BlockRegistry } from "../editor/registry/build"
 import type { EditorServices } from "../editor/registry/types"
 import { useNoteSession } from "../edit/useNoteSession"
 import { BlockGutter } from "../editor/chrome/BlockGutter"
+import { FindReplaceOverlay } from "../find/FindReplaceOverlay"
 import { createPersist } from "../save/persist"
 import { SaveStatus } from "./SaveStatus"
 
@@ -61,6 +62,7 @@ export function NoteEditor({
       <SaveStatus state={saveState} onReload={onReload} />
       <div ref={ref} className="notes-doc" />
       {view ? <BlockGutter view={view} /> : null}
+      {view ? <FindReplaceOverlay view={view} registry={registry} /> : null}
     </>
   )
 }
