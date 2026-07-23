@@ -11,8 +11,10 @@
  *  3. HTML from another app: sanitised, parsed with our schema, and dropped in
  *     with ProseMirror's own fitting, the way any browser paste behaves. An
  *     over-large paste degrades to plain text rather than being parsed.
- *  4. Nothing we handle: return false and let the editor's default take the
- *     plain text.
+ *  4. Plain text: read as Mnemo markdown, the desktop's only paste dialect, so a
+ *     pasted markdown document becomes real blocks. One line folds inline at the
+ *     caret; a run of blocks is placed like an Enter split. Only genuinely empty
+ *     text is left to the editor's default.
  *
  * Every pasted block has its identity cleared so the pipeline mints fresh sids,
  * unsafe link marks are stripped, and every insertion is one undo step.
@@ -26,16 +28,19 @@
  * payload degrades to the sanitised HTML or plain-text path; it never throws.
  */
 
-import { Slice } from 'prosemirror-model';
-import type { Transaction } from 'prosemirror-state';
+import { Fragment, Slice } from 'prosemirror-model';
+import type { EditorState, Transaction } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 
 import type { BlockRegistry } from '../editor/registry/build';
 import { asOwnUndoStep } from '../editor/history';
+import { createDocumentMapper } from '../editor/mapper/document';
+import { lineOf } from '../editor/blocks/shared';
 import type { ClipboardMode } from './internal-buffer';
 import { readStashedSlice } from './internal-buffer';
 import { withFreshIdentity } from './clear-identity';
 import { dropUnsafeLinks } from './scrub-marks';
+import { parseMarkdownToBlocks } from './markdown-blocks';
 import { parseExternalHtml } from './parse-html';
 import { placeBlockRun } from './place-blocks';
 import { readClipMeta } from './read-clipboard';
@@ -74,10 +79,14 @@ export function handleInternalPaste(
       placed = false;
     }
     if (placed) return true;
-    return pastePlainText(view, data);
+    return pastePlainText(view, data, registry);
   }
 
-  return false;
+  // No HTML at all: plain text, read as the desktop's markdown paste dialect.
+  // Empty or whitespace-only text is nothing block-structured to handle, so it
+  // is left to the editor's own default rather than claimed and dropped.
+  if (data.getData('text/plain').trim() === '') return false;
+  return pastePlainText(view, data, registry);
 }
 
 /** Reconstruct an attacker-reachable JSON payload, never letting a bad one throw out. */
@@ -122,19 +131,60 @@ function placeExternal(view: EditorView, slice: Slice): boolean {
   }
 }
 
-/** Insert the clipboard's plain text, capped, and claim the event either way. */
-function pastePlainText(view: EditorView, data: DataTransfer): boolean {
+/**
+ * Read the clipboard's plain text as Mnemo markdown, capped, and always claim it.
+ *
+ * A single line of ordinary text folds inline at the caret, the everyday "paste
+ * a word" case; a run of blocks is placed like an Enter split; and a paste
+ * inside a code or sketch line stays literal, since markdown structure is
+ * content there, not syntax. Every branch is wrapped: a throw here would let the
+ * browser native-paste whatever raw HTML we just declined, so a bad parse or an
+ * unplaceable slice degrades to a literal insert instead.
+ */
+function pastePlainText(view: EditorView, data: DataTransfer, registry: BlockRegistry): boolean {
   const text = data.getData('text/plain').slice(0, MAX_PLAIN_TEXT_LENGTH);
-  if (text !== '') {
+  if (text === '') return true;
+
+  try {
+    // Source content is literal: re-parsing a fence pasted into code would eat it.
+    if (inSourceLine(view.state)) {
+      dispatchPaste(view, view.state.tr.insertText(text));
+      return true;
+    }
+
+    const blocks = parseMarkdownToBlocks(text);
+    if (blocks.length === 0) return true;
+
+    const mapper = createDocumentMapper(view.state.schema, registry);
+
+    // One line of ordinary text merges into the current line rather than
+    // splitting a new block off, the way the desktop merges a single Text block.
+    if (blocks.length === 1 && blocks[0].type === 'Text') {
+      const line = lineOf(mapper.toNode(blocks[0]));
+      const inline = dropUnsafeLinks(new Slice(line ? line.content : Fragment.empty, 0, 0));
+      dispatchPaste(view, view.state.tr.replaceSelection(inline));
+      return true;
+    }
+
+    const nodes = blocks.map((block) => mapper.toNode(block));
+    const run = dropUnsafeLinks(new Slice(Fragment.fromArray(nodes), 0, 0));
+    dispatchPaste(view, placeBlockRun(view.state, run));
+    return true;
+  } catch {
+    // A hostile or malformed paste threw while parsing or placing: fall back to a
+    // literal insert so the event is still handled and never native-pasted.
     try {
       dispatchPaste(view, view.state.tr.insertText(text));
     } catch {
       // Nothing safe to insert; still claim the event below.
     }
+    return true;
   }
-  // Claim it regardless: we chose to handle this paste, and letting it fall
-  // through would reparse the unsanitised HTML we just declined.
-  return true;
+}
+
+/** True when the caret sits in a code or sketch line, where content is literal. */
+function inSourceLine(state: EditorState): boolean {
+  return state.selection.$from.parent.type.name === 'codeLine';
 }
 
 function dispatchPaste(view: EditorView, tr: Transaction): boolean {

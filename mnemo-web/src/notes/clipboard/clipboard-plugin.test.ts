@@ -245,6 +245,115 @@ describe('clipboardPlugin external paste', () => {
   });
 });
 
+describe('clipboardPlugin plain-text markdown paste', () => {
+  beforeEach(() => clearStashedSlice());
+  afterEach(() => {
+    for (const view of views.splice(0)) view.destroy();
+    document.body.innerHTML = '';
+  });
+
+  /** A clipboard carrying only plain text, the OS paste with no HTML or private MIME. */
+  function plainText(text: string): DataTransfer {
+    const data = fakeClipboard();
+    data.setData('text/plain', text);
+    return data;
+  }
+
+  const blockTypes = (view: EditorView): string[] => {
+    const out: string[] = [];
+    view.state.doc.forEach((node) => out.push(node.type.name));
+    return out;
+  };
+
+  const markNames = (view: EditorView): string[] => {
+    const out: string[] = [];
+    view.state.doc.descendants((node) => {
+      for (const mark of node.marks) out.push(mark.type.name);
+      return true;
+    });
+    return out;
+  };
+
+  it('folds a single plain line into the current line at the caret', () => {
+    const view = mountFull(docOf(para('start', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePaste(view, plainText('world'))).toBe(true);
+    expect(view.state.doc.childCount).toBe(1);
+    expect(view.state.doc.textContent).toBe('startworld');
+  });
+
+  it('interprets inline markdown while merging one line', () => {
+    const view = mountFull(docOf(para('start ', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePaste(view, plainText('**bold**'))).toBe(true);
+    expect(view.state.doc.textContent).toBe('start bold');
+    expect(markNames(view)).toContain('strong');
+  });
+
+  it('turns a multi-block markdown document into real blocks with minted ids', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePaste(view, plainText('# Heading\n- one\n- two'))).toBe(true);
+    expect(blockTypes(view)).toEqual(['heading', 'bulletItem', 'bulletItem']);
+    view.state.doc.forEach((node) => {
+      expect(String(node.attrs.sid)).not.toBe('');
+      expect(String(node.attrs.id)).not.toBe('');
+    });
+  });
+
+  it('reads a fenced code block from pasted text', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePaste(view, plainText('```ts\nconst x = 1;\n```'))).toBe(true);
+    expect(blockTypes(view)).toEqual(['codeBlock']);
+    const code = view.state.doc.child(0);
+    expect(code.attrs.language).toBe('ts');
+    expect(code.textContent).toBe('const x = 1;');
+  });
+
+  it('keeps a paste inside a code line literal, not re-parsed as markdown', () => {
+    const codeBlock = schema.nodes.codeBlock.create(
+      { sid: 'c', id: 'c', language: 'js' },
+      schema.nodes.codeLine.create(null, schema.text('hi')),
+    );
+    const view = mountFull(docOf(codeBlock));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    // A fence pasted into code must stay text, never open a nested code block.
+    expect(firePaste(view, plainText('```md'))).toBe(true);
+    expect(blockTypes(view)).toEqual(['codeBlock']);
+    expect(view.state.doc.child(0).textContent).toContain('```md');
+  });
+
+  it('strips an unsafe link but keeps a safe one on the plain-text path', () => {
+    const unsafe = mountFull(docOf(para('', 's1')));
+    unsafe.dispatch(unsafe.state.tr.setSelection(Selection.atEnd(unsafe.state.doc)));
+    expect(firePaste(unsafe, plainText('[click](javascript:alert(1))'))).toBe(true);
+    expect(unsafe.state.doc.textContent).toContain('click');
+    expect(markNames(unsafe)).not.toContain('link');
+
+    const safe = mountFull(docOf(para('', 's2')));
+    safe.dispatch(safe.state.tr.setSelection(Selection.atEnd(safe.state.doc)));
+    expect(firePaste(safe, plainText('[ok](https://ok.test)'))).toBe(true);
+    const hrefs: string[] = [];
+    safe.state.doc.descendants((node) => {
+      for (const mark of node.marks) if (mark.type.name === 'link') hrefs.push(String(mark.attrs.href));
+      return true;
+    });
+    expect(hrefs).toEqual(['https://ok.test']);
+  });
+
+  it('leaves genuinely empty text to the editor default', () => {
+    const view = mountFull(docOf(para('start', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+    expect(firePaste(view, plainText('   '))).toBe(false);
+  });
+});
+
 describe('clipboardPlugin paste hardening', () => {
   beforeEach(() => clearStashedSlice());
   afterEach(() => {
