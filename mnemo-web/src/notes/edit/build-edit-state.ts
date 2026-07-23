@@ -36,6 +36,7 @@ import { columnSplitterPlugin } from '../editor/pipeline/column-splitter';
 import { containerCaretGuard } from '../editor/pipeline/container-caret';
 import { imageClipboardPlugin } from '../editor/pipeline/image-clipboard';
 import { clipboardPlugin } from '../clipboard/clipboard-plugin';
+import { defaultPasteAssetSupport } from '../clipboard/stage-assets';
 import { nestedInputGuard } from '../editor/pipeline/nested-input';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
 import { findPlugin } from '../find/find-plugin';
@@ -122,9 +123,10 @@ export function editorPlugins(
     // drops carrying image files and declines everything else.
     imageClipboardPlugin(resolveServices(services)),
     // Directly after the image plugin so an image-file paste is still claimed
-    // first: it owns copy and cut (and later paste), reads the document rather
-    // than the DOM, and dispatches no step on copy, so it never dirties the note.
-    clipboardPlugin(registry, inline),
+    // first: it owns copy, cut and paste, reads the document rather than the DOM,
+    // and dispatches no step on copy, so it never dirties the note. It restages
+    // pasted images through the same services the node views resolve assets with.
+    clipboardPlugin(registry, inline, defaultPasteAssetSupport(resolveServices(services))),
     slashMenuPlugin(registry),
     // Before the structural keymap so that, while a block selection is live, it
     // claims Backspace/Delete (delete the selection) and Escape (clear it)

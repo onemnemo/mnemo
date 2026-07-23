@@ -10,6 +10,8 @@ import { blockIdentityPlugin } from '../editor/pipeline/block-identity';
 import { blockSelectionKey, blockSelectionPlugin } from '../selection/block-selection-plugin';
 import { clipboardPlugin } from './clipboard-plugin';
 import { clearStashedSlice, readStashedSlice } from './internal-buffer';
+import { silentPasteProgress, type PasteProgressReporter } from './paste-progress';
+import type { PasteAssetSupport } from './stage-assets';
 import { MNEMO_CLIPBOARD_MIME, MNEMO_NONCE_ATTR } from './write-clipboard';
 
 const { schema, registry, inline } = createEditorSchema();
@@ -442,5 +444,152 @@ describe('clipboardPlugin paste hardening', () => {
     expect(() => { handled = firePaste(view, hostile); }).not.toThrow();
     expect(handled).toBe(true);
     expect(view.state.doc.textContent).toContain('recovered');
+  });
+});
+
+describe('clipboardPlugin paste image staging', () => {
+  beforeEach(() => clearStashedSlice());
+  afterEach(() => {
+    for (const view of views.splice(0)) view.destroy();
+    document.body.innerHTML = '';
+  });
+
+  /** A support that restages any non-remote reference, capturing what it uploads. */
+  function stagingSupport(overrides: Partial<PasteAssetSupport> = {}): PasteAssetSupport {
+    return {
+      canStage: (path) => !path.startsWith('http'),
+      loadBytes: () => Promise.resolve(new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' })),
+      upload: (file) => Promise.resolve(`staged-${file.name}`),
+      ...overrides,
+    };
+  }
+
+  function mountStaging(
+    doc: PMNode,
+    support: PasteAssetSupport,
+    progress: PasteProgressReporter = silentPasteProgress,
+  ): { view: EditorView; plugin: Plugin } {
+    const staging = clipboardPlugin(registry, inline, support, progress);
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    const view = new EditorView(el, {
+      state: EditorState.create({
+        schema,
+        doc,
+        plugins: [blockIdentityPlugin(registry), blockSelectionPlugin(registry), staging],
+      }),
+    });
+    views.push(view);
+    return { view, plugin: staging };
+  }
+
+  function firePasteOn(view: EditorView, staging: Plugin, data: DataTransfer): boolean {
+    const event = { clipboardData: data, preventDefault: () => {} } as unknown as ClipboardEvent;
+    const handler = staging.props.handlePaste!;
+    return Boolean((handler as (this: Plugin, v: EditorView, e: ClipboardEvent) => boolean).call(staging, view, event));
+  }
+
+  function markdownImage(text: string): DataTransfer {
+    const data = fakeClipboard();
+    data.setData('text/plain', text);
+    return data;
+  }
+
+  const imagePaths = (view: EditorView): string[] => {
+    const out: string[] = [];
+    view.state.doc.descendants((node) => {
+      if (node.type.name === 'image') out.push(String(node.attrs.path));
+      return true;
+    });
+    return out;
+  };
+
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  it('restages a pasted markdown image to a fresh id before inserting it', async () => {
+    const { view, plugin: staging } = mountStaging(docOf(para('', 's1')), stagingSupport());
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePasteOn(view, staging, markdownImage('![cap](old.png)'))).toBe(true);
+    // The image is not in yet: staging is asynchronous, so it claims first.
+    expect(imagePaths(view)).toEqual([]);
+
+    await flush();
+    expect(imagePaths(view)).toEqual(['staged-image.png']);
+  });
+
+  it('keeps the original reference when the re-upload fails', async () => {
+    const support = stagingSupport({ upload: () => Promise.reject(new Error('too large')) });
+    const { view, plugin: staging } = mountStaging(docOf(para('', 's1')), support);
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePasteOn(view, staging, markdownImage('![cap](old.png)'))).toBe(true);
+    await flush();
+    expect(imagePaths(view)).toEqual(['old.png']);
+  });
+
+  it('inserts nothing when the paste is cancelled mid-stage', async () => {
+    let cancel = () => {};
+    const progress: PasteProgressReporter = {
+      begin: (_total, onCancel) => {
+        cancel = onCancel;
+      },
+      advance: () => {},
+      end: () => {},
+    };
+    // The first upload cancels the paste; the batch aborts before the second image
+    // and the run is never inserted.
+    const support = stagingSupport({
+      upload: (file) => {
+        cancel();
+        return Promise.resolve(`staged-${file.name}`);
+      },
+    });
+    const { view, plugin: staging } = mountStaging(docOf(para('', 's1')), support, progress);
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePasteOn(view, staging, markdownImage('![a](one.png)\n![b](two.png)'))).toBe(true);
+    await flush();
+    expect(imagePaths(view)).toEqual([]);
+    expect(view.state.doc.childCount).toBe(1); // the original empty paragraph only
+  });
+
+  it('leaves a remote image reference unstaged and synchronous', () => {
+    // A reference the app cannot fetch is not restaged, so the paste stays on the
+    // synchronous path and the reference is inserted verbatim.
+    const { view, plugin: staging } = mountStaging(docOf(para('', 's1')), stagingSupport());
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePasteOn(view, staging, markdownImage('![cap](http://remote/x.png)'))).toBe(true);
+    expect(imagePaths(view)).toEqual(['http://remote/x.png']);
+  });
+
+  it('restages an image block copied inside the app, so the copy owns its own asset', async () => {
+    const imageBlock = schema.nodes.image.create({ path: 'orig.png', sid: 'i1', id: 'i1' }, line('cap'));
+    const { view, plugin: staging } = mountStaging(docOf(imageBlock, para('after', 's2')), stagingSupport());
+
+    // Select the image block and copy it through this plugin, then paste at the end.
+    view.dispatch(
+      view.state.tr.setMeta(blockSelectionKey, {
+        type: 'set',
+        selection: { selected: new Set(['i1']), anchorSid: 'i1' },
+      }),
+    );
+    const data = fakeClipboard();
+    const copyEvent = { clipboardData: data, preventDefault: () => {} } as unknown as ClipboardEvent;
+    (staging.props.handleDOMEvents!.copy as (this: Plugin, v: EditorView, e: ClipboardEvent) => boolean).call(
+      staging,
+      view,
+      copyEvent,
+    );
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePasteOn(view, staging, data)).toBe(true);
+    await flush();
+
+    const paths = imagePaths(view);
+    expect(paths).toContain('orig.png'); // the original stays put
+    expect(paths).toContain('staged-image.png'); // the paste got its own fresh copy
+    expect(paths).toHaveLength(2);
   });
 });

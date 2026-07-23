@@ -26,9 +26,21 @@ import { getBlockSelection } from '../selection/block-selection-plugin';
 import { buildCopySlice } from './copy';
 import { stashSlice } from './internal-buffer';
 import { handleInternalPaste } from './paste';
+import { storePasteProgress, type PasteProgressReporter } from './paste-progress';
+import type { PasteAssetSupport } from './stage-assets';
 import { writeSliceToClipboard } from './write-clipboard';
 
-export function clipboardPlugin(registry: BlockRegistry, inline: InlineMapper): Plugin {
+/**
+ * `support` restages pasted images; omitted where a context cannot upload (a test,
+ * a read-only mount), which just pastes references unchanged. `progress` drives the
+ * staging overlay, defaulting to the shared store the mounted overlay reads.
+ */
+export function clipboardPlugin(
+  registry: BlockRegistry,
+  inline: InlineMapper,
+  support?: PasteAssetSupport,
+  progress: PasteProgressReporter = storePasteProgress,
+): Plugin {
   const markdown = createMarkdownSerializer(registry, inline);
 
   function writeSelection(view: EditorView, data: DataTransfer): boolean {
@@ -51,7 +63,7 @@ export function clipboardPlugin(registry: BlockRegistry, inline: InlineMapper): 
   return new Plugin({
     props: {
       handlePaste(view, event) {
-        return handleInternalPaste(view, event.clipboardData, registry);
+        return handleInternalPaste(view, event.clipboardData, registry, support, progress);
       },
       handleDOMEvents: {
         copy(view, event) {

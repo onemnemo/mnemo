@@ -6,8 +6,8 @@ import { apiToken } from "./client"
 // fetch them with the auth header and hand the element a blob URL instead. Chat attachments and
 // card attachments are different routes over the same problem, so the mechanics live here.
 
-/** Fetches an asset's bytes with the bearer header and returns an object URL for them. */
-export async function fetchAssetBlobUrl(path: string, signal?: AbortSignal): Promise<string> {
+/** Fetches an asset's bytes with the bearer header. Rejects on a non-OK status. */
+export async function fetchAssetBlob(path: string, signal?: AbortSignal): Promise<Blob> {
   const headers = new Headers()
   const token = apiToken()
   if (token) headers.set("Authorization", `Bearer ${token}`)
@@ -15,7 +15,12 @@ export async function fetchAssetBlobUrl(path: string, signal?: AbortSignal): Pro
   const response = await fetch(path, { headers, signal })
   if (!response.ok) throw new Error(`Asset ${path} failed (${response.status})`)
 
-  return URL.createObjectURL(await response.blob())
+  return response.blob()
+}
+
+/** Fetches an asset's bytes with the bearer header and returns an object URL for them. */
+export async function fetchAssetBlobUrl(path: string, signal?: AbortSignal): Promise<string> {
+  return URL.createObjectURL(await fetchAssetBlob(path, signal))
 }
 
 /**
