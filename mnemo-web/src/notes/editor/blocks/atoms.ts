@@ -136,8 +136,10 @@ export function pageBlock(deps: BlockDeps): AnyBlockModule {
         },
       }),
       // The title is not available here, and inventing one would put a stale
-      // copy in an exported file. The id is the durable fact.
-      toMarkdown: (node) => `[[${String(node.attrs.referenceNoteId ?? '')}]]\n`,
+      // copy in an exported file. The id is the durable fact. The `page:` prefix
+      // matches the desktop's dialect, so a page card round-trips through
+      // markdown across both apps and a bare `[[wikilink]]` stays literal text.
+      toMarkdown: (node) => `[[page:${String(node.attrs.referenceNoteId ?? '')}]]\n`,
       // No projection: the only text a page card shows belongs to another note,
       // and emitting it here would give find two hits for one string.
       segmentsFor: () => [],
