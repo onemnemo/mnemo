@@ -52,10 +52,16 @@ export function NotePane({
     if (!current) return null;
     const blocks = parseBlocks(current.blocks ?? []);
     const assets = createNoteAssetServices();
+    // A note with no blocks but plain legacy content is shown read-only. Anything
+    // else, a brand-new note included, opens the editor: `buildNoteEditState`
+    // seeds a single empty block, so the never-fully-empty invariant holds and the
+    // caret has somewhere to land instead of the note being stuck on an empty card.
+    const legacyOnly = blocks.length === 0 && current.content.trim().length > 0;
     return {
       blocks,
       assets,
-      edit: blocks.length > 0 ? buildNoteEditState(blocks, assets.services) : null,
+      legacyOnly,
+      edit: legacyOnly ? null : buildNoteEditState(blocks, assets.services),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note?.id, reloadNonce]);
@@ -102,19 +108,17 @@ export function NotePane({
 
   const title = note.title.trim() || nt('Untitled');
 
-  // Empty: no blocks. A legacy note keeps its plain content.
-  if (!loaded || loaded.blocks.length === 0) {
-    const legacy = note.content.trim();
+  // Legacy: no blocks, but plain content written before the block editor. Shown
+  // read-only rather than opened as an editable blank that autosave would write
+  // over. A note with no blocks and no legacy content is not shown here; it opens
+  // the editor below, seeded with one empty block.
+  if (!loaded || loaded.legacyOnly) {
     return (
       <div className="flex h-full min-h-0 flex-col">
         {bar}
         <div className="mx-auto w-full max-w-[760px] px-10 pt-9">
           <h1 className="text-heading-2 font-semibold text-text-primary">{title}</h1>
-          {legacy ? (
-            <p className="mt-6 whitespace-pre-wrap text-body-medium text-text-primary">{note.content}</p>
-          ) : (
-            <EmptyState className="mt-10" icon="common/file-text" title={nt('EmptyNoteTitle')} description={nt('EmptyNoteDescription')} />
-          )}
+          <p className="mt-6 whitespace-pre-wrap text-body-medium text-text-primary">{note.content}</p>
         </div>
       </div>
     );

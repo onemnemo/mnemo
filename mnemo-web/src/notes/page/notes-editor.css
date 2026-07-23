@@ -83,6 +83,18 @@
   word-break: break-word;
 }
 
+/* Placeholder on the focused empty paragraph. Floated with zero height so it
+ * neither takes layout space nor pushes the caret, and non-interactive so a
+ * click lands in the line behind it. Cleared by the first typed character, since
+ * the line is then no longer empty and the decoration drops. */
+.notes-doc [data-line].notes-empty-hint::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--text-faded);
+}
+
 /* Headings, the app's type scale, not the browser's. */
 .notes-doc h1 {
   font-size: var(--font-size-heading-1);

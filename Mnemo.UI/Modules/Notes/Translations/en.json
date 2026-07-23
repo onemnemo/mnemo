@@ -122,6 +122,7 @@
     "editor.clipboard.paste.description": "Paste from the clipboard into the note.",
     "editor.clipboard.pasteStagingImage": "Adding image…",
     "editor.clipboard.pasteStagingImages": "Adding image {0} of {1}…",
-    "editor.clipboard.pasteCancel": "Cancel"
+    "editor.clipboard.pasteCancel": "Cancel",
+    "editor.slashHint": "Type ‘/’ for commands"
   }
 }
