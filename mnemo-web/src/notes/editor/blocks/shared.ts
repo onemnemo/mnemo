@@ -146,6 +146,14 @@ export interface BlockDefinition<TAttrs extends Record<string, unknown>> {
   readonly realizedView?: RealizedBlockViewFactory<TAttrs>;
 }
 
+/**
+ * The container block types: layout structure the caret and the structural
+ * commands must treat as scenery, never as a block of their own. Their
+ * mandatory lines hold no user content, are hidden by the CSS, and are kept
+ * unreachable by the caret guard.
+ */
+export const containerBlockNames: ReadonlySet<string> = new Set(['twoColumn', 'columnGroup']);
+
 /** The line is always the first child; block children always follow it. */
 export function lineOf(node: PMNode): PMNode | null {
   const first = node.firstChild;

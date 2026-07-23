@@ -67,10 +67,22 @@ function buildSplitter(view: EditorView, getPos: () => number | undefined): HTML
     if (ratio != null && container) container.style.setProperty('--notes-split', String(ratio));
   };
 
-  const onUp = (event: PointerEvent) => {
+  const stopTracking = () => {
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onCancel);
     el.classList.remove('is-dragging');
+  };
+
+  // A cancelled pointer (window losing the gesture) commits nothing; put the
+  // preview back where the drag started so the DOM agrees with the model.
+  const onCancel = () => {
+    stopTracking();
+    if (container) container.style.setProperty('--notes-split', String(originalRatio));
+  };
+
+  const onUp = (event: PointerEvent) => {
+    stopTracking();
 
     const pos = getPos();
     if (pos == null) return;
@@ -98,6 +110,7 @@ function buildSplitter(view: EditorView, getPos: () => number | undefined): HTML
     el.classList.add('is-dragging');
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
   });
 
   return el;

@@ -43,10 +43,20 @@ export const docSpec: NodeSpec = {
  *
  * `marks: "_"`, all marks permitted. Restriction, where it exists, belongs to
  * `codeLine`, not to a flag on the containing block.
+ *
+ * `whitespace: 'pre'` because a line's text can legitimately hold newlines: a
+ * quote soft-wraps by storing `\n`, exactly as the desktop does. It has to be
+ * the node-level spec, not a `preserveWhitespace` flag on the parse rule: the
+ * editor re-parses its own DOM after every browser text mutation through a
+ * rule it synthesizes itself, which never sees the declared one but always
+ * consults the node type. Without this, the first character typed after a
+ * soft wrap collapses the `\n` to a space and the new row folds back into the
+ * first.
  */
 export const lineSpec: NodeSpec = {
   content: 'inline*',
   marks: '_',
+  whitespace: 'pre',
   parseDOM: [{ tag: 'div[data-line]' }],
   toDOM: () => ['div', { 'data-line': '' }, 0],
 };

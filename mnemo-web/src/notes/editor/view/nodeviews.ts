@@ -71,6 +71,9 @@ export function toNodeViews(
         // declares `update`/`destroy` and then no-ops is not the same to PM as
         // one that omits them (omitting `update` forces a rebuild every time).
         update: realized.update ? (updated) => realized.update!(updated) : undefined,
+        ignoreMutation: realized.ignoreMutation
+          ? (mutation) => realized.ignoreMutation!(mutation)
+          : undefined,
         destroy: () => {
           realized.destroy?.();
           host.destroy();

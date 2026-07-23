@@ -21,12 +21,9 @@
 
 import { Fragment, type Node as PMNode } from 'prosemirror-model';
 import { TextSelection, type Command, type Transaction } from 'prosemirror-state';
-import { blockChildrenOf, lineOf } from '../blocks/shared';
+import { blockChildrenOf, containerBlockNames, lineOf } from '../blocks/shared';
 import { asOwnUndoStep } from '../history';
 import { stripMarks, type BlockContext } from './structure';
-
-/** Container blocks: document order descends into these rather than yielding them. */
-const CONTAINER_BLOCKS: ReadonlySet<string> = new Set(['twoColumn', 'columnGroup']);
 
 export interface CellStart {
   /** The two-column container the caret's cell belongs to. */
@@ -72,7 +69,7 @@ function previousContentBlock(doc: PMNode, before: number): { node: PMNode; pos:
   doc.nodesBetween(0, before, (node, pos) => {
     // A line holds inline content, never a block to merge into: do not descend.
     if (node.isTextblock) return false;
-    if (CONTAINER_BLOCKS.has(node.type.name)) return true;
+    if (containerBlockNames.has(node.type.name)) return true;
     if (node.type.isBlock && lineOf(node)) {
       if (pos + node.nodeSize <= before) found = { node, pos };
       // A content block's own children are not separate merge targets here,

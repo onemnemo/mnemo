@@ -26,7 +26,7 @@ import { Fragment, Mark, type Node as PMNode, type NodeType } from 'prosemirror-
 import { TextSelection, type Command, type Transaction } from 'prosemirror-state';
 import { keymap } from 'prosemirror-keymap';
 import type { Plugin } from 'prosemirror-state';
-import { blockChildrenOf, lineOf } from '../blocks/shared';
+import { blockChildrenOf, containerBlockNames, lineOf } from '../blocks/shared';
 import { asOwnUndoStep } from '../history';
 import { backspaceAtCellStart, cellStartContext } from './two-column';
 
@@ -291,6 +291,10 @@ export const splitBlock: Command = (state, dispatch) => {
   const { block, blockPos, line, offset } = ctx;
   const schema = state.schema;
 
+  // A caret in a container's structural line has no block to split; swallow
+  // the key rather than let the generic path treat the container as one.
+  if (containerBlockNames.has(block.type.name)) return true;
+
   // Source blocks: plain Enter is a newline in the source, never a split.
   if (line.type.name === 'codeLine') return insertSoftBreak(state, dispatch);
 
@@ -427,6 +431,11 @@ export const backspaceStructural: Command = (state, dispatch) => {
 
   const { block, blockPos, line } = ctx;
   const schema = state.schema;
+
+  // Same guard as the split: a container is never the caret's block, and the
+  // de-format branch below would otherwise try to convert it to Text.
+  if (containerBlockNames.has(block.type.name)) return true;
+
   const isText = block.type.name === 'paragraph';
   const empty = isContentVisuallyEmpty(line.content);
 
