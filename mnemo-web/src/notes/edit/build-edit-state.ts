@@ -33,6 +33,7 @@ import { invariantPipeline } from '../editor/pipeline/invariants';
 import { inputTriggerPlugin } from '../editor/pipeline/input-triggers';
 import { intrinsicSizePlugin } from '../editor/pipeline/intrinsic-size';
 import { columnSplitterPlugin } from '../editor/pipeline/column-splitter';
+import { containerCaretGuard } from '../editor/pipeline/container-caret';
 import { nestedInputGuard } from '../editor/pipeline/nested-input';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
 import { structureKeymap } from '../editor/commands/structure';
@@ -107,6 +108,9 @@ export function editorPlugins(registry: BlockRegistry): Plugin[] {
     editorKeymap(),
     keymap(baseKeymap),
     invariantPipeline(registry),
+    // After the invariants: it reads the selection the repairs settled on, and
+    // like them it appends rather than touching key dispatch.
+    containerCaretGuard(),
     numberedListPlugin(),
     intrinsicSizePlugin(registry),
     columnSplitterPlugin(),

@@ -23,7 +23,7 @@ import type {
   NodeType,
 } from 'prosemirror-model';
 import type { Command, EditorState, Transaction } from 'prosemirror-state';
-import type { EditorView } from 'prosemirror-view';
+import type { EditorView, ViewMutationRecord } from 'prosemirror-view';
 import type { IconName } from '@/components/icon/icon-registry';
 import type { Block, BlockType, TextStyle } from '../../model/types';
 
@@ -230,6 +230,16 @@ export interface RealizedBlockView {
   readonly contentDOM?: HTMLElement | null;
   /** Returns false to ask for a rebuild instead of an in-place update. */
   update?(node: PMNode): boolean;
+  /**
+   * Return true to tell ProseMirror a DOM mutation is this view's own work.
+   *
+   * Without it, any write the view makes to its own DOM outside a transaction,
+   * a live drag preview, a KaTeX re-render, reads to the editor's
+   * MutationObserver as an external change, and it defensively rebuilds the
+   * NodeView mid-gesture. Selection pseudo-records must return false, or the
+   * caret stops working inside the view's content.
+   */
+  ignoreMutation?(mutation: ViewMutationRecord): boolean;
   destroy?(): void;
 }
 

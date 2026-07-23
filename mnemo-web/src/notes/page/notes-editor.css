@@ -196,17 +196,21 @@
   text-decoration: line-through;
 }
 
-/* Two-column layout. Recursive; each cell is a lane. The container's own line is
- * structurally empty (force-cleared), so it is hidden and the two cells share the
- * row. --notes-split is the left lane's share, derived for display on the
- * container; the right lane takes the rest. A block with no variable falls back to
- * an even split. */
+/* Two-column layout. Recursive; each cell is a lane. The container's own line
+ * and each cell's line are structural only, they hold no user content, so both
+ * are hidden; without this each cell shows a phantom empty first row and the
+ * cell's real content reads as starting on row two. The caret guard plugin is
+ * the other half: hidden lines must also be unreachable by arrow keys.
+ * --notes-split is the left lane's share, derived for display on the container;
+ * the right lane takes the rest. A block with no variable falls back to an even
+ * split. */
 .notes-doc [data-two-column] {
   display: flex;
   gap: 0;
   align-items: flex-start;
 }
-.notes-doc [data-two-column] > [data-line] {
+.notes-doc [data-two-column] > [data-line],
+.notes-doc [data-column] > [data-line] {
   display: none;
 }
 .notes-doc [data-column] {

@@ -19,6 +19,7 @@ import type { AnyBlockModule, InvariantContribution } from '../registry/types';
 import type { BlockType } from '../../model/types';
 import { blockChildrenOf, defineBlock, lineOf, type BlockDeps } from './shared';
 import { insertTwoColumn } from './slash-insert';
+import { twoColumnView } from './two-column-view';
 
 /**
  * A column cell must always hold at least one editable block. The schema permits
@@ -129,6 +130,10 @@ export function twoColumnBlock(deps: BlockDeps): AnyBlockModule {
         };
       },
       toMarkdown: (node, ctx) => ctx.serializeChildren(node),
+      // The NodeView renders the same DOM as toDOM; what it adds is mutation
+      // ownership for the splitter's drag preview and an in-place ratio update
+      // on commit, see two-column-view.ts.
+      realizedView: twoColumnView,
       // A column's height is the taller lane, not the sum of both.
       estimate: (node, ctx) => {
         let tallest = 0;
