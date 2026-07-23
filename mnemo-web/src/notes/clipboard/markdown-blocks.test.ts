@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
-import { parseMarkdownToBlocks } from './markdown-blocks';
+import { MAX_BLOCKS, parseMarkdownToBlocks } from './markdown-blocks';
 import { flattenDisplay } from '../model/spans';
 import { isTextSpan, type Block } from '../model/types';
 
@@ -178,6 +178,26 @@ describe('parseMarkdownToBlocks: inline markdown inside blocks', () => {
     const block = one('    trailing thought');
     expect(block.type).toBe('Text');
     expect(textOf(block)).toContain('trailing thought');
+  });
+});
+
+describe('parseMarkdownToBlocks: block-count cap', () => {
+  it('folds the tail of a pathologically long paste into one verbatim block', () => {
+    const overflow = 50;
+    const lineCount = MAX_BLOCKS + overflow;
+    const blocks = parseMarkdownToBlocks(Array.from({ length: lineCount }, () => 'x').join('\n'));
+
+    // The cap holds: the first MAX_BLOCKS lines are their own blocks, the rest is one.
+    expect(blocks).toHaveLength(MAX_BLOCKS + 1);
+    const tail = blocks[blocks.length - 1];
+    expect(tail.type).toBe('Text');
+    // No characters are dropped: the tail block carries every remaining line.
+    expect(flattenDisplay(tail.spans)).toBe(Array.from({ length: overflow }, () => 'x').join('\n'));
+  });
+
+  it('does not engage the cap for an ordinary multi-line paste', () => {
+    const blocks = parseMarkdownToBlocks(Array.from({ length: 200 }, (_, n) => `line ${n}`).join('\n'));
+    expect(blocks).toHaveLength(200);
   });
 });
 
