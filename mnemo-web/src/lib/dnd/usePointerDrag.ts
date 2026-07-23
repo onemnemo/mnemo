@@ -32,6 +32,22 @@ export const DRAG_START_THRESHOLD = 5
  */
 export const COMMIT_DISTANCE = 24
 
+/**
+ * Edge auto-scroll while a drag is up. Off unless configured: the flashcard
+ * library list is short and never needs it; a long note document does.
+ */
+export interface AutoScrollOptions {
+  /** The scroll viewport to nudge. A window scrolls the page; an element scrolls itself. */
+  container: () => HTMLElement | Window | null
+  /** How far from an edge, in px, the auto-scroll zone reaches. */
+  zone?: number
+  /** Speed in px per tick at the zone's outer edge. */
+  minStep?: number
+  /** Speed in px per tick right at the viewport edge; it ramps from min to max across the zone. */
+  maxStep?: number
+  intervalMs?: number
+}
+
 /** Where the ghost sits relative to the cursor, and how it is tilted. */
 export interface GhostOptions<THandle> {
   /**
@@ -69,6 +85,7 @@ export interface PointerDragOptions<THandle, TTarget, TPlan> {
   /** A press whose target sits inside one of these is left to that element. */
   ignorePressWithin?: string
   readonly ghost?: GhostOptions<THandle>
+  readonly autoScroll?: AutoScrollOptions
   /** Pointer travel that arms the drag. Defaults to {@link DRAG_START_THRESHOLD}. */
   startThreshold?: number
   /** Travel before anything commits or paints. Defaults to {@link COMMIT_DISTANCE}. */
@@ -123,6 +140,7 @@ export function usePointerDrag<THandle, TTarget, TPlan>(
   const plannedRef = useRef<TPlan | null>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
   const teardown = useRef<(() => void) | null>(null)
+  const autoScrollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   /**
    * The handle key a drag ended on, cleared by the click it swallows or by the
    * next press. Keyed rather than a plain flag so a stray click elsewhere cannot
@@ -177,7 +195,47 @@ export function usePointerDrag<THandle, TTarget, TPlan>(
     ghost.style.transform = `translate3d(${String(left)}px, ${String(top)}px, 0) rotate(${String(tiltDeg)}deg)`
   }, [])
 
+  const stopAutoScroll = useCallback(() => {
+    if (autoScrollTimer.current !== null) {
+      clearInterval(autoScrollTimer.current)
+      autoScrollTimer.current = null
+    }
+  }, [])
+
+  // One tick of edge auto-scroll. It only scrolls; the resulting scroll event is
+  // caught by the same capture listener a wheel-scroll uses, so the indicator
+  // re-resolves against the moved rows without a second code path.
+  const autoScrollTick = useCallback(() => {
+    if (!active.current) return
+    const opts = latest.current.autoScroll
+    const container = opts?.container()
+    if (!opts || !container) return
+
+    const zone = opts.zone ?? 40
+    const minStep = opts.minStep ?? 9
+    const maxStep = opts.maxStep ?? 18
+
+    const isWindow = container instanceof Window
+    const top = isWindow ? 0 : container.getBoundingClientRect().top
+    const bottom = isWindow ? window.innerHeight : container.getBoundingClientRect().bottom
+    const y = pointer.current.y
+
+    let delta = 0
+    if (y < top + zone) {
+      const intensity = clamp((top + zone - y) / zone, 0, 1)
+      delta = -(minStep + (maxStep - minStep) * intensity)
+    } else if (y > bottom - zone) {
+      const intensity = clamp((y - (bottom - zone)) / zone, 0, 1)
+      delta = minStep + (maxStep - minStep) * intensity
+    }
+    if (delta === 0) return
+
+    if (isWindow) window.scrollBy(0, delta)
+    else container.scrollTop = clamp(container.scrollTop + delta, 0, container.scrollHeight - container.clientHeight)
+  }, [])
+
   const finish = useCallback(() => {
+    stopAutoScroll()
     teardown.current?.()
     teardown.current = null
     pressed.current = null
@@ -187,17 +245,18 @@ export function usePointerDrag<THandle, TTarget, TPlan>(
     document.body.style.userSelect = ""
     setHandle(null)
     setTarget(null)
-  }, [])
+  }, [stopAutoScroll])
 
   // A drag outlives any single render but not the page: unmounting mid-drag must
   // strand neither the listeners nor the suppressed text selection, which is set
   // on the body and would otherwise leave the app unselectable until a reload.
   useEffect(
     () => () => {
+      stopAutoScroll()
       teardown.current?.()
       document.body.style.userSelect = ""
     },
-    [],
+    [stopAutoScroll],
   )
 
   const press = useCallback(
@@ -258,6 +317,10 @@ export function usePointerDrag<THandle, TTarget, TPlan>(
           dragged.current = latest.current.getKey(from.handle)
           // Dragging across the page would otherwise sweep a text selection along.
           document.body.style.userSelect = "none"
+          const autoScroll = latest.current.autoScroll
+          if (autoScroll && autoScrollTimer.current === null) {
+            autoScrollTimer.current = setInterval(autoScrollTick, autoScroll.intervalMs ?? 50)
+          }
           setHandle(from.handle)
         }
 
@@ -319,7 +382,7 @@ export function usePointerDrag<THandle, TTarget, TPlan>(
         window.removeEventListener("scroll", onScroll, true)
       }
     },
-    [finish, placeGhost],
+    [finish, placeGhost, autoScrollTick],
   )
 
   const suppressClick = useCallback((key: string) => {

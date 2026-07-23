@@ -9,6 +9,7 @@ import type { DocumentMapper } from "../editor/mapper/document"
 import type { BlockRegistry } from "../editor/registry/build"
 import type { EditorServices } from "../editor/registry/types"
 import { useNoteSession } from "../edit/useNoteSession"
+import { BlockGutter } from "../editor/chrome/BlockGutter"
 import { createPersist } from "../save/persist"
 import { SaveStatus } from "./SaveStatus"
 
@@ -53,12 +54,13 @@ export function NoteEditor({
     [noteId],
   )
 
-  const { ref, saveState } = useNoteSession({ noteId, sid, ver, state, registry, persist, services })
+  const { ref, saveState, view } = useNoteSession({ noteId, sid, ver, state, registry, persist, services })
 
   return (
     <>
       <SaveStatus state={saveState} onReload={onReload} />
       <div ref={ref} className="notes-doc" />
+      {view ? <BlockGutter view={view} /> : null}
     </>
   )
 }
