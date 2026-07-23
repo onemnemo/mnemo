@@ -1,12 +1,13 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { EditorState } from 'prosemirror-state';
+import { EditorState, TextSelection } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 
 import { createEditorSchema } from '../schema';
 import { invariantPipeline } from '../pipeline/invariants';
-import { blockChildrenOf } from './shared';
+import { blockChildrenOf, lineOf, lineText } from './shared';
 import { displaySplitRatio } from './columns';
+import { insertTwoColumn } from './slash-insert';
 
 const { schema, registry } = createEditorSchema();
 
@@ -15,8 +16,8 @@ const { schema, registry } = createEditorSchema();
 function line(text?: string): PMNode {
   return schema.nodes.line.create(null, text ? schema.text(text) : null);
 }
-function para(text?: string): PMNode {
-  return schema.nodes.paragraph.create(null, line(text));
+function para(text?: string, sid = ''): PMNode {
+  return schema.nodes.paragraph.create({ sid }, line(text));
 }
 function column(...blocks: PMNode[]): PMNode {
   return schema.nodes.columnGroup.create(null, [line(), ...blocks]);
@@ -151,5 +152,70 @@ describe('two-column rendering', () => {
     expect(attrs.style).toBe('--notes-split:0.5');
     // while the raw attribute is preserved for round-trip.
     expect(attrs['data-split']).toBe('0');
+  });
+});
+
+// --- slash-menu creation ----------------------------------------------------
+
+/** Runs the two-column slash insert with the caret at the start of the one block. */
+function insertFrom(document: PMNode): EditorState {
+  const base = stateWith(document);
+  const placed = base.apply(base.tr.setSelection(TextSelection.create(base.doc, 2)));
+  let out = placed;
+  insertTwoColumn(placed, (tr) => {
+    out = placed.apply(tr);
+  });
+  return out;
+}
+
+describe('two-column slash creation', () => {
+  it('replaces the block with a split holding an empty text block in each cell', () => {
+    const next = insertFrom(doc(para('/col')));
+    const tc = next.doc.firstChild!;
+    expect(tc.type.name).toBe('twoColumn');
+    // Two cells, each an empty paragraph. The slash query text is gone.
+    for (const side of [1, 2]) {
+      const cell = tc.child(side);
+      expect(cell.type.name).toBe('columnGroup');
+      const blocks = blockChildrenOf(cell);
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0].type.name).toBe('paragraph');
+      expect(lineText(blocks[0])).toBe('');
+    }
+    next.doc.check();
+  });
+
+  it('keeps the block identity and marks the split as menu-made', () => {
+    const next = insertFrom(doc(para('/columns', 'keepme')));
+    const tc = next.doc.firstChild!;
+    expect(tc.attrs.sid).toBe('keepme'); // converted in place, not re-minted
+    expect((tc.attrs.meta as Record<string, unknown>).nativeTwoColumn).toBe(true);
+  });
+
+  it('lands the caret in the left cell', () => {
+    const next = insertFrom(doc(para('/columns')));
+    const tc = next.doc.firstChild!;
+    const leftBlock = blockChildrenOf(tc.child(1))[0];
+    // The caret sits in that left-cell paragraph's line.
+    expect(next.selection.$from.parent).toBe(lineOf(leftBlock));
+    expect(next.selection.$from.parentOffset).toBe(0);
+  });
+
+  it('refuses to nest: no split is made from inside a cell', () => {
+    const document = doc(twoColumn(column(para('L')), column(para('R'))));
+    const base = stateWith(document);
+    // Caret at the start of the left cell's block.
+    let leftPos = -1;
+    base.doc.descendants((node, pos) => {
+      if (leftPos >= 0) return false;
+      if (node.type.name === 'paragraph' && lineText(node) === 'L') leftPos = pos + 2;
+      return true;
+    });
+    const placed = base.apply(base.tr.setSelection(TextSelection.create(base.doc, leftPos)));
+    let dispatched = false;
+    insertTwoColumn(placed, () => {
+      dispatched = true;
+    });
+    expect(dispatched).toBe(false); // no-op inside an existing split
   });
 });

@@ -185,6 +185,7 @@ describe('the rows', () => {
       'Quote',
       'Code',
       'Divider',
+      'TwoColumn',
       'Equation',
     ]);
   });

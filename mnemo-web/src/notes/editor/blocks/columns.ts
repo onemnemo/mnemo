@@ -18,6 +18,7 @@
 import type { AnyBlockModule, InvariantContribution } from '../registry/types';
 import type { BlockType } from '../../model/types';
 import { blockChildrenOf, defineBlock, lineOf, type BlockDeps } from './shared';
+import { insertTwoColumn } from './slash-insert';
 
 /**
  * A column cell must always hold at least one editable block. The schema permits
@@ -136,6 +137,14 @@ export function twoColumnBlock(deps: BlockDeps): AnyBlockModule {
         }
         return tallest;
       },
+      slash: [
+        {
+          label: 'TwoColumn',
+          description: 'TwoColumnDescription',
+          group: 'insert',
+          insert: insertTwoColumn,
+        },
+      ],
     },
     deps,
   );
