@@ -29,7 +29,8 @@ function twoColumn(ratio: number): PMNode {
 const host: BlockShellHost = { mode: 'realized', requestMode() {}, destroy() {} };
 const services: EditorServices = {
   resolveNoteTitle: () => undefined,
-  resolveAssetUrl: () => undefined,
+  loadAssetUrl: () => Promise.reject(new Error('none')),
+  uploadAsset: () => Promise.reject(new Error('none')),
 };
 
 function viewFor(node: PMNode) {

@@ -186,6 +186,7 @@ describe('the rows', () => {
       'Code',
       'Divider',
       'TwoColumn',
+      'Image',
       'Equation',
     ]);
   });

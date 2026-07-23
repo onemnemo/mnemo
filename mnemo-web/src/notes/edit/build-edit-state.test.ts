@@ -46,7 +46,7 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry } = editorSchema();
     const plugins = editorPlugins(registry);
-    expect(plugins).toHaveLength(15);
+    expect(plugins).toHaveLength(16);
     // Three positions carry meaning rather than tidiness. The nested-input
     // guard has to be asked before the keymaps it stands down; the slash menu
     // has to be asked before them too, since it takes the arrow keys and Enter
@@ -56,7 +56,8 @@ describe('editorPlugins wiring', () => {
     // it has no keymap and no `appendTransaction`, only a `view()`, so its
     // place is exempt from the precedence this test checks.
     expect(plugins[0].props.handleDOMEvents?.keydown).toBeTypeOf('function');
-    expect(plugins[1].props.handleKeyDown).toBeTypeOf('function');
+    expect(plugins[1].props.handlePaste).toBeTypeOf('function');
+    expect(plugins[2].props.handleKeyDown).toBeTypeOf('function');
     expect(plugins.at(-1)?.spec.view).toBeTypeOf('function');
     expect(plugins.at(-2)?.spec.appendTransaction).toBeTypeOf('function');
   });

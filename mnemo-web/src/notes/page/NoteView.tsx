@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useT } from "@/i18n/useT"
 
 import { useNoteQuery } from "../api"
+import { createNoteAssetServices } from "../assets/services"
 import { parseBlocks } from "../model/wire"
 import { buildNoteEditState } from "../edit/build-edit-state"
 import { NoteEditor } from "./NoteEditor"
@@ -44,9 +45,21 @@ export function NoteView({ noteId }: { noteId?: string }) {
     const current = latest.current
     if (!current) return null
     const blocks = parseBlocks(current.blocks ?? [])
-    return { blocks, edit: blocks.length > 0 ? buildNoteEditState(blocks) : null }
+    // Built alongside the state because the plugin stack captures the uploader; the
+    // effect below owns the teardown, which revokes the note's image object URLs.
+    const assets = createNoteAssetServices()
+    return {
+      blocks,
+      assets,
+      edit: blocks.length > 0 ? buildNoteEditState(blocks, assets.services) : null,
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note?.id, reloadNonce])
+
+  useEffect(() => {
+    const assets = loaded?.assets
+    return () => assets?.release()
+  }, [loaded])
 
   if (!noteId) {
     return (
@@ -156,6 +169,7 @@ export function NoteView({ noteId }: { noteId?: string }) {
           state={loaded.edit.state}
           registry={loaded.edit.registry}
           mapper={loaded.edit.mapper}
+          services={loaded.assets.services}
           onReload={reload}
         />
       ) : null}

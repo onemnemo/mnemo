@@ -34,8 +34,11 @@ import { inputTriggerPlugin } from '../editor/pipeline/input-triggers';
 import { intrinsicSizePlugin } from '../editor/pipeline/intrinsic-size';
 import { columnSplitterPlugin } from '../editor/pipeline/column-splitter';
 import { containerCaretGuard } from '../editor/pipeline/container-caret';
+import { imageClipboardPlugin } from '../editor/pipeline/image-clipboard';
 import { nestedInputGuard } from '../editor/pipeline/nested-input';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
+import { resolveServices } from '../editor/view/nodeviews';
+import type { EditorServices } from '../editor/registry/types';
 import { structureKeymap } from '../editor/commands/structure';
 import { editorKeymap } from '../editor/commands';
 import { editorHistory, historyBoundaryPlugin } from '../editor/history';
@@ -99,9 +102,12 @@ export type NoteEditState =
  *    `appendTransaction` either, so it takes no part in the precedence this
  *    ordering describes and is listed last.
  */
-export function editorPlugins(registry: BlockRegistry): Plugin[] {
+export function editorPlugins(registry: BlockRegistry, services?: Partial<EditorServices>): Plugin[] {
   return [
     nestedInputGuard(),
+    // Before anything that could read a paste as text input; it claims only pastes and
+    // drops carrying image files and declines everything else.
+    imageClipboardPlugin(resolveServices(services)),
     slashMenuPlugin(registry),
     inputTriggerPlugin(registry),
     structureKeymap(),
@@ -130,14 +136,17 @@ export function editorPlugins(registry: BlockRegistry): Plugin[] {
  * degraded into a blank editable document the autosave would then write over its
  * real bytes.
  */
-export function buildNoteEditState(blocks: readonly Block[]): NoteEditState {
+export function buildNoteEditState(
+  blocks: readonly Block[],
+  services?: Partial<EditorServices>,
+): NoteEditState {
   const { schema, registry } = editorSchema();
   const mapper = createDocumentMapper(schema, registry);
   const result = mapper.toDoc(blocks);
   if (!result.ok) return { ok: false, reason: result.reason };
   return {
     ok: true,
-    state: EditorState.create({ schema, doc: result.doc, plugins: editorPlugins(registry) }),
+    state: EditorState.create({ schema, doc: result.doc, plugins: editorPlugins(registry, services) }),
     registry,
     mapper,
   };

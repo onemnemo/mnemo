@@ -4,6 +4,7 @@ import "./notes-editor.css"
 import type { EditorState } from "prosemirror-state"
 
 import type { BlockRegistry } from "../editor/registry/build"
+import type { EditorServices } from "../editor/registry/types"
 import { useEditorView } from "../editor/view/useEditorView"
 
 /**
@@ -23,11 +24,14 @@ export function ReadOnlyEditor({
   noteId,
   state,
   registry,
+  services,
 }: {
   noteId: string
   state: EditorState
   registry: BlockRegistry
+  /** Asset resolution for image blocks; a preview without one shows their placeholders. */
+  services?: Partial<EditorServices>
 }) {
-  const { ref } = useEditorView({ key: noteId, state, registry, editable: false })
+  const { ref } = useEditorView({ key: noteId, state, registry, services, editable: false })
   return <div ref={ref} className="notes-doc" />
 }

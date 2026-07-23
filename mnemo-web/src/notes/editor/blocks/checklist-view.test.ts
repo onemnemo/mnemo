@@ -20,7 +20,8 @@ function item(checked: boolean, text = 'task'): PMNode {
 const host: BlockShellHost = { mode: 'realized', requestMode() {}, destroy() {} };
 const services: EditorServices = {
   resolveNoteTitle: () => undefined,
-  resolveAssetUrl: () => undefined,
+  loadAssetUrl: () => Promise.reject(new Error('none')),
+  uploadAsset: () => Promise.reject(new Error('none')),
 };
 
 /** A view double carrying a real state, so the toggle builds a real transaction. */

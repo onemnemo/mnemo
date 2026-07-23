@@ -295,3 +295,47 @@ describe('convertBlockType', () => {
     expect(block.attrs.sid).toBe('cc11d');
   });
 });
+
+// --- image backspace ladder ---------------------------------------------------
+
+function image(attrs?: Record<string, unknown>, caption?: string): PMNode {
+  return schema.nodes.image.create({ path: '', ...(attrs ?? {}) }, line(caption));
+}
+
+describe('backspace at an image caption start', () => {
+  it('swallows the key on an image holding a picture, which never merges or de-formats', () => {
+    const d = doc(para('above'), image({ path: 'aaaa.png', width: 320 }, 'caption'));
+    const { state, handled } = run(d, backspaceStructural, { from: caretAt(d, 1, 0) });
+    expect(handled).toBe(true);
+    const block = state.doc.child(1);
+    expect(block.type.name).toBe('image');
+    expect(block.attrs.path).toBe('aaaa.png');
+    expect(block.attrs.width).toBe(320);
+    expect(block.firstChild!.textContent).toBe('caption');
+  });
+
+  it('swallows the key on a pathless image whose caption has text', () => {
+    const d = doc(para('above'), image({}, 'caption'));
+    const { state, handled } = run(d, backspaceStructural, { from: caretAt(d, 1, 0) });
+    expect(handled).toBe(true);
+    expect(state.doc.child(1).type.name).toBe('image');
+  });
+
+  it('deletes an empty placeholder in one step, focusing the block above', () => {
+    const d = doc(para('above'), image({}));
+    const { state, handled } = run(d, backspaceStructural, { from: caretAt(d, 1, 0) });
+    expect(handled).toBe(true);
+    expect(state.doc.childCount).toBe(1);
+    expect(state.doc.child(0).textContent).toBe('above');
+    // Caret at the end of the previous block's line, like the empty-Text delete.
+    expect(state.selection.from).toBe(caretAt(state.doc, 0, 'above'.length));
+  });
+
+  it('resets an empty placeholder to Text in place when it is the last block', () => {
+    const d = doc(image({}));
+    const { state, handled } = run(d, backspaceStructural, { from: caretAt(d, 0, 0) });
+    expect(handled).toBe(true);
+    expect(state.doc.childCount).toBe(1);
+    expect(state.doc.child(0).type.name).toBe('paragraph');
+  });
+});

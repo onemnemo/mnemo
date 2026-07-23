@@ -186,8 +186,19 @@ export interface EstimateContext {
 export interface EditorServices {
   /** Resolves a note title for an embedded page reference. */
   resolveNoteTitle(noteId: string): string | undefined;
-  /** Resolves a stored asset to a URL usable in `src`. */
-  resolveAssetUrl(path: string): string | undefined;
+  /**
+   * Loads a stored asset reference as an object URL usable in `src`. Async because the
+   * bytes sit behind the bearer-guarded API, and rejecting is the "cannot resolve" answer,
+   * a view renders its placeholder rather than a broken image.
+   */
+  loadAssetUrl(path: string): Promise<string>;
+  /**
+   * Uploads a picked or pasted image and resolves to the reference the block stores in its
+   * `path` attr. The bytes land on disk before any save, the way the desktop copies a
+   * picked file the moment it is chosen; an upload whose insert never persists becomes an
+   * orphan the host sweeps once no open session could redo it.
+   */
+  uploadAsset(file: File): Promise<string>;
 }
 
 /**

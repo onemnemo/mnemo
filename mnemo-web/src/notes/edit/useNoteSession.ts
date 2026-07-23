@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { onShutdown } from '@/app/shutdown';
 import type { SaveState } from '../authority/authority';
+import { closeNoteAssetSession, openNoteAssetSession } from '../assets/api';
 import { createNoteSession, type NoteSessionOptions } from './session';
 
 export type UseNoteSessionOptions = Omit<NoteSessionOptions, 'mount'>;
@@ -49,13 +50,35 @@ export function useNoteSession(options: UseNoteSessionOptions): UseNoteSessionRe
     // runs and the debounce never fires. The host holds the close open for this.
     const unregister = onShutdown(() => session.flush());
 
+    // While this session is open its undo history can resurrect image uploads no saved
+    // note references, so the host's asset sweep stands down until it hears the close.
+    // Registration failing is survivable: the sweep's grace window still protects fresh
+    // uploads, and a session the host never heard of cannot block cleanup forever.
+    let assetSession: string | null = null;
+    let closed = false;
+    openNoteAssetSession().then(
+      (sessionId) => {
+        if (closed) void closeNoteAssetSession(sessionId).catch(() => {});
+        else assetSession = sessionId;
+      },
+      () => {},
+    );
+
     return () => {
       unregister();
       unsubscribe();
+      closed = true;
       // Not awaited, because a React cleanup cannot wait. The session keeps
       // itself alive until the final save settles; what is released here is
-      // this component's interest in it.
-      void session.close();
+      // this component's interest in it. The asset session closes only after
+      // that final save, so the sweep it triggers reads the saved references.
+      void session
+        .close()
+        .catch(() => undefined)
+        .then(() => {
+          if (assetSession) return closeNoteAssetSession(assetSession);
+        })
+        .catch(() => {});
     };
   }, [options.noteId]);
 

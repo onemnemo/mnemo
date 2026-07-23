@@ -158,6 +158,14 @@ export function structuralFixtures(): readonly Fixture[] {
           width: 0,
           align: 'left',
         }),
+        // The shape the web app's own uploads store: a managed asset id.
+        block('Image', [span('uploaded')], {
+          kind: 'image',
+          path: '9f2c1de4a0b34b9c8f6d7e5a4c3b2a10.png',
+          alt: 'uploaded',
+          width: 320,
+          align: 'right',
+        }),
       ],
     },
     {
