@@ -38,6 +38,17 @@ const NUMBERED = /^(\d+)\.\s/;
 /** `![alt](target)` on a line of its own. */
 const IMAGE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/;
 
+/**
+ * A ceiling on how many blocks one paste produces.
+ *
+ * A pathological paste, a couple of million characters of single-character lines,
+ * would otherwise become a block per line, roughly a million of them, and freeze
+ * the tab mapping and placing them. Past the cap the remaining text is folded into
+ * one literal block instead: bounded work, and no characters dropped. Well above
+ * any real document, the perf gate sizes a legitimate paste in the hundreds.
+ */
+export const MAX_BLOCKS = 10_000;
+
 /** Parses a Mnemo-markdown string into wire blocks, empty of identity. */
 export function parseMarkdownToBlocks(markdown: string): Block[] {
   if (markdown.trim() === '') return [];
@@ -52,6 +63,13 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
   };
 
   while (i < lines.length) {
+    // Past the cap the rest of the paste lands as one verbatim block rather than a
+    // block per line, so a pathologically long paste cannot freeze the tab.
+    if (out.length >= MAX_BLOCKS) {
+      emit('Text', [plainSpan(lines.slice(i).join('\n'))], { kind: 'empty' });
+      break;
+    }
+
     const line = lines[i];
     const trimmed = line.replace(/^\s+/, '');
 
