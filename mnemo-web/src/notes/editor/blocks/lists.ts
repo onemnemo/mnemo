@@ -13,6 +13,7 @@ import type { AnyBlockModule } from '../registry/types';
 import type { BlockType } from '../../model/types';
 import { defineBlock, type BlockDeps } from './shared';
 import { convertHere } from './slash-insert';
+import { checklistView } from './checklist-view';
 
 export function bulletItemBlock(deps: BlockDeps): AnyBlockModule {
   return defineBlock(
@@ -110,6 +111,9 @@ export function checklistItemBlock(deps: BlockDeps): AnyBlockModule {
         type: 'Checklist' as BlockType,
         payload: { kind: 'checklist' as const, checked: node.attrs.checked === true },
       }),
+      // A real clickable checkbox in front of the text; the toDOM marker alone
+      // is decoration a click passes straight through.
+      realizedView: checklistView,
       toMarkdown: (node, _ctx, inline) =>
         `- [${node.attrs.checked === true ? 'x' : ' '}] ${inline}\n`,
       slash: [
