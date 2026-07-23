@@ -95,6 +95,19 @@ describe('clipboard perf gate', () => {
     expect(copyMs).toBeLessThan(1000);
     expect(pasteMs).toBeLessThan(1500);
   });
+
+  it('places a run without the identity mint going quadratic in the block count', () => {
+    // Identity used to be minted with one document step per pasted block, and a
+    // step over a top-level node rebuilds the sibling array, so a run of n blocks
+    // cost O(n^2): ~1.3s for 2000 here, seconds for a few thousand. It is now one
+    // grouped step, well under 200ms. The ceiling is generous so machine load does
+    // not flake it, but a return of the per-block minting (1.3s+ and climbing)
+    // trips it long before the number here.
+    measureCopyPaste(2000); // warm
+    const { pasteMs, total } = measureCopyPaste(2000);
+    expect(total).toBe(4000);
+    expect(pasteMs).toBeLessThan(1000);
+  });
 });
 
 describe('clipboard one-event invariant', () => {

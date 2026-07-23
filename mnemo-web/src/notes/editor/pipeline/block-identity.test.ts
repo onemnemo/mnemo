@@ -88,6 +88,28 @@ describe('minting', () => {
     expect(new Set(sids).size).toBe(sids.length);
   });
 
+  it('mints a whole run of new blocks with distinct ids, leaving the rest alone', () => {
+    // A paste-shaped change: many bare blocks appended in one transaction. Each
+    // must get its own non-empty sid and id, and the existing block is untouched.
+    const state = stateOf(['keep']);
+    const bare = () => schema.nodes.paragraph.create(null, schema.nodes.line.create());
+    let tr = state.tr;
+    const end = state.doc.content.size;
+    for (let i = 0; i < 6; i++) tr = tr.insert(end, bare());
+    const next = state.apply(tr);
+
+    const all = identities(next.doc);
+    expect(all[0]).toEqual({ sid: 's0000', id: 'id-0' }); // the original, untouched
+    const minted = all.slice(1);
+    expect(minted).toHaveLength(6);
+    for (const each of minted) {
+      expect(each.sid).not.toBe('');
+      expect(each.id).not.toBe('');
+    }
+    const sids = minted.map((each) => each.sid);
+    expect(new Set(sids).size).toBe(sids.length); // all distinct
+  });
+
   it('hands the mint every sid the document already holds', () => {
     // Uniqueness is checked rather than assumed: the mint is told what is taken
     // instead of being trusted to be collision-free on its own.

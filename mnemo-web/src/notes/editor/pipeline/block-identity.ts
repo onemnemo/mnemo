@@ -23,10 +23,20 @@
  * runs when a block is *created*, an Enter, a paste, and never on a keystroke
  * that merely edits text. A note built for tens of thousands of blocks cannot
  * afford the walk per character, and does not pay it.
+ *
+ * Creating *many* blocks at once, a paste or an import, is the other size trap.
+ * Re-identifying each block with its own `setNodeMarkup` is one document step per
+ * block, and a step over a top-level node rebuilds the whole sibling array, so a
+ * run of `n` blocks would cost O(n^2), seconds for a few thousand. Instead the
+ * changed top-level blocks are re-identified in place (recursively, so a pasted
+ * two-column's cells are covered) and a contiguous run is written back as one
+ * `replaceWith`. A whole pasted run is then a single O(n) step. The rewrite
+ * preserves node sizes, only attrs change, so earlier writes never move the
+ * positions of later ones and the groups apply front to back untouched.
  */
 
 import { Plugin, PluginKey } from 'prosemirror-state';
-import type { Node as PMNode } from 'prosemirror-model';
+import { Fragment, type Node as PMNode } from 'prosemirror-model';
 import type { BlockRegistry } from '../registry/build';
 import { changedRanges, type DocRange } from './invariants';
 import { blockSidLength, mintSid } from '../../model/sid';
@@ -45,29 +55,26 @@ const defaultDeps: BlockIdentityDeps = {
   newBlockId: () => crypto.randomUUID(),
 };
 
-interface Located {
-  readonly pos: number;
-  readonly node: PMNode;
-}
-
-/** Blocks inside the changed ranges that are missing either identifier. */
-function anonymousBlocksIn(
+/** Whether any block inside the changed ranges is missing either identifier. */
+function hasAnonymousIn(
   doc: PMNode,
   ranges: readonly DocRange[],
   registry: BlockRegistry,
-): Located[] {
-  const found = new Map<number, PMNode>();
+): boolean {
   for (const range of ranges) {
     const from = Math.max(0, range.from);
     const to = Math.min(doc.content.size, range.to);
     if (from > to) continue;
-    doc.nodesBetween(from, to, (node, pos) => {
+    let found = false;
+    doc.nodesBetween(from, to, (node) => {
+      if (found) return false;
       if (!registry.byNodeName.has(node.type.name)) return true;
-      if (node.attrs.sid === '' || node.attrs.id === '') found.set(pos, node);
-      return true;
+      if (node.attrs.sid === '' || node.attrs.id === '') found = true;
+      return !found;
     });
+    if (found) return true;
   }
-  return [...found].map(([pos, node]) => ({ pos, node }));
+  return false;
 }
 
 /** Every sid already spoken for, anywhere in the document. */
@@ -82,6 +89,53 @@ function takenSids(doc: PMNode, registry: BlockRegistry): Set<string> {
   return taken;
 }
 
+/**
+ * A copy of `node` with a fresh identity on every block within that lacks one,
+ * or the node itself when nothing inside needs minting. Recurses so a container's
+ * nested blocks (a two-column's cells) are covered by the same pass. `taken`
+ * grows as sids are minted, so two blocks minted in one walk cannot collide.
+ */
+function reidentify(
+  node: PMNode,
+  registry: BlockRegistry,
+  taken: Set<string>,
+  deps: BlockIdentityDeps,
+): PMNode {
+  // A text run carries no identity and rebuilding it would drop its characters.
+  if (node.isText) return node;
+
+  let childrenChanged = false;
+  const rebuilt: PMNode[] = [];
+  node.content.forEach((child) => {
+    const next = reidentify(child, registry, taken, deps);
+    if (next !== child) childrenChanged = true;
+    rebuilt.push(next);
+  });
+
+  const isBlock = registry.byNodeName.has(node.type.name);
+  const needsSid = isBlock && node.attrs.sid === '';
+  const needsId = isBlock && node.attrs.id === '';
+  if (!needsSid && !needsId && !childrenChanged) return node;
+
+  let attrs = node.attrs;
+  if (needsSid || needsId) {
+    const sid = needsSid ? deps.mintBlockSid(taken) : String(node.attrs.sid);
+    if (needsSid) taken.add(sid);
+    const id = needsId ? deps.newBlockId() : String(node.attrs.id);
+    attrs = { ...node.attrs, sid, id };
+  }
+  const content = childrenChanged ? Fragment.fromArray(rebuilt) : node.content;
+  return node.type.create(attrs, content, node.marks);
+}
+
+/** Whether a top-level block spanning `[start, end)` touches any changed range. */
+function touchesRanges(start: number, end: number, ranges: readonly DocRange[]): boolean {
+  for (const range of ranges) {
+    if (end >= range.from && start <= range.to) return true;
+  }
+  return false;
+}
+
 export function blockIdentityPlugin(
   registry: BlockRegistry,
   deps: BlockIdentityDeps = defaultDeps,
@@ -94,21 +148,46 @@ export function blockIdentityPlugin(
       const ranges = changedRanges(transactions);
       if (ranges.length === 0) return null;
 
-      const anonymous = anonymousBlocksIn(newState.doc, ranges, registry);
-      if (anonymous.length === 0) return null;
+      // The cheap gate: only a change that introduced an anonymous block does any
+      // work, so a plain keystroke never reaches the document-wide sid walk.
+      const doc = newState.doc;
+      if (!hasAnonymousIn(doc, ranges, registry)) return null;
 
-      const taken = takenSids(newState.doc, registry);
+      const taken = takenSids(doc, registry);
       const tr = newState.tr;
-      for (const { pos, node } of anonymous) {
-        // Held even when it was already set, so two blocks created by one
-        // transaction cannot be minted the same sid.
-        const sid = node.attrs.sid === '' ? deps.mintBlockSid(taken) : String(node.attrs.sid);
-        taken.add(sid);
-        const id = node.attrs.id === '' ? deps.newBlockId() : String(node.attrs.id);
-        // Positions are not mapped because they cannot move: `setNodeMarkup`
-        // replaces a node with one of identical size.
-        tr.setNodeMarkup(pos, undefined, { ...node.attrs, sid, id });
+
+      // Re-identify the changed top-level blocks and write each contiguous run
+      // back as one step. Sizes are unchanged, so positions from the original doc
+      // stay valid across the writes and the groups apply front to back.
+      let offset = 0;
+      let group: { from: number; to: number; nodes: PMNode[] } | null = null;
+      const flush = () => {
+        if (group) tr.replaceWith(group.from, group.to, group.nodes);
+        group = null;
+      };
+      for (let i = 0; i < doc.childCount; i++) {
+        const child = doc.child(i);
+        const start = offset;
+        const end = offset + child.nodeSize;
+        offset = end;
+        if (!touchesRanges(start, end, ranges)) {
+          flush();
+          continue;
+        }
+        const rebuilt = reidentify(child, registry, taken, deps);
+        if (rebuilt === child) {
+          flush();
+          continue;
+        }
+        if (group && group.to === start) {
+          group.to = end;
+          group.nodes.push(rebuilt);
+        } else {
+          flush();
+          group = { from: start, to: end, nodes: [rebuilt] };
+        }
       }
+      flush();
 
       // No self-tag guard: this cannot retrigger itself, because the transaction
       // it appends leaves every block it touched with both identifiers set, and
