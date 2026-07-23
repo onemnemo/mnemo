@@ -46,7 +46,7 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry, inline } = editorSchema();
     const plugins = editorPlugins(registry, inline);
-    expect(plugins).toHaveLength(19);
+    expect(plugins).toHaveLength(20);
     // Four positions carry meaning rather than tidiness. The nested-input guard
     // has to be asked before the keymaps it stands down; the image and clipboard
     // plugins claim paste/copy/cut before the slash menu, which itself has to be
