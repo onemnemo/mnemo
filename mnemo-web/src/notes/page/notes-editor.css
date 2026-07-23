@@ -203,7 +203,7 @@
  * an even split. */
 .notes-doc [data-two-column] {
   display: flex;
-  gap: 16px;
+  gap: 0;
   align-items: flex-start;
 }
 .notes-doc [data-two-column] > [data-line] {
@@ -215,8 +215,36 @@
   flex-basis: 0;
   min-width: 0;
 }
-.notes-doc [data-column] + [data-column] {
+/* A general sibling, not adjacent: the splitter widget sits between the two cells,
+ * so the right cell is no longer next to the left one. */
+.notes-doc [data-column] ~ [data-column] {
   flex-grow: calc(1 - var(--notes-split, 0.5));
+}
+
+/* The resize handle between the cells (editable view only). A fixed-width lane
+ * carries the gap the container no longer adds; its grip line fades in on hover
+ * or drag, matching the desktop's 0.42 splitter opacity. */
+.notes-doc .notes-column-splitter {
+  flex: 0 0 16px;
+  align-self: stretch;
+  position: relative;
+  cursor: col-resize;
+  user-select: none;
+}
+.notes-doc .notes-column-splitter-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 7px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.notes-doc .notes-column-splitter:hover .notes-column-splitter-grip,
+.notes-doc .notes-column-splitter.is-dragging .notes-column-splitter-grip {
+  opacity: 0.42;
 }
 
 /* Image, the bytes are resolved by the image view; until then a note

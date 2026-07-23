@@ -46,7 +46,7 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry } = editorSchema();
     const plugins = editorPlugins(registry);
-    expect(plugins).toHaveLength(13);
+    expect(plugins).toHaveLength(14);
     // Three positions carry meaning rather than tidiness. The nested-input
     // guard has to be asked before the keymaps it stands down; the slash menu
     // has to be asked before them too, since it takes the arrow keys and Enter
