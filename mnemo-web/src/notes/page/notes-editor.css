@@ -169,27 +169,49 @@
   text-align: right;
   color: var(--text-secondary);
 }
+/* Checklist. The box is a real button rendered by the checklist NodeView, not
+ * a pseudo-element: a marker drawn in CSS cannot take a click. Sizing and the
+ * check glyph mirror the desktop's CheckBox template (19px box scaled to the
+ * note's type, 1.5px stroke, small radius, 150ms brush transitions); checked
+ * fills with the accent exactly as CheckBoxCheckedBackgroundBrush does. */
 .notes-doc li[data-checklist] {
-  padding-left: 1.8em;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-left: 0;
 }
-.notes-doc li[data-checklist]::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.2em;
-  width: 1em;
-  height: 1em;
+.notes-doc .notes-checkbox {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  /* Optically centers the box against the first text row's 1.5em line box. */
+  margin-top: 3px;
+  padding: 0;
   border: 1.5px solid var(--line-color);
   border-radius: 4px;
-  box-sizing: border-box;
+  background: transparent;
+  /* The glyph strokes currentColor; transparent hides it until checked. */
+  color: transparent;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
 }
-.notes-doc li[data-checklist][data-checked="true"]::before {
-  content: "✓";
+.notes-doc .notes-checkbox svg {
+  width: 10px;
+  height: 8px;
+}
+.notes-doc .notes-checkbox:hover {
   border-color: var(--text-tertiary);
-  color: var(--text-tertiary);
-  font-size: 0.85em;
-  line-height: 1em;
-  text-align: center;
+}
+.notes-doc li[data-checklist][data-checked="true"] .notes-checkbox {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-button-text);
+}
+.notes-doc .notes-checklist-body {
+  flex: 1;
+  min-width: 0;
 }
 .notes-doc li[data-checklist][data-checked="true"] [data-line] {
   color: var(--text-faded);
