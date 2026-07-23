@@ -10,7 +10,9 @@
  *     slice rebuilt from the JSON payload, then placed the same way.
  *  3. HTML from another app: sanitised, parsed with our schema, and dropped in
  *     with ProseMirror's own fitting, the way any browser paste behaves. An
- *     over-large paste degrades to plain text rather than being parsed.
+ *     over-large paste degrades to plain text rather than being parsed. A markdown
+ *     editor's HTML is skipped here when the plain text alongside it parses to real
+ *     block structure, so pasted markdown becomes blocks rather than literal syntax.
  *  4. Plain text: read as Mnemo markdown, the desktop's only paste dialect, so a
  *     pasted markdown document becomes real blocks. One line folds inline at the
  *     caret; a run of blocks is placed like an Enter split. Only genuinely empty
@@ -61,6 +63,28 @@ import { readClipMeta } from './read-clipboard';
 /** A ceiling on the plain-text degrade path, so an over-large paste stays bounded there too. */
 const MAX_PLAIN_TEXT_LENGTH = 2_000_000;
 
+/**
+ * Whether the clipboard's plain text parses to real block structure.
+ *
+ * A markdown editor puts the literal markdown on text/plain and a trivially
+ * wrapped copy of that same text on text/html (`<p># Heading</p>`), so the HTML
+ * path would paste the syntax verbatim. When the plain text yields at least one
+ * non-Text block the markdown reading is the truer one and should win over that
+ * HTML. A source that emits semantic HTML (a web page, a word processor) puts only
+ * rendered text on text/plain, which holds no markdown syntax and so never trips
+ * this, leaving its rich HTML to win as before. A purely inline-formatted line
+ * (just bold or a link) stays a single Text block and is left to the HTML too.
+ */
+function plainTextIsStructuredMarkdown(data: DataTransfer): boolean {
+  const text = data.getData('text/plain');
+  if (text.trim() === '') return false;
+  try {
+    return parseMarkdownToBlocks(text.slice(0, MAX_PLAIN_TEXT_LENGTH)).some((b) => b.type !== 'Text');
+  } catch {
+    return false;
+  }
+}
+
 export function handleInternalPaste(
   view: EditorView,
   data: DataTransfer | null,
@@ -86,16 +110,22 @@ export function handleInternalPaste(
 
   const html = data.getData('text/html');
   if (html.trim() !== '') {
-    let placed = false;
-    try {
-      const parsed = parseExternalHtml(html, schema);
-      placed = parsed !== 'too-large' && parsed !== null && placeExternal(view, parsed.slice);
-    } catch {
-      // Even the parser is fed attacker input; a throw here must not escape, or
-      // the browser would native-paste the raw HTML.
-      placed = false;
+    // A markdown editor emits the literal markdown on text/plain and a trivially
+    // wrapped copy of it on text/html; when that plain text carries real block
+    // structure the markdown reading is the truer one, so skip the HTML and let
+    // the markdown path below turn it into blocks.
+    if (!plainTextIsStructuredMarkdown(data)) {
+      let placed = false;
+      try {
+        const parsed = parseExternalHtml(html, schema);
+        placed = parsed !== 'too-large' && parsed !== null && placeExternal(view, parsed.slice);
+      } catch {
+        // Even the parser is fed attacker input; a throw here must not escape, or
+        // the browser would native-paste the raw HTML.
+        placed = false;
+      }
+      if (placed) return true;
     }
-    if (placed) return true;
     return pastePlainText(view, data, registry, support, progress);
   }
 

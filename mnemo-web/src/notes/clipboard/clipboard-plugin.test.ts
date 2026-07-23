@@ -245,6 +245,38 @@ describe('clipboardPlugin external paste', () => {
     expect(firePaste(view, foreign)).toBe(true);
     expect(view.state.doc.textContent).toContain('plain fallback');
   });
+
+  it('prefers structured markdown on text/plain over an editor\'s trivially wrapped HTML', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    // A markdown editor puts the literal syntax on both surfaces: the HTML just
+    // wraps it in a <p>. The markdown reading wins, so it becomes real blocks
+    // rather than a paragraph of verbatim "# Heading - one - two".
+    const clip = fakeClipboard();
+    clip.setData('text/plain', '# Heading\n- one\n- two');
+    clip.setData('text/html', '<p># Heading\n- one\n- two</p>');
+
+    expect(firePaste(view, clip)).toBe(true);
+    const types: string[] = [];
+    view.state.doc.forEach((node) => types.push(node.type.name));
+    expect(types).toEqual(['heading', 'bulletItem', 'bulletItem']);
+  });
+
+  it('keeps semantic HTML when the plain text carries no markdown structure', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    // A web page: the plain text is just the rendered words, no markdown syntax,
+    // so the real <h1> is respected rather than the plain text winning.
+    const clip = fakeClipboard();
+    clip.setData('text/plain', 'Real Heading');
+    clip.setData('text/html', '<h1>Real Heading</h1>');
+
+    expect(firePaste(view, clip)).toBe(true);
+    expect(view.state.doc.child(0).type.name).toBe('heading');
+    expect(view.state.doc.child(0).textContent).toBe('Real Heading');
+  });
 });
 
 describe('clipboardPlugin plain-text markdown paste', () => {
