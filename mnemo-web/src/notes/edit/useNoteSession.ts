@@ -13,6 +13,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
+import type { EditorView } from 'prosemirror-view';
 import { onShutdown } from '@/app/shutdown';
 import type { SaveState } from '../authority/authority';
 import { closeNoteAssetSession, openNoteAssetSession } from '../assets/api';
@@ -24,6 +25,8 @@ export interface UseNoteSessionResult {
   /** Attach to the element the editor should mount into. */
   readonly ref: RefObject<HTMLDivElement | null>;
   readonly saveState: SaveState;
+  /** The live view, once mounted, for chrome that reads geometry and dispatches. Null before mount and after teardown. */
+  readonly view: EditorView | null;
 }
 
 export function useNoteSession(options: UseNoteSessionOptions): UseNoteSessionResult {
@@ -33,6 +36,10 @@ export function useNoteSession(options: UseNoteSessionOptions): UseNoteSessionRe
   // would re-render the note on every keystroke. The state is a string that
   // usually does not change, and React drops a set to an equal value.
   const [saveState, setSaveState] = useState<SaveState>('loading');
+  // The mounted view, surfaced so gutter chrome can read block geometry and
+  // dispatch. Held in state so a consumer re-renders once it exists; cleared on
+  // teardown so the chrome unmounts with the view rather than reading a dead one.
+  const [view, setView] = useState<EditorView | null>(null);
 
   const latest = useRef(options);
   latest.current = options;
@@ -42,6 +49,7 @@ export function useNoteSession(options: UseNoteSessionOptions): UseNoteSessionRe
     if (!element) return;
 
     const session = createNoteSession({ mount: element, ...latest.current });
+    setView(session.view);
     setSaveState(session.authority.snapshot().saveState);
     const unsubscribe = session.subscribe((snapshot) => {
       setSaveState(snapshot.saveState);
@@ -67,6 +75,7 @@ export function useNoteSession(options: UseNoteSessionOptions): UseNoteSessionRe
     return () => {
       unregister();
       unsubscribe();
+      setView(null);
       closed = true;
       // Not awaited, because a React cleanup cannot wait. The session keeps
       // itself alive until the final save settles; what is released here is
@@ -82,5 +91,5 @@ export function useNoteSession(options: UseNoteSessionOptions): UseNoteSessionRe
     };
   }, [options.noteId]);
 
-  return { ref, saveState };
+  return { ref, saveState, view };
 }
