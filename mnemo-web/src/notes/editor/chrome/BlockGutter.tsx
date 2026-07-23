@@ -14,7 +14,13 @@ import {
   MenuTrigger,
 } from '@/components/ui/menu';
 
-import { topLevelBlockAt } from '../pipeline/ensure-realized';
+import { deepestBlockAt } from '../pipeline/block-locate';
+import { blockChildrenOf } from '../blocks/shared';
+import type { BlockRegistry } from '../registry/build';
+import { getBlockSelection, setBlockSelection } from '../../selection/block-selection-plugin';
+import { buildDeleteSelected } from '../../selection/delete-selected';
+import { applyGrip, gripIntent } from '../../selection/grip-selection';
+import { sidsWithin } from '../../selection/block-selection';
 import { useBlockDrag, type BlockDragHandle } from './useBlockDrag';
 import {
   canTurnInto,
@@ -40,16 +46,36 @@ import {
  * the block's edge; and a single repositioned handle is O(1) where per-block
  * widgets would be O(blocks) against the tens-of-thousands target.
  *
+ * The unit the handle points at is the *deepest* hovered block, not the
+ * top-level one: inside a two-column row every cell child gets the handle
+ * beside itself, which is what the desktop does (each EditableBlock in a column
+ * carries its own grip) and what Notion does. Hovering the row's own scenery -
+ * its padding, the splitter lane - offers the row itself. The menu's verbs and
+ * the grip's selection act on that same unit; a drag on a nested block extracts
+ * it to a top-level gap (see {@link useBlockDrag}).
+ *
  * The drag itself is {@link useBlockDrag}; this owns only the chrome and the menu.
  */
 
 interface ActiveBlock {
-  index: number;
+  /** Position just before the block node, any depth. */
   pos: number;
   node: PMNode;
+  /** 1 for a top-level block; deeper for a cell child. */
+  depth: number;
+  /** The top-level ancestor's document-child index, for the reorder. */
+  topIndex: number;
   /** The block's own DOM element, kept so a scroll re-reads one rect rather than a search. */
   dom: HTMLElement;
   rect: DOMRect;
+  /**
+   * Whether block children live inside this block's DOM. False for a leaf,
+   * which lets hover skip re-resolving while the pointer crosses the leaf's
+   * own inline elements; a block that can retarget to a nested child cannot.
+   */
+  hasNestedBlocks: boolean;
+  /** The document the position was read from; a pos is only valid against its own doc. */
+  doc: PMNode;
 }
 
 function blockLabel(node: PMNode): string {
@@ -81,26 +107,55 @@ function topLevelElement(root: HTMLElement, target: EventTarget | null): HTMLEle
 }
 
 /**
- * The active-block record for a top-level element, its index and position found
- * through ProseMirror's own DOM->pos map rather than by counting siblings, so it
- * costs O(tree depth) rather than O(document).
+ * The document position of an element, through ProseMirror's own DOM->pos map.
+ *
+ * `posAtDOM` throws (or answers -1) for DOM a NodeView draws outside its
+ * contentDOM - the column splitter, a checklist's box - so those fall back to
+ * the top-level child the element sits inside, which always maps.
  */
-function blockFromElement(view: EditorView, el: HTMLElement): ActiveBlock | null {
-  const located = topLevelBlockAt(view, view.posAtDOM(el, 0));
-  if (!located) return null;
-  return { index: located.index, pos: located.pos, node: located.node, dom: el, rect: el.getBoundingClientRect() };
+function posOfElement(view: EditorView, el: Element): number | null {
+  try {
+    const pos = view.posAtDOM(el, 0);
+    if (pos >= 0) return pos;
+  } catch {
+    // fall through to the top-level fallback
+  }
+  const top = topLevelElement(view.dom, el);
+  if (!top || top === el) return null;
+  try {
+    const pos = view.posAtDOM(top, 0);
+    return pos >= 0 ? pos : null;
+  } catch {
+    return null;
+  }
 }
 
-/** The active-block record for the block containing a document position. */
-function blockFromPos(view: EditorView, pos: number): ActiveBlock | null {
-  const located = topLevelBlockAt(view, pos);
+/** The active-block record for the deepest block containing a document position. */
+function blockFromPos(view: EditorView, registry: BlockRegistry, pos: number): ActiveBlock | null {
+  const located = deepestBlockAt(view.state.doc, registry, pos);
   if (!located) return null;
-  const el = view.nodeDOM(located.pos);
-  if (!(el instanceof HTMLElement)) return null;
-  return { index: located.index, pos: located.pos, node: located.node, dom: el, rect: el.getBoundingClientRect() };
+  const dom = view.nodeDOM(located.pos);
+  if (!(dom instanceof HTMLElement)) return null;
+  return {
+    pos: located.pos,
+    node: located.node,
+    depth: located.depth,
+    topIndex: located.topIndex,
+    dom,
+    rect: dom.getBoundingClientRect(),
+    hasNestedBlocks: blockChildrenOf(located.node).length > 0,
+    doc: view.state.doc,
+  };
 }
 
-export function BlockGutter({ view }: { view: EditorView }) {
+/** The active-block record for the deepest block whose DOM contains `el`. */
+function blockFromElement(view: EditorView, registry: BlockRegistry, el: Element): ActiveBlock | null {
+  const pos = posOfElement(view, el);
+  if (pos === null) return null;
+  return blockFromPos(view, registry, pos);
+}
+
+export function BlockGutter({ view, registry }: { view: EditorView; registry: BlockRegistry }) {
   const drag = useBlockDrag(view);
   const dragging = drag.handle !== null;
 
@@ -110,10 +165,10 @@ export function BlockGutter({ view }: { view: EditorView }) {
 
   const gripRef = useRef<HTMLButtonElement | null>(null);
   // The blocks hover and the caret point at, and the element hover last resolved,
-  // so a pointer moving within one block does no work.
+  // so a pointer moving within one element does no work.
   const activeRef = useRef<ActiveBlock | null>(null);
   const hoveredRef = useRef<ActiveBlock | null>(null);
-  const hoveredElRef = useRef<HTMLElement | null>(null);
+  const hoveredElRef = useRef<Element | null>(null);
   const caretRef = useRef<ActiveBlock | null>(null);
   const overChromeRef = useRef(false);
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -128,8 +183,17 @@ export function BlockGutter({ view }: { view: EditorView }) {
     if (dragging) return;
     // While the menu is open the handle stays on its block; otherwise hover wins
     // over the caret. Re-read the chosen block's rect so a scroll keeps the handle
-    // pinned to it, but keep index/pos/node without another lookup.
-    const chosen = menuOpen ? activeRef.current : (hoveredRef.current ?? caretRef.current);
+    // pinned to it, but keep pos/node without another lookup - unless the document
+    // changed under the snapshot (a menu command, an invariant repair): a position
+    // is only meaningful against the doc it was read from, so it is re-derived
+    // from the element, which ProseMirror keeps mapped to the current doc.
+    let chosen = menuOpen ? activeRef.current : (hoveredRef.current ?? caretRef.current);
+    if (chosen && chosen.dom.isConnected && chosen.doc !== view.state.doc) {
+      chosen = blockFromElement(view, registry, chosen.dom);
+      if (menuOpen) activeRef.current = chosen;
+      else if (hoveredRef.current) hoveredRef.current = chosen;
+      else caretRef.current = chosen;
+    }
     if (!chosen || !chosen.dom.isConnected) {
       activeRef.current = null;
       setActive(null);
@@ -138,7 +202,7 @@ export function BlockGutter({ view }: { view: EditorView }) {
     const next: ActiveBlock = { ...chosen, rect: chosen.dom.getBoundingClientRect() };
     activeRef.current = next;
     setActive(next);
-  }, [dragging, menuOpen]);
+  }, [dragging, menuOpen, view, registry]);
 
   // Track the hovered block, the caret block, and hover over the chrome itself.
   useEffect(() => {
@@ -156,11 +220,32 @@ export function BlockGutter({ view }: { view: EditorView }) {
     };
 
     const onPointerMove = (event: PointerEvent) => {
-      const el = topLevelElement(root, event.target);
-      // A move within the same block is the common case and does nothing.
+      const el = event.target instanceof Element ? event.target : null;
+      // A move within the same element is the common case and does nothing.
       if (el === hoveredElRef.current) return;
       hoveredElRef.current = el;
-      hoveredRef.current = el ? blockFromElement(view, el) : null;
+      // Crossing between a leaf block's own inline elements (a bold span, a
+      // link) cannot change the target, so it skips the DOM->pos resolution -
+      // which walks preceding siblings and is O(document) for a late block.
+      // A block holding nested blocks has to re-resolve: the pointer may have
+      // moved onto a child that is its own target.
+      const hovered = hoveredRef.current;
+      if (
+        hovered &&
+        !hovered.hasNestedBlocks &&
+        hovered.doc === view.state.doc &&
+        el &&
+        hovered.dom.isConnected &&
+        hovered.dom.contains(el)
+      ) {
+        return;
+      }
+      hoveredRef.current = el && el !== root ? blockFromElement(view, registry, el) : null;
+      // Landing on the same block again (parent line to child and back) needs no
+      // state churn; the rect is refreshed by the scroll listener when it moves.
+      if (hovered && hoveredRef.current && hovered.pos === hoveredRef.current.pos && hovered.doc === hoveredRef.current.doc) {
+        return;
+      }
       refresh();
     };
     const onPointerLeave = () => {
@@ -169,7 +254,7 @@ export function BlockGutter({ view }: { view: EditorView }) {
       scheduleClear();
     };
     const onCaret = () => {
-      caretRef.current = blockFromPos(view, view.state.selection.head);
+      caretRef.current = blockFromPos(view, registry, view.state.selection.head);
       if (hoveredRef.current === null) refresh();
     };
 
@@ -188,7 +273,7 @@ export function BlockGutter({ view }: { view: EditorView }) {
       // this component is gone and set state on the unmounted tree.
       if (clearTimer.current) clearTimeout(clearTimer.current);
     };
-  }, [view, dragging, menuOpen, refresh]);
+  }, [view, registry, dragging, menuOpen, refresh]);
 
   // Pin the ghost to the cursor the frame it appears, so it never paints at 0,0.
   useLayoutEffect(() => {
@@ -210,26 +295,46 @@ export function BlockGutter({ view }: { view: EditorView }) {
     (build: (state: EditorState, loc: BlockLocation) => Transaction | null, message: string) => {
       const current = activeRef.current;
       if (!current) return;
-      const loc = locateBlock(view.state, current.index);
+      const loc = locateBlock(view.state, registry, current.pos, String(current.node.attrs.sid ?? ''));
       if (!loc) return;
       const tr = build(view.state, loc);
       if (!tr) return;
       view.dispatch(tr);
       view.focus();
+      // The snapshot's positions died with the old document; re-derive so the
+      // next click or drag on the still-shown handle acts on the right block.
+      refresh();
       announce(message);
     },
-    [view, announce],
+    [view, registry, announce, refresh],
   );
 
   const handleBlock = active;
   const handle: BlockDragHandle | null = handleBlock
-    ? { index: handleBlock.index, pos: handleBlock.pos, sid: String(handleBlock.node.attrs.sid), label: blockLabel(handleBlock.node) }
+    ? {
+        index: handleBlock.depth === 1 ? handleBlock.topIndex : null,
+        pos: handleBlock.pos,
+        sid: String(handleBlock.node.attrs.sid),
+        label: blockLabel(handleBlock.node),
+      }
     : null;
+
+  // Sibling context for the menu's disabled states; commands re-locate fresh.
+  const menuLocation =
+    handleBlock && menuOpen
+      ? locateBlock(view.state, registry, handleBlock.pos, String(handleBlock.node.attrs.sid ?? ''))
+      : null;
+
+  // Inside a column the -46 gutter would land on the neighbouring cell's text,
+  // so a nested block gets compact chrome: the grip alone, tucked into the
+  // narrow lane just left of the block. The desktop's cells made the same
+  // trade, collapsing the add gutter and keeping the handle.
+  const nested = (handleBlock?.depth ?? 1) > 1;
 
   const overlay = handleBlock && handle && !dragging ? (
     <div
       className="fixed z-40 flex items-center gap-0.5"
-      style={{ left: handleBlock.rect.left - 46, top: handleBlock.rect.top + 1 }}
+      style={{ left: handleBlock.rect.left - (nested ? 24 : 46), top: handleBlock.rect.top + 1 }}
       onPointerEnter={() => {
         overChromeRef.current = true;
       }}
@@ -237,14 +342,16 @@ export function BlockGutter({ view }: { view: EditorView }) {
         overChromeRef.current = false;
       }}
     >
-      <button
-        type="button"
-        aria-label="Add block below"
-        className="grid h-5 w-5 place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary"
-        onClick={() => addBlockBelow(view, handleBlock)}
-      >
-        <AppIcon name="common/plus" size={14} />
-      </button>
+      {nested ? null : (
+        <button
+          type="button"
+          aria-label="Add block below"
+          className="grid h-5 w-5 place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary"
+          onClick={() => addBlockBelow(view, handleBlock)}
+        >
+          <AppIcon name="common/plus" size={14} />
+        </button>
+      )}
       <button
         ref={gripRef}
         type="button"
@@ -254,12 +361,31 @@ export function BlockGutter({ view }: { view: EditorView }) {
         className="grid h-5 w-5 cursor-grab place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary active:cursor-grabbing"
         onPointerDown={(event) => drag.press(event, handle)}
         onClick={(event) => {
-          // Swallow the click that tails a drag; a real click toggles the menu.
+          // Swallow the click that tails a drag; a real click acts.
           if (drag.suppressClick(handle.sid)) {
             event.preventDefault();
             return;
           }
-          setMenuOpen((open) => !open);
+          // The desktop's grip modifier map: plain selects the block, Ctrl/Cmd
+          // toggles it, Shift ranges from the anchor, Ctrl+Shift adds the range.
+          // The plain click also opens the block menu the port's grip owns -
+          // select-and-menu together are Notion's reading of the same gesture.
+          // The snapshot's pos is re-verified against the live document first: a
+          // stale position turned into a [pos, pos+size) range would select - and
+          // a following Delete would remove - whatever block sits there now.
+          const intent = gripIntent(event);
+          const loc = locateBlock(view.state, registry, handleBlock.pos, handle.sid);
+          if (!loc) return;
+          const current = getBlockSelection(view.state);
+          const next = applyGrip(view.state.doc, registry, current, loc.pos, loc.node, intent);
+          // The selection announcer speaks the new count; the grip stays quiet
+          // so the two live regions never double up.
+          if (next !== current) setBlockSelection(view, next);
+          if (intent === 'select') {
+            setMenuOpen((open) => !open);
+            return;
+          }
+          view.focus();
         }}
       >
         <AppIcon name="common/grip-vertical" size={14} />
@@ -282,15 +408,15 @@ export function BlockGutter({ view }: { view: EditorView }) {
         <MenuContent align="start">
           <MenuItem
             icon="common/arrow-up"
-            disabled={handleBlock.index <= 0}
-            onSelect={() => runCommand((state, loc) => moveBlockUp(state, loc.index), 'Block moved up')}
+            disabled={!menuLocation?.prev}
+            onSelect={() => runCommand((state, loc) => moveBlockUp(state, loc), 'Block moved up')}
           >
             Move up
           </MenuItem>
           <MenuItem
             icon="common/arrow-down"
-            disabled={handleBlock.index >= view.state.doc.childCount - 1}
-            onSelect={() => runCommand((state, loc) => moveBlockDown(state, loc.index), 'Block moved down')}
+            disabled={!menuLocation?.next}
+            onSelect={() => runCommand((state, loc) => moveBlockDown(state, loc), 'Block moved down')}
           >
             Move down
           </MenuItem>
@@ -314,8 +440,32 @@ export function BlockGutter({ view }: { view: EditorView }) {
           <MenuItem
             icon="common/trash"
             danger
-            disabled={view.state.doc.childCount <= 1}
-            onSelect={() => runCommand((state, loc) => deleteBlock(state, loc), 'Block deleted')}
+            disabled={
+              (menuLocation?.parentPos ?? 0) < 0 &&
+              view.state.doc.childCount <= 1 &&
+              getBlockSelection(view.state).selected.size === 0
+            }
+            onSelect={() => {
+              // When this block is part of a live multi-block selection, Delete
+              // removes the whole selection; otherwise it removes just this block.
+              // Located fresh: the snapshot's pos may predate a menu command.
+              const selection = getBlockSelection(view.state);
+              const loc = locateBlock(view.state, registry, handleBlock.pos, String(handleBlock.node.attrs.sid ?? ''));
+              if (!loc) return;
+              const leaves = sidsWithin(view.state.doc, registry, loc.pos, loc.node);
+              const inSelection = selection.selected.size > 0 && leaves.some((sid) => selection.selected.has(sid));
+              if (inSelection) {
+                // The selection announcer speaks the clear that follows; deleting
+                // the whole selection here would double the live region.
+                const tr = buildDeleteSelected(view.state, registry, selection.selected);
+                if (tr) {
+                  view.dispatch(tr);
+                  view.focus();
+                }
+                return;
+              }
+              runCommand((state, loc) => deleteBlock(state, loc), 'Block deleted');
+            }}
           >
             Delete
           </MenuItem>

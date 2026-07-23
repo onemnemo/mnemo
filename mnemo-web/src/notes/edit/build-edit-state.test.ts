@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { TextSelection } from 'prosemirror-state';
+import { TextSelection, type EditorState } from 'prosemirror-state';
 import type { DecorationSet } from 'prosemirror-view';
 
 import { buildNoteEditState, editorPlugins } from './build-edit-state';
@@ -46,7 +46,7 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry } = editorSchema();
     const plugins = editorPlugins(registry);
-    expect(plugins).toHaveLength(17);
+    expect(plugins).toHaveLength(18);
     // Three positions carry meaning rather than tidiness. The nested-input
     // guard has to be asked before the keymaps it stands down; the slash menu
     // has to be asked before them too, since it takes the arrow keys and Enter
@@ -103,15 +103,18 @@ describe('editorPlugins wiring', () => {
     ]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // Find the plugin exposing decorations and ask it for the current set.
-    const decoPlugin = result.state.plugins.find(
-      (p) => p.props && (p.props as { decorations?: unknown }).decorations,
-    );
-    expect(decoPlugin).toBeDefined();
-    const decorations = (
-      decoPlugin!.props as unknown as { decorations(state: typeof result.state): DecorationSet }
-    ).decorations(result.state);
-    expect(decorations.find()).toHaveLength(2);
+    // Several plugins expose decorations (block selection, find highlights, list
+    // numbers, reserved heights). Of those, block selection and find paint
+    // nothing on a plain document, and the list-number plugin runs before the
+    // size plugin, so the first non-empty set is the list numbers.
+    const state = result.state;
+    const decorated = state.plugins
+      .filter((p) => p.props && (p.props as { decorations?: unknown }).decorations)
+      .map((p) =>
+        (p.props as unknown as { decorations(s: EditorState): DecorationSet | undefined }).decorations(state),
+      )
+      .filter((set): set is DecorationSet => set != null && set.find().length > 0);
+    expect(decorated[0].find()).toHaveLength(2);
   });
 
   it('wires the markdown input trigger so "# " converts a paragraph to a heading', () => {

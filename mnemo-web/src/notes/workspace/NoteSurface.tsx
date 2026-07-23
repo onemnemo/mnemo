@@ -16,6 +16,8 @@ import { useNoteSession } from '../edit/useNoteSession';
 import { BlockGutter } from '../editor/chrome/BlockGutter';
 import { FindReplaceOverlay } from '../find/FindReplaceOverlay';
 import { createPersist } from '../save/persist';
+import { BlockSelectionAnnouncer } from '../selection/BlockSelectionAnnouncer';
+import { BlockSelectionOverlay } from '../selection/BlockSelectionOverlay';
 import { BreadcrumbBar } from './BreadcrumbBar';
 import { IndexChip } from './IndexChip';
 
@@ -103,7 +105,9 @@ export function NoteSurface({
         </div>
       </div>
       {view ? <IndexChip view={view} registry={registry} scrollRef={scrollRef} /> : null}
-      {view ? <BlockGutter view={view} /> : null}
+      {view ? <BlockSelectionOverlay view={view} registry={registry} scrollRef={scrollRef} /> : null}
+      {view ? <BlockSelectionAnnouncer view={view} /> : null}
+      {view ? <BlockGutter view={view} registry={registry} /> : null}
       {view ? <FindReplaceOverlay view={view} registry={registry} /> : null}
     </div>
   );

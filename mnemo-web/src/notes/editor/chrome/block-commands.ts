@@ -1,11 +1,17 @@
 /**
  * The block action menu's commands: the verbs the gutter handle offers on one
- * top-level block. Each is a pure builder returning the single transaction it
- * would dispatch, or null when it does not apply, so the menu is a projection of
+ * block. Each is a pure builder returning the single transaction it would
+ * dispatch, or null when it does not apply, so the menu is a projection of
  * these and they are testable without a view.
  *
  * Every verb is one transaction, so every action is one undo and one save, the
  * same invariant the drag reorder holds.
+ *
+ * The unit is the located block at any depth, not a document-child index: the
+ * gutter follows the deepest hovered block, so inside a two-column row these
+ * verbs act on the hovered cell child, and "up"/"down" mean its own sibling
+ * run within that cell. Deleting the last block of a cell is allowed; the
+ * column-repair invariant reseeds the cell in the same undo step.
  *
  * The desktop editor has no such menu - it reorders by drag-handle only and
  * deletes/duplicates through three per-block flyouts - so this is a deliberate
@@ -18,21 +24,70 @@ import type { EditorState, Transaction } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 
 import { convertBlockType } from '../commands/structure';
-import { moveBlockTransaction } from './block-move';
+import type { BlockRegistry } from '../registry/build';
+import { walkBlocks } from '../projection/document';
 
-export interface BlockLocation {
-  readonly index: number;
+export interface SiblingRef {
   readonly pos: number;
   readonly node: PMNode;
 }
 
-/** Locate a top-level block by its document-child index, or null if out of range. */
-export function locateBlock(state: EditorState, index: number): BlockLocation | null {
+export interface BlockLocation {
+  /** Position just before the block node. */
+  readonly pos: number;
+  readonly node: PMNode;
+  /** Position of the parent node, or -1 when the parent is the document. */
+  readonly parentPos: number;
+  readonly parent: PMNode;
+  /** Previous/next *block* sibling within the parent; the mandatory line is skipped. */
+  readonly prev: SiblingRef | null;
+  readonly next: SiblingRef | null;
+}
+
+/**
+ * Locate a block for a command, resilient to the document having moved on.
+ *
+ * The fast path trusts `pos`: the node still sitting there with the expected
+ * sid is the block the menu was opened on (menu interactions dispatch nothing,
+ * so this is the common case). If the document changed underneath - an
+ * invariant repair, a concurrent edit - the block is re-found by sid, the one
+ * identifier that survives any reshuffle. A block that lost both is gone.
+ */
+export function locateBlock(
+  state: EditorState,
+  registry: BlockRegistry,
+  pos: number,
+  sid: string,
+): BlockLocation | null {
   const doc = state.doc;
-  if (index < 0 || index >= doc.childCount) return null;
-  let pos = 0;
-  for (let i = 0; i < index; i++) pos += doc.child(i).nodeSize;
-  return { index, pos, node: doc.child(index) };
+
+  let at: { pos: number; node: PMNode } | null = null;
+  const direct = pos >= 0 && pos <= doc.content.size ? doc.nodeAt(pos) : null;
+  if (direct && registry.byNodeName.has(direct.type.name) && (sid === '' || String(direct.attrs.sid) === sid)) {
+    at = { pos, node: direct };
+  } else if (sid !== '') {
+    const entry = walkBlocks(doc, registry).find((candidate) => candidate.sid === sid);
+    if (entry) at = { pos: entry.pos, node: entry.node };
+  }
+  if (!at) return null;
+  const located = at;
+
+  const $pos = doc.resolve(located.pos);
+  const parent = $pos.depth === 0 ? doc : $pos.node($pos.depth);
+  const parentPos = $pos.depth === 0 ? -1 : $pos.before($pos.depth);
+
+  let prev: SiblingRef | null = null;
+  let next: SiblingRef | null = null;
+  let offset = parentPos + 1;
+  parent.forEach((child) => {
+    const childPos = offset;
+    offset += child.nodeSize;
+    if (!registry.byNodeName.has(child.type.name)) return;
+    if (childPos < located.pos) prev = { pos: childPos, node: child };
+    else if (childPos > located.pos && next === null) next = { pos: childPos, node: child };
+  });
+
+  return { pos: located.pos, node: located.node, parentPos, parent, prev, next };
 }
 
 /** Text-bearing blocks that can be turned into one another. Atomic blocks cannot. */
@@ -77,14 +132,27 @@ export function isCurrentType(node: PMNode, option: TurnIntoOption): boolean {
   return level == null || node.attrs.level === level;
 }
 
-export function moveBlockUp(state: EditorState, index: number): Transaction | null {
-  if (index <= 0) return null;
-  return moveBlockTransaction(state, index, index - 1);
+/**
+ * Swap the block with its previous sibling, or null at the top of its run.
+ *
+ * The sibling precedes the deleted range, so its position needs no mapping.
+ */
+export function moveBlockUp(state: EditorState, loc: BlockLocation): Transaction | null {
+  if (!loc.prev) return null;
+  const tr = state.tr.delete(loc.pos, loc.pos + loc.node.nodeSize);
+  return tr.insert(loc.prev.pos, loc.node);
 }
 
-export function moveBlockDown(state: EditorState, index: number): Transaction | null {
-  if (index >= state.doc.childCount - 1) return null;
-  return moveBlockTransaction(state, index, index + 1);
+/**
+ * Swap the block with its next sibling, or null at the bottom of its run.
+ *
+ * After the deletion the sibling has shifted up by the removed size; the block
+ * re-inserts just past it.
+ */
+export function moveBlockDown(state: EditorState, loc: BlockLocation): Transaction | null {
+  if (!loc.next) return null;
+  const tr = state.tr.delete(loc.pos, loc.pos + loc.node.nodeSize);
+  return tr.insert(loc.next.pos - loc.node.nodeSize + loc.next.node.nodeSize, loc.node);
 }
 
 /**
@@ -117,9 +185,13 @@ export function duplicateBlock(state: EditorState, loc: BlockLocation): Transact
   return state.tr.insert(pos + node.nodeSize, withFreshIdentity(node));
 }
 
-/** Remove the block, unless it is the only one: the document may never be emptied. */
+/**
+ * Remove the block. Refused only for the document's last top-level block - the
+ * document may never be emptied. A cell's last block deletes fine; the
+ * column-repair invariant reseeds the cell in the same undo step.
+ */
 export function deleteBlock(state: EditorState, loc: BlockLocation): Transaction | null {
-  if (state.doc.childCount <= 1) return null;
+  if (loc.parentPos < 0 && state.doc.childCount <= 1) return null;
   const { pos, node } = loc;
   return state.tr.delete(pos, pos + node.nodeSize);
 }

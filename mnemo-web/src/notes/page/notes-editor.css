@@ -883,6 +883,24 @@
 .notes-doc [data-bg-swatch="swatch9"] { background: var(--color-swatch-9); }
 .notes-doc [data-bg-swatch="swatch10"] { background: var(--color-swatch-10); }
 
+/* The marquee rubber-band. Body-level and viewport-positioned, drawn above the
+ * blocks but below the floating chrome, in a faint accent fill and ring. */
+.notes-marquee {
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: 2px;
+}
+
+/* Block-level (Mode A) selection. Painted as a node decoration, so a selected
+ * block never enters the document and the highlight survives a scroll. A tinted
+ * accent wash with a faint ring, hugging the block with a small radius like the
+ * desktop's BlockSelectionBrush fill; the accent keeps it theme-aware. */
+.notes-doc .notes-block-selected {
+  background-color: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
 /* Find and replace match highlights. Painted as decorations, so they never
  * enter the document; the current match reads brighter than the rest. */
 .notes-find-match {
