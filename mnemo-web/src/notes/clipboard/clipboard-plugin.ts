@@ -1,13 +1,13 @@
 /**
- * The clipboard plugin: copy and cut for the block editor.
+ * The clipboard plugin: copy, cut and paste for the block editor.
  *
  * It sits just after the image-clipboard plugin so an image-file paste is still
- * claimed first, and it only ever handles copy and cut here (paste arrives with
- * the read path in a later step). Copy reads `state.doc`, writes the OS
- * clipboard and dispatches no transaction, so it never dirties the note. Cut
- * writes the same payload and then deletes through the selection-aware delete
- * (one undo step) for a block selection, or ProseMirror's own `deleteSelection`
- * for a text range.
+ * claimed first. Copy reads `state.doc`, writes the OS clipboard and dispatches
+ * no transaction, so it never dirties the note. Cut writes the same payload and
+ * then deletes through the selection-aware delete (one undo step) for a block
+ * selection, or ProseMirror's own `deleteSelection` for a text range. Paste
+ * recovers a slice copied inside the app and drops it at the selection; anything
+ * else (an external or plain-text paste) falls through to the editor's default.
  *
  * A composition in flight is left alone: hijacking its clipboard event would cut
  * a half-formed character.
@@ -25,6 +25,7 @@ import { buildDeleteSelected } from '../selection/delete-selected';
 import { getBlockSelection } from '../selection/block-selection-plugin';
 import { buildCopySlice } from './copy';
 import { stashSlice } from './internal-buffer';
+import { handleInternalPaste } from './paste';
 import { writeSliceToClipboard } from './write-clipboard';
 
 export function clipboardPlugin(registry: BlockRegistry, inline: InlineMapper): Plugin {
@@ -49,6 +50,9 @@ export function clipboardPlugin(registry: BlockRegistry, inline: InlineMapper): 
 
   return new Plugin({
     props: {
+      handlePaste(view, event) {
+        return handleInternalPaste(view, event.clipboardData, registry);
+      },
       handleDOMEvents: {
         copy(view, event) {
           if (!event.clipboardData) return false;

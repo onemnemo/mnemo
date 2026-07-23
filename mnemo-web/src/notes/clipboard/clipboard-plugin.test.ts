@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { EditorState } from 'prosemirror-state';
+import { EditorState, Selection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { Plugin } from 'prosemirror-state';
 
 import { createEditorSchema } from '../editor/schema';
+import { blockIdentityPlugin } from '../editor/pipeline/block-identity';
 import { blockSelectionKey, blockSelectionPlugin } from '../selection/block-selection-plugin';
 import { clipboardPlugin } from './clipboard-plugin';
 import { clearStashedSlice, readStashedSlice } from './internal-buffer';
@@ -54,6 +55,38 @@ function fire(view: EditorView, kind: 'copy' | 'cut'): { data: DataTransfer & { 
   const handler = plugin.props.handleDOMEvents![kind]!;
   const handled = Boolean((handler as (this: Plugin, v: EditorView, e: ClipboardEvent) => boolean).call(plugin, view, event));
   return { data, prevented, handled };
+}
+
+/** Mounts with the identity plugin too, so a paste mints fresh sids like the real editor. */
+function mountFull(doc: PMNode): EditorView {
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  const view = new EditorView(el, {
+    state: EditorState.create({
+      schema,
+      doc,
+      plugins: [blockIdentityPlugin(registry), blockSelectionPlugin(registry), plugin],
+    }),
+  });
+  views.push(view);
+  return view;
+}
+
+function firePaste(view: EditorView, data: DataTransfer): boolean {
+  const event = { clipboardData: data, preventDefault: () => {} } as unknown as ClipboardEvent;
+  const handler = plugin.props.handlePaste!;
+  return Boolean((handler as (this: Plugin, v: EditorView, e: ClipboardEvent) => boolean).call(plugin, view, event));
+}
+
+/** Every top-level paragraph reading `text`, paired with its sid. */
+function paragraphsReading(view: EditorView, text: string): { sid: string; id: string }[] {
+  const out: { sid: string; id: string }[] = [];
+  view.state.doc.forEach((node) => {
+    if (node.type.name === 'paragraph' && node.textContent === text) {
+      out.push({ sid: String(node.attrs.sid), id: String(node.attrs.id) });
+    }
+  });
+  return out;
 }
 
 const nonceOf = (html: string): string | undefined =>
@@ -107,5 +140,48 @@ describe('clipboardPlugin copy/cut', () => {
     const { handled, prevented } = fire(view, 'copy');
     expect(handled).toBe(false);
     expect(prevented).toBe(false);
+  });
+});
+
+describe('clipboardPlugin paste', () => {
+  beforeEach(() => clearStashedSlice());
+  afterEach(() => {
+    for (const view of views.splice(0)) view.destroy();
+    document.body.innerHTML = '';
+  });
+
+  it('pastes a copied block back with a fresh, minted identity', () => {
+    const view = mountFull(docOf(para('one', 's1'), para('two', 's2')));
+
+    // Copy the first block, then drop the caret at the end and paste.
+    view.dispatch(
+      view.state.tr.setMeta(blockSelectionKey, {
+        type: 'set',
+        selection: { selected: new Set(['s1']), anchorSid: 's1' },
+      }),
+    );
+    const { data } = fire(view, 'copy');
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePaste(view, data)).toBe(true);
+
+    const ones = paragraphsReading(view, 'one');
+    expect(ones).toHaveLength(2); // the original and the pasted copy
+    const original = ones.find((b) => b.sid === 's1');
+    const pasted = ones.find((b) => b.sid !== 's1');
+    expect(original).toBeTruthy();
+    // The copy was reidentified: the identity plugin minted a fresh, non-empty sid.
+    expect(pasted?.sid).toBeTruthy();
+    expect(pasted?.sid).not.toBe('s1');
+    expect(pasted?.id).toBeTruthy();
+    expect(pasted?.id).not.toBe('s1');
+  });
+
+  it('declines a paste that carries no Mnemo payload', () => {
+    const view = mountFull(docOf(para('one', 's1')));
+    const foreign = fakeClipboard();
+    foreign.setData('text/html', '<p>from elsewhere</p>');
+    expect(firePaste(view, foreign)).toBe(false);
+    expect(view.state.doc.childCount).toBe(1);
   });
 });
