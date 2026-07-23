@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { apiFetch, apiFetchExpecting, apiSend, ApiError } from "@/api/client"
+import type { ReorderPlan } from "./tree/reorder"
 import type {
   CommitNoteContentDto,
   CreateNoteDto,
@@ -151,4 +152,27 @@ export function useSaveNoteFolder() {
 /** Deletes a folder; the server lifts its notes and subfolders to the root. */
 export function useDeleteNoteFolder() {
   return useNotesMutation((id: string) => apiSend(`/note-folders/${id}`, { method: "DELETE" }))
+}
+
+/**
+ * Applies one tree drag as a batch of metadata and folder writes.
+ *
+ * A reorder renumbers a whole sibling list, so it is many small PUTs, not one
+ * call. They run in series and the cache is invalidated once at the end rather
+ * than per write: a partial refetch mid-batch would render the tree in a state
+ * that never existed on the server, ordering half-applied.
+ */
+export function useApplyNoteReorder() {
+  const client = useQueryClient()
+  return useMutation<void, ApiError, ReorderPlan>({
+    mutationFn: async ({ folderUpdates, noteUpdates }) => {
+      for (const { id, ...body } of folderUpdates) {
+        await apiSend(`/note-folders/${id}`, { ...json(body), method: "PUT" })
+      }
+      for (const { id, ...body } of noteUpdates) {
+        await apiSend(`/notes/${id}/metadata`, { ...json(body), method: "PUT" })
+      }
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: notesKey }),
+  })
 }
