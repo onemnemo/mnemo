@@ -119,6 +119,7 @@ public static class Program
         app.MapFlashcardTransfer();
         app.MapNotes();
         app.MapNoteFolders();
+        app.MapNoteAssets();
 
         if (options.DevMode)
         {
@@ -143,6 +144,11 @@ public static class Program
         // preserving the ordering guarantee the Avalonia app enforces at startup.
         await HostComposition.InitializeBackendAsync(app.Services, discoveryFailures).ConfigureAwait(false);
         await app.StartAsync().ConfigureAwait(false);
+
+        // A quit or crash skips the on-close cleanup, so every launch collects what got left
+        // behind. Backgrounded so startup never waits on it; the sweeper defers itself the
+        // moment an editing session opens.
+        app.Services.GetRequiredService<Notes.NoteAssets>().Sweeper.SweepInBackground();
 
         var apiBaseUrl = ResolveBoundAddress(app);
         Console.WriteLine($"[Mnemo.Host] API listening on {apiBaseUrl}");

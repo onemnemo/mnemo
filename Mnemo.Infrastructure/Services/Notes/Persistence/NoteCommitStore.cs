@@ -21,7 +21,8 @@ namespace Mnemo.Infrastructure.Services.Notes.Persistence;
 /// </summary>
 public sealed class NoteCommitStore : INoteCommitStore, IAsyncDisposable
 {
-    internal const string IndexKey = "notes_index";
+    /// <summary>The storage key of the note id index. Owned here; readers must not restate it.</summary>
+    public const string IndexKey = "notes_index";
 
     private readonly ILoggerService _logger;
     private readonly string _connectionString;
@@ -41,7 +42,8 @@ public sealed class NoteCommitStore : INoteCommitStore, IAsyncDisposable
         _connectionString = $"Data Source={dbPath}";
     }
 
-    internal static string NoteKey(string noteId) => $"note_{noteId}";
+    /// <summary>The storage key of one note's row. Owned here; readers must not restate it.</summary>
+    public static string NoteKey(string noteId) => $"note_{noteId}";
 
     /// <summary>
     /// Deliberately not <c>note_commit_</c>: the folder rows are already <c>note_folder_</c>, and a
