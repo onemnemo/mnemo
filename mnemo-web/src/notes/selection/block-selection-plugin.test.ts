@@ -134,13 +134,13 @@ describe('buildDeleteSelected', () => {
 
 describe('buildDeleteSelected outermost coverage', () => {
   // Hand-built docs so nesting the flat wire fixtures cannot express is exact.
-  const { schema, registry } = createEditorSchema();
+  const { schema, registry, inline } = createEditorSchema();
   const line = (text?: string) => schema.nodes.line.create(null, text ? schema.text(text) : null);
   const para = (text: string, sid: string, ...children: PMNode[]) =>
     schema.nodes.paragraph.create({ sid, id: sid }, [line(text), ...children]);
   const column = (...blocks: PMNode[]) => schema.nodes.columnGroup.create({ sid: 'col', id: 'col' }, [line(), ...blocks]);
   const mountDoc = (children: PMNode[]): EditorState =>
-    EditorState.create({ schema, doc: schema.nodes.doc.create(null, children), plugins: editorPlugins(registry) });
+    EditorState.create({ schema, doc: schema.nodes.doc.create(null, children), plugins: editorPlugins(registry, inline) });
   const texts = (state: EditorState): string[] => {
     const out: string[] = [];
     state.doc.forEach((node) => out.push(node.textContent));

@@ -78,13 +78,30 @@ function planDeletions(
   return out;
 }
 
+/**
+ * The outermost covered block ranges for a selection, in document order.
+ *
+ * Shared with the clipboard: copy assembles its slice from exactly the ranges
+ * delete would remove, so a whole two-column row is copied as one unit and a
+ * partly-selected column contributes only its covered leaves, the same units the
+ * desktop's document-order enumeration copies.
+ */
+export function coveredBlockRanges(
+  doc: PMNode,
+  registry: BlockRegistry,
+  selected: ReadonlySet<string>,
+): readonly Range[] {
+  if (selected.size === 0) return [];
+  return planDeletions(doc, -1, registry, selected);
+}
+
 export function buildDeleteSelected(
   state: EditorState,
   registry: BlockRegistry,
   selected: ReadonlySet<string>,
 ): Transaction | null {
   if (selected.size === 0) return null;
-  const ranges = planDeletions(state.doc, -1, registry, selected);
+  const ranges = coveredBlockRanges(state.doc, registry, selected);
   if (ranges.length === 0) return null;
 
   const tr = state.tr;
