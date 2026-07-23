@@ -232,7 +232,8 @@ describe('the boundary plugin', () => {
     const state = stateFor(block('Text', [span('ab')]));
     const dispatched: Transaction[] = [];
     const plugin = historyBoundaryPlugin();
-    const handled = plugin.props.handleDOMEvents!.paste!(
+    const handled = plugin.props.handleDOMEvents!.paste!.call(
+      plugin,
       { state, dispatch: (tr: Transaction) => dispatched.push(tr) } as never,
       new Event('paste') as ClipboardEvent,
     );

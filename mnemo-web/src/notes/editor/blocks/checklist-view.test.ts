@@ -105,9 +105,9 @@ describe('checklist NodeView', () => {
   it('owns its chrome mutations and nothing in the body', () => {
     const { realized } = mountItem(false);
     const box = realized.dom.querySelector('.notes-checkbox')!;
-    const attrOnItem = { type: 'attributes', target: realized.dom } as MutationRecord;
-    const insideBox = { type: 'childList', target: box } as MutationRecord;
-    const inBody = { type: 'characterData', target: realized.contentDOM! } as MutationRecord;
+    const attrOnItem = { type: 'attributes', target: realized.dom } as unknown as MutationRecord;
+    const insideBox = { type: 'childList', target: box } as unknown as MutationRecord;
+    const inBody = { type: 'characterData', target: realized.contentDOM! } as unknown as MutationRecord;
     const selection = { type: 'selection', target: realized.contentDOM! } as const;
     expect(realized.ignoreMutation!(attrOnItem)).toBe(true);
     expect(realized.ignoreMutation!(insideBox)).toBe(true);
