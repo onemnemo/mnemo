@@ -273,28 +273,158 @@
   opacity: 0.42;
 }
 
-/* Image, the bytes are resolved by the image view; until then a note
- * still shows its figure and caption so its structure reads. */
+/* Image. The media row is view-owned DOM (placeholder card, bytes, resize and
+ * alignment chrome); the caption below it stays editable content. Alignment
+ * moves the frame inside the row; width rides an inline style the resize drag
+ * previews and its release persists. */
 .notes-doc figure[data-image] {
-  margin-left: 0;
-  margin-right: 0;
+  margin: 4px 0;
 }
-.notes-doc figure[data-image]::before {
-  content: "🖼";
-  display: grid;
-  place-items: center;
-  height: 120px;
+.notes-doc .notes-image-media {
+  position: relative;
+  display: flex;
+  justify-content: flex-start;
+}
+.notes-doc figure[data-image][data-align="center"] .notes-image-media {
+  justify-content: center;
+}
+.notes-doc figure[data-image][data-align="right"] .notes-image-media {
+  justify-content: flex-end;
+}
+.notes-doc .notes-image-frame {
+  position: relative;
+  max-width: 100%;
+  line-height: 0;
+}
+.notes-doc .notes-image-frame img {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--radius-md, 8px);
+}
+.notes-doc .notes-image-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 120px;
   background: var(--surface-subtle);
   border: 1px dashed var(--line-color);
   border-radius: var(--radius-md, 8px);
-  color: var(--text-faded);
-  font-size: 28px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease;
 }
-.notes-doc figure[data-image] [data-line] {
+.notes-doc .notes-image-card:hover {
+  border-color: var(--text-tertiary);
+}
+.notes-doc .notes-image-card.is-busy {
+  cursor: progress;
+  animation: notes-image-busy 1.2s ease-in-out infinite;
+}
+@keyframes notes-image-busy {
+  50% {
+    opacity: 0.55;
+  }
+}
+.notes-doc .notes-image-card svg {
+  width: 24px;
+  height: 24px;
+}
+.notes-doc .notes-image-card-label {
+  font-size: var(--font-size-body-small);
+}
+.notes-doc .notes-image-card-detail {
+  font-size: var(--font-size-body-small);
+  color: var(--text-faded);
+}
+.notes-doc .notes-image-loading {
+  width: 100%;
+  min-height: 120px;
+  background: var(--surface-subtle);
+  border-radius: var(--radius-md, 8px);
+  animation: notes-image-busy 1.2s ease-in-out infinite;
+}
+.notes-doc .notes-image-resize {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  width: 6px;
+  height: 48px;
+  max-height: 60%;
+  transform: translateY(-50%);
+  border-radius: 3px;
+  background: var(--text-tertiary);
+  border: 1px solid var(--floating-chrome-background);
+  opacity: 0;
+  transition: opacity 120ms ease;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.notes-doc .notes-image-frame:hover .notes-image-resize,
+.notes-doc .notes-image-media.is-resizing .notes-image-resize {
+  opacity: 0.6;
+}
+.notes-doc .notes-image-aligns {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--floating-chrome-divider);
+  border-radius: 6px;
+  background: var(--floating-chrome-background);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.notes-doc .notes-image-frame:hover .notes-image-aligns {
+  opacity: 1;
+}
+.notes-doc .notes-image-media.is-resizing .notes-image-aligns {
+  opacity: 0;
+}
+.notes-doc .notes-image-align {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--floating-chrome-foreground-muted);
+  cursor: pointer;
+}
+.notes-doc .notes-image-align:hover {
+  background: var(--floating-chrome-hover);
+  color: var(--floating-chrome-foreground-strong);
+}
+.notes-doc .notes-image-align[data-active="true"] {
+  color: var(--floating-chrome-accent);
+}
+.notes-doc .notes-image-align svg {
+  width: 14px;
+  height: 14px;
+}
+.notes-doc .notes-image-caption {
+  position: relative;
+}
+.notes-doc .notes-image-caption [data-line] {
   margin-top: 6px;
   font-size: var(--font-size-body-small);
   color: var(--text-tertiary);
-  text-align: center;
+}
+/* The caption hint, drawn only while the line holds nothing but its trailing break. */
+.notes-doc .notes-image-caption[data-placeholder]:has(> [data-line] > br:only-child)::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  top: 6px;
+  left: 0;
+  font-size: var(--font-size-body-small);
+  color: var(--text-faded);
+  pointer-events: none;
 }
 
 /* Page reference, a navigation card to another note. The title lives in that

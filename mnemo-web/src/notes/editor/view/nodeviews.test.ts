@@ -23,17 +23,18 @@ const fakeView = {} as EditorView;
 const fakeNode = { attrs: { sid: 's0001', latex: 'a' } } as unknown as PMNode;
 
 describe('resolveServices', () => {
-  it('defaults every resolver to "cannot resolve"', () => {
+  it('defaults every resolver to "cannot resolve"', async () => {
     const services = resolveServices();
     expect(services.resolveNoteTitle('anything')).toBeUndefined();
-    expect(services.resolveAssetUrl('anything')).toBeUndefined();
+    await expect(services.loadAssetUrl('anything')).rejects.toThrow();
+    await expect(services.uploadAsset(new File(['x'], 'x.png'))).rejects.toThrow();
   });
 
-  it('keeps the resolvers that were supplied', () => {
+  it('keeps the resolvers that were supplied', async () => {
     const services = resolveServices({ resolveNoteTitle: () => 'Title' });
     expect(services.resolveNoteTitle('id')).toBe('Title');
     // The unsupplied one still falls back rather than being dropped.
-    expect(services.resolveAssetUrl('p')).toBeUndefined();
+    await expect(services.loadAssetUrl('p')).rejects.toThrow();
   });
 });
 

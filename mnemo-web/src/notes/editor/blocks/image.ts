@@ -20,6 +20,8 @@ import type { AiSegment, AnyBlockModule } from '../registry/types';
 import type { Block, BlockType, InlineSpan } from '../../model/types';
 import { plainSpan } from '../../model/spans';
 import { defineBlock, lineText, type BlockDeps } from './shared';
+import { imageView } from './image-view';
+import { insertAtomicBlock } from './slash-insert';
 
 /**
  * For an image, **the line is authoritative and `alt` is derived**, the exact
@@ -59,6 +61,23 @@ export function imageBlock(deps: BlockDeps): AnyBlockModule {
       },
       nodeOptions: {
         parseDOM: [
+          // Own output first: an internal copy re-parses through here, and without
+          // this rule the figure would read as transparent markup and the pasted
+          // image degrade to its caption text.
+          {
+            tag: 'figure[data-image]',
+            getAttrs: (n) => {
+              const el = n as HTMLElement;
+              return {
+                path: el.getAttribute('data-image') ?? '',
+                // Derived from the caption on every save; the markup carries the
+                // caption itself, so nothing is lost by not restating it here.
+                alt: '',
+                width: Number(el.getAttribute('data-width')) || 0,
+                align: el.getAttribute('data-align') ?? 'left',
+              };
+            },
+          },
           {
             tag: 'img[src]',
             getAttrs: (n) => {
@@ -78,7 +97,11 @@ export function imageBlock(deps: BlockDeps): AnyBlockModule {
         // would simply fail to load.
         toDOM: (node) => [
           'figure',
-          { 'data-image': String(node.attrs.path), 'data-align': String(node.attrs.align) },
+          {
+            'data-image': String(node.attrs.path),
+            'data-align': String(node.attrs.align),
+            ...(Number(node.attrs.width) > 0 ? { 'data-width': String(node.attrs.width) } : {}),
+          },
           0,
         ],
       },
@@ -112,6 +135,17 @@ export function imageBlock(deps: BlockDeps): AnyBlockModule {
         // replaces this as soon as the image realizes and decodes.
         return Math.round(Math.min(width, ctx.availableWidth) * 0.66) + 32;
       },
+      realizedView: imageView,
+      slash: [
+        {
+          label: 'Image',
+          description: 'ImageDescription',
+          // Inserted empty, as on the desktop: the placeholder card opens the
+          // picker, so the menu never blocks on a file dialog.
+          group: 'insert',
+          insert: insertAtomicBlock('image'),
+        },
+      ],
     },
     deps,
   );

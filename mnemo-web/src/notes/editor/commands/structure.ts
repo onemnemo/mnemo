@@ -439,6 +439,24 @@ export const backspaceStructural: Command = (state, dispatch) => {
   const isText = block.type.name === 'paragraph';
   const empty = isContentVisuallyEmpty(line.content);
 
+  // The image ladder is its own, per the desktop: a block holding a picture or a
+  // caption swallows the key and never merges or de-formats, because the generic
+  // branch below would flatten it to a paragraph and lose the stored reference
+  // in one keystroke. An empty placeholder deletes in one step; as the
+  // document's last block it resets to Text in place, like the empty-Text rule.
+  if (block.type.name === 'image') {
+    if (String(block.attrs.path ?? '') !== '' || !empty) return true;
+    const $block = state.doc.resolve(blockPos);
+    if ($block.nodeBefore !== null || $block.parent.childCount > 1) {
+      return deleteEmptyBlock(state, ctx, dispatch);
+    }
+    const tr = convertBlockType(state.tr, blockPos, block, schema.nodes.paragraph, {
+      content: 'clear',
+    });
+    tr.setSelection(TextSelection.create(tr.doc, blockPos + 2));
+    return dispatchStructural(tr, dispatch);
+  }
+
   if (isText) {
     // At the start of a Text block that is the first block in a column cell,
     // Backspace merges out of the cell and, when that empties the cell,

@@ -36,7 +36,8 @@ function realizedHost(): BlockShellHost {
 /** Resolvers default to "cannot resolve" rather than absent, so views need no null-guard branch. */
 const noServices: EditorServices = {
   resolveNoteTitle: () => undefined,
-  resolveAssetUrl: () => undefined,
+  loadAssetUrl: () => Promise.reject(new Error('No asset resolver mounted')),
+  uploadAsset: () => Promise.reject(new Error('No asset uploader mounted')),
 };
 
 export function resolveServices(partial?: Partial<EditorServices>): EditorServices {

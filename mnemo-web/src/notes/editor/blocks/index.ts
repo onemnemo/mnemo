@@ -27,9 +27,11 @@ export function createBlockModules(deps: BlockDeps): readonly AnyBlockModule[] {
     quoteBlock(deps),
     codeBlock(deps),
     dividerBlock(deps),
-    imageBlock(deps),
     twoColumnBlock(deps),
     columnGroupBlock(deps),
+    // After the columns so the slash menu reads in the desktop's insert order:
+    // Divider, TwoColumn, Image, Equation.
+    imageBlock(deps),
     equationBlockModule(deps),
     pageBlock(deps),
     sketchBlock(deps),

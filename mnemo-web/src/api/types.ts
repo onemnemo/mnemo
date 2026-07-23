@@ -454,6 +454,18 @@ export interface UpdateNoteMetadataDto {
   isFavorite: boolean
 }
 
+/** Mirrors Mnemo.Host/Contracts/NoteAssetDto.cs. The id is what an image block stores in `path`. */
+export interface NoteAssetDto {
+  assetId: string
+  displayName: string
+  sizeBytes: number
+}
+
+/** Mirrors Mnemo.Host/Contracts/NoteAssetDto.cs NoteAssetSessionDto. */
+export interface NoteAssetSessionDto {
+  sessionId: string
+}
+
 /** Mirrors Mnemo.Host/Contracts/NoteDto.cs NoteFolderDto. */
 export interface NoteFolderDto {
   id: string

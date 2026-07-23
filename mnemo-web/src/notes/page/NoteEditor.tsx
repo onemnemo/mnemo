@@ -7,6 +7,7 @@ import type { EditorState } from "prosemirror-state"
 import { useNoteContentCommitter } from "../api"
 import type { DocumentMapper } from "../editor/mapper/document"
 import type { BlockRegistry } from "../editor/registry/build"
+import type { EditorServices } from "../editor/registry/types"
 import { useNoteSession } from "../edit/useNoteSession"
 import { createPersist } from "../save/persist"
 import { SaveStatus } from "./SaveStatus"
@@ -30,6 +31,7 @@ export function NoteEditor({
   state,
   registry,
   mapper,
+  services,
   onReload,
 }: {
   noteId: string
@@ -38,6 +40,7 @@ export function NoteEditor({
   state: EditorState
   registry: BlockRegistry
   mapper: DocumentMapper
+  services?: Partial<EditorServices>
   onReload: () => void
 }) {
   const commit = useNoteContentCommitter()
@@ -50,7 +53,7 @@ export function NoteEditor({
     [noteId],
   )
 
-  const { ref, saveState } = useNoteSession({ noteId, sid, ver, state, registry, persist })
+  const { ref, saveState } = useNoteSession({ noteId, sid, ver, state, registry, persist, services })
 
   return (
     <>
