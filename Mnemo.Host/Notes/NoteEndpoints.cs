@@ -124,15 +124,21 @@ public static class NoteEndpoints
         // Matches the desktop app: a hard delete of this note only. Child pages and
         // page blocks pointing here are left alone and render as a missing note,
         // rather than a delete of one note quietly taking a subtree with it.
-        endpoints.MapDelete("/api/notes/{id}", async (string id, INoteService notes) =>
+        endpoints.MapDelete("/api/notes/{id}", async (string id, INoteService notes, NoteAssets assets) =>
         {
             if (await notes.GetNoteAsync(id).ConfigureAwait(false) is null)
                 return Results.NotFound(new ErrorDto("unknown_note", $"No note '{id}'."));
 
             var deleted = await notes.DeleteNoteAsync(id).ConfigureAwait(false);
-            return deleted.IsSuccess
-                ? Results.NoContent()
-                : Results.StatusCode(StatusCodes.Status500InternalServerError);
+            if (deleted.IsSuccess)
+            {
+                // The deleted note's images just lost their last reference; collect them.
+                // The desktop never did this, which is how its images directory accretes
+                // files no note can reach.
+                assets.Sweeper.SweepInBackground();
+                return Results.NoContent();
+            }
+            return Results.StatusCode(StatusCodes.Status500InternalServerError);
         }).RequireNotesMigrated();
 
         // The only way a note's body is ever written.

@@ -185,6 +185,11 @@ public static class HostComposition
         services.AddSingleton<INoteService, NoteService>();
         services.AddSingleton<INoteFolderService, NoteFolderService>();
         services.AddSingleton<INotePdfExportService, NotePdfExportService>();
+        // Image uploads, the editing-session registry, and the orphan sweep over them. The
+        // instance lock is what keeps that sweep from deleting what another running instance's
+        // undo history can still restore.
+        services.AddSingleton(_ => Lifecycle.HostInstanceLock.Acquire());
+        services.AddSingleton<Notes.NoteAssets>();
 
         // Relational flashcard store: owned store, repositories, and blob-to-relational migrator.
         services.AddSingleton<IFlashcardStore, FlashcardStore>();

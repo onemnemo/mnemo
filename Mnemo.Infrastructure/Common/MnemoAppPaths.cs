@@ -49,6 +49,16 @@ public static class MnemoAppPaths
         => Path.Combine(GetLocalUserDataRoot(), "chat-attachments");
 
     /// <summary>
+    /// Returns the directory where note image assets uploaded through the web host are
+    /// stored: <c>%LocalAppData%\Mnemo\note-assets\</c>. Deliberately separate from
+    /// <see cref="GetImagesDirectory"/>: that directory is shared with flashcard and mindmap
+    /// assets, so a notes-only cleanup pass over it could never know which files are safe to
+    /// remove. A directory owned by one module makes its sweep safe by construction.
+    /// </summary>
+    public static string GetNoteAssetsDirectory()
+        => Path.Combine(GetLocalUserDataRoot(), "note-assets");
+
+    /// <summary>
     /// True when <paramref name="absolutePath"/> resolves to a file under <see cref="GetImagesDirectory"/>.
     /// Used so we only delete managed copies, never arbitrary user-selected paths.
     /// </summary>
@@ -60,6 +70,20 @@ public static class MnemoAppPaths
     /// </summary>
     public static bool IsPathUnderChatAttachmentsDirectory(string absolutePath)
         => IsPathUnderDirectory(absolutePath, GetChatAttachmentsDirectory());
+
+    /// <summary>
+    /// True when <paramref name="absolutePath"/> resolves to a file under <see cref="GetNoteAssetsDirectory"/>.
+    /// </summary>
+    public static bool IsPathUnderNoteAssetsDirectory(string absolutePath)
+        => IsPathUnderDirectory(absolutePath, GetNoteAssetsDirectory());
+
+    /// <summary>
+    /// True when <paramref name="absolutePath"/> resolves to a file strictly under
+    /// <paramref name="directory"/>. The general form of the checks above, for callers that
+    /// manage a directory of their own.
+    /// </summary>
+    public static bool IsPathUnder(string absolutePath, string directory)
+        => IsPathUnderDirectory(absolutePath, directory);
 
     private static bool IsPathUnderDirectory(string absolutePath, string directory)
     {
