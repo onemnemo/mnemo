@@ -87,11 +87,13 @@ function type(
       view.state = view.state.apply(tr);
     },
   };
-  const handled = plugin.props.handleTextInput!(
+  const handled = plugin.props.handleTextInput!.call(
+    plugin,
     view as unknown as EditorView,
     caret,
     caret,
     char,
+    () => view.state.tr,
   );
   return { state: view.state, handled: Boolean(handled) };
 }

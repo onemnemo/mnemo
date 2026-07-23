@@ -170,9 +170,9 @@ describe('image NodeView', () => {
   it('owns the media and its own attribute writes, never the caption', () => {
     const { realized } = mountImage({ path: '' });
     const media = realized.dom.querySelector('.notes-image-media')!;
-    const attrOnFigure = { type: 'attributes', target: realized.dom } as MutationRecord;
-    const insideMedia = { type: 'childList', target: media } as MutationRecord;
-    const inCaption = { type: 'characterData', target: realized.contentDOM! } as MutationRecord;
+    const attrOnFigure = { type: 'attributes', target: realized.dom } as unknown as MutationRecord;
+    const insideMedia = { type: 'childList', target: media } as unknown as MutationRecord;
+    const inCaption = { type: 'characterData', target: realized.contentDOM! } as unknown as MutationRecord;
     const selection = { type: 'selection', target: realized.contentDOM! } as const;
     expect(realized.ignoreMutation!(attrOnFigure)).toBe(true);
     expect(realized.ignoreMutation!(insideMedia)).toBe(true);

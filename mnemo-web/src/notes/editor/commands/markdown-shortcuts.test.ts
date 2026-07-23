@@ -56,11 +56,13 @@ function type(document: PMNode, caret: number, char: string): { state: EditorSta
       view.state = view.state.apply(tr);
     },
   };
-  const handled = plugin.props.handleTextInput!(
+  const handled = plugin.props.handleTextInput!.call(
+    plugin,
     view as unknown as EditorView,
     caret,
     caret,
     char,
+    () => view.state.tr,
   );
   return { state: view.state, handled: Boolean(handled) };
 }
@@ -255,11 +257,13 @@ describe('markdown shortcut boundaries', () => {
       plugins: [invariantPipeline(registry)],
     });
     const view = { state: stateWithRange, dispatch() {} };
-    const handled = plugin.props.handleTextInput!(
+    const handled = plugin.props.handleTextInput!.call(
+      plugin,
       view as unknown as EditorView,
       caretAt(d, 0, 0),
       caretAt(d, 0, 1),
       ' ',
+      () => view.state.tr,
     );
     expect(Boolean(handled)).toBe(false);
   });

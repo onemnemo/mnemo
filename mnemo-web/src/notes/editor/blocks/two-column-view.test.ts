@@ -75,9 +75,9 @@ describe('two-column NodeView', () => {
 
   it('owns attribute writes on its element and nothing else', () => {
     const v = viewFor(twoColumn(0.5));
-    const attrOnSelf = { type: 'attributes', target: v.dom } as MutationRecord;
-    const attrOnChild = { type: 'attributes', target: document.createElement('div') } as MutationRecord;
-    const childList = { type: 'childList', target: v.dom } as MutationRecord;
+    const attrOnSelf = { type: 'attributes', target: v.dom } as unknown as MutationRecord;
+    const attrOnChild = { type: 'attributes', target: document.createElement('div') } as unknown as MutationRecord;
+    const childList = { type: 'childList', target: v.dom } as unknown as MutationRecord;
     const selection = { type: 'selection', target: v.dom } as const;
     // The drag preview writes --notes-split on the container; that mutation is
     // ours and must not trigger a defensive redraw that kills the drag.
