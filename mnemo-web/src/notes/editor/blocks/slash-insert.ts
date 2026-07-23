@@ -22,6 +22,50 @@ import { TextSelection } from 'prosemirror-state';
 import { blockContext, convertBlockType } from '../commands/structure';
 import type { SlashContribution } from '../registry/types';
 
+/**
+ * The two-column row: replace the current block with a fresh split, an empty text
+ * block seeded in each cell, and land the caret in the left one.
+ *
+ * Where the desktop deletes the block and inserts a new two-column (a new id),
+ * this rebuilds in place, so the block keeps its id, sid, order and meta, the same
+ * identity rule every other row here follows. The line is dropped with its slash
+ * query, which was a command. `nativeTwoColumn` marks the split as menu-made,
+ * which on the desktop is what stops a drag-out from dissolving it.
+ *
+ * Refused inside an existing split, matching the desktop: the menu only ever
+ * makes a two-column at the top level, and nesting arrives through paste.
+ */
+export const insertTwoColumn: SlashContribution['insert'] = (state, dispatch) => {
+  const ctx = blockContext(state);
+  if (!ctx) return;
+  const { $from } = state.selection;
+  for (let depth = $from.depth; depth >= 0; depth--) {
+    if ($from.node(depth).type.name === 'twoColumn') return;
+  }
+  const { twoColumn, columnGroup, paragraph, line } = state.schema.nodes;
+  if (!twoColumn || !columnGroup || !paragraph || !line) return;
+
+  const seededCell = () =>
+    columnGroup.create(null, [line.create(), paragraph.create(null, line.create())]);
+  const tc = twoColumn.create(
+    {
+      id: ctx.block.attrs.id,
+      sid: ctx.block.attrs.sid,
+      order: ctx.block.attrs.order,
+      meta: { ...((ctx.block.attrs.meta as Record<string, unknown>) ?? {}), nativeTwoColumn: true },
+    },
+    [line.create(), seededCell(), seededCell()],
+  );
+
+  const tr = state.tr.replaceWith(ctx.blockPos, ctx.blockPos + ctx.block.nodeSize, tc);
+  // Into the left cell's seeded paragraph: past the container's line, into the
+  // left cell past its own line, then into the paragraph's line.
+  const emptyLine = line.create().nodeSize;
+  const caret = ctx.blockPos + 1 + emptyLine + 1 + emptyLine + 2;
+  tr.setSelection(TextSelection.create(tr.doc, caret));
+  dispatch(tr.scrollIntoView());
+};
+
 export function convertHere(
   nodeName: string,
   attrs?: Record<string, unknown>,
