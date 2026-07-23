@@ -38,11 +38,23 @@ import type { EditorView } from 'prosemirror-view';
 import type { RealizedBlockView, RealizedBlockViewArgs } from '../registry/types';
 import { asOwnUndoStep } from '../history';
 import { openTransientFocus, type TransientFocusScope } from '../focus';
+import { useI18nStore } from '../../../i18n/store';
+import { createTranslate } from '../../../i18n/translate';
 import { renderMath } from './katex';
 import { mountEquationEditor, type ArrowEscape, type EquationEditorHandle } from './equation-editor';
 
 function latexOf(node: PMNode): string {
   return String(node.attrs.latex ?? '');
+}
+
+/** Reads the active bundle at call time, so it follows a language change. */
+function translate(key: string): string {
+  return createTranslate(useI18nStore.getState().bundle)('NotesEditor', key);
+}
+
+/** The flyout's commit label, the desktop's "Done ↵". */
+function doneLabel(): string {
+  return `${createTranslate(useI18nStore.getState().bundle)('Common', 'Done')} ↵`;
 }
 
 export function equationView(args: RealizedBlockViewArgs<Record<string, unknown>>): RealizedBlockView {
@@ -102,6 +114,17 @@ export function equationView(args: RealizedBlockViewArgs<Record<string, unknown>
 
     editor = mountEquationEditor({
       initialLatex: latexOf(node),
+      // The card floats under the atom on document.body; mounted beside the
+      // atom it would sit inside ProseMirror's content, which strips foreign
+      // DOM on the next redraw.
+      anchor: dom,
+      placeholder: translate('EquationFlyoutPlaceholder'),
+      doneLabel: doneLabel(),
+      // The atom is its own live preview while the card is open.
+      onChange(latex) {
+        rendered = latex;
+        renderMath(dom, latex, latex);
+      },
       onCommit(latex) {
         editor = null;
         commit(latex);
@@ -112,6 +135,10 @@ export function equationView(args: RealizedBlockViewArgs<Record<string, unknown>
       },
       onCancel() {
         editor = null;
+        // Undo the live preview: the atom goes back to its stored source.
+        const kept = latexOf(nodeAtPos() ?? args.node);
+        rendered = kept;
+        renderMath(dom, kept, kept);
         focusScope?.restore();
         focusScope = null;
       },
@@ -124,8 +151,6 @@ export function equationView(args: RealizedBlockViewArgs<Record<string, unknown>
         refocus();
       },
     });
-    // Placement belongs to the editor chrome; for now the editor sits right after the atom.
-    dom.after(editor.dom);
     editor.focus();
   }
 
@@ -141,6 +166,11 @@ export function equationView(args: RealizedBlockViewArgs<Record<string, unknown>
         renderMath(dom, latex, latex);
       }
       return true;
+    },
+    // The atom's DOM is entirely KaTeX output this view drew, and the live
+    // preview redraws it outside a transaction. Selection records still pass.
+    ignoreMutation(mutation) {
+      return mutation.type !== 'selection';
     },
     destroy() {
       dom.removeEventListener('click', openEditor);

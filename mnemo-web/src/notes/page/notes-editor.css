@@ -316,11 +316,16 @@
   content: "Linked page";
 }
 
-/* Block equation. Left-aligned like the desktop's, rather than centred the way
- * KaTeX draws display math by default. Long formulas scroll inside the block
- * instead of widening the column and giving the whole note a scrollbar. */
+/* Block equation. Left-aligned and hugging its rendered width like the
+ * desktop's (its host is HorizontalAlignment=Left with 8,6 padding), rather
+ * than centred the way KaTeX draws display math by default. Long formulas
+ * scroll inside the block instead of widening the column and giving the whole
+ * note a scrollbar. */
 .notes-equation-block {
-  padding: 4px 0;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
   overflow-x: auto;
   overflow-y: hidden;
   cursor: pointer;
@@ -328,6 +333,11 @@
 }
 .notes-equation-block .katex-display {
   margin: 0;
+  text-align: left;
+}
+/* KaTeX centres the inner element, not the outer one; without this the
+ * formula still sat mid-column no matter what the display rule said. */
+.notes-equation-block .katex-display > .katex {
   text-align: left;
 }
 /* The block is a tab stop, because activating it is the only way to edit it,
@@ -341,6 +351,59 @@
 .notes-equation-block-empty {
   color: var(--text-faded);
   font-style: italic;
+}
+
+/* The equation flyout: the desktop's editing card, a monospace source field
+ * with a Done button, floating under the equation. Body-level and
+ * viewport-positioned like the toolbar and the slash menu, and drawn in the
+ * same floating chrome. */
+.notes-equation-flyout {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 280px;
+  max-width: 440px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--floating-chrome-divider);
+  background: var(--floating-chrome-background);
+  box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.32);
+  font-family: var(--font-sans);
+}
+.notes-equation-flyout .notes-equation-editor-source {
+  flex: 1;
+  min-width: 180px;
+  padding: 6px 8px;
+  border: 1px solid var(--floating-chrome-divider);
+  border-radius: 6px;
+  background: var(--floating-chrome-hover);
+  color: var(--floating-chrome-foreground-strong);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-small);
+  outline: none;
+}
+.notes-equation-flyout .notes-equation-editor-source:focus-visible {
+  border-color: var(--floating-chrome-accent);
+}
+.notes-equation-flyout .notes-equation-editor-source::placeholder {
+  color: var(--floating-chrome-foreground-muted);
+}
+.notes-equation-flyout-done {
+  min-width: 72px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-button-text);
+  font-size: var(--font-size-body-small);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.notes-equation-flyout-done:hover {
+  filter: brightness(1.08);
 }
 
 /* Inline marks the browser does not style itself. */

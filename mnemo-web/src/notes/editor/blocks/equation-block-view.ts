@@ -47,6 +47,11 @@ function translate(key: string): string {
   return createTranslate(useI18nStore.getState().bundle)('NotesEditor', key);
 }
 
+/** The flyout's commit label, the desktop's "Done ↵". */
+function doneLabel(): string {
+  return `${createTranslate(useI18nStore.getState().bundle)('Common', 'Done')} ↵`;
+}
+
 function latexOf(node: PMNode): string {
   return String(node.attrs.latex ?? '');
 }
@@ -122,8 +127,17 @@ export function equationBlockView(
     // selection back even if something else moved it while it was open.
     focusScope = openTransientFocus(view);
 
+    const original = latexOf(node);
     editor = mountEquationEditor({
-      initialLatex: latexOf(node),
+      initialLatex: original,
+      anchor: dom,
+      placeholder: translate('EquationFlyoutPlaceholder'),
+      doneLabel: doneLabel(),
+      // The block itself is the preview: every keystroke redraws it, the
+      // desktop's write-through behaviour, without touching the document.
+      onChange(latex) {
+        draw(latex);
+      },
       onCommit(latex) {
         editor = null;
         commit(latex);
@@ -133,6 +147,9 @@ export function equationBlockView(
       },
       onCancel() {
         editor = null;
+        // The live preview drew every keystroke; cancelling puts the stored
+        // source back on screen.
+        draw(latexOf(nodeAtPos() ?? args.node));
         focusScope?.restore();
         focusScope = null;
       },
@@ -147,7 +164,6 @@ export function equationBlockView(
         view.focus();
       },
     });
-    dom.after(editor.dom);
     editor.focus();
   }
 
@@ -171,6 +187,12 @@ export function equationBlockView(
       // identical DOM on every transaction that touched the block.
       if (latex !== rendered) draw(latex);
       return true;
+    },
+    // No contentDOM: everything inside is KaTeX output this view drew, and the
+    // live preview redraws it outside a transaction. Selection records still
+    // pass through.
+    ignoreMutation(mutation) {
+      return mutation.type !== 'selection';
     },
     destroy() {
       dom.removeEventListener('click', openEditor);

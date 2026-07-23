@@ -7,20 +7,21 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-/** Mounts an editor with spy callbacks, attached to the document so removal is observable. */
+/** Mounts an editor with spy callbacks; the card attaches itself to the body. */
 function mount(initialLatex: string, overrides: Partial<EquationEditorOptions> = {}) {
+  const onChange = vi.fn();
   const onCommit = vi.fn();
   const onCancel = vi.fn();
   const onArrowEscape = vi.fn();
   const handle = mountEquationEditor({
     initialLatex,
+    onChange,
     onCommit,
     onCancel,
     onArrowEscape,
     ...overrides,
   });
-  document.body.append(handle.dom);
-  return { handle, onCommit, onCancel, onArrowEscape };
+  return { handle, onChange, onCommit, onCancel, onArrowEscape };
 }
 
 function press(input: HTMLInputElement, key: string): KeyboardEvent {
@@ -34,21 +35,53 @@ function caretAt(input: HTMLInputElement, index: number): void {
 }
 
 describe('the equation source editor', () => {
-  it('opens on the current source with a preview', () => {
+  it('opens on the current source, mounted as a floating card on the body', () => {
     const { handle } = mount('x^2');
     expect(handle.input.value).toBe('x^2');
-    const preview = handle.dom.querySelector('.notes-equation-editor-preview');
-    expect(preview?.getAttribute('aria-label')).toBe('x^2');
+    // Body-level: mounted beside the equation it would sit inside the
+    // editor's content, which strips foreign DOM on the next redraw.
+    expect(handle.dom.parentNode).toBe(document.body);
   });
 
-  it('updates the preview live as the source is typed, without rewriting it', () => {
-    const { handle } = mount('a');
+  it('reports every keystroke through onChange, without rewriting the source', () => {
+    const { handle, onChange } = mount('a');
     handle.input.value = 'a + b';
     handle.input.dispatchEvent(new Event('input'));
-    const preview = handle.dom.querySelector('.notes-equation-editor-preview');
-    expect(preview?.getAttribute('aria-label')).toBe('a + b');
-    // The source of truth is untouched by rendering.
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('a + b');
+    // The source of truth is untouched by the preview hook.
     expect(handle.input.value).toBe('a + b');
+  });
+
+  it('shows the given placeholder and Done label', () => {
+    const { handle } = mount('', { placeholder: 'Type LaTeX', doneLabel: 'Done ↵' });
+    expect(handle.input.placeholder).toBe('Type LaTeX');
+    expect(handle.dom.querySelector('.notes-equation-flyout-done')?.textContent).toBe('Done ↵');
+  });
+
+  it('commits via the Done button, exactly like Enter', () => {
+    const { handle, onCommit } = mount('a');
+    handle.input.value = 'a + b';
+    handle.dom
+      .querySelector<HTMLButtonElement>('.notes-equation-flyout-done')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith('a + b');
+    expect(handle.dom.parentNode).toBeNull();
+  });
+
+  it('commits when a pointer lands outside the card, keeping the typed source', () => {
+    const { handle, onCommit, onCancel } = mount('a');
+    handle.input.value = 'typed';
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith('typed');
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(handle.dom.parentNode).toBeNull();
+  });
+
+  it('does not resolve on a pointer inside the card', () => {
+    const { handle, onCommit } = mount('a');
+    handle.input.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(handle.dom.parentNode).toBe(document.body);
   });
 
   it('commits the current text on Enter and closes', () => {
