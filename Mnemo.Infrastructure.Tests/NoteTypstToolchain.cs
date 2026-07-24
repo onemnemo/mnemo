@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Mnemo.Infrastructure.Tests;
@@ -15,9 +16,29 @@ internal static class NoteTypstToolchain
     public static readonly string? BinaryPath = ResolveBinaryPath();
     public static readonly string? PackagePath = ResolvePackagePath();
 
+    // Anchored on the compile-time path of this source file, so the repo is found even when a test
+    // run relocates AppContext.BaseDirectory (the /p:OutDir lock workaround does exactly that, which
+    // otherwise leaves the toolchain "unavailable" and silently no-ops every compile-smoke test).
+    // Falls back to the current directory and the base directory for any run where the source path
+    // is stale (e.g. a checkout moved after build).
     private static string? RepoRoot()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        foreach (var start in new[] { Path.GetDirectoryName(ThisFilePath()), Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            var found = WalkUpForRuntime(start);
+            if (found != null)
+                return found;
+        }
+        return null;
+    }
+
+    private static string ThisFilePath([CallerFilePath] string path = "") => path;
+
+    private static string? WalkUpForRuntime(string? startDir)
+    {
+        if (string.IsNullOrEmpty(startDir))
+            return null;
+        var dir = new DirectoryInfo(startDir);
         while (dir != null)
         {
             if (Directory.Exists(Path.Combine(dir.FullName, "Mnemo.Host", "TypstRuntime")))

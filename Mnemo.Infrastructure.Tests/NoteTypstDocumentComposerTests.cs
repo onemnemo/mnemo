@@ -208,8 +208,9 @@ public sealed class NoteTypstDocumentComposerTests
 
     // === Compile-smoke against the vendored typst binary (offline) ===
 
+    // 1x1 RGBA PNG with a valid IDAT CRC (Typst's decoder rejects a bad CRC).
     private static readonly byte[] OnePixelPng = Convert.FromBase64String(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC");
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP4////fwAJ+wP99djxmgAAAABJRU5ErkJggg==");
 
     [Fact]
     public void KitchenSink_CompilesWithVendoredTypst()
