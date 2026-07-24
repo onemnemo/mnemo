@@ -22,10 +22,16 @@ namespace Mnemo.Infrastructure.Services.Notes.Pdf;
 public sealed class TypstNotePdfExportService : INotePdfExportService
 {
     private readonly TypstCompiler _compiler;
+    private readonly INotePdfImageLocator _imageLocator;
 
-    public TypstNotePdfExportService(TypstCompiler compiler)
+    /// <param name="imageLocator">
+    /// Turns a note's image references into readable file paths. Defaults to treating references as
+    /// direct paths (the desktop shape); the web host injects one that resolves managed asset ids.
+    /// </param>
+    public TypstNotePdfExportService(TypstCompiler compiler, INotePdfImageLocator? imageLocator = null)
     {
         _compiler = compiler ?? throw new ArgumentNullException(nameof(compiler));
+        _imageLocator = imageLocator ?? DirectPathImageLocator.Instance;
     }
 
     public Task<byte[]> GeneratePdfAsync(Note note, NotePdfExportOptions options, CancellationToken cancellationToken = default)
@@ -53,7 +59,7 @@ public sealed class TypstNotePdfExportService : INotePdfExportService
             // file copies, which should not block whoever awaited us (e.g. a UI thread).
             var source = await Task.Run(() =>
             {
-                var resolver = new StagingAssetResolver(workDir);
+                var resolver = new StagingAssetResolver(workDir, _imageLocator);
                 return NoteTypstDocumentComposer.Compose(note, options, resolver);
             }, cancellationToken).ConfigureAwait(false);
 
@@ -80,12 +86,14 @@ public sealed class TypstNotePdfExportService : INotePdfExportService
     {
         private const string StagedDirName = "__mnemo_img";
         private readonly string _workDir;
+        private readonly INotePdfImageLocator _locator;
         private readonly Dictionary<string, string?> _byReference = new(StringComparer.Ordinal);
         private int _next;
 
-        public StagingAssetResolver(string workDir)
+        public StagingAssetResolver(string workDir, INotePdfImageLocator locator)
         {
             _workDir = workDir;
+            _locator = locator;
         }
 
         public string? ResolveImagePath(string reference)
@@ -104,13 +112,14 @@ public sealed class TypstNotePdfExportService : INotePdfExportService
 
         private string? Stage(string reference)
         {
-            if (!File.Exists(reference))
+            var filePath = _locator.LocateImageFilePath(reference);
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
                 return null;
 
             byte[] bytes;
             try
             {
-                bytes = File.ReadAllBytes(reference);
+                bytes = File.ReadAllBytes(filePath);
             }
             catch
             {
@@ -120,7 +129,7 @@ public sealed class TypstNotePdfExportService : INotePdfExportService
             if (bytes.Length == 0)
                 return null;
 
-            var ext = NormalizeImageExtension(Path.GetExtension(reference)) ?? SniffImageExtension(bytes);
+            var ext = NormalizeImageExtension(Path.GetExtension(filePath)) ?? SniffImageExtension(bytes);
             if (ext == null)
                 return null;
 
