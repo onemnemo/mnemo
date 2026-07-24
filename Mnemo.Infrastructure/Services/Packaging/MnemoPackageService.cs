@@ -11,6 +11,7 @@ namespace Mnemo.Infrastructure.Services.Packaging;
 public sealed class MnemoPackageService : IMnemoPackageService
 {
     private const string ManifestPath = "manifest.json";
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true
@@ -18,11 +19,36 @@ public sealed class MnemoPackageService : IMnemoPackageService
 
     private readonly IReadOnlyDictionary<string, IMnemoPayloadHandler> _handlers;
     private readonly ILoggerService _logger;
+    private readonly PackageReadLimits _limits;
 
     public MnemoPackageService(IEnumerable<IMnemoPayloadHandler> handlers, ILoggerService logger)
+        : this(handlers, logger, PackageReadLimits.Default)
+    {
+    }
+
+    /// <summary>Test seam: the same service with smaller caps so a limit can be exercised cheaply.</summary>
+    internal MnemoPackageService(IEnumerable<IMnemoPayloadHandler> handlers, ILoggerService logger, PackageReadLimits limits)
     {
         _logger = logger;
+        _limits = limits;
         _handlers = handlers.ToDictionary(h => h.PayloadType, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Anti-DoS caps on a package being read. A .mnemo arrives from anywhere the user can be talked
+    /// into opening one, and the upload endpoint only bounds the COMPRESSED size; a zip bomb is small
+    /// on disk and enormous once expanded, so the real limits sit on the uncompressed bytes and are
+    /// enforced during the copy, not trusted from the header a bomb is free to forge. The defaults
+    /// sit far above any real corpus (bounded by a 512 MB compressed upload) and far below a bomb
+    /// (which expands hundreds of times over).
+    /// </summary>
+    internal sealed record PackageReadLimits(int MaxEntryCount, long MaxEntryBytes, long MaxTotalBytes, int MaxPathDepth)
+    {
+        public static readonly PackageReadLimits Default = new(
+            MaxEntryCount: 50_000,
+            MaxEntryBytes: 512L * 1024 * 1024,
+            MaxTotalBytes: 2L * 1024 * 1024 * 1024,
+            MaxPathDepth: 32);
     }
 
     public async Task<Result<MnemoPackageManifest>> ExportAsync(
@@ -203,7 +229,7 @@ public sealed class MnemoPackageService : IMnemoPackageService
         }
     }
 
-    private static async Task<Result<(MnemoPackageManifest Manifest, Dictionary<string, byte[]> Entries)>> ReadPackageManifestAsync(
+    private async Task<Result<(MnemoPackageManifest Manifest, Dictionary<string, byte[]> Entries)>> ReadPackageManifestAsync(
         string packageFilePath,
         CancellationToken cancellationToken)
     {
@@ -231,6 +257,8 @@ public sealed class MnemoPackageService : IMnemoPackageService
             return Result<(MnemoPackageManifest, Dictionary<string, byte[]>)>.Failure($"Unsupported package version '{manifest.Version}'.");
 
         var entries = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        var entryCount = 0;
+        long totalBytes = 0;
         foreach (var entry in archive.Entries)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -239,18 +267,48 @@ public sealed class MnemoPackageService : IMnemoPackageService
             if (string.IsNullOrWhiteSpace(entry.Name))
                 continue;
 
+            if (++entryCount > _limits.MaxEntryCount)
+                throw new InvalidDataException($"Package contains more than {_limits.MaxEntryCount} entries.");
+
             ValidateArchiveEntryPath(entry.FullName);
 
+            // A cheap first gate on the declared size; the copy below enforces the real one, since a
+            // forged header is exactly how a bomb slips past a size check that trusts it.
+            if (entry.Length > _limits.MaxEntryBytes)
+                throw new InvalidDataException($"Package entry '{entry.FullName}' exceeds the {_limits.MaxEntryBytes / (1024 * 1024)} MB limit.");
+
             await using var stream = entry.Open();
-            using var buffer = new MemoryStream();
-            await stream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
-            entries[entry.FullName.Replace('\\', '/')] = buffer.ToArray();
+            var bytes = await ReadEntryAsync(stream, _limits.MaxTotalBytes - totalBytes, entry.FullName, cancellationToken).ConfigureAwait(false);
+            totalBytes += bytes.Length;
+            entries[entry.FullName.Replace('\\', '/')] = bytes;
         }
 
         return Result<(MnemoPackageManifest, Dictionary<string, byte[]>)>.Success((manifest, entries));
     }
 
-    private static void ValidateArchiveEntryPath(string entryPath)
+    /// <summary>
+    /// Reads one entry into memory, aborting the moment it passes its own cap or the total budget
+    /// left. The check rides the copy rather than the header so a lying uncompressed size cannot
+    /// wave a bomb through.
+    /// </summary>
+    private async Task<byte[]> ReadEntryAsync(Stream source, long remainingTotal, string entryName, CancellationToken cancellationToken)
+    {
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await source.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            buffer.Write(chunk, 0, read);
+            if (buffer.Length > _limits.MaxEntryBytes)
+                throw new InvalidDataException($"Package entry '{entryName}' exceeds the {_limits.MaxEntryBytes / (1024 * 1024)} MB limit.");
+            if (buffer.Length > remainingTotal)
+                throw new InvalidDataException($"Package expands beyond the {_limits.MaxTotalBytes / (1024 * 1024)} MB total limit.");
+        }
+
+        return buffer.ToArray();
+    }
+
+    private void ValidateArchiveEntryPath(string entryPath)
     {
         var normalized = entryPath.Replace('\\', '/');
         if (normalized.StartsWith("/", StringComparison.Ordinal) ||
@@ -259,6 +317,10 @@ public sealed class MnemoPackageService : IMnemoPackageService
         {
             throw new InvalidDataException($"Unsafe archive entry path '{entryPath}'.");
         }
+
+        var depth = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries).Length;
+        if (depth > _limits.MaxPathDepth)
+            throw new InvalidDataException($"Package entry path '{entryPath}' is nested too deeply.");
     }
 
     private static bool IsUnderPath(string fullPath, string rootPath)
