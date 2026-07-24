@@ -10,6 +10,7 @@ import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
 import type { SaveState } from '../authority/authority';
 import { useUpdateNoteMetadata } from '../api';
 import { metadataUpdateOf } from '../note-metadata';
+import { useNoteTransfer } from '../transfer/store';
 import {
   buildBreadcrumb,
   collapseBreadcrumb,
@@ -44,6 +45,7 @@ export function BreadcrumbBar({
   const t = useT();
   const nt = (key: string) => t('Notes', key);
   const updateNote = useUpdateNoteMetadata();
+  const openTransfer = useNoteTransfer((state) => state.open);
 
   const pieces = useMemo(
     () => collapseBreadcrumb(buildBreadcrumb({ note, notes, folders, untitled: nt('Untitled') })),
@@ -104,6 +106,20 @@ export function BreadcrumbBar({
 
       <div className="flex shrink-0 items-center gap-2 pl-2">
         <SaveStateIndicator state={saveState} onReload={onReload} />
+        <button
+          type="button"
+          aria-label={nt('Export')}
+          title={nt('Export')}
+          onClick={() =>
+            openTransfer({
+              direction: 'export',
+              scope: { label: note.title.trim() || nt('Untitled'), noteIds: [note.id] },
+            })
+          }
+          className="grid size-6 place-items-center rounded-md hover:bg-[var(--widget-background-hover)]"
+        >
+          <AppIcon name="common/upload" size={15} className="text-text-tertiary" />
+        </button>
         <button
           type="button"
           aria-label={note.isFavorite ? nt('Unfavourite') : nt('Favourite')}

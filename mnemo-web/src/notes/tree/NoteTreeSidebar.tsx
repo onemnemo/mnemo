@@ -11,6 +11,7 @@ import { toast } from '@/stores/toast';
 import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
 
 import { useApplyNoteReorder, useCreateNote, useCreateNoteFolder } from '../api';
+import { useNoteTransfer } from '../transfer/store';
 import { buildNoteTree } from './tree-model';
 import { planReorder, type ReorderPlan, type TreeDragHandle, type TreeDropTarget } from './reorder';
 import { FolderRow, NoteRow } from './NoteTreeRow';
@@ -88,6 +89,7 @@ export function NoteTreeSidebar({
   const createNote = useCreateNote();
   const createFolder = useCreateNoteFolder();
   const applyReorder = useApplyNoteReorder();
+  const openTransfer = useNoteTransfer((state) => state.open);
 
   const surfaceRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -136,6 +138,11 @@ export function NoteTreeSidebar({
         <div className="flex items-center gap-0.5">
           <IconButton icon="common/plus" label={nt('NewNote')} onClick={() => void newNote()} />
           <IconButton icon="common/folder" label={nt('NewFolder')} onClick={() => void newFolder()} />
+          <IconButton
+            icon="common/download"
+            label={nt('ImportNotes')}
+            onClick={() => openTransfer({ direction: 'import', scope: null })}
+          />
           <IconButton icon="common/layout-sidebar" label={nt('CollapseSidebar')} onClick={onCollapseSidebar} />
         </div>
       </div>
