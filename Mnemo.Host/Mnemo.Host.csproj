@@ -6,11 +6,27 @@
     <RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- RID whose Typst binary to copy: the publish RID when set, else the SDK host RID so
+         plain `dotnet run` during dev picks up the locally restored binary. -->
+    <TypstRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</TypstRid>
+    <TypstRid Condition="'$(TypstRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</TypstRid>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Pinned; PhotinoX.Native comes in transitively - do not reference it directly. -->
     <PackageReference Include="PhotinoX" Version="4.3.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Vendored mitex package: committed, platform-independent, always copied to output. -->
+    <Content Include="TypstRuntime/typst-packages/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Typst binary: restored per-RID by scripts/restore-typst, not committed. Only the
+         matching RID is copied; Exists() keeps the build green before a dev has restored it
+         (the runtime then reports a clear "run restore-typst" error). -->
+    <Content Include="TypstRuntime/binaries/$(TypstRid)/**/*"
+             Condition="'$(TypstRid)' != '' And Exists('$(MSBuildProjectDirectory)/TypstRuntime/binaries/$(TypstRid)')"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
