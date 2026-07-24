@@ -380,6 +380,43 @@ export interface TransferExportDto {
   deckIds: string[]
 }
 
+/** Mirrors Mnemo.Host/Contracts/NoteTransferDto.cs NoteTransferUploadDto. */
+export interface NoteTransferUploadDto {
+  uploadId: string
+  fileName: string
+  sizeBytes: number
+  formatId: string
+  formatName: string
+  /** False when the file staged but could not be read; the warnings say why. */
+  canImport: boolean
+  /** Notes the file will yield. A package reads its manifest; a markdown file is always one. */
+  noteCount: number | null
+  warnings: string[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/NoteTransferDto.cs NoteTransferImportDto. */
+export interface NoteTransferImportDto {
+  uploadIds: string[]
+  conflictPolicy: ConflictPolicy
+  /** Folder a markdown import lands in; a package restores its own structure and ignores it. */
+  targetFolderId?: string | null
+}
+
+/** Mirrors Mnemo.Host/Contracts/NoteTransferDto.cs NoteTransferImportResultDto. */
+export interface NoteTransferImportResultDto {
+  succeededFiles: number
+  failedFiles: number
+  importedNotes: number
+  warnings: string[]
+  errors: string[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/NoteTransferDto.cs NoteTransferExportDto. */
+export interface NoteTransferExportDto {
+  formatId: string
+  noteIds: string[]
+}
+
 // --- Notes -----------------------------------------------------------------
 
 /** Mirrors Mnemo.Host/Contracts/NoteDto.cs NoteSummaryDto. Dates are ISO 8601 strings. */

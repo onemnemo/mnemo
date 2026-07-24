@@ -16,6 +16,7 @@ import {
   useUpdateNoteMetadata,
 } from '../api';
 import { metadataUpdateOf } from '../note-metadata';
+import { useNoteTransfer } from '../transfer/store';
 import type { NoteFolderRowModel, NoteRowModel } from './tree-model';
 import type { TreeDragHandle } from './reorder';
 import type { TreeDrag } from './useNoteTreeDrag';
@@ -145,6 +146,7 @@ export function NoteRow({
   const [editing, setEditing] = useState(false);
   const updateNote = useUpdateNoteMetadata();
   const deleteNote = useDeleteNote();
+  const openTransfer = useNoteTransfer((state) => state.open);
   const { note } = row;
 
   const handle: TreeDragHandle = { key: `note:${note.id}`, kind: 'note', id: note.id, label: note.title.trim() || nt('Untitled') };
@@ -230,6 +232,17 @@ export function NoteRow({
         </MenuItem>
         <MenuItem icon={note.isFavorite ? 'common/star-filled' : 'common/star'} onSelect={toggleFavourite}>
           {note.isFavorite ? nt('Unfavourite') : nt('Favourite')}
+        </MenuItem>
+        <MenuItem
+          icon="common/upload"
+          onSelect={() =>
+            openTransfer({
+              direction: 'export',
+              scope: { label: note.title.trim() || nt('Untitled'), noteIds: [note.id] },
+            })
+          }
+        >
+          {nt('Export')}
         </MenuItem>
         <MenuSeparator />
         <MenuItem icon="common/trash" danger onSelect={() => void remove()}>

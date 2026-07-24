@@ -94,7 +94,19 @@
     "BreadcrumbMore": "Show hidden path",
     "IndexChip": "Index",
     "IndexEmpty": "No headings yet",
-    "WordCountFormat": "{0} words"
+    "WordCountFormat": "{0} words",
+    "Export": "Export…",
+    "Import": "Import",
+    "ImportNotes": "Import notes",
+    "TransferImportTitle": "Import notes",
+    "TransferExportTitle": "Export notes",
+    "TransferExportNoteTitle": "Export note",
+    "TransferConflictQuestion": "If a note already exists",
+    "TransferNounSingular": "note",
+    "TransferNounPlural": "notes",
+    "ExportNoNotesMessage": "No notes selected to export.",
+    "ExportFormatUnavailableMessage": "No export format is available.",
+    "editor.slashHint": "Type ‘/’ for commands"
   },
   "Keybinds": {
     "module.editor": "Editor",
@@ -122,7 +134,6 @@
     "editor.clipboard.paste.description": "Paste from the clipboard into the note.",
     "editor.clipboard.pasteStagingImage": "Adding image…",
     "editor.clipboard.pasteStagingImages": "Adding image {0} of {1}…",
-    "editor.clipboard.pasteCancel": "Cancel",
-    "editor.slashHint": "Type ‘/’ for commands"
+    "editor.clipboard.pasteCancel": "Cancel"
   }
 }

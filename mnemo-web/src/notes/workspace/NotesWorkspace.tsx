@@ -6,6 +6,7 @@ import { useT } from '@/i18n/useT';
 import { isMac } from '@/keybinds/chord';
 
 import { useCreateNote, useNoteFoldersQuery, useNotesQuery } from '../api';
+import { NoteTransferOverlay } from '../transfer/NoteTransferOverlay';
 import { NoteTreeSidebar } from '../tree/NoteTreeSidebar';
 import { NotePane } from './NotePane';
 
@@ -105,6 +106,8 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
           </div>
         )}
       </div>
+
+      <NoteTransferOverlay />
     </div>
   );
 }
