@@ -121,6 +121,7 @@ public static class Program
         app.MapNoteFolders();
         app.MapNoteAssets();
         app.MapNoteTransfer();
+        app.MapNotePdf();
 
         if (options.DevMode)
         {

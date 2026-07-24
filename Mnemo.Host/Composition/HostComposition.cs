@@ -184,7 +184,16 @@ public static class HostComposition
         services.AddSingleton<INoteSidMigrator, NoteSidMigrator>();
         services.AddSingleton<INoteService, NoteService>();
         services.AddSingleton<INoteFolderService, NoteFolderService>();
-        services.AddSingleton<INotePdfExportService, NotePdfExportService>();
+        // PDF export/preview via Typst: real vector math through mitex, replacing the QuestPDF path
+        // whose equations degraded to a Unicode approximation on this host. The binary sits beside
+        // the app and the mitex package is vendored, so a compile needs no network. Explicit factories
+        // rather than by-type wiring so the optional constructor arguments take their intended values.
+        services.AddSingleton(new TypstBinaryProvider());
+        services.AddSingleton(sp => new TypstCompiler(sp.GetRequiredService<TypstBinaryProvider>()));
+        services.AddSingleton<INotePdfImageLocator, Notes.NoteAssetImageLocator>();
+        services.AddSingleton<INotePdfExportService>(sp => new TypstNotePdfExportService(
+            sp.GetRequiredService<TypstCompiler>(),
+            sp.GetRequiredService<INotePdfImageLocator>()));
         // Image uploads, the editing-session registry, and the orphan sweep over them. The
         // instance lock is what keeps that sweep from deleting what another running instance's
         // undo history can still restore.
