@@ -135,4 +135,99 @@ public class NoteBlockMarkdownConverterTests
         Assert.Equal(string.Empty, EquationLatexNormalizer.Normalize(""));
         Assert.Equal(string.Empty, EquationLatexNormalizer.Normalize(null));
     }
+
+    [Fact]
+    public void TwoColumn_Serialize_FlattensCellsWithoutDivider()
+    {
+        var twoColumn = new Block
+        {
+            Type = BlockType.TwoColumn,
+            Order = 0,
+            Children = new List<Block>
+            {
+                Column(0, Text("Left A", 0), Text("Left B", 1)),
+                Column(1, Text("Right A", 0))
+            }
+        };
+
+        var md = NoteBlockMarkdownConverter.Serialize(new List<Block> { twoColumn });
+
+        // The old code emitted "col\n\n---\n\ncol", which lost every cell block and reimported the
+        // separator as a Divider. The cells now flatten into the document with no separator.
+        Assert.DoesNotContain("---", md);
+        Assert.Contains("Left A", md);
+        Assert.Contains("Left B", md);
+        Assert.Contains("Right A", md);
+
+        var back = NoteBlockMarkdownConverter.Deserialize(md);
+        Assert.DoesNotContain(back, b => b.Type == BlockType.Divider);
+        Assert.Equal(3, back.Count);
+        Assert.All(back, b => Assert.Equal(BlockType.Text, b.Type));
+    }
+
+    [Fact]
+    public void Deserialize_NumberedList_WritesCanonicalIndexKeyNotLegacy()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("3. First\n4. Second");
+
+        Assert.Equal(2, back.Count);
+        Assert.All(back, b => Assert.Equal(BlockType.NumberedList, b.Type));
+        // The canonical key the editor and PDF composer read, never the legacy key nothing reads.
+        Assert.Equal(3, Assert.IsType<int>(back[0].Meta["listNumberIndex"]));
+        Assert.Equal(4, Assert.IsType<int>(back[1].Meta["listNumberIndex"]));
+        Assert.DoesNotContain("listNumber", back[0].Meta.Keys);
+    }
+
+    [Fact]
+    public void Serialize_NumberedList_ReadsCanonicalIndex()
+    {
+        var block = new Block
+        {
+            Type = BlockType.NumberedList,
+            Order = 0,
+            Spans = new List<InlineSpan> { InlineSpan.Plain("Item") },
+            Meta = new Dictionary<string, object> { ["listNumberIndex"] = 5 }
+        };
+
+        Assert.Contains("5. Item", NoteBlockMarkdownConverter.Serialize(new List<Block> { block }));
+    }
+
+    [Fact]
+    public void Serialize_NumberedList_FallsBackToLegacyKey()
+    {
+        // Old data on disk carries only "listNumber"; its start value must still survive export.
+        var block = new Block
+        {
+            Type = BlockType.NumberedList,
+            Order = 0,
+            Spans = new List<InlineSpan> { InlineSpan.Plain("Item") },
+            Meta = new Dictionary<string, object> { ["listNumber"] = 7 }
+        };
+
+        Assert.Contains("7. Item", NoteBlockMarkdownConverter.Serialize(new List<Block> { block }));
+    }
+
+    [Fact]
+    public void RoundTrip_NumberedList_PreservesStartValue()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("5. First\n6. Second");
+        var md = NoteBlockMarkdownConverter.Serialize(back);
+
+        Assert.Contains("5. First", md);
+        Assert.Contains("6. Second", md);
+    }
+
+    private static Block Text(string text, int order) => new()
+    {
+        Type = BlockType.Text,
+        Order = order,
+        Spans = new List<InlineSpan> { InlineSpan.Plain(text) }
+    };
+
+    private static Block Column(int order, params Block[] children) => new()
+    {
+        Type = BlockType.ColumnGroup,
+        Order = order,
+        Children = children.ToList()
+    };
 }

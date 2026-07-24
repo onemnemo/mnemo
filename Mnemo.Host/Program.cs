@@ -120,6 +120,7 @@ public static class Program
         app.MapNotes();
         app.MapNoteFolders();
         app.MapNoteAssets();
+        app.MapNoteTransfer();
 
         if (options.DevMode)
         {
