@@ -113,9 +113,8 @@ public static class HostComposition
         services.AddSingleton<ISettingsService, SettingsService>();
         services.AddSingleton<IPerfDiagnostics, PerfDiagnosticsService>();
         services.AddSingleton<IUpdateService, VelopackUpdateService>();
-        // ILaTeXEngine / INotePdfLatexImageRenderer: unbound. Both render through
-        // Avalonia; PDF export tolerates the missing renderer and math moves to
-        // KaTeX in the SPA.
+        // ILaTeXEngine: unbound. It renders through Avalonia; the SPA's math is KaTeX,
+        // and PDF export renders real math through Typst.
         services.AddSingleton<IMarkdownProcessor, MarkdownProcessor>();
         // IMarkdownRenderer / ITextMateSyntaxHighlighter / INoteClipboardPlatformService:
         // unbound. Implementations are Avalonia-side and nothing outside Mnemo.UI

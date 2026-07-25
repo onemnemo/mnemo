@@ -117,8 +117,14 @@ public static class Bootstrapper
         services.AddSingleton<INoteSidMigrator, NoteSidMigrator>();
         services.AddSingleton<INoteService, NoteService>();
         services.AddSingleton<INoteFolderService, NoteFolderService>();
-        services.AddSingleton<INotePdfLatexImageRenderer, NotePdfLatexImageRenderer>();
-        services.AddSingleton<INotePdfExportService, NotePdfExportService>();
+        // PDF export/preview via Typst (real vector math through mitex), replacing the QuestPDF path
+        // and its Avalonia LaTeX rasterizer. Desktop image blocks store absolute paths, so the
+        // direct-path locator resolves them the way the old composer's File.Exists did.
+        services.AddSingleton(new TypstBinaryProvider());
+        services.AddSingleton(sp => new TypstCompiler(sp.GetRequiredService<TypstBinaryProvider>()));
+        services.AddSingleton<INotePdfExportService>(sp => new TypstNotePdfExportService(
+            sp.GetRequiredService<TypstCompiler>(),
+            DirectPathImageLocator.Instance));
 
         // Relational flashcard store (rehaul): owned store, repositories, and blob→relational migrator.
         services.AddSingleton<IFlashcardStore, FlashcardStore>();

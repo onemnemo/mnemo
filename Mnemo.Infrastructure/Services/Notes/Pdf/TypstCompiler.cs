@@ -116,6 +116,12 @@ public sealed class TypstCompiler
         psi.ArgumentList.Add(cacheDir);
         psi.ArgumentList.Add("--root");
         psi.ArgumentList.Add(workDir);
+        // Bundled Geist fonts + no system fonts: deterministic output that matches the app's type.
+        if (Directory.Exists(_binary.FontPath))
+        {
+            psi.ArgumentList.Add("--font-path");
+            psi.ArgumentList.Add(_binary.FontPath);
+        }
         psi.ArgumentList.Add("--ignore-system-fonts");
         psi.ArgumentList.Add("--format");
         psi.ArgumentList.Add(format);

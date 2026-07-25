@@ -21,6 +21,8 @@
   <ItemGroup>
     <!-- Vendored mitex package: committed, platform-independent, always copied to output. -->
     <Content Include="TypstRuntime/typst-packages/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Bundled Geist fonts so PDF output matches the app's type: committed, always copied. -->
+    <Content Include="TypstRuntime/fonts/**/*" CopyToOutputDirectory="PreserveNewest" />
     <!-- Typst binary: restored per-RID by scripts/restore-typst, not committed. Only the
          matching RID is copied; Exists() keeps the build green before a dev has restored it
          (the runtime then reports a clear "run restore-typst" error). -->

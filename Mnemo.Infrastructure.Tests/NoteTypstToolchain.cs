@@ -79,6 +79,16 @@ internal static class NoteTypstToolchain
         return Directory.Exists(path) ? path : null;
     }
 
+    private static readonly string? FontPath = ResolveFontPath();
+
+    private static string? ResolveFontPath()
+    {
+        var root = RepoRoot();
+        if (root == null) return null;
+        var path = Path.Combine(root, "Mnemo.Host", "TypstRuntime", "fonts");
+        return Directory.Exists(path) ? path : null;
+    }
+
     /// <summary>Compiles <paramref name="typstSource"/> to PDF in an isolated workdir with the network
     /// disabled (empty download cache + vendored package path). Returns the exit code and stderr.</summary>
     public static (int ExitCode, string StdErr) Compile(string typstSource, IReadOnlyDictionary<string, byte[]>? workdirFiles = null)
@@ -117,6 +127,10 @@ internal static class NoteTypstToolchain
             psi.ArgumentList.Add("--package-path"); psi.ArgumentList.Add(PackagePath!);
             psi.ArgumentList.Add("--package-cache-path"); psi.ArgumentList.Add(emptyCache);
             psi.ArgumentList.Add("--root"); psi.ArgumentList.Add(work);
+            if (FontPath != null)
+            {
+                psi.ArgumentList.Add("--font-path"); psi.ArgumentList.Add(FontPath);
+            }
             psi.ArgumentList.Add("--ignore-system-fonts");
             psi.ArgumentList.Add(typPath);
             psi.ArgumentList.Add(pdfPath);

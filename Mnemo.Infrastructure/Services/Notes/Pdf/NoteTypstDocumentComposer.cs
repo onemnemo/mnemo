@@ -13,10 +13,8 @@ using Mnemo.Infrastructure.Services.Notes.Markdown;
 namespace Mnemo.Infrastructure.Services.Notes.Pdf;
 
 /// <summary>
-/// Maps a <see cref="Note"/> to a Typst source document. Mirrors the per-<see cref="BlockType"/>
-/// dispatch of <see cref="NotePdfDocumentComposer"/> (the QuestPDF twin) so the two can be compared,
-/// but emits real Typst constructs: math renders through mitex as vector glyphs rather than the
-/// LaTeX-to-Unicode degrade the QuestPDF web path is limited to.
+/// Maps a <see cref="Note"/> to a Typst source document, dispatching per <see cref="BlockType"/>.
+/// Math renders through mitex as vector glyphs; there is no LaTeX-to-Unicode degrade.
 ///
 /// Every escaping and mitex-fencing rule here was verified against the pinned typst 0.15.1 binary.
 /// </summary>
@@ -73,14 +71,17 @@ internal static class NoteTypstDocumentComposer
         }
 
         sb.Append(")\n");
-        sb.Append("#set text(size: ").Append(Pt(options.BaseFontSizePt)).Append(", fill: rgb(\"#000000\"))\n");
+        // Geist (the app's UI face) with the embedded serif as a fallback, so a PDF reads like the
+        // note on screen instead of a LaTeX paper. Code uses Geist Mono to match the editor.
+        sb.Append("#set text(font: (\"Geist\", \"New Computer Modern\"), size: ")
+          .Append(Pt(options.BaseFontSizePt)).Append(", fill: rgb(\"#000000\"))\n");
+        sb.Append("#show raw: set text(font: (\"Geist Mono\", \"DejaVu Sans Mono\"))\n");
         sb.Append("#set par(leading: 0.65em)\n");
         sb.Append("#set block(spacing: 10pt)\n\n");
     }
 
-    // Ordering mirrors the QuestPDF composer: prefer structured blocks, fall back to the markdown
-    // content string, then to a single text block. Kept independent so the QuestPDF twin can be
-    // removed at consolidation without touching this path.
+    // Prefer structured blocks, fall back to the markdown content string, then to a single text
+    // block, so a note from any era still renders.
     private static List<Block> GetOrderedBlocksForExport(Note note)
     {
         if (note.Blocks is { Count: > 0 })
@@ -393,8 +394,8 @@ internal static class NoteTypstDocumentComposer
                 fragment = $"#highlight(fill: rgb(\"{bg}\"))[{fragment}]";
         }
 
-        // Foreground wins over link blue, matching the QuestPDF twin. Link color applies even when
-        // colors are otherwise suppressed, since a link must read as a link.
+        // Foreground wins over link blue. Link color applies even when colors are otherwise
+        // suppressed, since a link must read as a link.
         var fg = options.RenderColors ? ResolveSwatchColor(options.ForegroundSwatchHexByName, style.ForegroundColor) : null;
         var colorHex = fg ?? (hasLink ? "#1d4ed8" : null);
         if (colorHex != null)
@@ -560,8 +561,7 @@ internal static class NoteTypstDocumentComposer
         return Regex.IsMatch(token, "^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$") ? token : null;
     }
 
-    // === Sketch PDF helpers (replicated from the QuestPDF twin so this path is self-contained
-    // once that twin is removed at consolidation). ===
+    // === Sketch PDF helpers ===
 
     internal static string NormalizeSketchSvgForPdf(string svg, NotePdfExportOptions options)
     {

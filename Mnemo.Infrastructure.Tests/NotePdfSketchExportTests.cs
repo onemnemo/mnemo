@@ -2,9 +2,6 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Notes.Markdown;
 using Mnemo.Infrastructure.Services.Notes.Pdf;
-using QuestPDF.Fluent;
-using QuestPDF.Infrastructure;
-using UglyToad.PdfPig;
 
 namespace Mnemo.Infrastructure.Tests;
 
@@ -25,30 +22,22 @@ public sealed class NotePdfSketchExportTests
     }
 
     [Fact]
-    public void CreateDocument_SketchBlockEmbedsSvgInsteadOfSourceText()
+    public void Compose_SketchBlockEmbedsSvgInsteadOfSourceText()
     {
-        QuestPDF.Settings.License = LicenseType.Community;
         var note = new Note
         {
             Title = "Sketch export",
             Blocks =
             [
-                new Block
-                {
-                    Type = BlockType.Sketch,
-                    Order = 0,
-                    Spans = [InlineSpan.Plain("A -> B")]
-                }
+                new Block { Type = BlockType.Sketch, Order = 0, Spans = [InlineSpan.Plain("A -> B")] }
             ]
         };
 
-        var pdf = NotePdfDocumentComposer
-            .CreateDocument(note, new NotePdfExportOptions())
-            .GeneratePdf();
-        using var document = PdfDocument.Open(pdf);
-        var text = string.Join("\n", document.GetPages().Select(p => p.Text));
+        var typ = NoteTypstDocumentComposer.Compose(note, new NotePdfExportOptions());
 
-        Assert.DoesNotContain("A -> B", text);
+        // The compiled sketch is embedded as an inline SVG image, not printed as its DSL source.
+        Assert.Contains("format: \"svg\"", typ);
+        Assert.DoesNotContain("A -> B", typ);
     }
 
     [Fact]
@@ -69,7 +58,7 @@ public sealed class NotePdfSketchExportTests
             }
         };
 
-        var normalized = NotePdfDocumentComposer.NormalizeSketchSvgForPdf(svg, options);
+        var normalized = NoteTypstDocumentComposer.NormalizeSketchSvgForPdf(svg, options);
 
         Assert.Contains("fill=\"#ffffff\"", normalized);
         Assert.Contains("fill=\"#F5F5F5\"", normalized);
@@ -86,7 +75,7 @@ public sealed class NotePdfSketchExportTests
             Payload = new SketchPayload(320, "right")
         };
 
-        var (widthPt, align) = NotePdfDocumentComposer.ResolveSketchPdfLayout(block);
+        var (widthPt, align) = NoteTypstDocumentComposer.ResolveSketchPdfLayout(block);
 
         Assert.Equal(240, widthPt);
         Assert.Equal("right", align);
