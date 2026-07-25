@@ -10,9 +10,8 @@ namespace Mnemo.Infrastructure.Services.Notes.Pdf;
 
 /// <summary>
 /// Exports notes to PDF (and per-page PNG previews) by mapping the note to a Typst document and
-/// compiling it with the vendored Typst binary. Replaces the QuestPDF-backed
-/// <see cref="NotePdfExportService"/>; equation blocks render as real vector math via mitex rather
-/// than the regex-to-Unicode degrade the web host had before.
+/// compiling it with the vendored Typst binary. Equation blocks render as real vector math via
+/// mitex rather than the regex-to-Unicode degrade the web host had before.
 /// </summary>
 /// <remarks>
 /// Each call gets its own temporary working directory that serves as the compile sandbox root. The

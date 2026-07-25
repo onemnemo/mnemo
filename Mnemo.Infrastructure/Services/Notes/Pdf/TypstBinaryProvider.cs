@@ -31,6 +31,12 @@ public sealed class TypstBinaryProvider
     /// <summary>The vendored mitex package root, passed to Typst as <c>--package-path</c>.</summary>
     public string PackagePath => Path.Combine(_runtimeRoot, "typst-packages");
 
+    /// <summary>
+    /// The bundled font directory, passed to Typst as <c>--font-path</c>. Holds the app's Geist
+    /// family so a PDF matches the on-screen note rather than falling back to Typst's serif default.
+    /// </summary>
+    public string FontPath => Path.Combine(_runtimeRoot, "fonts");
+
     /// <summary>The host RID folder the matching binary was restored into (e.g. <c>win-x64</c>).</summary>
     public static string HostRid
     {

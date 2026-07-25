@@ -11,7 +11,6 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime.Managed" Version="1.20.1" />
-    <PackageReference Include="QuestPDF" Version="2025.7.0" />
     <PackageReference Include="System.Management" Version="10.0.0" />
     <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
