@@ -10,6 +10,7 @@ import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
 import type { SaveState } from '../authority/authority';
 import { useUpdateNoteMetadata } from '../api';
 import { metadataUpdateOf } from '../note-metadata';
+import { useNotePdf } from '../pdf/store';
 import { useNoteTransfer } from '../transfer/store';
 import {
   buildBreadcrumb,
@@ -46,6 +47,7 @@ export function BreadcrumbBar({
   const nt = (key: string) => t('Notes', key);
   const updateNote = useUpdateNoteMetadata();
   const openTransfer = useNoteTransfer((state) => state.open);
+  const openPdf = useNotePdf((state) => state.open);
 
   const pieces = useMemo(
     () => collapseBreadcrumb(buildBreadcrumb({ note, notes, folders, untitled: nt('Untitled') })),
@@ -119,6 +121,15 @@ export function BreadcrumbBar({
           className="grid size-6 place-items-center rounded-md hover:bg-[var(--widget-background-hover)]"
         >
           <AppIcon name="common/upload" size={15} className="text-text-tertiary" />
+        </button>
+        <button
+          type="button"
+          aria-label={nt('ToolbarExportPdf')}
+          title={nt('ToolbarExportPdf')}
+          onClick={() => openPdf({ noteId: note.id, title: note.title.trim() || nt('Untitled') })}
+          className="grid size-6 place-items-center rounded-md hover:bg-[var(--widget-background-hover)]"
+        >
+          <AppIcon name="common/download" size={15} className="text-text-tertiary" />
         </button>
         <button
           type="button"
