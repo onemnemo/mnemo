@@ -491,6 +491,12 @@ function resolveCadenceMetrics(
   return resolved
 }
 
+/** Whether this scenario's bars are derived from the run's own calibrated frame period. */
+function declaresCadenceMultiples(scenario: ScenarioId): boolean {
+  if (scenario === 'control') return thresholds.controlMeasurement.cadenceMultiples !== undefined
+  return thresholds.scenarios[scenario]?.cadenceMultiples !== undefined
+}
+
 function resolveScenarioConfig(
   scenario: ScenarioId,
   calibration: ClockCalibration,
@@ -656,6 +662,29 @@ export function evaluateScenario(result: RunResult): ScenarioVerdict {
         'the thresholds were written for; an absolute 16.7ms bar is a weaker test here than it is ' +
         'on 60Hz hardware',
     )
+  }
+
+  // A cadence bar expressed as a multiple of the calibrated period assumes the calibration
+  // measured the MACHINE. It does not: the clock is calibrated with the arm already mounted and
+  // the scenario's camera applied, so an arm that is slow at rest calibrates its own slowness as
+  // the ceiling, and bars derived from it move down to meet it. A2 produced exactly that, a run
+  // calibrating at 83.3ms and then clearing bars of 125ms and 208ms, which reads as a pass and
+  // is a renderer managing twelve frames a second. A1 never tripped this because its calibration
+  // read 59.88Hz on every run, so no earlier verdict depends on the difference.
+  const cadenceGated = declaresCadenceMultiples(result.scenario)
+  if (
+    cadenceGated &&
+    result.calibration.regime !== '60hz' &&
+    result.calibration.regime !== 'faster-than-60hz'
+  ) {
+    reasons.push(
+      `the frame clock calibrated at ${result.calibration.medianFrameMs.toFixed(2)}ms ` +
+        `(~${result.calibration.impliedHz.toFixed(1)}Hz, regime '${result.calibration.regime}'), and ` +
+        'the cadence bars are multiples of that period; nothing here can tell a genuinely slow ' +
+        "display from an arm that was already slow at rest, and in the second case the bars move " +
+        'down to meet the arm, so this is reported rather than certified',
+    )
+    if (verdict === 'pass') verdict = 'warn'
   }
 
   // The dispatch-to-painted percentiles are computed over keystrokes, not frames, so the frame

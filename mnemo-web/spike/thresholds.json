@@ -6,9 +6,17 @@
     "with a written rationale and stays visible in history forever. That is the point.",
     "Frame times are milliseconds. 16.7 = 60fps, 33.3 = 30fps."
   ],
-  "version": 3,
+  "version": 4,
   "committedBefore": "any measurement run",
   "amendments": [
+    {
+      "version": 4,
+      "scenario": "all scenarios whose bars use cadenceMultiples",
+      "change": "A run whose frame clock calibrates outside the 60Hz regime can no longer be certified pass on cadence bars; it is downgraded to warn with the reason stated.",
+      "reason": "Cadence bars are multiples of the run's own calibrated frame period (amendment 3). That is only sound if the calibration measured the MACHINE. It does not: the clock is calibrated with the arm already mounted and the scenario's camera applied, so an arm that is slow at rest calibrates its own slowness as the ceiling and the bars move down to meet it. The A2 arm produced exactly that, a run calibrating at 83.3ms and then clearing bars of 125ms and 208ms, which prints as a pass and is a renderer managing twelve frames a second.",
+      "whyThisIsNotSoftening": "It is a tightening, not a softening: it can only turn a pass into a warn and can never turn a fail into a pass. The 60Hz reading is not assumed either, it is observed, because this same display calibrates at 59.88Hz on every run where the page is idle.",
+      "notAffected": "No verdict already delivered depends on it. Every A1 run calibrated at 59.88Hz, regime '60hz', so A1's numbers and its no-go are unchanged."
+    },
     {
       "version": 3,
       "scenario": "all frame-cadence metrics",

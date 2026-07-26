@@ -13,7 +13,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import 'katex/dist/katex.min.css'
-import './arm.css'
+import '../shared/arm.css'
 
 import type {
   ArmHandle,
@@ -28,8 +28,10 @@ import type { MindmapElement, MindmapFixture } from '../../fixture/model'
 import { nodeTypes } from './nodes'
 import { edgeTypes, toRfEdges } from './edges'
 import { createFrameInterceptor } from './frames'
-import { createLodController, type LodController } from './lod'
-import { imageUrlFor } from './assets'
+import { createLodController, type LodController } from '../shared/lod'
+import { imageUrlFor } from '../shared/assets'
+import { parseCommittedTransform } from '../shared/transform'
+import { countOnScreen } from '../shared/on-screen'
 
 // The tree is mounted without StrictMode on purpose: its double invocation would double
 // the work being measured. The harness asserts its absence before recording anything, so
@@ -67,26 +69,6 @@ function toRfNode(element: MindmapElement): Node {
     draggable: true,
     selectable: true,
   }
-}
-
-/**
- * Parses `matrix(a, b, c, d, e, f)` off the committed viewport transform and converts it into
- * the same camera-position units `getViewport` reports, so comparing the two is comparing a
- * state to what actually painted rather than to a different coordinate system.
- */
-function parseTransform(el: HTMLElement | null): Viewport | null {
-  if (!el) return null
-  const value = getComputedStyle(el).transform
-  if (!value || value === 'none') return null
-  const match = /matrix\(([^)]+)\)/.exec(value)
-  if (!match?.[1]) return null
-  const parts = match[1].split(',').map((p) => Number.parseFloat(p.trim()))
-  if (parts.length < 6 || parts.some(Number.isNaN)) return null
-  const zoom = parts[0] as number
-  const translateX = parts[4] as number
-  const translateY = parts[5] as number
-  if (zoom === 0) return null
-  return { x: -translateX / zoom, y: -translateY / zoom, zoom }
 }
 
 /**
@@ -312,7 +294,7 @@ class A1Handle implements ArmHandle {
   }
 
   readCommittedViewport(): Viewport | null {
-    return parseTransform(this.getTransformTarget())
+    return parseCommittedTransform(this.getTransformTarget())
   }
 
   getGestureTarget(): HTMLElement {
@@ -339,27 +321,7 @@ class A1Handle implements ArmHandle {
   }
 
   getOnScreenCounts(): OnScreenCounts {
-    // getViewport already reports the camera position in canvas units, so the visible rect is
-    // just that corner plus the viewport size scaled down by the zoom.
-    const { x: left, y: top, zoom } = this.getViewport()
-    const w = this.container.clientWidth / zoom
-    const h = this.container.clientHeight / zoom
-
-    let elements = 0
-    const visibleIds = new Set<string>()
-    for (const e of this.fixture.elements) {
-      if (e.x < left + w && e.x + e.width > left && e.y < top + h && e.y + e.height > top) {
-        elements++
-        visibleIds.add(e.id)
-      }
-    }
-
-    let edges = 0
-    for (const edge of this.fixture.edges) {
-      if (visibleIds.has(edge.fromId) || visibleIds.has(edge.toId)) edges++
-    }
-
-    return { elements, edges, domNodes: this.container.querySelectorAll('*').length }
+    return countOnScreen(this.fixture, this.getViewport(), this.container)
   }
 
   setSelection(ids: readonly string[]): void {

@@ -225,6 +225,10 @@ async function loadArm(id: ArmId): Promise<ArmModule> {
     const imported = await import('./arms/a1')
     return imported.a1Module
   }
+  if (id === 'a2-dom') {
+    const imported = await import('./arms/a2')
+    return imported.a2Module
+  }
   throw new Error(
     `arm '${id}' is named in the contract but has no module in this build; arms are built ` +
       'sequentially and this one has not been reached',

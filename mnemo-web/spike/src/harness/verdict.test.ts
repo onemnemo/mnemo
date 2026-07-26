@@ -233,6 +233,40 @@ describe('the S4a collapse sub-gate', () => {
   })
 })
 
+// ---- evaluateScenario: self-referential cadence bars -------------------------------------------
+
+describe('cadence bars derived from a slow calibration', () => {
+  it('refuses to certify a pass when the calibration is outside the 60Hz regime', () => {
+    // The failure this exists to stop: an arm slow enough at rest that the clock calibrates its
+    // own slowness as the machine's ceiling, after which bars set at 1.5x and 2.5x that period
+    // are bars it cannot help but clear. A real run calibrated at 83.3ms and cleared 125ms and
+    // 208ms, which prints as a pass and is twelve frames a second.
+    const result = baseResult({
+      calibration: calibration({ medianFrameMs: 83.3, impliedHz: 12, regime: 'other' }),
+      frames: frameStats({ p50: 83.3, p95: 99.9, p99: 100, max: 100 }),
+    })
+    const verdict = evaluateScenario(result)
+    expect(verdict.verdict).toBe('warn')
+    expect(verdict.reasons.some((r) => r.includes('reported rather than certified'))).toBe(true)
+  })
+
+  it('leaves a clean 60Hz run alone', () => {
+    const verdict = evaluateScenario(baseResult())
+    expect(verdict.verdict).toBe('pass')
+    expect(verdict.reasons.some((r) => r.includes('reported rather than certified'))).toBe(false)
+  })
+
+  it('downgrades a pass but never rescues a fail', () => {
+    // Only ever pass to warn. A run that missed its bars on a slow calibration is still a fail:
+    // it could not even clear the bars its own slowness had lowered.
+    const result = baseResult({
+      calibration: calibration({ medianFrameMs: 83.3, impliedHz: 12, regime: 'other' }),
+      frames: frameStats({ p50: 400, p95: 500, p99: 600, max: 900 }),
+    })
+    expect(evaluateScenario(result).verdict).toBe('fail')
+  })
+})
+
 // ---- evaluateScenario: calibration-unachievable flag ------------------------------------------
 
 describe('the calibration-unachievable flag', () => {
@@ -495,7 +529,7 @@ describe('scalar pass/warn/fail metrics (S1)', () => {
 
 describe('loading thresholds.json', () => {
   it('loads the committed file with all eleven scenarios', () => {
-    expect(thresholds.version).toBe(3)
+    expect(thresholds.version).toBe(4)
     expect(Object.keys(thresholds.scenarios)).toHaveLength(11)
   })
 
