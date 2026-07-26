@@ -1,0 +1,82 @@
+/*
+ * Layout for the hand-rolled arm. Presentation lives in shared/arm.css, which both arms use;
+ * only the three layers that make up the surface are defined here.
+ */
+
+.a2-pane {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* Without this a drag on a touch or precision-trackpad device is stolen by the browser's own
+     scroll gesture before the first pointermove is delivered. */
+  touch-action: none;
+  background: #14171d;
+}
+
+.a2-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* Zero-sized on purpose. Children are absolutely positioned in canvas coordinates, and a
+     world layer with no box of its own is never what elementFromPoint returns, which is what
+     lets the pane answer for empty canvas and each node answer for itself. */
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+}
+
+/* One composited layer for the entire canvas, so a pan is a transform on an existing layer
+   rather than a repaint. Opt-out rather than assumed: on the forest fixture the layer's paint
+   bounds are roughly 2,900 by 127,000 canvas pixels, which is well past the point where a
+   compositor stops treating a layer as an ordinary one, so whether this helps or hurts is a
+   question to price the way a1 priced its culling rather than a hint to sprinkle on. */
+.a2-world--layer {
+  will-change: transform;
+}
+
+.a2-edges,
+.a2-edge-labels {
+  position: absolute;
+  /* Edges are drawn under the nodes and never hit-tested: Mnemo selects a link edge through its
+     own picking pass, and letting the SVG answer elementFromPoint would make every pan press
+     candidate land on it. */
+  pointer-events: none;
+}
+
+/* Viewport-sized, with the camera on an inner group. Sized to the canvas instead, this element
+   is a box tens of thousands of pixels across, and merely having one under a transformed
+   ancestor cost a whole frame on every pan even with every path inside it hidden. */
+.a2-edges {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.a2-edge-labels {
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.a2-node {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* 2D translate, never translate3d: a 3D transform promotes each node to its own composited
+     layer, and five thousand layers is a different failure mode rather than a faster one. */
+  transform-origin: 0 0;
+}
+
+.a2-node[data-selected='1'] .spike-node,
+.a2-node[data-selected='1'] .spike-frame {
+  outline: 1.5px solid #6ea8fe;
+  outline-offset: 1px;
+}
+
+/* The inline editing host for the typing scenario. A real inline edit looks like the label it
+   replaces, so this changes nothing but the caret. */
+.a2-node .spike-label[contenteditable] {
+  outline: none;
+  cursor: text;
+}
