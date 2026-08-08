@@ -345,7 +345,8 @@
     "WidgetUnavailableHint": "Die Erweiterung dieses Widgets ist nicht installiert. Entfernen Sie die Kachel oder installieren Sie die Erweiterung erneut.",
     "LayoutLoadFailed": "Ihr Dashboard konnte nicht geladen werden",
     "LayoutLoadFailedHint": "Ihre Widgets sind sicher. Es wird nichts gespeichert, bis das Dashboard wieder geladen ist.",
-    "Retry": "Erneut versuchen"
+    "Retry": "Erneut versuchen",
+    "WidgetLoadFailed": "Konnte nicht geladen werden"
   },
   "App": {
     "AppTitle": "Mnemo"

@@ -344,7 +344,8 @@
     "WidgetUnavailableHint": "This widget's extension is not installed. Remove the tile or reinstall the extension.",
     "LayoutLoadFailed": "Your dashboard could not be loaded",
     "LayoutLoadFailedHint": "Your widgets are safe. Nothing is saved until the dashboard loads again.",
-    "Retry": "Try again"
+    "Retry": "Try again",
+    "WidgetLoadFailed": "Could not load"
   },
   "App": {
     "AppTitle": "Mnemo"

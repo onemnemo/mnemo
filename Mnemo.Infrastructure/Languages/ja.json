@@ -345,7 +345,8 @@
     "WidgetUnavailableHint": "このウィジェットの拡張機能がインストールされていません。タイルを削除するか、拡張機能を再インストールしてください。",
     "LayoutLoadFailed": "ダッシュボードを読み込めませんでした",
     "LayoutLoadFailedHint": "ウィジェットは保持されています。ダッシュボードが再び読み込まれるまで保存は行われません。",
-    "Retry": "再試行"
+    "Retry": "再試行",
+    "WidgetLoadFailed": "読み込めませんでした"
   },
   "App": {
     "AppTitle": "Mnemo"
