@@ -557,3 +557,35 @@ export interface WidgetSizeDto {
   columns: number
   rows: number
 }
+
+/**
+ * Mirrors Mnemo.Host/Contracts/StatRecordDto.cs. One statistics record, identified by its
+ * namespace/kind/key triple.
+ */
+export interface StatRecordDto {
+  ns: string
+  kind: string
+  key: string
+  /** ISO 8601. */
+  updatedAt: string
+  fields: Record<string, StatValueDto>
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/StatRecordDto.cs StatValueDto's type tag, one for one with the
+ * StatValueType enum. Not renamed to anything friendlier: a reader decides whether a field is
+ * safe to read by comparing against this, so a different spelling silently reads as absent.
+ */
+export type StatValueKind = "boolean" | "integer" | "decimal" | "string" | "dateTime"
+
+/**
+ * Mirrors Mnemo.Host/Contracts/StatRecordDto.cs StatValueDto.
+ *
+ * The value is a string so that neither the tag nor the precision is lost in JSON: a count past
+ * 2^53 survives, and the reader reproduces the desktop's rule of checking the type before reading
+ * rather than inferring one from what JSON happened to encode.
+ */
+export interface StatValueDto {
+  type: StatValueKind
+  value: string
+}
