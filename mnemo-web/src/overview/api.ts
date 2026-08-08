@@ -9,6 +9,7 @@
 // defaults on the error path would write a starter board over one that is still on disk, so the
 // error state renders an error and saves nothing.
 
+import { useCallback } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { apiFetch, apiSend, ApiError } from "@/api/client"
@@ -80,13 +81,50 @@ export function toOverviewBoard(query: OverviewLayoutQueryState): OverviewBoard 
   }
 }
 
+export interface OverviewBoardResult {
+  board: OverviewBoard
+  /**
+   * When the last fetch settled, however it settled.
+   *
+   * The caller mirrors the load into a store, and a retry that fails the same way as the first
+   * attempt changes nothing else on the query: the status stays `error` and the error is often the
+   * same object. Without a value that moves on every settled fetch, that retry is indistinguishable
+   * from no retry and the mirror never runs again.
+   */
+  settledAt: number
+  /** Re-runs the load. The only way out of the error state. */
+  retry: () => void
+  /**
+   * Records a board the client has just written as the current answer.
+   *
+   * Without this the cache still holds whatever the last GET said until the write lands and the
+   * refetch answers, and for the never-saved answer that stale `null` is dangerous: anything that
+   * remounts the page in that window reads "no board has ever been saved" a second time and seeds
+   * a second starter board over the first. Publishing is synchronous, so the window closes in the
+   * same turn the write opens it.
+   */
+  publish: (layout: OverviewLayoutDto) => void
+}
+
 /** The board for this profile, as one of {@link OverviewBoard}'s four states. */
-export function useOverviewBoard(): OverviewBoard {
+export function useOverviewBoard(): OverviewBoardResult {
+  const client = useQueryClient()
   const query = useQuery<OverviewLayoutDto | null, ApiError>({
     queryKey: layoutKey,
     queryFn: loadOverviewLayout,
   })
-  return toOverviewBoard(query)
+
+  // Both are stable, because the caller hands `publish` to the store as part of a save sink it
+  // installs once. A fresh identity every render would reinstall that sink on every render.
+  const retry = useCallback(() => void client.invalidateQueries({ queryKey: layoutKey }), [client])
+  const publish = useCallback((layout: OverviewLayoutDto) => void client.setQueryData(layoutKey, layout), [client])
+
+  return {
+    board: toOverviewBoard(query),
+    settledAt: Math.max(query.dataUpdatedAt, query.errorUpdatedAt),
+    retry,
+    publish,
+  }
 }
 
 /**
