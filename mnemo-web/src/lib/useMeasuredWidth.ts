@@ -6,22 +6,27 @@
  * would distort its own stroke instead of redrawing at the new width.
  */
 
-import { useLayoutEffect, useRef, useState, type RefObject } from "react"
+import { useCallback, useRef, useState } from "react"
 
 export interface MeasuredWidth<T extends HTMLElement> {
-  ref: RefObject<T | null>
-  /** Zero until the first measurement, which lands before the browser paints. */
+  /**
+   * Attach to the element to measure. A callback ref rather than an object one, because the
+   * elements that need measuring are usually the ones a component only renders once its data has
+   * arrived: an effect that ran at mount would have found nothing there and never looked again.
+   */
+  ref: (element: T | null) => void
+  /** Zero until the element attaches, which happens before the browser paints it. */
   width: number
 }
 
 export function useMeasuredWidth<T extends HTMLElement = HTMLDivElement>(): MeasuredWidth<T> {
-  const ref = useRef<T | null>(null)
   const [width, setWidth] = useState(0)
+  const watching = useRef<ResizeObserver | null>(null)
 
-  // A layout effect, so the first real width is in place for the same frame the element appears
-  // in. Under a plain effect the drawing would paint once at zero and then jump.
-  useLayoutEffect(() => {
-    const element = ref.current
+  const ref = useCallback((element: T | null) => {
+    watching.current?.disconnect()
+    watching.current = null
+    // Called with null when the element goes away, which is also how this cleans up on unmount.
     if (element === null) return
 
     // A hidden or detached element measures 0, which is not a width. Keeping the last one stops a
@@ -30,7 +35,8 @@ export function useMeasuredWidth<T extends HTMLElement = HTMLDivElement>(): Meas
       if (measured > 0) setWidth(measured)
     }
 
-    // The observer's first callback is a frame late and the element already has a width now.
+    // The observer's first callback is a frame late, and reading here forces the layout that
+    // gives the right answer now.
     apply(element.clientWidth)
 
     const observer = new ResizeObserver((entries) => {
@@ -39,7 +45,7 @@ export function useMeasuredWidth<T extends HTMLElement = HTMLDivElement>(): Meas
     })
 
     observer.observe(element)
-    return () => observer.disconnect()
+    watching.current = observer
   }, [])
 
   return { ref, width }
