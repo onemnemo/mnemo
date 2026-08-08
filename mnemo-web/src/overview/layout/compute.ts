@@ -41,6 +41,32 @@ export interface BoardLayout {
   usedRows: number
 }
 
+/**
+ * Grid coordinates for every child, with no pixel width involved.
+ *
+ * Split out of {@link computeLayout} because which cell a tile lands in depends on the column count
+ * alone. A renderer that sizes its columns in CSS needs this and nothing else, and would otherwise
+ * have to invent a width to ask for it.
+ */
+export function computePlacements(
+  children: readonly ChildDesc[],
+  columnCount: number,
+  anchorIndex: number,
+): WidgetPlacement[] {
+  return columnCount >= MAX_COLUMNS
+    ? resolve(
+        children.map((c) => ({ column: c.column, row: c.row, size: c.size })),
+        columnCount,
+        anchorIndex,
+      )
+    : packInFlowOrder(children, columnCount)
+}
+
+/** Board height for a given row count, excluding the edit-mode growth row. */
+export function extentHeightForRows(usedRows: number): number {
+  return usedRows <= 0 ? 0 : usedRows * ROW_HEIGHT + (usedRows - 1) * GAP
+}
+
 export function computeLayout(
   width: number,
   children: readonly ChildDesc[],
@@ -54,14 +80,7 @@ export function computeLayout(
   const columnCount = columnCountForWidth(boardWidth)
   const cellWidth = cellWidthFor(boardWidth, columnCount)
 
-  const placements =
-    columnCount >= MAX_COLUMNS
-      ? resolve(
-          children.map((c) => ({ column: c.column, row: c.row, size: c.size })),
-          columnCount,
-          anchorIndex,
-        )
-      : packInFlowOrder(children, columnCount)
+  const placements = computePlacements(children, columnCount, anchorIndex)
 
   const rects = placements.map((p) => ({
     x: p.column * (cellWidth + GAP),

@@ -4,11 +4,42 @@
 
 import { describe, expect, it } from "vitest"
 
-import { computeLayout, type ChildDesc } from "./compute"
+import { computeLayout, computePlacements, extentHeightForRows, type ChildDesc } from "./compute"
 
 function child(column: number, row: number, columns: number, rows: number): ChildDesc {
   return { column, row, size: { columns, rows } }
 }
+
+describe("computePlacements", () => {
+  const children = [child(0, 0, 2, 1), child(3, 2, 1, 2), child(0, 0, 1, 1)]
+
+  // The renderer sizes its columns in CSS and asks for placement by column count alone, so the two
+  // entry points have to stay one algorithm. Anything that made them diverge would move tiles on
+  // screen while every computeLayout test above stayed green.
+  it.each([4, 2, 1])("agrees with computeLayout at %i columns", (columnCount) => {
+    const width = { 4: 1024, 2: 800, 1: 400 }[columnCount] as number
+
+    expect(computePlacements(children, columnCount, -1)).toEqual(computeLayout(width, children, -1, false).placements)
+  })
+
+  it("carries the drag anchor through, like the width-based pass", () => {
+    const pinned = [child(0, 0, 2, 1), child(0, 0, 2, 1)]
+
+    expect(computePlacements(pinned, 4, 1)[1]).toEqual({ column: 0, row: 0, columnSpan: 2, rowSpan: 1 })
+  })
+})
+
+describe("extentHeightForRows", () => {
+  it("counts a gap between rows but none after the last", () => {
+    expect(extentHeightForRows(1)).toBe(120)
+    expect(extentHeightForRows(3)).toBe(392)
+  })
+
+  it("is zero for a board with no rows, rather than a negative gap", () => {
+    expect(extentHeightForRows(0)).toBe(0)
+    expect(extentHeightForRows(-1)).toBe(0)
+  })
+})
 
 describe("computeLayout rect math", () => {
   it("places a tile at its cell pitch and sizes it across the gaps it spans", () => {
