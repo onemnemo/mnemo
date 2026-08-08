@@ -342,7 +342,10 @@
     "RemoveWidget": "Fjern widget",
     "DropSlot": "Slipp —",
     "WidgetUnavailable": "Widget utilgjengelig",
-    "WidgetUnavailableHint": "Utvidelsen til denne widgeten er ikke installert. Fjern flisen eller installer utvidelsen på nytt."
+    "WidgetUnavailableHint": "Utvidelsen til denne widgeten er ikke installert. Fjern flisen eller installer utvidelsen på nytt.",
+    "LayoutLoadFailed": "Kunne ikke laste inn dashbordet",
+    "LayoutLoadFailedHint": "Widgetene dine er trygge. Ingenting lagres før dashbordet er lastet inn igjen.",
+    "Retry": "Prøv igjen"
   },
   "App": {
     "AppTitle": "Mnemo"

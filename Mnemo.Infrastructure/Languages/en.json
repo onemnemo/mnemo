@@ -341,7 +341,10 @@
     "RemoveWidget": "Remove widget",
     "DropSlot": "Drop —",
     "WidgetUnavailable": "Widget unavailable",
-    "WidgetUnavailableHint": "This widget's extension is not installed. Remove the tile or reinstall the extension."
+    "WidgetUnavailableHint": "This widget's extension is not installed. Remove the tile or reinstall the extension.",
+    "LayoutLoadFailed": "Your dashboard could not be loaded",
+    "LayoutLoadFailedHint": "Your widgets are safe. Nothing is saved until the dashboard loads again.",
+    "Retry": "Try again"
   },
   "App": {
     "AppTitle": "Mnemo"
