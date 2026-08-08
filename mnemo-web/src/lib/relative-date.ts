@@ -27,6 +27,28 @@ export function formatRelative(timestamp: string | Date, now: number, t: Transla
   return t("Common", "YearsAgo", { 0: Math.floor(days / 365) })
 }
 
+const WEEK = 7 * DAY
+
+/**
+ * Relative wording under a week, and a plain short date beyond it.
+ *
+ * Mirrors DateDisplayService.FormatSmart, which is a different function from FormatRelative and is
+ * what both list widgets call. FormatRelative on its own keeps counting into weeks, months and
+ * years, so using it here would render "3 weeks ago" on a row the desktop writes as 12/07/2026.
+ *
+ * `toLocaleDateString` with no options is the closest web equivalent of .NET's "d" short-date
+ * pattern. It is not glyph-identical in every culture, which is accepted rather than chased.
+ *
+ * Note the asymmetry, which is the desktop's: the cutoff is measured against the instant, while
+ * the date it falls back to is rendered in local time. A timestamp can therefore cross into
+ * absolute wording while the date shown still reads as the previous day.
+ */
+export function formatSmart(timestamp: string | Date, now: number, t: TranslateFn, locale: string): string {
+  const value = typeof timestamp === "string" ? new Date(timestamp).getTime() : timestamp.getTime()
+  if (Number.isNaN(value)) return ""
+  return now - value < WEEK ? formatRelative(timestamp, now, t) : new Date(value).toLocaleDateString(locale)
+}
+
 /**
  * A date written the way the language writes dates, minus the year ("Thursday, July 3").
  *
