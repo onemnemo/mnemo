@@ -1,13 +1,17 @@
 import type { CSSProperties } from "react"
 
 import type { WidgetInstanceDto, WidgetSizeDto } from "@/api/types"
+import { cn } from "@/lib/utils"
 
 import { computePlacements, extentHeightForRows } from "../layout/compute"
 import { freeCells } from "../layout/hints"
 import { GAP, ROW_HEIGHT } from "../layout/metrics"
 import { useBoardWidth } from "../layout/useBoardWidth"
+import { useOverviewStore } from "../store"
 import { WidgetTile } from "../tile/WidgetTile"
 import { BoardHintLayer } from "./BoardHintLayer"
+import { DragGhost } from "./DragGhost"
+import { useBoardDrag } from "./useBoardDrag"
 
 interface WidgetBoardProps {
   widgets: readonly WidgetInstanceDto[]
@@ -30,11 +34,18 @@ interface WidgetBoardProps {
  */
 export function WidgetBoard({ widgets, isEditMode, onRemove, onResize }: WidgetBoardProps) {
   const { ref, columnCount } = useBoardWidth<HTMLDivElement>()
+  // Drag substate is read here rather than threaded down from the route: the anchor is an input to
+  // the layout pass, and the layout pass is this component.
+  const dragged = useOverviewStore((state) => state.dragged)
+  const anchorIndex = useOverviewStore((state) => state.anchorIndex)
 
-  // -1: no tile is pinned outside a drag, so placement resolves in plain list order.
-  const placements = computePlacements(widgets, columnCount, -1)
+  // The dragged tile is placed first so it keeps the cell the pointer chose and everything else
+  // resolves around it. -1 outside a drag, where placement runs in plain list order.
+  const placements = computePlacements(widgets, columnCount, anchorIndex)
   const usedRows = Math.max(0, ...placements.map((placement) => placement.row + placement.rowSpan))
   const contentHeight = extentHeightForRows(usedRows)
+
+  const { onHandlePointerDown } = useBoardDrag(ref, { columnCount, usedRows })
 
   const cell: CSSProperties = {
     // One column's width, gaps already taken out. Declared once so every tile's left and width
@@ -51,10 +62,18 @@ export function WidgetBoard({ widgets, isEditMode, onRemove, onResize }: WidgetB
 
       {widgets.map((widget, index) => {
         const placement = placements[index]
+        const isDragging = widget.instanceId === dragged
         return (
           <div
             key={widget.instanceId}
-            className="absolute"
+            className={cn(
+              "absolute",
+              // Tiles slide to the position the engine gave them, which is how a reflow reads as the
+              // board making room rather than as everything teleporting. The dragged tile is
+              // excluded: it has to be where the pointer is this frame, not on its way there.
+              // Only the coordinates animate; a span change is instant here as it is on the desktop.
+              !isDragging && "transition-[left,top] duration-200 ease-[cubic-bezier(0.215,0.61,0.355,1)]",
+            )}
             style={{
               left: `calc(var(--overview-cell) * ${placement.column} + ${placement.column * GAP}px)`,
               width: `calc(var(--overview-cell) * ${placement.columnSpan} + ${(placement.columnSpan - 1) * GAP}px)`,
@@ -62,10 +81,19 @@ export function WidgetBoard({ widgets, isEditMode, onRemove, onResize }: WidgetB
               height: placement.rowSpan * ROW_HEIGHT + (placement.rowSpan - 1) * GAP,
             }}
           >
-            <WidgetTile instance={widget} isEditMode={isEditMode} onRemove={onRemove} onResize={onResize} />
+            <WidgetTile
+              instance={widget}
+              isEditMode={isEditMode}
+              isDragging={isDragging}
+              onRemove={onRemove}
+              onResize={onResize}
+              onHandlePointerDown={onHandlePointerDown}
+            />
           </div>
         )
       })}
+
+      <DragGhost />
     </div>
   )
 }

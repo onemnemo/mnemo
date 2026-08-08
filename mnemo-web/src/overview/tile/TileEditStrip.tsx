@@ -1,3 +1,5 @@
+import type { PointerEvent as ReactPointerEvent } from "react"
+
 import type { WidgetSizeDto } from "@/api/types"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { IconButton } from "@/components/ui/icon-button"
@@ -16,6 +18,7 @@ interface TileEditStripProps {
   onRemove: () => void
   /** Absent for a widget with no settings, which is what decides whether the gear renders at all. */
   onConfigure?: () => void
+  onHandlePointerDown: (event: ReactPointerEvent) => void
 }
 
 /**
@@ -24,7 +27,8 @@ interface TileEditStripProps {
  *
  * The grip and the title are one surface rather than two, because together they are the drag
  * handle: the title is the widest reliable thing to grab, and a 16px grip on its own is not a
- * target anyone hits. Nothing here drags yet; the gesture attaches to this surface later.
+ * target anyone hits. The press listener sits on that surface and nowhere else, which is what makes
+ * a press on a size chip, the gear or the remove x not a drag.
  */
 export function TileEditStrip({
   title,
@@ -34,13 +38,17 @@ export function TileEditStrip({
   onResize,
   onRemove,
   onConfigure,
+  onHandlePointerDown,
 }: TileEditStripProps) {
   const t = useT()
 
   return (
     <div>
       <div className="mx-2 mt-0.5 flex h-[30px] items-center">
-        <div className="flex min-w-0 flex-1 cursor-move items-center gap-[7px] pr-2 pl-1">
+        <div
+          className="flex min-w-0 flex-1 cursor-move items-center gap-[7px] pr-2 pl-1"
+          onPointerDown={onHandlePointerDown}
+        >
           <AppIcon name="common/grip-vertical" size={16} className="shrink-0 text-text-tertiary" />
           {isUnavailable ? (
             <span className="min-w-0 truncate font-mono text-caption text-text-tertiary">{title}</span>

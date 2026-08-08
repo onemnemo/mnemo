@@ -1,9 +1,13 @@
+import type { PointerEvent as ReactPointerEvent } from "react"
+
 import type { WidgetInstanceDto, WidgetSizeDto } from "@/api/types"
 import { IconButton } from "@/components/ui/icon-button"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import { findWidget } from "../widgets/registry"
+import { DropSlot } from "./DropSlot"
+import { sizeLabel } from "./SizeChip"
 import { TileEditStrip } from "./TileEditStrip"
 import { UnavailableTile } from "./UnavailableTile"
 import { WidgetBoundary } from "./WidgetBoundary"
@@ -11,8 +15,11 @@ import { WidgetBoundary } from "./WidgetBoundary"
 interface WidgetTileProps {
   instance: WidgetInstanceDto
   isEditMode: boolean
+  /** This tile is the one under the pointer, so its slot shows the drop affordance instead. */
+  isDragging: boolean
   onRemove: (instanceId: string) => void
   onResize: (instanceId: string, size: WidgetSizeDto) => void
+  onHandlePointerDown: (event: ReactPointerEvent, instanceId: string, title: string) => void
 }
 
 /**
@@ -23,7 +30,14 @@ interface WidgetTileProps {
  * rather than adding controls to it, which is why the two headers are alternatives here and not one
  * header with conditional parts.
  */
-export function WidgetTile({ instance, isEditMode, onRemove, onResize }: WidgetTileProps) {
+export function WidgetTile({
+  instance,
+  isEditMode,
+  isDragging,
+  onRemove,
+  onResize,
+  onHandlePointerDown,
+}: WidgetTileProps) {
   const t = useT()
   const registration = findWidget(instance.widgetId)
 
@@ -34,6 +48,10 @@ export function WidgetTile({ instance, isEditMode, onRemove, onResize }: WidgetT
     registration === undefined
       ? instance.widgetId
       : t(registration.manifest.ns, registration.manifest.displayNameKey ?? "Title")
+
+  // The card goes away entirely while this tile is in flight, rather than staying on as a faded
+  // stand-in: the ghost is already carrying it, and two copies of one tile reads as two tiles.
+  if (isDragging) return <DropSlot sizeLabel={sizeLabel(instance.size)} />
 
   return (
     <div
@@ -54,6 +72,7 @@ export function WidgetTile({ instance, isEditMode, onRemove, onResize }: WidgetT
           current={instance.size}
           onResize={(size) => onResize(instance.instanceId, size)}
           onRemove={() => onRemove(instance.instanceId)}
+          onHandlePointerDown={(event) => onHandlePointerDown(event, instance.instanceId, title)}
         />
       ) : (
         <div className="flex items-center gap-2 px-4 pt-2.5">
