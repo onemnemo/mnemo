@@ -290,6 +290,48 @@ export interface RecordTestActivityDto {
   cardsTested: number
 }
 
+/** Mirrors Mnemo.Host/Contracts/TestSessionDto.cs TestAttemptDto. One finished attempt. */
+export interface TestAttemptDto {
+  id: string
+  deckId: string
+  /** ISO 8601. */
+  startedAt: string
+  /** ISO 8601. */
+  completedAt: string
+  cardsTested: number
+  gotItCount: number
+  closeCount: number
+  missedCount: number
+  scorePct: number
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/TestSessionDto.cs TestSummaryDto. A deck's test history at a
+ * glance.
+ *
+ * `deltaVsPrevious` is null when there is no earlier attempt to compare against, which is not the
+ * same as a delta of zero. Scores are unrounded; each surface rounds them its own way.
+ */
+export interface TestSummaryDto {
+  hasAttempts: boolean
+  latestScorePct: number
+  previousScorePct: number | null
+  bestScorePct: number
+  deltaVsPrevious: number | null
+  attemptCount: number
+  latest: TestAttemptDto | null
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/FlashcardLibraryDto.cs RetentionTrendPointDto. One day on a deck's
+ * retention trend; `day` is a bare ISO date with no time or zone.
+ */
+export interface RetentionTrendPointDto {
+  day: string
+  retentionPercent: number
+  reviewsCount: number
+}
+
 // Scheduling presets. A deck names exactly one, and several decks can name the same one - which
 // is why a preset carries the count of decks it would affect.
 

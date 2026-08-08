@@ -16,6 +16,7 @@ import type { WidgetInstanceDto } from "@/api/types"
 
 import type { ManifestLookup, WidgetManifest } from "./manifest"
 import { WidgetPlaceholder } from "./WidgetPlaceholder"
+import { FlashcardMemoryWidget } from "./flashcard-memory/FlashcardMemoryWidget"
 import { flashcardMemoryManifest } from "./flashcard-memory/manifest"
 import { flashcardStatsManifest } from "./flashcard-stats/manifest"
 import { FlashcardStatsWidget } from "./flashcard-stats/FlashcardStatsWidget"
@@ -49,7 +50,7 @@ export interface WidgetRegistration {
 // final either way: they decide sizes, settings and library order, none of which wait on a fetch.
 const REGISTRATIONS: readonly WidgetRegistration[] = [
   { manifest: flashcardStatsManifest, component: FlashcardStatsWidget },
-  { manifest: flashcardMemoryManifest, component: WidgetPlaceholder },
+  { manifest: flashcardMemoryManifest, component: FlashcardMemoryWidget },
   { manifest: flashcardTestsManifest, component: WidgetPlaceholder },
   { manifest: recentDecksManifest, component: RecentDecksWidget },
   { manifest: recentNotesManifest, component: RecentNotesWidget },
