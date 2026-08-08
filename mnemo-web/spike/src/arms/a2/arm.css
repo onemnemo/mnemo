@@ -35,18 +35,20 @@
 }
 
 .a2-edges,
+.a2-edge-canvas,
 .a2-edge-labels {
   position: absolute;
   /* Edges are drawn under the nodes and never hit-tested: Mnemo selects a link edge through its
-     own picking pass, and letting the SVG answer elementFromPoint would make every pan press
-     candidate land on it. */
+     own picking pass, and letting the edge layer answer elementFromPoint would make every pan
+     press candidate land on it, and would put it above every node the driver tries to grab. */
   pointer-events: none;
 }
 
 /* Viewport-sized, with the camera on an inner group. Sized to the canvas instead, this element
    is a box tens of thousands of pixels across, and merely having one under a transformed
    ancestor cost a whole frame on every pan even with every path inside it hidden. */
-.a2-edges {
+.a2-edges,
+.a2-edge-canvas {
   inset: 0;
   width: 100%;
   height: 100%;

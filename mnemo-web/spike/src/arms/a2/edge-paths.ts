@@ -25,6 +25,33 @@ export interface EdgeGeometry {
   readonly label: Point
 }
 
+/**
+ * An edge's stroke as numbers rather than as an SVG `d` string.
+ *
+ * The canvas edge mode needs the same curves the SVG mode draws, and the only way to be sure of
+ * that is for both to come out of here. The alternative, parsing the `d` string back into
+ * numbers at draw time, would put a string parser inside the per-frame path of the arm whose
+ * per-frame cost is the measurement.
+ */
+export type EdgeStroke =
+  | {
+      readonly kind: 'cubic'
+      readonly sx: number
+      readonly sy: number
+      readonly c1x: number
+      readonly c1y: number
+      readonly c2x: number
+      readonly c2y: number
+      readonly tx: number
+      readonly ty: number
+    }
+  | { readonly kind: 'polyline'; readonly points: readonly Point[] }
+
+export interface EdgeShape {
+  readonly stroke: EdgeStroke
+  readonly label: Point
+}
+
 export interface Anchors {
   readonly sx: number
   readonly sy: number
@@ -62,12 +89,24 @@ function controlOffset(distance: number): number {
   return distance >= 0 ? 0.5 * distance : CURVATURE * 25 * Math.sqrt(-distance)
 }
 
-function bezier(a: Anchors): EdgeGeometry {
+function bezier(a: Anchors): EdgeShape {
   const offset = controlOffset(a.tx - a.sx)
   const c1x = a.sx + offset
   const c2x = a.tx - offset
   return {
-    path: `M${a.sx},${a.sy} C${c1x},${a.sy} ${c2x},${a.ty} ${a.tx},${a.ty}`,
+    stroke: {
+      kind: 'cubic',
+      sx: a.sx,
+      sy: a.sy,
+      // Control points share the endpoints' y, which is what makes the curve leave and arrive
+      // horizontally.
+      c1x,
+      c1y: a.sy,
+      c2x,
+      c2y: a.ty,
+      tx: a.tx,
+      ty: a.ty,
+    },
     // The cubic evaluated at t = 0.5, which is where React Flow puts its own edge label.
     label: {
       x: 0.125 * a.sx + 0.375 * c1x + 0.375 * c2x + 0.125 * a.tx,
@@ -76,23 +115,54 @@ function bezier(a: Anchors): EdgeGeometry {
   }
 }
 
-function straight(a: Anchors): EdgeGeometry {
+function straight(a: Anchors): EdgeShape {
   return {
-    path: `M${a.sx},${a.sy} L${a.tx},${a.ty}`,
+    stroke: {
+      kind: 'polyline',
+      points: [
+        { x: a.sx, y: a.sy },
+        { x: a.tx, y: a.ty },
+      ],
+    },
     label: { x: (a.sx + a.tx) / 2, y: (a.sy + a.ty) / 2 },
   }
 }
 
-function orthogonal(a: Anchors): EdgeGeometry {
+function orthogonal(a: Anchors): EdgeShape {
   const midX = (a.sx + a.tx) / 2
   return {
-    path: `M${a.sx},${a.sy} L${midX},${a.sy} L${midX},${a.ty} L${a.tx},${a.ty}`,
+    stroke: {
+      kind: 'polyline',
+      points: [
+        { x: a.sx, y: a.sy },
+        { x: midX, y: a.sy },
+        { x: midX, y: a.ty },
+        { x: a.tx, y: a.ty },
+      ],
+    },
     label: { x: midX, y: (a.sy + a.ty) / 2 },
   }
 }
 
-export function edgeGeometry(routing: EdgeRouting, a: Anchors): EdgeGeometry {
+export function edgeShape(routing: EdgeRouting, a: Anchors): EdgeShape {
   if (routing === 'straight') return straight(a)
   if (routing === 'orthogonal') return orthogonal(a)
   return bezier(a)
+}
+
+/** The stroke as SVG path data. The one place a `d` string is ever produced. */
+export function strokeToPathData(stroke: EdgeStroke): string {
+  if (stroke.kind === 'cubic') {
+    return (
+      `M${stroke.sx},${stroke.sy} ` +
+      `C${stroke.c1x},${stroke.c1y} ${stroke.c2x},${stroke.c2y} ${stroke.tx},${stroke.ty}`
+    )
+  }
+  const [first, ...rest] = stroke.points
+  return `M${first.x},${first.y}` + rest.map((p) => ` L${p.x},${p.y}`).join('')
+}
+
+export function edgeGeometry(routing: EdgeRouting, a: Anchors): EdgeGeometry {
+  const shape = edgeShape(routing, a)
+  return { path: strokeToPathData(shape.stroke), label: shape.label }
 }
