@@ -173,16 +173,6 @@ Mnemo.Host/TypstRuntime/binaries/
 # stock VS [Ss]cripts/ rule above would otherwise ignore it.
 !scripts/
 
-# Local working notes, not shipped repo content
+# Local working notes, not shipped repo content. One rule so a new note never
+# needs a .gitignore change.
 plans/
-PHASE6_NOTES_PLAN.md
-NOTES_PDF_TYPST_PLAN.md
-PHASE7_MINDMAP_HANDOFF.md
-
-# Phase 7 spike planning note, local-only like its siblings above
-PHASE7_SPIKE_PLAN.md
-PHASE7_SPIKE_VERDICT.md
-PHASE7_A2_VERDICT.md
-OVERNIGHT_PLAN.md
-OVERNIGHT_REPORT.md
-OVERVIEW_PARITY_SPEC.md
