@@ -7,6 +7,7 @@ import type {
   DueCountsDto,
   FolderDto,
   MoveDeckDto,
+  RetentionTrendPointDto,
   SaveFolderDto,
   UpdateDeckDto,
 } from "@/api/types"
@@ -51,6 +52,17 @@ export function useAggregateDueQuery() {
     queryKey: aggregateDueKey,
     queryFn: () => apiFetch<DueCountsDto>("/study/due"),
   })
+}
+
+/**
+ * One deck's retention day by day, always exactly `days` points and zero-filled for days with no
+ * reviews. The service honours a ceiling of 90 whatever is asked for.
+ *
+ * A plain function rather than a hook: its callers fan out over every deck behind a single query
+ * of their own, and a hook cannot be called in a loop.
+ */
+export function fetchRetentionTrend(deckId: string, days: number): Promise<RetentionTrendPointDto[]> {
+  return apiFetch<RetentionTrendPointDto[]>(`/decks/${encodeURIComponent(deckId)}/retention-trend?days=${days}`)
 }
 
 function useLibraryMutation<TArgs>(mutationFn: (args: TArgs) => Promise<unknown>) {

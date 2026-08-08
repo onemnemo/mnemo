@@ -24,6 +24,19 @@ export const statRecordsKey = (ns: string, kind: string, limit: number, descendi
 export const statDailyKey = (ns: string, kind: string, from: string, to: string) =>
   [...overviewKey, "daily", ns, kind, from, to] as const
 
+/**
+ * Whole-library reads that fan out over every deck.
+ *
+ * One key for the fan-out rather than one per deck, because the widgets behind them need every
+ * answer or none: a partial set gives a weighted mean over the decks that happened to arrive, and
+ * a per-deck key would let the cache serve exactly that. The deck ids are part of the key, so
+ * adding or removing a deck asks again instead of reusing a set that no longer describes the
+ * library.
+ */
+export const deckFanOutRoot = (name: string) => [...overviewKey, "decks", name] as const
+export const deckFanOutKey = (name: string, deckIds: readonly string[]) =>
+  [...deckFanOutRoot(name), deckIds.join(",")] as const
+
 function json(body: unknown): RequestInit {
   return {
     method: "POST",
