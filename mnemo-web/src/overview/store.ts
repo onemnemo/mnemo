@@ -388,15 +388,18 @@ export const useOverviewStore = create<OverviewState>((set, get) => ({
 
   // The target cell is written straight onto the dragged tile, which is what re-runs placement.
   updateDragTarget: (column, row) =>
-    set((state) =>
-      state.dragged === null
-        ? {}
-        : {
-            draft: state.draft.map((widget) =>
-              widget.instanceId === state.dragged ? { ...widget, column, row } : widget,
-            ),
-          },
-    ),
+    set((state) => {
+      if (state.dragged === null) return {}
+
+      const target = state.draft.find((widget) => widget.instanceId === state.dragged)
+      // Most moves within a drag land on the cell the tile is already in, and a new draft array for
+      // one of those would re-render every tile on the board sixty times a second for no change.
+      if (target === undefined || (target.column === column && target.row === row)) return {}
+
+      return {
+        draft: state.draft.map((widget) => (widget === target ? { ...widget, column, row } : widget)),
+      }
+    }),
 
   updateGhostPosition: (x, y) => set((state) => ({ ghost: { ...state.ghost, x, y } })),
 
