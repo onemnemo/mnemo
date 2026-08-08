@@ -25,6 +25,7 @@ import { RecentNotesWidget } from "./recent-notes/RecentNotesWidget"
 import { recentNotesManifest } from "./recent-notes/manifest"
 import { StudyGoalsWidget } from "./study-goals/StudyGoalsWidget"
 import { studyGoalsManifest } from "./study-goals/manifest"
+import { UsageSummaryWidget } from "./usage-summary/UsageSummaryWidget"
 import { usageSummaryManifest } from "./usage-summary/manifest"
 
 /**
@@ -52,7 +53,7 @@ const REGISTRATIONS: readonly WidgetRegistration[] = [
   { manifest: recentDecksManifest, component: WidgetPlaceholder },
   { manifest: recentNotesManifest, component: RecentNotesWidget },
   { manifest: studyGoalsManifest, component: StudyGoalsWidget },
-  { manifest: usageSummaryManifest, component: WidgetPlaceholder },
+  { manifest: usageSummaryManifest, component: UsageSummaryWidget },
 ]
 
 const REGISTRY: ReadonlyMap<string, WidgetRegistration> = new Map(

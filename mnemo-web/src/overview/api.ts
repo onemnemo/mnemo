@@ -173,14 +173,18 @@ export function useStatRecords(ns: string, kind: string, limit: number, descendi
  * Sparse because nothing writes a summary for a day the user did not study, so a caller sums what
  * arrived rather than expecting one row per day. Build the range with `utcDayWindow` instead of
  * subtracting days by hand; the endpoint's bounds are inclusive at both ends.
+ *
+ * A disabled read stays pending forever rather than resolving empty, so a caller that turns one
+ * off has to leave it out of its own loading rule as well.
  */
-export function useStatDaily(ns: string, kind: string, from: string, to: string) {
+export function useStatDaily(ns: string, kind: string, from: string, to: string, enabled = true) {
   return useQuery<StatRecordDto[], ApiError>({
     queryKey: statDailyKey(ns, kind, from, to),
     queryFn: () => {
       const query = new URLSearchParams({ ns, kind, from, to })
       return apiFetch<StatRecordDto[]>(`/stats/daily?${query}`)
     },
+    enabled,
   })
 }
 
