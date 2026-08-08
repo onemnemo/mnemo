@@ -27,11 +27,16 @@ public static class TestSessionEndpoints
     /// <summary>How many past attempts the score screen's sparkline draws.</summary>
     private const int TrendLength = 10;
 
+    /// <summary>What a trend read returns when the caller does not say. Mirrors the service's own default.</summary>
+    private const int DefaultTrendLength = 20;
+
     public static void MapFlashcardTests(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/api/decks/{deckId}/test-queue", GetQueueAsync);
         endpoints.MapPost("/api/decks/{deckId}/test-attempts", RecordAttemptAsync);
         endpoints.MapPost("/api/decks/{deckId}/test-activity", RecordActivityAsync);
+        endpoints.MapGet("/api/decks/{deckId}/test-summary", GetSummaryAsync);
+        endpoints.MapGet("/api/decks/{deckId}/test-trend", GetTrendAsync);
     }
 
     /// <summary>
@@ -123,6 +128,46 @@ public static class TestSessionEndpoints
             summary.HasAttempts,
             summary.BestScorePct,
             trend.Select(a => Math.Clamp(a.ScorePct, 0d, 100d)).ToArray()));
+    }
+
+    /// <summary>
+    /// A deck's test history without recording anything, for surfaces that only read it.
+    /// </summary>
+    /// <remarks>
+    /// Answers for a deck that does not exist rather than 404ing, matching the other stat reads on
+    /// a deck route: the service reports "no attempts" for an unknown deck and for a known deck
+    /// nobody has tested, and a reader has the same thing to draw either way.
+    /// </remarks>
+    private static async Task<IResult> GetSummaryAsync(
+        string deckId,
+        IFlashcardStatsService stats,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(deckId))
+            return Results.BadRequest(new ErrorDto("deck_required", "A summary must name a deck."));
+
+        var summary = await stats.GetTestSummaryAsync(deckId, cancellationToken).ConfigureAwait(false);
+        return Results.Ok(TestSummaryDto.FromModel(summary));
+    }
+
+    /// <summary>
+    /// A deck's recent attempts, oldest first, for drawing a line through them. The service clamps
+    /// how many it will hand out, so an oversized request is answered rather than refused.
+    /// </summary>
+    private static async Task<IResult> GetTrendAsync(
+        string deckId,
+        int? lastN,
+        IFlashcardStatsService stats,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(deckId))
+            return Results.BadRequest(new ErrorDto("deck_required", "A trend must name a deck."));
+
+        var attempts = await stats
+            .GetTestTrendAsync(deckId, lastN ?? DefaultTrendLength, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(attempts.Select(TestAttemptDto.FromModel).ToArray());
     }
 
     /// <summary>

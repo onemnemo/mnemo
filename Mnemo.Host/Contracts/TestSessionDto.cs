@@ -1,3 +1,5 @@
+using Mnemo.Core.Models.Flashcards;
+
 namespace Mnemo.Host.Contracts;
 
 /// <summary>
@@ -39,3 +41,64 @@ public sealed record TestResultDto(
 /// but no score, exactly as the desktop does.
 /// </summary>
 public sealed record RecordTestActivityDto(DateTimeOffset StartedAt, int CardsTested);
+
+/// <summary>
+/// One finished test attempt. Hand-mirrored in <c>mnemo-web/src/api/types.ts</c>; the C# side is
+/// authoritative.
+/// </summary>
+public sealed record TestAttemptDto(
+    string Id,
+    string DeckId,
+    DateTimeOffset StartedAt,
+    DateTimeOffset CompletedAt,
+    int CardsTested,
+    int GotItCount,
+    int CloseCount,
+    int MissedCount,
+    double ScorePct)
+{
+    public static TestAttemptDto FromModel(FlashcardTestAttempt model) => new(
+        model.Id,
+        model.DeckId,
+        model.StartedAt,
+        model.CompletedAt,
+        model.CardsTested,
+        model.GotItCount,
+        model.CloseCount,
+        model.MissedCount,
+        model.ScorePct);
+}
+
+/// <summary>
+/// A deck's test history at a glance: the latest score, the one before it, the best, and how many
+/// attempts there are. Hand-mirrored in <c>mnemo-web/src/api/types.ts</c>; the C# side is
+/// authoritative.
+/// </summary>
+/// <remarks>
+/// <see cref="DeltaVsPrevious"/> is carried rather than left to the caller to subtract. It is a
+/// derived property on the domain record and null means "there is no earlier attempt to compare
+/// against", which is not the same as a delta of zero; recomputing it downstream is one place too
+/// many for that distinction to survive.
+/// <para>
+/// Scores are unrounded. Every surface rounds them differently, and a percentage rounded here
+/// would be rounded twice by the ones that want a decimal.
+/// </para>
+/// </remarks>
+public sealed record TestSummaryDto(
+    bool HasAttempts,
+    double LatestScorePct,
+    double? PreviousScorePct,
+    double BestScorePct,
+    double? DeltaVsPrevious,
+    int AttemptCount,
+    TestAttemptDto? Latest)
+{
+    public static TestSummaryDto FromModel(FlashcardTestSummary model) => new(
+        model.HasAttempts,
+        model.LatestScorePct,
+        model.PreviousScorePct,
+        model.BestScorePct,
+        model.DeltaVsPrevious,
+        model.AttemptCount,
+        model.Latest is null ? null : TestAttemptDto.FromModel(model.Latest));
+}
