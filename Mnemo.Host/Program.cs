@@ -22,6 +22,7 @@ using Mnemo.Host.Nav;
 using Mnemo.Host.Notes;
 using Mnemo.Host.Overview;
 using Mnemo.Host.Settings;
+using Mnemo.Host.Statistics;
 using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
 using Photino.NET;
@@ -124,6 +125,7 @@ public static class Program
         app.MapNoteTransfer();
         app.MapNotePdf();
         app.MapOverview();
+app.MapStatistics();
 
         if (options.DevMode)
         {
