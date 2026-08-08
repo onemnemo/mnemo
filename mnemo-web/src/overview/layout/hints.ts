@@ -6,18 +6,24 @@ import type { WidgetPlacement } from "./engine"
 import type { PlacedRect } from "./compute"
 import { GAP, ROW_HEIGHT } from "./metrics"
 
+/** A free cell, in grid coordinates. Always one column by one row. */
+export interface HintCell {
+  column: number
+  row: number
+}
+
 /**
- * One 1x1 rect per free cell across the packed rows plus one growth row below them.
+ * Every free cell across the packed rows plus one growth row below them.
  *
  * Adjacent free cells are never merged into a wider rectangle: the hint layer draws a dashed "1x1"
  * square per cell, so a two-wide gap is two squares. Whether hints are shown at all is the caller's
  * decision, this only derives them.
+ *
+ * Grid coordinates rather than pixels, for the same reason tile placement is: the renderer sizes
+ * its columns in CSS, and a hint layer asking for a pixel width would have to invent one that then
+ * disagrees with the columns the tiles are drawn in.
  */
-export function computeHintCells(
-  placements: readonly WidgetPlacement[],
-  columnCount: number,
-  cellWidth: number,
-): PlacedRect[] {
+export function freeCells(placements: readonly WidgetPlacement[], columnCount: number): HintCell[] {
   const usedRows = Math.max(0, ...placements.map((p) => p.row + p.rowSpan))
   // The growth row is why an empty board still shows a full row of hints.
   const hintRows = usedRows + 1
@@ -31,19 +37,26 @@ export function computeHintCells(
     }
   }
 
-  const cells: PlacedRect[] = []
+  const cells: HintCell[] = []
   for (let r = 0; r < hintRows; r++) {
     for (let c = 0; c < columnCount; c++) {
-      if (occupied[r][c]) continue
-
-      cells.push({
-        x: c * (cellWidth + GAP),
-        y: r * (ROW_HEIGHT + GAP),
-        width: cellWidth,
-        height: ROW_HEIGHT,
-      })
+      if (!occupied[r][c]) cells.push({ column: c, row: r })
     }
   }
 
   return cells
+}
+
+/** The same cells as pixel rects, for a caller that has measured a column width. */
+export function computeHintCells(
+  placements: readonly WidgetPlacement[],
+  columnCount: number,
+  cellWidth: number,
+): PlacedRect[] {
+  return freeCells(placements, columnCount).map((cell) => ({
+    x: cell.column * (cellWidth + GAP),
+    y: cell.row * (ROW_HEIGHT + GAP),
+    width: cellWidth,
+    height: ROW_HEIGHT,
+  }))
 }

@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest"
 
-import { computeHintCells } from "./hints"
+import { computeHintCells, freeCells } from "./hints"
 import type { WidgetPlacement } from "./engine"
 
 const CELL_WIDTH = 244
@@ -71,5 +71,16 @@ describe("computeHintCells", () => {
     const rowZero = cells.filter((c) => c.y === 0)
     expect(rowZero.map((c) => c.x)).toEqual([0, 260, 520])
     expect(cells).toHaveLength(7)
+  })
+})
+
+describe("freeCells", () => {
+  it("reports grid coordinates, which is what a CSS-sized board positions from", () => {
+    // The renderer never sees a column width, so this is the form it consumes; computeHintCells is
+    // the same derivation projected onto a measured board.
+    expect(freeCells([p(0, 0, 2, 1)], 2)).toEqual([
+      { column: 0, row: 1 },
+      { column: 1, row: 1 },
+    ])
   })
 })

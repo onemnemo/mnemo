@@ -1,15 +1,19 @@
 import type { CSSProperties } from "react"
 
-import type { WidgetInstanceDto } from "@/api/types"
+import type { WidgetInstanceDto, WidgetSizeDto } from "@/api/types"
 
 import { computePlacements, extentHeightForRows } from "../layout/compute"
+import { freeCells } from "../layout/hints"
 import { GAP, ROW_HEIGHT } from "../layout/metrics"
 import { useBoardWidth } from "../layout/useBoardWidth"
 import { WidgetTile } from "../tile/WidgetTile"
+import { BoardHintLayer } from "./BoardHintLayer"
 
 interface WidgetBoardProps {
   widgets: readonly WidgetInstanceDto[]
+  isEditMode: boolean
   onRemove: (instanceId: string) => void
+  onResize: (instanceId: string, size: WidgetSizeDto) => void
 }
 
 /**
@@ -24,22 +28,27 @@ interface WidgetBoardProps {
  * cell a tile lands in, so a width that moves inside its bucket repaints without re-running
  * placement or re-rendering a single tile.
  */
-export function WidgetBoard({ widgets, onRemove }: WidgetBoardProps) {
+export function WidgetBoard({ widgets, isEditMode, onRemove, onResize }: WidgetBoardProps) {
   const { ref, columnCount } = useBoardWidth<HTMLDivElement>()
 
   // -1: no tile is pinned outside a drag, so placement resolves in plain list order.
   const placements = computePlacements(widgets, columnCount, -1)
   const usedRows = Math.max(0, ...placements.map((placement) => placement.row + placement.rowSpan))
+  const contentHeight = extentHeightForRows(usedRows)
 
   const cell: CSSProperties = {
     // One column's width, gaps already taken out. Declared once so every tile's left and width
     // derive from the same expression instead of each repeating the subtraction.
     "--overview-cell": `calc((100% - ${(columnCount - 1) * GAP}px) / ${columnCount})`,
-    height: extentHeightForRows(usedRows),
+    // Edit mode reserves a row below the content, so there is always a free cell to drop onto and
+    // the board can grow downwards without the user having to make room first.
+    height: isEditMode ? contentHeight + (contentHeight > 0 ? GAP : 0) + ROW_HEIGHT : contentHeight,
   } as CSSProperties
 
   return (
     <div ref={ref} className="relative w-full" style={cell}>
+      {isEditMode ? <BoardHintLayer cells={freeCells(placements, columnCount)} /> : null}
+
       {widgets.map((widget, index) => {
         const placement = placements[index]
         return (
@@ -53,7 +62,7 @@ export function WidgetBoard({ widgets, onRemove }: WidgetBoardProps) {
               height: placement.rowSpan * ROW_HEIGHT + (placement.rowSpan - 1) * GAP,
             }}
           >
-            <WidgetTile instance={widget} onRemove={onRemove} />
+            <WidgetTile instance={widget} isEditMode={isEditMode} onRemove={onRemove} onResize={onResize} />
           </div>
         )
       })}
