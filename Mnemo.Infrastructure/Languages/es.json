@@ -345,7 +345,8 @@
     "WidgetUnavailableHint": "La extensión de este widget no está instalada. Quita la tarjeta o reinstala la extensión.",
     "LayoutLoadFailed": "No se ha podido cargar su panel",
     "LayoutLoadFailedHint": "Sus widgets están a salvo. No se guardará nada hasta que el panel vuelva a cargarse.",
-    "Retry": "Reintentar"
+    "Retry": "Reintentar",
+    "WidgetLoadFailed": "No se pudo cargar"
   },
   "App": {
     "AppTitle": "Mnemo"
