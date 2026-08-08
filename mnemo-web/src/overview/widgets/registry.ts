@@ -18,8 +18,10 @@ import type { ManifestLookup, WidgetManifest } from "./manifest"
 import { WidgetPlaceholder } from "./WidgetPlaceholder"
 import { flashcardMemoryManifest } from "./flashcard-memory/manifest"
 import { flashcardStatsManifest } from "./flashcard-stats/manifest"
+import { FlashcardStatsWidget } from "./flashcard-stats/FlashcardStatsWidget"
 import { flashcardTestsManifest } from "./flashcard-tests/manifest"
 import { recentDecksManifest } from "./recent-decks/manifest"
+import { RecentNotesWidget } from "./recent-notes/RecentNotesWidget"
 import { recentNotesManifest } from "./recent-notes/manifest"
 import { studyGoalsManifest } from "./study-goals/manifest"
 import { usageSummaryManifest } from "./usage-summary/manifest"
@@ -40,18 +42,20 @@ export interface WidgetRegistration {
   component: WidgetComponent
 }
 
-// Bodies are all the placeholder until each widget's own data path is built. The manifests are
-// final: they decide sizes, settings and library order, none of which wait on a fetch.
+// Bodies still on the placeholder are the ones whose data path is not built yet. The manifests are
+// final either way: they decide sizes, settings and library order, none of which wait on a fetch.
+const REGISTRATIONS: readonly WidgetRegistration[] = [
+  { manifest: flashcardStatsManifest, component: FlashcardStatsWidget },
+  { manifest: flashcardMemoryManifest, component: WidgetPlaceholder },
+  { manifest: flashcardTestsManifest, component: WidgetPlaceholder },
+  { manifest: recentDecksManifest, component: WidgetPlaceholder },
+  { manifest: recentNotesManifest, component: RecentNotesWidget },
+  { manifest: studyGoalsManifest, component: WidgetPlaceholder },
+  { manifest: usageSummaryManifest, component: WidgetPlaceholder },
+]
+
 const REGISTRY: ReadonlyMap<string, WidgetRegistration> = new Map(
-  [
-    flashcardStatsManifest,
-    flashcardMemoryManifest,
-    flashcardTestsManifest,
-    recentDecksManifest,
-    recentNotesManifest,
-    studyGoalsManifest,
-    usageSummaryManifest,
-  ].map((manifest) => [manifest.widgetId, { manifest, component: WidgetPlaceholder }]),
+  REGISTRATIONS.map((registration) => [registration.manifest.widgetId, registration]),
 )
 
 /** Every registration, in library order. */
