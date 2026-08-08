@@ -13,10 +13,12 @@ import { useCallback } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { apiFetch, apiSend, ApiError } from "@/api/client"
-import type { OverviewLayoutDto } from "@/api/types"
+import type { OverviewLayoutDto, StatRecordDto } from "@/api/types"
 
 export const overviewKey = ["overview"] as const
 export const layoutKey = [...overviewKey, "layout"] as const
+export const statRecordKey = (ns: string, kind: string, key: string) =>
+  [...overviewKey, "stat", ns, kind, key] as const
 
 function json(body: unknown): RequestInit {
   return {
@@ -125,6 +127,23 @@ export function useOverviewBoard(): OverviewBoardResult {
     retry,
     publish,
   }
+}
+
+/**
+ * One statistics record, or null when this profile has never had one written under that triple.
+ *
+ * Null is the ordinary answer on a fresh install, not a failure: nothing writes a daily summary
+ * for a day the user has not studied. Widgets render zeroes for it, and keep the error state for
+ * a read that actually failed.
+ */
+export function useStatRecord(ns: string, kind: string, key: string) {
+  return useQuery<StatRecordDto | null, ApiError>({
+    queryKey: statRecordKey(ns, kind, key),
+    queryFn: () => {
+      const query = new URLSearchParams({ ns, kind, key })
+      return apiFetch<StatRecordDto | null>(`/stats/record?${query}`)
+    },
+  })
 }
 
 /**
