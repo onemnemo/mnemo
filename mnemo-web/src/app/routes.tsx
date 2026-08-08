@@ -6,6 +6,7 @@ import { DeckPage } from "@/flashcards/deck/DeckPage"
 import { LibraryPage } from "@/flashcards/library/LibraryPage"
 import { SessionPage } from "@/flashcards/session/SessionPage"
 import { TestPage } from "@/flashcards/test/TestPage"
+import { OverviewRoute } from "@/overview/page/OverviewRoute"
 import { SettingsPage } from "@/pages/SettingsPage"
 
 // The notes editor (ProseMirror + mapper + KaTeX) is loaded on demand so its
@@ -20,7 +21,7 @@ export const DEFAULT_ROUTE = "overview"
 type PageRenderer = (params: readonly string[]) => ReactNode
 
 const PAGES: Record<string, PageRenderer> = {
-  overview: () => <StubPage title="Overview" />,
+  overview: () => <OverviewRoute />,
   notes: (p) => (
     <Suspense fallback={<div className="min-h-full" />}>
       <NotesRoute noteId={p[0]} />

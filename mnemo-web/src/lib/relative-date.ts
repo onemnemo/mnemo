@@ -26,3 +26,21 @@ export function formatRelative(timestamp: string | Date, now: number, t: Transla
   if (days < 365) return t("Common", "MonthsAgo", { 0: Math.floor(days / 30) })
   return t("Common", "YearsAgo", { 0: Math.floor(days / 365) })
 }
+
+/**
+ * A date written the way the language writes dates, minus the year ("Thursday, July 3").
+ *
+ * Not the same algorithm as the desktop's DateDisplayService.FormatDayHeading, which takes the
+ * culture's long-date pattern and deletes the year specifier along with whatever separators became
+ * redundant. Intl has no equivalent of reading that pattern back, so this asks for the three fields
+ * that survive instead and lets Intl order and punctuate them. The results agree for Latin-script
+ * locales; they can differ in how a locale that writes an era or a trailing particle handles losing
+ * the year, which is accepted rather than chased.
+ *
+ * An invalid date renders empty rather than "Invalid Date": this is decorative header text and a
+ * blank line is a better failure than a visible one.
+ */
+export function formatDayHeading(date: Date, locale: string): string {
+  if (Number.isNaN(date.getTime())) return ""
+  return new Intl.DateTimeFormat(locale, { weekday: "long", month: "long", day: "numeric" }).format(date)
+}
