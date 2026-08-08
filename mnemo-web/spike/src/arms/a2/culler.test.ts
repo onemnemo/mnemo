@@ -151,6 +151,61 @@ describe('createCuller', () => {
     expect(mover.style.display).not.toBe('none')
   })
 
+  it('tracks visible edge ids so the canvas draw list costs nothing to read', () => {
+    // The canvas mode reads this every frame. Deriving it instead (walk the rendered keys, slice
+    // an id out of each) would cost the visible NODE count too and allocate per edge per frame,
+    // which is work the SVG mode never does and would show up as canvas being slower than it is.
+    const nearEdge: CullTarget = {
+      key: 'e:near',
+      edgeId: 'near',
+      nodes: [{ style: { display: '' } }],
+      bounds: () => ({ x: 0, y: 0, width: 100, height: 40 }),
+    }
+    const farEdge: CullTarget = {
+      key: 'e:far',
+      edgeId: 'far',
+      nodes: [{ style: { display: '' } }],
+      bounds: () => ({ x: 600_000, y: 0, width: 100, height: 40 }),
+    }
+    const culler = createCuller([origin.target, nearEdge, farEdge], true)
+    culler.update({ x: 0, y: 0, zoom: 1 }, VIEW.width, VIEW.height)
+
+    const visible = culler.renderedEdgeIds()
+    expect([...visible]).toEqual(['near'])
+    // Elements are not edges: a node must never leak into the draw list.
+    expect(visible.has('a')).toBe(false)
+  })
+
+  it('drops an edge from the draw list when it leaves the view, and restores it', () => {
+    const edge: CullTarget = {
+      key: 'e:1',
+      edgeId: '1',
+      nodes: [{ style: { display: '' } }],
+      bounds: () => ({ x: 0, y: 0, width: 100, height: 40 }),
+    }
+    const culler = createCuller([edge], true)
+
+    culler.update({ x: 0, y: 0, zoom: 1 }, VIEW.width, VIEW.height)
+    expect(culler.renderedEdgeIds().size).toBe(1)
+    culler.update({ x: 900_000, y: 900_000, zoom: 1 }, VIEW.width, VIEW.height)
+    expect(culler.renderedEdgeIds().size).toBe(0)
+    culler.update({ x: 0, y: 0, zoom: 1 }, VIEW.width, VIEW.height)
+    expect(culler.renderedEdgeIds().size).toBe(1)
+  })
+
+  it('reports every edge as visible when culling is disabled', () => {
+    // Otherwise the canvas mode would read an empty set and draw nothing, which is the single
+    // most flattering way this arm could fail: a blank layer posts the best frame times there are.
+    const edge: CullTarget = {
+      key: 'e:1',
+      edgeId: '1',
+      nodes: [{ style: { display: '' } }],
+      bounds: () => ({ x: 900_000, y: 0, width: 100, height: 40 }),
+    }
+    const culler = createCuller([edge], false)
+    expect([...culler.renderedEdgeIds()]).toEqual(['1'])
+  })
+
   it('toggles every node a target owns, so an edge label never outlives its path', () => {
     const path = { style: { display: '' } }
     const label = { style: { display: '' } }

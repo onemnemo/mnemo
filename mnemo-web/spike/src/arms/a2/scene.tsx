@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef } from 'react'
 import type { MindmapEdge, MindmapFixture } from '../../fixture/model'
-import { anchorsFor, boxOf, edgeGeometry } from './edge-paths'
+import { anchorsFor, boxOf, edgeGeometry, edgeShape } from './edge-paths'
+import { dashAttribute, strokeStyleFor, type EdgeMode } from './edge-style'
 import { NodeHost } from './nodes'
 
 /**
@@ -13,26 +14,14 @@ import { NodeHost } from './nodes'
  * inside the tree actually under measurement.
  */
 
-const HIERARCHY_STROKE = '#4a5162'
-const HIERARCHY_WIDTH = 1.25
-const LINK_STROKE = '#7b869c'
-const LINK_WIDTH = 1.5
-
-const DASH_BY_STYLE: Record<string, string | undefined> = {
-  solid: undefined,
-  dashed: '6 4',
-  dotted: '1 4',
-  // A true double line is two parallel strokes; a dense dash reads similarly at a fraction of
-  // the cost, and the spike's concern is per-edge cost rather than exact stroke shape. Matches
-  // the choice a1 made, so neither arm draws more than the other.
-  double: undefined,
-}
-
-interface EdgeVisual {
+interface EdgeLabelVisual {
   readonly edge: MindmapEdge
-  readonly path: string
   readonly labelX: number
   readonly labelY: number
+}
+
+interface EdgeVisual extends EdgeLabelVisual {
+  readonly path: string
 }
 
 function buildEdgeVisuals(fixture: MindmapFixture): readonly EdgeVisual[] {
@@ -44,6 +33,27 @@ function buildEdgeVisuals(fixture: MindmapFixture): readonly EdgeVisual[] {
     if (!from || !to) continue
     const geometry = edgeGeometry(edge.routing ?? 'curve', anchorsFor(from, to))
     visuals.push({ edge, path: geometry.path, labelX: geometry.label.x, labelY: geometry.label.y })
+  }
+  return visuals
+}
+
+/**
+ * Label positions only, for the canvas mode, which has no paths to build.
+ *
+ * Separate from the visuals above rather than a flag on them because building four and a half
+ * thousand `d` strings that nothing will ever read would charge the canvas mode for work the
+ * mode exists to avoid, and it would land inside the mount time the harness records.
+ */
+function buildEdgeLabelVisuals(fixture: MindmapFixture): readonly EdgeLabelVisual[] {
+  const boxes = new Map(fixture.elements.map((e) => [e.id, boxOf(e)]))
+  const visuals: EdgeLabelVisual[] = []
+  for (const edge of fixture.edges) {
+    if (!edge.label) continue
+    const from = boxes.get(edge.fromId)
+    const to = boxes.get(edge.toId)
+    if (!from || !to) continue
+    const { label } = edgeShape(edge.routing ?? 'curve', anchorsFor(from, to))
+    visuals.push({ edge, labelX: label.x, labelY: label.y })
   }
   return visuals
 }
@@ -66,23 +76,35 @@ const EdgeLayer = memo(function EdgeLayer({
       {/* Paths carry canvas coordinates and this group maps them to the screen, so a moved
           element's path can be rewritten straight from its position. */}
       <g ref={cameraRef}>
-        {visuals.map(({ edge, path }) => (
-          <path
-            key={edge.id}
-            data-mm-edge={edge.id}
-            d={path}
-            fill="none"
-            stroke={edge.kind === 'hierarchy' ? HIERARCHY_STROKE : (edge.color ?? LINK_STROKE)}
-            strokeWidth={edge.kind === 'hierarchy' ? HIERARCHY_WIDTH : (edge.thickness ?? LINK_WIDTH)}
-            strokeDasharray={edge.kind === 'hierarchy' ? undefined : DASH_BY_STYLE[edge.lineStyle ?? 'solid']}
-          />
-        ))}
+        {visuals.map(({ edge, path }) => {
+          const style = strokeStyleFor(edge)
+          return (
+            <path
+              key={edge.id}
+              data-mm-edge={edge.id}
+              d={path}
+              fill="none"
+              stroke={style.color}
+              strokeWidth={style.width}
+              strokeDasharray={dashAttribute(style.dash)}
+            />
+          )
+        })}
       </g>
     </svg>
   )
 })
 
-const EdgeLabelLayer = memo(function EdgeLabelLayer({ visuals }: { visuals: readonly EdgeVisual[] }) {
+/**
+ * Labels are DOM in every mode that draws edges, canvas included. Canvas text is laid out and
+ * rasterised differently from DOM text, so drawing them on the canvas would change what is on
+ * screen and make the two edge modes incomparable on the thing being measured.
+ */
+const EdgeLabelLayer = memo(function EdgeLabelLayer({
+  visuals,
+}: {
+  visuals: readonly EdgeLabelVisual[]
+}) {
   return (
     <div className="a2-edge-labels">
       {visuals
@@ -120,50 +142,78 @@ const NodeLayer = memo(function NodeLayer({ fixture }: { fixture: MindmapFixture
   )
 })
 
+/** Everything the handle needs from the rendered tree, reported once. */
+export interface MountedScene {
+  readonly pane: HTMLDivElement
+  readonly world: HTMLDivElement
+  /** The SVG camera group, present only in svg mode. */
+  readonly edgeCamera: SVGGElement | null
+  /** The edge canvas, present only in canvas mode. */
+  readonly edgeCanvas: HTMLCanvasElement | null
+}
+
 export interface SceneProps {
   readonly fixture: MindmapFixture
   /** Whether the world gets its own composited layer. Priced, not assumed; see arm.css. */
   readonly promoteLayer: boolean
   /**
-   * Whether edges are drawn at all. A diagnostic arm in the same spirit as running with level
-   * of detail forced off: never gating, because a mindmap without its edges is not the product,
-   * but the only way to attribute a cost to the edge layer rather than argue about it.
+   * Which substrate draws the edges, or `off` to draw none.
+   *
+   * `off` is a diagnostic arm in the same spirit as running with level of detail forced off:
+   * never gating, because a mindmap without its edges is not the product, but the only way to
+   * attribute a cost to the edge layer rather than argue about it. It is what located the fixed
+   * per-gesture frame that `canvas` exists to remove.
    */
-  readonly renderEdges: boolean
-  /** Called once, with the pane, the world layer and the edge camera group, once all are up. */
-  readonly onMounted: (
-    pane: HTMLDivElement,
-    world: HTMLDivElement,
-    edgeCamera: SVGGElement | null,
-  ) => void
+  readonly edgeMode: EdgeMode
+  /** Called once, with the pane, the world layer and whichever edge substrate is in play. */
+  readonly onMounted: (mounted: MountedScene) => void
 }
 
 export function Scene({
   fixture,
   promoteLayer,
-  renderEdges,
+  edgeMode,
   onMounted,
 }: SceneProps): React.ReactElement {
   const paneRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
   const edgeCameraRef = useRef<SVGGElement>(null)
-  const visuals = useMemo(
-    () => (renderEdges ? buildEdgeVisuals(fixture) : []),
-    [fixture, renderEdges],
+  const edgeCanvasRef = useRef<HTMLCanvasElement>(null)
+  const pathVisuals = useMemo(
+    () => (edgeMode === 'svg' ? buildEdgeVisuals(fixture) : []),
+    [fixture, edgeMode],
+  )
+  const labelVisuals = useMemo(
+    () =>
+      edgeMode === 'svg'
+        ? pathVisuals
+        : edgeMode === 'canvas'
+          ? buildEdgeLabelVisuals(fixture)
+          : [],
+    [fixture, edgeMode, pathVisuals],
   )
 
   useEffect(() => {
     const pane = paneRef.current
     const world = worldRef.current
-    if (pane && world) onMounted(pane, world, edgeCameraRef.current)
+    if (!pane || !world) return
+    onMounted({
+      pane,
+      world,
+      edgeCamera: edgeCameraRef.current,
+      edgeCanvas: edgeCanvasRef.current,
+    })
   }, [onMounted])
 
   return (
     <div ref={paneRef} className="a2-pane">
       {/* Before the world in document order, so edges paint under the elements they connect. */}
-      {renderEdges ? <EdgeLayer visuals={visuals} cameraRef={edgeCameraRef} /> : null}
+      {edgeMode === 'svg' ? <EdgeLayer visuals={pathVisuals} cameraRef={edgeCameraRef} /> : null}
+      {/* Viewport-sized like the SVG layer, and for the same reason: the camera goes into the
+          drawing, not into a box tens of thousands of pixels across. */}
+      {edgeMode === 'canvas' ? <canvas ref={edgeCanvasRef} className="a2-edge-canvas" /> : null}
       <div ref={worldRef} className={promoteLayer ? 'a2-world a2-world--layer' : 'a2-world'}>
-        {renderEdges ? <EdgeLabelLayer visuals={visuals} /> : null}
+        {edgeMode === 'off' ? null : <EdgeLabelLayer visuals={labelVisuals} />}
         <NodeLayer fixture={fixture} />
       </div>
     </div>

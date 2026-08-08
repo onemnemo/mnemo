@@ -15,7 +15,8 @@
 import type { MindmapEdge, MindmapFixture } from '../../fixture/model'
 import type { Point } from '../../harness/contract'
 import type { CullBounds, CullTarget } from './culler'
-import { anchorsFor, edgeGeometry, type ElementBox } from './edge-paths'
+import { anchorsFor, edgeShape, strokeToPathData, type ElementBox } from './edge-paths'
+import type { EdgeMode } from './edge-style'
 
 /**
  * Cull keys are namespaced because elements and edges share one grid. One grid rather than two
@@ -26,12 +27,26 @@ export function nodeCullKey(elementId: string): string {
   return `n:${elementId}`
 }
 
+const EDGE_KEY_PREFIX = 'e:'
+
 export function edgeCullKey(edgeId: string): string {
-  return `e:${edgeId}`
+  return `${EDGE_KEY_PREFIX}${edgeId}`
+}
+
+/**
+ * The edge id behind a cull key, or null for an element's.
+ *
+ * The canvas mode reads its visible set out of the culler's rendered keys, so it needs the
+ * inverse of the namespacing above. Kept next to the key builder so the two cannot drift.
+ */
+export function edgeIdFromCullKey(key: string): string | null {
+  return key.startsWith(EDGE_KEY_PREFIX) ? key.slice(EDGE_KEY_PREFIX.length) : null
 }
 
 export interface SceneIndex {
   positionOf(id: string): Point | undefined
+  /** The live box of an element, which is what an edge is drawn between. */
+  boxOf(id: string): ElementBox | undefined
   hostFor(id: string): HTMLElement | null
   /** The label span an inline edit would type into, if this element renders one. */
   labelFor(id: string): HTMLElement | null
@@ -39,6 +54,10 @@ export interface SceneIndex {
   writePositions(ids: readonly string[], at: (id: string) => Point | undefined): void
   /** Edge ids with an endpoint among these elements. Computed once per gesture, not per frame. */
   incidentEdges(ids: readonly string[]): readonly string[]
+  /**
+   * Rewrites whatever DOM these edges own: the path in svg mode, the label in either mode that
+   * draws edges. In canvas mode the strokes are not DOM and are not this function's business.
+   */
   repaintEdges(edgeIds: readonly string[]): void
   allEdgeIds(): readonly string[]
   setSelected(ids: readonly string[]): void
@@ -50,6 +69,11 @@ export interface SceneIndex {
    * four-thousand-path SVG cost a whole extra frame on every drag, while panning past those
    * same paths without touching them cost nothing. The engine's invalidation for an SVG child
    * is far coarser than the child, so the fix is to have far fewer children rendered.
+   *
+   * In canvas mode an edge target owns no path, and usually no node at all. It is still
+   * registered, because the culler's grid is also how the canvas mode learns which edges are in
+   * view; a target with no nodes simply has nothing for the culler to hide, and the edge is
+   * culled by not being drawn.
    */
   cullTargets(): readonly CullTarget[]
 }
@@ -59,7 +83,11 @@ export interface SceneIndex {
  * world rather than a child of it: it is viewport-sized and carries the camera on an inner
  * group, which is what keeps a pan from paying for a canvas-sized box.
  */
-export function createSceneIndex(fixture: MindmapFixture, pane: HTMLElement): SceneIndex {
+export function createSceneIndex(
+  fixture: MindmapFixture,
+  pane: HTMLElement,
+  edgeMode: EdgeMode,
+): SceneIndex {
   const hosts = new Map<string, HTMLElement>()
   for (const host of pane.querySelectorAll<HTMLElement>('.a2-node')) {
     const id = host.dataset.mmId
@@ -67,15 +95,19 @@ export function createSceneIndex(fixture: MindmapFixture, pane: HTMLElement): Sc
   }
 
   const paths = new Map<string, SVGPathElement>()
-  for (const path of pane.querySelectorAll<SVGPathElement>('path[data-mm-edge]')) {
-    const id = path.dataset.mmEdge
-    if (id) paths.set(id, path)
+  if (edgeMode === 'svg') {
+    for (const path of pane.querySelectorAll<SVGPathElement>('path[data-mm-edge]')) {
+      const id = path.dataset.mmEdge
+      if (id) paths.set(id, path)
+    }
   }
 
   const labels = new Map<string, HTMLElement>()
-  for (const label of pane.querySelectorAll<HTMLElement>('[data-mm-edge-label]')) {
-    const id = label.dataset.mmEdgeLabel
-    if (id) labels.set(id, label)
+  if (edgeMode !== 'off') {
+    for (const label of pane.querySelectorAll<HTMLElement>('[data-mm-edge-label]')) {
+      const id = label.dataset.mmEdgeLabel
+      if (id) labels.set(id, label)
+    }
   }
 
   const positions = new Map<string, Point>()
@@ -108,6 +140,7 @@ export function createSceneIndex(fixture: MindmapFixture, pane: HTMLElement): Sc
 
   return {
     positionOf: (id) => positions.get(id),
+    boxOf,
     hostFor: (id) => hosts.get(id) ?? null,
     labelFor: (id) => hosts.get(id)?.querySelector<HTMLElement>('.spike-label') ?? null,
 
@@ -135,17 +168,22 @@ export function createSceneIndex(fixture: MindmapFixture, pane: HTMLElement): Sc
     repaintEdges(edgeIds) {
       for (const edgeId of edgeIds) {
         const edge = edgesById.get(edgeId)
+        if (!edge) continue
         const path = paths.get(edgeId)
-        if (!edge || !path) continue
+        const label = labels.get(edgeId)
+        // In canvas mode there is no path and most edges carry no label, so this is the branch
+        // that makes the whole loop free rather than a second cost on top of the redraw.
+        if (!path && !label) continue
         const from = boxOf(edge.fromId)
         const to = boxOf(edge.toId)
         if (!from || !to) continue
-        const geometry = edgeGeometry(edge.routing ?? 'curve', anchorsFor(from, to))
-        path.setAttribute('d', geometry.path)
-        const label = labels.get(edgeId)
+        // The shape rather than the geometry, so a labelled edge in canvas mode does not build a
+        // path string that no element will ever read.
+        const shape = edgeShape(edge.routing ?? 'curve', anchorsFor(from, to))
+        if (path) path.setAttribute('d', strokeToPathData(shape.stroke))
         if (label) {
           label.style.transform =
-            `translate(-50%, -50%) translate(${geometry.label.x}px, ${geometry.label.y}px)`
+            `translate(-50%, -50%) translate(${shape.label.x}px, ${shape.label.y}px)`
         }
       }
     },
@@ -169,13 +207,21 @@ export function createSceneIndex(fixture: MindmapFixture, pane: HTMLElement): Sc
         })
       }
 
-      for (const edge of fixture.edges) {
+      // Nothing to index when no edges are drawn at all. Registering them anyway would charge
+      // the diagnostic edges-off arm for a grid it cannot use, which is the one arm whose whole
+      // job is to report what the edge layer costs.
+      for (const edge of edgeMode === 'off' ? [] : fixture.edges) {
+        // Whatever DOM this edge owns, which in canvas mode is a label or nothing. The culler
+        // hides nodes by style, so an empty list is a target it will never try to hide, and the
+        // canvas mode's edges are culled by the renderer simply not drawing them.
+        const nodes: ElementCSSInlineStyle[] = []
         const path = paths.get(edge.id)
-        if (!path) continue
+        if (path) nodes.push(path)
         const label = labels.get(edge.id)
+        if (label) nodes.push(label)
         targets.push({
           key: edgeCullKey(edge.id),
-          nodes: label ? [path, label] : [path],
+          nodes,
           bounds: (): CullBounds | undefined => {
             const from = boxOf(edge.fromId)
             const to = boxOf(edge.toId)

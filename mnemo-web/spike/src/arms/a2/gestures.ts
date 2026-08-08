@@ -33,6 +33,14 @@ export interface GestureDeps {
    */
   pin(ids: readonly string[]): void
   unpinAll(): void
+  /**
+   * Redraws these edges after their endpoints moved.
+   *
+   * Routed through the handle rather than calling the scene index directly, because which edges
+   * a repaint touches depends on the substrate: an SVG path is rewritten in place, while a
+   * canvas has no retained per-edge state and has to redraw the visible set around them.
+   */
+  repaintEdges(edgeIds: readonly string[]): void
   /** Called once at pointer-up with the operations the arm would send. */
   commitOps(ops: readonly MoveOpLike[]): void
 }
@@ -63,7 +71,7 @@ export function installGestures(deps: GestureDeps): () => void {
     const dx = (clientX - g.startClient.x) / g.zoom
     const dy = (clientY - g.startClient.y) / g.zoom
     scene.writePositions(g.plan.ids, (id) => positionAt(g.plan, id, dx, dy))
-    scene.repaintEdges(g.dirtyEdges)
+    deps.repaintEdges(g.dirtyEdges)
   }
 
   const onPointerMove = (event: PointerEvent): void => {
@@ -117,7 +125,7 @@ export function installGestures(deps: GestureDeps): () => void {
     if (gesture?.kind === 'drag') {
       const plan = gesture.plan
       scene.writePositions(plan.ids, (id) => plan.origins.get(id))
-      scene.repaintEdges(gesture.dirtyEdges)
+      deps.repaintEdges(gesture.dirtyEdges)
     }
     endGesture()
   }

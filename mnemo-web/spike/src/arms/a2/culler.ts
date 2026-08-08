@@ -53,6 +53,16 @@ export interface CullTarget {
    * Typed by the style property rather than as HTMLElement because an edge's path is SVG.
    */
   readonly nodes: readonly ElementCSSInlineStyle[]
+  /**
+   * The edge this target stands for, when it is an edge.
+   *
+   * Carried here so the canvas mode can be handed the visible edge ids directly. Deriving them
+   * instead means walking every rendered key, node keys included, and slicing a fresh string out
+   * of each one on every frame: work proportional to visible NODES, allocating per edge, that the
+   * SVG mode never does. It would not invalidate the measurement, since it stays bounded by the
+   * viewport, but it would quietly inflate the number this mode exists to produce.
+   */
+  readonly edgeId?: string
 }
 
 interface CellRange {
@@ -78,6 +88,23 @@ export interface Culler {
   isEnabled(): boolean
   /** Targets currently rendered, so a culling dodge is visible rather than implied. */
   renderedCount(): number
+  /**
+   * Visits the key of every target currently rendered.
+   *
+   * A callback rather than an array because this runs on every frame of the canvas edge mode,
+   * which has to be told what to draw and would otherwise allocate a fresh list each time.
+   * Proportional to what is rendered, never to what exists, which is the only reason the canvas
+   * mode can claim to cost what it draws.
+   */
+  forEachRendered(visit: (key: string) => void): void
+  /**
+   * The ids of every edge currently rendered, as a live set.
+   *
+   * Live rather than copied, and edges only rather than filtered out of everything: the canvas
+   * mode iterates this on every frame, so a copy would allocate per frame and a filter would cost
+   * the visible node count on top of the visible edge count.
+   */
+  renderedEdgeIds(): ReadonlySet<string>
 }
 
 function keyOf(cx: number, cy: number): string {
@@ -121,6 +148,8 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
   let isEnabled = enabled
   let range: CellRange | null = null
   let pinned: readonly string[] = []
+  /** Maintained by retain/release rather than derived, so reading it every frame costs nothing. */
+  const visibleEdges = new Set<string>()
 
   const setDisplay = (key: string, value: string): void => {
     const target = byKey.get(key)
@@ -134,6 +163,8 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
     if (next === 1) {
       setDisplay(key, '')
       rendered += 1
+      const edgeId = byKey.get(key)?.edgeId
+      if (edgeId !== undefined) visibleEdges.add(edgeId)
     }
   }
 
@@ -144,6 +175,8 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
       refs.delete(key)
       setDisplay(key, 'none')
       rendered -= 1
+      const edgeId = byKey.get(key)?.edgeId
+      if (edgeId !== undefined) visibleEdges.delete(edgeId)
       return
     }
     refs.set(key, current - 1)
@@ -159,16 +192,25 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
     cx >= r.cx0 && cx <= r.cx1 && cy >= r.cy0 && cy <= r.cy1
 
   const setAll = (value: string): void => {
+    const hiding = value === 'none'
+    visibleEdges.clear()
     for (const target of targets) {
       for (const node of target.nodes) node.style.display = value
+      // Culling off means everything is rendered, edges included, so the canvas mode draws the
+      // whole document. That pairing is a diagnostic and is NOT comparable with the SVG mode's
+      // no-cull run, where the same edges are retained DOM walked by the engine rather than
+      // rebuilt in script every frame.
+      if (!hiding && target.edgeId !== undefined) visibleEdges.add(target.edgeId)
     }
     refs.clear()
-    rendered = value === 'none' ? 0 : targets.length
+    rendered = hiding ? 0 : targets.length
     range = null
   }
 
   index()
-  if (isEnabled) setAll('none')
+  // Both branches run, because the visible-edge set has to be right either way: disabled means
+  // everything is rendered, and a canvas mode reading an empty set would silently draw nothing.
+  setAll(isEnabled ? 'none' : '')
 
   return {
     update(viewport, viewWidth, viewHeight) {
@@ -211,7 +253,7 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
 
     rebuild() {
       index()
-      if (isEnabled) setAll('none')
+      setAll(isEnabled ? 'none' : '')
     },
 
     pin(keys) {
@@ -234,7 +276,19 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
       setAll(next ? 'none' : '')
     },
 
+    renderedEdgeIds: () => visibleEdges,
+
     isEnabled: () => isEnabled,
     renderedCount: () => (isEnabled ? rendered : targets.length),
+
+    forEachRendered(visit) {
+      // Disabled means every target is on screen as far as anything downstream is concerned, so
+      // the diagnostic run draws the whole document rather than nothing at all.
+      if (!isEnabled) {
+        for (const target of targets) visit(target.key)
+        return
+      }
+      for (const key of refs.keys()) visit(key)
+    },
   }
 }
