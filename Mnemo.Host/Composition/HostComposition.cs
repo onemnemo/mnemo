@@ -100,7 +100,9 @@ public static class HostComposition
     /// Registers the Core/Infrastructure service graph plus the headless shell
     /// bindings, and runs the backend-side module registrations (translation
     /// sources, ConfigureServices, keybind manifests). The UI-side module hooks
-    /// (routes, sidebar, widgets, tools) are not replayed here.
+    /// (routes, sidebar, widgets, tools) are not replayed here; the two that are
+    /// pure metadata run from <see cref="InitializeBackendAsync"/> once the
+    /// provider exists.
     /// </summary>
     public static void AddMnemoBackend(IServiceCollection services, IReadOnlyList<IModule> modules)
     {
@@ -329,11 +331,14 @@ public static class HostComposition
         // service so the nav endpoint serves the same items the desktop builds.
         // These registrations are pure metadata (labels, routes, icons), so unlike
         // the other UI-side module hooks they are safe to run in the host.
+        var modules = services.GetRequiredService<IReadOnlyList<IModule>>();
         var sidebar = services.GetRequiredService<ISidebarService>();
-        foreach (var module in services.GetRequiredService<IReadOnlyList<IModule>>())
+        foreach (var module in modules)
         {
             module.RegisterSidebarItems(sidebar);
         }
+
+        RegisterModuleWidgets(modules, services.GetRequiredService<IWidgetRegistry>(), services);
 
         // Load the saved UI language so server-emitted strings (e.g. the persisted chat trace)
         // resolve to the same text the desktop would write. Mirrors Bootstrapper.LoadSavedLanguageAsync.
@@ -371,6 +376,38 @@ public static class HostComposition
             // read IsComplete and stay closed, so the app starts and every other module works while
             // notes report unavailable. Serving a half-migrated corpus would be the worse outcome.
             logger.Error("Mnemo.Host", "Note sid migration failed during startup; note endpoints stay closed.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Replays the module widget registrations against the host's registry, the same pass the
+    /// Avalonia app runs from Bootstrapper.
+    /// </summary>
+    /// <remarks>
+    /// Like the sidebar items, descriptors are safe here: they are stateless, and the manifests
+    /// they carry (supported sizes, setting schemas, icon uri) are data the host reads without
+    /// ever building a view.
+    /// <para>
+    /// Leaving the registry empty is not a smaller version of this, it is a data loss. The
+    /// overview store migrates a legacy v1 board on first read and looks up each widget's manifest
+    /// to seed its default settings and snap the rescaled size, then writes the migrated board
+    /// back under the v2 key. A profile whose first v2 read happened in a host with no descriptors
+    /// would keep settingless, unsnapped widgets for good, because the desktop app afterwards
+    /// finds a v2 board and never migrates again.
+    /// </para>
+    /// <para>
+    /// Separate from <see cref="InitializeBackendAsync"/> so a test can build the registry exactly
+    /// the way startup does.
+    /// </para>
+    /// </remarks>
+    public static void RegisterModuleWidgets(
+        IReadOnlyList<IModule> modules,
+        IWidgetRegistry registry,
+        IServiceProvider services)
+    {
+        foreach (var module in modules)
+        {
+            module.RegisterWidgets(registry, services);
         }
     }
 }

@@ -517,3 +517,43 @@ export interface SaveNoteFolderDto {
   parentId: string | null
   order: number
 }
+
+/**
+ * Mirrors Mnemo.Host/Contracts/OverviewLayoutDto.cs. The saved overview board, and the same
+ * shape on the way back in: a save replaces the whole board, so there is no field a client can
+ * read but not set.
+ *
+ * `schemaVersion` is echoed, not authored. The host re-stamps it on every save, so sending a
+ * stale number cannot downgrade the stored row.
+ */
+export interface OverviewLayoutDto {
+  schemaVersion: number
+  /** Always "default" until multiple board profiles ship. */
+  profileId: string
+  widgets: WidgetInstanceDto[]
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/OverviewLayoutDto.cs WidgetInstanceDto. One widget on the board.
+ *
+ * `column`/`row` of -1 mean unassigned, not invalid: that is what a freshly added widget carries
+ * until the layout engine places it, and the host stores the coordinates it lands on.
+ */
+export interface WidgetInstanceDto {
+  /** GUID string. Identity of this placement, and the key its settings hang off. */
+  instanceId: string
+  widgetId: string
+  size: WidgetSizeDto
+  column: number
+  row: number
+  /** Serialization tiebreak and narrow-breakpoint flow order; the host re-derives it on save. */
+  order: number
+  /** String-encoded, culture-invariant. Only the owning widget knows how to read a value back. */
+  settings: Record<string, string>
+}
+
+/** Mirrors Mnemo.Host/Contracts/OverviewLayoutDto.cs WidgetSizeDto. Grid units, not pixels. */
+export interface WidgetSizeDto {
+  columns: number
+  rows: number
+}

@@ -20,6 +20,7 @@ using Mnemo.Host.Keybinds;
 using Mnemo.Host.Lifecycle;
 using Mnemo.Host.Nav;
 using Mnemo.Host.Notes;
+using Mnemo.Host.Overview;
 using Mnemo.Host.Settings;
 using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
@@ -122,6 +123,7 @@ public static class Program
         app.MapNoteAssets();
         app.MapNoteTransfer();
         app.MapNotePdf();
+        app.MapOverview();
 
         if (options.DevMode)
         {

@@ -10,20 +10,18 @@
  * contract, and engine.test.ts transcribes it case for case.
  */
 
+import type { WidgetSizeDto } from "@/api/types"
 import { clamp } from "./clamp"
 
 /**
- * A widget's size as a column x row span in grid units, not pixels. Mirrors the C# WidgetSize
- * record. The active column count clamps `columns` at layout time.
+ * A widget's size as a column x row span in grid units, not pixels. The active column count
+ * clamps `columns` at layout time.
  *
- * Declared here rather than imported from `@/api/types`: the Overview wire contract does not exist
- * yet, and inventing a DTO shape ahead of the Host would be guessing. When `WidgetSizeDto` lands it
- * is structurally this type, and this alias should be replaced by the import.
+ * An alias for the wire type rather than a second declaration of the same two fields, so the
+ * placement math and the saved board cannot drift apart. The local name stays because the
+ * packing code is about sizes, not about DTOs.
  */
-export interface WidgetSize {
-  columns: number
-  rows: number
-}
+export type WidgetSize = WidgetSizeDto
 
 /**
  * Computed board position of one widget: the cell the engine assigned plus the (possibly clamped)
