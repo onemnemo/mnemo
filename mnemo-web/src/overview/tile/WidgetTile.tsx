@@ -19,6 +19,7 @@ interface WidgetTileProps {
   isDragging: boolean
   onRemove: (instanceId: string) => void
   onResize: (instanceId: string, size: WidgetSizeDto) => void
+  onConfigure: (instanceId: string) => void
   onHandlePointerDown: (event: ReactPointerEvent, instanceId: string, title: string) => void
 }
 
@@ -36,10 +37,14 @@ export function WidgetTile({
   isDragging,
   onRemove,
   onResize,
+  onConfigure,
   onHandlePointerDown,
 }: WidgetTileProps) {
   const t = useT()
   const registration = findWidget(instance.widgetId)
+  // The gear renders only when the widget declares settings, matching the desktop's rule that a
+  // widget with no schema is not configurable.
+  const isConfigurable = (registration?.manifest.settings?.length ?? 0) > 0
 
   const Body = registration?.component
   // The raw id, not a localized name: there is no manifest to look one up in, and the id is the
@@ -72,6 +77,7 @@ export function WidgetTile({
           current={instance.size}
           onResize={(size) => onResize(instance.instanceId, size)}
           onRemove={() => onRemove(instance.instanceId)}
+          onConfigure={isConfigurable ? () => onConfigure(instance.instanceId) : undefined}
           onHandlePointerDown={(event) => onHandlePointerDown(event, instance.instanceId, title)}
         />
       ) : (

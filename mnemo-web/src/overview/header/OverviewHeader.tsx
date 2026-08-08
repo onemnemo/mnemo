@@ -29,6 +29,7 @@ export function OverviewHeader() {
   const boardState = useOverviewStore((state) => state.boardState)
   const isEditMode = useOverviewStore((state) => state.isEditMode)
   const enterEdit = useOverviewStore((state) => state.enterEdit)
+  const openLibrary = useOverviewStore((state) => state.openLibrary)
   const done = useOverviewStore((state) => state.done)
 
   const now = new Date()
@@ -61,9 +62,15 @@ export function OverviewHeader() {
       {/* A board that failed to read offers nothing to customize: Done would have a board to write,
           and the store refuses to enter edit mode over one anyway. */}
       {boardState !== "ready" ? null : isEditMode ? (
-        <Button size="sm" className="shrink-0" onClick={done}>
-          {t("Overview", "Done")}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="outline" size="sm" onClick={openLibrary}>
+            <AppIcon name="common/plus" size={14} />
+            {t("Overview", "AddWidget")}
+          </Button>
+          <Button size="sm" onClick={done}>
+            {t("Overview", "Done")}
+          </Button>
+        </div>
       ) : (
         <Button variant="secondary" size="sm" className="shrink-0" onClick={enterEdit}>
           <AppIcon name="common/dashboard-customize" size={14} />
