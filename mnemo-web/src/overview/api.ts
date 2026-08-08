@@ -19,6 +19,10 @@ export const overviewKey = ["overview"] as const
 export const layoutKey = [...overviewKey, "layout"] as const
 export const statRecordKey = (ns: string, kind: string, key: string) =>
   [...overviewKey, "stat", ns, kind, key] as const
+export const statRecordsKey = (ns: string, kind: string, limit: number, descending: boolean) =>
+  [...overviewKey, "stats", ns, kind, limit, descending] as const
+export const statDailyKey = (ns: string, kind: string, from: string, to: string) =>
+  [...overviewKey, "daily", ns, kind, from, to] as const
 
 function json(body: unknown): RequestInit {
   return {
@@ -142,6 +146,40 @@ export function useStatRecord(ns: string, kind: string, key: string) {
     queryFn: () => {
       const query = new URLSearchParams({ ns, kind, key })
       return apiFetch<StatRecordDto | null>(`/stats/record?${query}`)
+    },
+  })
+}
+
+/**
+ * The most recently written records of one kind, newest first.
+ *
+ * The limit is the caller's, not a page size: the desktop widgets pass a fixed ceiling and then
+ * filter what came back, so passing the same ceiling here keeps the two apps looking at the same
+ * set of rows rather than at two differently truncated ones.
+ */
+export function useStatRecords(ns: string, kind: string, limit: number, descending: boolean) {
+  return useQuery<StatRecordDto[], ApiError>({
+    queryKey: statRecordsKey(ns, kind, limit, descending),
+    queryFn: () => {
+      const query = new URLSearchParams({ ns, kind, limit: String(limit), desc: String(descending) })
+      return apiFetch<StatRecordDto[]>(`/stats/records?${query}`)
+    },
+  })
+}
+
+/**
+ * Every day-keyed record in an inclusive day range, ascending by day and sparse.
+ *
+ * Sparse because nothing writes a summary for a day the user did not study, so a caller sums what
+ * arrived rather than expecting one row per day. Build the range with `utcDayWindow` instead of
+ * subtracting days by hand; the endpoint's bounds are inclusive at both ends.
+ */
+export function useStatDaily(ns: string, kind: string, from: string, to: string) {
+  return useQuery<StatRecordDto[], ApiError>({
+    queryKey: statDailyKey(ns, kind, from, to),
+    queryFn: () => {
+      const query = new URLSearchParams({ ns, kind, from, to })
+      return apiFetch<StatRecordDto[]>(`/stats/daily?${query}`)
     },
   })
 }
