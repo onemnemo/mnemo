@@ -15,11 +15,11 @@ import type { ComponentType } from "react"
 import type { WidgetInstanceDto } from "@/api/types"
 
 import type { ManifestLookup, WidgetManifest } from "./manifest"
-import { WidgetPlaceholder } from "./WidgetPlaceholder"
 import { FlashcardMemoryWidget } from "./flashcard-memory/FlashcardMemoryWidget"
 import { flashcardMemoryManifest } from "./flashcard-memory/manifest"
 import { flashcardStatsManifest } from "./flashcard-stats/manifest"
 import { FlashcardStatsWidget } from "./flashcard-stats/FlashcardStatsWidget"
+import { FlashcardTestsWidget } from "./flashcard-tests/FlashcardTestsWidget"
 import { flashcardTestsManifest } from "./flashcard-tests/manifest"
 import { RecentDecksWidget } from "./recent-decks/RecentDecksWidget"
 import { recentDecksManifest } from "./recent-decks/manifest"
@@ -46,12 +46,10 @@ export interface WidgetRegistration {
   component: WidgetComponent
 }
 
-// Bodies still on the placeholder are the ones whose data path is not built yet. The manifests are
-// final either way: they decide sizes, settings and library order, none of which wait on a fetch.
 const REGISTRATIONS: readonly WidgetRegistration[] = [
   { manifest: flashcardStatsManifest, component: FlashcardStatsWidget },
   { manifest: flashcardMemoryManifest, component: FlashcardMemoryWidget },
-  { manifest: flashcardTestsManifest, component: WidgetPlaceholder },
+  { manifest: flashcardTestsManifest, component: FlashcardTestsWidget },
   { manifest: recentDecksManifest, component: RecentDecksWidget },
   { manifest: recentNotesManifest, component: RecentNotesWidget },
   { manifest: studyGoalsManifest, component: StudyGoalsWidget },
