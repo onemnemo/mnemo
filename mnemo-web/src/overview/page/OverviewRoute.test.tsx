@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { OverviewLayoutDto } from "@/api/types"
 
-import { useOverviewStore } from "../store"
+import { buildLayout, useOverviewStore } from "../store"
 import { OverviewRoute } from "./OverviewRoute"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -258,5 +258,108 @@ describe("OverviewRoute", () => {
     // A load is not a change. Reading a board and immediately writing it back would make every
     // visit a write, and would overwrite a board the user edited on the desktop meanwhile.
     expect(saves()).toHaveLength(0)
+  })
+})
+
+/**
+ * Edit mode, asserted through the page rather than the store.
+ *
+ * `store.test.ts` already holds the whole transition table, so what is left to get wrong is the
+ * wiring: a chip that calls nothing, a Done that is not the store's Done, an Escape nobody
+ * listens for. Each of those leaves every store test green and the feature broken.
+ */
+describe("OverviewRoute edit mode", () => {
+  const STORED: OverviewLayoutDto = {
+    schemaVersion: 3,
+    profileId: "default",
+    widgets: [
+      {
+        instanceId: "33333333-3333-3333-3333-333333333333",
+        widgetId: "mnemo.study-goals",
+        size: { columns: 1, rows: 2 },
+        column: 2,
+        row: 1,
+        order: 0,
+        settings: {},
+      },
+    ],
+  }
+
+  // Trimmed, because an inlined icon leaves whitespace text nodes beside the label.
+  const label = (node: Element) => node.textContent?.trim() ?? ""
+  const chips = () => [...container.querySelectorAll("button")].filter((b) => /^\d×\d$/.test(label(b)))
+  const button = (text: string) => [...container.querySelectorAll("button")].find((b) => label(b) === text)
+  // The remove x carries no text; its accessible name is the only thing that names it.
+  const removeTile = () => container.querySelector<HTMLButtonElement>('button[aria-label="RemoveWidget"]')
+
+  async function customize(): Promise<void> {
+    serve(200, JSON.stringify(STORED))
+    await render()
+    await act(async () => button("Customize")?.click())
+    expect(button("Done")).toBeDefined()
+  }
+
+  it("swaps the header and the tile chrome, and offers one chip per supported size", async () => {
+    await customize()
+
+    expect(container.textContent).toContain("EditingTitle")
+    expect(button("Done")).toBeDefined()
+    expect(button("Customize")).toBeUndefined()
+
+    // Declaration order, which is preference order, and the stored span is the pressed one.
+    expect(chips().map((chip) => chip.textContent)).toEqual(["1×2", "2×1", "2×2"])
+    expect(chips().map((chip) => chip.getAttribute("aria-pressed"))).toEqual(["true", "false", "false"])
+
+    // Editing a board is not saving it. Nothing is owed until Done.
+    expect(saves()).toHaveLength(0)
+  })
+
+  it("makes widget content inert so a click meant for the tile cannot reach a row inside it", async () => {
+    await customize()
+    expect(container.querySelector("[inert]")).not.toBeNull()
+  })
+
+  it("persists exactly the resized board on Done", async () => {
+    await customize()
+    await act(async () => chips()[2].click())
+    expect(saves()).toHaveLength(0)
+
+    await act(async () => button("Done")?.click())
+
+    expect(saves()).toHaveLength(1)
+    const layout = saves()[0].body as OverviewLayoutDto
+    expect(layout.widgets).toHaveLength(1)
+    expect(layout.widgets[0].size).toEqual({ columns: 2, rows: 2 })
+    // The rest of the row is untouched: Done writes the board that was edited, not a new one.
+    expect(layout.widgets[0].instanceId).toBe(STORED.widgets[0].instanceId)
+    expect(layout.widgets[0].column).toBe(2)
+    expect(layout.widgets[0].row).toBe(1)
+    expect(container.textContent).not.toContain("EditingTitle")
+  })
+
+  it("restores the pre-edit board on Escape and writes nothing", async () => {
+    await customize()
+    await act(async () => chips()[1].click())
+    await act(async () => removeTile()?.click())
+    expect(useOverviewStore.getState().draft).toHaveLength(0)
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+    })
+
+    // Byte for byte, on the DTO rather than on pixels: the resize and the removal revert together,
+    // because Cancel throws the whole draft away rather than undoing steps.
+    expect(buildLayout(useOverviewStore.getState())).toEqual(STORED)
+    expect(saves()).toHaveLength(0)
+    expect(container.textContent).not.toContain("EditingTitle")
+  })
+
+  it("keeps the board on screen when the last tile is removed, so there is somewhere to add one back", async () => {
+    await customize()
+    await act(async () => removeTile()?.click())
+
+    // The desktop hides the empty state in edit mode for this reason. Showing it here would replace
+    // the drop grid with a call to action whose own button is the one that opens the library.
+    expect(container.textContent).not.toContain("DashboardEmpty")
   })
 })

@@ -26,8 +26,10 @@ export function OverviewRoute() {
   const { mutate: saveLayout } = useSaveOverviewLayout()
 
   const boardState = useOverviewStore((state) => state.boardState)
+  const isEditMode = useOverviewStore((state) => state.isEditMode)
   const widgets = useOverviewStore((state) => state.draft)
   const removeWidget = useOverviewStore((state) => state.removeWidget)
+  const resizeWidget = useOverviewStore((state) => state.resizeWidget)
 
   // `mutate` is referentially stable, so the store is configured once and the sink it holds stays
   // valid for the life of the page.
@@ -81,6 +83,25 @@ export function OverviewRoute() {
   // is marked as belonging to a session nobody is looking at.
   useEffect(() => () => useOverviewStore.getState().leaveOverview(), [])
 
+  // Escape abandons the edit session and writes nothing. Bound only while editing, so it cannot
+  // shadow whatever else on the page answers Escape the rest of the time.
+  useEffect(() => {
+    if (!isEditMode) return
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return
+
+      const store = useOverviewStore.getState()
+      // A drag in progress consumes the key on its own: Escape puts the tile back where it was
+      // picked up from and leaves the rest of the session alone.
+      if (store.dragged !== null) store.cancelDrag()
+      else store.cancelEdit()
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [isEditMode])
+
   function onRetry() {
     useOverviewStore.getState().retryLoad()
     retry()
@@ -107,9 +128,11 @@ export function OverviewRoute() {
             {t("Overview", "Retry")}
           </Button>
         </div>
-      ) : widgets.length === 0 ? (
+      ) : widgets.length === 0 && !isEditMode ? (
         // Reachable only by removing every tile. A first visit seeds the starter board instead, and
-        // a failed read renders the error above, so this never stands in for either.
+        // a failed read renders the error above, so this never stands in for either. Never in edit
+        // mode: emptying the board there has to leave the hint grid standing, or there is nothing
+        // left on screen to add a widget back onto.
         <EmptyState
           className="py-16"
           icon="common/layout-grid"
@@ -117,7 +140,12 @@ export function OverviewRoute() {
           description={t("Overview", "DashboardEmptyHint")}
         />
       ) : (
-        <WidgetBoard widgets={widgets} onRemove={removeWidget} />
+        <WidgetBoard
+          widgets={widgets}
+          isEditMode={isEditMode}
+          onRemove={removeWidget}
+          onResize={resizeWidget}
+        />
       )}
     </div>
   )
