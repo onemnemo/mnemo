@@ -23,6 +23,7 @@ import { flashcardTestsManifest } from "./flashcard-tests/manifest"
 import { recentDecksManifest } from "./recent-decks/manifest"
 import { RecentNotesWidget } from "./recent-notes/RecentNotesWidget"
 import { recentNotesManifest } from "./recent-notes/manifest"
+import { StudyGoalsWidget } from "./study-goals/StudyGoalsWidget"
 import { studyGoalsManifest } from "./study-goals/manifest"
 import { usageSummaryManifest } from "./usage-summary/manifest"
 
@@ -50,7 +51,7 @@ const REGISTRATIONS: readonly WidgetRegistration[] = [
   { manifest: flashcardTestsManifest, component: WidgetPlaceholder },
   { manifest: recentDecksManifest, component: WidgetPlaceholder },
   { manifest: recentNotesManifest, component: RecentNotesWidget },
-  { manifest: studyGoalsManifest, component: WidgetPlaceholder },
+  { manifest: studyGoalsManifest, component: StudyGoalsWidget },
   { manifest: usageSummaryManifest, component: WidgetPlaceholder },
 ]
 
