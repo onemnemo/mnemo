@@ -18,6 +18,7 @@ interface WidgetBoardProps {
   isEditMode: boolean
   onRemove: (instanceId: string) => void
   onResize: (instanceId: string, size: WidgetSizeDto) => void
+  onConfigure: (instanceId: string) => void
 }
 
 /**
@@ -32,7 +33,7 @@ interface WidgetBoardProps {
  * cell a tile lands in, so a width that moves inside its bucket repaints without re-running
  * placement or re-rendering a single tile.
  */
-export function WidgetBoard({ widgets, isEditMode, onRemove, onResize }: WidgetBoardProps) {
+export function WidgetBoard({ widgets, isEditMode, onRemove, onResize, onConfigure }: WidgetBoardProps) {
   const { ref, columnCount } = useBoardWidth<HTMLDivElement>()
   // Drag substate is read here rather than threaded down from the route: the anchor is an input to
   // the layout pass, and the layout pass is this component.
@@ -87,6 +88,7 @@ export function WidgetBoard({ widgets, isEditMode, onRemove, onResize }: WidgetB
               isDragging={isDragging}
               onRemove={onRemove}
               onResize={onResize}
+              onConfigure={onConfigure}
               onHandlePointerDown={onHandlePointerDown}
             />
           </div>

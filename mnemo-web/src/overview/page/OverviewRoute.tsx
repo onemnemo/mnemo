@@ -1,15 +1,18 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { useT } from "@/i18n/useT"
+import { isModalOpen } from "@/lib/modal"
 
 import { useOverviewBoard, useSaveOverviewLayout } from "../api"
 import { WidgetBoard } from "../board/WidgetBoard"
+import { WidgetConfigOverlay } from "../config/WidgetConfigOverlay"
 import { OverviewHeader } from "../header/OverviewHeader"
+import { WidgetLibraryPanel } from "../library/WidgetLibraryPanel"
 import { useOverviewStore } from "../store"
-import { lookupManifest } from "../widgets/registry"
+import { findWidget, lookupManifest } from "../widgets/registry"
 
 /**
  * The Overview page: header, board, and the three states a board can be in instead of a board.
@@ -30,6 +33,15 @@ export function OverviewRoute() {
   const widgets = useOverviewStore((state) => state.draft)
   const removeWidget = useOverviewStore((state) => state.removeWidget)
   const resizeWidget = useOverviewStore((state) => state.resizeWidget)
+  const applyConfig = useOverviewStore((state) => state.applyConfig)
+  const openLibrary = useOverviewStore((state) => state.openLibrary)
+
+  // Which tile's config dialog is open, if any. Kept here rather than in the store: the dialog is a
+  // modal that blocks Done, and leaving the page unmounts it, so it never has to survive a store
+  // transition the way the edit session does.
+  const [configuringId, setConfiguringId] = useState<string | null>(null)
+  const configuring = configuringId === null ? null : widgets.find((widget) => widget.instanceId === configuringId)
+  const configuringRegistration = configuring ? findWidget(configuring.widgetId) : undefined
 
   // `mutate` is referentially stable, so the store is configured once and the sink it holds stays
   // valid for the life of the page.
@@ -83,23 +95,32 @@ export function OverviewRoute() {
   // is marked as belonging to a session nobody is looking at.
   useEffect(() => () => useOverviewStore.getState().leaveOverview(), [])
 
-  // Escape abandons the edit session and writes nothing. Bound only while editing, so it cannot
-  // shadow whatever else on the page answers Escape the rest of the time.
+  // Escape's precedence, top to bottom: the config dialog (Radix owns its own Escape and
+  // isModalOpen() then suppresses this handler entirely), a live drag, the non-modal library panel,
+  // and only then the edit session. Bound only while editing, so it cannot shadow whatever else on
+  // the page answers Escape the rest of the time.
   useEffect(() => {
     if (!isEditMode) return
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return
+      // The config dialog is a real modal; let Radix close it and do nothing else this press.
+      if (isModalOpen()) return
 
       const store = useOverviewStore.getState()
-      // A drag in progress consumes the key on its own: Escape puts the tile back where it was
-      // picked up from and leaves the rest of the session alone.
       if (store.dragged !== null) store.cancelDrag()
+      else if (store.isLibraryOpen) store.closeLibrary()
       else store.cancelEdit()
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
+  }, [isEditMode])
+
+  // Leaving edit mode with a config dialog somehow still tracked closes it: the gear that opens it
+  // only exists inside the session, so its target should not outlive the session either.
+  useEffect(() => {
+    if (!isEditMode) setConfiguringId(null)
   }, [isEditMode])
 
   function onRetry() {
@@ -138,6 +159,12 @@ export function OverviewRoute() {
           icon="common/layout-grid"
           title={t("Overview", "DashboardEmpty")}
           description={t("Overview", "DashboardEmptyHint")}
+          action={
+            <Button size="sm" onClick={openLibrary}>
+              <AppIcon name="common/plus" size={14} />
+              {t("Overview", "AddFirstWidget")}
+            </Button>
+          }
         />
       ) : (
         <WidgetBoard
@@ -145,8 +172,21 @@ export function OverviewRoute() {
           isEditMode={isEditMode}
           onRemove={removeWidget}
           onResize={resizeWidget}
+          onConfigure={setConfiguringId}
         />
       )}
+
+      <WidgetLibraryPanel />
+
+      {configuring && configuringRegistration ? (
+        <WidgetConfigOverlay
+          key={configuring.instanceId}
+          instance={configuring}
+          manifest={configuringRegistration.manifest}
+          onApply={(values) => applyConfig(configuring.instanceId, values)}
+          onClose={() => setConfiguringId(null)}
+        />
+      ) : null}
     </div>
   )
 }
