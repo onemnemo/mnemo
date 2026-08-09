@@ -317,7 +317,7 @@
     "Mindmap": "マインドマップ",
     "Flashcards": "フラッシュカード",
     "Settings": "設定",
-    "AIChat": "AIチャット",
+    "Soma": "Soma",
     "CollapseSidebar": "サイドバーを折りたたむ",
     "ExpandSidebar": "サイドバーを開く",
     "QuickActions": "クイックアクション",
@@ -783,6 +783,7 @@
     "ProfileTooltip": "プロフィールと設定",
     "MinimizeTooltip": "最小化",
     "MaximizeTooltip": "最大化",
+    "RestoreTooltip": "元のサイズに戻す",
     "CloseTooltip": "閉じる"
   },
   "WidgetLibrary": {

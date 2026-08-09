@@ -33,5 +33,7 @@ export function ReadOnlyEditor({
   services?: Partial<EditorServices>
 }) {
   const { ref } = useEditorView({ key: noteId, state, registry, services, editable: false })
-  return <div ref={ref} className="notes-doc" />
+  // Read-only still means readable: opt the document out of the app-wide
+  // user-select:none, which an editable mount gets for free via contenteditable.
+  return <div ref={ref} className="notes-doc" data-selectable />
 }

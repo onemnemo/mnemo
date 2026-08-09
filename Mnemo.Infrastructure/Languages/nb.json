@@ -317,7 +317,7 @@
     "Mindmap": "Tankekart",
     "Flashcards": "Flashkort",
     "Settings": "Innstillinger",
-    "AIChat": "AI-chat",
+    "Soma": "Soma",
     "CollapseSidebar": "Skjul sidepanel",
     "ExpandSidebar": "Vis sidepanel",
     "QuickActions": "Hurtighandlinger",
@@ -783,6 +783,7 @@
     "ProfileTooltip": "Profil og innstillinger",
     "MinimizeTooltip": "Minimer",
     "MaximizeTooltip": "Maksimer",
+    "RestoreTooltip": "Gjenopprett",
     "CloseTooltip": "Lukk"
   },
   "WidgetLibrary": {

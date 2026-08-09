@@ -34,7 +34,13 @@ const PAGES: Record<string, PageRenderer> = {
   "flashcard-session": (p) => <SessionPage deckId={p[0]} mode={p[1]} scope={p[2]} />,
   "flashcard-test": (p) => <TestPage deckId={p[0]} />,
   settings: () => <SettingsPage />,
-  chat: () => <ChatPage />,
+  soma: () => <ChatPage />,
+}
+
+// Routes that were renamed. Kept so a bookmark, a stored last-route or a link in
+// an old note still lands somewhere instead of silently falling back to Overview.
+const ALIASES: Record<string, string> = {
+  chat: "soma",
 }
 
 export interface ResolvedRoute {
@@ -46,7 +52,8 @@ export interface ResolvedRoute {
 /** Parses a location hash ("#/mindmap/abc") into a resolved route. */
 export function resolveRoute(hash: string): ResolvedRoute {
   const segments = hash.replace(/^#\/?/, "").split("/").filter(Boolean)
-  const key = segments[0] ?? DEFAULT_ROUTE
+  const raw = segments[0] ?? DEFAULT_ROUTE
+  const key = ALIASES[raw] ?? raw
   const renderer = PAGES[key]
   if (!renderer) {
     return { key: DEFAULT_ROUTE, params: [], element: PAGES[DEFAULT_ROUTE]([]) }

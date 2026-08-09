@@ -11,6 +11,8 @@ import { KeybindManagerOverlay } from "@/keybinds/manager/KeybindManagerOverlay"
 import { registerKeybindAction } from "@/keybinds/registry"
 import { OnboardingWizard } from "@/onboarding/OnboardingWizard"
 import { dialog } from "@/stores/dialog"
+import { usePaletteStore } from "@/stores/palette"
+import { useSomaStore } from "@/stores/soma"
 import { toast } from "@/stores/toast"
 
 // Dev-only console handles for exercising the toast/dialog systems by hand
@@ -22,11 +24,15 @@ if (import.meta.env.DEV) {
 function App() {
   useRouteNormalization()
 
-  // Wire the global actions that have a target today to their behavior. The Atlas
-  // shortcut (global.assistant, Primary+J) navigates to the chat route; search and
-  // quick-actions register when their overlays land.
+  // global.assistant toggles the dock rather than navigating: the point of Soma is
+  // that it comes to the work, and a shortcut that throws away the page you were
+  // on is the opposite of that. The rail still navigates to the full surface.
   useEffect(() => registerKeybindAction("global.assistant", () => {
-    window.location.hash = "#/chat"
+    useSomaStore.getState().toggleDock()
+  }), [])
+
+  useEffect(() => registerKeybindAction("global.search", () => {
+    usePaletteStore.getState().toggle()
   }), [])
 
   return (

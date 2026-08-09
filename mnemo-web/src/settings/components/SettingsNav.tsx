@@ -117,7 +117,7 @@ function NavItem({
       aria-current={selected ? "page" : undefined}
       className={cn(
         "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-small transition-colors",
-        selected ? "bg-accent font-medium text-text-primary" : "text-text-secondary hover:bg-accent/60",
+        selected ? "bg-frame-hover font-medium text-text-primary" : "text-text-secondary hover:bg-frame-hover/60",
       )}
     >
       {category.id === "Account" ? (

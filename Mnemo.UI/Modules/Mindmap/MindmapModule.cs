@@ -58,7 +58,7 @@ public class MindmapModule : IModule
 
     public void RegisterSidebarItems(ISidebarService sidebarService)
     {
-        sidebarService.RegisterItem("Mindmap", "mindmap", "avares://Mnemo.UI/Icons/Sidebar/mindmap.svg", "Modules", 1, int.MaxValue, childRoutes: ["mindmap-detail"]);
+        sidebarService.RegisterItem("Mindmap", "mindmap", "avares://Mnemo.UI/Icons/Sidebar/mindmap.svg", "Modules", 1, 50, childRoutes: ["mindmap-detail"]);
     }
 
     public void RegisterTools(IFunctionRegistry registry, IServiceProvider services)

@@ -11,6 +11,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Host.Ai;
 using Mnemo.Host.Chat;
+using Mnemo.Host.Chrome;
 using Mnemo.Host.Composition;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Events;
@@ -201,6 +202,7 @@ app.MapStatistics();
             window.SetUserDataFolder(Path.Combine(MnemoAppPaths.GetLocalUserDataRoot(), "webview"));
         }
 
+        WindowChrome.Configure(window);
         AttachShutdownGate(window, server.App.Services);
 
         Console.WriteLine($"[Mnemo.Host] Load({url})");
