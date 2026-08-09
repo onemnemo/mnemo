@@ -49,6 +49,10 @@ internal static class WindowChrome
             // fallback, and on a runtime that does honour this it never fires, because
             // a drag region swallows the pointer before the page sees it.
             window.SetBrowserControlInitParameters("--enable-features=msWebView2EnableDraggableRegions");
+
+            // The drag regions decide who runs the gesture; this decides whether
+            // Windows considers the result a window worth snapping.
+            WindowFrame.Attach(window);
         }
 
         if (OperatingSystem.IsLinux())
