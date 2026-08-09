@@ -14,8 +14,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Pinned; PhotinoX.Native comes in transitively - do not reference it directly. -->
-    <PackageReference Include="PhotinoX" Version="4.3.1" />
+    <!-- Pinned; PhotinoX.Native comes in transitively - do not reference it directly.
+         5.0 preview is deliberate: BeginWindowDrag/BeginWindowResize and the Linux drag region
+         are what the chromeless titlebar is built on, and they exist in no 4.x release. -->
+    <PackageReference Include="PhotinoX" Version="5.0.0-preview.9" />
   </ItemGroup>
 
   <ItemGroup>
