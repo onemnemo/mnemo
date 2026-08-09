@@ -39,11 +39,13 @@
   --font-mono: "Geist Mono", ui-monospace, "Cascadia Mono", monospace;
   --font-math: "STIX Two Math", "Cambria Math", serif;
 
-  /* Corner radius scale */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  /* Corner radius scale. These are Tailwind's own steps rather than a custom
+     set, because the design is authored in rounded-* class names: a scale of
+     our own silently renders every one of them a notch rounder than drawn. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
   --radius-pill: 999px;
 
   /* Font sizes */
