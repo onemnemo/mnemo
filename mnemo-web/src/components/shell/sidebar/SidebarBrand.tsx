@@ -27,7 +27,7 @@ export const SidebarBrand = forwardRef<HTMLDivElement, SidebarBrandProps>(functi
   return (
     <div
       ref={ref}
-      className={cn("flex shrink-0 items-center", collapsed ? "justify-center px-2" : "justify-between pl-3 pr-2")}
+      className={cn("drag-region flex shrink-0 items-center", collapsed ? "justify-center px-2" : "justify-between pl-3 pr-2")}
       style={{ height: "var(--topbar-h)" }}
     >
       {/* The mark is not a control, and swallowing the press would leave a hole in

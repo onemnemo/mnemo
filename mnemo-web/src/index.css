@@ -230,6 +230,31 @@
 }
 
 @layer utilities {
+    /*
+     * Native window dragging.
+     *
+     * WebView2 (behind the flag the host passes) and WebKit hit-test these in the
+     * browser process and hand the gesture to the OS, so the window moves with real
+     * caption behaviour: Snap, drag-to-edge tiling, shake-to-minimize, and no lag
+     * from a message round trip. The JS bridge in lib/window.ts stays underneath for
+     * platforms and runtimes that do not honour it.
+     *
+     * A drag region eats every pointer event inside it, so anything interactive in
+     * the titlebar has to opt back out. `.no-drag` is not optional decoration: miss
+     * it on a button and the button stops existing.
+     */
+    .drag-region {
+        -webkit-app-region: drag;
+        app-region: drag;
+    }
+    .no-drag,
+    .drag-region button,
+    .drag-region a,
+    .drag-region input {
+        -webkit-app-region: no-drag;
+        app-region: no-drag;
+    }
+
     .scroll-thin {
         scrollbar-width: thin;
         scrollbar-color: var(--line) transparent;
