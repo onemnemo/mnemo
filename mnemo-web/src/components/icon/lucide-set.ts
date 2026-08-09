@@ -14,8 +14,10 @@ import {
   ArrowRight,
   ArrowUp,
   Bell,
+  BellOff,
   BookOpen,
   Check,
+  CheckCheck,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -74,6 +76,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   "corner-down-left": CornerDownLeft,
   search: Search,
   bell: Bell,
+  "bell-off": BellOff,
   ellipsis: Ellipsis,
 
   // Direction
@@ -90,6 +93,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   plus: Plus,
   x: X,
   check: Check,
+  "check-check": CheckCheck,
   copy: Copy,
   pencil: Pencil,
   "trash-2": Trash2,

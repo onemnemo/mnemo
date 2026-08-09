@@ -3,6 +3,7 @@ import { resolveRoute } from "@/app/routes"
 import { SomaDock } from "@/components/shell/dock/SomaDock"
 import { ResizeEdges } from "@/components/shell/chrome/ResizeEdges"
 import { Sidebar } from "@/components/shell/sidebar/Sidebar"
+import { ToastHost } from "@/components/shell/ToastHost"
 import { Topbar } from "@/components/shell/topbar/Topbar"
 import { useT } from "@/i18n/useT"
 import { activeNavRoute, navItemForRoute, useNavCategories } from "@/nav/store"
@@ -42,7 +43,16 @@ export function AppShell() {
         <Topbar crumbs={crumbs} collapsed={collapsed} onExpand={() => useShellStore.getState().setSidebarCollapsed(false)} />
 
         <div className="flex min-h-0 flex-1">
-          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">{resolved.element}</main>
+          {/* min-h-0 as well as min-w-0: without it this wrapper grows to its
+              content, and anything absolutely positioned inside it inherits the
+              overflow and runs off the bottom of the window. */}
+          <div className="relative min-h-0 min-w-0 flex-1">
+            <main className="h-full overflow-y-auto">{resolved.element}</main>
+            {/* Scoped to the canvas rather than the window, so a toast can only
+                ever cover a module's own content, never the rail, the titlebar
+                or the dock. */}
+            <ToastHost />
+          </div>
           <SomaDock />
         </div>
       </div>

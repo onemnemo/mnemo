@@ -13,6 +13,8 @@ export interface ToastAction {
 
 export interface ToastOptions {
   description?: string
+  /** Carried into the notification list, where it outlives the toast. */
+  notificationAction?: { label: string; href: string }
   /** Milliseconds before auto-dismiss; 0 keeps it until dismissed. Default 5000. */
   durationMs?: number
   primary?: ToastAction
@@ -35,6 +37,12 @@ export interface NotificationEntry {
   title: string
   description?: string
   createdAt: number
+  /** Cleared when the flyout is opened: it drives the dot on the bell. */
+  seen: boolean
+  /** Cleared when the flyout is closed: it drives the marker on the row. */
+  read: boolean
+  /** Somewhere to go about it. Toast actions are callbacks and cannot outlive their toast; a link can. */
+  action?: { label: string; href: string }
 }
 
 const MAX_VISIBLE = 6
@@ -46,6 +54,12 @@ interface ToastState {
   history: NotificationEntry[]
   spawn: (type: ToastType, title: string, options?: ToastOptions) => string
   dismiss: (id: string) => void
+  /** Kills the dot on the bell. Called when the flyout opens. */
+  markAllSeen: () => void
+  /** Kills the row markers. Called when the flyout closes, so the list you are looking at stays the list you opened. */
+  markAllRead: () => void
+  markRead: (id: string) => void
+  dismissNotification: (id: string) => void
   clearHistory: () => void
 }
 
@@ -65,14 +79,29 @@ export const useToastStore = create<ToastState>((set) => ({
     set((state) => ({
       // Keep the newest MAX_VISIBLE on screen; older ones fall off but stay in history.
       toasts: [...state.toasts, toast].slice(-MAX_VISIBLE),
-      history: [{ id, type, title, description: options.description, createdAt: toast.createdAt }, ...state.history].slice(
-        0,
-        MAX_HISTORY,
-      ),
+      history: [
+        {
+          id,
+          type,
+          title,
+          description: options.description,
+          createdAt: toast.createdAt,
+          seen: false,
+          read: false,
+          action: options.notificationAction,
+        },
+        ...state.history,
+      ].slice(0, MAX_HISTORY),
     }))
     return id
   },
   dismiss: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+  markAllSeen: () => set((state) => ({ history: state.history.map((n) => (n.seen ? n : { ...n, seen: true })) })),
+  markAllRead: () =>
+    set((state) => ({ history: state.history.map((n) => (n.read ? n : { ...n, read: true, seen: true })) })),
+  markRead: (id) =>
+    set((state) => ({ history: state.history.map((n) => (n.id === id ? { ...n, read: true, seen: true } : n)) })),
+  dismissNotification: (id) => set((state) => ({ history: state.history.filter((n) => n.id !== id) })),
   clearHistory: () => set({ history: [] }),
 }))
 

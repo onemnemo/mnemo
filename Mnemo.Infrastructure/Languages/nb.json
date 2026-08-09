@@ -789,7 +789,20 @@
     "MinimizeTooltip": "Minimer",
     "MaximizeTooltip": "Maksimer",
     "RestoreTooltip": "Gjenopprett",
-    "CloseTooltip": "Lukk"
+    "CloseTooltip": "Lukk",
+    "NotificationsAll": "Alle",
+    "NotificationsUnread": "Uleste",
+    "NotificationsOptions": "Varselalternativer",
+    "NotificationsMarkAllRead": "Merk alle som lest",
+    "NotificationsClearAll": "Tøm alle",
+    "NotificationsSettings": "Varselinnstillinger",
+    "NotificationsEmptyUnread": "Ingenting ulest",
+    "NotificationsEmptyHint": "Kort som forfaller og alt Soma blir ferdig med havner her.",
+    "NotificationsEmptyUnreadHint": "Alt her er sett.",
+    "BucketToday": "I dag",
+    "BucketYesterday": "I går",
+    "BucketEarlier": "Tidligere",
+    "AgoNow": "nå"
   },
   "WidgetLibrary": {
     "Title": "Widget-bibliotek",

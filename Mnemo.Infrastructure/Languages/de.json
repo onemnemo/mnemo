@@ -783,7 +783,20 @@
     "MinimizeTooltip": "Minimieren",
     "MaximizeTooltip": "Maximieren",
     "RestoreTooltip": "Wiederherstellen",
-    "CloseTooltip": "Schließen"
+    "CloseTooltip": "Schließen",
+    "NotificationsAll": "Alle",
+    "NotificationsUnread": "Ungelesen",
+    "NotificationsOptions": "Benachrichtigungsoptionen",
+    "NotificationsMarkAllRead": "Alle als gelesen markieren",
+    "NotificationsClearAll": "Alle löschen",
+    "NotificationsSettings": "Benachrichtigungseinstellungen",
+    "NotificationsEmptyUnread": "Nichts Ungelesenes",
+    "NotificationsEmptyHint": "Fällige Karten und alles, was Soma abschließt, landen hier.",
+    "NotificationsEmptyUnreadHint": "Alles hier wurde gesehen.",
+    "BucketToday": "Heute",
+    "BucketYesterday": "Gestern",
+    "BucketEarlier": "Früher",
+    "AgoNow": "jetzt"
   },
   "WidgetLibrary": {
     "Title": "Widget-Bibliothek",

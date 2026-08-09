@@ -789,7 +789,20 @@
     "MinimizeTooltip": "最小化",
     "MaximizeTooltip": "最大化",
     "RestoreTooltip": "元のサイズに戻す",
-    "CloseTooltip": "閉じる"
+    "CloseTooltip": "閉じる",
+    "NotificationsAll": "すべて",
+    "NotificationsUnread": "未読",
+    "NotificationsOptions": "通知オプション",
+    "NotificationsMarkAllRead": "すべて既読にする",
+    "NotificationsClearAll": "すべて消去",
+    "NotificationsSettings": "通知設定",
+    "NotificationsEmptyUnread": "未読はありません",
+    "NotificationsEmptyHint": "期限が来たカードや Soma が終えた作業がここに届きます。",
+    "NotificationsEmptyUnreadHint": "ここにあるものはすべて確認済みです。",
+    "BucketToday": "今日",
+    "BucketYesterday": "昨日",
+    "BucketEarlier": "それ以前",
+    "AgoNow": "たった今"
   },
   "WidgetLibrary": {
     "Title": "ウィジェットライブラリ",
