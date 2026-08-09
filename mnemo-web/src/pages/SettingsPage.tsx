@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { useT } from "@/i18n/useT"
+import { SettingsPageShell } from "@/settings/components/kit"
 import { SettingRow } from "@/settings/components/SettingRow"
 import { SettingsGroupView } from "@/settings/components/SettingsGroupView"
 import { SettingsNav } from "@/settings/components/SettingsNav"
@@ -53,7 +54,9 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="flex gap-10 p-[var(--page-padding)]">
+    // Full height with its own rail, exactly like Notes: the frame's rail stays a list of modules
+    // and never sprouts a second tree.
+    <div className="flex h-full">
       <SettingsNav
         categories={categories}
         selectedId={searching ? "" : (selected?.id ?? "")}
@@ -62,28 +65,18 @@ export function SettingsPage() {
         onQueryChange={setQuery}
       />
 
-      <main className="min-w-0 max-w-3xl flex-1">
+      <main className="min-w-0 flex-1">
         {searching ? (
           <SearchResults query={query} matches={matches} />
         ) : selected ? (
-          <>
-            <header>
-              <h1 className="text-heading-4 font-semibold text-text-primary">
-                {UNTRANSLATED_CATEGORY_TITLES[selected.id] ?? t("Settings", selected.title)}
-              </h1>
-              {selected.subtitle ? (
-                <p className="mt-0.5 text-body-small text-text-tertiary">
-                  {t("Settings", selected.subtitle)}
-                </p>
-              ) : null}
-            </header>
-
-            <div className="mt-5">
-              {selected.groups.map((group) => (
-                <SettingsGroupView key={group.id} group={group} context={context} />
-              ))}
-            </div>
-          </>
+          <SettingsPageShell
+            title={UNTRANSLATED_CATEGORY_TITLES[selected.id] ?? t("Settings", selected.title)}
+            description={selected.subtitle ? t("Settings", selected.subtitle) : undefined}
+          >
+            {selected.groups.map((group) => (
+              <SettingsGroupView key={group.id} group={group} context={context} />
+            ))}
+          </SettingsPageShell>
         ) : null}
 
         {/* Rows read from a snapshot; until it lands they show schema defaults. */}
@@ -105,34 +98,24 @@ function SearchResults({ query, matches }: { query: string; matches: SettingsSea
   }, new Map())
 
   return (
-    <>
-      <header>
-        <h1 className="text-heading-4 font-semibold text-text-primary">
-          {t("Settings", "SearchResults")}
-        </h1>
-        <p className="mt-0.5 text-body-small text-text-tertiary">
-          {matches.length > 0
-            ? t("Settings", "SearchResultsSubtitleFormat", { 0: matches.length, 1: query })
-            : t("Settings", "SearchNoResultsFormat", { 0: query })}
-        </p>
-      </header>
-
-      <div className="mt-5">
-        {[...groups].map(([breadcrumb, rows]) => (
-          <section key={breadcrumb} className="mt-7 first:mt-0">
-            <h2 className="mb-1 text-micro font-semibold uppercase tracking-[1px] text-text-faded">
-              {breadcrumb}
-            </h2>
-            {rows.map((match, i) => (
-              <SettingRow
-                key={`${breadcrumb}:${i}`}
-                row={match.row}
-                divider={i < rows.length - 1}
-              />
-            ))}
-          </section>
-        ))}
-      </div>
-    </>
+    <SettingsPageShell
+      title={t("Settings", "SearchResults")}
+      description={
+        matches.length > 0
+          ? t("Settings", "SearchResultsSubtitleFormat", { 0: matches.length, 1: query })
+          : t("Settings", "SearchNoResultsFormat", { 0: query })
+      }
+    >
+      {[...groups].map(([breadcrumb, rows]) => (
+        <section key={breadcrumb} className="mt-8 first:mt-6">
+          {/* The breadcrumb is where the row lives, which is the one thing a result needs to say
+              that the row itself does not. */}
+          <h2 className="mb-1 text-[12.5px] font-medium text-ink-3">{breadcrumb}</h2>
+          {rows.map((match, i) => (
+            <SettingRow key={`${breadcrumb}:${i}`} row={match.row} divider={i < rows.length - 1} />
+          ))}
+        </section>
+      ))}
+    </SettingsPageShell>
   )
 }
