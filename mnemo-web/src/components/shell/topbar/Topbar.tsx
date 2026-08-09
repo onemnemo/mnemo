@@ -22,6 +22,12 @@ interface TopbarProps {
  *
  * The window is chromeless, so this is also the titlebar. Pressing anywhere that
  * is not a control moves the window, and a double press maximizes it.
+ *
+ * Two mechanisms, one behind the other. `drag-region` is a native hit test where the
+ * platform supports one, which is what makes the drag feel like a window rather than
+ * like something following the mouse. Where it does not, the pointerdown handler asks
+ * the host to start the drag instead. Only one of them is ever live, because a native
+ * region never lets the press reach the page.
  */
 export function Topbar({ crumbs, collapsed, onExpand }: TopbarProps) {
   const t = useT()
@@ -36,7 +42,7 @@ export function Topbar({ crumbs, collapsed, onExpand }: TopbarProps) {
   return (
     <header
       onPointerDown={onTitlebarPointerDown}
-      className="flex shrink-0 items-stretch gap-2 border-b border-line-soft pl-3 pr-0"
+      className="drag-region flex shrink-0 items-stretch gap-2 border-b border-line-soft pl-3 pr-0"
       style={{ height: "var(--topbar-h)" }}
     >
       {collapsed && (

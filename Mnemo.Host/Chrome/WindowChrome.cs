@@ -33,6 +33,24 @@ internal static class WindowChrome
     {
         window.SetChromeless(true);
 
+        if (OperatingSystem.IsWindows())
+        {
+            // Turns on WebView2's own draggable regions, so `app-region: drag` in the
+            // SPA becomes a real caption hit-test inside the browser process.
+            //
+            // This is the difference between a window that moves and a window that
+            // behaves. The message path below can only ask the OS to start a drag
+            // after a round trip, so it misses the press position, and Windows never
+            // sees a caption drag at all: no Snap, no drag-to-edge tiling, no
+            // shake-to-minimize. A hit-test region gets all of that for free because
+            // the OS is running the drag, not us.
+            //
+            // Harmless on a runtime too old to know the flag. The bridge stays as the
+            // fallback, and on a runtime that does honour this it never fires, because
+            // a drag region swallows the pointer before the page sees it.
+            window.SetBrowserControlInitParameters("--enable-features=msWebView2EnableDraggableRegions");
+        }
+
         if (OperatingSystem.IsLinux())
         {
             window.SetLinuxChromelessResizeBorderThickness(LinuxResizeBorder);
