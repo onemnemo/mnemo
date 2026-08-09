@@ -772,7 +772,12 @@
     "TypeNote": "Note",
     "TypeMindmap": "Mindmap",
     "TypeSetting": "Setting",
-    "TypePage": "Page"
+    "TypePage": "Page",
+    "HintMove": "Move",
+    "HintOpen": "Open",
+    "ScopeActions": "Actions",
+    "ScopeTags": "Tag",
+    "AskSoma": "Ask Soma about"
   },
   "Topbar": {
     "NotificationsTitle": "Notifications",

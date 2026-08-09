@@ -767,7 +767,12 @@
     "TypeNote": "Notat",
     "TypeMindmap": "Tankekart",
     "TypeSetting": "Innstilling",
-    "TypePage": "Side"
+    "TypePage": "Side",
+    "HintMove": "Flytt",
+    "HintOpen": "Åpne",
+    "ScopeActions": "Handlinger",
+    "ScopeTags": "Etikett",
+    "AskSoma": "Spør Soma om"
   },
   "Topbar": {
     "NotificationsTitle": "Varsler",

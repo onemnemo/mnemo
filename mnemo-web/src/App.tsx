@@ -3,6 +3,7 @@ import { useEffect } from "react"
 import { useRouteNormalization } from "@/app/router"
 import { AppShell } from "@/components/shell/AppShell"
 import { DialogHost } from "@/components/shell/DialogHost"
+import { CommandPalette } from "@/components/shell/palette/CommandPalette"
 import { ToastHost } from "@/components/shell/ToastHost"
 import { CardEditorOverlay } from "@/flashcards/editor/CardEditorOverlay"
 import { ReviewSettingsOverlay } from "@/flashcards/presets/ReviewSettingsOverlay"
@@ -38,6 +39,7 @@ function App() {
   return (
     <>
       <AppShell />
+      <CommandPalette />
       <ToastHost />
       <DialogHost />
       <KeybindManagerOverlay />
