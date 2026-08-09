@@ -186,13 +186,8 @@ app.MapStatistics();
     {
         var url = server.WindowUrl;
 
-        // Do not disable DevTools/context menu/zoom here, and do not enable
-        // Transparent. PhotinoX 4.3.1/4.3.2 applies those settings *after* the
-        // initial navigation and each one calls Reload(), which discards the
-        // still-pending navigation and leaves a permanently blank window
-        // (Photino.Windows.Browser.cpp, CompleteWebViewInitialization). Leaving
-        // them at their defaults is the only working configuration until that is
-        // fixed upstream; the window chrome pass revisits this.
+        var app = new PhotinoApplication();
+
         var window = new PhotinoWindow()
             .SetTitle("Mnemo")
             .SetUseOsDefaultSize(false)
@@ -203,14 +198,18 @@ app.MapStatistics();
         {
             // Keep the WebView2 profile inside Mnemo's data root (which honors
             // MNEMO_DATA_DIR) instead of PhotinoX's default %LOCALAPPDATA%\Photino.
-            window.SetTemporaryFilesPath(Path.Combine(MnemoAppPaths.GetLocalUserDataRoot(), "webview"));
+            window.SetUserDataFolder(Path.Combine(MnemoAppPaths.GetLocalUserDataRoot(), "webview"));
         }
 
         AttachShutdownGate(window, server.App.Services);
 
         Console.WriteLine($"[Mnemo.Host] Load({url})");
         window.Load(url);
-        window.Show();
+
+        // Run shows the window and owns the message loop. Calling Show() first would
+        // both double-create and, on Windows, trip Run's refusal to move an already
+        // initialized window onto the STA thread it spins up.
+        app.Run(window);
     }
 
     /// <summary>
@@ -227,7 +226,7 @@ app.MapStatistics();
         var gate = services.GetRequiredService<ShutdownGate>();
         var events = services.GetRequiredService<IAppEventPublisher>();
 
-        window.RegisterWindowClosingHandler((_, e) =>
+        window.RegisterClosingHandler((_, e) =>
         {
             // Only the first request is held. A second press of the close button
             // means the user is done waiting, and the close we ask for ourselves
