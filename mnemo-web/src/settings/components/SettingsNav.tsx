@@ -16,7 +16,13 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
 
 const SECTION_ORDER: SettingsSection[] = ["account", "app", "modules"]
 
-/** The settings rail: search, then categories grouped by section. */
+/**
+ * The settings rail: search, then categories grouped by section.
+ *
+ * A panel with its own scroll rather than a column in the page, so a long category
+ * list and a long page scroll independently and the rail never runs out from under
+ * the page it belongs to.
+ */
 export function SettingsNav({
   categories,
   selectedId,
@@ -34,61 +40,53 @@ export function SettingsNav({
   const tapTitle = useDeveloperGateTap()
 
   return (
-    <nav className="flex w-56 shrink-0 flex-col gap-4">
-      <button
-        type="button"
-        onClick={tapTitle}
-        // The gate is meant to be invisible: this reads as the page heading, and
-        // nothing about it invites the seven taps that unlock developer mode.
-        className="cursor-default text-left text-heading-4 font-semibold text-text-primary"
-      >
-        {t("Settings", "Title")}
-      </button>
+    <div className="flex w-[236px] shrink-0 flex-col border-r border-line-soft">
+      <div className="px-4 pb-3 pt-5">
+        <button
+          type="button"
+          onClick={tapTitle}
+          // The gate is meant to be invisible: this reads as the page heading, and nothing about
+          // it invites the seven taps that unlock developer mode.
+          className="cursor-default text-left text-[15px] font-semibold tracking-[-0.01em] text-ink"
+        >
+          {t("Settings", "Title")}
+        </button>
 
-      <div className="relative">
-        <AppIcon
-          name="common/search"
-          size={13}
-          className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-faded"
-        />
-        <input
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-          placeholder={t("Settings", "SearchPlaceholder")}
-          aria-label={t("Settings", "SearchPlaceholder")}
-          className={cn(
-            "h-[30px] w-full rounded-sm border border-input bg-[var(--search-bar-background,var(--text-control-background))]",
-            "pl-7 pr-2 text-body-extra-small text-text-primary outline-none",
-            "placeholder:text-[var(--text-control-placeholder-foreground)]",
-            "focus:border-[var(--text-control-border-focused)]",
-          )}
-        />
+        <div className="mt-3 flex h-8 items-center gap-1.5 rounded-lg bg-canvas-sunken px-2 focus-within:shadow-[0_0_0_1px_var(--line)]">
+          <AppIcon name="search" size={14} strokeWidth={1.7} className="shrink-0 text-ink-icon" />
+          <input
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder={t("Settings", "SearchPlaceholder")}
+            aria-label={t("Settings", "SearchPlaceholder")}
+            className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3"
+          />
+        </div>
       </div>
 
-      {SECTION_ORDER.map((section) => {
-        const inSection = categories.filter((c) => c.section === section)
-        if (inSection.length === 0) return null
+      <nav className="scroll-thin flex-1 overflow-y-auto px-2 pb-4">
+        {SECTION_ORDER.map((section, index) => {
+          const inSection = categories.filter((category) => category.section === section)
+          if (inSection.length === 0) return null
 
-        return (
-          <div key={section}>
-            <div className="mb-1 px-2 text-micro font-semibold uppercase tracking-[1px] text-text-faded">
-              {t("Settings", SECTION_LABELS[section])}
-            </div>
-            <ul className="space-y-0.5">
-              {inSection.map((category) => (
-                <li key={category.id}>
+          return (
+            <div key={section} className={cn(index > 0 && "mt-4")}>
+              <p className="px-2 pb-1 pt-1 text-[12px] text-ink-3">{t("Settings", SECTION_LABELS[section])}</p>
+              <div className="space-y-px">
+                {inSection.map((category) => (
                   <NavItem
+                    key={category.id}
                     category={category}
                     selected={category.id === selectedId}
                     onSelect={() => onSelect(category.id)}
                   />
-                </li>
-              ))}
-            </ul>
-          </div>
-        )
-      })}
-    </nav>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </nav>
+    </div>
   )
 }
 
@@ -106,8 +104,7 @@ function NavItem({
   const avatar = useSettingValue("User.ProfilePicture", DEFAULT_PROFILE_PICTURE)
 
   const title = UNTRANSLATED_CATEGORY_TITLES[category.id] ?? t("Settings", category.title)
-  // The desktop tags the AI page when its master switch is off, so the state is
-  // visible without opening it.
+  // The AI page is tagged when its master switch is off, so the state is visible without opening it.
   const statusTag = category.id === "AITools" && !aiEnabled ? t("Settings", "StatusOff") : null
 
   return (
@@ -116,22 +113,21 @@ function NavItem({
       onClick={onSelect}
       aria-current={selected ? "page" : undefined}
       className={cn(
-        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-small transition-colors",
-        selected ? "bg-frame-hover font-medium text-text-primary" : "text-text-secondary hover:bg-frame-hover/60",
+        "flex h-[30px] w-full items-center gap-2.5 rounded-md px-2 text-[13.5px] transition-colors",
+        selected ? "bg-frame-active font-medium text-ink" : "text-ink-2 hover:bg-frame-hover hover:text-ink",
       )}
+      style={{ transitionDuration: "var(--duration-fast)" }}
     >
+      {/* Account wears the actual profile picture rather than a generic mark: it is the one
+          category that is about a specific person, and the picture says so faster than any glyph. */}
       {category.id === "Account" ? (
-        <img
-          src={assetUrl(avatar) ?? undefined}
-          alt=""
-          className="h-4 w-4 shrink-0 rounded-full object-cover"
-        />
-      ) : null}
-      <span className="min-w-0 flex-1 truncate">{title}</span>
+        <img src={assetUrl(avatar) ?? undefined} alt="" className="size-4 shrink-0 rounded-full object-cover" />
+      ) : (
+        <AppIcon name={category.icon} size={16} strokeWidth={1.5} className={cn(!selected && "text-ink-icon")} />
+      )}
+      <span className="min-w-0 flex-1 truncate text-left">{title}</span>
       {statusTag ? (
-        <span className="rounded-pill bg-surface-subtle px-1.5 py-px text-micro text-text-tertiary">
-          {statusTag}
-        </span>
+        <span className="shrink-0 rounded-pill bg-canvas-sunken px-1.5 py-px text-[10px] text-ink-3">{statusTag}</span>
       ) : null}
     </button>
   )

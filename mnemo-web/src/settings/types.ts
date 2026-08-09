@@ -183,6 +183,9 @@ export interface SettingsCategory {
   id: string
   /** Key in the Settings i18n namespace. */
   title: string
+  /** AppIcon name for the rail. Every category has one: a list where some rows have a mark and
+      others do not reads as an oversight rather than as a distinction. */
+  icon: string
   /** Key in the Settings i18n namespace. */
   subtitle?: string
   section: SettingsSection

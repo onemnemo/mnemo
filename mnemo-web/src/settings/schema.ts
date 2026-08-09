@@ -10,6 +10,7 @@ import type { SettingsCategory } from "./types"
 export const SETTINGS_SCHEMA: SettingsCategory[] = [
   {
     id: "Account",
+    icon: "circle-user",
     title: "Account",
     subtitle: "AccountSubtitle",
     section: "account",
@@ -38,6 +39,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
 
   {
     id: "General",
+    icon: "settings",
     title: "General",
     subtitle: "GeneralSubtitle",
     section: "app",
@@ -111,6 +113,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
 
   {
     id: "Editor",
+    icon: "notebook-text",
     title: "Editor",
     subtitle: "EditorSubtitle",
     section: "modules",
@@ -229,6 +232,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
 
   {
     id: "AITools",
+    icon: "orbit",
     title: "AITools",
     subtitle: "AIToolsSubtitle",
     section: "modules",
@@ -359,6 +363,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
 
   {
     id: "Mindmap",
+    icon: "network",
     title: "Mindmap",
     subtitle: "MindmapSubtitle",
     section: "modules",
@@ -420,6 +425,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
 
   {
     id: "Appearance",
+    icon: "palette",
     title: "Appearance",
     subtitle: "AppearanceSubtitle",
     section: "app",
@@ -447,6 +453,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
 
   {
     id: "Updates",
+    icon: "refresh-cw",
     title: "UpdatesCategoryTitle",
     subtitle: "UpdatesSubtitle",
     section: "app",
@@ -470,6 +477,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
 
   {
     id: "Developer",
+    icon: "terminal",
     // Untranslated in the desktop; carried over as-is.
     title: "Developer",
     section: "app",

@@ -1,9 +1,10 @@
 import { cn } from "@/lib/utils"
 
 /**
- * A small on/off toggle, the web stand-in for the desktop ToggleSwitch. A plain accessible button
- * rather than a checkbox so the two read differently on screen: a checkbox is "include this", a
- * switch is "this behavior is on".
+ * A small on/off toggle. A plain accessible button rather than a checkbox so the two read
+ * differently on screen: a checkbox is "include this", a switch is "this behaviour is on".
+ *
+ * On is `solid`, not the brand orange, so the accent keeps meaning Mnemo rather than "on".
  */
 export function Switch({
   checked,
@@ -27,15 +28,15 @@ export function Switch({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative inline-flex h-[20px] w-[34px] shrink-0 items-center rounded-full transition-colors outline-none",
-        "focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-brand" : "bg-[var(--widget-background)] border border-line",
+        "relative inline-flex h-[20px] w-[34px] shrink-0 items-center rounded-full outline-none transition-colors",
+        "disabled:pointer-events-none disabled:opacity-40",
+        checked ? "bg-solid" : "bg-frame-active",
         className,
       )}
     >
       <span
         className={cn(
-          "pointer-events-none inline-block size-[14px] rounded-full bg-white shadow-sm transition-transform",
+          "pointer-events-none inline-block size-[14px] rounded-full bg-canvas shadow-sm transition-transform",
           checked ? "translate-x-[16px]" : "translate-x-[3px]",
         )}
       />

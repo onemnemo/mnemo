@@ -46,10 +46,9 @@ export function TextControl({
         if (e.key === "Escape") setDraft(value)
       }}
       className={cn(
-        "h-[30px] w-[220px] max-w-full rounded-sm border border-input bg-[var(--text-control-background)] px-2.5",
-        "text-body-small text-text-primary outline-none",
-        "placeholder:text-[var(--text-control-placeholder-foreground)]",
-        "focus:border-[var(--text-control-border-focused)]",
+        "h-8 w-[220px] max-w-full rounded-lg bg-canvas-sunken px-2.5",
+        "text-[13px] text-ink outline-none placeholder:text-ink-3",
+        "focus:shadow-[0_0_0_1px_var(--line)]",
         className,
       )}
     />

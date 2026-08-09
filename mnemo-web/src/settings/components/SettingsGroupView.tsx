@@ -22,12 +22,10 @@ export function SettingsGroupView({
   if (rows.length === 0 && !group.master) return null
 
   return (
-    <section className="mt-7 first:mt-0">
-      {group.title ? (
-        <h2 className="mb-1 text-micro font-semibold uppercase tracking-[1px] text-text-faded">
-          {t("Settings", group.title)}
-        </h2>
-      ) : null}
+    <section className="mt-8 first:mt-6">
+      {/* Sentence case, not letterspaced uppercase. An all-caps micro-label shouts a word like
+          "APPLICATION" louder than the page title it sits under. */}
+      {group.title ? <h2 className="mb-1 text-[12.5px] font-medium text-ink-3">{t("Settings", group.title)}</h2> : null}
 
       {group.master ? (
         <MasterGatedRows group={group} rows={rows} />
@@ -84,7 +82,7 @@ function MasterGatedRows({ group, rows }: { group: SettingsGroup; rows: Settings
       {enabled ? (
         <RowList rows={rows} />
       ) : group.offNotice ? (
-        <p className="mt-3 rounded-lg bg-surface-subtle p-3 text-body-extra-small leading-relaxed text-text-tertiary">
+        <p className="mt-3 rounded-lg bg-canvas-sunken p-3 text-[12.5px] leading-relaxed text-ink-3">
           {t("Settings", group.offNotice)}
         </p>
       ) : null}
