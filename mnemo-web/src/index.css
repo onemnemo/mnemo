@@ -1,9 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "./styles/tokens.css";
+@import "./styles/legacy-tokens.css";
 
-/* Dusk and Ember are the dark themes; let shadcn `dark:` utilities target them. */
-@custom-variant dark (&:where([data-theme="dusk"], [data-theme="ember"]) *);
+/* Tailwind's `dark:` defaults to prefers-color-scheme, which ignores the app's own
+   theme setting, so bind the variant to the attribute we actually set. The element
+   itself is in the selector as well as its descendants: without that, `dark:` never
+   applies to the <html> element that carries the attribute. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /*
  * Tokens -> Tailwind utilities. All values reference vars from tokens.css;
@@ -100,18 +104,115 @@
     --color-line: var(--line-color);
     --color-divider-subtle: var(--divider-subtle);
     --color-links: var(--links);
+
+    /* ---- Rehaul utilities ----
+       The vocabulary ported UI is written against. Everything above this point is the
+       old Avalonia naming, kept alive by legacy-tokens.css until the last module that
+       uses it has been ported. */
+    --color-frame: var(--frame);
+    --color-frame-hover: var(--frame-hover);
+    --color-frame-active: var(--frame-active);
+    --color-canvas: var(--canvas);
+    --color-canvas-sunken: var(--canvas-sunken);
+    --color-line-soft: var(--line-soft);
+    --color-ink: var(--ink);
+    --color-ink-2: var(--ink-2);
+    --color-ink-3: var(--ink-3);
+    --color-ink-icon: var(--ink-icon);
+    --color-accent-hover: var(--accent-hover);
+    --color-accent-ink: var(--accent-ink);
+    --color-accent-wash: var(--accent-wash);
+    --color-accent-fg: var(--accent-fg);
+    --color-solid: var(--solid);
+    --color-solid-hover: var(--solid-hover);
+    --color-solid-fg: var(--solid-fg);
+    --color-danger: var(--danger);
+    --color-danger-wash: var(--danger-wash);
+    --color-state-new: var(--state-new);
+    --color-state-learn: var(--state-learn);
+    --color-state-due: var(--state-due);
+    --color-state-new-wash: var(--state-new-wash);
+    --color-state-learn-wash: var(--state-learn-wash);
+    --color-state-due-wash: var(--state-due-wash);
+    --color-diff-add-bg: var(--diff-add-bg);
+    --color-diff-add-fg: var(--diff-add-fg);
+    --color-diff-del-bg: var(--diff-del-bg);
+    --color-diff-del-fg: var(--diff-del-fg);
+
+    --shadow-canvas: var(--e-canvas);
+    --shadow-pop: var(--e-pop);
+
+    /* Transition/animation utilities resolve through the motion tokens, so the
+       reduce-motion switch reaches anything written with them. */
+    --animate-pop-in: pop-in var(--duration-fast) var(--ease-out);
+    --animate-fade-in: fade-in var(--duration-fast) ease-out;
+    --animate-rise: rise var(--duration-normal) var(--ease-out);
+    --animate-toast-in: toast-in var(--duration-slow) var(--ease-out);
+
+    @keyframes pop-in {
+        from { opacity: 0; transform: scale(0.97); }
+    }
+    @keyframes fade-in {
+        from { opacity: 0; }
+    }
+    @keyframes rise {
+        from { opacity: 0; transform: translateY(var(--travel-pop)); }
+    }
+    @keyframes toast-in {
+        from { opacity: 0; transform: translateY(var(--travel-toast)) scale(0.96); }
+    }
 }
 
 @layer base {
+    html,
+    body,
+    #root {
+        height: 100%;
+    }
+
     * {
         border-color: var(--border);
     }
 
     body {
-        background-color: var(--workspace-background);
-        color: var(--text-primary);
+        margin: 0;
+        /* The frame, not the canvas: the rail is the outermost surface, and a canvas
+           coloured body shows as a bright edge wherever the frame does not reach. */
+        background-color: var(--frame);
+        color: var(--ink);
         font-family: var(--font-sans);
-        font-size: var(--text-body-small);
+        font-size: var(--font-size-body-small);
+        /* Inter's contextual alternates and disambiguated glyphs. Small change, reads
+           noticeably more considered at UI sizes. */
+        font-feature-settings: "cv05", "cv11", "ss01";
+        font-optical-sizing: auto;
+        -webkit-font-smoothing: antialiased;
+        overflow: hidden;
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+        border-radius: 4px;
+    }
+}
+
+@layer utilities {
+    .scroll-thin {
+        scrollbar-width: thin;
+        scrollbar-color: var(--line) transparent;
+    }
+    .scroll-thin::-webkit-scrollbar {
+        width: 10px;
+    }
+    .scroll-thin::-webkit-scrollbar-thumb {
+        background-color: var(--line);
+        border-radius: 999px;
+        border: 3px solid transparent;
+        background-clip: content-box;
+    }
+    .scroll-thin::-webkit-scrollbar-track {
+        background: transparent;
     }
 }
 

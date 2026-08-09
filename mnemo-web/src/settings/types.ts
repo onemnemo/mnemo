@@ -135,6 +135,7 @@ export interface CustomRow extends RowBase {
 export type CustomRowId =
   | "language"
   | "theme-gallery"
+  | "reduce-motion"
   | "app-icon-gallery"
   | "profile-picture-gallery"
   | "assistant-model"
@@ -205,15 +206,6 @@ export type SettingValue = boolean | string
 export interface SettingsValues {
   values: Record<string, SettingValue>
   secrets: Record<string, boolean>
-}
-
-/** One installed theme, for the appearance gallery. */
-export interface ThemeSummary {
-  id: string
-  name: string
-  displayName: string
-  description: string
-  previewColors: string[]
 }
 
 /** Build identity, shown by the updates row and the onboarding footer. */

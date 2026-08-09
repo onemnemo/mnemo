@@ -2,10 +2,11 @@ import { type ReactNode, useEffect, useState } from "react"
 
 import { fetchAppSettings } from "@/api/settings"
 import { DEFAULT_LANGUAGE, useI18nStore } from "@/i18n/store"
-import { DEFAULT_THEME, isThemeId } from "@/lib/themes"
+import { resolveThemeId } from "@/lib/themes"
 import { fetchNav } from "@/nav/api"
 import { useNavStore } from "@/nav/store"
 import { useSettingsStore } from "@/settings/store"
+import { resolveMotionPreference, useMotionStore } from "@/stores/motion"
 import { useThemeStore } from "@/stores/theme"
 
 // Startup gate: hydrate from the backend before first paint - app preferences
@@ -34,8 +35,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
       useNavStore.getState().setCategories(nav)
 
-      const theme = isThemeId(settings?.theme) ? settings.theme : DEFAULT_THEME
-      useThemeStore.getState().hydrate(theme)
+      // resolveThemeId, not a validity check: an install upgrading from the four-theme
+      // palette has a retired id stored, and it maps to the light or dark theme that
+      // replaced it rather than resetting the user to the default.
+      useThemeStore.getState().hydrate(resolveThemeId(settings?.theme))
+
+      // Motion comes from the settings snapshot the store already loaded, not a second
+      // request. Absent means "follow the OS", which the CSS handles unaided, so there
+      // is nothing to apply in that case beyond clearing the first-paint attribute.
+      const motion = useSettingsStore.getState().values["App.ReduceMotion"]
+      useMotionStore.getState().hydrate(resolveMotionPreference(typeof motion === "string" ? motion : null))
 
       const language = settings?.language ?? DEFAULT_LANGUAGE
       await useI18nStore.getState().load(language)

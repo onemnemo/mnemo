@@ -1,9 +1,9 @@
 import { apiFetch, apiSend } from "@/api/client"
 
-import type { AppInfo, SettingValue, SettingsValues, ThemeSummary } from "./types"
+import type { AppInfo, SettingValue, SettingsValues } from "./types"
 
 // The settings surface: the allowlisted key/value store the rows read and write,
-// plus the theme catalog and build identity a couple of rows display.
+// plus the build identity a couple of rows display.
 
 export function fetchSettingValues(): Promise<SettingsValues> {
   return apiFetch<SettingsValues>("/settings/values")
@@ -19,10 +19,6 @@ export function putSettingValue(key: string, value: SettingValue): Promise<void>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ value }),
   })
-}
-
-export function fetchThemes(): Promise<ThemeSummary[]> {
-  return apiFetch<ThemeSummary[]>("/themes")
 }
 
 export function fetchAppInfo(): Promise<AppInfo> {
