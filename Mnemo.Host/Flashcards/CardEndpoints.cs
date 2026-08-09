@@ -42,6 +42,9 @@ public static class CardEndpoints
             bool? desc,
             int? offset,
             int? limit,
+            string? type,
+            int? minLapses,
+            int? maxLapses,
             IFlashcardCardService cards,
             CancellationToken cancellationToken) =>
         {
@@ -56,7 +59,10 @@ public static class CardEndpoints
                 FlashcardWire.ParseSort(sort),
                 desc ?? false,
                 Math.Max(0, offset ?? 0),
-                Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize));
+                Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize),
+                FlashcardWire.ParseTypeOrNull(type),
+                minLapses is { } min ? Math.Max(0, min) : null,
+                maxLapses is { } max ? Math.Max(0, max) : null);
 
             var page = await cards.ListCardsAsync(query, cancellationToken).ConfigureAwait(false);
             return CardPageDto.FromModel(page);

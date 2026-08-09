@@ -23,7 +23,7 @@ public sealed record CreateDeckDto(string Name, string? FolderId, string? Preset
 /// with JSON alone an absent field and an explicit null are indistinguishable, so a
 /// patch shape could never clear the description.
 /// </summary>
-public sealed record UpdateDeckDto(string Name, string? Description, IReadOnlyList<string>? Tags);
+public sealed record UpdateDeckDto(string Name, string? Description, IReadOnlyList<string>? Tags, string? Icon);
 
 /// <summary>Re-homes a deck into a folder (null = library root) at a given position.</summary>
 public sealed record MoveDeckDto(string? FolderId, int SortOrder);

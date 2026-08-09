@@ -1,6 +1,8 @@
 import { create } from "zustand"
 
-import type { CardStateFilter } from "@/api/types"
+import type { CardStateFilter, CardType } from "@/api/types"
+
+import type { LapsesFilter } from "./filters"
 
 // View state for one deck's card table. Session-only, like the library's.
 //
@@ -16,6 +18,8 @@ interface DeckViewState {
   query: string
   stateFilter: CardStateFilter
   tagFilter: string | null
+  typeFilter: CardType | null
+  lapsesFilter: LapsesFilter
   sortDescending: boolean
   offset: number
   /** Ids selected on the current page. Selection never spans pages. */
@@ -26,8 +30,12 @@ interface DeckViewState {
   commitSearch: () => void
   setStateFilter: (state: CardStateFilter) => void
   setTagFilter: (tag: string) => void
+  setTypeFilter: (type: CardType | null) => void
+  setLapsesFilter: (lapses: LapsesFilter) => void
   clearStateFilter: () => void
   clearTagFilter: () => void
+  /** Drops every filter and the search box in one go, for the strip's Clear. */
+  clearFilters: () => void
   toggleDueSort: () => void
   setOffset: (offset: number) => void
   toggleCard: (id: string) => void
@@ -40,6 +48,8 @@ const EMPTY = {
   query: "",
   stateFilter: "all" as CardStateFilter,
   tagFilter: null,
+  typeFilter: null,
+  lapsesFilter: "any" as LapsesFilter,
   sortDescending: false,
   offset: 0,
   selected: new Set<string>(),
@@ -60,8 +70,11 @@ export const useDeckView = create<DeckViewState>((set) => ({
 
   setStateFilter: (stateFilter) => set({ stateFilter, ...RESET_PAGE }),
   setTagFilter: (tagFilter) => set({ tagFilter, ...RESET_PAGE }),
+  setTypeFilter: (typeFilter) => set({ typeFilter, ...RESET_PAGE }),
+  setLapsesFilter: (lapsesFilter) => set({ lapsesFilter, ...RESET_PAGE }),
   clearStateFilter: () => set({ stateFilter: "all", ...RESET_PAGE }),
   clearTagFilter: () => set({ tagFilter: null, ...RESET_PAGE }),
+  clearFilters: () => set({ ...EMPTY }),
 
   toggleDueSort: () => set((state) => ({ sortDescending: !state.sortDescending, ...RESET_PAGE })),
   setOffset: (offset) => set({ offset, selected: new Set() }),

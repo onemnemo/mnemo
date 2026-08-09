@@ -26,6 +26,8 @@ export interface DeckSummaryDto {
   dueCounts: DueCountsDto
   retentionPercent: number
   lastStudied: string | null
+  /** The deck's chosen mark, or null for the neutral fallback. An opaque token, not a glyph. */
+  icon: string | null
   createdAt: string
   updatedAt: string
 }
@@ -57,6 +59,7 @@ export interface UpdateDeckDto {
   name: string
   description: string | null
   tags: string[]
+  icon: string | null
 }
 
 /** Body for re-homing a deck; a null folder is the library root. */
