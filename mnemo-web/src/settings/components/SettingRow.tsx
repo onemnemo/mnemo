@@ -141,7 +141,7 @@ function ActionSettingRow({ row, divider, t }: { row: ActionRow; divider: boolea
     <SettingRowShell title={rowTitle(row, t)} description={rowDescription(row, t)} divider={divider}>
       {/* The only schema action row is the desktop's cache button, which has never had
           a command behind it. Rendered disabled rather than as a button that does nothing. */}
-      <Button variant={row.destructive ? "destructive" : "outline"} size="sm" disabled>
+      <Button variant={row.destructive ? "danger" : "outline"} size="sm" disabled>
         {label}
       </Button>
     </SettingRowShell>

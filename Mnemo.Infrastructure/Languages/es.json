@@ -352,7 +352,9 @@
     "LayoutLoadFailed": "No se ha podido cargar su panel",
     "LayoutLoadFailedHint": "Sus widgets están a salvo. No se guardará nada hasta que el panel vuelva a cargarse.",
     "Retry": "Reintentar",
-    "WidgetLoadFailed": "No se pudo cargar"
+    "WidgetLoadFailed": "No se pudo cargar",
+    "EditingHint": "Arrastra los paneles para reordenarlos. Pasa el cursor por uno para ver tamaños y ajustes.",
+    "ResetLayout": "Restablecer diseño"
   },
   "App": {
     "AppTitle": "Mnemo"

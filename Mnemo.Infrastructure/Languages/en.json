@@ -351,7 +351,9 @@
     "LayoutLoadFailed": "Your dashboard could not be loaded",
     "LayoutLoadFailedHint": "Your widgets are safe. Nothing is saved until the dashboard loads again.",
     "Retry": "Try again",
-    "WidgetLoadFailed": "Could not load"
+    "WidgetLoadFailed": "Could not load",
+    "EditingHint": "Drag tiles to rearrange. Hover one for its sizes and settings.",
+    "ResetLayout": "Reset layout"
   },
   "App": {
     "AppTitle": "Mnemo"

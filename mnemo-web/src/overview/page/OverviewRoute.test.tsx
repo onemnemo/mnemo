@@ -302,7 +302,7 @@ describe("OverviewRoute edit mode", () => {
   it("swaps the header and the tile chrome, and offers one chip per supported size", async () => {
     await customize()
 
-    expect(container.textContent).toContain("EditingTitle")
+    expect(container.textContent).toContain("EditingHint")
     expect(button("Done")).toBeDefined()
     expect(button("Customize")).toBeUndefined()
 
@@ -334,7 +334,7 @@ describe("OverviewRoute edit mode", () => {
     expect(layout.widgets[0].instanceId).toBe(STORED.widgets[0].instanceId)
     expect(layout.widgets[0].column).toBe(2)
     expect(layout.widgets[0].row).toBe(1)
-    expect(container.textContent).not.toContain("EditingTitle")
+    expect(container.textContent).not.toContain("EditingHint")
   })
 
   it("restores the pre-edit board on Escape and writes nothing", async () => {
@@ -351,7 +351,7 @@ describe("OverviewRoute edit mode", () => {
     // because Cancel throws the whole draft away rather than undoing steps.
     expect(buildLayout(useOverviewStore.getState())).toEqual(STORED)
     expect(saves()).toHaveLength(0)
-    expect(container.textContent).not.toContain("EditingTitle")
+    expect(container.textContent).not.toContain("EditingHint")
   })
 
   it("keeps the board on screen when the last tile is removed, so there is somewhere to add one back", async () => {

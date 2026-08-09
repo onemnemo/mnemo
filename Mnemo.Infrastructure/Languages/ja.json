@@ -352,7 +352,9 @@
     "LayoutLoadFailed": "ダッシュボードを読み込めませんでした",
     "LayoutLoadFailedHint": "ウィジェットは保持されています。ダッシュボードが再び読み込まれるまで保存は行われません。",
     "Retry": "再試行",
-    "WidgetLoadFailed": "読み込めませんでした"
+    "WidgetLoadFailed": "読み込めませんでした",
+    "EditingHint": "タイルをドラッグして並べ替えます。カーソルを合わせるとサイズと設定が表示されます。",
+    "ResetLayout": "レイアウトをリセット"
   },
   "App": {
     "AppTitle": "Mnemo"

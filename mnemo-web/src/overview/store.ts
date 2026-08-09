@@ -99,6 +99,8 @@ interface OverviewState extends OverviewDeps, BoardSlice {
   closeLibrary: () => void
   done: () => void
   cancelEdit: () => void
+  /** Puts the starter board back, as an edit: Escape still reverts it and Done is what commits it. */
+  resetLayout: () => void
   leaveOverview: () => void
 
   addWidget: (manifest: WidgetManifest) => void
@@ -269,6 +271,25 @@ export const useOverviewStore = create<OverviewState>((set, get) => ({
   },
 
   closeLibrary: () => set({ isLibraryOpen: false }),
+
+  resetLayout: () => {
+    const state = get()
+    // Edit session only. Reset is an edit like any other, which is what makes it undoable: it goes
+    // into the draft, cancelEdit puts the snapshot back, and only Done writes it.
+    if (!state.isEditMode) return
+
+    const seeded = seedDefaultLayout(state.manifest, state.newInstanceId)
+    // Same guard as the first-run seed: nothing resolving means the manifest lookup is not wired
+    // up, not that the starter board is empty, and clearing the board over that would be a loss
+    // the user never asked for.
+    if (seeded.widgets.length === 0 && DEFAULT_BOARD_TEMPLATE.length > 0) {
+      console.error("[overview] not resetting the board: no template widget resolved against the manifest")
+      return
+    }
+
+    state.cancelDrag()
+    set({ draft: seeded.widgets.map(cloneInstance) })
+  },
 
   done: () => {
     if (!get().isEditMode) return

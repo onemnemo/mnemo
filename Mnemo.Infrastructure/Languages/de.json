@@ -352,7 +352,9 @@
     "LayoutLoadFailed": "Ihr Dashboard konnte nicht geladen werden",
     "LayoutLoadFailedHint": "Ihre Widgets sind sicher. Es wird nichts gespeichert, bis das Dashboard wieder geladen ist.",
     "Retry": "Erneut versuchen",
-    "WidgetLoadFailed": "Konnte nicht geladen werden"
+    "WidgetLoadFailed": "Konnte nicht geladen werden",
+    "EditingHint": "Kacheln ziehen zum Umsortieren. Zeige auf eine für Größen und Einstellungen.",
+    "ResetLayout": "Layout zurücksetzen"
   },
   "App": {
     "AppTitle": "Mnemo"

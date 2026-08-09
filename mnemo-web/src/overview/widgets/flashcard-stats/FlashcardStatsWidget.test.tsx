@@ -94,7 +94,9 @@ async function settle(turns = 6): Promise<void> {
 
 const values = () => [...container.querySelectorAll("p")].map((p) => p.textContent)
 const skeletons = () => container.querySelectorAll("[data-slot=skeleton]").length
-const dividers = () => [...container.querySelectorAll("div")].filter((el) => el.className.includes("bg-divider-subtle"))
+/** The Stat values. Stat puts the number in a tabular-nums span, which nothing else here uses. */
+const stats = () => [...container.querySelectorAll("p > span.tabular-nums")]
+const cellRow = () => container.querySelector("div.mt-3")
 
 beforeEach(() => {
   container = document.createElement("div")
@@ -130,7 +132,6 @@ describe("FlashcardStatsWidget", () => {
     // reaches which cell is the part worth pinning, including the two that come from the page's
     // namespace rather than this widget's.
     expect(values()).toEqual([
-      "Subtitle",
       "42",
       "PracticedToday",
       "18",
@@ -142,7 +143,7 @@ describe("FlashcardStatsWidget", () => {
     ])
   })
 
-  it("accents an earned metric and leaves a zero plain", async () => {
+  it("sets every counter in plain ink, earned or not", async () => {
     serve({
       totals: record({ current_streak_days: 0 }),
       "daily.summary": record({ cards_reviewed: 42, minutes_studied: 0, sessions_completed: 0 }),
@@ -150,12 +151,11 @@ describe("FlashcardStatsWidget", () => {
     await render()
     await settle()
 
-    const cells = [...container.querySelectorAll("p")].filter((p) => p.className.includes("text-heading-4"))
-    expect(cells.map((p) => p.textContent)).toEqual(["42", "0", "0", "0"])
-    // Zero is a real value, and rendering it in the brand color would make an untouched day look
-    // like an achievement.
-    expect(cells[0].className).toContain("text-brand")
-    for (const zero of cells.slice(1)) expect(zero.className).toContain("text-text-primary")
+    expect(stats().map((el) => el.textContent)).toEqual(["42", "0", "0", "0"])
+    // The accent used to mark an earned metric. It is the brand colour, and it is also what the
+    // rail spends on cards falling due, so an orange 42 here and an orange 24 there would be two
+    // unrelated meanings in one hue. Emphasis on this board comes from size, not colour.
+    for (const cell of stats()) expect(cell.className).not.toContain("accent")
   })
 
   it("reads a record that was never written as zeroes rather than as a failure", async () => {
@@ -181,17 +181,18 @@ describe("FlashcardStatsWidget", () => {
     expect(container.textContent).not.toContain("12")
   })
 
-  it("turns the hairlines on their side in the one-column tile", async () => {
+  it("stacks the same four counters in the one-column tile instead of shrinking them", async () => {
     serve({ totals: null, "daily.summary": null })
 
     await render(instance(2, 1))
     await settle()
-    expect(dividers()).toHaveLength(3)
-    expect(dividers().every((el) => el.className.includes("w-px"))).toBe(true)
+    expect(stats()).toHaveLength(4)
+    expect(cellRow()?.className).toContain("items-start")
 
     await render(instance(1, 2))
     await settle()
-    expect(dividers()).toHaveLength(3)
-    expect(dividers().every((el) => el.className.includes("h-px"))).toBe(true)
+    expect(stats()).toHaveLength(4)
+    // Four numbers side by side in a 240px column would get sixty pixels each.
+    expect(cellRow()?.className).toContain("flex-col")
   })
 })
