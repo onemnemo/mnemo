@@ -24,6 +24,18 @@ public static class FlashcardWire
             ? FlashcardType.Cloze
             : FlashcardType.Classic;
 
+    /// <summary>
+    /// The filter form, where absent means "every type". <see cref="ParseType"/> cannot serve
+    /// here: it reads an unknown token as Classic, which would turn a stale filter into a
+    /// silent restriction rather than no filter at all.
+    /// </summary>
+    public static FlashcardType? ParseTypeOrNull(string? value) => value?.ToLowerInvariant() switch
+    {
+        "classic" => FlashcardType.Classic,
+        "cloze" => FlashcardType.Cloze,
+        _ => null,
+    };
+
     public static string CardState(FlashcardCardState value) => value switch
     {
         FlashcardCardState.Suspended => "suspended",

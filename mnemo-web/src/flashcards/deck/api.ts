@@ -5,6 +5,7 @@ import type {
   CardPageDto,
   CardSort,
   CardStateFilter,
+  CardType,
   CardDto,
   CreateCardDto,
   DeckSummaryDto,
@@ -23,6 +24,10 @@ export interface CardQuery {
   text: string
   state: CardStateFilter
   tag: string | null
+  type: CardType | null
+  /** Inclusive bounds on lapses. "Never forgotten" is maxLapses 0, not minLapses 0. */
+  minLapses: number | null
+  maxLapses: number | null
   sort: CardSort
   sortDescending: boolean
   offset: number
@@ -38,6 +43,10 @@ function cardsPath(deckId: string, query: CardQuery): string {
   if (query.text.trim()) params.set("text", query.text.trim())
   if (query.state !== "all") params.set("state", query.state)
   if (query.tag) params.set("tag", query.tag)
+  if (query.type) params.set("type", query.type)
+  // Zero is a filter, so these test for null rather than for truthiness.
+  if (query.minLapses !== null) params.set("minLapses", String(query.minLapses))
+  if (query.maxLapses !== null) params.set("maxLapses", String(query.maxLapses))
   if (query.sortDescending) params.set("desc", "true")
   return `/decks/${deckId}/cards?${params.toString()}`
 }

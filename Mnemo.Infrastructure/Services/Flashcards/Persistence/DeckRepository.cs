@@ -23,7 +23,7 @@ public interface IDeckRepository
 public sealed class DeckRepository : IDeckRepository
 {
     private const string SelectColumns =
-        "Id, FolderId, PresetId, Name, Description, TagsJson, SortOrder, LastStudied, CreatedAt, UpdatedAt";
+        "Id, FolderId, PresetId, Name, Description, TagsJson, SortOrder, LastStudied, Icon, CreatedAt, UpdatedAt";
 
     public async Task<IReadOnlyList<FlashcardDeckHeader>> ListHeadersAsync(SqliteConnection conn, CancellationToken cancellationToken)
     {
@@ -51,11 +51,11 @@ public sealed class DeckRepository : IDeckRepository
         cmd.Transaction = tx;
         cmd.CommandText = """
             INSERT INTO FlashcardDecks
-                (Id, FolderId, PresetId, Name, Description, TagsJson, SortOrder, LastStudied, CreatedAt, UpdatedAt)
-            VALUES ($id, $folder, $preset, $name, $desc, $tags, $sort, $last, $created, $updated)
+                (Id, FolderId, PresetId, Name, Description, TagsJson, SortOrder, LastStudied, Icon, CreatedAt, UpdatedAt)
+            VALUES ($id, $folder, $preset, $name, $desc, $tags, $sort, $last, $icon, $created, $updated)
             ON CONFLICT(Id) DO UPDATE SET
                 FolderId = $folder, PresetId = $preset, Name = $name, Description = $desc,
-                TagsJson = $tags, SortOrder = $sort, LastStudied = $last, UpdatedAt = $updated;
+                TagsJson = $tags, SortOrder = $sort, LastStudied = $last, Icon = $icon, UpdatedAt = $updated;
             """;
         var now = deck.UpdatedAt == default ? DateTimeOffset.UtcNow : deck.UpdatedAt;
         cmd.Parameters.AddWithValue("$id", deck.Id);
@@ -66,6 +66,7 @@ public sealed class DeckRepository : IDeckRepository
         cmd.Parameters.AddWithValue("$tags", FlashcardSqlMap.Tags(deck.Tags));
         cmd.Parameters.AddWithValue("$sort", deck.SortOrder);
         cmd.Parameters.AddWithValue("$last", (object?)FlashcardSqlMap.TsN(deck.LastStudied) ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$icon", (object?)deck.Icon ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$created", FlashcardSqlMap.Ts(deck.CreatedAt == default ? now : deck.CreatedAt));
         cmd.Parameters.AddWithValue("$updated", FlashcardSqlMap.Ts(now));
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -123,6 +124,7 @@ public sealed class DeckRepository : IDeckRepository
         Tags: FlashcardSqlMap.ReadTags(reader.GetString(5)),
         SortOrder: reader.GetInt32(6),
         LastStudied: FlashcardSqlMap.ReadTsN(reader, 7),
-        CreatedAt: FlashcardSqlMap.ReadTs(reader, 8),
-        UpdatedAt: FlashcardSqlMap.ReadTs(reader, 9));
+        Icon: FlashcardSqlMap.ReadStringN(reader, 8),
+        CreatedAt: FlashcardSqlMap.ReadTs(reader, 9),
+        UpdatedAt: FlashcardSqlMap.ReadTs(reader, 10));
 }

@@ -19,6 +19,7 @@ import {
   useTagCards,
 } from "./api"
 import { PAGE_SIZE, SEARCH_DEBOUNCE_MS } from "./cards"
+import { lapsesBounds } from "./filters"
 import { CardTable } from "./components/CardTable"
 import { DeckHeader } from "./components/DeckHeader"
 import { DeckToolbar } from "./components/DeckToolbar"
@@ -35,6 +36,8 @@ export function DeckPage({ deckId }: { deckId?: string }) {
   const query = useDeckView((s) => s.query)
   const stateFilter = useDeckView((s) => s.stateFilter)
   const tagFilter = useDeckView((s) => s.tagFilter)
+  const typeFilter = useDeckView((s) => s.typeFilter)
+  const lapsesFilter = useDeckView((s) => s.lapsesFilter)
   const sortDescending = useDeckView((s) => s.sortDescending)
   const offset = useDeckView((s) => s.offset)
   const selected = useDeckView((s) => s.selected)
@@ -56,10 +59,14 @@ export function DeckPage({ deckId }: { deckId?: string }) {
   const deck = useDeckQuery(id)
   const decks = useDecksQuery()
   const tags = useCardTagsQuery(id)
+  const lapses = lapsesBounds(lapsesFilter)
   const cards = useCardsQuery(id, {
     text: query,
     state: stateFilter,
     tag: tagFilter,
+    type: typeFilter,
+    minLapses: lapses.min,
+    maxLapses: lapses.max,
     sort: "due",
     sortDescending,
     offset,
@@ -112,7 +119,12 @@ export function DeckPage({ deckId }: { deckId?: string }) {
 
   if (missing || !deck.data) return null
 
-  const filtered = stateFilter !== "all" || tagFilter !== null || query.trim().length > 0
+  const filtered =
+    stateFilter !== "all" ||
+    tagFilter !== null ||
+    typeFilter !== null ||
+    lapsesFilter !== "any" ||
+    query.trim().length > 0
   const hasRows = (page?.items.length ?? 0) > 0
   const loaded = cards.isSuccess
   const showEmpty = loaded && !hasRows && !filtered

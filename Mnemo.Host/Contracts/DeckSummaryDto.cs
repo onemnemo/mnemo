@@ -21,6 +21,7 @@ public sealed record DeckSummaryDto(
     DueCountsDto DueCounts,
     int RetentionPercent,
     DateTimeOffset? LastStudied,
+    string? Icon,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
 {
@@ -39,6 +40,7 @@ public sealed record DeckSummaryDto(
             DueCountsDto.FromModel(model.DueCounts),
             model.RetentionPercent,
             model.Header.LastStudied,
+            model.Header.Icon,
             model.Header.CreatedAt,
             model.Header.UpdatedAt);
 }

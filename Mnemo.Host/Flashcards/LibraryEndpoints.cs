@@ -128,7 +128,7 @@ public static class LibraryEndpoints
                 return Results.BadRequest(new ErrorDto("invalid_name", "A deck name is required."));
 
             await library.SaveDeckAsync(
-                    deck.Header with { Name = name, Description = body.Description, Tags = body.Tags ?? [] },
+                    deck.Header with { Name = name, Description = body.Description, Tags = body.Tags ?? [], Icon = Blank(body.Icon) },
                     cancellationToken)
                 .ConfigureAwait(false);
             return Results.NoContent();
@@ -189,4 +189,7 @@ public static class LibraryEndpoints
             return trend.Select(RetentionTrendPointDto.FromModel).ToList();
         });
     }
+
+    /// <summary>Empty and whitespace both mean "not set", so only one of them reaches storage.</summary>
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

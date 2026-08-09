@@ -105,6 +105,12 @@ public sealed class CardRepository : ICardRepository
                 c.Parameters.AddWithValue("$text", "%" + query.Text.Trim() + "%");
             if (!string.IsNullOrWhiteSpace(query.Tag))
                 c.Parameters.AddWithValue("$tag", query.Tag);
+            if (query.Type is { } type)
+                c.Parameters.AddWithValue("$type", (int)type);
+            if (query.MinLapses is { } min)
+                c.Parameters.AddWithValue("$minLapses", min);
+            if (query.MaxLapses is { } max)
+                c.Parameters.AddWithValue("$maxLapses", max);
         }
 
         switch (query.State)
@@ -130,8 +136,14 @@ public sealed class CardRepository : ICardRepository
             where.Append(" AND (c.Front LIKE $text OR c.Back LIKE $text)");
         if (!string.IsNullOrWhiteSpace(query.Tag))
             where.Append(" AND EXISTS (SELECT 1 FROM json_each(c.TagsJson) WHERE json_each.value = $tag)");
+        if (query.Type is not null)
+            where.Append(" AND c.Type = $type");
+        if (query.MinLapses is not null)
+            where.Append(" AND s.Lapses >= $minLapses");
+        if (query.MaxLapses is not null)
+            where.Append(" AND s.Lapses <= $maxLapses");
 
-        var joined = $"FROM FlashcardCards c JOIN FlashcardScheduling s ON s.CardId = c.Id {where}";
+        var joined =$"FROM FlashcardCards c JOIN FlashcardScheduling s ON s.CardId = c.Id {where}";
 
         int total;
         await using (var countCmd = conn.CreateCommand())
