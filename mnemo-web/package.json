@@ -17,6 +17,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "katex": "^0.16.47",
+    "lucide-react": "^1.31.0",
     "pdfjs-dist": "^6.1.200",
     "prosemirror-commands": "^1.7.1",
     "prosemirror-history": "^1.5.0",
