@@ -767,7 +767,12 @@
     "TypeNote": "Nota",
     "TypeMindmap": "Mapa mental",
     "TypeSetting": "Configuración",
-    "TypePage": "Página"
+    "TypePage": "Página",
+    "HintMove": "Mover",
+    "HintOpen": "Abrir",
+    "ScopeActions": "Acciones",
+    "ScopeTags": "Etiqueta",
+    "AskSoma": "Preguntar a Soma sobre"
   },
   "Topbar": {
     "NotificationsTitle": "Notificaciones",

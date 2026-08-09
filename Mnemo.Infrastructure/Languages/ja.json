@@ -767,7 +767,12 @@
     "TypeNote": "ノート",
     "TypeMindmap": "マインドマップ",
     "TypeSetting": "設定",
-    "TypePage": "ページ"
+    "TypePage": "ページ",
+    "HintMove": "移動",
+    "HintOpen": "開く",
+    "ScopeActions": "アクション",
+    "ScopeTags": "タグ",
+    "AskSoma": "Soma に質問:"
   },
   "Topbar": {
     "NotificationsTitle": "通知",

@@ -761,7 +761,12 @@
     "TypeNote": "Notiz",
     "TypeMindmap": "Mindmap",
     "TypeSetting": "Einstellung",
-    "TypePage": "Seite"
+    "TypePage": "Seite",
+    "HintMove": "Bewegen",
+    "HintOpen": "Öffnen",
+    "ScopeActions": "Aktionen",
+    "ScopeTags": "Tag",
+    "AskSoma": "Soma fragen zu"
   },
   "Topbar": {
     "NotificationsTitle": "Benachrichtigungen",

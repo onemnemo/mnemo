@@ -25,6 +25,7 @@ import {
   CircleCheck,
   CircleHelp,
   Copy,
+  CornerDownLeft,
   Ellipsis,
   ExternalLink,
   File,
@@ -38,6 +39,7 @@ import {
   Library,
   ListFilter,
   LoaderCircle,
+  Moon,
   Network,
   NotebookText,
   Orbit,
@@ -69,6 +71,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   // Frame chrome
   "panel-left": PanelLeft,
   "chevrons-left": ChevronsLeft,
+  "corner-down-left": CornerDownLeft,
   search: Search,
   bell: Bell,
   ellipsis: Ellipsis,
@@ -104,6 +107,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   "book-open": BookOpen,
   layers: Layers,
   sparkles: Sparkles,
+  moon: Moon,
 
   // Status
   info: Info,
