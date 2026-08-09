@@ -171,3 +171,53 @@
 [data-lod='bare'] .spike-node {
   border-radius: 0;
 }
+
+/*
+ * The marker ladder. See `shared/lod.ts` for why it exists and what each rung asks.
+ *
+ * Everything below applies ONLY in the `bare` band, so nothing here can touch a scenario that
+ * measures a readable zoom level. Rung 4 has no rules at all: it is today's `bare`, and it is
+ * the reconciliation control the other rungs are read against.
+ *
+ * The rules deliberately target the HOST element rather than restyling the inner box, because
+ * the point of rung 0 is that the inner box does not exist as far as the engine is concerned.
+ * `display: none` generates no box, so a rung-0 element is one positioned, painted box, which
+ * is the floor the DOM substrate can possibly reach while still drawing something per element.
+ */
+[data-lod='bare'][data-rung='0'] .a2-node > *,
+[data-lod='bare'][data-rung='1'] .a2-node > *,
+[data-lod='bare'][data-rung='2'] .a2-node > *,
+[data-lod='bare'][data-rung='3'] .a2-node > * {
+  display: none;
+}
+
+/* Rung 0: a positioned box and a fill. Nothing else. `--node-fill` is never assigned by the
+   fixture, so this is the same flat colour the inner box has always painted. */
+[data-lod='bare'][data-rung='0'] .a2-node,
+[data-lod='bare'][data-rung='1'] .a2-node,
+[data-lod='bare'][data-rung='2'] .a2-node,
+[data-lod='bare'][data-rung='3'] .a2-node {
+  background: var(--node-fill, #262b36);
+}
+
+/* Rung 1: a second paint op per box. */
+[data-lod='bare'][data-rung='1'] .a2-node,
+[data-lod='bare'][data-rung='2'] .a2-node,
+[data-lod='bare'][data-rung='3'] .a2-node {
+  box-sizing: border-box;
+  border: 1px solid var(--node-stroke, #4c566a);
+}
+
+/* Rung 2: a clip per box. */
+[data-lod='bare'][data-rung='2'] .a2-node,
+[data-lod='bare'][data-rung='3'] .a2-node {
+  overflow: hidden;
+}
+
+/* Rung 3: layout per box, on a box with no children left to lay out. */
+[data-lod='bare'][data-rung='3'] .a2-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+}

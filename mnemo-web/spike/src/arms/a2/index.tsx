@@ -15,14 +15,20 @@ import type {
 import type { MindmapElement, MindmapFixture } from '../../fixture/model'
 import { MAX_SCALE, MIN_SCALE } from '../../fixture/model'
 import { createCuller, type Culler } from './culler'
-import { createLodController, type LodController } from '../shared/lod'
+import { createLodController, readMarkerRung, type LodController } from '../shared/lod'
 import { countOnScreen } from '../shared/on-screen'
 import { parseCommittedTransform } from '../shared/transform'
 import { svgCameraTransform, worldTransform } from './camera'
 import { createEdgeCanvasRenderer, type EdgeCanvasRenderer } from './edge-canvas'
+import {
+  createEdgeStrategySelector,
+  type EdgeStrategy,
+  type EdgeStrategySelector,
+} from './edge-strategy'
 import type { EdgeMode } from './edge-style'
+import { createFrameProbe } from './frame-probe'
 import { installGestures } from './gestures'
-import { Scene, type MountedScene } from './scene'
+import { Scene, type EdgeLayerRefs, type MountedScene } from './scene'
 import {
   createSceneIndex,
   edgeCullKey,
@@ -82,6 +88,9 @@ interface A2Deps {
   readonly initialViewport: Viewport
   /** Whether to verify that the canvas actually painted. Perturbs the measurement; see below. */
   readonly paintCheck: boolean
+  readonly edgeStrategy: EdgeStrategySelector
+  /** Needed to rebuild the culler after a swap with the same setting it was created with. */
+  readonly cullEnabled: boolean
 }
 
 class A2Handle implements ArmHandle {
@@ -91,17 +100,26 @@ class A2Handle implements ArmHandle {
   private readonly container: HTMLElement
   private readonly pane: HTMLElement
   private readonly world: HTMLElement
-  /** Null unless edges are drawn as SVG. */
-  private readonly edgeCamera: SVGGElement | null
-  /** Null unless edges are drawn on a canvas. */
-  private readonly edgeCanvas: EdgeCanvasRenderer | null
+  /** Null unless edges are drawn as SVG. Reassigned when a hybrid run swaps substrates. */
+  private edgeCamera: SVGGElement | null
+  /** Null unless edges are drawn on a canvas. Reassigned on a substrate swap. */
+  private edgeCanvas: EdgeCanvasRenderer | null
   private readonly fixture: MindmapFixture
   private readonly scene: SceneIndex
   private readonly lod: LodController
-  private readonly culler: Culler
+  /** Rebuilt on a substrate swap: its targets hold the outgoing layer's path elements. */
+  private culler: Culler
   private readonly frameMembers: ReadonlyMap<string, readonly string[]>
   /** The canvas element itself, kept so the one-time paint check can read pixels back. */
-  private readonly edgeCanvasElement: HTMLCanvasElement | null
+  private edgeCanvasElement: HTMLCanvasElement | null
+  private readonly edgeStrategy: EdgeStrategySelector
+  private readonly setSubstrate: (substrate: EdgeMode) => void
+  private readonly cullEnabled: boolean
+  /** Counts crossings, so a run can prove the switch fired and did not flap. */
+  private substrateSwaps = 0
+  private readonly frameProbe = createFrameProbe()
+  private lastCommitAt = performance.now()
+
   private canvasPaintChecked = false
   private readonly paintCheckEnabled: boolean
 
@@ -121,6 +139,9 @@ class A2Handle implements ArmHandle {
     this.edgeCanvas = deps.edgeCanvas
     this.edgeCanvasElement = mounted.edgeCanvas
     this.paintCheckEnabled = deps.paintCheck
+    this.edgeStrategy = deps.edgeStrategy
+    this.setSubstrate = mounted.setSubstrate
+    this.cullEnabled = deps.cullEnabled
     this.fixture = fixture
     this.scene = scene
     this.lod = lod
@@ -177,7 +198,34 @@ class A2Handle implements ArmHandle {
     this.world.style.transform = worldTransform(this.viewport)
     this.edgeCamera?.setAttribute('transform', svgCameraTransform(this.viewport))
     this.lod.update(this.viewport.zoom)
+    // Asked before the culler updates, so a swap's rebuild lands on this camera rather than
+    // leaving one frame indexed against the previous one.
+    const nextSubstrate = this.edgeStrategy.update(this.viewport.zoom)
+    if (nextSubstrate !== null) this.setSubstrate(nextSubstrate)
+    // `clientWidth` forces a style and layout flush here, one frame after the culler wrote
+    // `display` on whatever entered or left the view. That looked like the zoom sweep's remaining
+    // hitch and it is not: reading the box once per run instead of once per commit left the hitch
+    // in place (max 150-183ms against a 133ms baseline), so the flush is not what pays for the
+    // visibility writes. Left as a per-frame read, which is what every other arm's numbers were
+    // taken against.
     this.culler.update(this.viewport, this.container.clientWidth, this.container.clientHeight)
+
+    // After the culler, before the canvas draw: this is the point where the frame's culling work
+    // is known and nothing else has run yet. Reading the clock and eight numbers allocates nothing.
+    const cull = this.culler.lastStats()
+    const now = performance.now()
+    this.frameProbe.record({
+      gapMs: now - this.lastCommitAt,
+      zoom: this.viewport.zoom,
+      cullerMs: cull.durationMs,
+      cullerDid: cull.did,
+      scanned: cull.scanned,
+      shown: cull.shown,
+      hidden: cull.hidden,
+      rendered: this.culler.renderedCount(),
+    })
+    this.lastCommitAt = now
+
     if (this.edgeCanvas) {
       this.edgeCanvas.resize(
         this.container.clientWidth,
@@ -204,6 +252,32 @@ class A2Handle implements ArmHandle {
       this.edgeCanvas.invalidate(edgeIds)
       this.drawEdgeCanvas()
     }
+  }
+
+  /**
+   * Adopts the edge layer React just swapped in, and drops everything that belonged to the old one.
+   *
+   * Called from the scene's own effect after the swap has committed to the DOM, never from the
+   * frame that requested it: the incoming layer does not exist until React has rendered it, so
+   * re-reading the DOM any earlier would bind to the layer on its way out.
+   */
+  adoptEdgeLayer(refs: EdgeLayerRefs): void {
+    this.substrateSwaps += 1
+
+    this.edgeCanvas?.dispose()
+    this.edgeCamera = refs.edgeCamera
+    this.edgeCanvasElement = refs.edgeCanvas
+    this.edgeCanvas = createEdgeCanvas(refs.edgeCanvas, this.fixture, this.scene)
+    // A fresh canvas has never been painted, so the one-time proof has to run again rather than
+    // report the outgoing layer's result.
+    this.canvasPaintChecked = false
+
+    // The index still points at the outgoing layer's paths, and the culler's targets hold those
+    // same dead elements, so both have to be re-read before anything asks what is visible.
+    this.scene.rebindEdgeDom(refs.substrate)
+    this.culler = createCuller(this.scene.cullTargets(), this.cullEnabled)
+
+    this.commitViewport()
   }
 
   private drawEdgeCanvas(): void {
@@ -315,6 +389,12 @@ class A2Handle implements ArmHandle {
     // proportional to the document, which is right for an operation that moved all of it, and
     // it lands inside the time-to-painted number rather than after it.
     this.culler.rebuild()
+    // `clientWidth` forces a style and layout flush here, one frame after the culler wrote
+    // `display` on whatever entered or left the view. That looked like the zoom sweep's remaining
+    // hitch and it is not: reading the box once per run instead of once per commit left the hitch
+    // in place (max 150-183ms against a 133ms baseline), so the flush is not what pays for the
+    // visibility writes. Left as a per-frame read, which is what every other arm's numbers were
+    // taken against.
     this.culler.update(this.viewport, this.container.clientWidth, this.container.clientHeight)
     // Every cached curve is stale for the same reason the grid is: both endpoints of every edge
     // are somewhere new.
@@ -332,6 +412,49 @@ class A2Handle implements ArmHandle {
     const ops = this.pendingOps
     this.pendingOps = []
     return ops
+  }
+
+  /**
+   * The swap count separates the three outcomes a frame histogram cannot tell apart: the hybrid
+   * strategy never fired, fired at the crossings it should have, or flapped across the boundary.
+   */
+  /**
+   * Opens the probe's window, discarding the setup and calibration pauses recorded before it.
+   * Those are idle time, not dropped frames, and they are three thousand milliseconds wide.
+   */
+  beginMeasurementWindow(): void {
+    this.frameProbe.beginWindow()
+    this.lastCommitAt = performance.now()
+  }
+
+  getDiagnostics(): Readonly<Record<string, number>> {
+    return {
+      substrateSwaps: this.substrateSwaps,
+      edgeSubstrateIsCanvas: this.edgeCanvas ? 1 : 0,
+      domRenderedNodes: this.countDomRenderedNodes(),
+      ...this.frameProbe.summary(),
+    }
+  }
+
+  /**
+   * Elements the ENGINE would actually render, read back off computed style.
+   *
+   * Every other count in this arm is bookkeeping or geometry, and neither notices a page that
+   * renders nothing: on-screen counts come from element bounds, which a hidden element still has,
+   * and the culler's own tally is whatever the culler believes. A change that left every element
+   * hidden therefore measured a flawless sixty frames a second across the entire scenario matrix
+   * before anything caught it. This is the check that would have caught it, so it runs on every
+   * result rather than living in a probe someone has to remember to use.
+   *
+   * Cost is one computed-style read per element, once, after the measured window has closed.
+   */
+  private countDomRenderedNodes(): number {
+    let rendered = 0
+    for (const host of this.pane.querySelectorAll<HTMLElement>('.a2-node')) {
+      const style = getComputedStyle(host)
+      if (style.display !== 'none' && style.visibility !== 'hidden') rendered += 1
+    }
+    return rendered
   }
 
   // ---- inline editing, for the typing scenario --------------------------------------------
@@ -441,10 +564,15 @@ const LAYER_DEFAULT = false
  */
 export const A2_EDGES_QUERY_FLAG = 'edges'
 
-function readEdgeMode(params: URLSearchParams): EdgeMode {
+/**
+ * `?edges=hybrid` uses each substrate only where it measured well: canvas at readable zoom, SVG
+ * at overview. See `edge-strategy.ts` for the numbers that produced that split.
+ */
+function readEdgeStrategy(params: URLSearchParams): EdgeStrategy {
   const value = params.get(A2_EDGES_QUERY_FLAG)
   if (value === 'off') return 'off'
   if (value === 'canvas') return 'canvas'
+  if (value === 'hybrid') return 'hybrid'
   return 'svg'
 }
 
@@ -466,13 +594,21 @@ export const A2_PAINT_CHECK_QUERY_FLAG = 'paintcheck'
 
 async function mountA2(args: ArmMountArgs, probe: React.ReactNode): Promise<ArmHandle> {
   const { container, fixture, initialViewport, lodEnabled } = args
-  const lod = createLodController(container, lodEnabled)
   const params = new URLSearchParams(window.location.search)
+  const lod = createLodController(container, lodEnabled, readMarkerRung(params))
   const layerParam = params.get(A2_LAYER_QUERY_FLAG)
   const promoteLayer = layerParam === null ? LAYER_DEFAULT : layerParam === '1'
-  const edgeMode = readEdgeMode(params)
+  const strategy = readEdgeStrategy(params)
   const cullNodes = params.get(A2_NODE_CULL_QUERY_FLAG) !== '0'
   const paintCheck = params.get(A2_PAINT_CHECK_QUERY_FLAG) === '1'
+
+  const edgeStrategy = createEdgeStrategySelector(strategy, initialViewport.zoom)
+  const edgeMode = edgeStrategy.current()
+  const maySwapSubstrate = strategy === 'hybrid'
+
+  // Assigned before the first render can call it, because React runs the swap effect
+  // synchronously after a commit and the handle does not exist until the mount promise resolves.
+  let onEdgeLayerChanged: (refs: EdgeLayerRefs) => void = () => {}
 
   const root = createRoot(container)
   const mounted = await new Promise<MountedScene>((resolve) => {
@@ -483,7 +619,9 @@ async function mountA2(args: ArmMountArgs, probe: React.ReactNode): Promise<ArmH
           fixture={fixture}
           promoteLayer={promoteLayer}
           edgeMode={edgeMode}
+          maySwapSubstrate={maySwapSubstrate}
           onMounted={resolve}
+          onEdgeLayerChanged={(refs) => onEdgeLayerChanged(refs)}
         />
       </>,
     )
@@ -494,7 +632,7 @@ async function mountA2(args: ArmMountArgs, probe: React.ReactNode): Promise<ArmH
   const scene = createSceneIndex(fixture, mounted.pane, edgeMode)
   const culler = createCuller(scene.cullTargets(), cullNodes)
 
-  return new A2Handle({
+  const handle = new A2Handle({
     root,
     container,
     mounted,
@@ -505,7 +643,11 @@ async function mountA2(args: ArmMountArgs, probe: React.ReactNode): Promise<ArmH
     culler,
     initialViewport,
     paintCheck,
+    edgeStrategy,
+    cullEnabled: cullNodes,
   })
+  onEdgeLayerChanged = (refs) => handle.adoptEdgeLayer(refs)
+  return handle
 }
 
 function createEdgeCanvas(

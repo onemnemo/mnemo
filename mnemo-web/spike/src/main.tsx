@@ -66,6 +66,65 @@ const CLOCK_CALIBRATION_MS = 3000
 /** Frames to let a fresh mount quiet down before the clock is calibrated against it. */
 const POST_MOUNT_FRAMES = 10
 
+/**
+ * How much slower than the empty page the mounted-but-idle page may calibrate before the run
+ * is treated as uncertifiable.
+ *
+ * Amendment 4 established that the post-mount calibration measures the arm at rest rather than
+ * the machine, and could only downgrade a contaminated run to a warning. That is not enough for
+ * the marker ladder, which decides go or no-go on the difference between roughly 16 and roughly
+ * 19 milliseconds: a clock that has absorbed the arm's own resting cost cannot resolve it. So
+ * the machine is now measured before anything is mounted, and the two readings have to agree.
+ *
+ * 1.25 is chosen so that a 60Hz machine, calibrated at 16.7ms, admits up to 20.9ms post-mount,
+ * which is already outside the 60Hz regime band the classifier recognises. The regime check and
+ * this factor therefore fail together rather than leaving a gap between them.
+ */
+const CALIBRATION_AGREEMENT_FACTOR = 1.25
+
+/**
+ * Compares the empty-page clock against the mounted-but-idle clock and returns the reasons they
+ * disagree, if any.
+ *
+ * A disagreement is a finding in its own right and never something to normalise away: an arm
+ * that cannot hold cadence while nothing is moving has failed the scenario before the scenario
+ * starts, and the canvas edge mode did exactly that at 435 visible elements. Returning reasons
+ * rather than a boolean keeps that fact readable in the report instead of collapsing it to a
+ * failed row with no cause attached.
+ */
+function calibrationDisagreements(
+  preMount: ClockCalibration,
+  postMount: ClockCalibration,
+): readonly string[] {
+  const reasons: string[] = []
+
+  if (!Number.isFinite(preMount.medianFrameMs) || !Number.isFinite(postMount.medianFrameMs)) {
+    reasons.push('a frame clock calibration produced no finite median, so the two cannot be compared')
+    return reasons
+  }
+
+  if (preMount.regime !== postMount.regime) {
+    reasons.push(
+      `the frame clock changed regime once the arm was mounted (empty page '${preMount.regime}', ` +
+        `mounted and idle '${postMount.regime}'), so the mounted page is not running at the ` +
+        'cadence the machine is capable of',
+    )
+  }
+
+  const ceiling = preMount.medianFrameMs * CALIBRATION_AGREEMENT_FACTOR
+  if (postMount.medianFrameMs > ceiling) {
+    reasons.push(
+      `the mounted page calibrated at ${postMount.medianFrameMs.toFixed(1)}ms while the empty page ` +
+        `calibrated at ${preMount.medianFrameMs.toFixed(1)}ms, which is beyond the ` +
+        `${CALIBRATION_AGREEMENT_FACTOR}x agreement ceiling of ${ceiling.toFixed(1)}ms; the arm is ` +
+        'slow at rest, so every cadence bar derived from this calibration is lowered by the very ' +
+        'cost it is supposed to be measuring',
+    )
+  }
+
+  return reasons
+}
+
 // ---- run configuration ---------------------------------------------------------------------
 
 interface RunConfig {
@@ -313,6 +372,8 @@ interface TrialInput {
   readonly environment: EnvironmentFacts
   readonly setupAborts: readonly string[]
   readonly win: Window
+  /** The machine's own cadence, measured before this arm existed on the page. */
+  readonly preMountCalibration: ClockCalibration
 }
 
 function describeError(error: unknown): string {
@@ -352,7 +413,7 @@ function sealProofs(ledger: ProofLedger, minimum: number, aborts: string[]): rea
  * to certify a row that carries any.
  */
 async function runTrial(input: TrialInput): Promise<RunResult> {
-  const { config, plan, fixture, roles, mounted, environment, win } = input
+  const { config, plan, fixture, roles, mounted, environment, win, preMountCalibration } = input
   const aborts: string[] = [...input.setupAborts]
 
   const stopVisibilityWatch = watchVisibility((state) => {
@@ -378,6 +439,9 @@ async function runTrial(input: TrialInput): Promise<RunResult> {
     await awaitFrames(POST_MOUNT_FRAMES, win)
     calibration = await calibrateClock(CLOCK_CALIBRATION_MS)
     await awaitSettled(calibration, { win })
+    // Recorded as aborts, not warnings: the verdict refuses to certify a row carrying one, which
+    // is exactly the treatment a run whose clock cannot be trusted deserves.
+    aborts.push(...calibrationDisagreements(preMountCalibration, calibration))
 
     const driver = new GestureDriver(mounted.arm, {
       ledger,
@@ -405,6 +469,8 @@ async function runTrial(input: TrialInput): Promise<RunResult> {
 
     sampler.start()
     await applyScenarioViewport(ctx, plan)
+    // After the scenario's camera is in place, so an arm-side probe never records the setup jump.
+    mounted.arm.beginMeasurementWindow?.()
     outcome = await plan.run(ctx)
   } catch (error) {
     aborts.push(`${config.scenario} aborted: ${describeError(error)}`)
@@ -417,7 +483,14 @@ async function runTrial(input: TrialInput): Promise<RunResult> {
   if (outcome) {
     frames = outcome.frames
     latency = outcome.latency
-    scalars = outcome.scalars
+    // Carried on every row so a reader can see what the machine was capable of next to what the
+    // arm achieved, without having to find the run's console output.
+    scalars = {
+      ...outcome.scalars,
+      ...(mounted.arm.getDiagnostics?.() ?? {}),
+      preMountMedianFrameMs: preMountCalibration.medianFrameMs,
+      preMountImpliedHz: preMountCalibration.impliedHz,
+    }
   }
 
   const proofs = sealProofs(ledger, plan.minimumProofs, aborts)
@@ -499,6 +572,11 @@ async function main(): Promise<void> {
     seed: config.seed,
   })
 
+  // The machine's own cadence, measured while the page is still empty. Taken once rather than
+  // per trial because it is a property of the display and the compositor, not of a trial, and
+  // because every later trial runs on a page an arm has already been mounted on at least once.
+  const preMountCalibration = await calibrateClock(CLOCK_CALIBRATION_MS)
+
   const results: RunResult[] = []
   const verdicts: ScenarioVerdict[] = []
   let environment: EnvironmentFacts | null = null
@@ -556,6 +634,7 @@ async function main(): Promise<void> {
         environment,
         setupAborts,
         win: window,
+        preMountCalibration,
       })
       results.push(result)
       const verdict = evaluateScenario(result)
