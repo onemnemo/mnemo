@@ -45,12 +45,16 @@ export function Topbar({ crumbs, collapsed, onExpand }: TopbarProps) {
       className="drag-region flex shrink-0 items-stretch gap-2 border-b border-line-soft pl-3 pr-0"
       style={{ height: "var(--topbar-h)" }}
     >
+      {/* Quieter and tighter than the frame buttons on the right: this one
+          stands in for the rail that is not there, so it reads as part of the
+          sidebar rather than as another global control. */}
       {collapsed && (
         <FrameButton
           icon="panel-left"
           label={t("Sidebar", "ExpandSidebar")}
           onClick={onExpand}
-          className="size-7"
+          strokeWidth={1.6}
+          className="size-7 rounded-md text-ink-3 hover:bg-frame-active"
         />
       )}
 
