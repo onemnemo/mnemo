@@ -51,6 +51,7 @@ import {
   RotateCcw,
   Search,
   Settings,
+  Settings2,
   Sparkles,
   SquareStack,
   Star,
@@ -69,6 +70,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   network: Network,
   library: Library,
   settings: Settings,
+  "settings-2": Settings2,
 
   // Frame chrome
   "panel-left": PanelLeft,

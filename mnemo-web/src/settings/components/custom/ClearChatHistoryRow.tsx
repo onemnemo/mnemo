@@ -44,7 +44,7 @@ export function ClearChatHistoryRow({
 
   return (
     <SettingRowShell title={title} description={status ?? description} divider={divider}>
-      <Button variant="destructive" size="sm" disabled={busy} onClick={() => void clear()}>
+      <Button variant="danger" size="sm" disabled={busy} onClick={() => void clear()}>
         {t("Settings", "ClearAllChatHistory")}
       </Button>
     </SettingRowShell>

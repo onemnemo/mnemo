@@ -352,7 +352,9 @@
     "LayoutLoadFailed": "Kunne ikke laste inn dashbordet",
     "LayoutLoadFailedHint": "Widgetene dine er trygge. Ingenting lagres før dashbordet er lastet inn igjen.",
     "Retry": "Prøv igjen",
-    "WidgetLoadFailed": "Kunne ikke lastes"
+    "WidgetLoadFailed": "Kunne ikke lastes",
+    "EditingHint": "Dra fliser for å endre rekkefølge. Hold pekeren over én for størrelser og innstillinger.",
+    "ResetLayout": "Tilbakestill oppsett"
   },
   "App": {
     "AppTitle": "Mnemo"

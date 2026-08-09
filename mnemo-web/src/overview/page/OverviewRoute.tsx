@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
-import { EmptyState } from "@/components/ui/empty-state"
 import { useT } from "@/i18n/useT"
 import { isModalOpen } from "@/lib/modal"
 
@@ -129,64 +128,65 @@ export function OverviewRoute() {
   }
 
   return (
-    // 1120 is the 1040px content column plus the 40px page padding on each side. The cap has to
-    // land on the border box, because the desktop's padding sits outside its MaxWidth rather than
-    // inside it, and capping the outer width instead would run the board 80px narrow at every
-    // width wide enough for the cap to bite.
-    <div className="mx-auto flex max-w-[1120px] flex-col gap-[22px] px-10 py-7">
-      <OverviewHeader />
+    // The board sits on the sunken surface so the tiles read as raised off the page rather than
+    // drawn onto it. min-h-full, not h-full: the shell owns the scrolling, and a fixed height would
+    // stop the background at the fold on a board taller than the window.
+    <div className="min-h-full bg-canvas-sunken">
+      <div className="mx-auto flex max-w-[1232px] flex-col gap-6 px-6 pb-20 pt-7">
+        <OverviewHeader />
 
-      {boardState === "loading" ? (
-        <p className="py-16 text-center text-body-medium text-text-secondary">{t("Overview", "Loading")}</p>
-      ) : boardState === "error" ? (
-        <div className="mx-auto flex max-w-[360px] flex-col items-center gap-3 py-16 text-center">
-          <div className="grid size-14 place-items-center rounded-xl border border-line bg-surface-subtle text-text-faded">
-            <AppIcon name="common/triangle-alert" size={22} />
+        {boardState === "loading" ? (
+          <p className="py-16 text-center text-[13px] text-ink-3">{t("Overview", "Loading")}</p>
+        ) : boardState === "error" ? (
+          <div className="mx-auto flex max-w-[360px] flex-col items-center gap-3 py-16 text-center">
+            <div className="grid size-14 place-items-center rounded-xl bg-canvas text-ink-icon shadow-[0_0_0_1px_var(--line)]">
+              <AppIcon name="triangle-alert" size={22} strokeWidth={1.5} />
+            </div>
+            <div>
+              <h2 className="text-[14px] font-medium text-ink">{t("Overview", "LayoutLoadFailed")}</h2>
+              <p className="mt-0.5 text-[12.5px] text-ink-3">{t("Overview", "LayoutLoadFailedHint")}</p>
+            </div>
+            <Button variant="outline" className="mt-1" onClick={onRetry}>
+              {t("Overview", "Retry")}
+            </Button>
           </div>
-          <h2 className="text-heading-6 font-semibold text-text-primary">{t("Overview", "LayoutLoadFailed")}</h2>
-          <p className="text-body-small text-text-tertiary">{t("Overview", "LayoutLoadFailedHint")}</p>
-          <Button variant="outline" size="sm" className="mt-1" onClick={onRetry}>
-            {t("Overview", "Retry")}
-          </Button>
-        </div>
-      ) : widgets.length === 0 && !isEditMode ? (
-        // Reachable only by removing every tile. A first visit seeds the starter board instead, and
-        // a failed read renders the error above, so this never stands in for either. Never in edit
-        // mode: emptying the board there has to leave the hint grid standing, or there is nothing
-        // left on screen to add a widget back onto.
-        <EmptyState
-          className="py-16"
-          icon="common/layout-grid"
-          title={t("Overview", "DashboardEmpty")}
-          description={t("Overview", "DashboardEmptyHint")}
-          action={
-            <Button size="sm" onClick={openLibrary}>
-              <AppIcon name="common/plus" size={14} />
+        ) : widgets.length === 0 && !isEditMode ? (
+          // Reachable only by removing every tile. A first visit seeds the starter board instead,
+          // and a failed read renders the error above, so this never stands in for either. Never in
+          // edit mode: emptying the board there has to leave the hint grid standing, or there is
+          // nothing left on screen to add a widget back onto.
+          <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line py-20">
+            <AppIcon name="layout-grid" size={24} strokeWidth={1.4} className="text-ink-icon" />
+            <div className="text-center">
+              <p className="text-[14px] font-medium text-ink">{t("Overview", "DashboardEmpty")}</p>
+              <p className="mt-0.5 text-[12.5px] text-ink-3">{t("Overview", "DashboardEmptyHint")}</p>
+            </div>
+            <Button variant="outline" onClick={openLibrary} icon={<AppIcon name="plus" size={14} strokeWidth={2} />}>
               {t("Overview", "AddFirstWidget")}
             </Button>
-          }
-        />
-      ) : (
-        <WidgetBoard
-          widgets={widgets}
-          isEditMode={isEditMode}
-          onRemove={removeWidget}
-          onResize={resizeWidget}
-          onConfigure={setConfiguringId}
-        />
-      )}
+          </div>
+        ) : (
+          <WidgetBoard
+            widgets={widgets}
+            isEditMode={isEditMode}
+            onRemove={removeWidget}
+            onResize={resizeWidget}
+            onConfigure={setConfiguringId}
+          />
+        )}
 
-      <WidgetLibraryPanel />
+        <WidgetLibraryPanel />
 
-      {configuring && configuringRegistration ? (
-        <WidgetConfigOverlay
-          key={configuring.instanceId}
-          instance={configuring}
-          manifest={configuringRegistration.manifest}
-          onApply={(values) => applyConfig(configuring.instanceId, values)}
-          onClose={() => setConfiguringId(null)}
-        />
-      ) : null}
+        {configuring && configuringRegistration ? (
+          <WidgetConfigOverlay
+            key={configuring.instanceId}
+            instance={configuring}
+            manifest={configuringRegistration.manifest}
+            onApply={(values) => applyConfig(configuring.instanceId, values)}
+            onClose={() => setConfiguringId(null)}
+          />
+        ) : null}
+      </div>
     </div>
   )
 }

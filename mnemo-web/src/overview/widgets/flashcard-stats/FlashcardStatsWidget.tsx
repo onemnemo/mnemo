@@ -1,7 +1,7 @@
-import { Fragment } from "react"
-
 import { useT } from "@/i18n/useT"
+import { cn } from "@/lib/utils"
 
+import { Body, Head, Stat, useWidgetTitle } from "../../parts"
 import type { WidgetProps } from "../registry"
 import { WidgetError, WidgetLoading } from "../states"
 import { useFlashcardStats } from "./useFlashcardStats"
@@ -19,8 +19,9 @@ interface Cell {
  * oversight but is what both apps read from the shipped bundles. Moving them would leave four
  * locales without a translation.
  */
-export function FlashcardStatsWidget({ instance }: WidgetProps) {
+export function FlashcardStatsWidget({ instance, manifest }: WidgetProps) {
   const t = useT()
+  const title = useWidgetTitle(manifest)
   const stats = useFlashcardStats()
 
   const cells: Cell[] = [
@@ -30,56 +31,37 @@ export function FlashcardStatsWidget({ instance }: WidgetProps) {
     { value: stats.streak, ns: "Overview", key: "Streak" },
   ]
 
+  // The 1x2 tile stacks the same four cells. Nothing about the cells themselves changes; four
+  // numbers side by side in a 240px column would each get sixty pixels.
   const isNarrow = instance.size.columns <= 1
 
   return (
-    <div className="flex h-full flex-col gap-2.5">
-      <p className="text-caption text-text-tertiary">{t("FlashcardStats", "Subtitle")}</p>
+    <Body>
+      {/* The scope qualifier rides in the head rather than on a line of its own: it says which
+          numbers these are, which is what a heading is for. A second grey line under the first
+          is two labels for one thing. */}
+      <Head
+        title={title}
+        icon="square-stack"
+        right={<span className="truncate text-[11.5px] text-ink-3">{t("FlashcardStats", "Subtitle")}</span>}
+      />
 
       {stats.state === "loading" ? (
-        <WidgetLoading rows={2} />
+        <div className="mt-2 flex-1">
+          <WidgetLoading rows={2} />
+        </div>
       ) : stats.state === "error" ? (
         <WidgetError onRetry={stats.retry} />
-      ) : isNarrow ? (
-        // The 1x2 tile stacks the same four cells and centers them, with the hairlines turned on
-        // their side. Nothing about the cells themselves changes.
-        <div className="flex min-h-0 flex-1 flex-col justify-center gap-2.5">
-          {cells.map((cell, index) => (
-            <Fragment key={cell.key}>
-              {index > 0 ? <div className="h-px w-full bg-divider-subtle" /> : null}
-              <StatCell cell={cell} t={t} />
-            </Fragment>
-          ))}
-        </div>
       ) : (
-        <div className="flex items-start">
-          {cells.map((cell, index) => (
-            <Fragment key={cell.key}>
-              {index > 0 ? <div className="mx-[14px] my-0.5 w-px self-stretch bg-divider-subtle" /> : null}
-              {/* Equal shares of the row whatever the numbers are, matching the four star columns:
-                  a five-digit count must not steal width from the cell beside it. */}
-              <div className="min-w-0 flex-1">
-                <StatCell cell={cell} t={t} />
-              </div>
-            </Fragment>
+        <div className={cn("mt-3 flex min-h-0 flex-1", isNarrow ? "flex-col justify-center gap-3" : "items-start gap-6")}>
+          {cells.map((cell) => (
+            <div key={cell.key} className="min-w-0 flex-1">
+              <Stat value={cell.value} scale={0.72} />
+              <p className="mt-1 truncate text-[12px] text-ink-3">{t(cell.ns, cell.key)}</p>
+            </div>
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-function StatCell({ cell, t }: { cell: Cell; t: ReturnType<typeof useT> }) {
-  return (
-    <div className="min-w-0">
-      {/* Accent only once the metric has been earned. Zero is a real value, and rendering it in the
-          brand color would make an untouched day look like an achievement. */}
-      <p
-        className={`truncate text-heading-4 font-semibold ${cell.value !== 0 ? "text-brand" : "text-text-primary"}`}
-      >
-        {cell.value}
-      </p>
-      <p className="mt-0.5 truncate text-caption text-text-secondary">{t(cell.ns, cell.key)}</p>
-    </div>
+    </Body>
   )
 }

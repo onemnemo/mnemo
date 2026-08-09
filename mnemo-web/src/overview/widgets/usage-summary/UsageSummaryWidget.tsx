@@ -2,6 +2,7 @@ import { useI18nStore } from "@/i18n/store"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
+import { Body, Head, useWidgetTitle } from "../../parts"
 import type { WidgetProps } from "../registry"
 import { WidgetError, WidgetLoading } from "../states"
 import { formatCount, formatDuration } from "./format"
@@ -17,11 +18,28 @@ const NS = "UsageSummary"
  */
 export function UsageSummaryWidget({ instance, manifest }: WidgetProps) {
   const t = useT()
+  const title = useWidgetTitle(manifest)
   const locale = useI18nStore((state) => state.language)
   const usage = useUsageSummary(instance, manifest)
 
-  if (usage.state === "loading") return <WidgetLoading rows={6} />
-  if (usage.state === "error") return <WidgetError onRetry={usage.retry} />
+  if (usage.state === "loading") {
+    return (
+      <Body>
+        <Head title={title} icon="layers" />
+        <div className="mt-2 flex-1">
+          <WidgetLoading rows={6} />
+        </div>
+      </Body>
+    )
+  }
+  if (usage.state === "error") {
+    return (
+      <Body>
+        <Head title={title} icon="layers" />
+        <WidgetError onRetry={usage.retry} />
+      </Body>
+    )
+  }
 
   // Only the four period-scoped labels carry the day count. Saying "lifetime launches, last 7
   // days" would describe a number that is neither.
@@ -45,20 +63,18 @@ export function UsageSummaryWidget({ instance, manifest }: WidgetProps) {
   ]
 
   return (
-    <div className="flex flex-col gap-3.5">
-      {rows.map((row) => (
-        <div key={row.id} className="flex items-baseline gap-2">
-          <span className="min-w-0 flex-1 truncate text-body-extra-small text-text-secondary">{row.label}</span>
-          <span
-            className={cn(
-              "shrink-0 text-[13px] font-semibold",
-              row.headline ? "text-brand" : "text-text-primary",
-            )}
-          >
-            {row.value}
-          </span>
-        </div>
-      ))}
-    </div>
+    <Body>
+      <Head title={title} icon="layers" />
+      <div className="mt-3 flex flex-col gap-2.5">
+        {rows.map((row) => (
+          <div key={row.id} className="flex items-baseline gap-2">
+            <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">{row.label}</span>
+            <span className={cn("shrink-0 text-[12.5px] tabular-nums", row.headline ? "font-semibold text-ink" : "text-ink-2")}>
+              {row.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Body>
   )
 }

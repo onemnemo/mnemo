@@ -218,7 +218,7 @@ export function TestPage({ deckId }: { deckId?: string }) {
               <TestGradeRow onGrade={(grade) => useTest.getState().grade(grade)} />
             ) : (
               <div className="flex items-center justify-center gap-2">
-                <Button variant="secondary" onClick={() => useTest.getState().reveal()}>
+                <Button variant="outline" onClick={() => useTest.getState().reveal()}>
                   {fc("TestReveal")}
                 </Button>
                 <Kbd>{fc("StudyKeyEnter")}</Kbd>
