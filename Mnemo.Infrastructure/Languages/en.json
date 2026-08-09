@@ -794,7 +794,20 @@
     "MinimizeTooltip": "Minimize",
     "MaximizeTooltip": "Maximize",
     "RestoreTooltip": "Restore",
-    "CloseTooltip": "Close"
+    "CloseTooltip": "Close",
+    "NotificationsAll": "All",
+    "NotificationsUnread": "Unread",
+    "NotificationsOptions": "Notification options",
+    "NotificationsMarkAllRead": "Mark all as read",
+    "NotificationsClearAll": "Clear all",
+    "NotificationsSettings": "Notification settings",
+    "NotificationsEmptyUnread": "Nothing unread",
+    "NotificationsEmptyHint": "Cards falling due and anything Soma finishes will land here.",
+    "NotificationsEmptyUnreadHint": "Everything here has been seen.",
+    "BucketToday": "Today",
+    "BucketYesterday": "Yesterday",
+    "BucketEarlier": "Earlier",
+    "AgoNow": "now"
   },
   "WidgetLibrary": {
     "Title": "Widget library",

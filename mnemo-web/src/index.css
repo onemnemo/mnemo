@@ -166,6 +166,15 @@
     @keyframes toast-in {
         from { opacity: 0; transform: translateY(var(--travel-toast)) scale(0.96); }
     }
+
+    /* The toast clock. Deliberately outside the motion scale: it is not
+       decoration, it is how long you have left, and reducing motion must not
+       make a countdown finish instantly. */
+    --animate-drain: drain linear forwards;
+    @keyframes drain {
+        from { transform: scaleX(1); }
+        to { transform: scaleX(0); }
+    }
 }
 
 @layer base {

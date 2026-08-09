@@ -789,7 +789,20 @@
     "MinimizeTooltip": "Minimizar",
     "MaximizeTooltip": "Maximizar",
     "RestoreTooltip": "Restaurar",
-    "CloseTooltip": "Cerrar"
+    "CloseTooltip": "Cerrar",
+    "NotificationsAll": "Todas",
+    "NotificationsUnread": "Sin leer",
+    "NotificationsOptions": "Opciones de notificaciones",
+    "NotificationsMarkAllRead": "Marcar todas como leídas",
+    "NotificationsClearAll": "Borrar todas",
+    "NotificationsSettings": "Ajustes de notificaciones",
+    "NotificationsEmptyUnread": "Nada sin leer",
+    "NotificationsEmptyHint": "Las tarjetas que venzan y todo lo que Soma termine aparecerán aquí.",
+    "NotificationsEmptyUnreadHint": "Todo lo de aquí ya se ha visto.",
+    "BucketToday": "Hoy",
+    "BucketYesterday": "Ayer",
+    "BucketEarlier": "Antes",
+    "AgoNow": "ahora"
   },
   "WidgetLibrary": {
     "Title": "Biblioteca de widgets",
