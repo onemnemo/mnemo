@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { MindmapEdge, MindmapFixture } from '../../fixture/model'
 import { anchorsFor, boxOf, edgeGeometry, edgeShape } from './edge-paths'
 import { dashAttribute, strokeStyleFor, type EdgeMode } from './edge-style'
@@ -142,14 +142,26 @@ const NodeLayer = memo(function NodeLayer({ fixture }: { fixture: MindmapFixture
   )
 })
 
-/** Everything the handle needs from the rendered tree, reported once. */
-export interface MountedScene {
-  readonly pane: HTMLDivElement
-  readonly world: HTMLDivElement
+/** Whichever edge substrate is currently mounted, and nothing of the one that is not. */
+export interface EdgeLayerRefs {
+  readonly substrate: EdgeMode
   /** The SVG camera group, present only in svg mode. */
   readonly edgeCamera: SVGGElement | null
   /** The edge canvas, present only in canvas mode. */
   readonly edgeCanvas: HTMLCanvasElement | null
+}
+
+/** Everything the handle needs from the rendered tree, reported once. */
+export interface MountedScene extends EdgeLayerRefs {
+  readonly pane: HTMLDivElement
+  readonly world: HTMLDivElement
+  /**
+   * Swaps the edge substrate, unmounting the outgoing layer.
+   *
+   * A no-op unless the run is hybrid. Genuinely unmounting is the point: both layers' failures
+   * come from existing rather than from drawing, so a hidden layer would keep the cost.
+   */
+  readonly setSubstrate: (substrate: EdgeMode) => void
 }
 
 export interface SceneProps {
@@ -165,32 +177,46 @@ export interface SceneProps {
    * per-gesture frame that `canvas` exists to remove.
    */
   readonly edgeMode: EdgeMode
+  /**
+   * True when the run may swap substrates, which decides whether path geometry is built up front.
+   *
+   * A hybrid run WILL cross, so building the `d` strings once at mount keeps the crossing to the
+   * DOM work that cannot be avoided instead of also charging it for four and a half thousand path
+   * strings. A pinned canvas run must not pay that, which is why this is a flag and not a default.
+   */
+  readonly maySwapSubstrate: boolean
   /** Called once, with the pane, the world layer and whichever edge substrate is in play. */
   readonly onMounted: (mounted: MountedScene) => void
+  /** Called after a substrate swap, because the previous layer's refs are now dead. */
+  readonly onEdgeLayerChanged: (refs: EdgeLayerRefs) => void
 }
 
 export function Scene({
   fixture,
   promoteLayer,
   edgeMode,
+  maySwapSubstrate,
   onMounted,
+  onEdgeLayerChanged,
 }: SceneProps): React.ReactElement {
   const paneRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
   const edgeCameraRef = useRef<SVGGElement>(null)
   const edgeCanvasRef = useRef<HTMLCanvasElement>(null)
+  const [substrate, setSubstrate] = useState<EdgeMode>(edgeMode)
+
   const pathVisuals = useMemo(
-    () => (edgeMode === 'svg' ? buildEdgeVisuals(fixture) : []),
-    [fixture, edgeMode],
+    () => (edgeMode === 'svg' || maySwapSubstrate ? buildEdgeVisuals(fixture) : []),
+    [fixture, edgeMode, maySwapSubstrate],
   )
   const labelVisuals = useMemo(
     () =>
-      edgeMode === 'svg'
+      substrate === 'svg'
         ? pathVisuals
-        : edgeMode === 'canvas'
+        : substrate === 'canvas'
           ? buildEdgeLabelVisuals(fixture)
           : [],
-    [fixture, edgeMode, pathVisuals],
+    [fixture, substrate, pathVisuals],
   )
 
   useEffect(() => {
@@ -200,20 +226,39 @@ export function Scene({
     onMounted({
       pane,
       world,
+      substrate,
+      edgeCamera: edgeCameraRef.current,
+      edgeCanvas: edgeCanvasRef.current,
+      setSubstrate,
+    })
+    // Deliberately only on mount: `substrate` is read for the first report and then owned by the
+    // swap effect below. Re-running this on a swap would re-enter the arm's mount path.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onMounted])
+
+  const swapped = useRef(false)
+  useEffect(() => {
+    // Skipped on the mount pass, whose refs `onMounted` already carried.
+    if (!swapped.current) {
+      swapped.current = true
+      return
+    }
+    onEdgeLayerChanged({
+      substrate,
       edgeCamera: edgeCameraRef.current,
       edgeCanvas: edgeCanvasRef.current,
     })
-  }, [onMounted])
+  }, [substrate, onEdgeLayerChanged])
 
   return (
     <div ref={paneRef} className="a2-pane">
       {/* Before the world in document order, so edges paint under the elements they connect. */}
-      {edgeMode === 'svg' ? <EdgeLayer visuals={pathVisuals} cameraRef={edgeCameraRef} /> : null}
+      {substrate === 'svg' ? <EdgeLayer visuals={pathVisuals} cameraRef={edgeCameraRef} /> : null}
       {/* Viewport-sized like the SVG layer, and for the same reason: the camera goes into the
           drawing, not into a box tens of thousands of pixels across. */}
-      {edgeMode === 'canvas' ? <canvas ref={edgeCanvasRef} className="a2-edge-canvas" /> : null}
+      {substrate === 'canvas' ? <canvas ref={edgeCanvasRef} className="a2-edge-canvas" /> : null}
       <div ref={worldRef} className={promoteLayer ? 'a2-world a2-world--layer' : 'a2-world'}>
-        {edgeMode === 'off' ? null : <EdgeLabelLayer visuals={labelVisuals} />}
+        {substrate === 'off' ? null : <EdgeLabelLayer visuals={labelVisuals} />}
         <NodeLayer fixture={fixture} />
       </div>
     </div>

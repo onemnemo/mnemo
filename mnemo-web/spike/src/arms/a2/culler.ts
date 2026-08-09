@@ -75,6 +75,8 @@ interface CellRange {
 export interface Culler {
   /** Recomputes visibility for a camera. A no-op when the visible cell range has not moved. */
   update(viewport: Viewport, viewWidth: number, viewHeight: number): void
+  /** What the most recent `update` did. Read once per frame by the frame probe, never logged. */
+  lastStats(): CullStats
   /**
    * Re-indexes from current bounds. A relayout moves every element, which invalidates the grid
    * wholesale; without this the culler would keep answering from where things used to be, and
@@ -111,7 +113,30 @@ function keyOf(cx: number, cy: number): string {
   return `${cx},${cy}`
 }
 
+/**
+ * What one `update` did, so a stall can be attributed to the culler or ruled out.
+ *
+ * `did` distinguishes the two ways a frame costs nothing here: the visible cell range did not
+ * move, so there was nothing to do, versus culling being switched off entirely. Both report zero
+ * work, and confusing them would read as "the culler was cheap on the bad frame" when the culler
+ * was never consulted.
+ */
+export interface CullStats {
+  readonly did: boolean
+  readonly durationMs: number
+  /** Retain/release calls, which is the work the grid actually walked. Refcounted, so > mutations. */
+  readonly scanned: number
+  /** DOM visibility mutations issued: elements that actually went hidden -> shown this frame. */
+  readonly shown: number
+  readonly hidden: number
+}
+
+const IDLE_STATS: CullStats = { did: false, durationMs: 0, scanned: 0, shown: 0, hidden: 0 }
+
 export function createCuller(targets: readonly CullTarget[], enabled: boolean): Culler {
+  let stats: CullStats = IDLE_STATS
+  let shownThisUpdate = 0
+  let hiddenThisUpdate = 0
   const byKey = new Map<string, CullTarget>()
   for (const target of targets) byKey.set(target.key, target)
 
@@ -154,6 +179,17 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
   const setDisplay = (key: string, value: string): void => {
     const target = byKey.get(key)
     if (!target) return
+    // Counted here rather than at the call sites so the number is DOM mutations actually issued,
+    // which is the quantity the bulk-admission hypothesis is about. Retain is refcounted and a
+    // target spanning several cells is retained several times, so counting calls would overstate
+    // it by the average cell span.
+    if (value === '') shownThisUpdate += 1
+    else hiddenThisUpdate += 1
+    // `display`, not `visibility`. Hiding in place was measured as the alternative and is WORSE on
+    // the zoom sweep (max 216-250ms against 133-183ms) once the elements genuinely render. A trace
+    // says why: `visibility: hidden` keeps the box in the layout and paint-property trees, so all
+    // five thousand stay in the per-frame pre-paint walk instead of the fifteen hundred on screen.
+    // It buys cheaper layerization and pays three times over for it. Do not revisit.
     for (const node of target.nodes) node.style.display = value
   }
 
@@ -195,6 +231,10 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
     const hiding = value === 'none'
     visibleEdges.clear()
     for (const target of targets) {
+      // The same primitive `setDisplay` uses. These two write sites must never disagree: while
+      // they did, the bulk path hid every element with `display` and the incremental path revealed
+      // them with `visibility`, so nothing ever rendered and every scenario reported a flawless
+      // sixty frames a second.
       for (const node of target.nodes) node.style.display = value
       // Culling off means everything is rendered, edges included, so the canvas mode draws the
       // whole document. That pairing is a diagnostic and is NOT comparable with the SVG mode's
@@ -213,9 +253,17 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
   setAll(isEnabled ? 'none' : '')
 
   return {
+    lastStats: () => stats,
+
     update(viewport, viewWidth, viewHeight) {
+      // Reset first so a skipped or disabled frame reports zeroes rather than the last frame that
+      // did work, which would attribute another frame's cost to this one.
+      stats = { ...IDLE_STATS }
       if (!isEnabled) return
 
+      shownThisUpdate = 0
+      hiddenThisUpdate = 0
+      const startedAt = performance.now()
       const right = viewport.x + viewWidth / viewport.zoom
       const bottom = viewport.y + viewHeight / viewport.zoom
       const next: CellRange = {
@@ -239,15 +287,30 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
 
       // Entering cells are retained before leaving ones are released, so a target in both never
       // passes through a hidden state and never triggers a needless style write.
+      let scanned = 0
       forEachCell(next, (cx, cy) => {
         if (previous && contains(previous, cx, cy)) return
-        for (const key of cells.get(keyOf(cx, cy)) ?? []) retain(key)
+        for (const key of cells.get(keyOf(cx, cy)) ?? []) {
+          scanned += 1
+          retain(key)
+        }
       })
       if (previous) {
         forEachCell(previous, (cx, cy) => {
           if (contains(next, cx, cy)) return
-          for (const key of cells.get(keyOf(cx, cy)) ?? []) release(key)
+          for (const key of cells.get(keyOf(cx, cy)) ?? []) {
+            scanned += 1
+            release(key)
+          }
         })
+      }
+
+      stats = {
+        did: true,
+        durationMs: performance.now() - startedAt,
+        scanned,
+        shown: shownThisUpdate,
+        hidden: hiddenThisUpdate,
       }
     },
 

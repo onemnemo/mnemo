@@ -59,6 +59,14 @@ export interface SceneIndex {
    * draws edges. In canvas mode the strokes are not DOM and are not this function's business.
    */
   repaintEdges(edgeIds: readonly string[]): void
+  /**
+   * Re-reads the edge DOM after a hybrid run swapped substrates.
+   *
+   * In place, keeping this object's identity, because the gesture installer was handed the index
+   * itself at mount. The caller still has to rebuild the culler afterwards: its targets captured
+   * the old path elements, and those are no longer in the document.
+   */
+  rebindEdgeDom(substrate: EdgeMode): void
   allEdgeIds(): readonly string[]
   setSelected(ids: readonly string[]): void
   /**
@@ -95,20 +103,28 @@ export function createSceneIndex(
   }
 
   const paths = new Map<string, SVGPathElement>()
-  if (edgeMode === 'svg') {
-    for (const path of pane.querySelectorAll<SVGPathElement>('path[data-mm-edge]')) {
-      const id = path.dataset.mmEdge
-      if (id) paths.set(id, path)
+  const labels = new Map<string, HTMLElement>()
+  // Mutable because a hybrid run changes it mid-flight, and `cullTargets` reads it.
+  let mode = edgeMode
+
+  const readEdgeDom = (): void => {
+    paths.clear()
+    labels.clear()
+    if (mode === 'svg') {
+      for (const path of pane.querySelectorAll<SVGPathElement>('path[data-mm-edge]')) {
+        const id = path.dataset.mmEdge
+        if (id) paths.set(id, path)
+      }
+    }
+    if (mode !== 'off') {
+      for (const label of pane.querySelectorAll<HTMLElement>('[data-mm-edge-label]')) {
+        const id = label.dataset.mmEdgeLabel
+        if (id) labels.set(id, label)
+      }
     }
   }
 
-  const labels = new Map<string, HTMLElement>()
-  if (edgeMode !== 'off') {
-    for (const label of pane.querySelectorAll<HTMLElement>('[data-mm-edge-label]')) {
-      const id = label.dataset.mmEdgeLabel
-      if (id) labels.set(id, label)
-    }
-  }
+  readEdgeDom()
 
   const positions = new Map<string, Point>()
   const sizes = new Map<string, { readonly width: number; readonly height: number }>()
@@ -188,6 +204,11 @@ export function createSceneIndex(
       }
     },
 
+    rebindEdgeDom(substrate) {
+      mode = substrate
+      readEdgeDom()
+    },
+
     allEdgeIds: () => [...edgesById.keys()],
 
     cullTargets() {
@@ -210,7 +231,7 @@ export function createSceneIndex(
       // Nothing to index when no edges are drawn at all. Registering them anyway would charge
       // the diagnostic edges-off arm for a grid it cannot use, which is the one arm whose whole
       // job is to report what the edge layer costs.
-      for (const edge of edgeMode === 'off' ? [] : fixture.edges) {
+      for (const edge of mode === 'off' ? [] : fixture.edges) {
         // Whatever DOM this edge owns, which in canvas mode is a label or nothing. The culler
         // hides nodes by style, so an empty list is a target it will never try to hide, and the
         // canvas mode's edges are culled by the renderer simply not drawing them.

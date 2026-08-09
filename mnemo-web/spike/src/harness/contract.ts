@@ -93,6 +93,24 @@ export interface ArmHandle {
    */
   drainPendingOps(): readonly MoveOpLike[]
 
+  /**
+   * Arm-specific counters to carry on the result, merged into its scalars.
+   *
+   * Optional because most arms have nothing to say. It exists so a behaviour a scenario cannot
+   * see from the outside can still be gated on: the hybrid edge strategy swaps renderers on a
+   * zoom crossing, and "the swap fired exactly twice" and "the swap flapped forty times" produce
+   * identical frame histograms.
+   */
+  getDiagnostics?(): Readonly<Record<string, number>>
+
+  /**
+   * Signals that the measured window is opening, for arms that keep their own per-frame records.
+   *
+   * Setup and clock calibration happen on the same page as the run, so an arm-side probe that
+   * starts at mount has multi-second idle pauses in its buffer that are not dropped frames.
+   */
+  beginMeasurementWindow?(): void
+
   dispose(): void
 }
 
