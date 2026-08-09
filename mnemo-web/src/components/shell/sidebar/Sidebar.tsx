@@ -1,7 +1,13 @@
-import { NavItem } from "@/components/shell/sidebar/NavItem"
-import { SidebarFooter } from "@/components/shell/sidebar/SidebarFooter"
-import { SidebarHeader } from "@/components/shell/sidebar/SidebarHeader"
-import { SidebarNav } from "@/components/shell/sidebar/SidebarNav"
+import { useRef, useState } from "react"
+
+import { AppIcon } from "@/components/icon/AppIcon"
+import { useDragRegion } from "@/components/shell/chrome/useDragRegion"
+import { NavButton } from "@/components/shell/sidebar/NavButton"
+import { ProfileRow } from "@/components/shell/sidebar/ProfileRow"
+import { SidebarBrand } from "@/components/shell/sidebar/SidebarBrand"
+import { useT } from "@/i18n/useT"
+import { cn } from "@/lib/utils"
+import { useNavBadges } from "@/nav/badges"
 import { useNavCategories } from "@/nav/store"
 
 interface SidebarProps {
@@ -10,35 +16,82 @@ interface SidebarProps {
   onToggle: () => void
 }
 
+/**
+ * The rail.
+ *
+ * Groups are unlabelled and separated by space. Labelling one and not the other
+ * read as an accident, and "Modules" was implementation vocabulary leaking into
+ * the product; the server still groups items, this just stops printing the group
+ * names. Footer categories keep their flat placement at the bottom.
+ */
 export function Sidebar({ activeRoute, collapsed, onToggle }: SidebarProps) {
+  const t = useT()
   const categories = useNavCategories()
-  if (collapsed) {
-    const items = categories.flatMap((category) => category.items).filter((item) => item.visible)
-    return (
-      <aside
-        className="flex shrink-0 flex-col items-center border-r border-[var(--sidebar-border)] bg-sidebar-surface p-2.5"
-        style={{ width: "var(--sidebar-collapsed-width)" }}
-      >
-        <SidebarHeader collapsed onToggle={onToggle} />
-        <div className="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto">
-          {items.map((item) => (
-            <NavItem key={item.route} item={item} active={activeRoute === item.route} collapsed />
-          ))}
-        </div>
-      </aside>
-    )
-  }
+  const badges = useNavBadges()
+  const [hovered, setHovered] = useState(false)
+  const brandRef = useRef<HTMLDivElement>(null)
+
+  useDragRegion(brandRef)
+
+  const groups = categories.filter((category) => !category.footer)
+  const footer = categories.filter((category) => category.footer)
+  const footerItems = footer.flatMap((category) => category.items).filter((item) => item.visible)
 
   return (
-    <aside
-      className="flex shrink-0 flex-col border-r border-[var(--sidebar-border)] bg-sidebar-surface p-[var(--sidebar-inset)]"
-      style={{ width: "var(--sidebar-width)" }}
+    <nav
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      className="flex shrink-0 flex-col bg-frame transition-[width] ease-out"
+      style={{
+        width: collapsed ? "var(--sidebar-w-collapsed)" : "var(--sidebar-w)",
+        transitionDuration: "var(--duration-slow)",
+      }}
     >
-      <SidebarHeader collapsed={false} onToggle={onToggle} />
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <SidebarNav activeRoute={activeRoute} />
+      <SidebarBrand ref={brandRef} collapsed={collapsed} hovered={hovered} onToggle={onToggle} />
+
+      <div className="scroll-thin flex-1 overflow-y-auto px-2 pb-2 pt-1">
+        {groups.map((category, index) => (
+          <div key={category.key} className={cn("space-y-px", index > 0 && "mt-5")}>
+            {category.items
+              .filter((item) => item.visible)
+              .map((item) => (
+                <NavButton
+                  key={item.route}
+                  item={item}
+                  active={activeRoute === item.route}
+                  collapsed={collapsed}
+                  badge={badges[item.route]}
+                />
+              ))}
+          </div>
+        ))}
       </div>
-      <SidebarFooter activeRoute={activeRoute} />
-    </aside>
+
+      <div className="shrink-0 space-y-px px-2 pb-2">
+        {collapsed && (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={t("Sidebar", "ExpandSidebar")}
+            className="grid h-8 w-full place-items-center rounded-md text-ink-icon transition-colors hover:bg-frame-hover hover:text-ink-2"
+            style={{ transitionDuration: "var(--duration-fast)" }}
+          >
+            <AppIcon name="chevrons-left" size={16} className="rotate-180" />
+          </button>
+        )}
+
+        {footerItems.map((item) => (
+          <NavButton
+            key={item.route}
+            item={item}
+            active={activeRoute === item.route}
+            collapsed={collapsed}
+            badge={badges[item.route]}
+          />
+        ))}
+
+        <ProfileRow collapsed={collapsed} />
+      </div>
+    </nav>
   )
 }

@@ -1,23 +1,86 @@
-import { Crumbs } from "@/components/shell/topbar/Crumbs"
+import { WindowControls } from "@/components/shell/chrome/WindowControls"
+import { Breadcrumbs } from "@/components/shell/topbar/Breadcrumbs"
+import { FrameButton } from "@/components/shell/topbar/FrameButton"
 import { NotificationBell } from "@/components/shell/topbar/NotificationBell"
-import { ProfileButton } from "@/components/shell/topbar/ProfileButton"
-import { SearchTrigger } from "@/components/shell/topbar/SearchTrigger"
+import { useT } from "@/i18n/useT"
+import { useShortcutLabel } from "@/keybinds/store"
+import { onTitlebarPointerDown } from "@/lib/window"
+import type { Crumb } from "@/nav/trail"
+import { useSettingValue } from "@/settings/store"
+import { usePaletteStore } from "@/stores/palette"
+import { useSomaStore } from "@/stores/soma"
 
-// Reference layout is [crumbs][search][spacer][right cluster]. The right cluster
-// omits gamification (needs data) and window min/max/close (the OS titlebar owns
-// those until a chromeless PhotinoX drag API exists, per the Phase 1 spike).
-export function Topbar({ title }: { title: string }) {
+interface TopbarProps {
+  crumbs: Crumb[]
+  collapsed: boolean
+  onExpand: () => void
+}
+
+/**
+ * Row one of the frame: where you are, plus the handful of controls that are
+ * global rather than module-specific.
+ *
+ * The window is chromeless, so this is also the titlebar. Pressing anywhere that
+ * is not a control moves the window, and a double press maximizes it.
+ */
+export function Topbar({ crumbs, collapsed, onExpand }: TopbarProps) {
+  const t = useT()
+  const aiEnabled = useSettingValue("AI.EnableAssistant", false)
+  const dockOpen = useSomaStore((s) => s.dockOpen)
+  const toggleDock = useSomaStore((s) => s.toggleDock)
+  const togglePalette = usePaletteStore((s) => s.toggle)
+
+  const searchShortcut = useShortcutLabel("global.search")
+  const assistantShortcut = useShortcutLabel("global.assistant")
+
   return (
     <header
-      className="flex shrink-0 items-center border-b-[0.8px] border-[var(--topbar-border)] bg-[var(--topbar-background)] p-[var(--topbar-inset)]"
-      style={{ height: "var(--topbar-height)" }}
+      onPointerDown={onTitlebarPointerDown}
+      className="flex shrink-0 items-stretch gap-2 border-b border-line-soft pl-3 pr-0"
+      style={{ height: "var(--topbar-h)" }}
     >
-      <Crumbs title={title} />
-      <SearchTrigger />
-      <div className="ml-auto flex items-center gap-2">
+      {collapsed && (
+        <FrameButton
+          icon="panel-left"
+          label={t("Sidebar", "ExpandSidebar")}
+          onClick={onExpand}
+          className="size-7"
+        />
+      )}
+
+      <Breadcrumbs crumbs={crumbs} />
+
+      <div className="flex shrink-0 items-center gap-1 pr-1">
+        {/* Search opens a centred overlay, so this is a button and not a field. A
+            wide pill reads as typable, which would be a small lie. */}
+        <FrameButton
+          icon="search"
+          label={t("Topbar", "SearchLabel")}
+          hint={hint(t("Topbar", "SearchLabel"), searchShortcut)}
+          onClick={togglePalette}
+        />
+
+        {aiEnabled && (
+          <FrameButton
+            icon="orbit"
+            label="Soma"
+            hint={hint("Soma", assistantShortcut)}
+            pressed={dockOpen}
+            onClick={toggleDock}
+          />
+        )}
+
         <NotificationBell />
-        <ProfileButton />
       </div>
+
+      {/* A direct child of the header so it can stretch to the full bar height:
+          nested inside a centred row it collapses to content height, which is what
+          makes a hover fill read as a thin strip and gives the chrome away. */}
+      <WindowControls />
     </header>
   )
+}
+
+function hint(label: string, shortcut: string | null | undefined): string {
+  return shortcut ? `${label} · ${shortcut}` : label
 }

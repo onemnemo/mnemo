@@ -69,8 +69,13 @@
     --color-muted: var(--surface-subtle);
     --color-muted-foreground: var(--text-tertiary);
 
-    --color-accent: var(--nav-button-hover);
-    --color-accent-foreground: var(--text-primary);
+    /* `accent` is the brand colour, the way the design uses the word. shadcn uses
+       the same name for a quiet hover surface, which is what it used to resolve to
+       here; that surface is `frame-hover` now, and the few call sites that wanted
+       it say so. Getting this backwards paints wordmarks and due badges in a
+       near-white fill and makes the brand invisible. */
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-fg);
 
     --color-destructive: var(--destructive-button-color);
     --color-destructive-foreground: #ffffff;
@@ -188,6 +193,24 @@
         font-optical-sizing: auto;
         -webkit-font-smoothing: antialiased;
         overflow: hidden;
+    }
+
+    /* Desktop app, not a web page: chrome text does not drag-select. Prose opts
+       back in with data-selectable, which is the only mechanism for it. Note the
+       descendant selectors: the blanket `*` above sets user-select explicitly on
+       every element, so it beats inheritance, and without `[data-selectable] *`
+       the children of a selectable region are still unselectable. */
+    * {
+        user-select: none;
+    }
+
+    input,
+    textarea,
+    [contenteditable],
+    [contenteditable] *,
+    [data-selectable],
+    [data-selectable] * {
+        user-select: text;
     }
 
     :focus-visible {

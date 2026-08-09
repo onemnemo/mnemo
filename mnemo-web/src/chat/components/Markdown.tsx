@@ -52,7 +52,9 @@ interface MarkdownProps {
 export function Markdown({ content, streaming = false }: MarkdownProps) {
   const source = useThrottled(content, streaming)
   return (
-    <div className="chat-prose">
+    // Rendered prose is read to be copied out of, so it opts out of the app-wide
+    // user-select:none. Every caller of this renderer wants that.
+    <div className="chat-prose" data-selectable>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

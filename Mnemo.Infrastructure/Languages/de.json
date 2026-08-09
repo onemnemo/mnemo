@@ -317,7 +317,7 @@
     "Mindmap": "Mindmaps",
     "Flashcards": "Karteikarten",
     "Settings": "Einstellungen",
-    "AIChat": "KI-Chat",
+    "Soma": "Soma",
     "CollapseSidebar": "Seitenleiste zusammenfalten",
     "ExpandSidebar": "Seitenleiste ausklappen",
     "QuickActions": "Schnellaktionen",
@@ -777,6 +777,7 @@
     "ProfileTooltip": "Profil & Einstellungen",
     "MinimizeTooltip": "Minimieren",
     "MaximizeTooltip": "Maximieren",
+    "RestoreTooltip": "Wiederherstellen",
     "CloseTooltip": "Schließen"
   },
   "WidgetLibrary": {

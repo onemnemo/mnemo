@@ -65,7 +65,7 @@ export function SelectControl({
                 className={cn(
                   "flex cursor-default select-none items-center justify-between gap-3 rounded-sm px-2 py-1.5",
                   "text-body-small text-text-primary outline-none",
-                  "data-[highlighted]:bg-accent data-[state=checked]:font-medium",
+                  "data-[highlighted]:bg-frame-hover data-[state=checked]:font-medium",
                 )}
               >
                 <Select.ItemText>{choice.label}</Select.ItemText>

@@ -317,7 +317,7 @@
     "Mindmap": "Mapas mentales",
     "Flashcards": "Tarjetas de estudio",
     "Settings": "Configuración",
-    "AIChat": "Chat con IA",
+    "Soma": "Soma",
     "CollapseSidebar": "Contraer barra lateral",
     "ExpandSidebar": "Expandir barra lateral",
     "QuickActions": "Acciones rápidas",
@@ -783,6 +783,7 @@
     "ProfileTooltip": "Perfil y ajustes",
     "MinimizeTooltip": "Minimizar",
     "MaximizeTooltip": "Maximizar",
+    "RestoreTooltip": "Restaurar",
     "CloseTooltip": "Cerrar"
   },
   "WidgetLibrary": {

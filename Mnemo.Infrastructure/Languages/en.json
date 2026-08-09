@@ -316,7 +316,7 @@
     "Mindmap": "Mindmaps",
     "Flashcards": "Flashcards",
     "Settings": "Settings",
-    "AIChat": "Atlas",
+    "Soma": "Soma",
     "CollapseSidebar": "Collapse sidebar",
     "ExpandSidebar": "Expand sidebar",
     "QuickActions": "Quick actions",
@@ -788,6 +788,7 @@
     "ProfileTooltip": "Profile & settings",
     "MinimizeTooltip": "Minimize",
     "MaximizeTooltip": "Maximize",
+    "RestoreTooltip": "Restore",
     "CloseTooltip": "Close"
   },
   "WidgetLibrary": {
