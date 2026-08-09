@@ -15,6 +15,7 @@ import { ImageGalleryRow } from "./custom/ImageGalleryRow"
 import { KeybindManagerRow } from "./custom/KeybindManagerRow"
 import { LanguageRow } from "./custom/LanguageRow"
 import { ModelPickerRow } from "./custom/ModelPickerRow"
+import { ReduceMotionRow } from "./custom/ReduceMotionRow"
 import { TestConnectionRow } from "./custom/TestConnectionRow"
 import { ThemeGalleryRow } from "./custom/ThemeGalleryRow"
 
@@ -34,6 +35,9 @@ export function CustomRow({ row, divider }: { row: CustomRowSchema; divider: boo
 
     case "theme-gallery":
       return <ThemeGalleryRow {...shared} />
+
+    case "reduce-motion":
+      return <ReduceMotionRow {...shared} />
 
     case "app-icon-gallery":
       return (

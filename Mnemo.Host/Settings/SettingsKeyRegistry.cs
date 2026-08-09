@@ -51,6 +51,10 @@ public static class SettingsKeyRegistry
         new("App.EnableToasts", SettingValueKind.Boolean),
         new("App.EnableGamification", SettingValueKind.Boolean),
         new("App.Icon", SettingValueKind.Text),
+        // Tri-state, stored as text: "full", "reduced", or absent meaning follow the OS.
+        // A boolean cannot express the third, and defaulting an absent value to false
+        // would override prefers-reduced-motion for everyone who never opened Settings.
+        new("App.ReduceMotion", SettingValueKind.Text),
         new("App.DeveloperMode", SettingValueKind.Boolean),
         new("App.DeveloperModeGateUnlocked", SettingValueKind.Boolean),
         new("App.PerformanceDiagnostics", SettingValueKind.Boolean),

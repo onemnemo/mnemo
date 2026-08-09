@@ -432,6 +432,16 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
           { kind: "custom", id: "app-icon-gallery", title: "AppIcon", description: "AppIconDescription" },
         ],
       },
+      {
+        id: "Motion",
+        title: "Motion",
+        rows: [
+          // Custom rather than a plain toggle because there are three states to
+          // represent, not two: on, off, and following the operating system because the
+          // user has not chosen. A toggle cannot show the third.
+          { kind: "custom", id: "reduce-motion", title: "ReduceMotion", description: "ReduceMotionDescription" },
+        ],
+      },
     ],
   },
 
