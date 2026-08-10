@@ -34,6 +34,7 @@ export function paragraphBlock(deps: BlockDeps): AnyBlockModule {
         {
           label: 'Text',
           description: 'TextDescription',
+          icon: 'notes/text',
           group: 'text',
           insert: convertHere('paragraph'),
         },
@@ -59,6 +60,7 @@ export function quoteBlock(deps: BlockDeps): AnyBlockModule {
         {
           label: 'Quote',
           description: 'QuoteDescription',
+          icon: 'notes/quote',
           // The desktop advertises `"` here, which nothing in either app has
           // ever accepted. The hint exists to teach the shortcut, so it says
           // the one that works.
@@ -168,6 +170,8 @@ export function headingBlock(deps: BlockDeps): AnyBlockModule {
       slash: [1, 2, 3, 4].map((level) => ({
         label: `Heading${String(level)}`,
         description: `Heading${String(level)}Description`,
+        // Only three heading glyphs are drawn; the fourth level reuses the third.
+        icon: `notes/heading-${String(Math.min(level, 3))}`,
         hint: '#'.repeat(level),
         group: 'text' as const,
         insert: convertHere('heading', { level }),

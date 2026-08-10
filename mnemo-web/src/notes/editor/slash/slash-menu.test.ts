@@ -191,12 +191,12 @@ describe('the rows', () => {
     ]);
   });
 
-  it('rules off where the group changes, and nowhere else', () => {
+  it('heads each section with its group label', () => {
     openMenu();
-    const separated = rows()
-      .filter((row) => row.classList.contains('has-separator'))
-      .map((row) => row.dataset.label);
-    expect(separated).toEqual(['Code']);
+    const groups = [...menuEl().querySelectorAll<HTMLElement>('.notes-slash-menu-group')].map(
+      (group) => group.textContent,
+    );
+    expect(groups).toEqual(['Slash Group Basic', 'Slash Group Insert']);
   });
 
   it('filters to what the query matches', () => {
@@ -211,10 +211,12 @@ describe('the rows', () => {
     expect(empty?.hasAttribute('data-hidden')).toBe(false);
   });
 
-  it('shows the markdown shortcut that does the same thing', () => {
+  it('draws each row with its name and description', () => {
     openMenu('quo');
-    // `>`, not the `"` the desktop advertises and has never accepted.
-    expect(rows()[0].querySelector('.notes-slash-menu-row-hint')?.textContent).toBe('>');
+    expect(rows()[0].querySelector('.notes-slash-menu-row-name')?.textContent).toBe('Quote');
+    expect(rows()[0].querySelector('.notes-slash-menu-row-desc')?.textContent).toBe(
+      'Quote Description',
+    );
   });
 });
 

@@ -268,20 +268,22 @@ export type SlashGroup = 'text' | 'insert';
 /**
  * One row of the slash menu, contributed by the block it creates.
  *
- * A row is a name and, on the right, the markdown alias that does the same
- * thing, which is how the menu teaches the shortcuts rather than hiding them.
- * There is no icon: the desktop menu draws none, and an invented one would be
- * a divergence in the most visible place.
+ * A row is an icon tile, a name and a one-line description, grouped under its
+ * section heading, so the menu reads like a palette of what a block can become
+ * rather than a bare list of words.
  */
 export interface SlashContribution {
   /** i18n key in the `NotesEditor` namespace, not display text. */
   readonly label: string;
   /**
-   * i18n key for a one-line description. Never drawn; it is search text, so a
-   * user who types "bulleted" finds the bullet list without knowing its name.
+   * i18n key for a one-line description, drawn under the name and folded into
+   * the search text so a user who types "bulleted" finds the bullet list
+   * without knowing its name.
    */
   readonly description: string;
-  /** The markdown shortcut for the same conversion, shown right-aligned. */
+  /** The tile glyph, a project icon resolved through `AppIcon`. */
+  readonly icon: IconName;
+  /** The markdown shortcut for the same conversion, kept as search text. */
   readonly hint?: string;
   /** Extra search terms beyond the label, description, hint and node name. */
   readonly keywords?: readonly string[];

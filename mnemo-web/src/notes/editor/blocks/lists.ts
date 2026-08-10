@@ -31,6 +31,7 @@ export function bulletItemBlock(deps: BlockDeps): AnyBlockModule {
         {
           label: 'BulletList',
           description: 'BulletListDescription',
+          icon: 'notes/bullet-list',
           hint: '-',
           group: 'text',
           insert: convertHere('bulletItem'),
@@ -73,6 +74,7 @@ export function numberedItemBlock(deps: BlockDeps): AnyBlockModule {
         {
           label: 'NumberedList',
           description: 'NumberedListDescription',
+          icon: 'notes/numbered-list',
           hint: '1.',
           group: 'text',
           insert: convertHere('numberedItem'),
@@ -122,6 +124,7 @@ export function checklistItemBlock(deps: BlockDeps): AnyBlockModule {
           // Both are kept so neither vocabulary misses in search.
           label: 'Todo',
           description: 'ChecklistDescription',
+          icon: 'notes/todo',
           hint: '[]',
           group: 'text',
           insert: convertHere('checklistItem'),

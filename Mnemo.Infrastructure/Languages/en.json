@@ -644,6 +644,8 @@
     "EquationRenderError": "Could not render equation",
     "EquationTooltip": "Equation (Ctrl+Shift+E)",
     "NoSuggestions": "No suggestions",
+    "SlashGroupBasic": "Basic",
+    "SlashGroupInsert": "Insert",
     "AddWordToDictionary": "Add word to dictionary",
     "TextColor": "TEXT COLOR",
     "BackgroundColor": "BACKGROUND",

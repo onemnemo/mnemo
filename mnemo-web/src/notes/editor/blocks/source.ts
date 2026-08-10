@@ -77,6 +77,7 @@ export function codeBlock(deps: BlockDeps): AnyBlockModule {
         {
           label: 'Code',
           description: 'CodeDescription',
+          icon: 'notes/code',
           hint: '```',
           group: 'insert',
           insert: convertHere('codeBlock'),

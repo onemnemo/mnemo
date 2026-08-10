@@ -215,12 +215,12 @@ describe('cross-module id uniqueness', () => {
     const a = makeTestBlockModule({
       nodeName: 'a',
       wireTypes: ['Text'],
-      slash: [{ label: 'Same', description: 'Same Description', group: 'text', insert() {} }],
+      slash: [{ label: 'Same', description: 'Same Description', icon: 'notes/text', group: 'text', insert() {} }],
     });
     const b = makeTestBlockModule({
       nodeName: 'b',
       wireTypes: ['Quote'],
-      slash: [{ label: 'Same', description: 'Same Description', group: 'text', insert() {} }],
+      slash: [{ label: 'Same', description: 'Same Description', icon: 'notes/text', group: 'text', insert() {} }],
     });
     const issues = buildOrThrowIssues({ blocks: [a, b] });
     expect(issues.some((i) => i.code === 'duplicate-slash-label')).toBe(true);

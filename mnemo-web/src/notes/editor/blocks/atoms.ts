@@ -38,6 +38,7 @@ export function dividerBlock(deps: BlockDeps): AnyBlockModule {
         {
           label: 'Divider',
           description: 'DividerDescription',
+          icon: 'notes/divider',
           hint: '---',
           group: 'insert',
           insert: insertAtomicBlock('divider'),
@@ -88,6 +89,7 @@ export function equationBlockModule(deps: BlockDeps): AnyBlockModule {
         {
           label: 'Equation',
           description: 'EquationDescription',
+          icon: 'notes/equation',
           // The fence syntax the importer and exporter use, shown so the menu
           // teaches it. Nothing turns `$$` into a block as it is typed, on
           // either side.

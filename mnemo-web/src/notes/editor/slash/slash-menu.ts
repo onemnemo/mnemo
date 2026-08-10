@@ -76,15 +76,17 @@ function buildRows(
 ): readonly MenuRow[] {
   return entries.map((entry) => {
     const label = translate(entry.label);
+    const description = translate(entry.description);
     return {
       entry,
       label,
+      description,
       // Both the resolved strings and the keys behind them: the first follows
       // the UI language, the second keeps the English names findable in a UI
       // that is not in English.
       candidates: searchCandidates([
         label,
-        translate(entry.description),
+        description,
         entry.hint,
         entry.label,
         entry.nodeName,

@@ -642,6 +642,8 @@
     "EquationRenderError": "Kunne ikke vise ligning",
     "EquationTooltip": "Ligning (Ctrl+Shift+E)",
     "NoSuggestions": "Ingen forslag",
+    "SlashGroupBasic": "Standard",
+    "SlashGroupInsert": "Sett inn",
     "AddWordToDictionary": "Legg ord til ordbok",
     "TextColor": "TEKSTFARGE",
     "BackgroundColor": "BAKGRUNN",
