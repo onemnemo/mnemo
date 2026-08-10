@@ -4,6 +4,7 @@ import { navigate } from '@/app/router';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useT } from '@/i18n/useT';
 import { isMac } from '@/keybinds/chord';
+import { usePublishTrail } from '@/nav/trail';
 import type { NoteSummaryDto } from '@/api/types';
 
 import { useCreateNote, useNoteFoldersQuery, useNotesQuery } from '../api';
@@ -12,6 +13,8 @@ import { NoteTransferOverlay } from '../transfer/NoteTransferOverlay';
 import { NoteTreeSidebar } from '../tree/NoteTreeSidebar';
 import { NotePane } from './NotePane';
 import { NoteTabs, type NoteTab } from './NoteTabs';
+import { SidebarExpandButton } from './SidebarExpandButton';
+import { notesTrailCrumbs } from './trail';
 
 /**
  * The notes workspace: the tree sidebar beside the editor, one surface rather
@@ -35,6 +38,15 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
   const notes = notesQuery.data ?? [];
   const folders = foldersQuery.data ?? [];
   const loading = notesQuery.isPending || foldersQuery.isPending;
+
+  // The note's place in the tree is published to the shared topbar breadcrumb,
+  // the same slot every module fills, rather than a bar of its own over the editor.
+  const trail = useMemo(
+    () => notesTrailCrumbs({ noteId, notes, folders, rootLabel: nt('Title'), untitled: nt('Untitled') }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [noteId, notes, folders],
+  );
+  usePublishTrail(trail);
 
   // Which notes are open as tabs, in the order they were opened. In memory only,
   // like the tree's own state, so a reload starts from just the open note.
@@ -126,21 +138,23 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {noteId && tabs.length > 0 ? (
-          <NoteTabs tabs={tabs} activeId={noteId} onSelect={(id) => navigate('notes', id)} onClose={closeTab} />
+          <NoteTabs
+            tabs={tabs}
+            activeId={noteId}
+            onSelect={(id) => navigate('notes', id)}
+            onClose={closeTab}
+            onExpandSidebar={sidebarOpen ? undefined : () => setSidebarOpen(true)}
+          />
         ) : null}
         {noteId ? (
           <div className="min-h-0 flex-1">
-            <NotePane
-              noteId={noteId}
-              notes={notes}
-              folders={folders}
-              sidebarOpen={sidebarOpen}
-              onToggleSidebar={() => setSidebarOpen((open) => !open)}
-            />
+            <NotePane noteId={noteId} />
           </div>
         ) : (
-          <div className="flex h-full min-h-0 flex-col">
-            {!sidebarOpen ? <div className="h-11 shrink-0 border-b border-divider-subtle" /> : null}
+          <div className="relative flex h-full min-h-0 flex-col">
+            {!sidebarOpen ? (
+              <SidebarExpandButton onExpand={() => setSidebarOpen(true)} className="absolute left-2 top-2 z-10" />
+            ) : null}
             <div className="flex flex-1 items-center justify-center">
               <EmptyState icon="common/file-text" title={nt('NoNoteSelectedTitle')} description={nt('NoNoteSelectedDescription')} />
             </div>

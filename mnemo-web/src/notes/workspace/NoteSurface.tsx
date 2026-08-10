@@ -7,7 +7,7 @@ import type { EditorState } from 'prosemirror-state';
 import { useT } from '@/i18n/useT';
 import { cn } from '@/lib/utils';
 import { formatRelative } from '@/lib/relative-date';
-import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
+import type { NoteSummaryDto } from '@/api/types';
 
 import { useNoteContentCommitter, useUpdateNoteMetadata } from '../api';
 import { metadataUpdateOf } from '../note-metadata';
@@ -25,7 +25,9 @@ import { FindReplaceOverlay } from '../find/FindReplaceOverlay';
 import { createPersist } from '../save/persist';
 import { BlockSelectionAnnouncer } from '../selection/BlockSelectionAnnouncer';
 import { BlockSelectionOverlay } from '../selection/BlockSelectionOverlay';
-import { BreadcrumbBar } from './BreadcrumbBar';
+import { PaneActions } from './PaneActions';
+import { SaveStateIndicator } from './SaveStateIndicator';
+import { useEditorMeasure } from './useEditorMeasure';
 import { IndexChip } from './IndexChip';
 
 /**
@@ -49,10 +51,6 @@ export function NoteSurface({
   services,
   onReload,
   note,
-  notes,
-  folders,
-  sidebarOpen,
-  onToggleSidebar,
 }: {
   noteId: string;
   sid: string;
@@ -63,10 +61,6 @@ export function NoteSurface({
   services?: Partial<EditorServices>;
   onReload: () => void;
   note: NoteSummaryDto;
-  notes: NoteSummaryDto[];
-  folders: NoteFolderDto[];
-  sidebarOpen: boolean;
-  onToggleSidebar: () => void;
 }) {
   const t = useT();
   const nt = (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
@@ -97,21 +91,20 @@ export function NoteSurface({
 
   const title = note.title.trim() || nt('Untitled');
   const hasCover = coverCss(note.cover) !== null;
+  const { maxWidth } = useEditorMeasure();
 
   return (
     <div className="group/pane relative flex h-full min-h-0 flex-col">
-      <BreadcrumbBar
-        note={note}
-        notes={notes}
-        folders={folders}
-        saveState={saveState}
-        onReload={onReload}
-        sidebarOpen={sidebarOpen}
-        onToggleSidebar={onToggleSidebar}
-      />
+      {/* The note's chrome, pinned to the pane rather than a bar over it: the
+          breadcrumb now lives in the shared topbar. Save state sits beside the
+          actions and stays silent until a failure or conflict needs the reader. */}
+      <div className="absolute right-3 top-2.5 z-30 flex items-center gap-2">
+        <SaveStateIndicator state={saveState} onReload={onReload} />
+        <PaneActions note={note} />
+      </div>
       <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto">
         <CoverBanner token={note.cover} onChange={(cover) => patch({ cover })} />
-        <div className={cn('mx-auto w-full max-w-[760px] px-10 pb-24', hasCover ? 'pt-0' : 'pt-10')}>
+        <div className={cn('mx-auto w-full px-14 pb-40', hasCover ? 'pt-0' : 'pt-10')} style={{ maxWidth }}>
           {note.emoji ? (
             // The icon is positioned so it lifts over the cover's lower edge, the
             // way a page icon reads on the surfaces this is modelled on.
@@ -125,9 +118,9 @@ export function NoteSurface({
             onCover={(cover) => patch({ cover })}
             onIcon={(emoji) => patch({ emoji })}
           />
-          <h1 className="mt-1 text-[2.5rem] font-bold leading-[1.15] tracking-[-0.02em] text-text-primary">{title}</h1>
+          <h1 className="mt-1 text-[2.5rem] font-bold leading-[1.15] tracking-[-0.03em] text-text-primary">{title}</h1>
           <NoteTags tags={note.tags} onChange={(tags) => patch({ tags })} />
-          <div className="mb-6 mt-2 text-body-extra-small text-text-tertiary">
+          <div className="mb-6 mt-2 text-[0.8125rem] text-ink-3">
             {nt('WordCountFormat', { 0: wordCount.toLocaleString() })}
             {' · '}
             {nt('EditedRelativeFormat', { 0: formatRelative(note.modifiedAt, Date.now(), t) })}

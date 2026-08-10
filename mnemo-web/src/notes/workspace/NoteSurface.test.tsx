@@ -3,7 +3,7 @@
 /**
  * The editable mount, end to end, now inside the full note surface: a note's
  * stored blocks become an editable ProseMirror view with the editing stack live
- * on it, and the breadcrumb and word count mount around that one view without
+ * on it, and the heading and word count mount around that one view without
  * tearing it down. Driving the real view (not a bare `state.apply`) is the
  * point: it is the only check the plugins survive being wired into a mounted
  * `EditorView`.
@@ -50,10 +50,6 @@ function surface(...blocks: Parameters<typeof buildNoteEditState>[0]): ReactNode
       mapper={built.mapper}
       onReload={() => undefined}
       note={note}
-      notes={[note]}
-      folders={[]}
-      sidebarOpen
-      onToggleSidebar={() => undefined}
     />
   );
 }
@@ -101,10 +97,10 @@ describe('NoteSurface', () => {
     expect(proseMirror().matches('[contenteditable="false"]')).toBe(false);
   });
 
-  it('renders the note title around the editor (in the breadcrumb and the heading)', () => {
+  it('renders the note title as the document heading around the editor', () => {
     render(surface(block('Text', [span('body text')])));
-    // Title shows in both the breadcrumb and the document heading; the exact
-    // word-count figure is covered by word-count.test.ts, not asserted here.
+    // Title shows in the document heading; the breadcrumb now lives in the shared
+    // topbar, and the exact word-count figure is covered by word-count.test.ts.
     expect(container.textContent).toContain('Note one');
     expect(container.textContent).toContain('body text');
   });
