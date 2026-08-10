@@ -77,7 +77,12 @@ export function CardRow({
           <AppIcon
             name="common/flag"
             size={12}
-            className={cn("shrink-0", card.isFlagged ? "text-state-due" : "text-transparent")}
+            className={cn(
+              "shrink-0",
+              // A flag reads as flagged when it is filled, not merely tinted; the source SVG
+              // carries fill="none", so the fill has to be forced on from here.
+              card.isFlagged ? "text-state-due [&>svg]:fill-current" : "text-transparent",
+            )}
           />
 
           <span className="flex min-w-0 items-center gap-1.5">
