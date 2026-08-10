@@ -9,11 +9,15 @@ import { useT } from '@/i18n/useT';
  * colour ever being stored or picked. The add affordance only shows on hover, so
  * a note with no tags carries no permanent chrome.
  */
-export function NoteTags({ tags, onChange }: { tags: string[]; onChange: (next: string[]) => void }) {
+export function NoteTags({ tags, onChange }: { tags: string[] | undefined; onChange: (next: string[]) => void }) {
   const t = useT();
   const nt = (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
+
+  // A note saved before tags existed has no list at all; treat it as empty
+  // rather than reaching into undefined.
+  const list = tags ?? [];
 
   const commit = () => {
     const label = draft.trim();
@@ -21,15 +25,15 @@ export function NoteTags({ tags, onChange }: { tags: string[]; onChange: (next: 
     setAdding(false);
     if (!label) return;
     // Case-insensitive de-dupe, keeping the label already on the note.
-    if (tags.some((tag) => tag.toLowerCase() === label.toLowerCase())) return;
-    onChange([...tags, label]);
+    if (list.some((tag) => tag.toLowerCase() === label.toLowerCase())) return;
+    onChange([...list, label]);
   };
 
-  const remove = (label: string) => onChange(tags.filter((tag) => tag !== label));
+  const remove = (label: string) => onChange(list.filter((tag) => tag !== label));
 
   return (
     <div className="group/tags mt-3 flex flex-wrap items-center gap-1.5">
-      {tags.map((tag) => {
+      {list.map((tag) => {
         const hue = hueOf(tag);
         return (
           <span

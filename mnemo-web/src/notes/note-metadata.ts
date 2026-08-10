@@ -20,8 +20,10 @@ export function metadataUpdateOf(
     parentNoteId: next.parentNoteId,
     order: next.order,
     isFavorite: next.isFavorite,
-    emoji: next.emoji,
-    cover: next.cover,
-    tags: next.tags,
+    // A note stored before these fields existed has them undefined; send the
+    // empty forms so the metadata replace is well formed either way.
+    emoji: next.emoji ?? null,
+    cover: next.cover ?? null,
+    tags: next.tags ?? [],
   };
 }
