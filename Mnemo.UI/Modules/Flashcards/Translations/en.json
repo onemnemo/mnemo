@@ -240,6 +240,7 @@
     "StudyHintGood": "good",
     "StudyHintEdit": "edit",
     "StudyHintUndo": "undo",
+    "StudyHintEnd": "end session",
     "StudyEdit": "Edit card",
     "StudyFlag": "Flag card",
     "StudyUndo": "Undo last review",
