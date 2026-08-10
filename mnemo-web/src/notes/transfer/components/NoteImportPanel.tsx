@@ -101,7 +101,7 @@ export function NoteImportPanel({
             </span>
           </div>
 
-          <div className="max-h-[216px] space-y-1 overflow-y-auto">
+          <div className="scroll-thin max-h-[216px] space-y-1 overflow-y-auto">
             {queue.map((file) => (
               <FileRow
                 key={file.key}

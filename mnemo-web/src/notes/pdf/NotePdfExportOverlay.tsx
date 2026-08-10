@@ -125,7 +125,7 @@ function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onClose: ()
 
           {/* Body: controls | preview */}
           <div className="grid min-h-0 flex-1 grid-cols-[300px_1fr]">
-            <div className="min-h-0 overflow-y-auto border-r border-divider-subtle px-5 py-[18px]">
+            <div className="scroll-thin min-h-0 overflow-y-auto border-r border-divider-subtle px-5 py-[18px]">
               <Segmented<Tab>
                 className="mb-4"
                 label={`${nt("PdfTabGeneral")} / ${nt("PdfTabRendering")}`}
@@ -223,7 +223,7 @@ function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onClose: ()
               <div className="mb-2 text-caption font-semibold uppercase tracking-wide text-text-tertiary">
                 {nt("PdfPreviewCaption")}
               </div>
-              <div className="grid min-h-[300px] flex-1 place-items-center overflow-auto rounded-md bg-[var(--card-background-secondary)] p-6">
+              <div className="scroll-thin grid min-h-[300px] flex-1 place-items-center overflow-auto rounded-md bg-[var(--card-background-secondary)] p-6">
                 {previewState === "error" ? (
                   <span className="text-body-extra-small text-text-tertiary">{nt("PdfPreviewError")}</span>
                 ) : previewState === "loading" && !preview ? (
