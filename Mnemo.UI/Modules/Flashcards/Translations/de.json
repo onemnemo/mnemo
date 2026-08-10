@@ -262,6 +262,7 @@
     "TestCorrectAnswerLabel": "RICHTIGE ANTWORT",
     "TestAnswerBlank": "Leer gelassen.",
     "TestWhatYouMissed": "Was du verpasst hast",
+    "TestRetakeMissedFormat": "Die {0} verpassten wiederholen",
     "StudyKeyEnter": "Enter",
     "TestKeyGradeRange": "1–3",
     "TestHintGotIt": "gewusst",

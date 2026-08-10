@@ -1,5 +1,6 @@
 import type { CardDto, TestResultDto } from "@/api/types"
 import { Sparkline } from "@/components/charts/Sparkline"
+import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 
@@ -20,6 +21,7 @@ export function ScorePanel({
   result,
   failed,
   missed,
+  onRetake,
   onBackToDeck,
 }: {
   deckName: string
@@ -28,6 +30,8 @@ export function ScorePanel({
   failed: boolean
   /** The cards graded "missed", in queue order, for the list at the foot of the panel. */
   missed: CardDto[]
+  /** Starts a fresh test over the missed cards; shown only when there are any. */
+  onRetake: () => void
   onBackToDeck: () => void
 }) {
   const t = useT()
@@ -98,8 +102,15 @@ export function ScorePanel({
           </div>
         )}
 
-        <div className="mt-8">
-          <Button onClick={onBackToDeck}>{fc("BackToDeck")}</Button>
+        <div className="mt-8 flex items-center gap-2">
+          {missed.length > 0 && (
+            <Button icon={<AppIcon name="rotate-ccw" size={14} />} onClick={onRetake}>
+              {fc("TestRetakeMissedFormat", { 0: missed.length })}
+            </Button>
+          )}
+          <Button variant={missed.length > 0 ? "ghost" : "solid"} onClick={onBackToDeck}>
+            {fc("BackToDeck")}
+          </Button>
         </div>
       </div>
     </div>

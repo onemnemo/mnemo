@@ -19,6 +19,14 @@ public sealed record TestQueueDto(
     IReadOnlyList<CardDto> Cards);
 
 /// <summary>
+/// Body for a retake: the cards to run again, by id. The queue is rebuilt from the deck fresh and
+/// filtered to these, so a card suspended or deleted since the first run does not come back, and a
+/// new <see cref="TestQueueDto.StartedAt"/> is stamped for the retake's own timing. Hand-mirrored
+/// in <c>mnemo-web/src/api/types.ts</c>; the C# side is authoritative.
+/// </summary>
+public sealed record RetakeTestQueueDto(IReadOnlyList<string> CardIds);
+
+/// <summary>
 /// Body for recording a finished attempt. The tallies are the reader's; the score is not - it is
 /// derived server-side so the formula stays in one place.
 /// </summary>

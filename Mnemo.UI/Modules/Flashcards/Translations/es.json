@@ -262,6 +262,7 @@
     "TestCorrectAnswerLabel": "RESPUESTA CORRECTA",
     "TestAnswerBlank": "En blanco.",
     "TestWhatYouMissed": "Lo que fallaste",
+    "TestRetakeMissedFormat": "Repetir las {0} que fallaste",
     "StudyKeyEnter": "Entrar",
     "TestKeyGradeRange": "1–3",
     "TestHintGotIt": "acertada",

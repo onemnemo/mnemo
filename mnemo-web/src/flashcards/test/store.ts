@@ -2,7 +2,7 @@ import { create } from "zustand"
 
 import type { CardDto, TestResultDto } from "@/api/types"
 
-import { fetchTestQueue, recordActivity, recordAttempt } from "./api"
+import { fetchTestQueue, fetchTestRetakeQueue, recordActivity, recordAttempt } from "./api"
 import { applyTally, EMPTY_TALLY, type TestGrade, type TestTally, tested } from "./test"
 
 /**
@@ -35,6 +35,7 @@ interface TestState {
   undo: () => void
   replaceCurrent: (card: CardDto) => void
   setFlagged: (flagged: boolean) => void
+  retakeMissed: (cardIds: string[]) => Promise<void>
   leave: () => Promise<void>
 }
 
@@ -157,6 +158,50 @@ export const useTest = create<TestState>((set, get) => ({
     const current = queue[index]
     if (!current) return
     set({ queue: queue.map((c, i) => (i === index ? { ...c, isFlagged: flagged } : c)) })
+  },
+
+  /**
+   * Starts a fresh test over just the cards missed on the run that finished. The queue is fetched
+   * from the server so it carries its own StartedAt and drops anything suspended or deleted since;
+   * the finished test's effort is written first, since chaining a retake from the score screen
+   * never unmounts the first test for leave() to record it.
+   */
+  retakeMissed: async (cardIds) => {
+    const { deckId, startedAt, tally } = get()
+    if (!deckId || cardIds.length === 0) return
+
+    const finishedCards = tested(tally)
+    if (!activityRecorded && finishedCards > 0) {
+      activityRecorded = true
+      await recordActivity(deckId, { startedAt, cardsTested: finishedCards }).catch(() => undefined)
+    }
+
+    const mine = ++generation
+    attemptRecorded = false
+    activityRecorded = false
+    set({ status: "loading", ...IDLE })
+
+    try {
+      const queue = await fetchTestRetakeQueue(deckId, cardIds)
+      if (mine !== generation) return
+      set({
+        status: queue.cards.length === 0 ? "empty" : "active",
+        deckId,
+        deckName: queue.deckName,
+        startedAt: queue.startedAt,
+        queue: queue.cards,
+        index: 0,
+        answers: queue.cards.map(() => ""),
+        grades: queue.cards.map(() => null),
+        tally: EMPTY_TALLY,
+        revealed: false,
+        result: null,
+        resultFailed: false,
+      })
+    } catch {
+      if (mine !== generation) return
+      set({ status: "gone" })
+    }
   },
 
   /**
