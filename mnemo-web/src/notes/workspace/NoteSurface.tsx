@@ -5,10 +5,15 @@ import { useMemo, useRef } from 'react';
 import type { EditorState } from 'prosemirror-state';
 
 import { useT } from '@/i18n/useT';
+import { cn } from '@/lib/utils';
 import { formatRelative } from '@/lib/relative-date';
 import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
 
-import { useNoteContentCommitter } from '../api';
+import { useNoteContentCommitter, useUpdateNoteMetadata } from '../api';
+import { metadataUpdateOf } from '../note-metadata';
+import { coverCss } from './covers';
+import { AddHeaderChrome, CoverBanner, NoteIcon } from './NoteHeaderChrome';
+import { NoteTags } from './NoteTags';
 import { PasteProgressOverlay } from '../clipboard/PasteProgressOverlay';
 import type { DocumentMapper } from '../editor/mapper/document';
 import type { BlockRegistry } from '../editor/registry/build';
@@ -66,7 +71,13 @@ export function NoteSurface({
   const t = useT();
   const nt = (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
   const commit = useNoteContentCommitter();
+  const updateNote = useUpdateNoteMetadata();
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Metadata edits are a full replace; route every one through the carry so a
+  // cover change never blanks the tags, or an emoji change the folder.
+  const patch = (next: Partial<Pick<NoteSummaryDto, 'emoji' | 'cover' | 'tags'>>) =>
+    void updateNote.mutateAsync(metadataUpdateOf(note, next));
 
   const persist = useMemo(
     () => createPersist({ fromDoc: (doc) => mapper.fromDoc(doc), commit }),
@@ -85,9 +96,10 @@ export function NoteSurface({
   );
 
   const title = note.title.trim() || nt('Untitled');
+  const hasCover = coverCss(note.cover) !== null;
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
+    <div className="group/pane relative flex h-full min-h-0 flex-col">
       <BreadcrumbBar
         note={note}
         notes={notes}
@@ -98,8 +110,23 @@ export function NoteSurface({
         onToggleSidebar={onToggleSidebar}
       />
       <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[760px] px-10 pt-12 pb-24">
-          <h1 className="text-[2.5rem] font-bold leading-[1.15] tracking-[-0.02em] text-text-primary">{title}</h1>
+        <CoverBanner token={note.cover} onChange={(cover) => patch({ cover })} />
+        <div className={cn('mx-auto w-full max-w-[760px] px-10 pb-24', hasCover ? 'pt-0' : 'pt-10')}>
+          {note.emoji ? (
+            // The icon is positioned so it lifts over the cover's lower edge, the
+            // way a page icon reads on the surfaces this is modelled on.
+            <div className={cn('relative z-10', hasCover ? '-mt-[42px]' : 'mt-2')}>
+              <NoteIcon value={note.emoji} onChange={(emoji) => patch({ emoji })} />
+            </div>
+          ) : null}
+          <AddHeaderChrome
+            hasCover={hasCover}
+            hasIcon={Boolean(note.emoji)}
+            onCover={(cover) => patch({ cover })}
+            onIcon={(emoji) => patch({ emoji })}
+          />
+          <h1 className="mt-1 text-[2.5rem] font-bold leading-[1.15] tracking-[-0.02em] text-text-primary">{title}</h1>
+          <NoteTags tags={note.tags} onChange={(tags) => patch({ tags })} />
           <div className="mb-6 mt-2 text-body-extra-small text-text-tertiary">
             {nt('WordCountFormat', { 0: wordCount.toLocaleString() })}
             {' · '}
