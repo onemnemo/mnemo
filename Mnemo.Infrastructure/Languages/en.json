@@ -848,12 +848,29 @@
     "OnGridCountFormat": "On grid ×{0}",
     "BylineFormat": "by @{0}",
     "StoreTeaser": "Community widgets, themes, and modules arrive with the extension store.",
-    "ComingSoon": "Coming soon"
+    "ComingSoon": "Coming soon",
+    "Categories": "Categories",
+    "CategoryAll": "All",
+    "CategoryStudy": "Study",
+    "CategoryCards": "Flashcards",
+    "CategoryNotes": "Notes",
+    "CategorySoma": "Soma",
+    "CategoryCommunity": "Community",
+    "Done": "Done",
+    "OnBoard": "On board",
+    "OnBoardCountFormat": "{0} on board",
+    "Added": "Added",
+    "AddAnother": "Add another",
+    "OnlyOnce": "This widget can only appear once",
+    "NoResultsHint": "Try a different word, or browse by category.",
+    "CommunityEmpty": "Nothing here yet",
+    "CommunityEmptyHint": "Widgets other people have built will show up here once the extension store opens."
   },
   "WidgetConfig": {
     "Subtitle": "Settings apply to this widget tile only.",
     "Save": "Save",
-    "Cancel": "Cancel"
+    "Cancel": "Cancel",
+    "ChoosePlaceholder": "Choose"
   },
   "Permissions": {
     "AdditionalPermissionRequired": "Additional Permission Required",
@@ -891,5 +908,92 @@
     "global.quick-actions.description": "Open the quick actions catalog (keyboard shortcuts).",
     "global.assistant": "Open chat",
     "global.assistant.description": "Jump to the AI chat from anywhere."
+  },
+  "WidgetToday": {
+    "Title": "Today",
+    "Description": "What is waiting for you right now, and the button that starts it.",
+    "CaughtUp": "Everything is caught up. The next cards come back tomorrow.",
+    "Study": "Study",
+    "AboutMinutes": "about {0} min",
+    "CountNew": "{0} new",
+    "CountLearning": "{0} learning",
+    "CountReview": "{0} review",
+    "WhereTheWorkIs": "Where the work is"
+  },
+  "WidgetRecent": {
+    "Title": "Pick up where you left off",
+    "Description": "Your last notes and decks together, newest first.",
+    "EmptyState": "Nothing yet. Open a note or a deck and it will show up here.",
+    "Untitled": "Untitled",
+    "SettingCount": "Items"
+  },
+  "WidgetStreak": {
+    "Title": "Streak",
+    "Description": "Consecutive days studied, and how this week has gone.",
+    "Days": "days",
+    "BestFormat": "Best {0}",
+    "ReviewsOnDay": "{0} reviews on {1}"
+  },
+  "WidgetActivity": {
+    "Title": "Activity",
+    "Description": "Every day you studied over the last year.",
+    "ReviewsTotal": "{0} reviews",
+    "ReviewsOnDay": "{0} reviews on {1}",
+    "Less": "Less",
+    "More": "More"
+  },
+  "WidgetForecast": {
+    "Title": "Review forecast",
+    "Description": "How much the scheduler will hand you over the coming days.",
+    "SettingDays": "Days ahead",
+    "TotalInWindow": "{0} in {1}d"
+  },
+  "WidgetRetention": {
+    "Title": "Retention",
+    "Description": "How much of what you review you actually get right.",
+    "EmptyState": "No reviews yet, so there is nothing to measure.",
+    "TrendFormat": "{0} pts · {1} days"
+  },
+  "WidgetGoals": {
+    "Title": "Daily goals",
+    "Description": "Today's targets for cards, sessions and minutes.",
+    "CardsReviewed": "Cards reviewed",
+    "CardsReviewedShort": "Cards",
+    "SessionsCompleted": "Sessions completed",
+    "SessionsCompletedShort": "Sessions",
+    "MinutesStudied": "Minutes studied",
+    "MinutesStudiedShort": "Minutes",
+    "SettingGoalType": "Window",
+    "SettingGoalTypeDaily": "Daily",
+    "SettingGoalTypeWeekly": "Weekly",
+    "SettingMetric": "Lead with",
+    "SettingMetricCards": "Cards",
+    "SettingMetricMinutes": "Minutes"
+  },
+  "WidgetLeeches": {
+    "Title": "Keeps slipping",
+    "Description": "Cards you fail again and again, ranked by how often.",
+    "EmptyState": "Nothing is giving you trouble.",
+    "LapseCountFormat": "{0}×"
+  },
+  "WidgetDeck": {
+    "Title": "Deck spotlight",
+    "Description": "One deck you care about, pinned to the board with its queue.",
+    "NoDecks": "No decks yet.",
+    "CardsWaiting": "cards waiting",
+    "Due": "due",
+    "CountNew": "{0} new",
+    "CountLearning": "{0} learning",
+    "CountReview": "{0} review",
+    "CaughtUpFormat": "Caught up · {0} cards",
+    "SettingDeck": "Deck"
+  },
+  "WidgetSoma": {
+    "Title": "Soma",
+    "Description": "A way into the assistant without leaving what you were doing.",
+    "NarrowPitch": "Ask about anything on your screen.",
+    "AskPlaceholder": "Ask Soma anything…",
+    "SuggestionQuiz": "Quiz me on today's cards",
+    "SuggestionStruggle": "What did I struggle with?"
   }
 }

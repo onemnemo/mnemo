@@ -62,6 +62,27 @@ export function computePlacements(
     : packInFlowOrder(children, columnCount)
 }
 
+/**
+ * Where a tile dropped on (column, row) belongs in flow order.
+ *
+ * Only used below the widest breakpoint, where coordinates are meaningless and the only thing a
+ * drag can express is "put me before that one". Counts the tiles that pack ahead of the target
+ * cell, the dragged tile itself excluded so it is not compared against its own position.
+ */
+export function flowIndexAt(
+  placements: readonly WidgetPlacement[],
+  draggedIndex: number,
+  column: number,
+  row: number,
+): number {
+  let index = 0
+  placements.forEach((placement, i) => {
+    if (i === draggedIndex) return
+    if (placement.row < row || (placement.row === row && placement.column < column)) index++
+  })
+  return index
+}
+
 /** Board height for a given row count, excluding the edit-mode growth row. */
 export function extentHeightForRows(usedRows: number): number {
   return usedRows <= 0 ? 0 : usedRows * ROW_HEIGHT + (usedRows - 1) * GAP

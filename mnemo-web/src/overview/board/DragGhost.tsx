@@ -1,34 +1,28 @@
-import { AppIcon } from "@/components/icon/AppIcon"
-
-import { useOverviewStore } from "../store"
+import type { WidgetPlacement } from "../layout/engine"
+import { GAP, ROW_HEIGHT } from "../layout/metrics"
 
 /**
- * The floating proxy that follows the pointer during a drag, so the gesture reads as carrying the
- * widget rather than pushing an empty slot around.
+ * The cell a dragged tile would land in, drawn as a filled rounded rect behind the board.
  *
- * Positioned in board coordinates, which is the only space the drag works in, and offset below-right
- * of the cursor rather than sitting under it. It is the sole subscriber to the ghost slice, so a
- * pointer move repaints this and nothing else.
+ * There is only ever one of these, and only while something is in the air. A grid pre-filled with
+ * dashed placeholders is graph paper: it makes an empty board look broken rather than empty, and
+ * it makes a busy one unreadable. The tile itself is the thing that follows the pointer; this is
+ * only the answer to "where does it go".
+ *
+ * Positioned off the same `--overview-cell` expression the tiles use, so the ghost cannot land a
+ * fraction of a pixel away from the tile it stands in for.
  */
-export function DragGhost() {
-  const ghost = useOverviewStore((state) => state.ghost)
-  if (!ghost.visible) return null
-
+export function DragGhost({ placement }: { placement: WidgetPlacement }) {
   return (
     <div
-      className="pointer-events-none absolute z-10 flex items-center gap-[9px] rounded-lg bg-[var(--floating-chrome-background)] px-3 py-[9px] opacity-[0.94] shadow-elevation-3"
-      // Lifted very slightly off the board, the same trick as a raised card: enough to read as
-      // picked up, not enough to look like a different size.
-      style={{ left: ghost.x, top: ghost.y, transform: "scale(1.02)" }}
       aria-hidden="true"
-    >
-      <AppIcon name="common/grip-vertical" size={16} className="text-[var(--floating-chrome-foreground-muted)]" />
-      <span className="whitespace-nowrap text-body-small font-semibold text-[var(--floating-chrome-foreground-strong)]">
-        {ghost.title}
-      </span>
-      <span className="rounded-sm bg-[var(--floating-chrome-hover)] px-1.5 py-0.5 font-mono text-caption text-[var(--floating-chrome-foreground-muted)]">
-        {ghost.sizeLabel}
-      </span>
-    </div>
+      className="pointer-events-none absolute rounded-2xl bg-frame-active/70 transition-[left,top,width,height] duration-120 ease-out"
+      style={{
+        left: `calc(var(--overview-cell) * ${placement.column} + ${placement.column * GAP}px)`,
+        width: `calc(var(--overview-cell) * ${placement.columnSpan} + ${(placement.columnSpan - 1) * GAP}px)`,
+        top: placement.row * (ROW_HEIGHT + GAP),
+        height: placement.rowSpan * ROW_HEIGHT + (placement.rowSpan - 1) * GAP,
+      }}
+    />
   )
 }

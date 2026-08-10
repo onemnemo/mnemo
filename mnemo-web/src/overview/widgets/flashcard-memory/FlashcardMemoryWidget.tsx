@@ -1,3 +1,4 @@
+import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 
 import { Body, Empty, Head, Ring, Spark, useWidgetTitle } from "../../parts"
@@ -5,26 +6,24 @@ import type { WidgetProps } from "../registry"
 import { WidgetError, WidgetLoading } from "../states"
 import { useFlashcardMemory } from "./useFlashcardMemory"
 
-const NS = "FlashcardMemory"
+const NS = "WidgetRetention"
 
 /**
- * True retention across the library, with a trend line for whichever deck is being worked hardest.
+ * How much of what gets reviewed is actually recalled, across the library.
  *
- * The narrow size drops the right column outright rather than shrinking it. A 1x1 tile is about
- * 250px wide, and a sparkline squeezed into what is left beside the headline would be a smudge
- * with a dot on the end.
+ * The ring says "a proportion" before the number is read, which a bare percentage does not, and it
+ * holds the same meaning at every tile width. The wide size trades ring diameter for a sentence
+ * about the direction, since a number with no direction is a number nobody can act on.
  */
-export function FlashcardMemoryWidget({ instance, manifest }: WidgetProps) {
+export function FlashcardMemoryWidget({ manifest, renderColumns }: WidgetProps) {
   const t = useT()
   const title = useWidgetTitle(manifest)
   const memory = useFlashcardMemory()
 
-  const narrow = instance.size.columns <= 1
-
   if (memory.state !== "ready") {
     return (
       <Body>
-        <Head title={title} icon="orbit" />
+        <Head title={title} icon="target" />
         {memory.state === "loading" ? (
           <div className="mt-2 flex-1">
             <WidgetLoading rows={2} />
@@ -38,29 +37,52 @@ export function FlashcardMemoryWidget({ instance, manifest }: WidgetProps) {
     )
   }
 
+  const ring = (size: number) => (
+    <Ring value={memory.retentionPercent / 100} size={size} stroke={size >= 56 ? 4 : 3.5}>
+      <span className="font-semibold tabular-nums text-ink" style={{ fontSize: size >= 56 ? 15 : 13 }}>
+        {memory.retentionPercent}%
+      </span>
+    </Ring>
+  )
+
+  if (renderColumns >= 2) {
+    const rising = memory.trendDelta >= 0
+    return (
+      <Body>
+        <Head title={title} icon="target" />
+        <div className="flex flex-1 items-center gap-4">
+          {ring(52)}
+          <div className="flex min-w-0 flex-1 flex-col justify-center">
+            <div className="h-[26px] w-full text-ink-3">
+              <Spark values={memory.trend} />
+            </div>
+            <p className="mt-1.5 flex items-center gap-1 text-[12px] text-ink-2">
+              <AppIcon
+                name={rising ? "trending-up" : "trending-down"}
+                size={14}
+                strokeWidth={1.9}
+                className="shrink-0 text-ink-icon"
+              />
+              <span className="truncate">
+                {t(NS, "TrendFormat", {
+                  0: `${rising ? "+" : ""}${memory.trendDelta.toFixed(1)}`,
+                  1: memory.trendDays,
+                })}
+              </span>
+            </p>
+          </div>
+        </div>
+      </Body>
+    )
+  }
+
   return (
     <Body>
-      <Head title={title} icon="orbit" />
-
-      <div className="mt-3 flex min-h-0 flex-1 items-center gap-4">
-        {/* The ring says "a proportion" before the number is read, which a bare percentage does
-            not, and it holds the same meaning at every tile width. */}
-        <Ring value={memory.retentionPercent / 100} size={52}>
-          <span className="text-[13px] font-semibold tabular-nums text-ink">{memory.retentionPercent}%</span>
-        </Ring>
-
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[12.5px] text-ink-2">{t(NS, "RetentionLabel")}</p>
-          {/* The narrow size drops the trend outright rather than shrinking it. A 1x1 tile is about
-              250px wide, and a sparkline squeezed into what is left beside the ring is a smudge. */}
-          {!narrow && memory.trend.length > 1 && (
-            <>
-              <div className="mt-1.5 h-8 text-ink-3">
-                <Spark values={memory.trend} />
-              </div>
-              <p className="mt-0.5 truncate text-[11.5px] text-ink-3">{memory.trendDeckName}</p>
-            </>
-          )}
+      <Head title={title} icon="target" />
+      <div className="flex flex-1 items-center justify-center gap-3">
+        {ring(56)}
+        <div className="h-[30px] flex-1 text-ink-3">
+          <Spark values={memory.trend} />
         </div>
       </div>
     </Body>

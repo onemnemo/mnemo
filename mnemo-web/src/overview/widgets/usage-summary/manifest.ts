@@ -5,8 +5,8 @@ export const usageSummaryManifest: WidgetManifest = {
   widgetId: "mnemo.usage-summary",
   ns: "UsageSummary",
   author: "Mnemo",
-  category: "statistics",
-  icon: "widgets/usage-summary",
+  category: "study",
+  icon: "layers",
   supportedSizes: [
     { columns: 1, rows: 2 },
     { columns: 2, rows: 1 },

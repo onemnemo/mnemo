@@ -843,12 +843,29 @@
     "OnGridCountFormat": "En la cuadrícula ×{0}",
     "BylineFormat": "por @{0}",
     "StoreTeaser": "Los widgets, temas y módulos de la comunidad llegarán con la tienda de extensiones.",
-    "ComingSoon": "Próximamente"
+    "ComingSoon": "Próximamente",
+    "Categories": "Categorías",
+    "CategoryAll": "Todos",
+    "CategoryStudy": "Estudio",
+    "CategoryCards": "Tarjetas",
+    "CategoryNotes": "Notas",
+    "CategorySoma": "Soma",
+    "CategoryCommunity": "Comunidad",
+    "Done": "Listo",
+    "OnBoard": "En el panel",
+    "OnBoardCountFormat": "{0} en el panel",
+    "Added": "Añadido",
+    "AddAnother": "Añadir otro",
+    "OnlyOnce": "Este widget solo puede aparecer una vez",
+    "NoResultsHint": "Prueba otra palabra, o explora por categoría.",
+    "CommunityEmpty": "Aquí todavía no hay nada",
+    "CommunityEmptyHint": "Los widgets que hagan otras personas aparecerán aquí cuando abra la tienda de extensiones."
   },
   "WidgetConfig": {
     "Subtitle": "Los ajustes se aplican solo a esta tarjeta de widget.",
     "Save": "Guardar",
-    "Cancel": "Cancelar"
+    "Cancel": "Cancelar",
+    "ChoosePlaceholder": "Elegir"
   },
   "Permissions": {
     "AdditionalPermissionRequired": "Se requiere permisso adicional",
@@ -886,5 +903,92 @@
     "global.assistant.description": "Ir al chat de IA desde cualquier lugar.",
     "global.quick-actions": "Acciones rápidas",
     "global.quick-actions.description": "Abrir el catálogo de acciones rápidas (atajos de teclado)."
+  },
+  "WidgetToday": {
+    "Title": "Hoy",
+    "Description": "Lo que te espera ahora mismo, y el botón que lo empieza.",
+    "CaughtUp": "Todo al día. Las próximas tarjetas vuelven mañana.",
+    "Study": "Estudiar",
+    "AboutMinutes": "unos {0} min",
+    "CountNew": "{0} nuevas",
+    "CountLearning": "{0} en aprendizaje",
+    "CountReview": "{0} de repaso",
+    "WhereTheWorkIs": "Dónde está el trabajo"
+  },
+  "WidgetRecent": {
+    "Title": "Sigue donde lo dejaste",
+    "Description": "Tus últimas notas y mazos juntos, lo más reciente primero.",
+    "EmptyState": "Todavía nada. Abre una nota o un mazo y aparecerá aquí.",
+    "Untitled": "Sin título",
+    "SettingCount": "Elementos"
+  },
+  "WidgetStreak": {
+    "Title": "Racha",
+    "Description": "Días seguidos estudiando, y cómo ha ido esta semana.",
+    "Days": "días",
+    "BestFormat": "Mejor {0}",
+    "ReviewsOnDay": "{0} repasos el {1}"
+  },
+  "WidgetActivity": {
+    "Title": "Actividad",
+    "Description": "Cada día que estudiaste durante el último año.",
+    "ReviewsTotal": "{0} repasos",
+    "ReviewsOnDay": "{0} repasos el {1}",
+    "Less": "Menos",
+    "More": "Más"
+  },
+  "WidgetForecast": {
+    "Title": "Previsión de repasos",
+    "Description": "Cuánto te dará el planificador en los próximos días.",
+    "SettingDays": "Días por delante",
+    "TotalInWindow": "{0} en {1} d"
+  },
+  "WidgetRetention": {
+    "Title": "Retención",
+    "Description": "Cuánto de lo que repasas aciertas de verdad.",
+    "EmptyState": "Todavía no hay repasos, así que no hay nada que medir.",
+    "TrendFormat": "{0} pts · {1} días"
+  },
+  "WidgetGoals": {
+    "Title": "Objetivos diarios",
+    "Description": "Los objetivos de hoy para tarjetas, sesiones y minutos.",
+    "CardsReviewed": "Tarjetas repasadas",
+    "CardsReviewedShort": "Tarjetas",
+    "SessionsCompleted": "Sesiones completadas",
+    "SessionsCompletedShort": "Sesiones",
+    "MinutesStudied": "Minutos estudiados",
+    "MinutesStudiedShort": "Minutos",
+    "SettingGoalType": "Periodo",
+    "SettingGoalTypeDaily": "Diario",
+    "SettingGoalTypeWeekly": "Semanal",
+    "SettingMetric": "Encabezar con",
+    "SettingMetricCards": "Tarjetas",
+    "SettingMetricMinutes": "Minutos"
+  },
+  "WidgetLeeches": {
+    "Title": "Se te siguen escapando",
+    "Description": "Tarjetas que fallas una y otra vez, ordenadas por frecuencia.",
+    "EmptyState": "Nada te está dando problemas.",
+    "LapseCountFormat": "{0}×"
+  },
+  "WidgetDeck": {
+    "Title": "Mazo destacado",
+    "Description": "Un mazo que te importa, fijado al panel con su cola.",
+    "NoDecks": "Todavía no hay mazos.",
+    "CardsWaiting": "tarjetas esperando",
+    "Due": "pendientes",
+    "CountNew": "{0} nuevas",
+    "CountLearning": "{0} en aprendizaje",
+    "CountReview": "{0} de repaso",
+    "CaughtUpFormat": "Al día · {0} tarjetas",
+    "SettingDeck": "Mazo"
+  },
+  "WidgetSoma": {
+    "Title": "Soma",
+    "Description": "Una entrada al asistente sin dejar lo que estabas haciendo.",
+    "NarrowPitch": "Pregunta sobre cualquier cosa de tu pantalla.",
+    "AskPlaceholder": "Pregúntale lo que sea a Soma…",
+    "SuggestionQuiz": "Tómame las tarjetas de hoy",
+    "SuggestionStruggle": "¿Con qué me costó más?"
   }
 }

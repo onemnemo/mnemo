@@ -12,7 +12,7 @@ function manifestOf(supportedSizes: WidgetManifest["supportedSizes"]): WidgetMan
     widgetId: "test.widget",
     ns: "Test",
     author: "Mnemo",
-    category: "statistics",
+    category: "study",
     icon: "widgets/test",
     supportedSizes,
     defaultSize: { columns: 1, rows: 1 },

@@ -77,6 +77,19 @@ export interface RetentionTrendPointDto {
   reviewsCount: number
 }
 
+/**
+ * Mirrors Mnemo.Host/Contracts/ForecastDayDto.cs. One column of the review forecast; `day` is a
+ * bare UTC date, the same key shape the statistics records carry.
+ *
+ * Only today's entry has a non-zero `new`: it is today's remaining new allowance, and a future
+ * day's would be a guess about how much studying happens between now and then.
+ */
+export interface ForecastDayDto {
+  day: string
+  due: number
+  "new": number
+}
+
 // Card shapes. The host maps every flashcard enum to a lowercase token rather than
 // letting it serialize as an integer, so these mirror as string unions - see
 // Mnemo.Host/Contracts/FlashcardWire.cs.

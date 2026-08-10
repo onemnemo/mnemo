@@ -843,12 +843,29 @@
     "OnGridCountFormat": "På rutenettet ×{0}",
     "BylineFormat": "av @{0}",
     "StoreTeaser": "Widgets, temaer og moduler fra fellesskapet kommer med utvidelsesbutikken.",
-    "ComingSoon": "Kommer snart"
+    "ComingSoon": "Kommer snart",
+    "Categories": "Kategorier",
+    "CategoryAll": "Alle",
+    "CategoryStudy": "Studier",
+    "CategoryCards": "Kort",
+    "CategoryNotes": "Notater",
+    "CategorySoma": "Soma",
+    "CategoryCommunity": "Fellesskap",
+    "Done": "Ferdig",
+    "OnBoard": "På tavla",
+    "OnBoardCountFormat": "{0} på tavla",
+    "Added": "Lagt til",
+    "AddAnother": "Legg til en til",
+    "OnlyOnce": "Denne modulen kan bare vises én gang",
+    "NoResultsHint": "Prøv et annet ord, eller bla gjennom kategoriene.",
+    "CommunityEmpty": "Ingenting her ennå",
+    "CommunityEmptyHint": "Moduler andre har laget dukker opp her når utvidelsesbutikken åpner."
   },
   "WidgetConfig": {
     "Subtitle": "Innstillingene gjelder bare denne widget-flisen.",
     "Save": "Lagre",
-    "Cancel": "Avbryt"
+    "Cancel": "Avbryt",
+    "ChoosePlaceholder": "Velg"
   },
   "Permissions": {
     "AdditionalPermissionRequired": "Ytterligere tillatelse kreves",
@@ -886,5 +903,92 @@
     "global.assistant.description": "Gå til AI-chatten fra hvor som helst.",
     "global.quick-actions": "Hurtighandlinger",
     "global.quick-actions.description": "Åpne katalogen over hurtighandlinger (tastatursnarveier)."
+  },
+  "WidgetToday": {
+    "Title": "I dag",
+    "Description": "Det som venter på deg nå, og knappen som setter i gang.",
+    "CaughtUp": "Alt er ajour. De neste kortene kommer tilbake i morgen.",
+    "Study": "Studer",
+    "AboutMinutes": "omtrent {0} min",
+    "CountNew": "{0} nye",
+    "CountLearning": "{0} under innlæring",
+    "CountReview": "{0} til repetisjon",
+    "WhereTheWorkIs": "Hvor arbeidet ligger"
+  },
+  "WidgetRecent": {
+    "Title": "Fortsett der du slapp",
+    "Description": "De siste notatene og kortstokkene dine samlet, nyeste først.",
+    "EmptyState": "Ingenting ennå. Åpne et notat eller en kortstokk, så dukker det opp her.",
+    "Untitled": "Uten tittel",
+    "SettingCount": "Elementer"
+  },
+  "WidgetStreak": {
+    "Title": "Rekke",
+    "Description": "Dager på rad med studier, og hvordan denne uka har gått.",
+    "Days": "dager",
+    "BestFormat": "Beste {0}",
+    "ReviewsOnDay": "{0} repetisjoner {1}"
+  },
+  "WidgetActivity": {
+    "Title": "Aktivitet",
+    "Description": "Hver dag du studerte det siste året.",
+    "ReviewsTotal": "{0} repetisjoner",
+    "ReviewsOnDay": "{0} repetisjoner {1}",
+    "Less": "Mindre",
+    "More": "Mer"
+  },
+  "WidgetForecast": {
+    "Title": "Repetisjonsvarsel",
+    "Description": "Hvor mye planleggeren gir deg de neste dagene.",
+    "SettingDays": "Dager framover",
+    "TotalInWindow": "{0} på {1} d"
+  },
+  "WidgetRetention": {
+    "Title": "Hukommelse",
+    "Description": "Hvor mye av det du repeterer du faktisk husker riktig.",
+    "EmptyState": "Ingen repetisjoner ennå, så det er ikke noe å måle.",
+    "TrendFormat": "{0} poeng · {1} dager"
+  },
+  "WidgetGoals": {
+    "Title": "Dagens mål",
+    "Description": "Dagens mål for kort, økter og minutter.",
+    "CardsReviewed": "Repeterte kort",
+    "CardsReviewedShort": "Kort",
+    "SessionsCompleted": "Fullførte økter",
+    "SessionsCompletedShort": "Økter",
+    "MinutesStudied": "Studerte minutter",
+    "MinutesStudiedShort": "Minutter",
+    "SettingGoalType": "Periode",
+    "SettingGoalTypeDaily": "Daglig",
+    "SettingGoalTypeWeekly": "Ukentlig",
+    "SettingMetric": "Vis først",
+    "SettingMetricCards": "Kort",
+    "SettingMetricMinutes": "Minutter"
+  },
+  "WidgetLeeches": {
+    "Title": "Glipper stadig",
+    "Description": "Kort du bommer på gang på gang, sortert etter hvor ofte.",
+    "EmptyState": "Ingenting gir deg trøbbel.",
+    "LapseCountFormat": "{0}×"
+  },
+  "WidgetDeck": {
+    "Title": "Kortstokk i fokus",
+    "Description": "En kortstokk du bryr deg om, festet til tavla med køen sin.",
+    "NoDecks": "Ingen kortstokker ennå.",
+    "CardsWaiting": "kort venter",
+    "Due": "forfalt",
+    "CountNew": "{0} nye",
+    "CountLearning": "{0} under innlæring",
+    "CountReview": "{0} til repetisjon",
+    "CaughtUpFormat": "Ajour · {0} kort",
+    "SettingDeck": "Kortstokk"
+  },
+  "WidgetSoma": {
+    "Title": "Soma",
+    "Description": "En vei inn til assistenten uten å forlate det du holdt på med.",
+    "NarrowPitch": "Spør om hva som helst på skjermen.",
+    "AskPlaceholder": "Spør Soma om hva som helst …",
+    "SuggestionQuiz": "Test meg på dagens kort",
+    "SuggestionStruggle": "Hva slet jeg med?"
   }
 }

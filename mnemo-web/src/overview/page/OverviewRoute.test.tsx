@@ -134,20 +134,22 @@ describe("OverviewRoute", () => {
     expect(saves()).toHaveLength(1)
     const layout = saves()[0].body as OverviewLayoutDto
     expect(layout.widgets.map((widget) => widget.widgetId)).toEqual([
-      "mnemo.flashcard-stats",
-      "mnemo.recent-decks",
-      "mnemo.recent-notes",
-      "mnemo.study-goals",
-      "mnemo.usage-summary",
+      "mnemo.today",
+      "mnemo.streak",
+      "mnemo.flashcard-memory",
+      "mnemo.recent",
+      "mnemo.forecast",
+      "mnemo.activity",
     ])
     // The template's coordinates are literal placements, not -1, so the board is placed before the
     // engine ever runs and both apps agree on what first run produced.
     expect(layout.widgets.map((widget) => [widget.column, widget.row])).toEqual([
       [0, 0],
-      [2, 0],
       [0, 1],
+      [1, 1],
       [2, 1],
-      [3, 1],
+      [0, 2],
+      [2, 2],
     ])
     expect(container.querySelectorAll("[data-slot=skeleton]").length).toBeGreaterThan(0)
   })
@@ -172,7 +174,7 @@ describe("OverviewRoute", () => {
     await render(client, false)
 
     expect(saves()).toHaveLength(1)
-    expect(useOverviewStore.getState().draft).toHaveLength(5)
+    expect(useOverviewStore.getState().draft).toHaveLength(6)
   })
 
   it("renders the error state, not the empty state, and saves nothing when the board cannot be read", async () => {
@@ -307,8 +309,8 @@ describe("OverviewRoute edit mode", () => {
     expect(button("Customize")).toBeUndefined()
 
     // Declaration order, which is preference order, and the stored span is the pressed one.
-    expect(chips().map((chip) => chip.textContent)).toEqual(["1×2", "2×1", "2×2"])
-    expect(chips().map((chip) => chip.getAttribute("aria-pressed"))).toEqual(["true", "false", "false"])
+    expect(chips().map((chip) => chip.textContent)).toEqual(["2×1", "1×2", "2×2"])
+    expect(chips().map((chip) => chip.getAttribute("aria-pressed"))).toEqual(["false", "true", "false"])
 
     // Editing a board is not saving it. Nothing is owed until Done.
     expect(saves()).toHaveLength(0)

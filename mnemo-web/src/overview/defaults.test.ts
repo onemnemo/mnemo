@@ -14,8 +14,8 @@ function manifestOf(widgetId: string, supportedSizes: WidgetManifest["supportedS
     widgetId,
     ns: "Overview",
     author: "Mnemo",
-    category: "statistics",
-    icon: `widgets/${widgetId}`,
+    category: "study",
+    icon: "square-stack",
     supportedSizes,
     defaultSize: supportedSizes[0],
   }
@@ -23,27 +23,31 @@ function manifestOf(widgetId: string, supportedSizes: WidgetManifest["supportedS
 
 // Sized exactly as the template asks, which is the real registry's situation today.
 const MANIFESTS: Record<string, WidgetManifest> = {
-  "mnemo.flashcard-stats": manifestOf("mnemo.flashcard-stats", [
+  "mnemo.today": manifestOf("mnemo.today", [
     { columns: 2, rows: 1 },
     { columns: 4, rows: 1 },
   ]),
-  "mnemo.recent-decks": manifestOf("mnemo.recent-decks", [
+  "mnemo.streak": manifestOf("mnemo.streak", [
+    { columns: 1, rows: 1 },
+    { columns: 2, rows: 1 },
+  ]),
+  "mnemo.flashcard-memory": manifestOf("mnemo.flashcard-memory", [
+    { columns: 1, rows: 1 },
+    { columns: 2, rows: 1 },
+  ]),
+  "mnemo.recent": manifestOf("mnemo.recent", [
     { columns: 2, rows: 1 },
     { columns: 2, rows: 2 },
   ]),
-  "mnemo.recent-notes": manifestOf("mnemo.recent-notes", [
-    { columns: 2, rows: 2 },
-    { columns: 4, rows: 2 },
-  ]),
-  "mnemo.study-goals": {
-    ...manifestOf("mnemo.study-goals", [
-      { columns: 1, rows: 2 },
-      { columns: 2, rows: 2 },
+  "mnemo.forecast": {
+    ...manifestOf("mnemo.forecast", [
+      { columns: 2, rows: 1 },
+      { columns: 4, rows: 1 },
     ]),
-    settings: [{ key: "dailyGoal", labelKey: "DailyGoal", type: "range", defaultValue: "20" }],
+    settings: [{ key: "days", labelKey: "SettingDays", type: "range", defaultValue: "7" }],
   },
-  "mnemo.usage-summary": manifestOf("mnemo.usage-summary", [
-    { columns: 1, rows: 2 },
+  "mnemo.activity": manifestOf("mnemo.activity", [
+    { columns: 2, rows: 1 },
     { columns: 2, rows: 2 },
   ]),
 }
@@ -58,15 +62,15 @@ beforeEach(() => {
 })
 
 describe("seedDefaultLayout", () => {
-  it("seeds the five template tiles at the template's own coordinates and order", () => {
+  it("seeds the template's tiles at its own coordinates and order", () => {
     expect(seedDefaultLayout(lookup, nextId)).toEqual({
       schemaVersion: 3,
       profileId: "default",
       widgets: [
         {
           instanceId: "instance-1",
-          widgetId: "mnemo.flashcard-stats",
-          size: { columns: 2, rows: 1 },
+          widgetId: "mnemo.today",
+          size: { columns: 4, rows: 1 },
           column: 0,
           row: 0,
           order: 0,
@@ -74,38 +78,47 @@ describe("seedDefaultLayout", () => {
         },
         {
           instanceId: "instance-2",
-          widgetId: "mnemo.recent-decks",
-          size: { columns: 2, rows: 1 },
-          column: 2,
-          row: 0,
+          widgetId: "mnemo.streak",
+          size: { columns: 1, rows: 1 },
+          column: 0,
+          row: 1,
           order: 1,
           settings: {},
         },
         {
           instanceId: "instance-3",
-          widgetId: "mnemo.recent-notes",
-          size: { columns: 2, rows: 2 },
-          column: 0,
+          widgetId: "mnemo.flashcard-memory",
+          size: { columns: 1, rows: 1 },
+          column: 1,
           row: 1,
           order: 2,
           settings: {},
         },
         {
           instanceId: "instance-4",
-          widgetId: "mnemo.study-goals",
-          size: { columns: 1, rows: 2 },
+          widgetId: "mnemo.recent",
+          size: { columns: 2, rows: 1 },
           column: 2,
           row: 1,
           order: 3,
-          settings: { dailyGoal: "20" },
+          settings: {},
         },
         {
           instanceId: "instance-5",
-          widgetId: "mnemo.usage-summary",
-          size: { columns: 1, rows: 2 },
-          column: 3,
-          row: 1,
+          widgetId: "mnemo.forecast",
+          size: { columns: 2, rows: 1 },
+          column: 0,
+          row: 2,
           order: 4,
+          settings: { days: "7" },
+        },
+        {
+          instanceId: "instance-6",
+          widgetId: "mnemo.activity",
+          size: { columns: 2, rows: 1 },
+          column: 2,
+          row: 2,
+          order: 5,
           settings: {},
         },
       ],
@@ -118,44 +131,46 @@ describe("seedDefaultLayout", () => {
 
     expect(seeded.widgets.map((w) => [w.column, w.row])).toEqual([
       [0, 0],
-      [2, 0],
       [0, 1],
+      [1, 1],
       [2, 1],
-      [3, 1],
+      [0, 2],
+      [2, 2],
     ])
   })
 
   it("snaps a template size the manifest no longer offers", () => {
-    // recent-notes asks for 2x2. Offer 3x2 and 1x1 instead: both are one column away, so the row
-    // distance decides and 3x2 wins.
+    // recent asks for 2x1. Offer 3x1 and 1x2 instead: both are one column away, so the row distance
+    // decides and 3x1 wins.
     const narrowed: ManifestLookup = (widgetId) =>
-      widgetId === "mnemo.recent-notes"
-        ? manifestOf("mnemo.recent-notes", [
-            { columns: 3, rows: 2 },
-            { columns: 1, rows: 1 },
+      widgetId === "mnemo.recent"
+        ? manifestOf("mnemo.recent", [
+            { columns: 3, rows: 1 },
+            { columns: 1, rows: 2 },
           ])
         : MANIFESTS[widgetId]
 
-    const notes = seedDefaultLayout(narrowed, nextId).widgets.find((w) => w.widgetId === "mnemo.recent-notes")
+    const recent = seedDefaultLayout(narrowed, nextId).widgets.find((w) => w.widgetId === "mnemo.recent")
 
-    expect(notes?.size).toEqual({ columns: 3, rows: 2 })
+    expect(recent?.size).toEqual({ columns: 3, rows: 1 })
   })
 
   it("drops an entry this build has no widget for, and closes the gap in order", () => {
-    const withoutGoals: ManifestLookup = (widgetId) =>
-      widgetId === "mnemo.study-goals" ? undefined : MANIFESTS[widgetId]
+    const withoutRecent: ManifestLookup = (widgetId) =>
+      widgetId === "mnemo.recent" ? undefined : MANIFESTS[widgetId]
 
-    const seeded = seedDefaultLayout(withoutGoals, nextId)
+    const seeded = seedDefaultLayout(withoutRecent, nextId)
 
     expect(seeded.widgets.map((w) => w.widgetId)).toEqual([
-      "mnemo.flashcard-stats",
-      "mnemo.recent-decks",
-      "mnemo.recent-notes",
-      "mnemo.usage-summary",
+      "mnemo.today",
+      "mnemo.streak",
+      "mnemo.flashcard-memory",
+      "mnemo.forecast",
+      "mnemo.activity",
     ])
     // Order is position among the widgets that seeded, not the template index, so nothing has to
     // cope with a hole at 3.
-    expect(seeded.widgets.map((w) => w.order)).toEqual([0, 1, 2, 3])
+    expect(seeded.widgets.map((w) => w.order)).toEqual([0, 1, 2, 3, 4])
   })
 
   it("seeds nothing at all when no widget is registered", () => {

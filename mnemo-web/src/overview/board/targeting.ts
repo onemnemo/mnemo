@@ -18,9 +18,15 @@ export interface TargetCell {
 }
 
 /**
- * The cell under `point`. Columns clamp to the active grid; rows clamp to one past the current
- * extent, which is what keeps a new bottom row reachable by dropping just below the content.
+ * The cell a tile whose top-left corner sits at `point` would land in.
  *
+ * Rounded, not floored, and measured from the tile's own corner rather than from the pointer: the
+ * tile is drawn free of the grid during a drag, so the cell it snaps to should be the one it is
+ * nearest to. Flooring the pointer instead means a tile visibly covering a cell can be about to
+ * land in its neighbour, which is the single thing that makes a board drag feel unpredictable.
+ *
+ * Columns clamp so a wide tile cannot hang off the right edge; rows clamp to one past the current
+ * extent, which is what keeps a new bottom row reachable by dropping just below the content.
  * `rowExtent` is the packed row count (computeLayout's `usedRows`), not that plus one: the
  * allowance is in the clamp, not in the caller's number.
  */
@@ -29,10 +35,12 @@ export function getTargetCell(
   cellWidth: number,
   columnCount: number,
   rowExtent: number,
+  columnSpan = 1,
 ): TargetCell {
+  const widest = Math.max(0, columnCount - Math.min(columnSpan, columnCount))
   return {
-    column: clamp(Math.floor(point.x / (cellWidth + GAP)), 0, columnCount - 1),
-    row: clamp(Math.floor(point.y / (ROW_HEIGHT + GAP)), 0, rowExtent),
+    column: clamp(Math.round(point.x / (cellWidth + GAP)), 0, widest),
+    row: clamp(Math.round(point.y / (ROW_HEIGHT + GAP)), 0, rowExtent),
   }
 }
 
