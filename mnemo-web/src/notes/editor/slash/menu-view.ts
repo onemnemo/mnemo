@@ -1,17 +1,24 @@
 /**
- * The slash menu's DOM: a floating list of rows, its selection, and nothing
- * else. It knows what to draw and which row is current; when to open, what the
- * query is and what a pick does all belong to the plugin.
+ * The slash menu's DOM: a floating palette of rows, its group headings and its
+ * selection, and nothing else. It knows what to draw and which row is current;
+ * when to open, what the query is and what a pick does all belong to the plugin.
  *
- * Drawn to match the desktop menu: a header naming the filter and the key that
- * closes it, then rows of name plus the markdown shortcut that does the same
- * thing. The current row swaps that shortcut for a return glyph, which is how
- * the menu says "Enter takes this one" without a second column of chrome.
+ * Each row is an icon tile, the block's name and a one-line description, filed
+ * under its section heading, so the menu reads like a palette of what a block
+ * can become rather than a bare list of words.
  */
 
 import type { SlashEntry } from '../registry/build';
+import type { SlashGroup } from '../registry/types';
+import { getIconMarkup } from '../../../components/icon/icon-registry';
 
 const ROOT = 'notes-slash-menu';
+
+/** Section heading text, resolved from the group the entry declares. */
+const GROUP_LABEL_KEY: Readonly<Record<SlashGroup, string>> = {
+  text: 'SlashGroupBasic',
+  insert: 'SlashGroupInsert',
+};
 
 /** Distinguishes one editor's rows from another's on the same page. */
 let instanceCount = 0;
@@ -20,6 +27,8 @@ export interface MenuRow {
   readonly entry: SlashEntry;
   /** Resolved once, so the language is read at build and matching agrees with it. */
   readonly label: string;
+  /** The one-line description, resolved in the same pass as the label. */
+  readonly description: string;
   readonly candidates: readonly string[];
 }
 
@@ -50,17 +59,10 @@ function element(tag: string, className: string, text?: string): HTMLElement {
 export function createSlashMenuView(translate: (key: string) => string): SlashMenuView {
   const root = element('div', ROOT);
   root.setAttribute('data-hidden', '');
-  // Same guard as the toolbar: the editor keeps DOM focus and, with it, the
-  // caret that the query is being typed at.
+  // The editor keeps DOM focus and, with it, the caret the query is typed at.
   root.addEventListener('mousedown', (event) => {
     event.preventDefault();
   });
-
-  const header = element('div', `${ROOT}-header`);
-  header.append(
-    element('span', `${ROOT}-hint`, translate('SlashMenuSearchPlaceholder')),
-    element('span', `${ROOT}-esc`, 'esc'),
-  );
 
   const listId = `${ROOT}-list-${String(++instanceCount)}`;
   const list = element('div', `${ROOT}-list`);
@@ -70,7 +72,7 @@ export function createSlashMenuView(translate: (key: string) => string): SlashMe
   const empty = element('div', `${ROOT}-empty`, translate('NoSuggestions'));
   empty.setAttribute('data-hidden', '');
 
-  root.append(header, list, empty);
+  root.append(list, empty);
   document.body.appendChild(root);
 
   let rowElements: HTMLElement[] = [];
@@ -90,25 +92,39 @@ export function createSlashMenuView(translate: (key: string) => string): SlashMe
     }
   }
 
+  function tile(icon: string): HTMLElement {
+    const span = element('span', `${ROOT}-row-tile`);
+    const markup = getIconMarkup(icon);
+    if (markup) span.innerHTML = markup;
+    return span;
+  }
+
   function render(rows: readonly MenuRow[], index: number, onPick: (i: number) => void): void {
     list.replaceChildren();
+    let lastGroup: SlashGroup | null = null;
     rowElements = rows.map((row, i) => {
+      // A heading over the first row of each new section, drawn as its own
+      // element so a hovered or selected row cannot pick it up.
+      if (row.entry.group !== lastGroup) {
+        lastGroup = row.entry.group;
+        list.appendChild(
+          element('div', `${ROOT}-group`, translate(GROUP_LABEL_KEY[row.entry.group])),
+        );
+      }
+
       const el = element('div', `${ROOT}-row`);
       el.id = `${listId}-row-${String(i)}`;
       el.setAttribute('role', 'option');
       el.dataset.node = row.entry.nodeName;
       el.dataset.label = row.entry.label;
-      // A rule above the first row of a new group, never on the first row of
-      // the list. Drawn on the row rather than between rows so a highlight
-      // cannot pick it up.
-      if (i > 0 && rows[i - 1].entry.group !== row.entry.group) {
-        el.classList.add('has-separator');
-      }
-      el.append(
+
+      const text = element('span', `${ROOT}-row-text`);
+      text.append(
         element('span', `${ROOT}-row-name`, row.label),
-        element('span', `${ROOT}-row-hint`, row.entry.hint ?? ''),
-        element('span', `${ROOT}-row-enter`, '⏎'),
+        element('span', `${ROOT}-row-desc`, row.description),
       );
+      el.append(tile(row.entry.icon), text);
+
       el.addEventListener('mousedown', () => {
         onPick(i);
       });

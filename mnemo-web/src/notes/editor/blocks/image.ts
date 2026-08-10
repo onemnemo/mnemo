@@ -140,6 +140,7 @@ export function imageBlock(deps: BlockDeps): AnyBlockModule {
         {
           label: 'Image',
           description: 'ImageDescription',
+          icon: 'common/image',
           // Inserted empty, as on the desktop: the placeholder card opens the
           // picker, so the menu never blocks on a file dialog.
           group: 'insert',

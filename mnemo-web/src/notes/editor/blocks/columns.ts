@@ -146,6 +146,7 @@ export function twoColumnBlock(deps: BlockDeps): AnyBlockModule {
         {
           label: 'TwoColumn',
           description: 'TwoColumnDescription',
+          icon: 'notes/two-column',
           group: 'insert',
           insert: insertTwoColumn,
         },

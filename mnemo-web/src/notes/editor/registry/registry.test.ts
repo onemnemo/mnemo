@@ -110,7 +110,7 @@ describe('assembly', () => {
     nodeName: 'inv-a',
     wireTypes: ['Quote'],
     invariants: [{ id: 'a1', order: 5, apply: () => null }],
-    slash: [{ label: 'A Label', description: 'A Description', group: 'text', insert() {} }],
+    slash: [{ label: 'A Label', description: 'A Description', icon: 'notes/text', group: 'text', insert() {} }],
   });
   const moduleB = makeTestBlockModule({
     nodeName: 'inv-b',
@@ -243,6 +243,7 @@ describe('this-binding for method-style contributions', () => {
     const slash = {
       label: 'Slash Owner',
       description: 'Slash Owner Description',
+      icon: 'notes/text',
       group: 'text' as const,
       insert() {
         capturedThis = this;

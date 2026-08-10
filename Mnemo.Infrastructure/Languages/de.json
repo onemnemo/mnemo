@@ -636,6 +636,8 @@
     "ExternalLinkTitle": "Externen Link öffnen",
     "ExternalLinkMessage": "Sie sind dabei, die folgende Adresse zu öffnen. Browser oder E-Mail-Programm starten außerhalb von Mnemo.\n\n{0}",
     "NoSuggestions": "Keine Vorschläge",
+    "SlashGroupBasic": "Standard",
+    "SlashGroupInsert": "Einfügen",
     "AddWordToDictionary": "Wort zum Wörterbuch hinzufügen",
     "TextColor": "TEXTFARBE",
     "BackgroundColor": "HINTERGRUND",
