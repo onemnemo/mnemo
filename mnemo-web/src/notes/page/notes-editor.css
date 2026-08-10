@@ -21,10 +21,14 @@
 /* ProseMirror appends its editable root as a child of the mount element, so the
  * `.ProseMirror` node sits one level inside `.notes-doc`; block-level rules go
  * through it, and everything else uses descendant selectors that reach either. */
+/* The reading measure's own type scale, set here rather than from the app's UI
+ * tokens: prose wants a looser line and a tighter heading ramp than a settings
+ * row or a table does, and the two drifting apart is what made this read as a
+ * data view rather than a document. */
 .notes-doc {
   font-family: var(--font-sans);
-  font-size: var(--font-size-body-medium);
-  line-height: 1.6;
+  font-size: 1rem;
+  line-height: 1.65;
   color: var(--text-primary);
 }
 .notes-doc .ProseMirror {
@@ -36,9 +40,11 @@
   caret-color: transparent;
 }
 
-/* Block rhythm. A single owner of vertical spacing between top-level blocks. */
+/* Block rhythm. A single owner of vertical spacing between top-level blocks.
+ * Paragraphs sit close together and the headings below buy their own space, so
+ * a run of prose reads as one column rather than as a stack of rows. */
 .notes-doc .ProseMirror > * {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
 }
 
 /* Off-screen blocks stay in the DOM and are skipped by the engine rather than
@@ -95,30 +101,40 @@
   color: var(--text-faded);
 }
 
-/* Headings, the app's type scale, not the browser's. */
+/* Headings. Sized against the body rather than the app's UI scale, and each one
+ * takes its space above rather than below, so a heading belongs to the text it
+ * introduces instead of floating between two blocks. The tighter tracking is
+ * what keeps a large heading from reading as stretched. */
 .notes-doc h1 {
-  font-size: var(--font-size-heading-1);
-  font-weight: 600;
+  font-size: 1.75rem;
+  font-weight: 700;
   line-height: 1.25;
-  margin-top: 20px;
+  letter-spacing: -0.02em;
+  margin-top: 32px;
+  margin-bottom: 4px;
 }
 .notes-doc h2 {
-  font-size: var(--font-size-heading-2);
+  font-size: 1.375rem;
   font-weight: 600;
   line-height: 1.3;
-  margin-top: 16px;
+  letter-spacing: -0.015em;
+  margin-top: 28px;
+  margin-bottom: 2px;
 }
 .notes-doc h3 {
-  font-size: var(--font-size-heading-3);
-  font-weight: 600;
-  line-height: 1.3;
-  margin-top: 12px;
-}
-.notes-doc h4 {
-  font-size: var(--font-size-heading-4);
+  font-size: 1.125rem;
   font-weight: 600;
   line-height: 1.35;
-  margin-top: 8px;
+  letter-spacing: -0.01em;
+  margin-top: 20px;
+  margin-bottom: 2px;
+}
+.notes-doc h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 16px;
+  margin-bottom: 2px;
 }
 .notes-doc h1:first-child,
 .notes-doc h2:first-child,
@@ -127,35 +143,39 @@
   margin-top: 0;
 }
 
-/* Quote. */
+/* Quote. Italic and set back from the measure, so it reads as a voice that is
+ * not the author's without needing a box around it. */
 .notes-doc blockquote {
   border-left: 3px solid var(--line-color);
-  padding-left: 14px;
+  padding: 2px 0 2px 16px;
+  margin: 10px 0;
+  font-style: italic;
   color: var(--text-secondary);
 }
 
 /* Code block. Source, framed and monospaced; horizontal overflow scrolls inside
  * the block rather than widening the page. */
 .notes-doc pre {
-  background: var(--surface-subtle);
-  border: 1px solid var(--line-color);
+  background: var(--canvas-sunken);
   border-radius: var(--radius-md, 8px);
-  padding: 12px 14px;
+  padding: 12px 16px;
+  margin: 10px 0;
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: var(--font-size-body-small);
-  line-height: 1.5;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
 }
 .notes-doc pre [data-code-line] {
   min-height: 0;
   white-space: pre;
 }
 
-/* Divider. */
+/* Divider. A section break, so it gets more room than a paragraph gap. */
 .notes-doc hr {
   border: none;
-  border-top: 1px solid var(--line-color);
-  margin: 16px 0;
+  border-top: 1px solid var(--line-soft);
+  margin: 24px 0;
 }
 
 /* Lists are flat siblings, so the marker is drawn on the item itself. The
@@ -164,14 +184,20 @@
  * decoration plugin and read here off the `data-list-number` it paints. */
 .notes-doc li {
   list-style: none;
-  padding-left: 1.6em;
+  padding-left: 1.5em;
   position: relative;
 }
+/* A drawn dot rather than the bullet glyph. The glyph's size and baseline vary
+ * with the font, which is what made the marker sit heavy against the text. */
 .notes-doc li[data-bullet]::before {
-  content: "•";
+  content: "";
   position: absolute;
-  left: 0.4em;
-  color: var(--text-secondary);
+  left: 0.45em;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--text-tertiary);
 }
 .notes-doc li[data-numbered]::before {
   content: attr(data-list-number) ".";

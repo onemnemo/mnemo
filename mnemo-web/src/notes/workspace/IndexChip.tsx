@@ -137,7 +137,7 @@ export function IndexChip({
   return (
     <div ref={chipRef} className="absolute bottom-3.5 left-4 z-20">
       {open ? (
-        <div className="absolute bottom-full mb-2 w-[254px] rounded-lg border border-line bg-popover p-2 shadow-elevation-4">
+        <div className="animate-pop-in absolute bottom-full mb-2 w-[254px] rounded-xl bg-canvas p-2 shadow-pop">
           <div className="scroll-thin max-h-[320px] overflow-y-auto">
             {headings.length === 0 ? (
               <div className="px-2 py-6 text-center text-body-extra-small text-text-faded">{nt('IndexEmpty')}</div>
@@ -176,14 +176,14 @@ export function IndexChip({
         onClick={toggle}
         aria-label={nt('IndexChip')}
         className={cn(
-          'flex h-[30px] items-center gap-2 rounded-full border border-[var(--floating-chrome-divider)] bg-[var(--floating-chrome-background,var(--popover))] px-3 shadow-elevation-2 transition-opacity',
-          open || active ? 'opacity-100' : 'opacity-75 hover:opacity-100',
+          'flex h-7 items-center gap-2 rounded-full bg-canvas px-3 shadow-pop transition-opacity',
+          open || active ? 'opacity-100' : 'opacity-70 hover:opacity-100',
         )}
       >
-        <AppIcon name="common/menu" size={12} className="text-[var(--floating-chrome-foreground)]" />
-        <span className="text-body-extra-small text-[var(--floating-chrome-foreground)]">{nt('IndexChip')}</span>
-        <span className="h-3 w-px bg-[var(--floating-chrome-divider)]" />
-        <span className="font-mono text-[10.5px] tabular-nums text-[var(--floating-chrome-foreground-strong)]">{percent}%</span>
+        <AppIcon name="common/menu" size={12} className="text-ink-icon" />
+        <span className="text-[12px] text-ink-2">{nt('IndexChip')}</span>
+        <span className="h-3 w-px bg-line-soft" />
+        <span className="font-mono text-[10.5px] tabular-nums text-ink-3">{percent}%</span>
       </button>
     </div>
   );
