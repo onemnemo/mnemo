@@ -2,6 +2,7 @@ import { apiFetch, apiSend } from "@/api/client"
 import type {
   RecordTestActivityDto,
   RecordTestAttemptDto,
+  RetakeTestQueueDto,
   TestAttemptDto,
   TestQueueDto,
   TestResultDto,
@@ -22,6 +23,15 @@ function post(body: unknown): RequestInit {
 /** The deck's active cards, in due order or shuffled per the deck's preset. */
 export function fetchTestQueue(deckId: string): Promise<TestQueueDto> {
   return apiFetch<TestQueueDto>(deckPath(deckId, "test-queue"))
+}
+
+/**
+ * A fresh queue of just the named cards, for retaking the ones missed. The server rebuilds it from
+ * the deck, so a card suspended or deleted since drops out, and it carries its own startedAt.
+ */
+export function fetchTestRetakeQueue(deckId: string, cardIds: string[]): Promise<TestQueueDto> {
+  const body: RetakeTestQueueDto = { cardIds }
+  return apiFetch<TestQueueDto>(deckPath(deckId, "test-queue/retake"), post(body))
 }
 
 /** Records a finished attempt and answers with the score, the delta, the best and the trend. */

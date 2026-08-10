@@ -264,6 +264,7 @@
     "TestCorrectAnswerLabel": "CORRECT ANSWER",
     "TestAnswerBlank": "Left blank.",
     "TestWhatYouMissed": "What you missed",
+    "TestRetakeMissedFormat": "Retake the {0} you missed",
     "StudyKeyEnter": "Enter",
     "TestKeyGradeRange": "1–3",
     "TestHintGotIt": "got it",

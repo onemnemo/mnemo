@@ -33,6 +33,7 @@ public static class TestSessionEndpoints
     public static void MapFlashcardTests(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/api/decks/{deckId}/test-queue", GetQueueAsync);
+        endpoints.MapPost("/api/decks/{deckId}/test-queue/retake", GetRetakeQueueAsync);
         endpoints.MapPost("/api/decks/{deckId}/test-attempts", RecordAttemptAsync);
         endpoints.MapPost("/api/decks/{deckId}/test-activity", RecordActivityAsync);
         endpoints.MapGet("/api/decks/{deckId}/test-summary", GetSummaryAsync);
@@ -56,9 +57,62 @@ public static class TestSessionEndpoints
         if (string.IsNullOrWhiteSpace(deckId))
             return Results.BadRequest(new ErrorDto("deck_required", "A test must name a deck."));
 
+        var queue = await BuildQueueAsync(deckId, onlyIds: null, cards, library, presets, cancellationToken).ConfigureAwait(false);
+        return queue is null
+            ? Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{deckId}'."))
+            : Results.Ok(queue);
+    }
+
+    /// <summary>
+    /// Builds a queue of just the named cards, for retaking the ones missed on the last run.
+    /// </summary>
+    /// <remarks>
+    /// The queue is rebuilt from the deck rather than trusting a list the client kept, so a card
+    /// suspended or deleted since the first run drops out instead of coming back, and the retake
+    /// gets its own <c>StartedAt</c> for timing and its own attempt when it finishes.
+    /// </remarks>
+    private static async Task<IResult> GetRetakeQueueAsync(
+        string deckId,
+        RetakeTestQueueDto body,
+        IFlashcardCardService cards,
+        IFlashcardLibraryService library,
+        IFlashcardPresetService presets,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(deckId))
+            return Results.BadRequest(new ErrorDto("deck_required", "A test must name a deck."));
+
+        if (body?.CardIds is null || body.CardIds.Count == 0)
+            return Results.BadRequest(new ErrorDto("no_cards", "A retake must name the cards to run again."));
+
+        var wanted = body.CardIds.ToHashSet(StringComparer.Ordinal);
+        var queue = await BuildQueueAsync(deckId, wanted, cards, library, presets, cancellationToken).ConfigureAwait(false);
+        return queue is null
+            ? Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{deckId}'."))
+            : Results.Ok(queue);
+    }
+
+    /// <summary>
+    /// The shared queue build: the deck's active cards in due order, optionally narrowed to a set of
+    /// ids, and shuffled when the preset says so. Null means the deck does not exist.
+    /// </summary>
+    /// <remarks>
+    /// The state filter is applied here rather than asked of the query, because <c>All</c> includes
+    /// suspended rows - a suspended card is out of rotation and has no business in a test.
+    /// <see cref="TestQueueDto.StartedAt"/> is stamped on each call, so every queue this hands out
+    /// carries a fresh start time.
+    /// </remarks>
+    private static async Task<TestQueueDto?> BuildQueueAsync(
+        string deckId,
+        IReadOnlySet<string>? onlyIds,
+        IFlashcardCardService cards,
+        IFlashcardLibraryService library,
+        IFlashcardPresetService presets,
+        CancellationToken cancellationToken)
+    {
         var deck = await library.GetDeckAsync(deckId, cancellationToken).ConfigureAwait(false);
         if (deck is null)
-            return Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{deckId}'."));
+            return null;
 
         var preset = await presets.GetPresetAsync(deck.Header.PresetId, cancellationToken).ConfigureAwait(false);
 
@@ -69,14 +123,14 @@ public static class TestSessionEndpoints
             .ConfigureAwait(false);
 
         var active = page.Items
-            .Where(v => v.Card.State == FlashcardCardState.Active)
+            .Where(v => v.Card.State == FlashcardCardState.Active && (onlyIds is null || onlyIds.Contains(v.Card.Id)))
             .Select(v => CardDto.FromModel(v.Card))
             .ToArray();
 
         if (preset?.ShuffleOrder == true)
             Random.Shared.Shuffle(active);
 
-        return Results.Ok(new TestQueueDto(deckId, deck.Name, DateTimeOffset.UtcNow, active));
+        return new TestQueueDto(deckId, deck.Name, DateTimeOffset.UtcNow, active);
     }
 
     /// <summary>

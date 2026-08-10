@@ -250,6 +250,7 @@ export function TestPage({ deckId }: { deckId?: string }) {
           result={result}
           failed={resultFailed}
           missed={missed}
+          onRetake={() => void useTest.getState().retakeMissed(missed.map((card) => card.id))}
           onBackToDeck={backToDeck}
         />
       )}

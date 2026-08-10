@@ -269,6 +269,11 @@ export interface TestQueueDto {
   cards: CardDto[]
 }
 
+/** Mirrors Mnemo.Host/Contracts/TestSessionDto.cs RetakeTestQueueDto. The cards to run again, by id. */
+export interface RetakeTestQueueDto {
+  cardIds: string[]
+}
+
 /** Mirrors Mnemo.Host/Contracts/TestSessionDto.cs RecordTestAttemptDto. The score is derived server-side. */
 export interface RecordTestAttemptDto {
   startedAt: string
