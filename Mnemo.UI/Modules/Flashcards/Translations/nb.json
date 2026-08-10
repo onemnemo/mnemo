@@ -105,6 +105,7 @@
     "ViewGrid": "Rutenettvisning",
     "StudyModes": "Studiemoduser",
     "DeckCaughtUp": "Ajour",
+    "RetentionPending": "Tilgjengelig etter {0} planlagte repetisjoner",
     "DeckInDeckFormat": "{0} i kortstokken",
     "ColBack": "Bakside",
     "ColState": "Status",

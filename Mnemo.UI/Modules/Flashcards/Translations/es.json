@@ -105,6 +105,7 @@
     "ViewGrid": "Vista de cuadrícula",
     "StudyModes": "Modos de estudio",
     "DeckCaughtUp": "Al día",
+    "RetentionPending": "Disponible tras {0} repasos programados",
     "DeckInDeckFormat": "{0} en el mazo",
     "ColBack": "Reverso",
     "ColState": "Estado",

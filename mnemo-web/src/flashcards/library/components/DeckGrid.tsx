@@ -4,7 +4,7 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 
-import { Counts, MixBar, Ring } from "../../bits"
+import { Counts, MixBar, Ring, retentionReading } from "../../bits"
 
 /**
  * The same decks as cards rather than rows.
@@ -87,7 +87,7 @@ function DeckTile({
           </span>
         </span>
 
-        <Ring percent={deck.retentionSampleSize > 0 ? deck.retentionPercent : null} />
+        <Ring percent={retentionReading(deck.retentionPercent, deck.retentionSampleSize)} />
       </div>
 
       <MixBar counts={deck.dueCounts} className="mt-3.5" />

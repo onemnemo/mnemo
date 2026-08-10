@@ -6,7 +6,7 @@ import { useT } from "@/i18n/useT"
 import { formatRelative } from "@/lib/relative-date"
 
 import { useUpdateDeck } from "../../api"
-import { Retention } from "../../bits"
+import { Retention, retentionReading } from "../../bits"
 import { useCardEditor } from "../../editor/store"
 import { estimatedMinutes } from "../../library/tree"
 import { DeckMenu } from "./DeckMenu"
@@ -83,7 +83,7 @@ export function DeckHeader({ deck }: { deck: DeckSummaryDto }) {
             {/* No reviews to measure is not 0% remembered, and the bar has to say so.
                 lastStudied cannot answer this: it is a lifetime timestamp, while the
                 score is measured over a window that may hold nothing. */}
-            <Retention percent={deck.retentionSampleSize > 0 ? deck.retentionPercent : null} />
+            <Retention percent={retentionReading(deck.retentionPercent, deck.retentionSampleSize)} />
           </span>
 
           <span className="text-ink-3">
