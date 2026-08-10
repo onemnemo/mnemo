@@ -56,6 +56,19 @@ export function wrapWithMarker(text: string, start: number, end: number, marker:
   }
 }
 
+/**
+ * Wraps the selection between two different markers, or drops the pair at the caret. Used for
+ * the asymmetric formats, chiefly the bullet, whose marker is a line prefix with nothing after.
+ */
+export function wrapAround(text: string, start: number, end: number, before: string, after: string): TextEdit {
+  const selected = end > start ? text.slice(start, end) : ""
+  const wrapped = `${before}${selected}${after}`
+  return {
+    text: text.slice(0, start) + wrapped + text.slice(end),
+    caret: selected.length > 0 ? start + wrapped.length : start + before.length,
+  }
+}
+
 /** Wraps the selection as the next cloze on this side, or inserts an empty marker to type into. */
 export function wrapCloze(text: string, start: number, end: number): TextEdit {
   const ordinal = nextClozeOrdinal(text)
