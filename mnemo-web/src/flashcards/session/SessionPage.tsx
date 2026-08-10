@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 
 import type { ReviewGrade, SessionMode, SessionScope } from "@/api/types"
 import { navigate } from "@/app/router"
@@ -16,7 +17,7 @@ import { useSession } from "./store"
 import { CardSurface } from "./components/CardSurface"
 import { EndPanel } from "./components/EndPanel"
 import { GradeRow } from "./components/GradeRow"
-import { HintRow, RevealHint } from "./components/KeyHints"
+import { PostRevealHint, PreRevealHint } from "./components/KeyHints"
 import { SessionTopbar } from "./components/SessionTopbar"
 
 const AUTO_REVEAL_SECONDS: Record<string, number> = { "five-seconds": 5, "ten-seconds": 10 }
@@ -174,19 +175,23 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [])
 
-  return (
-    <div className="flex h-full min-h-0 flex-col">
+  // Rendered over the whole window rather than inside the module frame: during study the card is
+  // the screen, so the rail, the titlebar and the dock are covered instead of framing it.
+  return createPortal(
+    <div className="animate-fade-in fixed inset-0 z-[130] flex flex-col bg-canvas">
       <SessionTopbar session={session} active={active} onClose={() => void close()} />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {status === "loading" && (
-          <span className="m-auto text-text-tertiary">{t("Flashcards", "StudyLoading")}</span>
-        )}
+      {status === "loading" && (
+        <div className="flex flex-1 items-center justify-center">
+          <span className="text-ink-3">{t("Flashcards", "StudyLoading")}</span>
+        </div>
+      )}
 
-        {active && card && session && (
-          // w-full so this stretches to the pane rather than shrink-wrapping the 780px card,
-          // which would push the whole page into a horizontal scroll on a narrow window.
-          <div className="m-auto flex w-full flex-col items-center gap-[18px] p-6">
+      {active && card && session && (
+        <div className="flex min-h-0 flex-1 flex-col items-center px-6">
+          {/* The card centres while there is room and lets its own column scroll once a long
+              card runs past the window, so the grade row below it never leaves the screen. */}
+          <div className="scroll-thin flex min-h-0 w-full max-w-[720px] flex-1 flex-col justify-center overflow-y-auto py-6">
             <CardSurface
               card={card}
               revealed={revealed}
@@ -196,7 +201,9 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
               onFlag={toggleFlag}
               onUndo={() => void useSession.getState().undo()}
             />
+          </div>
 
+          <div className="flex w-full max-w-[720px] shrink-0 flex-col gap-3 pb-8">
             {revealed ? (
               <GradeRow
                 intervals={session.intervals}
@@ -204,21 +211,30 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
                 onGrade={(grade) => void useSession.getState().grade(grade)}
               />
             ) : (
-              <RevealHint />
+              <button
+                type="button"
+                onClick={() => useSession.getState().reveal()}
+                className="flex h-11 w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-solid text-[14px] font-medium text-solid-fg transition-colors hover:bg-solid-hover"
+              >
+                {t("Flashcards", "StudyShowAnswerPrefix")}
+                <span className="rounded-[5px] bg-solid-fg/15 px-1.5 py-0.5 text-[11px] font-medium">
+                  {t("Flashcards", "StudyKeySpace")}
+                </span>
+              </button>
             )}
-
-            <HintRow />
+            {revealed ? <PostRevealHint /> : <PreRevealHint />}
           </div>
-        )}
+        </div>
+      )}
 
-        {session && !active && (
-          <EndPanel
-            caughtUp={isAllCaughtUp(session)}
-            completed={session.progress.completed}
-            onBackToDeck={backToDeck}
-          />
-        )}
-      </div>
-    </div>
+      {session && !active && (
+        <EndPanel
+          caughtUp={isAllCaughtUp(session)}
+          completed={session.progress.completed}
+          onBackToDeck={backToDeck}
+        />
+      )}
+    </div>,
+    document.body,
   )
 }

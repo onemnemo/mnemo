@@ -6,48 +6,59 @@ import { useT } from "@/i18n/useT"
 /** The modifier the undo hint advertises, matching what the page actually listens for. */
 const UNDO_KEY_LABEL = isMac ? "⌘Z" : "Ctrl+Z"
 
-/** A keycap chip, as under the card and in the footer. */
+/** A keycap chip, filled rather than outlined so a row of them stays quiet under the card. */
 export function Kbd({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex min-w-5 items-center justify-center rounded-sm border border-line bg-[var(--widget-background-primary)] px-1.5 py-px font-mono text-[10.5px] text-text-secondary">
+    <kbd className="rounded-[5px] bg-canvas-sunken px-1.5 py-0.5 font-sans text-[11px] font-medium text-ink-3">
       {children}
-    </span>
+    </kbd>
   )
 }
 
-function Hint({ children }: { children: ReactNode }) {
-  return <span className="text-body-small text-text-tertiary">{children}</span>
+function Dot() {
+  return <span className="text-ink-3">·</span>
 }
 
-/** The standing shortcut legend under the card: grade, good, edit, undo. */
-export function HintRow() {
+function Word({ children }: { children: ReactNode }) {
+  return <span className="text-[11.5px] text-ink-3">{children}</span>
+}
+
+function HintLine({ children }: { children: ReactNode }) {
+  return <div className="flex flex-wrap items-center justify-center gap-1.5">{children}</div>
+}
+
+/** Shown before the answer is up: what the keys do while you are still recalling. */
+export function PreRevealHint() {
   const t = useT()
   const fc = (key: string) => t("Flashcards", key)
-
   return (
-    <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5">
-      <Kbd>{fc("StudyKeyGradeRange")}</Kbd>
-      <Hint>{fc("StudyHintGrade")}</Hint>
-      <Hint>·</Hint>
-      <Kbd>{fc("StudyKeySpace")}</Kbd>
-      <Hint>{fc("StudyHintGood")}</Hint>
-      <Hint>·</Hint>
+    <HintLine>
       <Kbd>E</Kbd>
-      <Hint>{fc("StudyHintEdit")}</Hint>
-      <Hint>·</Hint>
+      <Word>{fc("StudyHintEdit")}</Word>
+      <Dot />
       <Kbd>{UNDO_KEY_LABEL}</Kbd>
-      <Hint>{fc("StudyHintUndo")}</Hint>
-    </div>
+      <Word>{fc("StudyHintUndo")}</Word>
+      <Dot />
+      <Kbd>Esc</Kbd>
+      <Word>{fc("StudyHintEnd")}</Word>
+    </HintLine>
   )
 }
 
-/** The pre-reveal prompt: "Show answer" and the key that does it. */
-export function RevealHint() {
+/** Shown once the answer is up: grade, the space shortcut, and undo. */
+export function PostRevealHint() {
   const t = useT()
+  const fc = (key: string) => t("Flashcards", key)
   return (
-    <div className="flex items-center justify-center gap-2">
-      <Hint>{t("Flashcards", "StudyShowAnswerPrefix")}</Hint>
-      <Kbd>{t("Flashcards", "StudyKeySpace")}</Kbd>
-    </div>
+    <HintLine>
+      <Kbd>{fc("StudyKeyGradeRange")}</Kbd>
+      <Word>{fc("StudyHintGrade")}</Word>
+      <Dot />
+      <Kbd>{fc("StudyKeySpace")}</Kbd>
+      <Word>{fc("StudyHintGood")}</Word>
+      <Dot />
+      <Kbd>{UNDO_KEY_LABEL}</Kbd>
+      <Word>{fc("StudyHintUndo")}</Word>
+    </HintLine>
   )
 }

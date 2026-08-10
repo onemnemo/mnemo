@@ -4,12 +4,13 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import { useReviewSettings } from "../../presets/store"
-import { sessionFillWidth } from "../session"
 
 /**
- * The session's own bar, below the app topbar. The left side (close, deck, mode) stays put in
- * every state; the counters and progress only mean anything while a card is up, so they go with
- * it on the end screens.
+ * The session's own thin bar. Everything it needs to say fits on one line so the card gets the
+ * rest of the window: close, the deck, whether this run touches the schedule, and how far in.
+ *
+ * The new/learning/due breakdown the server tracks is deliberately not here - the design keeps
+ * this line to a single progress bar, and the deck page is where that breakdown is read.
  */
 export function SessionTopbar({
   session,
@@ -24,20 +25,21 @@ export function SessionTopbar({
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
   const cram = session?.mode === "cram"
   const progress = session?.progress
+  const fill = progress && progress.total > 0 ? (progress.completed / progress.total) * 100 : 0
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2.5 border-b border-line bg-card px-2.5">
+    <header className="flex h-12 shrink-0 items-center gap-3 px-4">
       <IconBtn icon="common/x" label={fc("StudyClose")} onClick={onClose} />
 
-      <span className="max-w-[240px] shrink-0 truncate text-[12.5px] font-medium">{session?.deckName ?? ""}</span>
+      <span className="max-w-[240px] shrink-0 truncate text-[13px] font-medium text-ink">
+        {session?.deckName ?? ""}
+      </span>
 
       {session && (
         <span
           className={cn(
-            "shrink-0 rounded-pill px-2.5 py-[3px] font-semibold text-caption whitespace-nowrap",
-            cram
-              ? "bg-[var(--toast-icon-badge-warning)] text-[var(--flashcard-state-learning)]"
-              : "bg-brand-subtle text-brand",
+            "shrink-0 rounded-md px-1.5 py-0.5 text-[11.5px] font-medium whitespace-nowrap",
+            cram ? "bg-state-learn-wash text-state-learn" : "bg-canvas-sunken text-ink-2",
           )}
         >
           {fc(cram ? "StudyModeChipCram" : "StudyModeChipReview")}
@@ -48,25 +50,14 @@ export function SessionTopbar({
 
       {active && progress && (
         <>
-          <div className="flex items-center gap-2 font-mono text-[11.5px] tabular-nums">
-            <Counter count={progress.new} label={fc("StudyCounterNew")} className="text-[var(--flashcard-state-new)]" />
-            <Counter
-              count={progress.learning}
-              label={fc("StudyCounterLearning")}
-              className="text-[var(--flashcard-state-learning)]"
-            />
-            <Counter count={progress.due} label={fc("StudyCounterDue")} className="text-brand" />
-          </div>
-
-          <div className="h-1 w-40 shrink-0 overflow-hidden rounded-[2px] bg-[var(--widget-background-primary)]">
-            <div
-              className={cn("h-full rounded-[2px]", cram ? "bg-[var(--flashcard-state-learning)]" : "bg-brand")}
-              style={{ width: `${sessionFillWidth(progress)}px` }}
-            />
-          </div>
-
-          <span className="shrink-0 font-mono text-[11.5px] tabular-nums whitespace-nowrap text-text-secondary">
+          <span className="shrink-0 text-[12.5px] tabular-nums text-ink-3">
             {fc("StudyProgressFormat", { 0: progress.completed, 1: progress.total })}
+          </span>
+          <span className="h-1 w-40 shrink-0 overflow-hidden rounded-full bg-canvas-sunken">
+            <span
+              className="block h-full rounded-full bg-ink-3 transition-[width] duration-300 ease-out"
+              style={{ width: `${fill}%` }}
+            />
           </span>
         </>
       )}
@@ -79,16 +70,7 @@ export function SessionTopbar({
         disabled={!session}
         onClick={() => session && useReviewSettings.getState().open(session.deckId, session.deckName)}
       />
-    </div>
-  )
-}
-
-function Counter({ count, label, className }: { count: number; label: string; className: string }) {
-  if (count <= 0) return null
-  return (
-    <span title={label} className={className}>
-      {count}
-    </span>
+    </header>
   )
 }
 
@@ -111,8 +93,8 @@ function IconBtn({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "grid size-[30px] shrink-0 cursor-pointer place-items-center rounded-sm text-text-secondary",
-        "hover:bg-[var(--button-background-pointer-over)] disabled:pointer-events-none disabled:opacity-35",
+        "grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-2 transition-colors",
+        "hover:bg-frame-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35",
       )}
     >
       <AppIcon name={icon} size={16} />
