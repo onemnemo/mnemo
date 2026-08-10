@@ -935,9 +935,19 @@
 .notes-doc [data-bg-swatch="swatch9"] { background: var(--color-swatch-9); }
 .notes-doc [data-bg-swatch="swatch10"] { background: var(--color-swatch-10); }
 
-/* The marquee rubber-band. Body-level and viewport-positioned, drawn above the
- * blocks but below the floating chrome, in the faintest of the three selection
- * strengths so the bands it is drawing read louder than the tool drawing them. */
+/* The note's floating layers, all body-level and viewport-positioned, in the
+ * order they stack. Two groups: what a selection *is* (bands, marquee) sits
+ * over the prose and under everything you can press, and the chrome that acts
+ * on it (toolbar, slash menu, equation flyout at 40, find bar at 41) sits over
+ * both. A drag ghost and its drop line ride above all of it, since during a
+ * drag nothing else is being read.
+ *
+ *   20  selection bands      30  the pane's own actions row
+ *   21  marquee              40  editor chrome        998/999  drop line, ghost
+ */
+
+/* The marquee rubber-band, in the faintest of the three selection strengths so
+ * the bands it is drawing read louder than the tool drawing them. */
 .notes-marquee {
   border: 1px solid var(--sel-lasso-line);
   background: var(--sel-lasso);

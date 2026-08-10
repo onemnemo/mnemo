@@ -417,7 +417,7 @@ export function BlockSelectionOverlay({
 
   if (!dragging) return null;
   return createPortal(
-    <div ref={bandRef} className="notes-marquee pointer-events-none fixed z-[997]" style={{ visibility: 'hidden' }} />,
+    <div ref={bandRef} className="notes-marquee pointer-events-none fixed z-[21]" style={{ visibility: 'hidden' }} />,
     document.body,
   );
 }

@@ -144,7 +144,7 @@ export function SelectionBands({
   return createPortal(
     <div
       aria-hidden
-      className="pointer-events-none fixed z-[996] overflow-hidden"
+      className="pointer-events-none fixed z-[20] overflow-hidden"
       style={{ left: clip.left, top: clip.top, width: clip.width, height: clip.height }}
     >
       {bands.map((band, index) => (
