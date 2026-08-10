@@ -27,8 +27,14 @@ export function ConfigField({ manifest, schema, value, onChange }: ConfigFieldPr
 
   if (value.type === "range") {
     return (
-      <div className="mb-3.5 flex flex-col gap-1.5">
-        <span className="text-body-small text-text-primary">{label}</span>
+      <div className="mb-3.5 flex flex-col gap-3">
+        {/* The value sits beside its own label rather than beside the track. A number at the end
+            of a slider is read as the maximum at least as often as it is read as the current
+            value, and the label is where the eye already is. */}
+        <div className="flex items-center justify-between gap-6">
+          <span className="text-[13.5px] text-ink">{label}</span>
+          <span className="shrink-0 text-[13px] font-medium tabular-nums text-ink-2">{Math.round(value.value)}</span>
+        </div>
         <StepSliderControl
           mode="numeric"
           min={schema.minimum ?? 0}
@@ -44,7 +50,7 @@ export function ConfigField({ manifest, schema, value, onChange }: ConfigFieldPr
 
   return (
     <div className="mb-3.5 grid grid-cols-[1fr_auto] items-center gap-x-3">
-      <span className="text-body-small text-text-primary">{label}</span>
+      <span className="text-[13.5px] text-ink">{label}</span>
       {value.type === "toggle" ? (
         <ToggleControl
           checked={value.value}
