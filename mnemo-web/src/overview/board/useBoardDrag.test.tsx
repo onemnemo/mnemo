@@ -16,7 +16,7 @@ import type { OverviewLayoutDto } from "@/api/types"
 import { computePlacements } from "../layout/compute"
 import { useOverviewStore } from "../store"
 import type { ManifestLookup, WidgetManifest } from "../widgets/manifest"
-import { useBoardDrag, type BoardDrag, type BoardDragMetrics } from "./useBoardDrag"
+import { useBoardDrag, type BoardDrag } from "./useBoardDrag"
 
 // A four-column board at the widest breakpoint: 1040px of content is 248px per column once the
 // three 16px gaps come out, so column c starts at c * 264 and row r at r * 136.
@@ -24,24 +24,8 @@ const BOARD_LEFT = 100
 const BOARD_TOP = 50
 const BOARD_WIDTH = 1040
 
-/** Live, so a test that changes the column count gets the placements that go with it. */
-let metrics: BoardDragMetrics
-
-function metricsFor(columnCount: number, usedRows: number): BoardDragMetrics {
-  const widgets = useOverviewStore.getState().draft
-  return { columnCount, usedRows, placements: computePlacements(widgets, columnCount, -1) }
-}
-
-/**
- * Narrows the board mid-test. The hook reads its metrics off a ref refreshed on render, so the
- * harness has to render again before the change is visible to a gesture.
- */
-function setMetrics(next: BoardDragMetrics) {
-  metrics = next
-  act(() => {
-    root?.render(<Harness />)
-  })
-}
+/** The grid the harness lays out in. A test can narrow it before starting a gesture. */
+let grid = { columnCount: 4, usedRows: 1 }
 
 function manifestOf(widgetId: string): WidgetManifest {
   const supportedSizes = [{ columns: 2, rows: 1 }]
@@ -75,9 +59,18 @@ let container: HTMLDivElement | null = null
 /** Stands in for the tile element the press lands on, so the hook can measure the grab offset. */
 let tile: HTMLDivElement | null = null
 
+/**
+ * Stands in for WidgetBoard, and derives its metrics the same way it does: subscribed to the
+ * draft and the anchor, so the placements the hook sees are re-resolved on every move with the
+ * dragged tile placed first. Passing a fixed set instead would hand the drop a layout from before
+ * the gesture, which is the whole thing the grid drop exists to avoid.
+ */
 function Harness() {
   const ref = useRef<HTMLDivElement>(null)
-  drag = useBoardDrag(ref, metrics)
+  const draft = useOverviewStore((state) => state.draft)
+  const anchorIndex = useOverviewStore((state) => state.anchorIndex)
+  const placements = computePlacements(draft, grid.columnCount, anchorIndex)
+  drag = useBoardDrag(ref, { ...grid, placements })
   return <div ref={ref} />
 }
 
@@ -134,7 +127,7 @@ beforeEach(() => {
   store.configure({ manifest: lookup, save: vi.fn() })
   store.layoutLoaded(STORED)
   store.enterEdit()
-  metrics = metricsFor(4, 1)
+  grid = { columnCount: 4, usedRows: 1 }
 
   container = document.createElement("div")
   document.body.appendChild(container)
@@ -223,8 +216,26 @@ describe("useBoardDrag", () => {
     expect(state.dragPosition).toBeNull()
   })
 
+  it("keeps the cell the ghost promised when a wider neighbour shares the row", () => {
+    // "b" occupies columns 2 and 3. Dropping "a" onto column 2 has to displace it: while "a" is
+    // held it is placed first and wins, and the ghost says so. Committing only "a"'s own cell
+    // hands the row back to "b" the instant the anchor clears, and "a" slides down a row it was
+    // never dropped on.
+    press("a", BOARD_LEFT, BOARD_TOP)
+    move(528, 10)
+    pointer("pointerup", BOARD_LEFT + 528, BOARD_TOP + 10)
+
+    expect(cellOf("a")).toEqual({ column: 2, row: 0 })
+    // Straight down, never sideways: a tile that jumps left to fill a hole makes the board feel
+    // like it is rearranging itself behind your back.
+    expect(cellOf("b")).toEqual({ column: 2, row: 1 })
+  })
+
   it("reorders instead of writing coordinates below the widest breakpoint", () => {
-    setMetrics(metricsFor(2, 2))
+    grid = { columnCount: 2, usedRows: 2 }
+    act(() => {
+      root?.render(<Harness />)
+    })
     press("b", BOARD_LEFT, BOARD_TOP)
     // Up and to the left of tile "a", which at two columns packs above it.
     move(10, 10)

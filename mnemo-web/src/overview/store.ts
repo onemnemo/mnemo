@@ -42,6 +42,24 @@ export interface DragPosition {
   y: number
 }
 
+/**
+ * What a release means, which is not the same thing at every width.
+ *
+ * `grid` writes the cells the board was actually showing when the pointer came up, for every tile
+ * rather than only the dragged one. Writing the dragged tile's cell alone is not enough: while a
+ * tile is held it is placed first and wins any cell it is dropped on, and the moment it stops
+ * being the anchor the ordinary (row, column) processing order applies again, so a tile dropped to
+ * the right of a wider neighbour on the same row loses the cell the ghost had just promised it and
+ * slides down. Committing the resolved board makes what you released on what you get.
+ *
+ * `flow` is the narrow-grid drop: coordinates there describe a grid that is not on screen, so the
+ * only thing a drag can express is order. Coordinates are put back and the tile moves in the list,
+ * which is what makes widening the window bring the four-column arrangement back intact.
+ */
+export type DragDrop =
+  | { kind: "grid"; cells: readonly Cell[] }
+  | { kind: "flow"; index: number }
+
 /** Everything the store needs from the rest of the module, injected so none of it is imported. */
 export interface OverviewDeps {
   /** The client-side widget registry, for size snapping and setting defaults. */
@@ -113,13 +131,8 @@ interface OverviewState extends OverviewDeps, BoardSlice {
   beginDrag: (instanceId: string) => void
   updateDragTarget: (column: number, row: number) => void
   updateDragPosition: (x: number, y: number) => void
-  /**
-   * Drops the tile. With no argument it keeps the cell the last move put it in, which is what the
-   * widest breakpoint means by a drop. `flowIndex` is the narrow-grid drop: coordinates are put
-   * back and the tile moves in the list instead, so widening the window brings the arrangement the
-   * user authored at four columns back intact.
-   */
-  completeDrag: (flowIndex?: number) => void
+  /** Drops the tile. See {@link DragDrop} for what the two kinds of drop mean. */
+  completeDrag: (drop: DragDrop) => void
   cancelDrag: () => void
 }
 
@@ -426,24 +439,28 @@ export const useOverviewStore = create<OverviewState>((set, get) => ({
 
   updateDragPosition: (x, y) => set({ dragPosition: { x, y } }),
 
-  completeDrag: (flowIndex) =>
+  completeDrag: (drop) =>
     set((state) => {
       if (state.dragged === null) return NO_DRAG
 
-      // The wide drop: coordinates are the whole point of it, and the last move already wrote them.
-      if (flowIndex === undefined) return NO_DRAG
+      if (drop.kind === "grid") {
+        // A short list is not a board this can commit: writing part of it would leave the rest
+        // holding coordinates from a layout that no longer exists.
+        if (drop.cells.length !== state.draft.length) return NO_DRAG
+        return {
+          ...NO_DRAG,
+          draft: state.draft.map((widget, index) => ({ ...widget, ...drop.cells[index] })),
+        }
+      }
 
       const from = state.draft.findIndex((widget) => widget.instanceId === state.dragged)
       if (from < 0) return NO_DRAG
 
-      // Coordinates go back to what they were before the drag started. Below four columns they
-      // describe a grid that is not on screen, so a drop there can only express order, and
-      // overwriting them would throw away the layout authored at the widest breakpoint.
       const draft = state.draft.map((widget) =>
         widget.instanceId === state.dragged ? { ...widget, ...state.dragOrigin } : widget,
       )
       const [moved] = draft.splice(from, 1)
-      draft.splice(Math.max(0, Math.min(draft.length, flowIndex)), 0, moved)
+      draft.splice(Math.max(0, Math.min(draft.length, drop.index)), 0, moved)
 
       return { ...NO_DRAG, draft }
     }),

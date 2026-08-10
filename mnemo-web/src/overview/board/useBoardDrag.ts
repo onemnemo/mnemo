@@ -180,12 +180,17 @@ export function useBoardDrag(boardRef: RefObject<HTMLElement | null>, metrics: B
         if (!wasDragging) return
 
         if (columnCount >= MAX_COLUMNS || dropped === undefined) {
-          useOverviewStore.getState().completeDrag()
+          // The placements from the last render, which were resolved with this tile as the anchor.
+          // Committing them is what makes the board keep the arrangement the ghost was showing.
+          useOverviewStore.getState().completeDrag({
+            kind: "grid",
+            cells: placements.map((placement) => ({ column: placement.column, row: placement.row })),
+          })
           return
         }
         useOverviewStore
           .getState()
-          .completeDrag(flowIndexAt(placements, from.index, dropped.column, dropped.row))
+          .completeDrag({ kind: "flow", index: flowIndexAt(placements, from.index, dropped.column, dropped.row) })
       }
 
       const onCancel = (cancelEvent: PointerEvent) => {
