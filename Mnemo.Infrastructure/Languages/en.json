@@ -152,7 +152,7 @@
     "SpellCheck": "Spell Check",
     "SpellCheckDescription": "Underline misspelled words in the editor.",
     "SpellCheckLanguages": "Spellcheck language",
-    "SpellCheckLanguagesDescription": "Choose the language used for spell checking.",
+    "SpellCheckLanguagesDescription": "Choose the language used for spell checking. Takes effect the next time Mnemo starts.",
     "SpellCheckLanguageEnglish": "English",
     "SpellCheckLanguageGerman": "German",
     "SpellCheckLanguageSpanish": "Spanish",

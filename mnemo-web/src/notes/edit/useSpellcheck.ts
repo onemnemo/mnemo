@@ -5,10 +5,11 @@ import { useSettingValue } from '@/settings/store';
  * container.
  *
  * Both are inherited by the contenteditable inside, so they can change without
- * tearing the view down. The language matters as much as the switch: with no
- * `lang` the engine falls back to the app or system locale, which is how a note
- * written in English ends up underlined word for word on a machine set to
- * something else.
+ * tearing the view down. `lang` does not choose the dictionary, though: Chromium
+ * ignores it for spell checking and consults whatever dictionaries the browser
+ * profile has enabled. The app window's profile is set from this same setting at
+ * startup (see WebViewSpellcheck in the host); `lang` is here for everything else
+ * that reads it, hyphenation, font fallback and screen readers among them.
  */
 export function useSpellcheck(): { spellCheck: boolean; lang: string } {
   const enabled = useSettingValue('Editor.SpellCheck', true);
