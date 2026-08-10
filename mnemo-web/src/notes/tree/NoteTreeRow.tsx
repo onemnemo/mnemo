@@ -17,11 +17,13 @@ import {
   useCreateNote,
   useDeleteNote,
   useDeleteNoteFolder,
+  useDuplicateNote,
   useSaveNoteFolder,
   useUpdateNoteMetadata,
 } from '../api';
 import { metadataUpdateOf } from '../note-metadata';
 import { useNoteTransfer } from '../transfer/store';
+import { useNoteTabs } from '../workspace/tabs';
 import type { NoteFolderRowModel, NoteRowModel } from './tree-model';
 import type { TreeDragHandle } from './reorder';
 import type { TreeDrag } from './useNoteTreeDrag';
@@ -219,6 +221,8 @@ export function NoteRow({
   const [editing, setEditing] = useState(false);
   const updateNote = useUpdateNoteMetadata();
   const deleteNote = useDeleteNote();
+  const duplicateNote = useDuplicateNote();
+  const openTab = useNoteTabs((state) => state.open);
   const openTransfer = useNoteTransfer((state) => state.open);
   const { note } = row;
 
@@ -237,6 +241,12 @@ export function NoteRow({
   };
 
   const toggleFavourite = () => void updateNote.mutateAsync(metadataUpdateOf(note, { isFavorite: !note.isFavorite }));
+
+  const duplicate = async () => {
+    const title = note.title.trim() || nt('Untitled');
+    const copy = await duplicateNote.mutateAsync({ id: note.id, title: nt('CopyOfFormat', { 0: title }) });
+    if (copy && typeof copy === 'object' && 'id' in copy) navigate('notes', String(copy.id));
+  };
 
   const remove = async () => {
     const ok = await dialog.confirm({
@@ -310,6 +320,15 @@ export function NoteRow({
         </ContextMenuItem>
         <ContextMenuItem icon={note.isFavorite ? 'common/star-filled' : 'common/star'} onSelect={toggleFavourite}>
           {note.isFavorite ? nt('Unfavourite') : nt('Favourite')}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        {/* Opens the tab without navigating, which is the whole difference from
+            clicking the row. */}
+        <ContextMenuItem icon="flyout/open" onSelect={() => openTab(note.id)}>
+          {nt('OpenInNewTab')}
+        </ContextMenuItem>
+        <ContextMenuItem icon="common/copy" onSelect={() => void duplicate()}>
+          {nt('Duplicate')}
         </ContextMenuItem>
         <ContextMenuItem
           icon="common/upload"
