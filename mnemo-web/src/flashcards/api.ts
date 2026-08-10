@@ -65,11 +65,26 @@ export function fetchRetentionTrend(deckId: string, days: number): Promise<Reten
   return apiFetch<RetentionTrendPointDto[]>(`/decks/${encodeURIComponent(deckId)}/retention-trend?days=${days}`)
 }
 
-function useLibraryMutation<TArgs>(mutationFn: (args: TArgs) => Promise<unknown>) {
+/**
+ * Card queries sit under their own deck key rather than nested inside the library
+ * key, so renaming a deck does not refetch every card page. Declared here beside
+ * the library key so a mutation can reach both without importing back from the
+ * deck module.
+ */
+export const deckKey = (deckId: string) => ["flashcards", "deck", deckId] as const
+
+function useLibraryMutation<TArgs>(
+  mutationFn: (args: TArgs) => Promise<unknown>,
+  /** Keys outside the library that this mutation also invalidates. */
+  alsoInvalidate?: (args: TArgs) => readonly (readonly unknown[])[],
+) {
   const client = useQueryClient()
   return useMutation<unknown, ApiError, TArgs>({
     mutationFn,
-    onSuccess: () => client.invalidateQueries({ queryKey: libraryKey }),
+    onSuccess: (_result, args) => {
+      void client.invalidateQueries({ queryKey: libraryKey })
+      for (const queryKey of alsoInvalidate?.(args) ?? []) void client.invalidateQueries({ queryKey })
+    },
   })
 }
 
@@ -78,8 +93,13 @@ export function useCreateDeck() {
 }
 
 export function useUpdateDeck() {
-  return useLibraryMutation(({ id, ...body }: UpdateDeckDto & { id: string }) =>
-    apiSend(`/decks/${id}`, { ...json(body), method: "PUT" }),
+  return useLibraryMutation(
+    ({ id, ...body }: UpdateDeckDto & { id: string }) =>
+      apiSend(`/decks/${id}`, { ...json(body), method: "PUT" }),
+    // An open deck page reads its own summary, which is not under the library key,
+    // so without this a rename or a new icon does not reach the header until the
+    // page is left and reopened.
+    ({ id }) => [[...deckKey(id), "summary"]],
   )
 }
 

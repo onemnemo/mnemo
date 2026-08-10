@@ -12,13 +12,12 @@ import type {
   UpdateCardDto,
 } from "@/api/types"
 
-import { libraryKey } from "../api"
+import { deckKey, libraryKey } from "../api"
 
-// Card queries sit under their own deck key rather than nested inside the library
-// key, so renaming a deck does not refetch every card page. The trade is that card
-// mutations have to invalidate the library themselves - which they must anyway,
-// since adding or deleting a card moves the deck's counts on the library page.
-export const deckKey = (deckId: string) => ["flashcards", "deck", deckId] as const
+// Re-exported from where it is declared, so the existing importers here keep
+// working. Card mutations still have to invalidate the library themselves, since
+// adding or deleting a card moves the deck's counts on the library page.
+export { deckKey }
 
 export interface CardQuery {
   text: string
