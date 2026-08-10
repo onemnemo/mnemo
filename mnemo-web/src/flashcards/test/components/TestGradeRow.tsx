@@ -4,51 +4,40 @@ import { cn } from "@/lib/utils"
 import type { TestGrade } from "../test"
 
 /**
- * The self-check. "Got it" is the filled button because it is the answer a test hopes for; the
- * other two carry their own colour on the outline so a miss never looks like the default.
+ * The self-check, marked wide and central rather than as a grid: this is a judgement about the
+ * one answer just written, not a dial being set. Got it is filled in the correct-green; a miss
+ * is outlined in danger so it never reads as the default; close stays plain in between.
  */
-const GRADES: { grade: TestGrade; key: string; hint: string; className: string }[] = [
-  {
-    grade: "missed",
-    key: "TestGradeMissed",
-    hint: "1",
-    className: "border-[var(--accent)] text-brand hover:bg-[var(--accent-subtle-background)]",
-  },
-  {
-    grade: "close",
-    key: "TestGradeClose",
-    hint: "2",
-    className:
-      "border-[var(--flashcard-state-learning)] text-[var(--flashcard-state-learning)] hover:bg-[var(--toast-icon-badge-warning)]",
-  },
-  {
-    grade: "gotIt",
-    key: "GradeGotIt",
-    hint: "⏎",
-    className:
-      "border-[var(--flashcard-retention-high)] bg-[var(--flashcard-retention-high)] text-[var(--accent-button-text)] hover:brightness-105",
-  },
+const GRADES: { grade: TestGrade; key: string; hint: string; tone: "missed" | "close" | "got" }[] = [
+  { grade: "missed", key: "TestGradeMissed", hint: "1", tone: "missed" },
+  { grade: "close", key: "TestGradeClose", hint: "2", tone: "close" },
+  { grade: "gotIt", key: "GradeGotIt", hint: "⏎", tone: "got" },
 ]
 
 export function TestGradeRow({ onGrade }: { onGrade: (grade: TestGrade) => void }) {
   const t = useT()
 
   return (
-    <div className="flex items-center justify-center gap-3">
-      {GRADES.map(({ grade, key, hint, className }) => (
-        <button
-          key={grade}
-          type="button"
-          onClick={() => onGrade(grade)}
-          className={cn(
-            "flex h-12 w-[150px] cursor-pointer flex-col items-center justify-center rounded-md border",
-            className,
-          )}
-        >
-          <span className="font-semibold text-body-small">{t("Flashcards", key)}</span>
-          <span className="font-mono text-[10.5px] opacity-75">{hint}</span>
-        </button>
-      ))}
+    <div className="mx-auto flex w-full max-w-[520px] items-stretch gap-3">
+      {GRADES.map(({ grade, key, hint, tone }) => {
+        const got = tone === "got"
+        return (
+          <button
+            key={grade}
+            type="button"
+            onClick={() => onGrade(grade)}
+            className={cn(
+              "flex h-12 flex-1 cursor-pointer flex-col items-center justify-center rounded-xl transition-colors",
+              tone === "missed" && "text-danger shadow-[0_0_0_1px_var(--danger)] hover:bg-danger-wash",
+              tone === "close" && "text-ink shadow-[0_0_0_1px_var(--line)] hover:bg-frame-hover",
+              got && "bg-ok text-ok-fg hover:bg-ok-hover",
+            )}
+          >
+            <span className="text-[13.5px] font-medium">{t("Flashcards", key)}</span>
+            <span className={cn("text-[11px]", got ? "text-ok-fg/70" : "text-ink-3")}>{hint}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }

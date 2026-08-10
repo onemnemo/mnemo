@@ -254,6 +254,8 @@
     "TestGradeClose": "Nære",
     "TestYourAnswerLabel": "DITT SVAR",
     "TestCorrectAnswerLabel": "RIKTIG SVAR",
+    "TestAnswerBlank": "Latt stå tom.",
+    "TestWhatYouMissed": "Det du bommet på",
     "StudyKeyEnter": "Enter",
     "TestKeyGradeRange": "1–3",
     "TestHintGotIt": "klarte det",

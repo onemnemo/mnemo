@@ -254,6 +254,8 @@
     "TestGradeClose": "Knapp",
     "TestYourAnswerLabel": "DEINE ANTWORT",
     "TestCorrectAnswerLabel": "RICHTIGE ANTWORT",
+    "TestAnswerBlank": "Leer gelassen.",
+    "TestWhatYouMissed": "Was du verpasst hast",
     "StudyKeyEnter": "Enter",
     "TestKeyGradeRange": "1–3",
     "TestHintGotIt": "gewusst",

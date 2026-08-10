@@ -192,6 +192,15 @@
   --danger: oklch(0.54 0.2 25);
   --danger-wash: oklch(0.955 0.03 25);
 
+  /* Correct/"got it" green, used only by the test screen. A third semantic beside the brand
+     orange and the danger red, so a right answer never borrows a colour that means something
+     else. fg reads on the filled button; ink reads on the canvas; wash backs the best chip. */
+  --ok: oklch(0.6 0.13 150);
+  --ok-hover: oklch(0.55 0.13 150);
+  --ok-fg: oklch(0.99 0.02 150);
+  --ok-ink: oklch(0.5 0.12 150);
+  --ok-wash: oklch(0.95 0.035 150);
+
   /* Editorial colour. Highlights and tag chips derive from a hue plus these lightness
      and chroma values, so one set of numbers per theme keeps every tint readable.
      Hard-coding the light values inline is what breaks them in dark mode. */
@@ -295,6 +304,12 @@
 
   --danger: oklch(0.68 0.18 25);
   --danger-wash: oklch(0.3 0.07 25);
+
+  --ok: oklch(0.7 0.14 150);
+  --ok-hover: oklch(0.74 0.14 150);
+  --ok-fg: oklch(0.18 0.03 150);
+  --ok-ink: oklch(0.76 0.12 150);
+  --ok-wash: oklch(0.3 0.06 150);
 
   /* Dark highlights have to stay dark enough to keep white text legible on top; the
      light values would blow out. */

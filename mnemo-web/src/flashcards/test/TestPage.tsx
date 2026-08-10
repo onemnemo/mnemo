@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 
 import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
@@ -36,6 +37,7 @@ export function TestPage({ deckId }: { deckId?: string }) {
   const queue = useTest((s) => s.queue)
   const index = useTest((s) => s.index)
   const answers = useTest((s) => s.answers)
+  const grades = useTest((s) => s.grades)
   const tally = useTest((s) => s.tally)
   const revealed = useTest((s) => s.revealed)
   const result = useTest((s) => s.result)
@@ -174,8 +176,12 @@ export function TestPage({ deckId }: { deckId?: string }) {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [])
 
-  return (
-    <div className="flex h-full min-h-0 flex-col">
+  const missed = queue.filter((_, i) => grades[i] === "missed")
+
+  // Rendered over the whole window rather than inside the module frame: during a test the card is
+  // the screen, and the practice-only badge on every card is the one thing the reader has to trust.
+  return createPortal(
+    <div className="animate-fade-in fixed inset-0 z-[130] flex flex-col bg-canvas">
       <TestTopbar
         deckId={deckId}
         deckName={deckName}
@@ -186,22 +192,26 @@ export function TestPage({ deckId }: { deckId?: string }) {
         onClose={() => void close()}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {status === "loading" && <span className="m-auto text-text-tertiary">{fc("StudyLoading")}</span>}
+      {status === "loading" && (
+        <div className="flex flex-1 items-center justify-center">
+          <span className="text-ink-3">{fc("StudyLoading")}</span>
+        </div>
+      )}
 
-        {status === "empty" && (
-          <div className="m-auto flex max-w-[420px] flex-col items-center gap-4 text-center">
-            <AppIcon name="common/file-text" size={52} className="text-text-tertiary" />
-            <h2 className="font-semibold text-heading-3">{fc("TestEmptyTitle")}</h2>
-            <p className="text-text-secondary">{fc("TestEmptyDesc")}</p>
-            <Button onClick={backToDeck}>{fc("BackToDeck")}</Button>
-          </div>
-        )}
+      {status === "empty" && (
+        <div className="m-auto flex max-w-[420px] flex-col items-center gap-4 px-6 text-center">
+          <AppIcon name="common/file-text" size={48} className="text-ink-3" />
+          <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-ink">{fc("TestEmptyTitle")}</h2>
+          <p className="text-[13.5px] text-ink-2">{fc("TestEmptyDesc")}</p>
+          <Button onClick={backToDeck}>{fc("BackToDeck")}</Button>
+        </div>
+      )}
 
-        {active && card && (
-          // w-full so this stretches to the pane rather than shrink-wrapping the 780px card,
-          // which would push the whole page into a horizontal scroll on a narrow window.
-          <div className="m-auto flex w-full flex-col items-center gap-[18px] p-6">
+      {active && card && (
+        // Card and buttons are one block, centred together, so the grade row never floats far
+        // above the card the way pinning it to the window bottom would on a short prompt.
+        <div className="scroll-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-6">
+          <div className="m-auto w-full max-w-[780px] py-8">
             <TestCard
               card={card}
               answer={answers[index] ?? ""}
@@ -214,26 +224,37 @@ export function TestPage({ deckId }: { deckId?: string }) {
               onUndo={() => useTest.getState().undo()}
             />
 
-            {revealed ? (
-              <TestGradeRow onGrade={(grade) => useTest.getState().grade(grade)} />
-            ) : (
-              <div className="flex items-center justify-center gap-2">
-                <Button variant="outline" onClick={() => useTest.getState().reveal()}>
-                  {fc("TestReveal")}
-                </Button>
-                <Kbd>{fc("StudyKeyEnter")}</Kbd>
+            <div className="mt-6">
+              {revealed ? (
+                <TestGradeRow onGrade={(grade) => useTest.getState().grade(grade)} />
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <Button variant="outline" onClick={() => useTest.getState().reveal()}>
+                    {fc("TestReveal")}
+                  </Button>
+                  <Kbd>{fc("StudyKeyEnter")}</Kbd>
+                </div>
+              )}
+              <div className="mt-3">
+                <HintRow />
               </div>
-            )}
-
-            <HintRow />
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {status === "complete" && (
-          <ScorePanel tally={tally} result={result} failed={resultFailed} onBackToDeck={backToDeck} />
-        )}
-      </div>
-    </div>
+      {status === "complete" && (
+        <ScorePanel
+          deckName={deckName}
+          tally={tally}
+          result={result}
+          failed={resultFailed}
+          missed={missed}
+          onBackToDeck={backToDeck}
+        />
+      )}
+    </div>,
+    document.body,
   )
 }
 
@@ -260,5 +281,5 @@ function HintRow() {
 }
 
 function Hint({ children }: { children: ReactNode }) {
-  return <span className="text-body-small text-text-tertiary">{children}</span>
+  return <span className="text-[11.5px] text-ink-3">{children}</span>
 }
