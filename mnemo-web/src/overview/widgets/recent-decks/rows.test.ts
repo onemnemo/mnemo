@@ -23,6 +23,7 @@ function deck(id: string, overrides: Partial<DeckSummaryDto> = {}): DeckSummaryD
     name: id,
     description: null,
     tags: [],
+    icon: null,
     presetId: "default",
     sortOrder: 0,
     totalCards: 42,
