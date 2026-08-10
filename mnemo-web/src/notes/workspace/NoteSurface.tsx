@@ -20,6 +20,7 @@ import type { BlockRegistry } from '../editor/registry/build';
 import type { EditorServices } from '../editor/registry/types';
 import { documentWordCount } from '../editor/projection/word-count';
 import { useNoteSession } from '../edit/useNoteSession';
+import { useSpellcheck } from '../edit/useSpellcheck';
 import { BlockGutter } from '../editor/chrome/BlockGutter';
 import { FindReplaceOverlay } from '../find/FindReplaceOverlay';
 import { createPersist } from '../save/persist';
@@ -92,6 +93,7 @@ export function NoteSurface({
   const title = note.title.trim() || nt('Untitled');
   const hasCover = coverCss(note.cover) !== null;
   const { maxWidth } = useEditorMeasure();
+  const { spellCheck, lang } = useSpellcheck();
 
   return (
     <div className="group/pane relative flex h-full min-h-0 flex-col">
@@ -103,17 +105,18 @@ export function NoteSurface({
         <PaneActions note={note} />
       </div>
       <div ref={scrollRef} className="scroll-thin relative min-h-0 flex-1 overflow-y-auto">
-        <CoverBanner token={note.cover} onChange={(cover) => patch({ cover })} />
+        <CoverBanner token={note.cover} />
         <div className={cn('mx-auto w-full px-14 pb-40', hasCover ? 'pt-0' : 'pt-10')} style={{ maxWidth }}>
           {note.emoji ? (
             // The icon is positioned so it lifts over the cover's lower edge, the
-            // way a page icon reads on the surfaces this is modelled on.
-            <div className={cn('relative z-10', hasCover ? '-mt-[42px]' : 'mt-2')}>
-              <NoteIcon value={note.emoji} onChange={(emoji) => patch({ emoji })} />
+            // way a page icon reads on the surfaces this is modelled on. The cover
+            // is a positioned element and would otherwise paint over it.
+            <div className={cn('relative z-10', hasCover ? '-mt-[46px]' : 'mt-2')}>
+              <NoteIcon value={note.emoji} />
             </div>
           ) : null}
           <AddHeaderChrome
-            hasCover={hasCover}
+            cover={note.cover}
             hasIcon={Boolean(note.emoji)}
             onCover={(cover) => patch({ cover })}
             onIcon={(emoji) => patch({ emoji })}
@@ -125,7 +128,7 @@ export function NoteSurface({
             {' · '}
             {nt('EditedRelativeFormat', { 0: formatRelative(note.modifiedAt, Date.now(), t) })}
           </div>
-          <div ref={ref} className="notes-doc" />
+          <div ref={ref} className="notes-doc" lang={lang} spellCheck={spellCheck} />
         </div>
       </div>
       {view ? <IndexChip view={view} registry={registry} scrollRef={scrollRef} /> : null}
