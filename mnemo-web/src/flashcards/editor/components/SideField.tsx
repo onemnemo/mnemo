@@ -13,7 +13,7 @@ import {
   wrapWithMarker,
   type TextEdit,
 } from "../editor-state"
-import { AttachmentFigure } from "./AttachmentFigure"
+import { AttachmentStrip } from "./AttachmentStrip"
 import { FormatBar } from "./FormatBar"
 
 /** One side of the card: its label, a format bar that floats on focus, text and attached images. */
@@ -28,7 +28,6 @@ export function SideField({
   onChange,
   onFocus,
   onAttachFiles,
-  onReplaceAttachment,
   onRemoveAttachment,
 }: {
   side: CardSide
@@ -42,14 +41,11 @@ export function SideField({
   onChange: (next: string) => void
   onFocus: () => void
   onAttachFiles: (side: CardSide, files: File[]) => void
-  onReplaceAttachment: (key: string, file: File) => void
   onRemoveAttachment: (key: string) => void
 }) {
   const t = useT()
   const textarea = useRef<HTMLTextAreaElement>(null)
   const picker = useRef<HTMLInputElement>(null)
-  // Set while the picker was opened by a figure's Replace link rather than the toolbar.
-  const replacing = useRef<string | null>(null)
   const [dragging, setDragging] = useState(false)
 
   const canAttach = attachments.length < MAX_ATTACHMENTS_PER_SIDE
@@ -100,10 +96,7 @@ export function SideField({
           onFormula={mark("$")}
           onBullet={() => applyEdit((text, start, end) => wrapAround(text, start, end, "\n- ", ""))}
           onCloze={() => applyEdit(wrapCloze)}
-          onInsertImage={() => {
-            replacing.current = null
-            picker.current?.click()
-          }}
+          onInsertImage={() => picker.current?.click()}
         />
       ) : null}
 
@@ -150,33 +143,21 @@ export function SideField({
         )}
       />
 
-      {attachments.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          {attachments.map((attachment) => (
-            <AttachmentFigure
-              key={attachment.key}
-              attachment={attachment}
-              onReplace={() => {
-                replacing.current = attachment.key
-                picker.current?.click()
-              }}
-              onRemove={() => onRemoveAttachment(attachment.key)}
-            />
-          ))}
-        </div>
-      ) : null}
+      <AttachmentStrip
+        attachments={attachments}
+        canAttach={canAttach}
+        onAdd={() => picker.current?.click()}
+        onRemove={onRemoveAttachment}
+      />
 
       <input
         ref={picker}
         type="file"
         accept={IMAGE_ACCEPT}
+        multiple
         className="hidden"
         onChange={(event) => {
-          const [file] = Array.from(event.target.files ?? [])
-          const key = replacing.current
-          replacing.current = null
-          if (key && file) onReplaceAttachment(key, file)
-          else if (file) attach([file])
+          attach(Array.from(event.target.files ?? []))
           // Reset so picking the same file twice in a row still fires a change event.
           event.target.value = ""
         }}
