@@ -112,7 +112,6 @@
     "LapsesFilterThreeOrMore": "Glemt 3+ ganger",
     "LapsesFilterNever": "Aldri glemt",
     "DeckFilterTypeFormat": "Type: {0}",
-    "DeckFilterLapsesFormat": "Glemt: {0}",
     "ClearFilters": "Nullstill",
     "DeckFilterStateFormat": "Tilstand: {0}",
     "DeckFilterTagFormat": "Etikett: {0}",

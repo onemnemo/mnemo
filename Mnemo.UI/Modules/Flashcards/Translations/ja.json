@@ -112,7 +112,6 @@
     "LapsesFilterThreeOrMore": "3回以上忘れた",
     "LapsesFilterNever": "忘れたことがない",
     "DeckFilterTypeFormat": "種別: {0}",
-    "DeckFilterLapsesFormat": "忘れた回数: {0}",
     "ClearFilters": "クリア",
     "DeckFilterStateFormat": "状態: {0}",
     "DeckFilterTagFormat": "タグ: {0}",
