@@ -187,6 +187,17 @@
   --accent-wash: oklch(0.955 0.028 40);
   --accent-fg: oklch(0.99 0.01 40);
 
+  /* Selection, at three strengths of the one accent: text inside a block, whole
+     blocks across blocks, and the lasso that picks the blocks. Sharing a colour
+     is what makes the handover between them read as one gesture rather than as
+     two features. All alpha over whatever is underneath, so a highlight, inline
+     code, a callout and a figure keep their own surface instead of being blanked
+     out by an opaque fill. */
+  --sel-text: color-mix(in srgb, var(--accent) 20%, transparent);
+  --sel-block: color-mix(in srgb, var(--accent) 10%, transparent);
+  --sel-lasso: color-mix(in srgb, var(--accent) 7%, transparent);
+  --sel-lasso-line: color-mix(in srgb, var(--accent) 42%, transparent);
+
   /* Distinct from the brand orange on purpose: if "delete" and "mnemo" are the same
      colour, neither means anything. */
   --danger: oklch(0.54 0.2 25);
@@ -301,6 +312,12 @@
   --accent-ink: oklch(0.78 0.15 40);
   --accent-wash: oklch(0.32 0.075 40);
   --accent-fg: oklch(0.18 0.03 40);
+
+  /* Stronger than in light: the same alpha over a dark canvas barely registers. */
+  --sel-text: color-mix(in srgb, var(--accent) 28%, transparent);
+  --sel-block: color-mix(in srgb, var(--accent) 17%, transparent);
+  --sel-lasso: color-mix(in srgb, var(--accent) 10%, transparent);
+  --sel-lasso-line: color-mix(in srgb, var(--accent) 50%, transparent);
 
   --danger: oklch(0.68 0.18 25);
   --danger-wash: oklch(0.3 0.07 25);
