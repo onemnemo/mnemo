@@ -105,6 +105,7 @@
     "ViewGrid": "Rasteransicht",
     "StudyModes": "Lernmodi",
     "DeckCaughtUp": "Alles erledigt",
+    "RetentionPending": "Verfügbar nach {0} geplanten Wiederholungen",
     "DeckInDeckFormat": "{0} im Stapel",
     "ColBack": "Rückseite",
     "ColState": "Status",

@@ -5,7 +5,7 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { formatRelative } from "@/lib/relative-date"
 
-import { Counts, Retention } from "../../bits"
+import { Counts, Retention, retentionReading } from "../../bits"
 import type { DragHandle } from "../dnd/model"
 import type { LibraryDrag } from "../dnd/useLibraryDrag"
 import type { DeckRowModel } from "../tree"
@@ -109,7 +109,7 @@ export function DeckRow({
       <Counts counts={deck.dueCounts} className="shrink-0" />
 
       <span className={RETENTION_CELL}>
-        <Retention percent={deck.retentionSampleSize > 0 ? deck.retentionPercent : null} />
+        <Retention percent={retentionReading(deck.retentionPercent, deck.retentionSampleSize)} />
       </span>
 
       <span className="shrink-0" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>

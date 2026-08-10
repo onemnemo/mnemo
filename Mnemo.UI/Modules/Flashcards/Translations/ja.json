@@ -105,6 +105,7 @@
     "ViewGrid": "グリッド表示",
     "StudyModes": "学習モード",
     "DeckCaughtUp": "完了",
+    "RetentionPending": "予定された復習が{0}回に達すると表示されます",
     "DeckInDeckFormat": "デッキ内 {0} 枚",
     "ColBack": "裏",
     "ColState": "状態",

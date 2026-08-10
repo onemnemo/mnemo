@@ -105,6 +105,7 @@
     "ViewGrid": "Grid view",
     "StudyModes": "Study modes",
     "DeckCaughtUp": "Caught up",
+    "RetentionPending": "Available after {0} scheduled reviews",
     "DeckInDeckFormat": "{0} in deck",
     "ColBack": "Back",
     "ColState": "State",

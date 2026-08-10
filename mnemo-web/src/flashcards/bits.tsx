@@ -120,14 +120,34 @@ export function MixBar({ counts, className }: { counts: WorkCounts; className?: 
 const RETENTION_WARN = 85
 
 /**
+ * Scheduled reviews a deck needs before its retention is worth a number.
+ *
+ * True retention is a pass rate, so a deck with one passed review reads 100% and can only fall
+ * from there. Holding the number back until the sample is real keeps a freshly-started deck from
+ * greeting the reader with a triumphant, meaningless 100 that instantly drops.
+ */
+export const RETENTION_MIN_SAMPLE = 20
+
+/** The retention to show, or null while the sample is still too small to mean anything. */
+export function retentionReading(percent: number, sampleSize: number): number | null {
+  return sampleSize >= RETENTION_MIN_SAMPLE ? percent : null
+}
+
+/**
  * Remembered-percentage as a bar plus its number.
  *
- * `null` means never studied, and it has to look different from 0%: an empty bar
- * over a literal "0%" reads as "you have forgotten everything" rather than "no
- * data yet".
+ * `null` means there is not yet a meaningful sample, and it has to look different from 0%: an
+ * empty bar over a literal "0%" reads as "you have forgotten everything" rather than "no data
+ * yet". The tooltip says what would make the number appear so the dash does not read as broken.
  */
 export function Retention({ percent }: { percent: number | null }) {
-  if (percent === null) return <span className="text-[12.5px] text-ink-3/60">—</span>
+  const t = useT()
+  if (percent === null)
+    return (
+      <span className="text-[12.5px] text-ink-3/60" title={t("Flashcards", "RetentionPending", { 0: RETENTION_MIN_SAMPLE })}>
+        —
+      </span>
+    )
 
   const value = Math.min(100, Math.max(0, percent))
   return (
@@ -148,13 +168,18 @@ export function Retention({ percent }: { percent: number | null }) {
  * and a label side by side.
  */
 export function Ring({ percent, size = 36 }: { percent: number | null; size?: number }) {
+  const t = useT()
   const stroke = 3
   const radius = (size - stroke) / 2
   const circumference = 2 * Math.PI * radius
   const value = percent === null ? null : Math.min(100, Math.max(0, percent))
 
   return (
-    <span className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
+    <span
+      className="relative inline-flex shrink-0 items-center justify-center"
+      style={{ width: size, height: size }}
+      title={value === null ? t("Flashcards", "RetentionPending", { 0: RETENTION_MIN_SAMPLE }) : undefined}
+    >
       <svg width={size} height={size} className="-rotate-90" aria-hidden>
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" strokeWidth={stroke} className="stroke-canvas-sunken" />
         {value === null ? null : (
