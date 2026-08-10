@@ -111,6 +111,16 @@ function createController(
   let open = false;
   let rows: readonly MenuRow[] = [];
   let index = 0;
+  /**
+   * The line the `/` was typed at, captured once when the menu opens.
+   *
+   * Held rather than re-read because the two things that change while the menu
+   * is up pull in opposite directions: the caret walks right as the query is
+   * typed, which would make the menu crawl sideways, while the list shrinks as
+   * the query narrows it, which a menu placed *above* the line has to follow or
+   * it drifts up off the text it belongs to.
+   */
+  let anchor: Rect | null = null;
 
   /**
    * Points the editor at the open list and at the row the arrows are on.
@@ -138,6 +148,7 @@ function createController(
   function close(): void {
     if (!open) return;
     open = false;
+    anchor = null;
     menu.root.setAttribute('data-hidden', '');
     syncEditorAria();
   }
@@ -157,7 +168,6 @@ function createController(
   }
 
   function reposition(): void {
-    const anchor = anchorRect(view);
     if (!anchor) return;
     // Measured with any previous cap cleared, so the height that feeds the
     // placement is what the menu wants rather than what it was last allowed.
@@ -196,9 +206,10 @@ function createController(
       menu.root.removeAttribute('data-hidden');
       menu.render(rows, index, pick);
       syncEditorAria();
-      // Only on open. The menu hangs off the point the `/` was typed at, and
-      // re-anchoring as the query grows makes it crawl sideways.
-      if (!wasOpen) reposition();
+      // The anchor is taken once; the placement is redone on every query, since
+      // the list it is placing has just changed size.
+      if (!wasOpen) anchor = anchorRect(view);
+      reposition();
     },
 
     handleKey(event): boolean {

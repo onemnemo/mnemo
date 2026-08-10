@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MENU_HEIGHT_ESTIMATE,
+  MENU_MAX_HEIGHT,
   MIN_ABOVE_SPACE,
   placeMenu,
   placePopover,
@@ -131,6 +132,17 @@ describe('placeMenu', () => {
     expect(placement.showAbove).toBe(true);
     expect(placement.maxHeight).toBe(232);
     expect(placement.top).toBe(4);
+  });
+
+  it('never grows past the palette height, however much room the side has', () => {
+    // A tall window with the caret near the top: below has 750px of room, and
+    // the menu must still be a palette rather than a column down the page.
+    const tall = { width: 1000, height: 800 };
+    const full = { width: 300, height: 700 };
+    const placement = placeMenu(rectAt(40, 400), full, tall);
+    expect(placement.maxHeight).toBe(MENU_MAX_HEIGHT);
+    // And the top follows the capped height, not the height it asked for.
+    expect(placement.top).toBe(64);
   });
 
   it('never reports a negative cap for a line pressed against the edge', () => {

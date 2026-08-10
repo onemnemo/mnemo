@@ -57,7 +57,12 @@ function element(tag: string, className: string, text?: string): HTMLElement {
 }
 
 export function createSlashMenuView(translate: (key: string) => string): SlashMenuView {
-  const root = element('div', ROOT);
+  // `scroll-thin` is the app's own scrollbar; the menu is the one place in the
+  // note that scrolls without it otherwise, and a system scrollbar down the side
+  // of a floating palette is the loudest thing in it. The pop-in replays on
+  // every open by itself: the menu is hidden with `display: none` between them,
+  // and an element coming back from that starts its animations again.
+  const root = element('div', `${ROOT} scroll-thin animate-pop-in`);
   root.setAttribute('data-hidden', '');
   // The editor keeps DOM focus and, with it, the caret the query is typed at.
   root.addEventListener('mousedown', (event) => {

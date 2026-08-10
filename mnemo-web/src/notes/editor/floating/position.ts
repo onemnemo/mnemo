@@ -63,6 +63,15 @@ export function placeToolbar(anchor: Rect, size: Size, viewport: Size): Placemen
 /** Desktop's slash-menu `HeightEstimate`, the room a full list wants below. */
 export const MENU_HEIGHT_ESTIMATE = 320;
 
+/**
+ * The tallest the menu is ever drawn, room or no room. A palette is read by
+ * scanning it, and one that grows to fill the window stops being a palette and
+ * starts being a page: the rows past the first handful are never the answer.
+ * The list scrolls beyond this. Kept in step with the CSS `max-height`, which
+ * this overrides by being written inline.
+ */
+export const MENU_MAX_HEIGHT = 340;
+
 /** The desktop anchors the menu 4px off the line on whichever side it takes. */
 const MENU_GUTTER = 4;
 
@@ -91,7 +100,7 @@ export function placeMenu(anchor: Rect, size: Size, viewport: Size): MenuPlaceme
 
   // Never negative: a caret pressed against an edge has no room on that side,
   // and a negative cap would read as "no constraint" once written to CSS.
-  const maxHeight = Math.max(0, showAbove ? roomAbove : roomBelow);
+  const maxHeight = Math.max(0, Math.min(MENU_MAX_HEIGHT, showAbove ? roomAbove : roomBelow));
   const height = Math.min(size.height, maxHeight);
 
   const preferredTop = showAbove ? anchor.top - height - MENU_GUTTER : anchor.bottom + MENU_GUTTER;
