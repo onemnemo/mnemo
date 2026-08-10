@@ -46,7 +46,7 @@ export function dueLabel(
   now: number,
   t: (key: string, params?: Record<string, string | number>) => string,
 ): DueLabel {
-  if (view.card.state === "suspended") return { text: "—", isDue: false }
+  if (view.card.state === "suspended") return { text: "-", isDue: false }
 
   const diff = new Date(view.schedule.dueDate).getTime() - now
   if (diff <= 0) {

@@ -145,7 +145,7 @@ export function Retention({ percent }: { percent: number | null }) {
   if (percent === null)
     return (
       <span className="text-[12.5px] text-ink-3/60" title={t("Flashcards", "RetentionPending", { 0: RETENTION_MIN_SAMPLE })}>
-        —
+        -
       </span>
     )
 
@@ -197,7 +197,7 @@ export function Ring({ percent, size = 36 }: { percent: number | null; size?: nu
         )}
       </svg>
       <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium tabular-nums text-ink-2">
-        {value === null ? "—" : value}
+        {value === null ? "-" : value}
       </span>
     </span>
   )
