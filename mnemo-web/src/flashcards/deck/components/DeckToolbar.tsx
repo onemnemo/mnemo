@@ -183,7 +183,8 @@ function StateChip({
         active ? "bg-frame-active font-medium text-ink" : "text-ink-2 hover:bg-frame-hover hover:text-ink",
       )}
     >
-      {flag ? <AppIcon name="common/flag" size={12} /> : null}
+      {/* Filled only while this chip is the active filter, matching the row's own flag. */}
+      {flag ? <AppIcon name="common/flag" size={12} className={active ? "[&>svg]:fill-current" : undefined} /> : null}
       {label}
     </button>
   )
