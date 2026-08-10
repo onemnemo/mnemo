@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import type { ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -42,14 +43,9 @@ export function NumberStepper({
   }
 
   return (
-    <div className="flex h-7 items-stretch overflow-hidden rounded-sm border border-input bg-[var(--text-control-background)]">
-      <StepButton
-        label={`${label} −`}
-        disabled={value <= min}
-        onClick={() => step(-1)}
-        className="border-r border-divider-subtle"
-      >
-        <span className="block h-[1.5px] w-[9px] bg-text-faded" />
+    <div className="flex h-8 items-center rounded-lg p-0.5 shadow-[0_0_0_1px_var(--line)]">
+      <StepButton label={`${label} -`} disabled={value <= min} onClick={() => step(-1)}>
+        <span className="block h-[1.5px] w-[9px] rounded-full bg-current" />
       </StepButton>
 
       <input
@@ -71,18 +67,13 @@ export function NumberStepper({
             step(-1)
           }
         }}
-        className="w-11 bg-transparent text-center font-mono text-[12.5px] text-text-primary outline-none"
+        className="w-11 bg-transparent text-center text-[13px] font-medium tabular-nums text-ink outline-none"
       />
 
-      <StepButton
-        label={`${label} +`}
-        disabled={value >= max}
-        onClick={() => step(1)}
-        className="border-l border-divider-subtle"
-      >
-        <span className="relative block h-[9px] w-[9px]">
-          <span className="absolute left-0 top-[3.75px] h-[1.5px] w-[9px] bg-text-faded" />
-          <span className="absolute left-[3.75px] top-0 h-[9px] w-[1.5px] bg-text-faded" />
+      <StepButton label={`${label} +`} disabled={value >= max} onClick={() => step(1)}>
+        <span className="relative block size-[9px]">
+          <span className="absolute top-[3.75px] left-0 h-[1.5px] w-[9px] rounded-full bg-current" />
+          <span className="absolute top-0 left-[3.75px] h-[9px] w-[1.5px] rounded-full bg-current" />
         </span>
       </StepButton>
     </div>
@@ -93,14 +84,12 @@ function StepButton({
   label,
   disabled,
   onClick,
-  className,
   children,
 }: {
   label: string
   disabled: boolean
   onClick: () => void
-  className?: string
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <button
@@ -109,10 +98,8 @@ function StepButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "grid w-[26px] shrink-0 cursor-pointer place-items-center transition-colors duration-150",
-        "hover:bg-[var(--navigation-button-background-hover)] active:bg-[var(--button-background-pressed)]",
-        "disabled:pointer-events-none disabled:opacity-40",
-        className,
+        "grid size-7 shrink-0 cursor-pointer place-items-center rounded-md text-ink-2 transition-colors",
+        "hover:bg-frame-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35",
       )}
     >
       {children}

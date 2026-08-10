@@ -29,15 +29,15 @@ export function RetentionSlider({
         }}
         aria-label={label}
         aria-valuetext={`${percent}%`}
-        className="relative flex h-4 w-[150px] shrink-0 touch-none select-none items-center"
+        className="relative flex h-4 w-[150px] shrink-0 touch-none items-center select-none"
       >
-        <Slider.Track className="relative h-[3px] w-full grow rounded-pill bg-divider-subtle">
-          <Slider.Range className="absolute h-full rounded-pill bg-brand" />
+        <Slider.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-canvas-sunken">
+          <Slider.Range className="absolute h-full rounded-full bg-solid" />
         </Slider.Track>
-        <Slider.Thumb className="block h-3.5 w-3.5 rounded-full border-2 border-brand bg-white shadow-elevation-1 outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+        <Slider.Thumb className="block size-3.5 rounded-full border-2 border-solid bg-canvas shadow-canvas outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" />
       </Slider.Root>
 
-      <span className="w-9 text-center font-mono text-body-small text-text-secondary">{percent}%</span>
+      <span className="w-9 text-center text-[13px] font-medium tabular-nums text-ink">{percent}%</span>
     </div>
   )
 }

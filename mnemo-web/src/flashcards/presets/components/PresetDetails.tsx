@@ -145,9 +145,7 @@ function Section({
 }) {
   return (
     <section className={first ? "pt-3" : "pt-5"}>
-      <div className="pb-0.5 text-micro font-semibold uppercase tracking-[1px] text-text-faded">
-        {label}
-      </div>
+      <div className="pb-1 text-[12.5px] font-medium text-ink-3">{label}</div>
       {children}
     </section>
   )
