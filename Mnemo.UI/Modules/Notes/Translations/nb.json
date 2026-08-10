@@ -1,5 +1,7 @@
 {
   "Notes": {
+    "ShowLess": "Vis mindre",
+    "ShowMoreCount": "Vis {0} til",
     "PdfExportTitle": "Eksporter som PDF",
     "PdfExportDescription": "Velg layout og gjengivelsesvalg",
     "PdfTabGeneral": "Generelt",

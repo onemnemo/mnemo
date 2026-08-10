@@ -1,5 +1,7 @@
 {
   "Notes": {
+    "ShowLess": "Weniger anzeigen",
+    "ShowMoreCount": "{0} weitere anzeigen",
     "PdfExportTitle": "Als PDF exportieren",
     "PdfExportDescription": "Layout- und Render-Optionen einstellen",
     "PdfTabGeneral": "Allgemein",

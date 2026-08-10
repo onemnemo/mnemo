@@ -1,5 +1,5 @@
-import { useMemo, useRef } from 'react';
-import type { RefObject } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import type { ReactNode, RefObject } from 'react';
 
 import { navigate } from '@/app/router';
 import { AppIcon } from '@/components/icon/AppIcon';
@@ -19,7 +19,10 @@ import { TreeDragLayer } from './TreeDragLayer';
 import { useNoteTreeDrag } from './useNoteTreeDrag';
 
 /** The desktop pane width, to the pixel. */
-export const SIDEBAR_WIDTH = 248;
+export const SIDEBAR_WIDTH = 252;
+
+/** How many favourites show before the list folds behind a "show more" row. */
+const FAVOURITES_SHOWN = 4;
 
 function IconButton({
   icon,
@@ -43,11 +46,34 @@ function IconButton({
   );
 }
 
-function SectionLabel({ children }: { children: string }) {
+/** A collapsible section heading: a rotating chevron and a muted label. */
+function Section({
+  label,
+  open,
+  onToggle,
+  children,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
   return (
-    <div className="px-2 pb-1 pt-3 text-[10.5px] font-semibold uppercase tracking-[1px] text-text-faded">
-      {children}
-    </div>
+    <>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex h-6 w-full items-center gap-1 px-2 pb-1 pt-3 text-[12px] text-text-tertiary transition-colors hover:text-text-secondary"
+      >
+        <AppIcon
+          name="common/chevron-right"
+          size={11}
+          className={cn('shrink-0 transition-transform', open && 'rotate-90')}
+        />
+        <span>{label}</span>
+      </button>
+      {open ? children : null}
+    </>
   );
 }
 
@@ -94,10 +120,17 @@ export function NoteTreeSidebar({
   const surfaceRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const [favOpen, setFavOpen] = useState(true);
+  const [notesOpen, setNotesOpen] = useState(true);
+  const [showAllFavs, setShowAllFavs] = useState(false);
+
   const tree = useMemo(
     () => buildNoteTree({ notes, folders, search, collapsed }),
     [notes, folders, search, collapsed],
   );
+
+  const shownFavs = showAllFavs ? tree.favourites : tree.favourites.slice(0, FAVOURITES_SHOWN);
+  const hiddenFavs = tree.favourites.length - shownFavs.length;
 
   const plan = (handle: TreeDragHandle, target: TreeDropTarget): ReorderPlan | null => {
     // Planned from the orders in hand: while a move settles there is nothing to
@@ -179,12 +212,27 @@ export function NoteTreeSidebar({
               <Skeleton key={i} className="h-[22px] w-full" />
             ))}
           </div>
+        ) : searching ? (
+          <div ref={surfaceRef}>
+            {tree.rows.length === 0 ? (
+              <div className="px-2 py-6 text-center text-body-extra-small text-text-faded">
+                {nt('SearchNoResults')}
+              </div>
+            ) : (
+              tree.rows.map((row) =>
+                row.kind === 'folder' ? (
+                  <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} drag={drag} />
+                ) : (
+                  <NoteRow key={`note:${row.id}`} row={row} selected={row.id === selectedNoteId} drag={drag} />
+                ),
+              )
+            )}
+          </div>
         ) : (
           <>
-            {!searching && tree.favourites.length > 0 ? (
-              <>
-                <SectionLabel>{nt('Favourites')}</SectionLabel>
-                {tree.favourites.map((note) => (
+            {tree.favourites.length > 0 ? (
+              <Section label={nt('Favourites')} open={favOpen} onToggle={() => setFavOpen((v) => !v)}>
+                {shownFavs.map((note) => (
                   <NoteRow
                     key={`fav:${note.id}`}
                     row={{ kind: 'note', id: note.id, depth: 0, note }}
@@ -193,42 +241,37 @@ export function NoteTreeSidebar({
                     favourite
                   />
                 ))}
-              </>
+                {hiddenFavs > 0 || showAllFavs ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllFavs((v) => !v)}
+                    className="flex h-7 w-full items-center rounded-md pl-[26px] text-body-extra-small text-text-tertiary hover:bg-[var(--widget-background-hover)] hover:text-text-secondary"
+                  >
+                    {showAllFavs ? nt('ShowLess') : nt('ShowMoreCount', { 0: hiddenFavs })}
+                  </button>
+                ) : null}
+              </Section>
             ) : null}
 
-            {!searching ? <SectionLabel>{nt('MyNotes')}</SectionLabel> : null}
-
-            <div ref={surfaceRef}>
-              {tree.rows.length === 0 ? (
-                <div className="px-2 py-6 text-center text-body-extra-small text-text-faded">
-                  {searching ? nt('SearchNoResults') : nt('TreeEmpty')}
-                </div>
-              ) : (
-                tree.rows.map((row) =>
-                  row.kind === 'folder' ? (
-                    <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} drag={drag} />
-                  ) : (
-                    <NoteRow key={`note:${row.id}`} row={row} selected={row.id === selectedNoteId} drag={drag} />
-                  ),
-                )
-              )}
-            </div>
+            <Section label={nt('MyNotes')} open={notesOpen} onToggle={() => setNotesOpen((v) => !v)}>
+              <div ref={surfaceRef}>
+                {tree.rows.length === 0 ? (
+                  <div className="px-2 py-6 text-center text-body-extra-small text-text-faded">
+                    {nt('TreeEmpty')}
+                  </div>
+                ) : (
+                  tree.rows.map((row) =>
+                    row.kind === 'folder' ? (
+                      <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} drag={drag} />
+                    ) : (
+                      <NoteRow key={`note:${row.id}`} row={row} selected={row.id === selectedNoteId} drag={drag} />
+                    ),
+                  )
+                )}
+              </div>
+            </Section>
           </>
         )}
-      </div>
-
-      <div className="border-t border-line p-2">
-        <button
-          type="button"
-          onClick={() => void newNote()}
-          className={cn(
-            'flex h-7 w-full items-center justify-center gap-1.5 rounded-md',
-            'text-body-extra-small font-medium text-text-secondary hover:bg-[var(--widget-background-hover)] hover:text-text-primary',
-          )}
-        >
-          <AppIcon name="common/plus" size={12} />
-          {nt('NewNote')}
-        </button>
       </div>
 
       <TreeDragLayer {...drag} />
