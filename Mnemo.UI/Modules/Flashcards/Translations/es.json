@@ -245,6 +245,8 @@
     "StudyCramSectionHeader": "REPASO INTENSIVO",
     "StudyCramDueCards": "Tarjetas pendientes",
     "StudyCramAllCards": "Todas las tarjetas",
-    "StudyMenuHintTest": "T"
+    "StudyMenuHintTest": "T",
+    "ChangeDeckIcon": "Cambiar icono del mazo",
+    "AddDeckIcon": "Añadir un icono"
   }
 }

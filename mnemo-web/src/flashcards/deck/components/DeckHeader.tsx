@@ -1,10 +1,12 @@
 import type { DeckSummaryDto } from "@/api/types"
 import { navigate } from "@/app/router"
+import { EmojiPickerButton } from "@/components/emoji/EmojiPickerButton"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 import { formatRelative } from "@/lib/relative-date"
 
+import { useUpdateDeck } from "../../api"
 import { useCardEditor } from "../../editor/store"
 import { RETENTION_TRACK_WIDTH } from "../cards"
 import { DeckMenu } from "./DeckMenu"
@@ -22,9 +24,21 @@ export function DeckHeader({ deck }: { deck: DeckSummaryDto }) {
   const t = useT()
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
   const openAdd = useCardEditor((state) => state.openAdd)
+  const updateDeck = useUpdateDeck()
 
   const { learning, due, total: dueToday } = deck.dueCounts
   const retention = Math.min(100, Math.max(0, deck.retentionPercent))
+
+  // The header is a full replace, so the fields that are not changing have to be
+  // sent back as they are or the update clears them.
+  const setIcon = (icon: string | null) =>
+    void updateDeck.mutateAsync({
+      id: deck.id,
+      name: deck.name,
+      description: deck.description,
+      tags: deck.tags,
+      icon,
+    })
 
   return (
     <div className="flex items-start gap-2.5">
@@ -39,8 +53,22 @@ export function DeckHeader({ deck }: { deck: DeckSummaryDto }) {
       </button>
 
       <div className="min-w-0 flex-1 space-y-1.5">
-        <h1 className="truncate text-heading-3 font-semibold text-text-primary" title={deck.name}>
-          {deck.name}
+        {/* The icon is the affordance for changing it, with no separate control,
+            and the empty state is just as clickable. */}
+        <h1 className="flex min-w-0 items-center gap-2 text-heading-3 font-semibold text-text-primary">
+          <EmojiPickerButton
+            value={deck.icon}
+            context={deck.name}
+            onChange={setIcon}
+            fallback="sidebar/flashcard"
+            label={deck.icon ? fc("ChangeDeckIcon") : fc("AddDeckIcon")}
+            size={32}
+            glyphSize={17}
+            className="-ml-1"
+          />
+          <span className="truncate" title={deck.name}>
+            {deck.name}
+          </span>
         </h1>
 
         <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-body-extra-small text-text-tertiary">

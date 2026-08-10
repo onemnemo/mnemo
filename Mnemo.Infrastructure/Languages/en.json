@@ -69,6 +69,22 @@
     "TransferExportFailed": "Export failed.",
     "Copy": "Copy"
   },
+  "EmojiPicker": {
+    "SearchPlaceholder": "Search icons",
+    "CategoryRecent": "Recent",
+    "CategoryStudy": "Study",
+    "CategoryScience": "Science",
+    "CategoryMedicine": "Medicine",
+    "CategoryLanguages": "Languages",
+    "CategoryEngineering": "Engineering",
+    "CategoryPeople": "People",
+    "CategoryNature": "Nature",
+    "CategoryObjects": "Objects",
+    "CategorySymbols": "Symbols",
+    "NoIcon": "No icon",
+    "Results": "Results",
+    "NoMatchFormat": "No icon matches “{0}”."
+  },
   "Settings": {
     "NavAccount": "Account",
     "NavApp": "App",

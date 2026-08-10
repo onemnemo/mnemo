@@ -245,6 +245,8 @@
     "StudyCramSectionHeader": "INNPUGGING",
     "StudyCramDueCards": "Forfalte kort",
     "StudyCramAllCards": "Alle kort",
-    "StudyMenuHintTest": "T"
+    "StudyMenuHintTest": "T",
+    "ChangeDeckIcon": "Endre kortstokkikon",
+    "AddDeckIcon": "Legg til ikon"
   }
 }

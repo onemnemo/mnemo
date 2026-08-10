@@ -69,6 +69,22 @@
     "TransferExportFailed": "Eksport mislyktes.",
     "Copy": "Kopier"
   },
+  "EmojiPicker": {
+    "SearchPlaceholder": "Søk etter ikon",
+    "CategoryRecent": "Nylig brukt",
+    "CategoryStudy": "Studier",
+    "CategoryScience": "Naturfag",
+    "CategoryMedicine": "Medisin",
+    "CategoryLanguages": "Språk",
+    "CategoryEngineering": "Teknikk",
+    "CategoryPeople": "Mennesker",
+    "CategoryNature": "Natur",
+    "CategoryObjects": "Objekter",
+    "CategorySymbols": "Symboler",
+    "NoIcon": "Ingen ikon",
+    "Results": "Treff",
+    "NoMatchFormat": "Ingen ikon passer til «{0}»."
+  },
   "Settings": {
     "NavAccount": "Konto",
     "NavApp": "App",

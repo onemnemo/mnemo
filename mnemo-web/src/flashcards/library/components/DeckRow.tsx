@@ -62,8 +62,17 @@ export function DeckRow({
       )}
     >
       <div className="flex min-w-0 items-center gap-2" style={{ marginLeft: row.depth * DEPTH_INDENT }}>
-        <span className="ml-1.5 truncate text-body-extra-small font-medium text-text-primary" title={deck.name}>
-          {deck.name}
+        {/* Inline rather than in a reserved column: most decks have no icon, and an
+            empty slot on every row costs more than the ragged edge saves. */}
+        <span className="ml-1.5 flex min-w-0 items-center gap-1.5">
+          {deck.icon ? (
+            <span aria-hidden className="shrink-0 text-[13px] leading-none">
+              {deck.icon}
+            </span>
+          ) : null}
+          <span className="truncate text-body-extra-small font-medium text-text-primary" title={deck.name}>
+            {deck.name}
+          </span>
         </span>
         <span className="shrink-0 text-caption text-text-faded">
           {t("Flashcards", "DeckCardCountFormat", { 0: deck.totalCards })}

@@ -245,6 +245,8 @@
     "StudyCramSectionHeader": "集中練習",
     "StudyCramDueCards": "期限到来カード",
     "StudyCramAllCards": "すべてのカード",
-    "StudyMenuHintTest": "T"
+    "StudyMenuHintTest": "T",
+    "ChangeDeckIcon": "デッキのアイコンを変更",
+    "AddDeckIcon": "アイコンを追加"
   }
 }
