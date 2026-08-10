@@ -43,6 +43,79 @@ export function StateTag({ state }: { state: CardStateKind }) {
   )
 }
 
+/** The three kinds of work a deck can have waiting, in the order they are always shown. */
+export interface WorkCounts {
+  new: number
+  learning: number
+  due: number
+}
+
+const COUNT_TONE = {
+  new: { text: "text-state-new", key: "ColNew" },
+  learning: { text: "text-state-learn", key: "ColLearn" },
+  due: { text: "text-state-due", key: "ColDue" },
+} as const
+
+export type CountKind = keyof typeof COUNT_TONE
+
+/**
+ * A count that dims to nothing at zero.
+ *
+ * The old table printed a grey 0 in every empty cell, so a deck with nothing to do
+ * looked exactly as busy as one with work waiting: the eye had to read digits
+ * instead of scanning.
+ */
+export function Count({ value, kind }: { value: number; kind: CountKind }) {
+  const t = useT()
+  const tone = COUNT_TONE[kind]
+  return (
+    <span
+      title={`${value} ${t("Flashcards", tone.key)}`}
+      className={cn("text-[13px] font-medium tabular-nums", value > 0 ? tone.text : "text-ink-3/45")}
+    >
+      {value}
+    </span>
+  )
+}
+
+/** new, learning, due in a fixed rhythm so the columns line up down the list. */
+export function Counts({ counts, className }: { counts: WorkCounts; className?: string }) {
+  return (
+    <span className={cn("flex items-center gap-4", className)}>
+      <span className="w-7 text-right">
+        <Count value={counts.new} kind="new" />
+      </span>
+      <span className="w-7 text-right">
+        <Count value={counts.learning} kind="learning" />
+      </span>
+      <span className="w-7 text-right">
+        <Count value={counts.due} kind="due" />
+      </span>
+    </span>
+  )
+}
+
+/** The mix of work waiting, as one bar. A deck with nothing waiting draws nothing at all. */
+export function MixBar({ counts, className }: { counts: WorkCounts; className?: string }) {
+  const total = counts.new + counts.learning + counts.due
+  if (total === 0) return null
+
+  const segments = [
+    { value: counts.new, fill: "bg-state-new" },
+    { value: counts.learning, fill: "bg-state-learn" },
+    { value: counts.due, fill: "bg-state-due" },
+  ]
+  return (
+    <span className={cn("flex h-1.5 overflow-hidden rounded-full bg-canvas-sunken", className)}>
+      {segments.map((segment) =>
+        segment.value > 0 ? (
+          <span key={segment.fill} className={segment.fill} style={{ width: `${(segment.value / total) * 100}%` }} />
+        ) : null,
+      )}
+    </span>
+  )
+}
+
 /** Below this the bar warns rather than reports. Matches the desktop's own threshold. */
 const RETENTION_WARN = 85
 
@@ -66,6 +139,41 @@ export function Retention({ percent }: { percent: number | null }) {
         />
       </span>
       <span className="w-8 tabular-nums text-[12.5px] text-ink-2">{value}%</span>
+    </span>
+  )
+}
+
+/**
+ * The same reading as a dial, for the grid tile where there is no room for a bar
+ * and a label side by side.
+ */
+export function Ring({ percent, size = 36 }: { percent: number | null; size?: number }) {
+  const stroke = 3
+  const radius = (size - stroke) / 2
+  const circumference = 2 * Math.PI * radius
+  const value = percent === null ? null : Math.min(100, Math.max(0, percent))
+
+  return (
+    <span className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90" aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" strokeWidth={stroke} className="stroke-canvas-sunken" />
+        {value === null ? null : (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={circumference * (1 - value / 100)}
+            className="stroke-ink-2"
+          />
+        )}
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium tabular-nums text-ink-2">
+        {value === null ? "—" : value}
+      </span>
     </span>
   )
 }

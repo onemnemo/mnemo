@@ -73,7 +73,7 @@ function byName<T>(name: (item: T) => string) {
   return (a: T, b: T) => collator.compare(name(a), name(b))
 }
 
-function sortDecks(decks: DeckSummaryDto[], mode: SortMode): DeckSummaryDto[] {
+export function sortDecks(decks: DeckSummaryDto[], mode: SortMode): DeckSummaryDto[] {
   const byDeckName = byName<DeckSummaryDto>((d) => d.name)
   const sorted = [...decks]
   switch (mode) {

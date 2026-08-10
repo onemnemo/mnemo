@@ -41,6 +41,7 @@ import {
   Layers,
   LayoutGrid,
   Library,
+  List,
   ListFilter,
   LoaderCircle,
   Moon,
@@ -114,6 +115,8 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   terminal: Terminal,
   "list-filter": ListFilter,
   "external-link": ExternalLink,
+  // The library's two ways of showing the same decks.
+  list: List,
   "layout-grid": LayoutGrid,
 
   // The dimensions a card list filters on.
