@@ -236,6 +236,11 @@ public static class HostComposition
         services.AddSingleton<IContentFormatAdapter, FlashcardsAnkiFormatAdapter>();
         services.AddSingleton<IContentFormatAdapter, MindmapsMnemoFormatAdapter>();
 
+        // Mindmap services themselves come from MindmapModule.ConfigureServices, which this host runs
+        // like every other module registration. Only the bridge onto the events channel is host-side,
+        // because the channel is.
+        services.AddSingleton<Mindmap.MindmapChangeBridge>();
+
         // 2. Shell services: headless substitutions for the Avalonia-bound set.
         // App-events channel: the fan-out the headless shell pushes toasts (and
         // later theme/navigation changes) through to reach the SPA over SSE.
@@ -359,6 +364,10 @@ public static class HostComposition
             // startup; the store still self-initializes a valid (empty) schema.
             logger.Error("Mnemo.Host", "Flashcard store migration failed during startup.", ex);
         }
+
+        // Resolved for its constructor: it subscribes to the mindmap service there, and a bridge nobody
+        // asks for is a bridge that never subscribes.
+        _ = services.GetRequiredService<Mindmap.MindmapChangeBridge>();
 
         await services.GetRequiredService<IFlashcardStore>()
             .InitializeAsync().ConfigureAwait(false);
