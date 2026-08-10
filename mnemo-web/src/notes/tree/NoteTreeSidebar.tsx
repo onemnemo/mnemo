@@ -3,6 +3,7 @@ import type { ReactNode, RefObject } from 'react';
 
 import { navigate } from '@/app/router';
 import { AppIcon } from '@/components/icon/AppIcon';
+import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useT } from '@/i18n/useT';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,9 @@ export const SIDEBAR_WIDTH = 252;
 /** How many favourites show before the list folds behind a "show more" row. */
 const FAVOURITES_SHOWN = 4;
 
+const HEADER_BUTTON =
+  'grid size-6 place-items-center rounded-md text-ink-icon transition-colors hover:bg-frame-hover hover:text-ink';
+
 function IconButton({
   icon,
   label,
@@ -34,14 +38,8 @@ function IconButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className="grid size-[26px] place-items-center rounded-md text-text-secondary hover:bg-[var(--widget-background-hover)] hover:text-text-primary"
-    >
-      <AppIcon name={icon} size={15} />
+    <button type="button" aria-label={label} title={label} onClick={onClick} className={HEADER_BUTTON}>
+      <AppIcon name={icon} size={14} />
     </button>
   );
 }
@@ -63,7 +61,7 @@ function Section({
       <button
         type="button"
         onClick={onToggle}
-        className="flex h-6 w-full items-center gap-1 px-2 pb-1 pt-3 text-[12px] text-text-tertiary transition-colors hover:text-text-secondary"
+        className="flex h-6 w-full items-center gap-1 px-2 pb-1 pt-3 text-[12px] text-ink-3 transition-colors hover:text-ink-2"
       >
         <AppIcon
           name="common/chevron-right"
@@ -163,49 +161,63 @@ export function NoteTreeSidebar({
 
   return (
     <aside
-      className="flex h-full flex-col border-r border-line bg-[var(--notes-pane-background,var(--surface))]"
+      className="flex h-full flex-col border-r border-line-soft bg-canvas"
       style={{ width: SIDEBAR_WIDTH }}
     >
-      <div className="flex items-center justify-between px-4 pb-2.5 pt-4">
-        <h2 className="text-body-medium font-semibold text-text-primary">{nt('Title')}</h2>
-        <div className="flex items-center gap-0.5">
-          <IconButton icon="common/plus" label={nt('NewNote')} onClick={() => void newNote()} />
-          <IconButton icon="common/folder" label={nt('NewFolder')} onClick={() => void newFolder()} />
-          <IconButton
-            icon="common/download"
-            label={nt('ImportNotes')}
-            onClick={() => openTransfer({ direction: 'import', scope: null })}
-          />
-          <IconButton icon="common/layout-sidebar" label={nt('CollapseSidebar')} onClick={onCollapseSidebar} />
-        </div>
+      <div className="flex items-center gap-1 px-2.5 pb-1.5 pt-2.5">
+        <span className="flex-1 text-[13px] font-semibold text-ink">{nt('Title')}</span>
+        {/* One New button with a note/folder flyout, so the header carries the
+            same two intents the prototype does, plus import and collapse, rather
+            than a row of single-purpose glyphs. */}
+        <Menu>
+          <MenuTrigger asChild>
+            <button type="button" aria-label={nt('NewNote')} title={nt('NewNote')} className={HEADER_BUTTON}>
+              <AppIcon name="common/plus" size={15} />
+            </button>
+          </MenuTrigger>
+          <MenuContent align="end">
+            <MenuItem icon="common/file-text" onSelect={() => void newNote()}>
+              {nt('NewNote')}
+            </MenuItem>
+            <MenuItem icon="common/folder" onSelect={() => void newFolder()}>
+              {nt('NewFolder')}
+            </MenuItem>
+          </MenuContent>
+        </Menu>
+        <IconButton
+          icon="common/download"
+          label={nt('ImportNotes')}
+          onClick={() => openTransfer({ direction: 'import', scope: null })}
+        />
+        <IconButton icon="common/layout-sidebar" label={nt('CollapseSidebar')} onClick={onCollapseSidebar} />
       </div>
 
-      <div className="px-3 pb-1">
-        <div className="flex h-7 items-center gap-1.5 rounded-md border border-line bg-surface px-2 focus-within:border-[var(--accent)]">
-          <AppIcon name="common/search" size={12} className="shrink-0 text-text-faded" />
+      <div className="px-2.5 pb-1.5">
+        <div className="flex h-7 items-center gap-1.5 rounded-md bg-canvas-sunken px-2 text-ink-3">
+          <AppIcon name="common/search" size={13} className="shrink-0" />
           <input
             ref={searchInputRef}
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
             placeholder={nt('SearchPlaceholder')}
-            className="min-w-0 flex-1 bg-transparent text-body-extra-small text-text-primary outline-none placeholder:text-text-faded"
+            className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3"
           />
           {search ? (
             <button
               type="button"
               aria-label={nt('ClearSearch')}
               onClick={() => onSearchChange('')}
-              className="shrink-0 text-text-faded hover:text-text-secondary"
+              className="shrink-0 text-ink-3 hover:text-ink-2"
             >
               <AppIcon name="common/plus" size={12} className="rotate-45" />
             </button>
           ) : (
-            <span className="shrink-0 font-mono text-[9.5px] text-text-faded">{shortcut}</span>
+            <span className="shrink-0 font-sans text-[10px] text-ink-3">{shortcut}</span>
           )}
         </div>
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         {loading ? (
           <div className="flex flex-col gap-1 px-1 pt-2">
             {Array.from({ length: 6 }, (_, i) => (
@@ -245,7 +257,7 @@ export function NoteTreeSidebar({
                   <button
                     type="button"
                     onClick={() => setShowAllFavs((v) => !v)}
-                    className="flex h-7 w-full items-center rounded-md pl-[26px] text-body-extra-small text-text-tertiary hover:bg-[var(--widget-background-hover)] hover:text-text-secondary"
+                    className="flex h-7 w-full items-center rounded-md pl-[26px] text-[13px] text-ink-3 hover:bg-frame-hover hover:text-ink-2"
                   >
                     {showAllFavs ? nt('ShowLess') : nt('ShowMoreCount', { 0: hiddenFavs })}
                   </button>

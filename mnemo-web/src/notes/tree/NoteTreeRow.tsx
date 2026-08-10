@@ -22,11 +22,11 @@ import type { TreeDragHandle } from './reorder';
 import type { TreeDrag } from './useNoteTreeDrag';
 
 /** Left indent per nesting level, in px. */
-export const DEPTH_INDENT = 12;
+export const DEPTH_INDENT = 14;
 
 const ROW_BASE =
-  'group relative flex h-[28px] items-center gap-1 rounded-md pr-1 outline-none cursor-pointer ' +
-  'hover:bg-[var(--widget-background-hover)] focus-visible:bg-[var(--widget-background-hover)]';
+  'group relative flex h-7 items-center gap-1.5 rounded-md pr-1.5 text-[13.5px] leading-none outline-none cursor-pointer ' +
+  'text-ink-2 transition-colors hover:bg-frame-hover hover:text-ink focus-visible:bg-frame-hover';
 
 function useNotesT() {
   const t = useT();
@@ -46,7 +46,7 @@ function GuideLines({ depth }: { depth: number }) {
           key={i}
           aria-hidden
           className="pointer-events-none absolute inset-y-0 w-px bg-line-soft"
-          style={{ left: 10 + i * DEPTH_INDENT }}
+          style={{ left: 12 + i * DEPTH_INDENT }}
         />
       ))}
     </>
@@ -54,9 +54,10 @@ function GuideLines({ depth }: { depth: number }) {
 }
 
 /**
- * The trailing favourite star: hover-only, filled when the note is a favourite.
- * A note's membership of the Favourites section is the standing signal; this is
- * the one-click way to change it.
+ * The trailing favourite star: hover-only until set, filled when the note is a
+ * favourite. Never coloured, it is a state and not an alert, so it stays neutral
+ * ink whether on or off. A note's membership of the Favourites section is the
+ * standing signal; this is the one-click way to change it.
  */
 function FavouriteStar({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
   return (
@@ -70,8 +71,8 @@ function FavouriteStar({ on, onToggle, label }: { on: boolean; onToggle: () => v
       }}
       onPointerDown={(event) => event.stopPropagation()}
       className={cn(
-        'grid size-5 shrink-0 place-items-center rounded transition-opacity hover:bg-surface-subtle',
-        on ? 'text-[var(--accent)] opacity-100' : 'text-text-faded opacity-0 group-hover:opacity-100',
+        'grid size-5 shrink-0 place-items-center rounded hover:bg-frame-active',
+        on ? 'text-ink-2 opacity-100' : 'text-ink-icon opacity-0 group-hover:opacity-100',
       )}
     >
       <AppIcon name={on ? 'common/star-filled' : 'common/star'} size={13} preserveColors={false} />
@@ -142,23 +143,38 @@ export function FolderRow({
           onToggle(folder.id);
         }
       }}
-      style={{ opacity: drag.sourceKey === handle.key ? 0.35 : undefined, paddingLeft: 4 + row.depth * DEPTH_INDENT }}
+      style={{ opacity: drag.sourceKey === handle.key ? 0.35 : undefined, paddingLeft: 6 + row.depth * DEPTH_INDENT }}
       className={ROW_BASE}
     >
       <GuideLines depth={row.depth} />
       <AppIcon
         name={row.expanded ? 'common/chevron-down' : 'common/chevron-right'}
-        size={10}
-        className="shrink-0 text-text-faded"
+        size={12}
+        className="shrink-0 text-ink-icon"
       />
       {editing ? (
         <RenameInput initial={folder.name} onCommit={commitRename} onCancel={() => setEditing(false)} />
       ) : (
-        <span className="min-w-0 flex-1 truncate text-body-extra-small font-medium text-text-primary" title={folder.name}>
+        <span className="min-w-0 flex-1 truncate" title={folder.name}>
           {folder.name}
         </span>
       )}
-      <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-text-faded">{row.noteCount}</span>
+      {/* The count is reference, the add is the intent: swap on hover so the row
+          never carries both, then the menu for the rest. */}
+      <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-ink-3 group-hover:hidden">{row.noteCount}</span>
+      <span
+        role="button"
+        aria-label={nt('NewNote')}
+        title={nt('NewNote')}
+        onClick={(event) => {
+          event.stopPropagation();
+          void newNoteHere();
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+        className="hidden size-5 shrink-0 place-items-center rounded text-ink-icon hover:bg-frame-active hover:text-ink group-hover:grid"
+      >
+        <AppIcon name="common/plus" size={13} />
+      </span>
       <RowMenu label={nt('FolderActions')}>
         <MenuItem icon="common/plus" onSelect={() => void newNoteHere()}>
           {nt('NewNote')}
@@ -247,29 +263,23 @@ export function NoteRow({
       }}
       style={{
         opacity: !favourite && drag?.sourceKey === handle.key ? 0.35 : undefined,
-        paddingLeft: favourite ? 6 : 4 + row.depth * DEPTH_INDENT,
+        paddingLeft: favourite ? 6 : 6 + row.depth * DEPTH_INDENT,
       }}
       className={cn(
         ROW_BASE,
-        selected && 'bg-[var(--widget-background-hover)]',
+        selected && 'bg-frame-active font-medium text-ink',
       )}
     >
       <GuideLines depth={row.depth} />
       {note.emoji ? (
-        <span aria-hidden className="w-[15px] shrink-0 text-center text-[13px] leading-none">{note.emoji}</span>
+        <span aria-hidden className="w-4 shrink-0 text-center text-[13px] leading-none">{note.emoji}</span>
       ) : (
-        <AppIcon name="common/file-text" size={13} className="shrink-0 text-text-faded" preserveColors={false} />
+        <AppIcon name="common/file-text" size={14} className="shrink-0 text-ink-icon" preserveColors={false} />
       )}
       {editing ? (
         <RenameInput initial={note.title} onCommit={commitRename} onCancel={() => setEditing(false)} />
       ) : (
-        <span
-          className={cn(
-            'min-w-0 flex-1 truncate text-body-extra-small',
-            selected ? 'font-medium text-text-primary' : 'text-text-secondary',
-          )}
-          title={note.title.trim() || nt('Untitled')}
-        >
+        <span className="min-w-0 flex-1 truncate" title={note.title.trim() || nt('Untitled')}>
           {note.title.trim() || nt('Untitled')}
         </span>
       )}
@@ -318,7 +328,7 @@ function RowMenu({ label, children }: { label: string; children: ReactNode }) {
             title={label}
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
-            className="grid size-5 place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary"
+            className="grid size-5 place-items-center rounded text-ink-icon hover:bg-frame-active hover:text-ink"
           >
             <AppIcon name="common/dots-vertical" size={14} />
           </button>
@@ -369,7 +379,7 @@ function RenameInput({
           onCancel();
         }
       }}
-      className="min-w-0 flex-1 bg-transparent text-body-extra-small text-text-primary outline-none"
+      className="min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none"
     />
   );
 }
