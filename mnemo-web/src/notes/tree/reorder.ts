@@ -1,5 +1,7 @@
 import type { NoteFolderDto, NoteSummaryDto, SaveNoteFolderDto, UpdateNoteMetadataDto } from '@/api/types';
 
+import { metadataUpdateOf } from '../note-metadata';
+
 import { compareFolders, compareNotes, effectiveFolderId, effectiveParentId, isSidebarNote } from './tree-model';
 
 /**
@@ -255,14 +257,7 @@ export function planReorder(
       if (n.id === note.id ? currentFolder === destFolderId && n.order === order : n.order === order && currentFolder === destFolderId) {
         return;
       }
-      updates.push({
-        id: n.id,
-        title: n.title,
-        folderId: destFolderId,
-        parentNoteId: n.parentNoteId,
-        order,
-        isFavorite: n.isFavorite,
-      });
+      updates.push(metadataUpdateOf(n, { folderId: destFolderId, order }));
     });
     return { noteUpdates: updates, folderUpdates: [] };
   }

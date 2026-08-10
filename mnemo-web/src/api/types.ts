@@ -485,6 +485,12 @@ export interface NoteSummaryDto {
   isFavorite: boolean
   createdAt: string
   modifiedAt: string
+  /** Optional page emoji shown over the title and in the tree; null for the neutral mark. */
+  emoji: string | null
+  /** Optional cover token naming a preset banner; null for no cover. */
+  cover: string | null
+  /** Page tags, plain labels; the chip colour is derived from the label. */
+  tags: string[]
 }
 
 /**
@@ -541,6 +547,9 @@ export interface UpdateNoteMetadataDto {
   parentNoteId: string | null
   order: number
   isFavorite: boolean
+  emoji: string | null
+  cover: string | null
+  tags: string[]
 }
 
 /** Mirrors Mnemo.Host/Contracts/NoteAssetDto.cs. The id is what an image block stores in `path`. */

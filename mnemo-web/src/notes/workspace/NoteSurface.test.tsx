@@ -35,6 +35,7 @@ function withClient(node: ReactNode): ReactNode {
 const note: NoteSummaryDto = {
   id: 'n1', sid: 'n0001', ver: 1, title: 'Note one', folderId: null, parentNoteId: null,
   order: 0, isFavorite: false, createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+  emoji: null, cover: null, tags: [],
 };
 
 function surface(...blocks: Parameters<typeof buildNoteEditState>[0]): ReactNode {

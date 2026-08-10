@@ -8,7 +8,9 @@ import type { NoteSummaryDto, UpdateNoteMetadataDto } from '@/api/types';
  */
 export function metadataUpdateOf(
   note: NoteSummaryDto,
-  patch: Partial<Pick<NoteSummaryDto, 'title' | 'folderId' | 'parentNoteId' | 'order' | 'isFavorite'>>,
+  patch: Partial<
+    Pick<NoteSummaryDto, 'title' | 'folderId' | 'parentNoteId' | 'order' | 'isFavorite' | 'emoji' | 'cover' | 'tags'>
+  >,
 ): UpdateNoteMetadataDto & { id: string } {
   const next = { ...note, ...patch };
   return {
@@ -18,5 +20,8 @@ export function metadataUpdateOf(
     parentNoteId: next.parentNoteId,
     order: next.order,
     isFavorite: next.isFavorite,
+    emoji: next.emoji,
+    cover: next.cover,
+    tags: next.tags,
   };
 }
