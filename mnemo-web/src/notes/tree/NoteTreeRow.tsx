@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
 
 import { navigate } from '@/app/router';
 import { AppIcon } from '@/components/icon/AppIcon';
-import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { useT } from '@/i18n/useT';
 import { cn } from '@/lib/utils';
 import { dialog } from '@/stores/dialog';
@@ -54,10 +59,11 @@ function GuideLines({ depth }: { depth: number }) {
 }
 
 /**
- * The trailing favourite star: hover-only until set, filled when the note is a
- * favourite. Never coloured, it is a state and not an alert, so it stays neutral
- * ink whether on or off. A note's membership of the Favourites section is the
- * standing signal; this is the one-click way to change it.
+ * The trailing favourite star, revealed on row hover and filled when the note is
+ * a favourite. Never coloured, it is a state and not an alert, so it stays
+ * neutral ink whether on or off, and it stays hidden at rest either way: a note's
+ * membership of the Favourites section is the standing signal, so a star on every
+ * favourited row would only repeat it.
  */
 function FavouriteStar({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
   return (
@@ -71,8 +77,8 @@ function FavouriteStar({ on, onToggle, label }: { on: boolean; onToggle: () => v
       }}
       onPointerDown={(event) => event.stopPropagation()}
       className={cn(
-        'grid size-5 shrink-0 place-items-center rounded hover:bg-frame-active',
-        on ? 'text-ink-2 opacity-100' : 'text-ink-icon opacity-0 group-hover:opacity-100',
+        'hidden size-5 shrink-0 place-items-center rounded hover:bg-frame-active group-hover:grid group-focus-within:grid',
+        on ? 'text-ink-2' : 'text-ink-icon',
       )}
     >
       <AppIcon name={on ? 'common/star-filled' : 'common/star'} size={13} preserveColors={false} />
@@ -124,70 +130,74 @@ export function FolderRow({
   };
 
   return (
-    <div
-      role="treeitem"
-      aria-expanded={row.expanded}
-      tabIndex={0}
-      data-row-key={handle.key}
-      data-row-kind="folder"
-      data-row-id={folder.id}
-      data-row-depth={row.depth}
-      data-row-folder={folder.id}
-      onPointerDown={(event) => !editing && drag.press(event, handle)}
-      onClick={() => !drag.suppressClick(handle.key) && !editing && onToggle(folder.id)}
-      onDoubleClick={() => setEditing(true)}
-      onKeyDown={(event) => {
-        if (editing) return;
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onToggle(folder.id);
-        }
-      }}
-      style={{ opacity: drag.sourceKey === handle.key ? 0.35 : undefined, paddingLeft: 6 + row.depth * DEPTH_INDENT }}
-      className={ROW_BASE}
-    >
-      <GuideLines depth={row.depth} />
-      <AppIcon
-        name={row.expanded ? 'common/chevron-down' : 'common/chevron-right'}
-        size={12}
-        className="shrink-0 text-ink-icon"
-      />
-      {editing ? (
-        <RenameInput initial={folder.name} onCommit={commitRename} onCancel={() => setEditing(false)} />
-      ) : (
-        <span className="min-w-0 flex-1 truncate" title={folder.name}>
-          {folder.name}
-        </span>
-      )}
-      {/* The count is reference, the add is the intent: swap on hover so the row
-          never carries both, then the menu for the rest. */}
-      <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-ink-3 group-hover:hidden">{row.noteCount}</span>
-      <span
-        role="button"
-        aria-label={nt('NewNote')}
-        title={nt('NewNote')}
-        onClick={(event) => {
-          event.stopPropagation();
-          void newNoteHere();
-        }}
-        onPointerDown={(event) => event.stopPropagation()}
-        className="hidden size-5 shrink-0 place-items-center rounded text-ink-icon hover:bg-frame-active hover:text-ink group-hover:grid"
-      >
-        <AppIcon name="common/plus" size={13} />
-      </span>
-      <RowMenu label={nt('FolderActions')}>
-        <MenuItem icon="common/plus" onSelect={() => void newNoteHere()}>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          role="treeitem"
+          aria-expanded={row.expanded}
+          tabIndex={0}
+          data-row-key={handle.key}
+          data-row-kind="folder"
+          data-row-id={folder.id}
+          data-row-depth={row.depth}
+          data-row-folder={folder.id}
+          onPointerDown={(event) => !editing && drag.press(event, handle)}
+          onClick={() => !drag.suppressClick(handle.key) && !editing && onToggle(folder.id)}
+          onDoubleClick={() => setEditing(true)}
+          onKeyDown={(event) => {
+            if (editing) return;
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onToggle(folder.id);
+            }
+          }}
+          style={{ opacity: drag.sourceKey === handle.key ? 0.35 : undefined, paddingLeft: 6 + row.depth * DEPTH_INDENT }}
+          className={ROW_BASE}
+        >
+          <GuideLines depth={row.depth} />
+          <AppIcon
+            name={row.expanded ? 'common/chevron-down' : 'common/chevron-right'}
+            size={12}
+            className="shrink-0 text-ink-icon"
+          />
+          {editing ? (
+            <RenameInput initial={folder.name} onCommit={commitRename} onCancel={() => setEditing(false)} />
+          ) : (
+            <span className="min-w-0 flex-1 truncate" title={folder.name}>
+              {folder.name}
+            </span>
+          )}
+          {/* The count is reference, the add is the intent: swap on hover so the row
+              never carries both. Everything else is on right-click. */}
+          <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-ink-3 group-hover:hidden">{row.noteCount}</span>
+          <span
+            role="button"
+            aria-label={nt('NewNote')}
+            title={nt('NewNote')}
+            onClick={(event) => {
+              event.stopPropagation();
+              void newNoteHere();
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            className="hidden size-5 shrink-0 place-items-center rounded text-ink-icon hover:bg-frame-active hover:text-ink group-hover:grid"
+          >
+            <AppIcon name="notes/compose" size={13} />
+          </span>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem icon="notes/compose" onSelect={() => void newNoteHere()}>
           {nt('NewNote')}
-        </MenuItem>
-        <MenuItem icon="flyout/rename" onSelect={() => setEditing(true)}>
+        </ContextMenuItem>
+        <ContextMenuItem icon="flyout/rename" onSelect={() => setEditing(true)}>
           {nt('Rename')}
-        </MenuItem>
-        <MenuSeparator />
-        <MenuItem icon="common/trash" danger onSelect={() => void remove()}>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem icon="common/trash" danger onSelect={() => void remove()}>
           {nt('DeleteFolder')}
-        </MenuItem>
-      </RowMenu>
-    </div>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -242,62 +252,66 @@ export function NoteRow({
   const rowKey = favourite ? undefined : handle.key;
 
   return (
-    <div
-      role="treeitem"
-      aria-selected={selected}
-      tabIndex={0}
-      data-row-key={rowKey}
-      data-row-kind="note"
-      data-row-id={note.id}
-      data-row-depth={row.depth}
-      data-row-folder={note.folderId ?? ''}
-      onPointerDown={(event) => !favourite && !editing && drag?.press(event, handle)}
-      onClick={open}
-      onDoubleClick={() => setEditing(true)}
-      onKeyDown={(event) => {
-        if (editing) return;
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          navigate('notes', note.id);
-        }
-      }}
-      style={{
-        opacity: !favourite && drag?.sourceKey === handle.key ? 0.35 : undefined,
-        paddingLeft: favourite ? 6 : 6 + row.depth * DEPTH_INDENT,
-      }}
-      className={cn(
-        ROW_BASE,
-        selected && 'bg-frame-active font-medium text-ink',
-      )}
-    >
-      <GuideLines depth={row.depth} />
-      {note.emoji ? (
-        <span aria-hidden className="w-4 shrink-0 text-center text-[13px] leading-none">{note.emoji}</span>
-      ) : (
-        <AppIcon name="common/file-text" size={14} className="shrink-0 text-ink-icon" preserveColors={false} />
-      )}
-      {editing ? (
-        <RenameInput initial={note.title} onCommit={commitRename} onCancel={() => setEditing(false)} />
-      ) : (
-        <span className="min-w-0 flex-1 truncate" title={note.title.trim() || nt('Untitled')}>
-          {note.title.trim() || nt('Untitled')}
-        </span>
-      )}
-      {!editing ? (
-        <FavouriteStar
-          on={note.isFavorite}
-          onToggle={toggleFavourite}
-          label={note.isFavorite ? nt('Unfavourite') : nt('Favourite')}
-        />
-      ) : null}
-      <RowMenu label={nt('NoteActions')}>
-        <MenuItem icon="flyout/rename" onSelect={() => setEditing(true)}>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          role="treeitem"
+          aria-selected={selected}
+          tabIndex={0}
+          data-row-key={rowKey}
+          data-row-kind="note"
+          data-row-id={note.id}
+          data-row-depth={row.depth}
+          data-row-folder={note.folderId ?? ''}
+          onPointerDown={(event) => !favourite && !editing && drag?.press(event, handle)}
+          onClick={open}
+          onDoubleClick={() => setEditing(true)}
+          onKeyDown={(event) => {
+            if (editing) return;
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              navigate('notes', note.id);
+            }
+          }}
+          style={{
+            opacity: !favourite && drag?.sourceKey === handle.key ? 0.35 : undefined,
+            paddingLeft: favourite ? 6 : 6 + row.depth * DEPTH_INDENT,
+          }}
+          className={cn(
+            ROW_BASE,
+            selected && 'bg-frame-active font-medium text-ink',
+          )}
+        >
+          <GuideLines depth={row.depth} />
+          {note.emoji ? (
+            <span aria-hidden className="w-4 shrink-0 text-center text-[13px] leading-none">{note.emoji}</span>
+          ) : (
+            <AppIcon name="common/file-text" size={14} className="shrink-0 text-ink-icon" preserveColors={false} />
+          )}
+          {editing ? (
+            <RenameInput initial={note.title} onCommit={commitRename} onCancel={() => setEditing(false)} />
+          ) : (
+            <span className="min-w-0 flex-1 truncate" title={note.title.trim() || nt('Untitled')}>
+              {note.title.trim() || nt('Untitled')}
+            </span>
+          )}
+          {!editing ? (
+            <FavouriteStar
+              on={note.isFavorite}
+              onToggle={toggleFavourite}
+              label={note.isFavorite ? nt('Unfavourite') : nt('Favourite')}
+            />
+          ) : null}
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem icon="flyout/rename" onSelect={() => setEditing(true)}>
           {nt('Rename')}
-        </MenuItem>
-        <MenuItem icon={note.isFavorite ? 'common/star-filled' : 'common/star'} onSelect={toggleFavourite}>
+        </ContextMenuItem>
+        <ContextMenuItem icon={note.isFavorite ? 'common/star-filled' : 'common/star'} onSelect={toggleFavourite}>
           {note.isFavorite ? nt('Unfavourite') : nt('Favourite')}
-        </MenuItem>
-        <MenuItem
+        </ContextMenuItem>
+        <ContextMenuItem
           icon="common/upload"
           onSelect={() =>
             openTransfer({
@@ -307,35 +321,13 @@ export function NoteRow({
           }
         >
           {nt('Export')}
-        </MenuItem>
-        <MenuSeparator />
-        <MenuItem icon="common/trash" danger onSelect={() => void remove()}>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem icon="common/trash" danger onSelect={() => void remove()}>
           {nt('DeleteNote')}
-        </MenuItem>
-      </RowMenu>
-    </div>
-  );
-}
-
-function RowMenu({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-      <Menu>
-        <MenuTrigger asChild>
-          <button
-            type="button"
-            aria-label={label}
-            title={label}
-            onClick={(event) => event.stopPropagation()}
-            onPointerDown={(event) => event.stopPropagation()}
-            className="grid size-5 place-items-center rounded text-ink-icon hover:bg-frame-active hover:text-ink"
-          >
-            <AppIcon name="common/dots-vertical" size={14} />
-          </button>
-        </MenuTrigger>
-        <MenuContent align="end">{children}</MenuContent>
-      </Menu>
-    </div>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 

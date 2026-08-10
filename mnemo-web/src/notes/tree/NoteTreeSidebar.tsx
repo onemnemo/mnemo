@@ -172,11 +172,11 @@ export function NoteTreeSidebar({
         <Menu>
           <MenuTrigger asChild>
             <button type="button" aria-label={nt('NewNote')} title={nt('NewNote')} className={HEADER_BUTTON}>
-              <AppIcon name="common/plus" size={15} />
+              <AppIcon name="notes/compose" size={15} />
             </button>
           </MenuTrigger>
           <MenuContent align="end">
-            <MenuItem icon="common/file-text" onSelect={() => void newNote()}>
+            <MenuItem icon="notes/compose" onSelect={() => void newNote()}>
               {nt('NewNote')}
             </MenuItem>
             <MenuItem icon="common/folder" onSelect={() => void newFolder()}>
@@ -217,7 +217,7 @@ export function NoteTreeSidebar({
         </div>
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+      <div ref={scrollRef} className="scroll-thin min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         {loading ? (
           <div className="flex flex-col gap-1 px-1 pt-2">
             {Array.from({ length: 6 }, (_, i) => (
