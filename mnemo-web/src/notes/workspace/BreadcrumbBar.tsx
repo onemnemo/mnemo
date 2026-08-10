@@ -2,13 +2,14 @@ import { useMemo } from 'react';
 
 import { navigate } from '@/app/router';
 import { AppIcon } from '@/components/icon/AppIcon';
-import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu';
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
 import { useT } from '@/i18n/useT';
 import { cn } from '@/lib/utils';
+import { dialog } from '@/stores/dialog';
 import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
 
 import type { SaveState } from '../authority/authority';
-import { useUpdateNoteMetadata } from '../api';
+import { useDeleteNote, useUpdateNoteMetadata } from '../api';
 import { metadataUpdateOf } from '../note-metadata';
 import { useNotePdf } from '../pdf/store';
 import { useNoteTransfer } from '../transfer/store';
@@ -45,17 +46,12 @@ export function BreadcrumbBar({
 }) {
   const t = useT();
   const nt = (key: string) => t('Notes', key);
-  const updateNote = useUpdateNoteMetadata();
-  const openTransfer = useNoteTransfer((state) => state.open);
-  const openPdf = useNotePdf((state) => state.open);
 
   const pieces = useMemo(
     () => collapseBreadcrumb(buildBreadcrumb({ note, notes, folders, untitled: nt('Untitled') })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [note, notes, folders],
   );
-
-  const toggleFavourite = () => void updateNote.mutateAsync(metadataUpdateOf(note, { isFavorite: !note.isFavorite }));
 
   return (
     <div className="flex h-11 shrink-0 items-center gap-1 border-b border-divider-subtle px-3">
@@ -108,44 +104,77 @@ export function BreadcrumbBar({
 
       <div className="flex shrink-0 items-center gap-2 pl-2">
         <SaveStateIndicator state={saveState} onReload={onReload} />
-        <button
-          type="button"
-          aria-label={nt('Export')}
-          title={nt('Export')}
-          onClick={() =>
-            openTransfer({
-              direction: 'export',
-              scope: { label: note.title.trim() || nt('Untitled'), noteIds: [note.id] },
-            })
-          }
-          className="grid size-6 place-items-center rounded-md hover:bg-[var(--widget-background-hover)]"
-        >
-          <AppIcon name="common/upload" size={15} className="text-text-tertiary" />
-        </button>
-        <button
-          type="button"
-          aria-label={nt('ToolbarExportPdf')}
-          title={nt('ToolbarExportPdf')}
-          onClick={() => openPdf({ noteId: note.id, title: note.title.trim() || nt('Untitled') })}
-          className="grid size-6 place-items-center rounded-md hover:bg-[var(--widget-background-hover)]"
-        >
-          <AppIcon name="common/download" size={15} className="text-text-tertiary" />
-        </button>
-        <button
-          type="button"
-          aria-label={note.isFavorite ? nt('Unfavourite') : nt('Favourite')}
-          title={note.isFavorite ? nt('Unfavourite') : nt('Favourite')}
-          onClick={toggleFavourite}
-          className="grid size-6 place-items-center rounded-md hover:bg-[var(--widget-background-hover)]"
-        >
-          <AppIcon
-            name={note.isFavorite ? 'common/star-filled' : 'common/star'}
-            size={15}
-            className={note.isFavorite ? 'text-[var(--accent)]' : 'text-text-tertiary'}
-          />
-        </button>
+        <NoteActions note={note} />
       </div>
     </div>
+  );
+}
+
+/**
+ * The note's own actions, behind one glyph so the bar carries the breadcrumb
+ * and nothing else, and so none of this leaks into the app's shared topbar.
+ * Save state stays inline in the bar because it is quiet until it needs the
+ * reader, and a menu that has to be opened would hide a conflict.
+ */
+function NoteActions({ note }: { note: NoteSummaryDto }) {
+  const t = useT();
+  const nt = (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
+  const updateNote = useUpdateNoteMetadata();
+  const deleteNote = useDeleteNote();
+  const openTransfer = useNoteTransfer((state) => state.open);
+  const openPdf = useNotePdf((state) => state.open);
+
+  const title = note.title.trim() || nt('Untitled');
+  const toggleFavourite = () => void updateNote.mutateAsync(metadataUpdateOf(note, { isFavorite: !note.isFavorite }));
+
+  const remove = async () => {
+    const ok = await dialog.confirm({
+      title: nt('DeleteNote'),
+      message: nt('DeleteNoteConfirm', { 0: title }),
+      destructive: true,
+      confirmLabel: nt('DeleteNote'),
+      cancelLabel: t('Common', 'Cancel'),
+    });
+    if (!ok) return;
+    await deleteNote.mutateAsync(note.id);
+    navigate('notes');
+  };
+
+  return (
+    <Menu>
+      <MenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={nt('NoteActions')}
+          title={nt('NoteActions')}
+          className="grid size-7 place-items-center rounded-md text-text-tertiary hover:bg-[var(--widget-background-hover)] hover:text-text-primary aria-expanded:bg-[var(--widget-background-hover)]"
+        >
+          <AppIcon name="common/ellipsis" size={16} />
+        </button>
+      </MenuTrigger>
+      <MenuContent align="end">
+        <MenuItem
+          icon={note.isFavorite ? 'common/star-filled' : 'common/star'}
+          onSelect={toggleFavourite}
+        >
+          {note.isFavorite ? nt('Unfavourite') : nt('Favourite')}
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem
+          icon="common/upload"
+          onSelect={() => openTransfer({ direction: 'export', scope: { label: title, noteIds: [note.id] } })}
+        >
+          {nt('Export')}
+        </MenuItem>
+        <MenuItem icon="common/download" onSelect={() => openPdf({ noteId: note.id, title })}>
+          {nt('ToolbarExportPdf')}
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem icon="common/trash" danger onSelect={() => void remove()}>
+          {nt('DeleteNote')}
+        </MenuItem>
+      </MenuContent>
+    </Menu>
   );
 }
 

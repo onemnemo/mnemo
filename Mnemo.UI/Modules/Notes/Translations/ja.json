@@ -2,6 +2,7 @@
   "Notes": {
     "ShowLess": "折りたたむ",
     "ShowMoreCount": "他 {0} 件を表示",
+    "EditedRelativeFormat": "{0}に編集",
     "PdfExportTitle": "PDFとして書き出す",
     "PdfExportDescription": "レイアウトと描画オプションを設定します",
     "PdfTabGeneral": "全般",

@@ -97,6 +97,7 @@
     "IndexChip": "Index",
     "IndexEmpty": "No headings yet",
     "WordCountFormat": "{0} words",
+    "EditedRelativeFormat": "edited {0}",
     "Export": "Export…",
     "Import": "Import",
     "ImportNotes": "Import notes",

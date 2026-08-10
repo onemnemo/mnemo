@@ -5,6 +5,7 @@ import { useMemo, useRef } from 'react';
 import type { EditorState } from 'prosemirror-state';
 
 import { useT } from '@/i18n/useT';
+import { formatRelative } from '@/lib/relative-date';
 import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
 
 import { useNoteContentCommitter } from '../api';
@@ -97,10 +98,12 @@ export function NoteSurface({
         onToggleSidebar={onToggleSidebar}
       />
       <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[760px] px-10 pt-9 pb-24">
-          <h1 className="text-heading-2 font-semibold text-text-primary">{title}</h1>
-          <div className="mb-6 mt-1 text-body-extra-small text-text-tertiary">
+        <div className="mx-auto w-full max-w-[760px] px-10 pt-12 pb-24">
+          <h1 className="text-[2.5rem] font-bold leading-[1.15] tracking-[-0.02em] text-text-primary">{title}</h1>
+          <div className="mb-6 mt-2 text-body-extra-small text-text-tertiary">
             {nt('WordCountFormat', { 0: wordCount.toLocaleString() })}
+            {' · '}
+            {nt('EditedRelativeFormat', { 0: formatRelative(note.modifiedAt, Date.now(), t) })}
           </div>
           <div ref={ref} className="notes-doc" />
         </div>

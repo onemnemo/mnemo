@@ -2,6 +2,7 @@
   "Notes": {
     "ShowLess": "Vis mindre",
     "ShowMoreCount": "Vis {0} til",
+    "EditedRelativeFormat": "redigert {0}",
     "PdfExportTitle": "Eksporter som PDF",
     "PdfExportDescription": "Velg layout og gjengivelsesvalg",
     "PdfTabGeneral": "Generelt",
