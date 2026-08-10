@@ -10,6 +10,7 @@
     "ChangeIcon": "アイコンを変更",
     "AddTag": "タグを追加",
     "RemoveTagFormat": "{0}を削除",
+    "CloseTabFormat": "{0}を閉じる",
     "PdfExportTitle": "PDFとして書き出す",
     "PdfExportDescription": "レイアウトと描画オプションを設定します",
     "PdfTabGeneral": "全般",

@@ -105,6 +105,7 @@
     "ChangeIcon": "Change icon",
     "AddTag": "Add tag",
     "RemoveTagFormat": "Remove {0}",
+    "CloseTabFormat": "Close {0}",
     "Export": "Export…",
     "Import": "Import",
     "ImportNotes": "Import notes",

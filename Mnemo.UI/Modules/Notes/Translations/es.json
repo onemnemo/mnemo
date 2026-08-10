@@ -10,6 +10,7 @@
     "ChangeIcon": "Cambiar icono",
     "AddTag": "Añadir etiqueta",
     "RemoveTagFormat": "Quitar {0}",
+    "CloseTabFormat": "Cerrar {0}",
     "PdfExportTitle": "Exportar como PDF",
     "PdfExportDescription": "Configura el diseño y las opciones de renderizado",
     "PdfTabGeneral": "General",

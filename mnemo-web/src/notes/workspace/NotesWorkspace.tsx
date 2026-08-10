@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { navigate } from '@/app/router';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useT } from '@/i18n/useT';
 import { isMac } from '@/keybinds/chord';
+import type { NoteSummaryDto } from '@/api/types';
 
 import { useCreateNote, useNoteFoldersQuery, useNotesQuery } from '../api';
 import { NotePdfExportOverlay } from '../pdf/NotePdfExportOverlay';
 import { NoteTransferOverlay } from '../transfer/NoteTransferOverlay';
 import { NoteTreeSidebar } from '../tree/NoteTreeSidebar';
 import { NotePane } from './NotePane';
+import { NoteTabs, type NoteTab } from './NoteTabs';
 
 /**
  * The notes workspace: the tree sidebar beside the editor, one surface rather
@@ -33,6 +35,39 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
   const notes = notesQuery.data ?? [];
   const folders = foldersQuery.data ?? [];
   const loading = notesQuery.isPending || foldersQuery.isPending;
+
+  // Which notes are open as tabs, in the order they were opened. In memory only,
+  // like the tree's own state, so a reload starts from just the open note.
+  const [openTabs, setOpenTabs] = useState<string[]>(() => (noteId ? [noteId] : []));
+  useEffect(() => {
+    if (!noteId) return;
+    setOpenTabs((prev) => (prev.includes(noteId) ? prev : [...prev, noteId]));
+  }, [noteId]);
+
+  // Rendered tabs: the open ids that still name a real note, titled and iconed
+  // from the summaries, so a deleted note drops out rather than showing a stub.
+  const tabs = useMemo<NoteTab[]>(
+    () =>
+      openTabs
+        .map((id) => notes.find((note) => note.id === id))
+        .filter((note): note is NoteSummaryDto => note !== undefined)
+        .map((note) => ({ id: note.id, title: note.title.trim() || nt('Untitled'), emoji: note.emoji })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [openTabs, notes],
+  );
+
+  const closeTab = useCallback(
+    (id: string) => {
+      const ids = tabs.map((tab) => tab.id);
+      const index = ids.indexOf(id);
+      setOpenTabs((prev) => prev.filter((tabId) => tabId !== id));
+      if (id !== noteId) return;
+      const fallback = ids[index + 1] ?? ids[index - 1] ?? null;
+      if (fallback) navigate('notes', fallback);
+      else navigate('notes');
+    },
+    [tabs, noteId],
+  );
 
   const toggleFolder = useCallback((id: string) => {
     setCollapsed((prev) => {
@@ -89,15 +124,20 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
         />
       ) : null}
 
-      <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {noteId && tabs.length > 0 ? (
+          <NoteTabs tabs={tabs} activeId={noteId} onSelect={(id) => navigate('notes', id)} onClose={closeTab} />
+        ) : null}
         {noteId ? (
-          <NotePane
-            noteId={noteId}
-            notes={notes}
-            folders={folders}
-            sidebarOpen={sidebarOpen}
-            onToggleSidebar={() => setSidebarOpen((open) => !open)}
-          />
+          <div className="min-h-0 flex-1">
+            <NotePane
+              noteId={noteId}
+              notes={notes}
+              folders={folders}
+              sidebarOpen={sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen((open) => !open)}
+            />
+          </div>
         ) : (
           <div className="flex h-full min-h-0 flex-col">
             {!sidebarOpen ? <div className="h-11 shrink-0 border-b border-divider-subtle" /> : null}
