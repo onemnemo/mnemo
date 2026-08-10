@@ -286,6 +286,33 @@
     .scroll-thin::-webkit-scrollbar-track {
         background: transparent;
     }
+
+    /* The bare `.slider` rule is load-bearing: Tailwind only registers a custom utility
+       from the name it sees on a plain class selector, and without it the thumb rule
+       below is never emitted at all. Same shape as `.scroll-thin` above. */
+    .slider {
+        appearance: none;
+        -webkit-appearance: none;
+    }
+    /* `appearance: none` strips the whole native control, thumb included, so without an
+       explicit thumb rule the handle simply is not painted. */
+    .slider::-webkit-slider-thumb {
+        appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        background: var(--canvas);
+        box-shadow:
+            0 0 0 1.5px var(--solid),
+            0 1px 2px oklch(0 0 0 / 0.15);
+        cursor: grab;
+    }
+    .slider::-webkit-slider-thumb:active {
+        cursor: grabbing;
+    }
+    .slider:disabled::-webkit-slider-thumb {
+        cursor: default;
+    }
 }
 
 /*

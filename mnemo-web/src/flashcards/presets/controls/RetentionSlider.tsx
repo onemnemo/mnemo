@@ -1,11 +1,13 @@
-import { Slider } from "radix-ui"
+import { StepSliderControl } from "@/settings/components/controls/StepSliderControl"
 
 import { MAX_RETENTION_PCT, MIN_RETENTION_PCT } from "../presets"
 
 /**
- * Desired retention, in whole percent. The existing step slider works over named string steps,
- * which cannot express a range this wide, so this one is numeric - the track, range and thumb
- * are the same shapes so the two read as one control.
+ * Desired retention, in whole percent.
+ *
+ * The shared control in its numeric mode rather than a slider of its own: this used to be a
+ * second implementation of the same shapes, and two sliders drawn twice drift apart the first
+ * time one of them is retuned.
  */
 export function RetentionSlider({
   percent,
@@ -19,23 +21,17 @@ export function RetentionSlider({
 }) {
   return (
     <div className="flex w-[220px] items-center gap-2.5">
-      <Slider.Root
-        min={MIN_RETENTION_PCT}
-        max={MAX_RETENTION_PCT}
-        step={1}
-        value={[percent]}
-        onValueChange={([next]) => {
-          if (next !== undefined && next !== percent) onChange(next)
-        }}
-        aria-label={label}
-        aria-valuetext={`${percent}%`}
-        className="relative flex h-4 w-[150px] shrink-0 touch-none items-center select-none"
-      >
-        <Slider.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-canvas-sunken">
-          <Slider.Range className="absolute h-full rounded-full bg-solid" />
-        </Slider.Track>
-        <Slider.Thumb className="block size-3.5 rounded-full border-2 border-solid bg-canvas shadow-canvas outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" />
-      </Slider.Root>
+      <div className="flex w-[150px] shrink-0 items-center">
+        <StepSliderControl
+          mode="numeric"
+          min={MIN_RETENTION_PCT}
+          max={MAX_RETENTION_PCT}
+          step={1}
+          value={percent}
+          onChange={onChange}
+          label={label}
+        />
+      </div>
 
       <span className="w-9 text-center text-[13px] font-medium tabular-nums text-ink">{percent}%</span>
     </div>

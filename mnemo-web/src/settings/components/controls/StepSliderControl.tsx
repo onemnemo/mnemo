@@ -1,14 +1,49 @@
-import { Slider } from "radix-ui"
-
 import { cn } from "@/lib/utils"
 
-/** Track and thumb, shared by both modes so the two sliders are one control visually. */
-const RAIL =
-  "relative flex h-4 w-full touch-none select-none items-center"
-const TRACK = "relative h-[3px] w-full grow rounded-pill bg-divider-subtle"
-const RANGE = "absolute h-full rounded-pill bg-brand"
-const THUMB =
-  "block h-3.5 w-3.5 rounded-full border-2 border-brand bg-white shadow-elevation-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+/**
+ * The shared range control: a native `input[type=range]` under the `.slider` utility.
+ *
+ * Native rather than a composed track and thumb, because the browser already gives the
+ * whole keyboard, the whole pointer gesture and the whole accessibility tree for free, and
+ * a hand-built one only gets to lose parts of them. The fill is a gradient on the track
+ * rather than a second element, so there is nothing to keep in sync with the value.
+ */
+function Rail({
+  value,
+  min,
+  max,
+  step,
+  label,
+  onChange,
+  className,
+}: {
+  value: number
+  min: number
+  max: number
+  step: number
+  label: string
+  onChange: (next: number) => void
+  className?: string
+}) {
+  // A degenerate range would divide by zero and paint the track blank rather than full.
+  const percent = max > min ? ((value - min) / (max - min)) * 100 : 100
+
+  return (
+    <input
+      type="range"
+      aria-label={label}
+      value={value}
+      min={min}
+      max={max}
+      step={step}
+      onChange={(event) => onChange(Number(event.target.value))}
+      className={cn("slider h-1.5 w-full cursor-pointer appearance-none rounded-full", className)}
+      style={{
+        background: `linear-gradient(to right, var(--solid) ${percent}%, var(--canvas-sunken) ${percent}%)`,
+      }}
+    />
+  )
+}
 
 interface StepProps {
   mode?: "steps"
@@ -31,45 +66,19 @@ interface NumericProps {
 }
 
 /**
- * A slider over named steps, or over a numeric range with an integer readout.
+ * A slider over named steps, or over a numeric range.
  *
- * Steps mode persists the step's label, not an index, the desktop's step slider does the same,
- * which is why those values are language-bound. Numeric mode is what the widget config dialog uses:
- * it snaps to whole ticks and shows the current value beside the track rather than a row of labels,
- * because a range like 1..90 would print ninety of them.
+ * Steps mode persists the step's label, not an index, because the desktop's step slider does
+ * the same, which is why those values are language-bound. Numeric mode is what the widget
+ * config dialog uses; it carries no readout of its own, since the dialog prints the value
+ * beside the field's label where a settings row has no room to.
  */
 export function StepSliderControl(props: StepProps | NumericProps) {
-  if (props.mode === "numeric") return <NumericSlider {...props} />
+  if (props.mode === "numeric") {
+    const { min, max, step, value, onChange, label } = props
+    return <Rail value={value} min={min} max={max} step={step} label={label} onChange={onChange} />
+  }
   return <StepSlider {...props} />
-}
-
-function NumericSlider({ min, max, step, value, onChange, label }: NumericProps) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <Slider.Root
-        min={min}
-        max={max}
-        step={step}
-        value={[value]}
-        onValueChange={([next]) => {
-          if (next !== undefined && next !== value) onChange(next)
-        }}
-        aria-label={label}
-        className={cn(RAIL, "flex-1")}
-      >
-        <Slider.Track className={TRACK}>
-          <Slider.Range className={RANGE} />
-        </Slider.Track>
-        <Slider.Thumb className={THUMB} />
-      </Slider.Root>
-
-      {/* An integer beside the track, as on the desktop: the slider is a double but the value it
-          persists and shows is always whole. */}
-      <span className="min-w-6 text-right font-mono text-body-small text-text-secondary tabular-nums">
-        {Math.round(value)}
-      </span>
-    </div>
-  )
 }
 
 function StepSlider({ steps, value, onChange, label }: StepProps) {
@@ -79,34 +88,25 @@ function StepSlider({ steps, value, onChange, label }: StepProps) {
 
   return (
     <div className="w-[220px]">
-      <Slider.Root
+      <Rail
+        value={index}
         min={0}
-        max={steps.length - 1}
+        max={Math.max(0, steps.length - 1)}
         step={1}
-        value={[index]}
-        onValueChange={([next]) => {
-          const step = steps[next ?? 0]
-          if (step !== undefined && step !== value) onChange(step)
+        label={label}
+        onChange={(next) => {
+          const picked = steps[next]
+          if (picked !== undefined && picked !== value) onChange(picked)
         }}
-        aria-label={label}
-        className={RAIL}
-      >
-        <Slider.Track className={TRACK}>
-          <Slider.Range className={RANGE} />
-        </Slider.Track>
-        <Slider.Thumb className={THUMB} />
-      </Slider.Root>
+      />
 
-      <div className="mt-1 flex justify-between">
-        {steps.map((step, i) => (
+      <div className="mt-2 flex justify-between">
+        {steps.map((stepLabel, i) => (
           <span
-            key={step}
-            className={cn(
-              "text-micro",
-              i === index ? "font-medium text-text-secondary" : "text-text-faded",
-            )}
+            key={stepLabel}
+            className={cn("text-micro", i === index ? "font-medium text-ink-2" : "text-ink-3")}
           >
-            {step}
+            {stepLabel}
           </span>
         ))}
       </div>
