@@ -10,6 +10,7 @@
     "ChangeIcon": "Symbol ändern",
     "AddTag": "Tag hinzufügen",
     "RemoveTagFormat": "{0} entfernen",
+    "CloseTabFormat": "{0} schließen",
     "PdfExportTitle": "Als PDF exportieren",
     "PdfExportDescription": "Layout- und Render-Optionen einstellen",
     "PdfTabGeneral": "Allgemein",

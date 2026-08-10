@@ -10,6 +10,7 @@
     "ChangeIcon": "Bytt ikon",
     "AddTag": "Legg til etikett",
     "RemoveTagFormat": "Fjern {0}",
+    "CloseTabFormat": "Lukk {0}",
     "PdfExportTitle": "Eksporter som PDF",
     "PdfExportDescription": "Velg layout og gjengivelsesvalg",
     "PdfTabGeneral": "Generelt",
