@@ -268,16 +268,12 @@ function ReviewSettings({
             // reaching it. The dialog declines the dismiss and the box still cancels itself.
             if (document.activeElement?.closest("[data-inline-editor]")) event.preventDefault()
           }}
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[86vh] w-[856px] max-w-[calc(100vw-3rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-line bg-[var(--overlay-background)] shadow-[0_16px_40px_0_rgba(0,0,0,0.22)] focus:outline-none"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[86vh] w-[856px] max-w-[calc(100vw-3rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-line-soft bg-canvas shadow-pop focus:outline-none"
         >
-          <div className="flex items-start gap-3.5 border-b border-divider-subtle px-5 py-3.5">
+          <div className="flex items-start gap-3.5 border-b border-line-soft px-5 py-3.5">
             <div className="min-w-0 flex-1 space-y-0.5">
-              <Dialog.Title className="text-body-small font-semibold text-text-primary">
-                {fc("ReviewSettingsTitle")}
-              </Dialog.Title>
-              {target.deckName ? (
-                <div className="truncate text-body-extra-small text-text-tertiary">{target.deckName}</div>
-              ) : null}
+              <Dialog.Title className="text-[14px] font-semibold text-ink">{fc("ReviewSettingsTitle")}</Dialog.Title>
+              {target.deckName ? <div className="truncate text-[12px] text-ink-3">{target.deckName}</div> : null}
             </div>
             <Dialog.Close asChild>
               <IconButton icon="common/x" iconSize={14} label={t("Common", "Close")} />
@@ -308,13 +304,11 @@ function ReviewSettings({
                 />
               </>
             ) : (
-              <div className="grid h-[420px] w-full place-items-center text-text-tertiary">
-                {fc("StudyLoading")}
-              </div>
+              <div className="grid h-[420px] w-full place-items-center text-ink-3">{fc("StudyLoading")}</div>
             )}
           </div>
 
-          <div className="flex items-center border-t border-divider-subtle px-5 py-3">
+          <div className="flex items-center border-t border-line-soft px-5 py-3">
             <Button
               variant="ghost"
               className="h-[34px] px-0 text-[12.5px]"
@@ -333,7 +327,7 @@ function ReviewSettings({
             <div className="flex-1" />
 
             <div className="flex items-center gap-2">
-              <Button variant="outline" className="h-[34px] px-4" onClick={onClose}>
+              <Button variant="ghost" className="h-[34px] px-4" onClick={onClose}>
                 {t("Common", "Cancel")}
               </Button>
               <Button

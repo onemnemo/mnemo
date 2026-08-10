@@ -45,10 +45,8 @@ export function PresetSidebar({
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
 
   return (
-    <div className="flex w-[210px] shrink-0 flex-col border-r border-divider-subtle bg-[var(--sidebar-background)] px-2.5 pb-3 pt-3.5">
-      <div className="px-1.5 pb-2 text-micro font-semibold uppercase tracking-[1px] text-text-faded">
-        {fc("ReviewSettingsPresetsLabel")}
-      </div>
+    <div className="flex w-[210px] shrink-0 flex-col border-r border-line-soft bg-canvas-sunken/60 px-2.5 pb-3 pt-3.5">
+      <div className="px-1.5 pb-2 text-[12px] text-ink-3">{fc("ReviewSettingsPresetsLabel")}</div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
         {drafts.map((draft) => (
@@ -73,15 +71,15 @@ export function PresetSidebar({
         <button
           type="button"
           onClick={onCreate}
-          className="mt-1 flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md px-2 transition-colors duration-150 hover:bg-[var(--navigation-button-background-hover)]"
+          className="mt-1 flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[13px] text-ink-3 transition-colors hover:bg-frame-hover hover:text-ink"
         >
-          <AppIcon name="common/plus" size={12} className="text-text-faded" />
-          <span className="text-[12.5px] text-text-faded">{fc("ReviewSettingsNewPreset")}</span>
+          <AppIcon name="common/plus" size={12} />
+          <span>{fc("ReviewSettingsNewPreset")}</span>
         </button>
       </div>
 
       {editingNote ? (
-        <p className="mt-2.5 px-1.5 text-[11px] leading-[15px] text-text-faded">{editingNote}</p>
+        <p className="mt-2.5 px-1.5 text-[11px] leading-[15px] text-ink-3">{editingNote}</p>
       ) : null}
     </div>
   )
@@ -134,9 +132,9 @@ function PresetRow({
             }
           }}
           className={cn(
-            "flex h-8 shrink-0 cursor-pointer items-center rounded-md px-2 transition-colors duration-150",
-            !selected && "hover:bg-[var(--navigation-button-background-hover)]",
-            selected && "bg-[var(--navigation-button-background-selected)]",
+            "flex h-8 shrink-0 cursor-pointer items-center rounded-md px-2 transition-colors",
+            !selected && "hover:bg-frame-hover",
+            selected && "bg-frame-active",
           )}
         >
           {renaming ? (
@@ -150,15 +148,13 @@ function PresetRow({
             <>
               <span
                 className={cn(
-                  "min-w-0 flex-1 truncate text-body-small",
-                  selected
-                    ? "font-medium text-[var(--navigation-button-foreground-selected)]"
-                    : "text-text-secondary",
+                  "min-w-0 flex-1 truncate text-[13px]",
+                  selected ? "font-medium text-ink" : "text-ink-2",
                 )}
               >
                 {draft.name}
               </span>
-              <span className="ml-2 shrink-0 font-mono text-micro text-text-faded">{deckCountLabel}</span>
+              <span className="ml-2 shrink-0 text-[11px] tabular-nums text-ink-3">{deckCountLabel}</span>
             </>
           )}
         </div>
@@ -226,7 +222,7 @@ function RenameBox({
           onCancel()
         }
       }}
-      className="h-6 w-full rounded-sm border border-input bg-[var(--text-control-background)] px-1 text-body-small text-text-primary outline-none focus:border-[var(--text-control-border-focused)]"
+      className="h-6 w-full rounded-md bg-transparent px-1 text-[13px] text-ink shadow-[0_0_0_1px_var(--line)] outline-none focus:shadow-[0_0_0_1.5px_var(--solid)]"
     />
   )
 }
