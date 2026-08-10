@@ -3,65 +3,30 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { EmojiPicker } from '@/components/emoji/EmojiPicker';
-import { EmojiPickerButton } from '@/components/emoji/EmojiPickerButton';
 import { AppIcon } from '@/components/icon/AppIcon';
 import { useT } from '@/i18n/useT';
 
 import { NOTE_COVERS, coverCss } from './covers';
 
 /**
- * The page cover: a full-bleed banner over the document, or nothing. Its own
- * controls only surface on hover, so a note with a cover still reads as a
- * reading surface rather than a dashboard.
+ * The page cover: a full-bleed banner over the document, or nothing. It carries
+ * no controls of its own; changing and removing a cover live in the affordance
+ * row under it, beside the icon control, so there is one place to look for the
+ * header's controls whether or not a cover is set.
  */
-export function CoverBanner({
-  token,
-  onChange,
-}: {
-  token: string | null;
-  onChange: (next: string | null) => void;
-}) {
-  const t = useT();
-  const nt = (key: string) => t('Notes', key);
+export function CoverBanner({ token }: { token: string | null }) {
   const css = coverCss(token);
   if (!css) return null;
-
-  return (
-    <div className="group/cover relative h-[140px] w-full overflow-hidden" style={{ background: css }}>
-      <div className="absolute right-3 top-3 flex items-center gap-1.5 opacity-0 transition-opacity group-hover/cover:opacity-100">
-        <CoverPicker token={token} onChange={onChange}>
-          <button
-            type="button"
-            className="rounded-md bg-canvas/70 px-2 py-1 text-[12px] font-medium text-text-primary shadow-canvas backdrop-blur-sm hover:bg-canvas/90"
-          >
-            {nt('ChangeCover')}
-          </button>
-        </CoverPicker>
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          className="rounded-md bg-canvas/70 px-2 py-1 text-[12px] font-medium text-text-primary shadow-canvas backdrop-blur-sm hover:bg-canvas/90"
-        >
-          {nt('RemoveCover')}
-        </button>
-      </div>
-    </div>
-  );
+  return <div className="h-[140px] w-full overflow-hidden" style={{ background: css }} />;
 }
 
-/** The 64px page icon, shown only when one is set; clicking it changes or clears it. */
-export function NoteIcon({ value, onChange }: { value: string | null; onChange: (next: string | null) => void }) {
-  const t = useT();
+/** The 64px page icon. Presentation only; it is changed from the affordance row. */
+export function NoteIcon({ value }: { value: string | null }) {
   if (!value) return null;
   return (
-    <EmojiPickerButton
-      value={value}
-      onChange={onChange}
-      fallback="common/file-text"
-      label={t('Notes', 'ChangeIcon')}
-      size={64}
-      glyphSize={56}
-    />
+    <span aria-hidden className="inline-block select-none text-[64px] leading-none">
+      {value}
+    </span>
   );
 }
 
@@ -69,25 +34,25 @@ const CHROME_BUTTON =
   'flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:bg-frame-hover hover:text-ink';
 
 /**
- * The header affordances, between the page icon and the title: set or change the
- * icon, and add a cover while there is none. They share the pickers the set state
- * uses, so adding and changing are the one control, and they stay reachable here
- * rather than only from a menu. Revealed on pane hover, so a note being read
- * carries no permanent chrome.
+ * The header affordances, between the page icon and the title: the icon and the
+ * cover are both set, changed and cleared from here, in one row that reads the
+ * same whether or not either is present. Revealed on pane hover, so a note being
+ * read carries no permanent chrome.
  */
 export function AddHeaderChrome({
-  hasCover,
+  cover,
   hasIcon,
   onCover,
   onIcon,
 }: {
-  hasCover: boolean;
+  cover: string | null;
   hasIcon: boolean;
   onCover: (next: string | null) => void;
   onIcon: (next: string | null) => void;
 }) {
   const t = useT();
   const nt = (key: string) => t('Notes', key);
+  const hasCover = coverCss(cover) !== null;
 
   return (
     <div className="mt-3 flex h-7 items-center gap-1 opacity-0 transition-opacity duration-150 hover:opacity-100 has-[button:focus-visible]:opacity-100 group-hover/pane:opacity-100">
@@ -97,14 +62,12 @@ export function AddHeaderChrome({
           {hasIcon ? nt('ChangeIcon') : nt('AddIcon')}
         </button>
       </IconPicker>
-      {!hasCover ? (
-        <CoverPicker token={null} onChange={onCover}>
-          <button type="button" className={CHROME_BUTTON}>
-            <AppIcon name="common/image" size={14} />
-            {nt('AddCover')}
-          </button>
-        </CoverPicker>
-      ) : null}
+      <CoverPicker token={cover} onChange={onCover}>
+        <button type="button" className={CHROME_BUTTON}>
+          <AppIcon name="common/image" size={14} />
+          {hasCover ? nt('ChangeCover') : nt('AddCover')}
+        </button>
+      </CoverPicker>
     </div>
   );
 }
