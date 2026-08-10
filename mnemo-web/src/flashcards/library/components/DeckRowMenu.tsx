@@ -117,7 +117,7 @@ export function DeckRowMenu({ deck, upToDate }: { deck: DeckSummaryDto; upToDate
           <MenuItem disabled>{fc("ChooseFormat")}</MenuItem>
         </MenuSubMenu>
         <MenuItem
-          icon="flyout/settings"
+          icon="settings-2"
           onSelect={() => useReviewSettings.getState().open(deck.id, deck.name)}
         >
           {fc("ReviewSettingsMenu")}

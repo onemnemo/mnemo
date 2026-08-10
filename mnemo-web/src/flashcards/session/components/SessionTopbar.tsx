@@ -65,7 +65,7 @@ export function SessionTopbar({
       {/* Editing the preset mid-session is allowed, but the queue this session is running was
           already built - the new limits and order apply from the next one, as on the desktop. */}
       <IconBtn
-        icon="flyout/settings"
+        icon="settings-2"
         label={fc("ReviewSettingsMenu")}
         disabled={!session}
         onClick={() => session && useReviewSettings.getState().open(session.deckId, session.deckName)}
