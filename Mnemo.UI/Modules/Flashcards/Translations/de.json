@@ -112,7 +112,6 @@
     "LapsesFilterThreeOrMore": "3+ Mal vergessen",
     "LapsesFilterNever": "Nie vergessen",
     "DeckFilterTypeFormat": "Typ: {0}",
-    "DeckFilterLapsesFormat": "Vergessen: {0}",
     "ClearFilters": "Zurücksetzen",
     "DeckFilterStateFormat": "Status: {0}",
     "DeckFilterTagFormat": "Tag: {0}",
