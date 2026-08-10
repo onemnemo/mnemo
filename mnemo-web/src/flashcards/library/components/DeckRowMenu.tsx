@@ -28,7 +28,15 @@ export function DeckRowMenu({ deck, upToDate }: { deck: DeckSummaryDto; upToDate
     })
     const name = value?.trim()
     if (!name || name === deck.name) return
-    await updateDeck.mutateAsync({ id: deck.id, name, description: deck.description, tags: deck.tags })
+    // Carries the icon through: the update replaces the deck header wholesale,
+    // so anything left out is cleared rather than kept.
+    await updateDeck.mutateAsync({
+      id: deck.id,
+      name,
+      description: deck.description,
+      tags: deck.tags,
+      icon: deck.icon,
+    })
   }
 
   const remove = async () => {
