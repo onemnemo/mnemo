@@ -34,7 +34,10 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   /** Leading glyph. Sized by the caller; 14px suits both heights. */
   icon?: ReactNode
   trailing?: ReactNode
-  /** Render as the single child element instead of a button (menu and popover triggers). */
+  /**
+   * Render as the single child element instead of a button: menu and popover triggers, and a
+   * button-shaped link. The child composes its own content, so `icon` and `trailing` are ignored.
+   */
   asChild?: boolean
   /** React 19 passes ref as an ordinary prop, so there is no forwardRef wrapper. */
   ref?: Ref<HTMLButtonElement>
@@ -68,9 +71,18 @@ export function Button({
       style={{ transitionDuration: "var(--duration-fast)" }}
       {...props}
     >
-      {icon}
-      {children}
-      {trailing}
+      {/* Slot needs exactly one element child, and the icon slots would hand it three: an
+          undefined, the child, and another undefined. React counts those, so passing them
+          through throws even when both are absent. The child composes its own content anyway. */}
+      {asChild ? (
+        children
+      ) : (
+        <>
+          {icon}
+          {children}
+          {trailing}
+        </>
+      )}
     </Comp>
   )
 }

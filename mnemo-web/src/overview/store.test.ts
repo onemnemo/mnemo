@@ -402,9 +402,20 @@ describe("transition table", () => {
     store().beginDrag("recent")
     store().updateDragTarget(0, 3)
 
-    store().completeDrag()
+    // The board the user was looking at when the pointer came up, every tile included. Committing
+    // only the dragged one would let it lose the cell the ghost had just promised: while it is
+    // held it is placed first and wins any cell, and the moment it stops being the anchor the
+    // ordinary (row, column) order applies again.
+    store().completeDrag({
+      kind: "grid",
+      cells: [
+        { column: 0, row: 3 },
+        { column: 2, row: 0 },
+      ],
+    })
 
-    expect(dto().widgets[1]).toMatchObject({ instanceId: "recent", column: 0, row: 3 })
+    expect(dto().widgets[0]).toMatchObject({ instanceId: "today", column: 0, row: 3 })
+    expect(dto().widgets[1]).toMatchObject({ instanceId: "recent", column: 2, row: 0 })
     expect(store().dragged).toBeNull()
     expect(store().anchorIndex).toBe(-1)
     expect(store().dragPosition).toBeNull()
@@ -419,7 +430,7 @@ describe("transition table", () => {
     store().beginDrag("recent")
     store().updateDragTarget(0, 3)
 
-    store().completeDrag(0)
+    store().completeDrag({ kind: "flow", index: 0 })
 
     // The coordinates the drag wrote are put back: below four columns they describe a grid that is
     // not on screen, and keeping them would throw away the layout authored at the widest one.
@@ -492,7 +503,7 @@ describe("transition table", () => {
     store().applyConfig("recent", { sort: "recent" })
     store().beginDrag("recent")
     store().updateDragTarget(3, 5)
-    store().completeDrag()
+    store().completeDrag({ kind: "grid", cells: [{ column: 3, row: 5 }, { column: 0, row: 0 }, { column: 1, row: 1 }] })
     expect(dto()).not.toEqual(committed)
 
     store().cancelEdit()
