@@ -1,5 +1,4 @@
 import { type ReactNode, useEffect, useRef } from "react"
-import { createPortal } from "react-dom"
 
 import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
@@ -178,10 +177,11 @@ export function TestPage({ deckId }: { deckId?: string }) {
 
   const missed = queue.filter((_, i) => grades[i] === "missed")
 
-  // Rendered over the whole window rather than inside the module frame: during a test the card is
-  // the screen, and the practice-only badge on every card is the one thing the reader has to trust.
-  return createPortal(
-    <div className="animate-fade-in fixed inset-0 z-[130] flex flex-col bg-canvas">
+  // Fills the module canvas rather than taking over the whole window: an overlay pinned to the
+  // window would sit its own bar on top of the OS titlebar's drag region, which swallows the
+  // clicks meant for close and settings.
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-canvas">
       <TestTopbar
         deckId={deckId}
         deckName={deckName}
@@ -253,8 +253,7 @@ export function TestPage({ deckId }: { deckId?: string }) {
           onBackToDeck={backToDeck}
         />
       )}
-    </div>,
-    document.body,
+    </div>
   )
 }
 

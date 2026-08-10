@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react"
-import { createPortal } from "react-dom"
 
 import type { ReviewGrade, SessionMode, SessionScope } from "@/api/types"
 import { navigate } from "@/app/router"
@@ -175,10 +174,11 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [])
 
-  // Rendered over the whole window rather than inside the module frame: during study the card is
-  // the screen, so the rail, the titlebar and the dock are covered instead of framing it.
-  return createPortal(
-    <div className="animate-fade-in fixed inset-0 z-[130] flex flex-col bg-canvas">
+  // Fills the module canvas rather than taking over the whole window: an overlay pinned to the
+  // window would sit its own bar on top of the OS titlebar's drag region, which swallows the
+  // clicks meant for close and settings.
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-canvas">
       <SessionTopbar session={session} active={active} onClose={() => void close()} />
 
       {status === "loading" && (
@@ -234,7 +234,6 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
           onBackToDeck={backToDeck}
         />
       )}
-    </div>,
-    document.body,
+    </div>
   )
 }
