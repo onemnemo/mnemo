@@ -254,6 +254,8 @@
     "TestGradeClose": "Casi",
     "TestYourAnswerLabel": "TU RESPUESTA",
     "TestCorrectAnswerLabel": "RESPUESTA CORRECTA",
+    "TestAnswerBlank": "En blanco.",
+    "TestWhatYouMissed": "Lo que fallaste",
     "StudyKeyEnter": "Entrar",
     "TestKeyGradeRange": "1–3",
     "TestHintGotIt": "acertada",

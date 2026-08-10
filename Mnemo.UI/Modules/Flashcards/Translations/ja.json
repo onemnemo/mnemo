@@ -254,6 +254,8 @@
     "TestGradeClose": "惜しい",
     "TestYourAnswerLabel": "あなたの解答",
     "TestCorrectAnswerLabel": "正しい解答",
+    "TestAnswerBlank": "未記入。",
+    "TestWhatYouMissed": "間違えた問題",
     "StudyKeyEnter": "Enter",
     "TestKeyGradeRange": "1–3",
     "TestHintGotIt": "正解",

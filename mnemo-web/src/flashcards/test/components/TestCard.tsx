@@ -14,6 +14,9 @@ import { answerText, promptText } from "../../study"
  * The test card: the prompt, a box to answer in, and - once revealed - the answer next to what
  * was actually written. Unlike a review card this one never reveals on click; the answer box has
  * the focus and a stray click in it would give the answer away mid-sentence.
+ *
+ * The typed answer sits on the accent wash and the real answer on plain paper, so self-marking
+ * is a glance rather than a re-read of two near-identical paragraphs to find which one is yours.
  */
 export function TestCard({
   card,
@@ -52,69 +55,88 @@ export function TestCard({
   }
 
   return (
-    // 780 wide as on the desktop, but allowed to shrink: the desktop clips a card too wide for its
-    // window, which in a resizable browser pane would simply hide the text.
-    <div className="flex max-h-[600px] min-h-[320px] w-[780px] max-w-full flex-col rounded-lg border border-line bg-card shadow-[0_16px_40px_-24px_rgba(0,0,0,0.25)]">
-      <div className="mt-2.5 mr-2.5 flex shrink-0 items-center justify-end gap-0.5">
+    <div className="group/card relative w-full rounded-2xl p-7 shadow-[0_0_0_1px_var(--line)]" style={proseSize}>
+      <div
+        className={cn(
+          "absolute top-3 right-3 flex items-center gap-0.5 transition-opacity",
+          card.isFlagged ? "opacity-100" : "opacity-0 group-hover/card:opacity-100 focus-within:opacity-100",
+        )}
+      >
         <CardAction icon="flyout/rename" label={fc("StudyEdit")} onClick={onEdit} />
-        <CardAction
-          icon="common/flag"
-          label={fc("StudyFlag")}
+        <button
+          type="button"
+          aria-label={fc("StudyFlag")}
+          aria-pressed={card.isFlagged}
+          title={fc("StudyFlag")}
           onClick={onFlag}
-          className={card.isFlagged ? "text-brand" : undefined}
-        />
+          className={cn(
+            "grid size-7 cursor-pointer place-items-center rounded-md transition-colors",
+            card.isFlagged
+              ? "text-state-due hover:bg-frame-hover [&>svg]:fill-current"
+              : "text-ink-3 hover:bg-frame-hover hover:text-ink",
+          )}
+        >
+          <AppIcon name="common/flag" size={15} />
+        </button>
         <CardAction icon="common/undo" label={fc("StudyUndo")} onClick={onUndo} disabled={!canUndo} />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-[34px] pt-1 pb-[30px]" style={proseSize}>
+      {/* Room kept on the right so a long first line never runs under the corner actions. */}
+      <div className="pr-16">
         <Markdown content={promptText(card)} />
-
-        <Divider label={fc("TestYourAnswerLabel")} className="mt-[22px] mb-2.5" />
-
-        {revealed ? (
-          <div className="rounded-md border border-line bg-[var(--accent-subtle-background)] px-3 py-2.5 whitespace-pre-wrap">
-            {answer}
-          </div>
-        ) : (
-          <textarea
-            // Keyed on the card so each one starts with the box focused, the way the desktop
-            // focuses it every time a card is presented.
-            key={card.id}
-            autoFocus
-            value={answer}
-            onChange={(event) => onAnswerChange(event.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={fc("TestAnswerPlaceholder")}
-            className={cn(
-              "min-h-20 w-full resize-y rounded-md border border-line bg-[var(--widget-background-primary)]",
-              "px-3 py-2.5 outline-none focus:border-[var(--accent)]",
-            )}
-          />
-        )}
-
-        {revealed && (
-          <>
-            <Divider label={fc("TestCorrectAnswerLabel")} className="mt-[22px] mb-3.5" />
-            <div className="flex items-start">
-              <div className="mr-3.5 min-w-0 flex-1">
-                <Markdown content={answerText(card)} />
-              </div>
-              <AttachmentCarousel key={`${card.id}-back`} attachments={card.attachments} side="back" />
-            </div>
-          </>
-        )}
       </div>
+
+      <Rule label={fc("TestYourAnswerLabel")} />
+
+      {!revealed ? (
+        <textarea
+          // Keyed on the card so each one starts with the box focused, the way the desktop
+          // focuses it every time a card is presented.
+          key={card.id}
+          autoFocus
+          value={answer}
+          onChange={(event) => onAnswerChange(event.target.value)}
+          onKeyDown={onKeyDown}
+          rows={3}
+          placeholder={fc("TestAnswerPlaceholder")}
+          className={cn(
+            "w-full resize-none rounded-xl bg-transparent px-3.5 py-3",
+            "text-[14.5px] leading-[1.6] text-ink placeholder:text-ink-3",
+            "shadow-[0_0_0_1px_var(--line)] focus:shadow-[0_0_0_1.5px_var(--accent)] focus:outline-none",
+          )}
+        />
+      ) : answer.trim() ? (
+        <p className="rounded-xl bg-accent-wash px-3.5 py-3 text-[14.5px] leading-[1.6] whitespace-pre-wrap text-ink shadow-[0_0_0_1px_var(--line-soft)] dark:bg-accent-wash/40">
+          {answer}
+        </p>
+      ) : (
+        <p className="rounded-xl px-3.5 py-3 text-[13.5px] text-ink-3 shadow-[0_0_0_1px_var(--line-soft)]">
+          {fc("TestAnswerBlank")}
+        </p>
+      )}
+
+      {revealed && (
+        <div className="animate-rise">
+          <Rule label={fc("TestCorrectAnswerLabel")} />
+          <div className="flex items-start">
+            <div className="mr-3.5 min-w-0 flex-1">
+              <Markdown content={answerText(card)} />
+            </div>
+            <AttachmentCarousel key={`${card.id}-back`} attachments={card.attachments} side="back" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-/** A micro label between two hairlines, as the desktop draws its section breaks. */
-function Divider({ label, className }: { label: string; className?: string }) {
+/** A labelled rule. The label is the only thing naming which half you are reading. */
+function Rule({ label }: { label: string }) {
   return (
-    <div className={cn("flex items-center", className)}>
-      <span className="h-px flex-1 bg-[var(--line-color)]" />
-      <span className="mx-2.5 font-semibold text-caption tracking-[1.2px] text-text-faded">{label}</span>
-      <span className="h-px flex-1 bg-[var(--line-color)]" />
+    <div className="my-5 flex items-center gap-3">
+      <span className="h-px flex-1 bg-line-soft" />
+      <span className="text-[10.5px] font-medium tracking-[0.09em] text-ink-3 uppercase">{label}</span>
+      <span className="h-px flex-1 bg-line-soft" />
     </div>
   )
 }
@@ -124,13 +146,11 @@ function CardAction({
   label,
   onClick,
   disabled,
-  className,
 }: {
   icon: string
   label: string
   onClick: () => void
   disabled?: boolean
-  className?: string
 }): ReactNode {
   return (
     <button
@@ -140,9 +160,8 @@ function CardAction({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "grid size-7 cursor-pointer place-items-center rounded-sm text-text-tertiary",
-        "hover:bg-[var(--button-background-pointer-over)] disabled:pointer-events-none disabled:opacity-30",
-        className,
+        "grid size-7 cursor-pointer place-items-center rounded-md text-ink-3 transition-colors",
+        "hover:bg-frame-hover hover:text-ink disabled:pointer-events-none disabled:opacity-30",
       )}
     >
       <AppIcon name={icon} size={15} />

@@ -3,13 +3,13 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import { useReviewSettings } from "../../presets/store"
-import { progressFillWidth } from "../../study"
 import type { TestTally } from "../test"
 
 /**
- * The test's own bar. The amber chip says "practice only" because nothing here touches the
- * schedule, and the tallies stay in their three colours so the run of a test is readable at a
- * glance without a legend.
+ * The test's own thin bar. The practice chip says nothing here touches the schedule; the running
+ * figure is a count of points, not a percentage - two misses out of three is 33% and reads as a
+ * disaster on a test that has barely started, where a count only ever climbs. It stays hidden
+ * until there is a card to count, so a green zero never greets the first prompt.
  */
 export function TestTopbar({
   deckId,
@@ -30,14 +30,16 @@ export function TestTopbar({
 }) {
   const t = useT()
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
+  const points = tally.gotIt + tally.close * 0.5
+  const fill = total > 0 ? (completed / total) * 100 : 0
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2.5 border-b border-line bg-card px-2.5">
+    <header className="flex h-12 shrink-0 items-center gap-3 px-4">
       <IconBtn icon="common/x" label={fc("StudyClose")} onClick={onClose} />
 
-      <span className="max-w-[240px] shrink-0 truncate text-[12.5px] font-medium">{deckName}</span>
+      <span className="max-w-[240px] shrink-0 truncate text-[13px] font-medium text-ink">{deckName}</span>
 
-      <span className="shrink-0 rounded-pill bg-[var(--toast-icon-badge-warning)] px-2.5 py-[3px] font-semibold text-caption whitespace-nowrap text-[var(--flashcard-state-learning)]">
+      <span className="shrink-0 rounded-md bg-state-learn-wash px-1.5 py-0.5 text-[11.5px] font-medium whitespace-nowrap text-state-learn">
         {fc("TestModeChip")}
       </span>
 
@@ -45,28 +47,20 @@ export function TestTopbar({
 
       {active && (
         <>
-          <div className="flex items-center gap-2 font-mono text-[11.5px] tabular-nums">
-            <Counter
-              count={tally.gotIt}
-              label={fc("GradeGotIt")}
-              className="text-[var(--flashcard-retention-high)]"
+          {completed > 0 && (
+            <span
+              className={cn("text-[12.5px] font-medium tabular-nums", points > 0 ? "text-ok-ink" : "text-ink-3")}
+            >
+              {points % 1 === 0 ? points : points.toFixed(1)}
+            </span>
+          )}
+          <span className="h-1 w-40 shrink-0 overflow-hidden rounded-full bg-canvas-sunken">
+            <span
+              className="block h-full rounded-full bg-ink-3 transition-[width] duration-300 ease-out"
+              style={{ width: `${fill}%` }}
             />
-            <Counter
-              count={tally.close}
-              label={fc("TestGradeClose")}
-              className="text-[var(--flashcard-state-learning)]"
-            />
-            <Counter count={tally.missed} label={fc("TestGradeMissed")} className="text-brand" />
-          </div>
-
-          <div className="h-1 w-40 shrink-0 overflow-hidden rounded-[2px] bg-[var(--widget-background-primary)]">
-            <div
-              className="h-full rounded-[2px] bg-[var(--flashcard-state-learning)]"
-              style={{ width: `${progressFillWidth(completed, total)}px` }}
-            />
-          </div>
-
-          <span className="shrink-0 font-mono text-[11.5px] tabular-nums whitespace-nowrap text-text-secondary">
+          </span>
+          <span className="shrink-0 text-[12.5px] tabular-nums text-ink-3">
             {fc("StudyProgressFormat", { 0: completed, 1: total })}
           </span>
         </>
@@ -80,16 +74,7 @@ export function TestTopbar({
         disabled={!deckId}
         onClick={() => deckId && useReviewSettings.getState().open(deckId, deckName)}
       />
-    </div>
-  )
-}
-
-function Counter({ count, label, className }: { count: number; label: string; className: string }) {
-  if (count <= 0) return null
-  return (
-    <span title={label} className={className}>
-      {count}
-    </span>
+    </header>
   )
 }
 
@@ -112,8 +97,8 @@ function IconBtn({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "grid size-[30px] shrink-0 cursor-pointer place-items-center rounded-sm text-text-secondary",
-        "hover:bg-[var(--button-background-pointer-over)] disabled:pointer-events-none disabled:opacity-35",
+        "grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-2 transition-colors",
+        "hover:bg-frame-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35",
       )}
     >
       <AppIcon name={icon} size={16} />

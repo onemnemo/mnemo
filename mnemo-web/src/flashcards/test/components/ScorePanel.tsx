@@ -1,77 +1,115 @@
-import type { TestResultDto } from "@/api/types"
+import type { CardDto, TestResultDto } from "@/api/types"
 import { Sparkline } from "@/components/charts/Sparkline"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 
-import { deltaMessage, roundPercent, scorePct, type TestTally } from "../test"
+import { promptText } from "../../study"
+import { deltaMessage, roundPercent, scorePct, tested, type TestTally } from "../test"
 
 /**
  * The end-of-test score. The percentage comes from the tally on screen rather than from the
  * recorded attempt, so it is there the moment the last card is graded; the comparisons - better
  * than last time, the best, the trend - need the write to have landed and appear when it does.
+ *
+ * The mix comes before the number: "78%" does not say whether you half-knew nine cards or flatly
+ * missed two, and the list of what you missed is the thing you actually act on next.
  */
 export function ScorePanel({
+  deckName,
   tally,
   result,
   failed,
+  missed,
   onBackToDeck,
 }: {
+  deckName: string
   tally: TestTally
   result: TestResultDto | null
   failed: boolean
+  /** The cards graded "missed", in queue order, for the list at the foot of the panel. */
+  missed: CardDto[]
   onBackToDeck: () => void
 }) {
   const t = useT()
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
   const percent = (value: number) => fc("TestScorePercentFormat", { 0: roundPercent(value) })
 
+  const total = tested(tally)
   const delta = result ? deltaMessage(result.deltaVsPrevious) : null
 
+  const segments = [
+    { value: tally.gotIt, className: "bg-ok" },
+    { value: tally.close, className: "bg-state-learn" },
+    { value: tally.missed, className: "bg-danger" },
+  ]
+
   return (
-    <div className="m-auto flex w-full max-w-[440px] flex-col items-center gap-5 p-6 text-center">
-      <span className="font-semibold text-caption tracking-[1.2px] text-text-faded">{fc("TestScoreTitle")}</span>
+    <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-[560px] px-6 pt-6 pb-16">
+        <span className="text-[44px] leading-none font-semibold tracking-[-0.03em] tabular-nums text-ink">
+          {percent(scorePct(tally))}
+        </span>
+        <p className="mt-1.5 text-[13.5px] text-ink-2">{deckName}</p>
 
-      <span className="font-semibold text-[64px] leading-none">{percent(scorePct(tally))}</span>
-
-      {delta && <p className="text-text-secondary">{fc(delta.key, { 0: delta.amount })}</p>}
-      {failed && <p className="text-text-secondary">{fc("TestDeltaUnavailable")}</p>}
-
-      {result && result.trend.length >= 2 && (
-        <div className="flex flex-col items-center gap-1.5">
-          <span className="text-caption text-text-tertiary">{fc("TestTrendLabel")}</span>
-          <Sparkline values={result.trend} />
+        <div className="mt-6 flex h-2 overflow-hidden rounded-full bg-canvas-sunken">
+          {segments.map((s, i) =>
+            s.value > 0 && total > 0 ? (
+              <span key={i} className={s.className} style={{ width: `${(s.value / total) * 100}%` }} />
+            ) : null,
+          )}
         </div>
-      )}
-
-      {result?.hasBest && (
-        <div className="flex items-center gap-1.5 text-body-small">
-          <span className="text-text-tertiary">{fc("TestBestLabel")}</span>
-          <span className="font-semibold text-[var(--flashcard-retention-high)]">
-            {percent(result.bestScorePct)}
-          </span>
+        <div className="mt-2 flex flex-wrap items-center gap-4 text-[12.5px] tabular-nums">
+          <Legend dot="bg-ok" count={tally.gotIt} label={fc("GradeGotIt")} />
+          <Legend dot="bg-state-learn" count={tally.close} label={fc("TestGradeClose")} />
+          <Legend dot="bg-danger" count={tally.missed} label={fc("TestGradeMissed")} />
         </div>
-      )}
 
-      <div className="flex items-center gap-2.5">
-        <Count value={tally.gotIt} label={fc("GradeGotIt")} className="text-[var(--flashcard-retention-high)]" />
-        <Count
-          value={tally.close}
-          label={fc("TestGradeClose")}
-          className="text-[var(--flashcard-state-learning)]"
-        />
-        <Count value={tally.missed} label={fc("TestGradeMissed")} className="text-brand" />
+        <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line-soft pt-5 text-[13px]">
+          {delta && (
+            <span className="text-ink-2">
+              {fc(delta.key, { 0: delta.amount })}
+            </span>
+          )}
+          {failed && <span className="text-ink-3">{fc("TestDeltaUnavailable")}</span>}
+          {result?.hasBest && (
+            <span className="text-ink-2">
+              {fc("TestBestLabel")} <span className="font-semibold text-ok-ink">{percent(result.bestScorePct)}</span>
+            </span>
+          )}
+        </div>
+
+        {result && result.trend.length >= 2 && (
+          <div className="mt-6 flex flex-col gap-1.5">
+            <span className="text-[11px] text-ink-3">{fc("TestTrendLabel")}</span>
+            <Sparkline values={result.trend} />
+          </div>
+        )}
+
+        {missed.length > 0 && (
+          <div className="mt-8">
+            <p className="text-[12px] font-medium text-ink-3">{fc("TestWhatYouMissed")}</p>
+            <div className="mt-2 [&>*+*]:border-t [&>*+*]:border-line-soft">
+              {missed.map((card) => (
+                <p key={card.id} className="truncate py-2 text-[13px] text-ink-2">
+                  {promptText(card)}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-8">
+          <Button onClick={onBackToDeck}>{fc("BackToDeck")}</Button>
+        </div>
       </div>
-
-      <Button onClick={onBackToDeck}>{fc("BackToDeck")}</Button>
     </div>
   )
 }
 
-function Count({ value, label, className }: { value: number; label: string; className: string }) {
+function Legend({ dot, count, label }: { dot: string; count: number; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 rounded-sm bg-[var(--widget-background-primary)] px-2.5 py-[5px]">
-      <span className={`font-mono tabular-nums ${className}`}>{value}</span>
-      <span className="text-caption text-text-tertiary">{label}</span>
-    </div>
+    <span className="flex items-center gap-1.5 text-ink-2">
+      <span className={`size-[6px] rounded-full ${dot}`} /> {count} {label}
+    </span>
   )
 }

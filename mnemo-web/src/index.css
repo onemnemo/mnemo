@@ -133,6 +133,11 @@
     --color-solid-fg: var(--solid-fg);
     --color-danger: var(--danger);
     --color-danger-wash: var(--danger-wash);
+    --color-ok: var(--ok);
+    --color-ok-hover: var(--ok-hover);
+    --color-ok-fg: var(--ok-fg);
+    --color-ok-ink: var(--ok-ink);
+    --color-ok-wash: var(--ok-wash);
     --color-state-new: var(--state-new);
     --color-state-learn: var(--state-learn);
     --color-state-due: var(--state-due);
