@@ -227,6 +227,16 @@
         user-select: text;
     }
 
+    /* Without this every selection in the app is painted in the OS highlight
+       colour, the one colour on screen that was never ours. Alpha and no
+       `color`, so bold, code, links and highlights keep their own ink under the
+       tint, and it is the same accent the block selection uses at a stronger
+       step: pointing at words and pointing at blocks should look like one
+       gesture at two scales. */
+    ::selection {
+        background: var(--sel-text);
+    }
+
     :focus-visible {
         outline: 2px solid var(--accent);
         outline-offset: 1px;

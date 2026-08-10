@@ -26,6 +26,7 @@ import { FindReplaceOverlay } from '../find/FindReplaceOverlay';
 import { createPersist } from '../save/persist';
 import { BlockSelectionAnnouncer } from '../selection/BlockSelectionAnnouncer';
 import { BlockSelectionOverlay } from '../selection/BlockSelectionOverlay';
+import { SelectionBands } from '../selection/SelectionBands';
 import { PaneActions } from './PaneActions';
 import { SaveStateIndicator } from './SaveStateIndicator';
 import { useEditorMeasure } from './useEditorMeasure';
@@ -133,6 +134,7 @@ export function NoteSurface({
       </div>
       {view ? <IndexChip view={view} registry={registry} scrollRef={scrollRef} /> : null}
       {view ? <BlockSelectionOverlay view={view} registry={registry} scrollRef={scrollRef} /> : null}
+      {view ? <SelectionBands view={view} registry={registry} scrollRef={scrollRef} /> : null}
       {view ? <BlockSelectionAnnouncer view={view} /> : null}
       {view ? <BlockGutter view={view} registry={registry} /> : null}
       {view ? <FindReplaceOverlay view={view} registry={registry} /> : null}

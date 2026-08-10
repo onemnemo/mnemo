@@ -936,21 +936,30 @@
 .notes-doc [data-bg-swatch="swatch10"] { background: var(--color-swatch-10); }
 
 /* The marquee rubber-band. Body-level and viewport-positioned, drawn above the
- * blocks but below the floating chrome, in a faint accent fill and ring. */
+ * blocks but below the floating chrome, in the faintest of the three selection
+ * strengths so the bands it is drawing read louder than the tool drawing them. */
 .notes-marquee {
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border-radius: 2px;
+  border: 1px solid var(--sel-lasso-line);
+  background: var(--sel-lasso);
+  border-radius: 4px;
 }
 
-/* Block-level (Mode A) selection. Painted as a node decoration, so a selected
- * block never enters the document and the highlight survives a scroll. A tinted
- * accent wash with a faint ring, hugging the block with a small radius like the
- * desktop's BlockSelectionBrush fill; the accent keeps it theme-aware. */
-.notes-doc .notes-block-selected {
-  background-color: color-mix(in srgb, var(--accent) 15%, transparent);
-  border-radius: 4px;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+/* One band of a block selection. The layer that positions these is
+ * SelectionBands.tsx; the block itself is only marked, never filled, because a
+ * fill on the block sits *under* the surface a code block or a callout carries
+ * and a selected one would then look unselected. */
+.notes-selection-band {
+  background: var(--sel-block);
+  border-radius: 6px;
+}
+
+/* Once a drag is about blocks, the browser has to stop painting text selection,
+ * or the ragged word-shaped boxes reappear under the clean bands and the editor
+ * is showing two answers at once. */
+.notes-doc [data-block-drag],
+.notes-doc [data-block-drag] * {
+  user-select: none;
+  cursor: default;
 }
 
 /* Find and replace match highlights. Painted as decorations, so they never
