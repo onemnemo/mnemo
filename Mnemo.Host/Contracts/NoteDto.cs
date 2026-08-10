@@ -16,7 +16,10 @@ public sealed record NoteSummaryDto(
     int Order,
     bool IsFavorite,
     DateTime CreatedAt,
-    DateTime ModifiedAt)
+    DateTime ModifiedAt,
+    string? Emoji,
+    string? Cover,
+    IReadOnlyList<string> Tags)
 {
     public static NoteSummaryDto FromModel(Note model) => new(
         model.NoteId,
@@ -28,7 +31,10 @@ public sealed record NoteSummaryDto(
         model.Order,
         model.IsFavorite,
         DtoTime.AsUtc(model.CreatedAt),
-        DtoTime.AsUtc(model.ModifiedAt));
+        DtoTime.AsUtc(model.ModifiedAt),
+        model.Emoji,
+        model.Cover,
+        model.Tags);
 }
 
 /// <summary>
@@ -53,7 +59,10 @@ public sealed record NoteDto(
     DateTime CreatedAt,
     DateTime ModifiedAt,
     string Content,
-    IReadOnlyList<Block>? Blocks)
+    IReadOnlyList<Block>? Blocks,
+    string? Emoji,
+    string? Cover,
+    IReadOnlyList<string> Tags)
 {
     public static NoteDto FromModel(Note model) => new(
         model.NoteId,
@@ -67,7 +76,10 @@ public sealed record NoteDto(
         DtoTime.AsUtc(model.CreatedAt),
         DtoTime.AsUtc(model.ModifiedAt),
         model.Content,
-        model.Blocks);
+        model.Blocks,
+        model.Emoji,
+        model.Cover,
+        model.Tags);
 }
 
 /// <summary>
@@ -92,7 +104,10 @@ public sealed record UpdateNoteMetadataDto(
     string? FolderId,
     string? ParentNoteId,
     int Order,
-    bool IsFavorite);
+    bool IsFavorite,
+    string? Emoji,
+    string? Cover,
+    IReadOnlyList<string> Tags);
 
 /// <summary>
 /// A complete replacement body for a note, and the only shape that writes note content.

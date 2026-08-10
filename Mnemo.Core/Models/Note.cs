@@ -78,4 +78,23 @@ public class Note
     /// Whether the note is marked as a favorite (shown in Favourites in the sidebar).
     /// </summary>
     public bool IsFavorite { get; set; }
+
+    /// <summary>
+    /// Optional page icon, a single emoji shown over the title and in the tree. Null when the
+    /// note carries the neutral file mark instead.
+    /// </summary>
+    public string? Emoji { get; set; }
+
+    /// <summary>
+    /// Optional cover token, naming one of the preset banners drawn above the title. Null for a
+    /// note with no cover. Stored as an opaque token so the preset set can change without
+    /// rewriting saved notes.
+    /// </summary>
+    public string? Cover { get; set; }
+
+    /// <summary>
+    /// Page tags shown as chips under the title. Plain labels; the chip colour is derived from
+    /// the label so the same tag reads the same everywhere without storing a colour.
+    /// </summary>
+    public List<string> Tags { get; set; } = new();
 }

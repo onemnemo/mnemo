@@ -14,7 +14,8 @@ function folder(over: Partial<NoteFolderDto> & { id: string }): NoteFolderDto {
 function note(over: Partial<NoteSummaryDto> & { id: string }): NoteSummaryDto {
   return {
     sid: over.id, ver: 1, title: over.id, folderId: null, parentNoteId: null, order: 0,
-    isFavorite: false, createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z', ...over,
+    isFavorite: false, emoji: null, cover: null, tags: [],
+    createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z', ...over,
   };
 }
 const noteHandle = (id: string): TreeDragHandle => ({ key: `note:${id}`, kind: 'note', id, label: id });

@@ -109,6 +109,11 @@ public static class NoteEndpoints
             note.ParentNoteId = parentNoteId;
             note.Order = body.Order;
             note.IsFavorite = body.IsFavorite;
+            note.Emoji = Blank(body.Emoji);
+            note.Cover = Blank(body.Cover);
+            note.Tags = body.Tags is null
+                ? new List<string>()
+                : body.Tags.Select(t => t.Trim()).Where(t => t.Length > 0).Distinct().ToList();
             // Recomputed on every write rather than only at creation, so the stored
             // breadcrumb still matches the tree after a note moves. The desktop app
             // writes it once and leaves it, which is why old notes can carry a path
