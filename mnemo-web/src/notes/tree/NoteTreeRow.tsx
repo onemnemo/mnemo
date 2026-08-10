@@ -255,7 +255,11 @@ export function NoteRow({
       )}
     >
       <GuideLines depth={row.depth} />
-      <AppIcon name="common/file-text" size={13} className="shrink-0 text-text-faded" preserveColors={false} />
+      {note.emoji ? (
+        <span aria-hidden className="w-[15px] shrink-0 text-center text-[13px] leading-none">{note.emoji}</span>
+      ) : (
+        <AppIcon name="common/file-text" size={13} className="shrink-0 text-text-faded" preserveColors={false} />
+      )}
       {editing ? (
         <RenameInput initial={note.title} onCommit={commitRename} onCancel={() => setEditing(false)} />
       ) : (
