@@ -25,6 +25,8 @@ export interface DeckSummaryDto {
   suspendedCards: number
   dueCounts: DueCountsDto
   retentionPercent: number
+  /** Reviews behind `retentionPercent`. Zero means it has no basis and must not be drawn as 0%. */
+  retentionSampleSize: number
   lastStudied: string | null
   /** The deck's chosen mark, or null for the neutral fallback. An opaque token, not a glyph. */
   icon: string | null

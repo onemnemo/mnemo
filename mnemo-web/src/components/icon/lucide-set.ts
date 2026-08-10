@@ -16,6 +16,7 @@ import {
   Bell,
   BellOff,
   BookOpen,
+  Braces,
   Check,
   CheckCheck,
   ChevronDown,
@@ -52,15 +53,18 @@ import {
   Plus,
   RefreshCw,
   RotateCcw,
+  Repeat2,
   Search,
   Settings,
   Settings2,
   Sparkles,
   SquareStack,
   Star,
+  Tag,
   Terminal,
   Trash2,
   TriangleAlert,
+  Type,
   X,
   type LucideIcon,
 } from "lucide-react"
@@ -112,12 +116,19 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   "external-link": ExternalLink,
   "layout-grid": LayoutGrid,
 
+  // The dimensions a card list filters on.
+  tag: Tag,
+  type: Type,
+  "repeat-2": Repeat2,
+
   // Content
   file: File,
   "file-text": FileText,
   folder: Folder,
   "folder-open": FolderOpen,
   "book-open": BookOpen,
+  // The cloze marker on a card row: a deletion is written {{c1::like this}}.
+  braces: Braces,
   layers: Layers,
   sparkles: Sparkles,
   moon: Moon,

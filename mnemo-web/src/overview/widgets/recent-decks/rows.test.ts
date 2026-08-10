@@ -31,6 +31,7 @@ function deck(id: string, overrides: Partial<DeckSummaryDto> = {}): DeckSummaryD
     suspendedCards: 0,
     dueCounts: { new: 0, learning: 0, due: 0, total: 0 },
     retentionPercent: 0,
+    retentionSampleSize: 0,
     lastStudied: null,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
