@@ -1,11 +1,16 @@
 import { completeShutdown } from "@/app/shutdown"
 import { useToastStore } from "@/stores/toast"
 
+import { notifySubscribers } from "./subscribers"
 import { EventType, type AppEvent, type ToastEventData } from "./types"
 
 // The single place that turns a server event into an app-state change. New event
 // types get a case here; the transport (sse-client) and the provider stay
 // untouched. Payloads are trusted - they come from the same-origin loopback host.
+//
+// Events whose meaning depends on what a page currently has open get no case at
+// all - they reach the page through subscribers.ts instead, which is the last
+// thing this runs.
 export function dispatchAppEvent(event: AppEvent): void {
   switch (event.type) {
     case EventType.Toast: {
@@ -27,4 +32,6 @@ export function dispatchAppEvent(event: AppEvent): void {
     default:
       break
   }
+
+  notifySubscribers(event)
 }
