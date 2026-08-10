@@ -16,6 +16,13 @@ public interface IFlashcardStudyService
     Task<FlashcardDueCounts> GetAggregateDueCountsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// What the scheduler will hand back over the next <paramref name="days"/> UTC days across every
+    /// deck, today first. Always returns one entry per day, zeroes included, so a caller can chart
+    /// the window without filling gaps itself.
+    /// </summary>
+    Task<IReadOnlyList<FlashcardForecastDay>> GetReviewForecastAsync(int days, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Builds a live session for the deck. Review draws the scheduled (cap-limited) queue; Cram draws
     /// its scope (Due or All) uncapped and persists nothing. Shuffle comes from the deck's preset.
     /// </summary>
