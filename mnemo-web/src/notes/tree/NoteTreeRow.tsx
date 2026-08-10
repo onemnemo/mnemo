@@ -25,12 +25,58 @@ import type { TreeDrag } from './useNoteTreeDrag';
 export const DEPTH_INDENT = 12;
 
 const ROW_BASE =
-  'group flex h-[28px] items-center gap-1 rounded-md pr-1 outline-none cursor-pointer ' +
+  'group relative flex h-[28px] items-center gap-1 rounded-md pr-1 outline-none cursor-pointer ' +
   'hover:bg-[var(--widget-background-hover)] focus-visible:bg-[var(--widget-background-hover)]';
 
 function useNotesT() {
   const t = useT();
   return (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
+}
+
+/**
+ * The vertical hairlines that trace a row back to its ancestors, one per level
+ * of nesting, so a deep row still reads as belonging to the folder above it.
+ */
+function GuideLines({ depth }: { depth: number }) {
+  if (depth === 0) return null;
+  return (
+    <>
+      {Array.from({ length: depth }, (_, i) => (
+        <span
+          key={i}
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 w-px bg-line-soft"
+          style={{ left: 10 + i * DEPTH_INDENT }}
+        />
+      ))}
+    </>
+  );
+}
+
+/**
+ * The trailing favourite star: hover-only, filled when the note is a favourite.
+ * A note's membership of the Favourites section is the standing signal; this is
+ * the one-click way to change it.
+ */
+function FavouriteStar({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
+  return (
+    <span
+      role="button"
+      aria-label={label}
+      title={label}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+      className={cn(
+        'grid size-5 shrink-0 place-items-center rounded transition-opacity hover:bg-surface-subtle',
+        on ? 'text-[var(--accent)] opacity-100' : 'text-text-faded opacity-0 group-hover:opacity-100',
+      )}
+    >
+      <AppIcon name={on ? 'common/star-filled' : 'common/star'} size={13} preserveColors={false} />
+    </span>
+  );
 }
 
 /** A folder row: chevron, medium-weight name, and its recursive note count. */
@@ -99,6 +145,7 @@ export function FolderRow({
       style={{ opacity: drag.sourceKey === handle.key ? 0.35 : undefined, paddingLeft: 4 + row.depth * DEPTH_INDENT }}
       className={ROW_BASE}
     >
+      <GuideLines depth={row.depth} />
       <AppIcon
         name={row.expanded ? 'common/chevron-down' : 'common/chevron-right'}
         size={10}
@@ -207,12 +254,8 @@ export function NoteRow({
         selected && 'bg-[var(--widget-background-hover)]',
       )}
     >
-      <AppIcon
-        name={favourite ? 'common/star' : 'common/file-text'}
-        size={13}
-        className={cn('shrink-0', favourite ? 'text-[var(--accent)]' : 'text-text-faded')}
-        preserveColors={false}
-      />
+      <GuideLines depth={row.depth} />
+      <AppIcon name="common/file-text" size={13} className="shrink-0 text-text-faded" preserveColors={false} />
       {editing ? (
         <RenameInput initial={note.title} onCommit={commitRename} onCancel={() => setEditing(false)} />
       ) : (
@@ -226,6 +269,13 @@ export function NoteRow({
           {note.title.trim() || nt('Untitled')}
         </span>
       )}
+      {!editing ? (
+        <FavouriteStar
+          on={note.isFavorite}
+          onToggle={toggleFavourite}
+          label={note.isFavorite ? nt('Unfavourite') : nt('Favourite')}
+        />
+      ) : null}
       <RowMenu label={nt('NoteActions')}>
         <MenuItem icon="flyout/rename" onSelect={() => setEditing(true)}>
           {nt('Rename')}

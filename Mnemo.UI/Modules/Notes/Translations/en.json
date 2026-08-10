@@ -78,6 +78,8 @@
     "SearchNoResults": "No matching notes",
     "Favourites": "Favourites",
     "MyNotes": "My notes",
+    "ShowLess": "Show less",
+    "ShowMoreCount": "Show {0} more",
     "TreeEmpty": "No notes yet",
     "FolderActions": "Folder actions",
     "NoteActions": "Note actions",
