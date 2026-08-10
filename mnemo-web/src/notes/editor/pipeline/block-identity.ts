@@ -35,7 +35,7 @@
  * positions of later ones and the groups apply front to back untouched.
  */
 
-import { Plugin, PluginKey } from 'prosemirror-state';
+import { Plugin, PluginKey, Selection } from 'prosemirror-state';
 import { Fragment, type Node as PMNode } from 'prosemirror-model';
 import type { BlockRegistry } from '../registry/build';
 import { changedRanges, type DocRange } from './invariants';
@@ -188,11 +188,20 @@ export function blockIdentityPlugin(
         }
       }
       flush();
+      if (!tr.docChanged) return null;
+
+      // Only attrs changed, so every position still means what it meant - but a
+      // `replaceWith` maps a selection inside a rewritten block to the end of
+      // that block, which is the start of the next one. Put the selection back
+      // verbatim, or a command that inserts a block and drops the caret into it
+      // lands the caret one block further on.
+      const selection = newState.selection;
+      tr.setSelection(Selection.fromJSON(tr.doc, selection.toJSON()));
 
       // No self-tag guard: this cannot retrigger itself, because the transaction
       // it appends leaves every block it touched with both identifiers set, and
       // that is the only condition it reacts to.
-      return tr.docChanged ? tr : null;
+      return tr;
     },
   });
 }

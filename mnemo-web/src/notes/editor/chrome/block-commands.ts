@@ -20,7 +20,7 @@
  * that did not exist, and new Notes strings in this port are localized later.
  */
 
-import type { EditorState, Transaction } from 'prosemirror-state';
+import { TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 
 import { convertBlockType } from '../commands/structure';
@@ -183,6 +183,31 @@ function withFreshIdentity(node: PMNode): PMNode {
 export function duplicateBlock(state: EditorState, loc: BlockLocation): Transaction {
   const { pos, node } = loc;
   return state.tr.insert(pos + node.nodeSize, withFreshIdentity(node));
+}
+
+/**
+ * Insert an empty text block after this one and put the caret in it.
+ *
+ * The new block takes the block's own next-sibling slot, so a block inside a
+ * column cell gets its line inside that cell rather than under the whole row.
+ * Where that slot cannot hold a paragraph - a two-column's children are spelled
+ * `line columnGroup columnGroup` and hold nothing else - the insert climbs to
+ * the nearest ancestor whose slot can, instead of building a document the
+ * schema would reject.
+ */
+export function insertBlockBelow(state: EditorState, loc: BlockLocation): Transaction | null {
+  const paragraph = state.schema.nodes.paragraph;
+  const filled = paragraph?.createAndFill();
+  if (!filled) return null;
+  let at = loc.pos + loc.node.nodeSize;
+  let $at = state.doc.resolve(at);
+  while ($at.depth > 0 && !$at.parent.canReplaceWith($at.index(), $at.index(), paragraph)) {
+    at = $at.after($at.depth);
+    $at = state.doc.resolve(at);
+  }
+  const tr = state.tr.insert(at, filled);
+  tr.setSelection(TextSelection.near(tr.doc.resolve(at + 1)));
+  return tr;
 }
 
 /**

@@ -11,6 +11,7 @@ import {
   canTurnInto,
   deleteBlock,
   duplicateBlock,
+  insertBlockBelow,
   locateBlock,
   moveBlockDown,
   moveBlockUp,
@@ -269,5 +270,38 @@ describe('nested blocks inside a column', () => {
     const relocated = locateBlock(next, registry, -1, 'sA');
     expect(relocated?.node.type.name).toBe('heading');
     expect(relocated?.node.attrs.level).toBe(2);
+  });
+
+  it('inserts below a cell child inside that same cell', () => {
+    const current = state();
+    const next = current.apply(insertBlockBelow(current, locate(current, 'sA'))!);
+    expect(cellTexts(next)).toEqual(['a', '', 'b', 'c']);
+    // Nothing landed at the top level.
+    expect(next.doc.childCount).toBe(2);
+  });
+
+  it('inserts below the two-column row at the top level, since its own slot takes no paragraph', () => {
+    const current = state();
+    const next = current.apply(insertBlockBelow(current, locate(current, 'tc'))!);
+    expect(next.doc.childCount).toBe(3);
+    expect(next.doc.child(2).type.name).toBe('paragraph');
+    expect(cellTexts(next)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('insertBlockBelow', () => {
+  it('inserts an empty text block after the block and puts the caret in it', () => {
+    const { state, registry } = three();
+    const next = state.apply(insertBlockBelow(state, topLocation(state, registry, 0))!);
+    expect(order(next)).toEqual(['one', '', 'two', 'three']);
+    expect(types(next)[1]).toBe('paragraph');
+    // The caret is inside the new block, not left behind in the old one.
+    const inserted = next.doc.child(1);
+    let insertedPos = 0;
+    next.doc.forEach((_node, offset, index) => {
+      if (index === 1) insertedPos = offset;
+    });
+    expect(next.selection.from).toBeGreaterThan(insertedPos);
+    expect(next.selection.to).toBeLessThan(insertedPos + inserted.nodeSize);
   });
 });
