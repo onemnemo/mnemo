@@ -247,6 +247,8 @@
     "StudyCramSectionHeader": "CRAM",
     "StudyCramDueCards": "Due cards",
     "StudyCramAllCards": "All cards",
-    "StudyMenuHintTest": "T"
+    "StudyMenuHintTest": "T",
+    "ChangeDeckIcon": "Change deck icon",
+    "AddDeckIcon": "Add an icon"
   }
 }

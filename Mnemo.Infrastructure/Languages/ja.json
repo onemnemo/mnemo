@@ -69,6 +69,22 @@
     "TransferExportFailed": "エクスポートに失敗しました。",
     "Copy": "コピー"
   },
+  "EmojiPicker": {
+    "SearchPlaceholder": "アイコンを検索",
+    "CategoryRecent": "最近使用",
+    "CategoryStudy": "学習",
+    "CategoryScience": "科学",
+    "CategoryMedicine": "医学",
+    "CategoryLanguages": "語学",
+    "CategoryEngineering": "工学",
+    "CategoryPeople": "人物",
+    "CategoryNature": "自然",
+    "CategoryObjects": "物",
+    "CategorySymbols": "記号",
+    "NoIcon": "アイコンなし",
+    "Results": "検索結果",
+    "NoMatchFormat": "「{0}」に一致するアイコンはありません。"
+  },
   "Settings": {
     "NavAccount": "アカウント",
     "NavApp": "アプリ",

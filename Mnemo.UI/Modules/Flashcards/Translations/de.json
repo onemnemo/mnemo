@@ -245,6 +245,8 @@
     "StudyCramSectionHeader": "PAUKEN",
     "StudyCramDueCards": "Fällige Karten",
     "StudyCramAllCards": "Alle Karten",
-    "StudyMenuHintTest": "T"
+    "StudyMenuHintTest": "T",
+    "ChangeDeckIcon": "Stapelsymbol ändern",
+    "AddDeckIcon": "Symbol hinzufügen"
   }
 }
