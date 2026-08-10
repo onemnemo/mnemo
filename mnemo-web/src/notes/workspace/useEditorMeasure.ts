@@ -14,21 +14,35 @@ import { useSettingValue } from '@/settings/store';
 /** Horizontal gutter each side, matching the `px-14` on the column. */
 const GUTTER = 56;
 
-const MEASURE = { superCompact: 560, compact: 640, wide: 720, superWide: 960 } as const;
+/** The setting key, and its options widest-last, as the settings slider orders them. */
+export const EDITOR_WIDTH_KEY = 'Editor.Width';
 
-export function useEditorMeasure(): { measure: number; maxWidth: number } {
+const WIDTHS = [
+  { labelKey: 'SuperCompact', measure: 560 },
+  { labelKey: 'Compact', measure: 640 },
+  { labelKey: 'Wide', measure: 720 },
+  { labelKey: 'SuperWide', measure: 960 },
+] as const;
+
+export interface EditorWidthOption {
+  /** The stored value, which is the translated label itself. */
+  readonly value: string;
+  readonly measure: number;
+}
+
+/** The width choices in the current language, for a picker to offer. */
+export function useEditorWidthOptions(): EditorWidthOption[] {
   const t = useT();
-  const st = (key: string) => t('Settings', key);
-  const value = useSettingValue('Editor.Width', st('Wide'));
+  return WIDTHS.map((w) => ({ value: t('Settings', w.labelKey), measure: w.measure }));
+}
 
-  const measure =
-    value === st('SuperCompact')
-      ? MEASURE.superCompact
-      : value === st('Compact')
-        ? MEASURE.compact
-        : value === st('SuperWide')
-          ? MEASURE.superWide
-          : MEASURE.wide;
+export function useEditorMeasure(): { measure: number; maxWidth: number; value: string } {
+  const t = useT();
+  const options = useEditorWidthOptions();
+  const fallback = t('Settings', 'Wide');
+  const value = useSettingValue(EDITOR_WIDTH_KEY, fallback);
 
-  return { measure, maxWidth: measure + GUTTER * 2 };
+  const measure = (options.find((option) => option.value === value) ?? options[2]).measure;
+
+  return { measure, maxWidth: measure + GUTTER * 2, value };
 }

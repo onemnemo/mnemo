@@ -92,6 +92,40 @@ export function MenuSubMenu({
   )
 }
 
+/**
+ * A group of mutually exclusive choices, e.g. a width. The check sits in the same
+ * icon column a normal item's glyph uses, so a radio group and a plain list of
+ * items keep one text baseline instead of stepping in and out.
+ */
+export function MenuRadioGroup({
+  value,
+  onValueChange,
+  children,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+  children: ReactNode
+}) {
+  return (
+    <DropdownMenu.RadioGroup value={value} onValueChange={onValueChange}>
+      {children}
+    </DropdownMenu.RadioGroup>
+  )
+}
+
+export function MenuRadioItem({ value, children }: { value: string; children: ReactNode }) {
+  return (
+    <DropdownMenu.RadioItem value={value} className={itemClass()}>
+      <span className="grid size-[14px] shrink-0 place-items-center">
+        <DropdownMenu.ItemIndicator>
+          <AppIcon name="common/check" size={13} className="text-text-secondary" />
+        </DropdownMenu.ItemIndicator>
+      </span>
+      <span className="flex-1 truncate">{children}</span>
+    </DropdownMenu.RadioItem>
+  )
+}
+
 export function MenuItemBody({
   children,
   icon,

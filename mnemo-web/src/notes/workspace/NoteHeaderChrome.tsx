@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 
 import { EmojiPicker } from '@/components/emoji/EmojiPicker';
 import { EmojiPickerButton } from '@/components/emoji/EmojiPickerButton';
+import { AppIcon } from '@/components/icon/AppIcon';
 import { useT } from '@/i18n/useT';
 
 import { NOTE_COVERS, coverCss } from './covers';
@@ -64,9 +65,15 @@ export function NoteIcon({ value, onChange }: { value: string | null; onChange: 
   );
 }
 
+const CHROME_BUTTON =
+  'flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:bg-frame-hover hover:text-ink';
+
 /**
- * The hover affordances for a note that has no cover or no icon yet. They share
- * the pickers the set state uses, so adding and changing are the one control.
+ * The header affordances, between the page icon and the title: set or change the
+ * icon, and add a cover while there is none. They share the pickers the set state
+ * uses, so adding and changing are the one control, and they stay reachable here
+ * rather than only from a menu. Revealed on pane hover, so a note being read
+ * carries no permanent chrome.
  */
 export function AddHeaderChrome({
   hasCover,
@@ -81,28 +88,19 @@ export function AddHeaderChrome({
 }) {
   const t = useT();
   const nt = (key: string) => t('Notes', key);
-  if (hasCover && hasIcon) return null;
 
   return (
     <div className="mt-3 flex h-7 items-center gap-1 opacity-0 transition-opacity duration-150 hover:opacity-100 has-[button:focus-visible]:opacity-100 group-hover/pane:opacity-100">
-      {!hasIcon ? (
-        <IconPicker value={null} onChange={onIcon}>
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] text-text-tertiary hover:bg-frame-hover hover:text-text-primary"
-          >
-            <span aria-hidden className="text-[15px] leading-none">🙂</span>
-            {nt('AddIcon')}
-          </button>
-        </IconPicker>
-      ) : null}
+      <IconPicker value={null} onChange={onIcon}>
+        <button type="button" className={CHROME_BUTTON}>
+          <AppIcon name="notes/emoji" size={14} />
+          {hasIcon ? nt('ChangeIcon') : nt('AddIcon')}
+        </button>
+      </IconPicker>
       {!hasCover ? (
         <CoverPicker token={null} onChange={onCover}>
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] text-text-tertiary hover:bg-frame-hover hover:text-text-primary"
-          >
-            <span aria-hidden className="text-[13px] leading-none">🖼️</span>
+          <button type="button" className={CHROME_BUTTON}>
+            <AppIcon name="common/image" size={14} />
             {nt('AddCover')}
           </button>
         </CoverPicker>
@@ -111,19 +109,32 @@ export function AddHeaderChrome({
   );
 }
 
-/** A popover of cover swatches, plus a clear option once one is set. */
-function CoverPicker({
+/**
+ * A popover of cover swatches, plus a clear option once one is set. Open state is
+ * optionally controlled, so the note's actions menu can raise the same picker the
+ * inline affordance uses rather than growing a second one of its own.
+ */
+export function CoverPicker({
   token,
   onChange,
   children,
+  open: openProp,
+  onOpenChange,
 }: {
   token: string | null;
   onChange: (next: string | null) => void;
   children: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const t = useT();
   const nt = (key: string) => t('Notes', key);
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   const pick = (next: string | null) => {
     onChange(next);
     setOpen(false);
@@ -170,17 +181,26 @@ function CoverPicker({
 }
 
 /** A popover wrapping the shared emoji picker around an arbitrary trigger. */
-function IconPicker({
+export function IconPicker({
   value,
   onChange,
   children,
+  open: openProp,
+  onOpenChange,
 }: {
   value: string | null;
   onChange: (next: string | null) => void;
   children: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   const commit = (next: string | null) => {
     onChange(next);
     setOpen(false);

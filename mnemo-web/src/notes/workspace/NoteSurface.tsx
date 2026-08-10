@@ -102,7 +102,7 @@ export function NoteSurface({
         <SaveStateIndicator state={saveState} onReload={onReload} />
         <PaneActions note={note} />
       </div>
-      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="scroll-thin relative min-h-0 flex-1 overflow-y-auto">
         <CoverBanner token={note.cover} onChange={(cover) => patch({ cover })} />
         <div className={cn('mx-auto w-full px-14 pb-40', hasCover ? 'pt-0' : 'pt-10')} style={{ maxWidth }}>
           {note.emoji ? (
