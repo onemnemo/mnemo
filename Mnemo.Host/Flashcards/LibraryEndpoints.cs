@@ -178,6 +178,18 @@ public static class LibraryEndpoints
             return DueCountsDto.FromModel(counts);
         });
 
+        // Backs the overview's review-forecast widget. Library-wide rather than per deck: the board
+        // is asking what the next fortnight looks like, not what one deck's next fortnight looks
+        // like, and a fan-out would issue one request per deck to answer a single chart.
+        endpoints.MapGet("/api/study/forecast", async (
+            int? days,
+            IFlashcardStudyService study,
+            CancellationToken cancellationToken) =>
+        {
+            var forecast = await study.GetReviewForecastAsync(days ?? 7, cancellationToken).ConfigureAwait(false);
+            return forecast.Select(ForecastDayDto.FromModel).ToList();
+        });
+
         endpoints.MapGet("/api/decks/{id}/retention-trend", async (
             string id,
             int? days,
