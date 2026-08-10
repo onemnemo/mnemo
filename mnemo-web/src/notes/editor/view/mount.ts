@@ -155,17 +155,15 @@ export function mountEditor(options: MountEditorOptions): MountedEditor {
     state: initialState,
     nodeViews,
     editable: () => editable,
-    attributes: {
-      // ProseMirror sets no spellcheck attribute, so a contenteditable root would
-      // otherwise inherit the engine's default and a *read-only* note would be
-      // underlined for "mistakes" the reader cannot act on. Stating it per mode
-      // keeps the native checker where it belongs: an editing affordance on the
-      // editable view, and nothing at all on the read-only one. On the editable
-      // view it stays view-only in the sense that matters, a spellchecker
-      // replacement is a DOM change PM reads back as a transaction, so it goes
-      // through the same invariant pipeline as typing rather than around it.
-      spellcheck: String(editable),
-    },
+    // A read-only note is pinned to no spellcheck: it would be underlined for
+    // "mistakes" the reader cannot act on. An editable one states nothing and
+    // inherits `spellcheck` and `lang` from the document container, which is
+    // what carries the user's settings and can change without a remount. On the
+    // editable view the checker stays view-only in the sense that matters: a
+    // spellchecker replacement is a DOM change PM reads back as a transaction,
+    // so it goes through the same invariant pipeline as typing rather than
+    // around it.
+    attributes: editable ? {} : { spellcheck: 'false' },
   });
   const viewHandle = createViewHandle(view);
 
