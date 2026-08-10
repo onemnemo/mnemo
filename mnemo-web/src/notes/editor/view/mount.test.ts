@@ -119,10 +119,12 @@ describe('mountEditor lifecycle', () => {
 });
 
 describe('native spellcheck', () => {
-  it('leaves the checker on for an editable note', () => {
+  it('leaves an editable note to inherit the container settings', () => {
+    // Stating it here would override the `spellcheck` and `lang` the document
+    // container carries from the user's settings, which change without a remount.
     const el = container();
     mountEditor({ mount: el, state: stateOf([textNote('teh')]), registry, editable: true });
-    expect(el.querySelector('.ProseMirror')!.getAttribute('spellcheck')).toBe('true');
+    expect(el.querySelector('.ProseMirror')!.getAttribute('spellcheck')).toBeNull();
   });
 
   it('turns the checker off for a read-only note', () => {
