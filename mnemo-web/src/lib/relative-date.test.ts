@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { TranslateFn } from "@/i18n/types"
 
-import { formatSmart } from "./relative-date"
+import { formatRelative, formatSmart } from "./relative-date"
 
 const NOW = new Date("2026-08-08T12:00:00Z").getTime()
 const DAY = 24 * 60 * 60 * 1000
@@ -11,6 +11,21 @@ const DAY = 24 * 60 * 60 * 1000
 // asserting the English copy.
 const t: TranslateFn = (ns, key, params) =>
   params === undefined ? `${ns}/${key}` : `${ns}/${key}(${Object.values(params).join(",")})`
+
+describe("formatRelative", () => {
+  it("takes the singular key at a count of one", () => {
+    expect(formatRelative(new Date(NOW - DAY), NOW, t)).toBe("Common/DayAgo(1)")
+    expect(formatRelative(new Date(NOW - 8 * DAY), NOW, t)).toBe("Common/WeekAgo(1)")
+    expect(formatRelative(new Date(NOW - 40 * DAY), NOW, t)).toBe("Common/MonthAgo(1)")
+    expect(formatRelative(new Date(NOW - 400 * DAY), NOW, t)).toBe("Common/YearAgo(1)")
+  })
+
+  it("takes the plural key at any other count", () => {
+    expect(formatRelative(new Date(NOW - 2 * DAY), NOW, t)).toBe("Common/DaysAgo(2)")
+    expect(formatRelative(new Date(NOW - 21 * DAY), NOW, t)).toBe("Common/WeeksAgo(3)")
+    expect(formatRelative(new Date(NOW - 800 * DAY), NOW, t)).toBe("Common/YearsAgo(2)")
+  })
+})
 
 describe("formatSmart", () => {
   it("words anything under a week relatively", () => {

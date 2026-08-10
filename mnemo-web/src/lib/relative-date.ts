@@ -5,9 +5,11 @@ const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
 /**
- * Relative wording for a timestamp ("3 days ago"), mirroring the desktop's
- * DateDisplayService: the same thresholds and the same Common-namespace keys, so
- * both apps read identically in every language.
+ * Relative wording for a timestamp ("3 days ago"), following the desktop's
+ * DateDisplayService thresholds so both apps break at the same boundaries.
+ *
+ * It diverges on one point the desktop gets wrong: a count of one takes a singular
+ * key, so a card studied yesterday reads "1 day ago" rather than "1 days ago".
  *
  * A future timestamp clamps to "just now" rather than counting backwards - clock
  * skew between writes should not produce "in 2 minutes" on a last-studied label.
@@ -17,14 +19,19 @@ export function formatRelative(timestamp: string | Date, now: number, t: Transla
   const diff = Math.max(0, now - value)
 
   if (diff < MINUTE) return t("Common", "JustNow")
-  if (diff < HOUR) return t("Common", "MinutesAgo", { 0: Math.floor(diff / MINUTE) })
-  if (diff < DAY) return t("Common", "HoursAgo", { 0: Math.floor(diff / HOUR) })
+  if (diff < HOUR) return countAgo(t, Math.floor(diff / MINUTE), "MinuteAgo", "MinutesAgo")
+  if (diff < DAY) return countAgo(t, Math.floor(diff / HOUR), "HourAgo", "HoursAgo")
 
   const days = Math.floor(diff / DAY)
-  if (days < 7) return t("Common", "DaysAgo", { 0: days })
-  if (days < 30) return t("Common", "WeeksAgo", { 0: Math.floor(days / 7) })
-  if (days < 365) return t("Common", "MonthsAgo", { 0: Math.floor(days / 30) })
-  return t("Common", "YearsAgo", { 0: Math.floor(days / 365) })
+  if (days < 7) return countAgo(t, days, "DayAgo", "DaysAgo")
+  if (days < 30) return countAgo(t, Math.floor(days / 7), "WeekAgo", "WeeksAgo")
+  if (days < 365) return countAgo(t, Math.floor(days / 30), "MonthAgo", "MonthsAgo")
+  return countAgo(t, Math.floor(days / 365), "YearAgo", "YearsAgo")
+}
+
+/** One takes the singular key, everything else the plural; both carry the count. */
+function countAgo(t: TranslateFn, count: number, singular: string, plural: string): string {
+  return t("Common", count === 1 ? singular : plural, { 0: count })
 }
 
 const WEEK = 7 * DAY
