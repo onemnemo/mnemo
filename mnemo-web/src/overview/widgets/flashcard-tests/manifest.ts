@@ -5,8 +5,8 @@ export const flashcardTestsManifest: WidgetManifest = {
   widgetId: "mnemo.flashcard-tests",
   ns: "FlashcardTests",
   author: "Mnemo",
-  category: "statistics",
-  icon: "widgets/flashcard-tests",
+  category: "cards",
+  icon: "check-check",
   supportedSizes: [
     { columns: 1, rows: 1 },
     { columns: 2, rows: 1 },

@@ -172,6 +172,7 @@ export function OverviewRoute() {
             onRemove={removeWidget}
             onResize={resizeWidget}
             onConfigure={setConfiguringId}
+            onAdd={openLibrary}
           />
         )}
 

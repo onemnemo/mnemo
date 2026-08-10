@@ -843,12 +843,29 @@
     "OnGridCountFormat": "グリッドに配置済み ×{0}",
     "BylineFormat": "作成者 @{0}",
     "StoreTeaser": "コミュニティのウィジェット・テーマ・モジュールは拡張ストアで提供予定です。",
-    "ComingSoon": "近日公開"
+    "ComingSoon": "近日公開",
+    "Categories": "カテゴリ",
+    "CategoryAll": "すべて",
+    "CategoryStudy": "学習",
+    "CategoryCards": "フラッシュカード",
+    "CategoryNotes": "ノート",
+    "CategorySoma": "Soma",
+    "CategoryCommunity": "コミュニティ",
+    "Done": "完了",
+    "OnBoard": "ボード上",
+    "OnBoardCountFormat": "ボード上に {0}",
+    "Added": "追加済み",
+    "AddAnother": "もう一つ追加",
+    "OnlyOnce": "このウィジェットは1つしか置けません",
+    "NoResultsHint": "別の言葉を試すか、カテゴリから探してみてください。",
+    "CommunityEmpty": "ここにはまだ何もありません",
+    "CommunityEmptyHint": "拡張ストアが開くと、ほかの人が作ったウィジェットがここに並びます。"
   },
   "WidgetConfig": {
     "Subtitle": "設定はこのウィジェットタイルにのみ適用されます。",
     "Save": "保存",
-    "Cancel": "キャンセル"
+    "Cancel": "キャンセル",
+    "ChoosePlaceholder": "選択"
   },
   "Permissions": {
     "AdditionalPermissionRequired": "追加の許可が必要です。",
@@ -886,5 +903,92 @@
     "global.assistant.description": "どこからでもAIチャットに移動します。",
     "global.quick-actions": "クイックアクション",
     "global.quick-actions.description": "クイックアクションとキーボードショートカットの一覧を開きます。"
+  },
+  "WidgetToday": {
+    "Title": "今日",
+    "Description": "いま待っている学習と、それを始めるボタン。",
+    "CaughtUp": "すべて完了しています。次のカードは明日戻ってきます。",
+    "Study": "学習する",
+    "AboutMinutes": "約 {0} 分",
+    "CountNew": "新規 {0}",
+    "CountLearning": "学習中 {0}",
+    "CountReview": "復習 {0}",
+    "WhereTheWorkIs": "どのデッキに残っているか"
+  },
+  "WidgetRecent": {
+    "Title": "続きから",
+    "Description": "最近開いたノートとデッキをまとめて、新しい順に。",
+    "EmptyState": "まだ何もありません。ノートかデッキを開くとここに表示されます。",
+    "Untitled": "無題",
+    "SettingCount": "表示件数"
+  },
+  "WidgetStreak": {
+    "Title": "連続日数",
+    "Description": "連続で学習した日数と、今週の様子。",
+    "Days": "日",
+    "BestFormat": "最高 {0}",
+    "ReviewsOnDay": "{1} は {0} 回の復習"
+  },
+  "WidgetActivity": {
+    "Title": "学習の記録",
+    "Description": "この一年で学習したすべての日。",
+    "ReviewsTotal": "{0} 回の復習",
+    "ReviewsOnDay": "{1} は {0} 回の復習",
+    "Less": "少ない",
+    "More": "多い"
+  },
+  "WidgetForecast": {
+    "Title": "復習の見通し",
+    "Description": "これから数日でスケジューラが出してくる量。",
+    "SettingDays": "先の日数",
+    "TotalInWindow": "{1}日で {0}"
+  },
+  "WidgetRetention": {
+    "Title": "定着率",
+    "Description": "復習したもののうち、実際に正解できている割合。",
+    "EmptyState": "まだ復習がないため、測れるものがありません。",
+    "TrendFormat": "{0} ポイント · {1} 日"
+  },
+  "WidgetGoals": {
+    "Title": "今日の目標",
+    "Description": "カード、セッション、学習時間についての今日の目標。",
+    "CardsReviewed": "復習したカード",
+    "CardsReviewedShort": "カード",
+    "SessionsCompleted": "完了したセッション",
+    "SessionsCompletedShort": "セッション",
+    "MinutesStudied": "学習した時間（分）",
+    "MinutesStudiedShort": "分",
+    "SettingGoalType": "期間",
+    "SettingGoalTypeDaily": "1日",
+    "SettingGoalTypeWeekly": "1週間",
+    "SettingMetric": "先頭に表示",
+    "SettingMetricCards": "カード",
+    "SettingMetricMinutes": "分"
+  },
+  "WidgetLeeches": {
+    "Title": "何度も落とすカード",
+    "Description": "繰り返し間違えているカードを、回数の多い順に。",
+    "EmptyState": "つまずいているカードはありません。",
+    "LapseCountFormat": "{0} 回"
+  },
+  "WidgetDeck": {
+    "Title": "注目のデッキ",
+    "Description": "気になるデッキひとつを、待機中のカードとともにボードへ。",
+    "NoDecks": "デッキがまだありません。",
+    "CardsWaiting": "枚が待機中",
+    "Due": "枚が期限",
+    "CountNew": "新規 {0}",
+    "CountLearning": "学習中 {0}",
+    "CountReview": "復習 {0}",
+    "CaughtUpFormat": "完了 · 全 {0} 枚",
+    "SettingDeck": "デッキ"
+  },
+  "WidgetSoma": {
+    "Title": "Soma",
+    "Description": "作業を中断せずにアシスタントへ入る道。",
+    "NarrowPitch": "画面上のことなら何でも聞けます。",
+    "AskPlaceholder": "Soma に何でも聞く…",
+    "SuggestionQuiz": "今日のカードで出題して",
+    "SuggestionStruggle": "どこでつまずいた？"
   }
 }

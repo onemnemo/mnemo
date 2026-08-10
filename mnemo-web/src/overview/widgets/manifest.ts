@@ -14,7 +14,14 @@
 import type { WidgetSizeDto } from "@/api/types"
 import type { IconName } from "@/components/icon/icon-registry"
 
-export type WidgetCategory = "statistics" | "activity" | "insights" | "quickActions"
+/**
+ * How the library groups widgets.
+ *
+ * Named after what a widget is *about* rather than what it is made of. "Statistics" and
+ * "Insights" were a distinction only the person who wrote them could apply, and a reader
+ * looking for their streak has no way to guess which one it lives under.
+ */
+export type WidgetCategory = "study" | "cards" | "notes" | "soma" | "community"
 
 export type WidgetSettingType = "toggle" | "range" | "choice"
 
@@ -22,6 +29,16 @@ export interface WidgetSettingOption {
   value: string
   labelKey: string
 }
+
+/**
+ * Where a choice's options come from when the manifest cannot name them.
+ *
+ * Only the deck picker needs this: its options are the user's own decks, so they are not
+ * known when the manifest is written and they change while the app is running. The config
+ * dialog resolves the source; every other layer treats the stored value as an opaque string,
+ * which is what keeps a setting pointed at a deleted deck from being a special case here.
+ */
+export type WidgetOptionSource = "decks"
 
 export interface WidgetSettingSchema {
   key: string
@@ -32,8 +49,12 @@ export interface WidgetSettingSchema {
   minimum?: number
   maximum?: number
   step?: number
+  /** Range settings only: appended to the value readout, e.g. a "d" for days. */
+  suffix?: string
   /** Choice settings only. */
   options?: WidgetSettingOption[]
+  /** Choice settings only, and mutually exclusive with {@link options}. */
+  optionSource?: WidgetOptionSource
 }
 
 /**
@@ -57,6 +78,14 @@ export interface WidgetManifest {
   supportedSizes: WidgetSizeDto[]
   defaultSize: WidgetSizeDto
   settings?: WidgetSettingSchema[]
+  /**
+   * Whether the board may hold more than one.
+   *
+   * False for all but the deck spotlight, and the test is not "would a second one fit" but
+   * "would a second one say something different": two spotlights pointed at two decks do, two
+   * streak counters do not.
+   */
+  allowMultiple?: boolean
 }
 
 /**

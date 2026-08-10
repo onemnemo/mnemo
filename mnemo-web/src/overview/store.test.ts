@@ -21,32 +21,48 @@ function manifestOf(widgetId: string, supportedSizes: WidgetManifest["supportedS
     widgetId,
     ns: "Overview",
     author: "Mnemo",
-    category: "statistics",
-    icon: `widgets/${widgetId}`,
+    category: "study",
+    icon: "square-stack",
     supportedSizes,
     defaultSize: supportedSizes[0],
   }
 }
 
 const MANIFESTS: Record<string, WidgetManifest> = {
-  "mnemo.flashcard-stats": manifestOf("mnemo.flashcard-stats", [
+  // The starter template's six, so a seed in these tests produces the board the app would seed.
+  "mnemo.today": manifestOf("mnemo.today", [
     { columns: 2, rows: 1 },
     { columns: 4, rows: 1 },
   ]),
-  "mnemo.recent-decks": manifestOf("mnemo.recent-decks", [
+  "mnemo.streak": manifestOf("mnemo.streak", [
+    { columns: 1, rows: 1 },
+    { columns: 2, rows: 1 },
+  ]),
+  "mnemo.flashcard-memory": manifestOf("mnemo.flashcard-memory", [
+    { columns: 1, rows: 1 },
+    { columns: 2, rows: 1 },
+  ]),
+  "mnemo.recent": manifestOf("mnemo.recent", [
     { columns: 2, rows: 1 },
     { columns: 2, rows: 2 },
   ]),
-  "mnemo.recent-notes": manifestOf("mnemo.recent-notes", [
-    { columns: 2, rows: 2 },
-    { columns: 4, rows: 2 },
+  "mnemo.forecast": manifestOf("mnemo.forecast", [
+    { columns: 2, rows: 1 },
+    { columns: 4, rows: 1 },
   ]),
-  "mnemo.study-goals": {
-    ...manifestOf("mnemo.study-goals", [
-      { columns: 1, rows: 2 },
+  "mnemo.activity": manifestOf("mnemo.activity", [
+    { columns: 2, rows: 1 },
+    { columns: 2, rows: 2 },
+  ]),
+
+  // Two more to add from the library, one of which carries a settings schema so the seeded bag
+  // and the config merge have something to act on.
+  "mnemo.recent-notes": {
+    ...manifestOf("mnemo.recent-notes", [
       { columns: 2, rows: 2 },
+      { columns: 4, rows: 2 },
     ]),
-    settings: [{ key: "dailyGoal", labelKey: "DailyGoal", type: "range", defaultValue: "20" }],
+    settings: [{ key: "limit", labelKey: "SettingLimit", type: "range", defaultValue: "5" }],
   },
   "mnemo.usage-summary": manifestOf("mnemo.usage-summary", [
     { columns: 1, rows: 2 },
@@ -65,8 +81,8 @@ const STORED: OverviewLayoutDto = {
   profileId: "default",
   widgets: [
     {
-      instanceId: "decks",
-      widgetId: "mnemo.recent-decks",
+      instanceId: "recent",
+      widgetId: "mnemo.recent",
       size: { columns: 3, rows: 1 },
       column: 2,
       row: 0,
@@ -74,8 +90,8 @@ const STORED: OverviewLayoutDto = {
       settings: {},
     },
     {
-      instanceId: "stats",
-      widgetId: "mnemo.flashcard-stats",
+      instanceId: "today",
+      widgetId: "mnemo.today",
       size: { columns: 2, rows: 1 },
       column: 0,
       row: 0,
@@ -125,8 +141,8 @@ describe("transition table", () => {
       profileId: "default",
       widgets: [
         {
-          instanceId: "stats",
-          widgetId: "mnemo.flashcard-stats",
+          instanceId: "today",
+          widgetId: "mnemo.today",
           size: { columns: 2, rows: 1 },
           column: 0,
           row: 0,
@@ -135,8 +151,8 @@ describe("transition table", () => {
         },
         {
           // Snapped client-side from the stored 3x1: the Host has no manifest to do it with.
-          instanceId: "decks",
-          widgetId: "mnemo.recent-decks",
+          instanceId: "recent",
+          widgetId: "mnemo.recent",
           size: { columns: 2, rows: 1 },
           column: 2,
           row: 0,
@@ -178,11 +194,12 @@ describe("transition table", () => {
 
     expect(store().boardState).toBe("ready")
     expect(dto().widgets.map((w) => [w.widgetId, w.column, w.row, w.order])).toEqual([
-      ["mnemo.flashcard-stats", 0, 0, 0],
-      ["mnemo.recent-decks", 2, 0, 1],
-      ["mnemo.recent-notes", 0, 1, 2],
-      ["mnemo.study-goals", 2, 1, 3],
-      ["mnemo.usage-summary", 3, 1, 4],
+      ["mnemo.today", 0, 0, 0],
+      ["mnemo.streak", 0, 1, 1],
+      ["mnemo.flashcard-memory", 1, 1, 2],
+      ["mnemo.recent", 2, 1, 3],
+      ["mnemo.forecast", 0, 2, 4],
+      ["mnemo.activity", 2, 2, 5],
     ])
     // The one load path that writes: the starter board must exist on disk after the first visit.
     expect(saves).toHaveLength(1)
@@ -270,12 +287,12 @@ describe("transition table", () => {
     // From inside an edit session it must not re-snapshot, or a second Add would make the draft
     // so far uncancellable.
     const snapshot = store().snapshot
-    store().removeWidget("decks")
+    store().removeWidget("recent")
     store().closeLibrary()
     store().openLibrary()
 
     expect(store().snapshot).toEqual(snapshot)
-    expect(store().snapshot?.widgets.map((w) => w.instanceId)).toEqual(["stats", "decks"])
+    expect(store().snapshot?.widgets.map((w) => w.instanceId)).toEqual(["today", "recent"])
     expect(saves).toEqual([])
   })
 
@@ -284,11 +301,11 @@ describe("transition table", () => {
     loadStored()
     store().enterEdit()
 
-    store().resizeWidget("stats", { columns: 4, rows: 1 })
+    store().resizeWidget("today", { columns: 4, rows: 1 })
     expect(dto().widgets[0].size).toEqual({ columns: 4, rows: 1 })
 
     // Not in supportedSizes: a silent no-op, not a clamp and not a throw.
-    store().resizeWidget("stats", { columns: 3, rows: 3 })
+    store().resizeWidget("today", { columns: 3, rows: 3 })
     expect(dto().widgets[0].size).toEqual({ columns: 4, rows: 1 })
 
     expect(saves).toEqual([])
@@ -299,9 +316,9 @@ describe("transition table", () => {
     loadStored()
     store().enterEdit()
 
-    store().removeWidget("stats")
+    store().removeWidget("today")
 
-    expect(dto().widgets.map((w) => [w.instanceId, w.order])).toEqual([["decks", 0]])
+    expect(dto().widgets.map((w) => [w.instanceId, w.order])).toEqual([["recent", 0]])
     expect(saves).toEqual([])
   })
 
@@ -310,17 +327,17 @@ describe("transition table", () => {
     loadStored()
     store().enterEdit()
 
-    store().addWidget(MANIFESTS["mnemo.study-goals"])
+    store().addWidget(MANIFESTS["mnemo.recent-notes"])
 
     expect(dto().widgets[2]).toEqual({
       instanceId: "added-1",
-      widgetId: "mnemo.study-goals",
-      size: { columns: 1, rows: 2 },
+      widgetId: "mnemo.recent-notes",
+      size: { columns: 2, rows: 2 },
       // Unassigned until the engine places it, unlike a seeded tile.
       column: -1,
       row: -1,
       order: 2,
-      settings: { dailyGoal: "20" },
+      settings: { limit: "5" },
     })
     expect(saves).toEqual([])
   })
@@ -330,31 +347,33 @@ describe("transition table", () => {
     loadStored()
     store().enterEdit()
 
-    store().applyConfig("stats", { range: "month" })
+    store().applyConfig("today", { range: "month" })
 
     expect(dto().widgets[0].settings).toEqual({ range: "month" })
     expect(saves).toEqual([])
   })
 
   // Row 12 | edit -> edit (dragging)
-  it("drag press on handle", () => {
+  it("drag press on a tile", () => {
     loadStored()
 
     // Drag substate exists only inside an edit session, so the same press in view mode is nothing.
-    store().beginDrag("decks", "Recent decks")
+    store().beginDrag("recent")
     expect(store().dragged).toBeNull()
-    expect(store().ghost.visible).toBe(false)
+    expect(store().dragPosition).toBeNull()
 
     store().enterEdit()
     const before = dto()
 
-    store().beginDrag("decks", "Recent decks")
+    store().beginDrag("recent")
 
-    expect(store().dragged).toBe("decks")
+    expect(store().dragged).toBe("recent")
     expect(store().dragOrigin).toEqual({ column: 2, row: 0 })
     expect(store().anchorIndex).toBe(1)
-    expect(store().ghost).toEqual({ visible: true, x: 0, y: 0, title: "Recent decks", sizeLabel: "2×1" })
-    // Pressing the handle has not moved anything yet.
+    // Position stays null until the gesture reports one, so the tile keeps its placed rect for
+    // that first frame rather than jumping to a corner nobody grabbed it by.
+    expect(store().dragPosition).toBeNull()
+    // Pressing the tile has not moved anything yet.
     expect(dto()).toEqual(before)
     expect(saves).toEqual([])
   })
@@ -363,14 +382,14 @@ describe("transition table", () => {
   it("pointer move", () => {
     loadStored()
     store().enterEdit()
-    store().beginDrag("decks", "Recent decks")
+    store().beginDrag("recent")
 
-    store().updateGhostPosition(120, 48)
+    store().updateDragPosition(120, 48)
     store().updateDragTarget(0, 3)
 
     // The target cell is written straight onto the tile, which is what re-runs placement.
-    expect(dto().widgets[1]).toMatchObject({ instanceId: "decks", column: 0, row: 3 })
-    expect(store().ghost).toMatchObject({ visible: true, x: 120, y: 48 })
+    expect(dto().widgets[1]).toMatchObject({ instanceId: "recent", column: 0, row: 3 })
+    expect(store().dragPosition).toEqual({ x: 120, y: 48 })
     // The origin is kept for the whole gesture, because Escape still has to undo it.
     expect(store().dragOrigin).toEqual({ column: 2, row: 0 })
     expect(saves).toEqual([])
@@ -380,16 +399,35 @@ describe("transition table", () => {
   it("pointer release", () => {
     loadStored()
     store().enterEdit()
-    store().beginDrag("decks", "Recent decks")
+    store().beginDrag("recent")
     store().updateDragTarget(0, 3)
 
     store().completeDrag()
 
-    expect(dto().widgets[1]).toMatchObject({ instanceId: "decks", column: 0, row: 3 })
+    expect(dto().widgets[1]).toMatchObject({ instanceId: "recent", column: 0, row: 3 })
     expect(store().dragged).toBeNull()
     expect(store().anchorIndex).toBe(-1)
-    expect(store().ghost.visible).toBe(false)
+    expect(store().dragPosition).toBeNull()
     // A dropped tile is still only a draft; Done is what writes the cell it landed on.
+    expect(saves).toEqual([])
+  })
+
+  it("pointer release below the widest breakpoint reorders instead of writing coordinates", () => {
+    loadStored()
+    store().enterEdit()
+    const before = dto().widgets.map((widget) => widget.instanceId)
+    store().beginDrag("recent")
+    store().updateDragTarget(0, 3)
+
+    store().completeDrag(0)
+
+    // The coordinates the drag wrote are put back: below four columns they describe a grid that is
+    // not on screen, and keeping them would throw away the layout authored at the widest one.
+    const decks = dto().widgets.find((widget) => widget.instanceId === "recent")
+    expect(decks).toMatchObject({ column: 2, row: 0 })
+    // What the drop did express is order, and that is what changed.
+    expect(dto().widgets.map((widget) => widget.instanceId)).toEqual(["recent", ...before.filter((id) => id !== "recent")])
+    expect(store().dragged).toBeNull()
     expect(saves).toEqual([])
   })
 
@@ -398,7 +436,7 @@ describe("transition table", () => {
     loadStored()
     store().enterEdit()
     const before = dto()
-    store().beginDrag("decks", "Recent decks")
+    store().beginDrag("recent")
     store().updateDragTarget(0, 3)
 
     store().cancelDrag()
@@ -407,7 +445,7 @@ describe("transition table", () => {
     expect(store().dragged).toBeNull()
     expect(store().dragOrigin).toEqual({ column: -1, row: -1 })
     expect(store().anchorIndex).toBe(-1)
-    expect(store().ghost.visible).toBe(false)
+    expect(store().dragPosition).toBeNull()
     expect(saves).toEqual([])
   })
 
@@ -416,9 +454,9 @@ describe("transition table", () => {
     loadStored()
     store().enterEdit()
     store().openLibrary()
-    store().removeWidget("stats")
+    store().removeWidget("today")
     store().addWidget(MANIFESTS["mnemo.recent-notes"])
-    store().beginDrag("decks", "Recent decks")
+    store().beginDrag("recent")
     store().updateDragTarget(1, 1)
 
     store().done()
@@ -434,7 +472,7 @@ describe("transition table", () => {
     // `order` comes from list position, never from the value the instance was carrying: `decks`
     // arrived as order 1 and is now the first widget on the board.
     expect(saves[0].layout.widgets.map((w) => [w.instanceId, w.order])).toEqual([
-      ["decks", 0],
+      ["recent", 0],
       ["added-1", 1],
     ])
     expect(saves[0].layout.widgets[0]).toMatchObject({ column: 2, row: 0 })
@@ -449,10 +487,10 @@ describe("transition table", () => {
     // Every mutation class at once, because Cancel is not an undo stack: it throws the whole draft
     // away, so a partial revert would show up here and nowhere else.
     store().addWidget(MANIFESTS["mnemo.usage-summary"])
-    store().removeWidget("stats")
-    store().resizeWidget("decks", { columns: 2, rows: 2 })
-    store().applyConfig("decks", { sort: "recent" })
-    store().beginDrag("decks", "Recent decks")
+    store().removeWidget("today")
+    store().resizeWidget("recent", { columns: 2, rows: 2 })
+    store().applyConfig("recent", { sort: "recent" })
+    store().beginDrag("recent")
     store().updateDragTarget(3, 5)
     store().completeDrag()
     expect(dto()).not.toEqual(committed)
@@ -472,7 +510,7 @@ describe("transition table", () => {
   it("navigate away", () => {
     loadStored()
     store().enterEdit()
-    store().removeWidget("stats")
+    store().removeWidget("today")
     const abandonedSession = store().sessionId
 
     store().leaveOverview()
@@ -491,19 +529,19 @@ describe("transition table", () => {
   it("resize / remove / add / config-save outside edit mode", () => {
     loadStored()
 
-    store().resizeWidget("stats", { columns: 4, rows: 1 })
-    store().applyConfig("stats", { range: "month" })
-    store().addWidget(MANIFESTS["mnemo.study-goals"])
-    store().removeWidget("decks")
+    store().resizeWidget("today", { columns: 4, rows: 1 })
+    store().applyConfig("today", { range: "month" })
+    store().addWidget(MANIFESTS["mnemo.recent-notes"])
+    store().removeWidget("recent")
 
     expect(store().isEditMode).toBe(false)
     expect(saves).toHaveLength(4)
     // Each write carries the board as of that mutation, not just the last one.
     expect(saves[0].layout.widgets[0].size).toEqual({ columns: 4, rows: 1 })
     expect(saves[1].layout.widgets[0].settings).toEqual({ range: "month" })
-    expect(saves[2].layout.widgets.map((w) => w.instanceId)).toEqual(["stats", "decks", "added-1"])
+    expect(saves[2].layout.widgets.map((w) => w.instanceId)).toEqual(["today", "recent", "added-1"])
     expect(saves[3].layout.widgets.map((w) => [w.instanceId, w.order])).toEqual([
-      ["stats", 0],
+      ["today", 0],
       ["added-1", 1],
     ])
   })
@@ -518,7 +556,7 @@ describe("a load landing mid-edit", () => {
   it("leaves the edit session holding the board", () => {
     loadStored()
     store().enterEdit()
-    store().removeWidget("stats")
+    store().removeWidget("today")
     const editing = dto()
     const snapshot = store().snapshot
 
@@ -533,18 +571,18 @@ describe("a load landing mid-edit", () => {
     store().done()
 
     expect(saves).toHaveLength(1)
-    expect(saves[0].layout.widgets.map((w) => w.instanceId)).toEqual(["decks"])
+    expect(saves[0].layout.widgets.map((w) => w.instanceId)).toEqual(["recent"])
   })
 
   it("is applied again once the session is over", () => {
     loadStored()
     store().enterEdit()
-    store().removeWidget("stats")
+    store().removeWidget("today")
     store().cancelEdit()
 
     store().layoutLoaded({ ...STORED, widgets: [STORED.widgets[1]] })
 
-    expect(dto().widgets.map((w) => w.instanceId)).toEqual(["stats"])
+    expect(dto().widgets.map((w) => w.instanceId)).toEqual(["today"])
   })
 })
 
@@ -556,10 +594,10 @@ describe("an unreadable board", () => {
   })
 
   it("cannot be written to by any mutation", () => {
-    store().addWidget(MANIFESTS["mnemo.study-goals"])
-    store().removeWidget("stats")
-    store().resizeWidget("stats", { columns: 4, rows: 1 })
-    store().applyConfig("stats", { range: "month" })
+    store().addWidget(MANIFESTS["mnemo.recent-notes"])
+    store().removeWidget("today")
+    store().resizeWidget("today", { columns: 4, rows: 1 })
+    store().applyConfig("today", { range: "month" })
 
     expect(dto().widgets).toEqual([])
     expect(saves).toEqual([])
@@ -605,7 +643,7 @@ describe("an unreadable board", () => {
     store().layoutMissing()
 
     expect(store().boardState).toBe("ready")
-    expect(dto().widgets).toHaveLength(5)
+    expect(dto().widgets).toHaveLength(6)
     expect(saves).toHaveLength(1)
   })
 })
@@ -634,7 +672,7 @@ describe("the write itself", () => {
     // later action forgets to. The guard belongs at the write, not only at the entrances.
     loadStored()
     store().enterEdit()
-    store().removeWidget("stats")
+    store().removeWidget("today")
     useOverviewStore.setState({ boardState: "error" })
 
     store().done()
@@ -646,12 +684,12 @@ describe("the write itself", () => {
 describe("writes across sessions", () => {
   it("key each write to the session that issued it", () => {
     loadStored()
-    store().removeWidget("decks")
+    store().removeWidget("recent")
     const first = saves[0].sessionId
 
     store().leaveOverview()
     loadStored()
-    store().removeWidget("decks")
+    store().removeWidget("recent")
 
     expect(saves).toHaveLength(1)
     expect(saves[0].sessionId).not.toBe(first)

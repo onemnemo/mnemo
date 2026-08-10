@@ -1,10 +1,11 @@
-import { useState } from "react"
-import { Dialog } from "radix-ui"
+import { useMemo, useState } from "react"
 
 import type { WidgetInstanceDto } from "@/api/types"
 import { Button } from "@/components/ui/button"
+import { Modal } from "@/components/ui/modal"
 import { useT } from "@/i18n/useT"
 
+import { WidgetPreview } from "../library/WidgetPreview"
 import type { WidgetManifest } from "../widgets/manifest"
 import { ConfigField } from "./ConfigField"
 import { decodeAll, encodeAll, type FieldValue } from "./fields"
@@ -18,11 +19,11 @@ interface WidgetConfigOverlayProps {
 }
 
 /**
- * The per-tile settings dialog: a Radix modal, titled by the widget, with one row per setting.
+ * Per-tile settings, with the tile itself sitting above the controls.
  *
- * A Radix Dialog on purpose, unlike the library panel. It is genuinely modal, and while it is open
- * isModalOpen() suppresses every window shortcut, which is the behaviour we want here: the board
- * behind it should not answer Escape or anything else until the dialog is done.
+ * The preview is the point. "Days ahead: 8" means nothing until you watch the chart get denser as
+ * you drag it, and a settings dialog that makes you press Save and then go and look is a settings
+ * dialog you have to open twice.
  *
  * It edits the widget's effective settings, not the persisted row: a decoded copy lives in local
  * state, and only Save encodes it back. Cancel drops the copy and applies nothing. In edit mode the
@@ -31,56 +32,64 @@ interface WidgetConfigOverlayProps {
  */
 export function WidgetConfigOverlay({ instance, manifest, onApply, onClose }: WidgetConfigOverlayProps) {
   const t = useT()
-  const schemas = manifest.settings ?? []
+  // Read off the manifest once. `settings ?? []` is a fresh array every render, which would make
+  // the memo below a memo in name only.
+  const schemas = useMemo(() => manifest.settings ?? [], [manifest])
 
   const [fields, setFields] = useState<Record<string, FieldValue>>(() => decodeAll(schemas, instance.settings))
 
+  // What the preview above the fields is rendered with, so it moves as the controls do rather than
+  // showing the tile as it was when the dialog opened.
+  const draft = useMemo(() => encodeAll(schemas, fields), [schemas, fields])
+
   const title = t(manifest.ns, manifest.displayNameKey ?? "Title")
 
-  function save() {
-    onApply(encodeAll(schemas, fields))
-    onClose()
-  }
-
   return (
-    <Dialog.Root open onOpenChange={(next) => !next && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
-        <Dialog.Content
-          aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 z-50 flex w-[440px] max-w-[calc(100vw-3rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-line bg-card p-5 shadow-elevation-3 focus:outline-none"
-        >
-          <div className="mb-3 flex flex-col gap-0.5">
-            <Dialog.Title className="text-heading-6 font-semibold text-text-primary">{title}</Dialog.Title>
-            <p className="text-caption text-text-secondary">{t("WidgetConfig", "Subtitle")}</p>
-          </div>
-
-          <div className="max-h-[420px] overflow-y-auto">
-            {schemas.map((schema) => {
-              const value = fields[schema.key]
-              if (value === undefined) return null
-              return (
-                <ConfigField
-                  key={schema.key}
-                  manifest={manifest}
-                  schema={schema}
-                  value={value}
-                  onChange={(next) => setFields((current) => ({ ...current, [schema.key]: next }))}
-                />
-              )
-            })}
-          </div>
-
-          <div className="mt-4 flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={onClose}>
+    <Modal
+      open
+      onClose={onClose}
+      title={title}
+      subtitle={t("WidgetConfig", "Subtitle")}
+      closeLabel={t("WidgetConfig", "Cancel")}
+      width={420}
+      footer={
+        <>
+          <div />
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={onClose}>
               {t("WidgetConfig", "Cancel")}
             </Button>
-            <Button size="sm" onClick={save}>
+            <Button
+              onClick={() => {
+                onApply(draft)
+                onClose()
+              }}
+            >
               {t("WidgetConfig", "Save")}
             </Button>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </>
+      }
+    >
+      <div className="scroll-thin min-w-0 flex-1 overflow-y-auto px-5 pb-5">
+        <WidgetPreview manifest={manifest} size={instance.size} settings={draft} boxWidth={380} boxHeight={150} />
+
+        <div className="mt-1 [&>*+*]:border-t [&>*+*]:border-line-soft">
+          {schemas.map((schema) => {
+            const value = fields[schema.key]
+            if (value === undefined) return null
+            return (
+              <ConfigField
+                key={schema.key}
+                manifest={manifest}
+                schema={schema}
+                value={value}
+                onChange={(next) => setFields((current) => ({ ...current, [schema.key]: next }))}
+              />
+            )
+          })}
+        </div>
+      </div>
+    </Modal>
   )
 }

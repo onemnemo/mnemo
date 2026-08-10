@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { OverviewLayoutDto } from "@/api/types"
 
+import { computePlacements } from "../layout/compute"
 import { useOverviewStore } from "../store"
 import type { ManifestLookup, WidgetManifest } from "../widgets/manifest"
 import { useBoardDrag, type BoardDrag, type BoardDragMetrics } from "./useBoardDrag"
@@ -22,7 +23,25 @@ import { useBoardDrag, type BoardDrag, type BoardDragMetrics } from "./useBoardD
 const BOARD_LEFT = 100
 const BOARD_TOP = 50
 const BOARD_WIDTH = 1040
-const METRICS: BoardDragMetrics = { columnCount: 4, usedRows: 1 }
+
+/** Live, so a test that changes the column count gets the placements that go with it. */
+let metrics: BoardDragMetrics
+
+function metricsFor(columnCount: number, usedRows: number): BoardDragMetrics {
+  const widgets = useOverviewStore.getState().draft
+  return { columnCount, usedRows, placements: computePlacements(widgets, columnCount, -1) }
+}
+
+/**
+ * Narrows the board mid-test. The hook reads its metrics off a ref refreshed on render, so the
+ * harness has to render again before the change is visible to a gesture.
+ */
+function setMetrics(next: BoardDragMetrics) {
+  metrics = next
+  act(() => {
+    root?.render(<Harness />)
+  })
+}
 
 function manifestOf(widgetId: string): WidgetManifest {
   const supportedSizes = [{ columns: 2, rows: 1 }]
@@ -30,57 +49,43 @@ function manifestOf(widgetId: string): WidgetManifest {
     widgetId,
     ns: "Overview",
     author: "Mnemo",
-    category: "statistics",
-    icon: `widgets/${widgetId}`,
+    category: "study",
+    icon: "square-stack",
     supportedSizes,
     defaultSize: supportedSizes[0],
   }
 }
 
 const lookup: ManifestLookup = (widgetId) =>
-  widgetId === "mnemo.flashcard-stats" || widgetId === "mnemo.recent-decks" ? manifestOf(widgetId) : undefined
+  widgetId === "mnemo.today" || widgetId === "mnemo.recent" ? manifestOf(widgetId) : undefined
 
 /** Two 2x1 tiles side by side on the top row. */
 const STORED: OverviewLayoutDto = {
   schemaVersion: 3,
   profileId: "default",
   widgets: [
-    {
-      instanceId: "a",
-      widgetId: "mnemo.flashcard-stats",
-      size: { columns: 2, rows: 1 },
-      column: 0,
-      row: 0,
-      order: 0,
-      settings: {},
-    },
-    {
-      instanceId: "b",
-      widgetId: "mnemo.recent-decks",
-      size: { columns: 2, rows: 1 },
-      column: 2,
-      row: 0,
-      order: 1,
-      settings: {},
-    },
+    { instanceId: "a", widgetId: "mnemo.today", size: { columns: 2, rows: 1 }, column: 0, row: 0, order: 0, settings: {} },
+    { instanceId: "b", widgetId: "mnemo.recent", size: { columns: 2, rows: 1 }, column: 2, row: 0, order: 1, settings: {} },
   ],
 }
 
 let drag: BoardDrag | null = null
 let root: Root | null = null
 let container: HTMLDivElement | null = null
+/** Stands in for the tile element the press lands on, so the hook can measure the grab offset. */
+let tile: HTMLDivElement | null = null
 
 function Harness() {
   const ref = useRef<HTMLDivElement>(null)
-  drag = useBoardDrag(ref, METRICS)
+  drag = useBoardDrag(ref, metrics)
   return <div ref={ref} />
 }
 
-/** A press on the drag handle, carrying only the fields the hook reads off it. */
+/** A press on a tile, carrying only the fields the hook reads off it. */
 function press(instanceId: string, clientX: number, clientY: number) {
-  const event = { button: 0, pointerType: "mouse", pointerId: 1, clientX, clientY } as never
+  const event = { button: 0, pointerType: "mouse", pointerId: 1, clientX, clientY, currentTarget: tile } as never
   act(() => {
-    drag?.onHandlePointerDown(event, instanceId, "Flashcard stats")
+    drag?.onTilePointerDown(event, instanceId)
   })
 }
 
@@ -112,7 +117,11 @@ function cellOf(instanceId: string) {
   return { column: widget?.column, row: widget?.row }
 }
 
+const boardOrder = () => useOverviewStore.getState().draft.map((widget) => widget.instanceId)
+
 beforeEach(() => {
+  // One rect for every div: the board and the pressed tile both sit at the board's origin here,
+  // which makes a press at the board origin a grab on the tile's own corner.
   vi.spyOn(HTMLDivElement.prototype, "getBoundingClientRect").mockReturnValue({
     left: BOARD_LEFT,
     top: BOARD_TOP,
@@ -125,9 +134,11 @@ beforeEach(() => {
   store.configure({ manifest: lookup, save: vi.fn() })
   store.layoutLoaded(STORED)
   store.enterEdit()
+  metrics = metricsFor(4, 1)
 
   container = document.createElement("div")
   document.body.appendChild(container)
+  tile = document.createElement("div")
   root = createRoot(container)
   act(() => {
     root?.render(<Harness />)
@@ -141,6 +152,7 @@ afterEach(() => {
   root = null
   container?.remove()
   container = null
+  tile = null
   drag = null
   useOverviewStore.getState().leaveOverview()
   vi.restoreAllMocks()
@@ -163,21 +175,31 @@ describe("useBoardDrag", () => {
     const state = useOverviewStore.getState()
     expect(state.dragged).toBe("a")
     expect(state.anchorIndex).toBe(0)
-    expect(state.ghost).toMatchObject({ visible: true, title: "Flashcard stats", sizeLabel: "2×1" })
   })
 
-  it("writes the cell under the pointer onto the dragged tile on every move", () => {
+  it("writes the cell the tile is nearest onto the dragged tile on every move", () => {
     press("a", BOARD_LEFT, BOARD_TOP)
     move(600, 60)
 
     expect(cellOf("a")).toEqual({ column: 2, row: 0 })
   })
 
-  it("trails the ghost below-right of the pointer in board coordinates", () => {
+  it("lets the tile follow the pointer, stopping at the right edge", () => {
     press("a", BOARD_LEFT, BOARD_TOP)
     move(600, 60)
 
-    expect(useOverviewStore.getState().ghost).toMatchObject({ x: 614, y: 74 })
+    // A 2x1 tile is 512px wide, so its left edge cannot pass 528 without hanging off a 1040px
+    // board. The pointer is welcome to go further; the tile is not.
+    expect(useOverviewStore.getState().dragPosition).toEqual({ x: 528, y: 60 })
+  })
+
+  it("snaps to the nearest cell rather than the one the corner has entered", () => {
+    press("a", BOARD_LEFT, BOARD_TOP)
+    // 200px in is most of the way across the first column, and the tile visibly covers more of the
+    // second. Flooring would still say column 0, which is what makes a board drag feel arbitrary.
+    move(200, 10)
+
+    expect(cellOf("a")).toEqual({ column: 1, row: 0 })
   })
 
   it("lets the pointer reach one row past the content, and no further", () => {
@@ -198,7 +220,20 @@ describe("useBoardDrag", () => {
     const state = useOverviewStore.getState()
     expect(state.dragged).toBeNull()
     expect(state.anchorIndex).toBe(-1)
-    expect(state.ghost.visible).toBe(false)
+    expect(state.dragPosition).toBeNull()
+  })
+
+  it("reorders instead of writing coordinates below the widest breakpoint", () => {
+    setMetrics(metricsFor(2, 2))
+    press("b", BOARD_LEFT, BOARD_TOP)
+    // Up and to the left of tile "a", which at two columns packs above it.
+    move(10, 10)
+    pointer("pointerup", BOARD_LEFT + 10, BOARD_TOP + 10)
+
+    expect(boardOrder()).toEqual(["b", "a"])
+    // "b" keeps the cell it was authored in at four columns, so widening the window brings that
+    // arrangement back rather than the one this narrow drag expressed.
+    expect(cellOf("b")).toEqual({ column: 2, row: 0 })
   })
 
   it("restores the origin cell on Escape without letting the page end the edit session", () => {
@@ -234,7 +269,7 @@ describe("useBoardDrag", () => {
     pointer("pointerup", BOARD_LEFT + 3, BOARD_TOP + 3)
 
     expect(cellOf("a")).toEqual({ column: 0, row: 0 })
-    expect(useOverviewStore.getState().ghost.visible).toBe(false)
+    expect(useOverviewStore.getState().dragPosition).toBeNull()
   })
 
   it("stops listening once the gesture is over", () => {

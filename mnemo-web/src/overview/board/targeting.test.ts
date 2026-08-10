@@ -1,5 +1,6 @@
-// Targeting at the widest breakpoint: 4 columns of 244px, so a column boundary falls every 260px
-// and a row boundary every 136px.
+// Targeting at the widest breakpoint: 4 columns of 244px, so a column pitch of 260px and a row
+// pitch of 136px. The cell a tile lands in is the one its top-left corner is *nearest*, so the
+// boundaries below fall at the half-way marks rather than at the cell edges.
 
 import { describe, expect, it } from "vitest"
 import { computeLayout } from "../layout/compute"
@@ -16,12 +17,20 @@ describe("getTargetCell", () => {
     expect(getTargetCell({ x: 300, y: 200 }, CELL_WIDTH, COLUMNS, 2)).toEqual({ column: 1, row: 1 })
   })
 
-  it("puts the boundary at the start of the gap, not the middle of it", () => {
-    // 259 is still the first column's cell-plus-gap band; 260 begins the second.
-    expect(getTargetCell({ x: 259, y: 135 }, CELL_WIDTH, COLUMNS, 3).column).toBe(0)
-    expect(getTargetCell({ x: 260, y: 135 }, CELL_WIDTH, COLUMNS, 3).column).toBe(1)
-    expect(getTargetCell({ x: 259, y: 135 }, CELL_WIDTH, COLUMNS, 3).row).toBe(0)
-    expect(getTargetCell({ x: 259, y: 136 }, CELL_WIDTH, COLUMNS, 3).row).toBe(1)
+  it("snaps at the half-way mark, so a tile lands where it looks like it will", () => {
+    // A tile whose corner is 129px into a 260px pitch is still mostly covering column 0; at 130 it
+    // is mostly covering column 1. Flooring instead would keep saying column 0 until 260, by which
+    // point the tile has looked like it belongs in the next column for half the drag.
+    expect(getTargetCell({ x: 129, y: 0 }, CELL_WIDTH, COLUMNS, 3).column).toBe(0)
+    expect(getTargetCell({ x: 130, y: 0 }, CELL_WIDTH, COLUMNS, 3).column).toBe(1)
+    expect(getTargetCell({ x: 0, y: 67 }, CELL_WIDTH, COLUMNS, 3).row).toBe(0)
+    expect(getTargetCell({ x: 0, y: 68 }, CELL_WIDTH, COLUMNS, 3).row).toBe(1)
+  })
+
+  it("keeps a wide tile inside the grid rather than hanging it off the right edge", () => {
+    // A 2-wide tile can start in column 2 at the furthest, not column 3.
+    expect(getTargetCell({ x: 5000, y: 0 }, CELL_WIDTH, COLUMNS, 2, 2).column).toBe(2)
+    expect(getTargetCell({ x: 5000, y: 0 }, CELL_WIDTH, COLUMNS, 2, 4).column).toBe(0)
   })
 
   it("clamps columns to the grid in both directions", () => {
@@ -43,9 +52,9 @@ describe("getTargetCell", () => {
   })
 
   it("tracks the narrow breakpoint's wider cells", () => {
-    // 2 columns of 392px: the only boundary is at 408.
-    expect(getTargetCell({ x: 407, y: 0 }, 392, 2, 1).column).toBe(0)
-    expect(getTargetCell({ x: 408, y: 0 }, 392, 2, 1).column).toBe(1)
+    // 2 columns of 392px: a 408px pitch, so the half-way mark is 204.
+    expect(getTargetCell({ x: 203, y: 0 }, 392, 2, 1).column).toBe(0)
+    expect(getTargetCell({ x: 204, y: 0 }, 392, 2, 1).column).toBe(1)
   })
 })
 
@@ -83,8 +92,8 @@ describe("resolveCellWidth", () => {
   it("targets sensibly against the fallback width", () => {
     const cellWidth = resolveCellWidth(0, COLUMNS)
 
-    // 288 + 16 = 304 per column.
-    expect(getTargetCell({ x: 303, y: 0 }, cellWidth, COLUMNS, 1).column).toBe(0)
-    expect(getTargetCell({ x: 304, y: 0 }, cellWidth, COLUMNS, 1).column).toBe(1)
+    // 288 + 16 = 304 per column, so the half-way mark is 152.
+    expect(getTargetCell({ x: 151, y: 0 }, cellWidth, COLUMNS, 1).column).toBe(0)
+    expect(getTargetCell({ x: 152, y: 0 }, cellWidth, COLUMNS, 1).column).toBe(1)
   })
 })

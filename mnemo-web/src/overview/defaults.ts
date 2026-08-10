@@ -31,17 +31,24 @@ export interface DefaultBoardEntry {
 }
 
 /**
- * Fresh-board template: two 2x1 tiles on row 0, then 2x2 + two 1x2 tiles on row 1.
+ * Fresh-board template: the queue across the top, then the two quiet counters beside what you were
+ * last doing, with the week's shape under them.
+ *
+ * It leads with Today because that is what an empty-handed reader needs first, but it is a default
+ * and not a spine: every tile here can be resized, moved or thrown away, Today included. That is
+ * the contract an extension store needs, since a widget somebody else wrote has to be able to
+ * occupy the best spot on the screen.
  *
  * The coordinates are literal placements, not the -1 that WidgetInstance.column/row default to
  * elsewhere, so a seeded board is already fully placed before the layout engine sees it.
  */
 export const DEFAULT_BOARD_TEMPLATE: readonly DefaultBoardEntry[] = [
-  { widgetId: "mnemo.flashcard-stats", column: 0, row: 0, columns: 2, rows: 1 },
-  { widgetId: "mnemo.recent-decks", column: 2, row: 0, columns: 2, rows: 1 },
-  { widgetId: "mnemo.recent-notes", column: 0, row: 1, columns: 2, rows: 2 },
-  { widgetId: "mnemo.study-goals", column: 2, row: 1, columns: 1, rows: 2 },
-  { widgetId: "mnemo.usage-summary", column: 3, row: 1, columns: 1, rows: 2 },
+  { widgetId: "mnemo.today", column: 0, row: 0, columns: 4, rows: 1 },
+  { widgetId: "mnemo.streak", column: 0, row: 1, columns: 1, rows: 1 },
+  { widgetId: "mnemo.flashcard-memory", column: 1, row: 1, columns: 1, rows: 1 },
+  { widgetId: "mnemo.recent", column: 2, row: 1, columns: 2, rows: 1 },
+  { widgetId: "mnemo.forecast", column: 0, row: 2, columns: 2, rows: 1 },
+  { widgetId: "mnemo.activity", column: 2, row: 2, columns: 2, rows: 1 },
 ]
 
 /** The starter board, built against whichever widgets this build actually registers. */

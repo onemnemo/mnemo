@@ -837,12 +837,29 @@
     "OnGridCountFormat": "Auf dem Raster ×{0}",
     "BylineFormat": "von @{0}",
     "StoreTeaser": "Community-Widgets, -Themes und -Module erscheinen mit dem Erweiterungs-Store.",
-    "ComingSoon": "Demnächst verfügbar"
+    "ComingSoon": "Demnächst verfügbar",
+    "Categories": "Kategorien",
+    "CategoryAll": "Alle",
+    "CategoryStudy": "Lernen",
+    "CategoryCards": "Karteikarten",
+    "CategoryNotes": "Notizen",
+    "CategorySoma": "Soma",
+    "CategoryCommunity": "Community",
+    "Done": "Fertig",
+    "OnBoard": "Auf dem Board",
+    "OnBoardCountFormat": "{0} auf dem Board",
+    "Added": "Hinzugefügt",
+    "AddAnother": "Weiteres hinzufügen",
+    "OnlyOnce": "Dieses Widget kann nur einmal vorkommen",
+    "NoResultsHint": "Versuch ein anderes Wort oder stöbere nach Kategorie.",
+    "CommunityEmpty": "Hier ist noch nichts",
+    "CommunityEmptyHint": "Widgets von anderen erscheinen hier, sobald der Erweiterungs-Store öffnet."
   },
   "WidgetConfig": {
     "Subtitle": "Einstellungen gelten nur für diese Widget-Kachel.",
     "Save": "Speichern",
-    "Cancel": "Abbrechen"
+    "Cancel": "Abbrechen",
+    "ChoosePlaceholder": "Auswählen"
   },
   "Permissions": {
     "AdditionalPermissionRequired": "Zusätzliche Erlaubnis erforderlich",
@@ -880,5 +897,92 @@
     "global.assistant.description": "Von überall zum KI-Chat wechseln.",
     "global.quick-actions": "Schnellaktionen",
     "global.quick-actions.description": "Katalog der Schnellaktionen und Tastenkürzel öffnen."
+  },
+  "WidgetToday": {
+    "Title": "Heute",
+    "Description": "Was gerade auf dich wartet, und der Knopf, der es startet.",
+    "CaughtUp": "Alles erledigt. Die nächsten Karten kommen morgen zurück.",
+    "Study": "Lernen",
+    "AboutMinutes": "etwa {0} Min.",
+    "CountNew": "{0} neu",
+    "CountLearning": "{0} im Lernen",
+    "CountReview": "{0} zur Wiederholung",
+    "WhereTheWorkIs": "Wo die Arbeit liegt"
+  },
+  "WidgetRecent": {
+    "Title": "Mach da weiter, wo du aufgehört hast",
+    "Description": "Deine letzten Notizen und Stapel zusammen, das Neueste zuerst.",
+    "EmptyState": "Noch nichts. Öffne eine Notiz oder einen Stapel, dann erscheint sie hier.",
+    "Untitled": "Ohne Titel",
+    "SettingCount": "Einträge"
+  },
+  "WidgetStreak": {
+    "Title": "Serie",
+    "Description": "Tage in Folge gelernt, und wie diese Woche lief.",
+    "Days": "Tage",
+    "BestFormat": "Bestwert {0}",
+    "ReviewsOnDay": "{0} Wiederholungen am {1}"
+  },
+  "WidgetActivity": {
+    "Title": "Aktivität",
+    "Description": "Jeder Tag, an dem du im letzten Jahr gelernt hast.",
+    "ReviewsTotal": "{0} Wiederholungen",
+    "ReviewsOnDay": "{0} Wiederholungen am {1}",
+    "Less": "Weniger",
+    "More": "Mehr"
+  },
+  "WidgetForecast": {
+    "Title": "Wiederholungsprognose",
+    "Description": "Wie viel der Planer dir in den nächsten Tagen vorlegen wird.",
+    "SettingDays": "Tage im Voraus",
+    "TotalInWindow": "{0} in {1} T."
+  },
+  "WidgetRetention": {
+    "Title": "Behaltensrate",
+    "Description": "Wie viel von dem, was du wiederholst, du tatsächlich richtig hast.",
+    "EmptyState": "Noch keine Wiederholungen, also gibt es nichts zu messen.",
+    "TrendFormat": "{0} Pkt. · {1} Tage"
+  },
+  "WidgetGoals": {
+    "Title": "Tagesziele",
+    "Description": "Die heutigen Ziele für Karten, Sitzungen und Minuten.",
+    "CardsReviewed": "Wiederholte Karten",
+    "CardsReviewedShort": "Karten",
+    "SessionsCompleted": "Abgeschlossene Sitzungen",
+    "SessionsCompletedShort": "Sitzungen",
+    "MinutesStudied": "Gelernte Minuten",
+    "MinutesStudiedShort": "Minuten",
+    "SettingGoalType": "Zeitraum",
+    "SettingGoalTypeDaily": "Täglich",
+    "SettingGoalTypeWeekly": "Wöchentlich",
+    "SettingMetric": "Zuerst zeigen",
+    "SettingMetricCards": "Karten",
+    "SettingMetricMinutes": "Minuten"
+  },
+  "WidgetLeeches": {
+    "Title": "Immer wieder daneben",
+    "Description": "Karten, an denen du immer wieder scheiterst, nach Häufigkeit sortiert.",
+    "EmptyState": "Nichts bereitet dir Schwierigkeiten.",
+    "LapseCountFormat": "{0}×"
+  },
+  "WidgetDeck": {
+    "Title": "Stapel im Fokus",
+    "Description": "Ein Stapel, der dir wichtig ist, mit seiner Warteschlange auf dem Board.",
+    "NoDecks": "Noch keine Stapel.",
+    "CardsWaiting": "Karten warten",
+    "Due": "fällig",
+    "CountNew": "{0} neu",
+    "CountLearning": "{0} im Lernen",
+    "CountReview": "{0} zur Wiederholung",
+    "CaughtUpFormat": "Erledigt · {0} Karten",
+    "SettingDeck": "Stapel"
+  },
+  "WidgetSoma": {
+    "Title": "Soma",
+    "Description": "Ein Weg zum Assistenten, ohne zu verlassen, woran du gerade arbeitest.",
+    "NarrowPitch": "Frag zu allem auf deinem Bildschirm.",
+    "AskPlaceholder": "Frag Soma etwas …",
+    "SuggestionQuiz": "Frag mich die heutigen Karten ab",
+    "SuggestionStruggle": "Womit hatte ich Mühe?"
   }
 }

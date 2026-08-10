@@ -36,13 +36,10 @@ export interface Cell {
   row: number
 }
 
-/** The floating tile that follows the pointer during a drag. */
-export interface GhostState {
-  visible: boolean
+/** Where the dragged tile is drawn, in board coordinates. Null outside a drag. */
+export interface DragPosition {
   x: number
   y: number
-  title: string
-  sizeLabel: string
 }
 
 /** Everything the store needs from the rest of the module, injected so none of it is imported. */
@@ -82,7 +79,11 @@ interface OverviewState extends OverviewDeps, BoardSlice {
   dragOrigin: Cell
   /** Index of the dragged tile, which the layout engine places first. -1 = none. */
   anchorIndex: number
-  ghost: GhostState
+  /**
+   * The dragged tile's own top-left, free of the grid, so it follows the pointer pixel for pixel
+   * while the ghost behind it snaps to whichever cell it would land in.
+   */
+  dragPosition: DragPosition | null
 
   /** Bumped on leaving Overview, so a write issued by the abandoned session is identifiable. */
   sessionId: number
@@ -103,23 +104,28 @@ interface OverviewState extends OverviewDeps, BoardSlice {
   resetLayout: () => void
   leaveOverview: () => void
 
-  addWidget: (manifest: WidgetManifest) => void
+  /** `size` is the span picked on the gallery card; absent means the manifest's default. */
+  addWidget: (manifest: WidgetManifest, size?: WidgetSizeDto) => void
   removeWidget: (instanceId: string) => void
   resizeWidget: (instanceId: string, size: WidgetSizeDto) => void
   applyConfig: (instanceId: string, values: Record<string, string>) => void
 
-  beginDrag: (instanceId: string, title: string) => void
+  beginDrag: (instanceId: string) => void
   updateDragTarget: (column: number, row: number) => void
-  updateGhostPosition: (x: number, y: number) => void
-  completeDrag: () => void
+  updateDragPosition: (x: number, y: number) => void
+  /**
+   * Drops the tile. With no argument it keeps the cell the last move put it in, which is what the
+   * widest breakpoint means by a drop. `flowIndex` is the narrow-grid drop: coordinates are put
+   * back and the tile moves in the list instead, so widening the window brings the arrangement the
+   * user authored at four columns back intact.
+   */
+  completeDrag: (flowIndex?: number) => void
   cancelDrag: () => void
 }
 
 const NO_CELL: Cell = { column: -1, row: -1 }
 
-const HIDDEN_GHOST: GhostState = { visible: false, x: 0, y: 0, title: "", sizeLabel: "" }
-
-const NO_DRAG = { dragged: null, dragOrigin: NO_CELL, anchorIndex: -1 }
+const NO_DRAG = { dragged: null, dragOrigin: NO_CELL, anchorIndex: -1, dragPosition: null }
 
 // Everything a visit to Overview owns. Leaving the page re-spreads it, which is what makes
 // navigating away mid-edit equivalent to Cancel without anyone having to remember to cancel.
@@ -133,17 +139,11 @@ const EMPTY_SESSION = {
   profileId: DEFAULT_PROFILE_ID,
   isLibraryOpen: false,
   ...NO_DRAG,
-  ghost: HIDDEN_GHOST,
 }
 
 /** Deep copy of one instance, so a draft edit can never reach into the snapshot's objects. */
 function cloneInstance(widget: WidgetInstanceDto): WidgetInstanceDto {
   return { ...widget, size: { ...widget.size }, settings: { ...widget.settings } }
-}
-
-/** The chip and drop-slot label for a span, e.g. 2×1. */
-function sizeLabelFor(size: WidgetSizeDto): string {
-  return `${size.columns}×${size.rows}`
 }
 
 /**
@@ -325,14 +325,16 @@ export const useOverviewStore = create<OverviewState>((set, get) => ({
 
   leaveOverview: () => set((state) => ({ ...EMPTY_SESSION, sessionId: state.sessionId + 1 })),
 
-  addWidget: (manifest) => {
+  addWidget: (manifest, size) => {
     const state = get()
     if (state.boardState !== "ready") return
 
     const instance: WidgetInstanceDto = {
       instanceId: state.newInstanceId(),
       widgetId: manifest.widgetId,
-      size: { ...manifest.defaultSize },
+      // Snapped even though the gallery only ever offers spans off this manifest: the argument
+      // comes from outside, and a span the widget does not support is not a span it can be.
+      size: size === undefined ? { ...manifest.defaultSize } : nearestSupportedSize(manifest, size),
       // Unassigned on both axes: a new tile has no cell until the engine drops it into a free one.
       column: -1,
       row: -1,
@@ -388,9 +390,9 @@ export const useOverviewStore = create<OverviewState>((set, get) => ({
     if (!state.isEditMode) persist(get)
   },
 
-  beginDrag: (instanceId, title) =>
+  beginDrag: (instanceId) =>
     set((state) => {
-      // Drag substate exists only inside an edit session; the handle is edit-mode chrome.
+      // Drag substate exists only inside an edit session; the whole tile is edit-mode chrome.
       if (!state.isEditMode) return {}
 
       const index = state.draft.findIndex((widget) => widget.instanceId === instanceId)
@@ -401,9 +403,9 @@ export const useOverviewStore = create<OverviewState>((set, get) => ({
         dragged: instanceId,
         dragOrigin: { column: target.column, row: target.row },
         anchorIndex: index,
-        // x and y stay where they were: the gesture always reports a pointer position before the
-        // ghost can be painted, and inventing one here would just be a different wrong place.
-        ghost: { ...state.ghost, visible: true, title, sizeLabel: sizeLabelFor(target.size) },
+        // Position stays null until the gesture reports one. The tile then keeps its placed rect
+        // for that first frame rather than jumping to a corner nobody grabbed it by.
+        dragPosition: null,
       }
     }),
 
@@ -422,10 +424,29 @@ export const useOverviewStore = create<OverviewState>((set, get) => ({
       }
     }),
 
-  updateGhostPosition: (x, y) => set((state) => ({ ghost: { ...state.ghost, x, y } })),
+  updateDragPosition: (x, y) => set({ dragPosition: { x, y } }),
 
-  // A drop keeps the cell it landed on. Coordinates are part of the draft; Done persists them.
-  completeDrag: () => set((state) => ({ ...NO_DRAG, ghost: { ...state.ghost, visible: false } })),
+  completeDrag: (flowIndex) =>
+    set((state) => {
+      if (state.dragged === null) return NO_DRAG
+
+      // The wide drop: coordinates are the whole point of it, and the last move already wrote them.
+      if (flowIndex === undefined) return NO_DRAG
+
+      const from = state.draft.findIndex((widget) => widget.instanceId === state.dragged)
+      if (from < 0) return NO_DRAG
+
+      // Coordinates go back to what they were before the drag started. Below four columns they
+      // describe a grid that is not on screen, so a drop there can only express order, and
+      // overwriting them would throw away the layout authored at the widest breakpoint.
+      const draft = state.draft.map((widget) =>
+        widget.instanceId === state.dragged ? { ...widget, ...state.dragOrigin } : widget,
+      )
+      const [moved] = draft.splice(from, 1)
+      draft.splice(Math.max(0, Math.min(draft.length, flowIndex)), 0, moved)
+
+      return { ...NO_DRAG, draft }
+    }),
 
   cancelDrag: () =>
     set((state) => ({
@@ -436,6 +457,5 @@ export const useOverviewStore = create<OverviewState>((set, get) => ({
               widget.instanceId === state.dragged ? { ...widget, ...state.dragOrigin } : widget,
             ),
       ...NO_DRAG,
-      ghost: { ...state.ghost, visible: false },
     })),
 }))

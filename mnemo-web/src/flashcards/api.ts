@@ -6,6 +6,7 @@ import type {
   DeckSummaryDto,
   DueCountsDto,
   FolderDto,
+  ForecastDayDto,
   MoveDeckDto,
   RetentionTrendPointDto,
   SaveFolderDto,
@@ -51,6 +52,19 @@ export function useAggregateDueQuery() {
   return useQuery<DueCountsDto, ApiError>({
     queryKey: aggregateDueKey,
     queryFn: () => apiFetch<DueCountsDto>("/study/due"),
+  })
+}
+
+/**
+ * What the scheduler will hand back over the next `days` UTC days across the library, today first.
+ *
+ * Under the library key, not a key of its own: adding, deleting or moving a deck changes the
+ * projection, and those mutations already invalidate this key wholesale.
+ */
+export function useReviewForecastQuery(days: number) {
+  return useQuery<ForecastDayDto[], ApiError>({
+    queryKey: [...libraryKey, "forecast", days] as const,
+    queryFn: () => apiFetch<ForecastDayDto[]>(`/study/forecast?days=${days}`),
   })
 }
 

@@ -1,18 +1,18 @@
 import type { WidgetManifest } from "../manifest"
 
-/** Progress bars for practice targets over a daily or weekly window. */
+/** Targets for cards, sessions and minutes over a daily or weekly window. */
 export const studyGoalsManifest: WidgetManifest = {
   widgetId: "mnemo.study-goals",
-  ns: "StudyGoals",
+  ns: "WidgetGoals",
   author: "Mnemo",
-  category: "activity",
-  icon: "widgets/study-goals",
+  category: "study",
+  icon: "target",
   supportedSizes: [
-    { columns: 1, rows: 2 },
     { columns: 2, rows: 1 },
+    { columns: 1, rows: 2 },
     { columns: 2, rows: 2 },
   ],
-  defaultSize: { columns: 1, rows: 2 },
+  defaultSize: { columns: 2, rows: 1 },
   settings: [
     {
       key: "goal_type",

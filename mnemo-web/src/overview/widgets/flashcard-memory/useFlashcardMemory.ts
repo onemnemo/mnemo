@@ -22,7 +22,22 @@ export interface FlashcardMemoryData {
   /** The busiest deck's recent retention, 0 to 100, oldest first. */
   trend: number[]
   trendDeckName: string
+  /** How far the trend has moved across its window, in percentage points. */
+  trendDelta: number
+  /** The window the delta is measured over, so the widget can name it without hardcoding it. */
+  trendDays: number
   retry: () => void
+}
+
+/**
+ * How far a trend moved end to end, in percentage points.
+ *
+ * The endpoints rather than a fitted slope: the widget's own sentence is "up 2.4 points over
+ * fourteen days", and a slope answers a different question than the one being printed.
+ */
+export function trendDelta(trend: readonly number[]): number {
+  if (trend.length < 2) return 0
+  return trend[trend.length - 1] - trend[0]
 }
 
 interface MemoryResult {
@@ -91,11 +106,15 @@ export function useFlashcardMemory(): FlashcardMemoryData {
         ? "empty"
         : "ready"
 
+  const trend = memory.data?.trend ?? []
+
   return {
     state,
     retentionPercent: memory.data?.retentionPercent ?? 0,
-    trend: memory.data?.trend ?? [],
+    trend,
     trendDeckName: memory.data?.trendDeckName ?? "",
+    trendDelta: trendDelta(trend),
+    trendDays: TREND_DAYS,
     retry,
   }
 }

@@ -7,43 +7,43 @@ import { cn } from "@/lib/utils"
 
 import { sameSize } from "../widgets/manifest"
 import { findWidget } from "../widgets/registry"
-import { DropSlot } from "./DropSlot"
-import { sizeLabel } from "./SizeChip"
+import { sizeLabel } from "./size-label"
 import { UnavailableTile } from "./UnavailableTile"
 import { WidgetBoundary } from "./WidgetBoundary"
 
 interface WidgetTileProps {
   instance: WidgetInstanceDto
   isEditMode: boolean
-  /** This tile is the one under the pointer, so its slot shows the drop affordance instead. */
+  /** This tile is the one under the pointer, so it is raised and its chrome is suppressed. */
   isDragging: boolean
+  /** The width the widget composes for, which the one-column grid widens. */
+  renderColumns: number
   onRemove: (instanceId: string) => void
   onResize: (instanceId: string, size: WidgetSizeDto) => void
   onConfigure: (instanceId: string) => void
-  onHandlePointerDown: (event: ReactPointerEvent, instanceId: string, title: string) => void
+  onTilePointerDown: (event: ReactPointerEvent, instanceId: string) => void
 }
 
 /**
  * The frame around a widget, and everything edit mode adds to it.
  *
- * Chrome is hover-only and lives on one tile at a time. Stamping a grip, three
- * size chips, a gear and a close button onto every tile at once puts twenty-four
- * controls on screen for four widgets, and editing starts to feel like filling
- * in a form. Here the resting board in edit mode looks very nearly like the
- * board you were just reading.
+ * Chrome is hover-only and lives on one tile at a time. Stamping a grip, three size chips, a gear
+ * and a close button onto every tile at once puts twenty-four controls on screen for four widgets,
+ * and editing starts to feel like filling in a form. Here the resting board in edit mode looks very
+ * nearly like the board you were just reading.
  *
- * The whole tile is the drag handle, which is why there is no grip: a 16px grip
- * is not a target anyone hits, and the controls that must not start a drag stop
- * the press themselves.
+ * The whole tile is the drag handle, which is why there is no grip: a 16px grip is not a target
+ * anyone hits, and the controls that must not start a drag stop the press themselves.
  */
 export function WidgetTile({
   instance,
   isEditMode,
   isDragging,
+  renderColumns,
   onRemove,
   onResize,
   onConfigure,
-  onHandlePointerDown,
+  onTilePointerDown,
 }: WidgetTileProps) {
   const t = useT()
   const registration = findWidget(instance.widgetId)
@@ -56,33 +56,25 @@ export function WidgetTile({
   const sizes = registration?.manifest.supportedSizes ?? []
 
   const Body = registration?.component
-  // The raw id, not a localized name: there is no manifest to look one up in, and the id is the
-  // only thing that tells the user which extension is missing.
-  const title =
-    registration === undefined
-      ? instance.widgetId
-      : t(registration.manifest.ns, registration.manifest.displayNameKey ?? "Title")
-
-  // The card goes away entirely while this tile is in flight, rather than staying on as a faded
-  // stand-in: the ghost is already carrying it, and two copies of one tile reads as two tiles.
-  if (isDragging) return <DropSlot sizeLabel={sizeLabel(instance.size)} />
-
   const stop = (event: SyntheticEvent) => event.stopPropagation()
   const hasStrip = isEditMode && (sizes.length > 1 || isConfigurable)
 
   return (
     <div
-      className={cn("group relative h-full w-full", isEditMode && "cursor-grab")}
-      onPointerDown={isEditMode ? (event) => onHandlePointerDown(event, instance.instanceId, title) : undefined}
+      className={cn("group relative h-full w-full", isEditMode && (isDragging ? "cursor-grabbing" : "cursor-grab"))}
+      onPointerDown={isEditMode ? (event) => onTilePointerDown(event, instance.instanceId) : undefined}
     >
       <div
         className={cn(
           "relative h-full w-full overflow-hidden rounded-2xl bg-canvas transition-shadow",
-          // Every tile is manipulable in edit mode, and the firmer ring is what says so before the
-          // user has moused over anything.
-          isEditMode
-            ? "shadow-[0_0_0_1px_var(--line)]"
-            : "shadow-[0_0_0_1px_var(--line-soft),0_1px_2px_oklch(0_0_0/0.03)]",
+          // Lifted while it is held, so the gesture reads as carrying the widget rather than as
+          // sliding it. Every tile is manipulable in edit mode, and the firmer ring is what says so
+          // before the reader has moused over anything.
+          isDragging
+            ? "shadow-pop"
+            : isEditMode
+              ? "shadow-[0_0_0_1px_var(--line)]"
+              : "shadow-[0_0_0_1px_var(--line-soft),0_1px_2px_oklch(0_0_0/0.03)]",
         )}
         style={{ transitionDuration: "var(--duration-normal)" }}
       >
@@ -93,7 +85,7 @@ export function WidgetTile({
             <UnavailableTile widgetId={instance.widgetId} />
           ) : (
             <WidgetBoundary widgetId={instance.widgetId}>
-              <Body instance={instance} manifest={registration.manifest} />
+              <Body instance={instance} manifest={registration.manifest} renderColumns={renderColumns} />
             </WidgetBoundary>
           )}
         </div>
@@ -104,6 +96,9 @@ export function WidgetTile({
             className={cn(
               "absolute inset-x-0 bottom-0 flex h-8 items-center gap-1 border-t border-line-soft px-1.5",
               "bg-canvas/92 opacity-0 backdrop-blur-[3px] transition-opacity group-hover:opacity-100",
+              // A strip on a tile in flight is chrome nobody can hit and something to read while
+              // aiming, so it goes away for the length of the gesture.
+              isDragging && "opacity-0 group-hover:opacity-0",
             )}
             style={{ transitionDuration: "var(--duration-fast)" }}
           >
@@ -161,6 +156,7 @@ export function WidgetTile({
             "bg-canvas text-ink-2 shadow-[0_0_0_1px_var(--line),0_2px_6px_oklch(0_0_0/0.1)]",
             "transition-[opacity,color] hover:text-danger",
             isEditMode ? "opacity-0 group-hover:opacity-100" : "opacity-100",
+            isDragging && "opacity-0 group-hover:opacity-0",
           )}
           style={{ transitionDuration: "var(--duration-fast)" }}
         >
