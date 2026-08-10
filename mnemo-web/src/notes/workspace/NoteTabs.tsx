@@ -2,6 +2,8 @@ import { AppIcon } from '@/components/icon/AppIcon';
 import { useT } from '@/i18n/useT';
 import { cn } from '@/lib/utils';
 
+import { SidebarExpandButton } from './SidebarExpandButton';
+
 export interface NoteTab {
   readonly id: string;
   readonly title: string;
@@ -19,17 +21,21 @@ export function NoteTabs({
   activeId,
   onSelect,
   onClose,
+  onExpandSidebar,
 }: {
   tabs: readonly NoteTab[];
   activeId?: string;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
+  /** Present only while the tree is collapsed: the bar hosts the reopen control. */
+  onExpandSidebar?: () => void;
 }) {
   const t = useT();
   const nt = (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
 
   return (
     <div className="scroll-thin flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-divider-subtle bg-surface px-1.5">
+      {onExpandSidebar ? <SidebarExpandButton onExpand={onExpandSidebar} className="mr-0.5" /> : null}
       {tabs.map((tab) => {
         const active = tab.id === activeId;
         return (
