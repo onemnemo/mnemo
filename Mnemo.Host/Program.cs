@@ -19,6 +19,7 @@ using Mnemo.Host.Flashcards;
 using Mnemo.Host.I18n;
 using Mnemo.Host.Keybinds;
 using Mnemo.Host.Lifecycle;
+using Mnemo.Host.Mindmap;
 using Mnemo.Host.Nav;
 using Mnemo.Host.Notes;
 using Mnemo.Host.Overview;
@@ -125,6 +126,8 @@ public static class Program
         app.MapNoteAssets();
         app.MapNoteTransfer();
         app.MapNotePdf();
+        app.MapMindmapLibrary();
+        app.MapMindmaps();
         app.MapOverview();
 app.MapStatistics();
 
