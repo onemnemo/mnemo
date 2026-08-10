@@ -80,16 +80,20 @@ export function CardSurface({
       </div>
 
       <div style={proseSize}>
-        <div className="flex flex-col gap-3.5">
-          <Markdown content={promptText(card)} />
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+          <div className="min-w-0 flex-[1_1_17rem]">
+            <Markdown content={promptText(card)} />
+          </div>
           <AttachmentCarousel key={`${card.id}-front`} attachments={card.attachments} side="front" />
         </div>
 
         {revealed && (
           <>
             <div className="my-6 h-px bg-line-soft" />
-            <div className="animate-rise flex flex-col gap-3.5">
-              <Markdown content={answerText(card)} />
+            <div className="animate-rise flex flex-wrap items-start gap-x-6 gap-y-4">
+              <div className="min-w-0 flex-[1_1_17rem]">
+                <Markdown content={answerText(card)} />
+              </div>
               <AttachmentCarousel key={`${card.id}-back`} attachments={card.attachments} side="back" />
             </div>
           </>

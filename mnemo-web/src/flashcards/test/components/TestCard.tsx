@@ -82,8 +82,11 @@ export function TestCard({
       </div>
 
       {/* Room kept on the right so a long first line never runs under the corner actions. */}
-      <div className="pr-16">
-        <Markdown content={promptText(card)} />
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-4 pr-16">
+        <div className="min-w-0 flex-[1_1_17rem]">
+          <Markdown content={promptText(card)} />
+        </div>
+        <AttachmentCarousel key={`${card.id}-front`} attachments={card.attachments} side="front" />
       </div>
 
       <Rule label={fc("TestYourAnswerLabel")} />

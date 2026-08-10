@@ -40,6 +40,7 @@ import {
   Code,
   Highlighter,
   House,
+  ImagePlus,
   Info,
   Italic,
   Layers,
@@ -141,6 +142,8 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   // Content
   file: File,
   "file-text": FileText,
+  // The add-an-image slot in the card editor's attachment strip.
+  "image-plus": ImagePlus,
   folder: Folder,
   "folder-open": FolderOpen,
   "book-open": BookOpen,

@@ -115,19 +115,6 @@ function CardEditor({ target, onClose }: { target: CardEditorTarget; onClose: ()
     }
   }
 
-  const replaceAttachment = async (key: string, file: File) => {
-    const generation = draftGeneration.current
-    try {
-      const asset = await uploadCardAsset(file)
-      if (generation !== draftGeneration.current) return
-      setAttachments((current) =>
-        current.map((item) => (item.key === key ? draftFromUpload(asset, item.side) : item)),
-      )
-    } catch {
-      // Leave the existing image in place; a failed replace is a no-op, not a removal.
-    }
-  }
-
   const canSave = canSaveCard({ deckId, type, front, back })
   const saving = createCard.isPending || updateCard.isPending
 
@@ -220,7 +207,6 @@ function CardEditor({ target, onClose }: { target: CardEditorTarget; onClose: ()
               onChange={setFront}
               onFocus={() => setFocusedSide("front")}
               onAttachFiles={(side, files) => void attachFiles(side, files)}
-              onReplaceAttachment={(key, file) => void replaceAttachment(key, file)}
               onRemoveAttachment={(key) =>
                 setAttachments((current) => current.filter((item) => item.key !== key))
               }
@@ -236,7 +222,6 @@ function CardEditor({ target, onClose }: { target: CardEditorTarget; onClose: ()
               onChange={setBack}
               onFocus={() => setFocusedSide("back")}
               onAttachFiles={(side, files) => void attachFiles(side, files)}
-              onReplaceAttachment={(key, file) => void replaceAttachment(key, file)}
               onRemoveAttachment={(key) =>
                 setAttachments((current) => current.filter((item) => item.key !== key))
               }
