@@ -19,6 +19,12 @@ export const EventType = {
    * {@link ShutdownEventData}. Save now, see `@/app/shutdown`.
    */
   Shutdown: "shutdown",
+  /**
+   * A map committed a change; payload is {@link MindmapChangedEventData}. A nudge, not a patch:
+   * whoever has that map open compares the revision against its own and refetches only if behind,
+   * which is also how it ignores the echo of its own edit.
+   */
+  MindmapChanged: "mindmap-changed",
 } as const
 
 /** Payload of a `toast` event - mirrors Mnemo.Host/Contracts/ToastEventDto. */
@@ -27,6 +33,13 @@ export interface ToastEventData {
   title: string
   description?: string | null
   durationMs: number
+}
+
+/** Payload of a `mindmap-changed` event - mirrors Mnemo.Host/Mindmap/MindmapChangeBridge.cs. */
+export interface MindmapChangedEventData {
+  mapId: string
+  revision: number
+  kind: "created" | "edited" | "renamed" | "deleted"
 }
 
 /** Payload of a `shutdown` event - mirrors the grace period Mnemo.Host waits out. */
