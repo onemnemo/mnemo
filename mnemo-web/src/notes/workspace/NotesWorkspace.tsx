@@ -10,7 +10,7 @@ import type { NoteSummaryDto } from '@/api/types';
 import { useCreateNote, useNoteFoldersQuery, useNotesQuery } from '../api';
 import { NotePdfExportOverlay } from '../pdf/NotePdfExportOverlay';
 import { NoteTransferOverlay } from '../transfer/NoteTransferOverlay';
-import { NoteTreeSidebar } from '../tree/NoteTreeSidebar';
+import { NoteTreeSidebar, SIDEBAR_WIDTH } from '../tree/NoteTreeSidebar';
 import { NotePane } from './NotePane';
 import { NoteTabs, type NoteTab } from './NoteTabs';
 import { SidebarExpandButton } from './SidebarExpandButton';
@@ -81,6 +81,19 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
     [tabs, noteId],
   );
 
+  // Reorder by identity: the ids are what the tab bar renders from, so moving one
+  // is a splice on that list rather than anything the note itself carries.
+  const reorderTab = useCallback((id: string, toIndex: number) => {
+    setOpenTabs((prev) => {
+      const from = prev.indexOf(id);
+      if (from === -1 || from === toIndex) return prev;
+      const next = [...prev];
+      next.splice(from, 1);
+      next.splice(toIndex, 0, id);
+      return next;
+    });
+  }, []);
+
   const toggleFolder = useCallback((id: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -121,7 +134,18 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
-      {sidebarOpen ? (
+      {/* The tree slides rather than blinking out: it stays mounted at its own
+          width inside a wrapper that animates to zero, so the contents keep their
+          layout instead of reflowing narrower and narrower on the way out. */}
+      {/* min-w-0 is load-bearing: a flex item defaults to min-width:auto, which
+          holds the wrapper open at the tree's own width and the collapse does
+          nothing at all. */}
+      <div
+        className="min-w-0 shrink-0 overflow-hidden transition-[width] motion-reduce:transition-none"
+        style={{ width: sidebarOpen ? SIDEBAR_WIDTH : 0, transitionDuration: 'var(--duration-normal)' }}
+        aria-hidden={!sidebarOpen}
+        inert={!sidebarOpen}
+      >
         <NoteTreeSidebar
           notes={notes}
           folders={folders}
@@ -134,7 +158,7 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
           onCollapseSidebar={() => setSidebarOpen(false)}
           searchInputRef={searchInputRef}
         />
-      ) : null}
+      </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
         {noteId && tabs.length > 0 ? (
@@ -143,6 +167,7 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
             activeId={noteId}
             onSelect={(id) => navigate('notes', id)}
             onClose={closeTab}
+            onReorder={reorderTab}
             onExpandSidebar={sidebarOpen ? undefined : () => setSidebarOpen(true)}
           />
         ) : null}
