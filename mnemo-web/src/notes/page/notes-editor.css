@@ -42,8 +42,15 @@
 
 /* Block rhythm. A single owner of vertical spacing between top-level blocks.
  * Paragraphs sit close together and the headings below buy their own space, so
- * a run of prose reads as one column rather than as a stack of rows. */
-.notes-doc .ProseMirror > * {
+ * a run of prose reads as one column rather than as a stack of rows.
+ *
+ * The whole selector is wrapped in `:where` so it carries no specificity: this
+ * is the default every block starts from, and a block with its own opinion (a
+ * heading's lead, a quote's breathing room) has to be able to say so. Without
+ * that, a two-class selector setting the `margin` shorthand quietly beat every
+ * single-class rule below and the document had one flat 6px rhythm, headings
+ * included. */
+:where(.notes-doc .ProseMirror) > * {
   margin: 0 0 6px;
 }
 
