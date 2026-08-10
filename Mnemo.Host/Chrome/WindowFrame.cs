@@ -75,6 +75,13 @@ internal static class WindowFrame
             // non-client area against the styles it just gained.
             SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+
+            // Taking the whole frame back as client area also drops the corner
+            // rounding Windows 11 gives a normal window, so ask for it back
+            // explicitly. DWMWCP_ROUND is the standard radius and Windows still
+            // squares it off while maximized, which is what we want.
+            var preference = DWMWCP_ROUND;
+            DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
         }
         catch (Exception ex)
         {
@@ -225,6 +232,9 @@ internal static class WindowFrame
 
     private const uint WM_NCCALCSIZE = 0x0083;
 
+    private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    private const int DWMWCP_ROUND = 2;
+
     private const int SM_CXFRAME = 32;
     private const int SM_CYFRAME = 33;
     private const int SM_CXPADDEDBORDER = 92;
@@ -299,6 +309,9 @@ internal static class WindowFrame
 
     [DllImport("shell32.dll")]
     private static extern IntPtr SHAppBarMessage(uint message, ref AppBarData data);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr FindWindowExW(IntPtr parent, IntPtr after, string? className, string? windowName);
