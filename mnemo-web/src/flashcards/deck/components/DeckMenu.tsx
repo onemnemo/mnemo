@@ -98,7 +98,7 @@ export function DeckMenu({ deck }: { deck: DeckSummaryDto }) {
         </MenuSubMenu>
 
         <MenuItem
-          icon="flyout/settings"
+          icon="settings-2"
           onSelect={() => useReviewSettings.getState().open(deck.id, deck.name)}
         >
           {fc("ReviewSettingsMenu")}

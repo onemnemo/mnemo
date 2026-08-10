@@ -69,7 +69,7 @@ export function TestTopbar({
       {/* Only shuffle applies to a test, but the desktop opens the same dialog from here and
           the preset is shared - editing it from a test still changes the deck's reviews. */}
       <IconBtn
-        icon="flyout/settings"
+        icon="settings-2"
         label={fc("ReviewSettingsMenu")}
         disabled={!deckId}
         onClick={() => deckId && useReviewSettings.getState().open(deckId, deckName)}
