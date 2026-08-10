@@ -77,7 +77,7 @@ export function DeckMenu({ deck }: { deck: DeckSummaryDto }) {
           type="button"
           aria-label={fc("DeckMenu")}
           title={fc("DeckMenu")}
-          className="grid size-8 place-items-center rounded-md border border-line bg-surface text-text-secondary hover:bg-surface-subtle"
+          className="grid size-8 place-items-center rounded-lg text-ink-2 transition-colors hover:bg-frame-hover hover:text-ink"
         >
           <AppIcon name="common/ellipsis" size={16} />
         </button>

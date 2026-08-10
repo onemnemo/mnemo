@@ -20,6 +20,8 @@ public sealed record DeckSummaryDto(
     int SuspendedCards,
     DueCountsDto DueCounts,
     int RetentionPercent,
+    /// <summary>Reviews behind <see cref="RetentionPercent"/>; zero means it has no basis yet.</summary>
+    int RetentionSampleSize,
     DateTimeOffset? LastStudied,
     string? Icon,
     DateTimeOffset CreatedAt,
@@ -39,6 +41,7 @@ public sealed record DeckSummaryDto(
             model.SuspendedCards,
             DueCountsDto.FromModel(model.DueCounts),
             model.RetentionPercent,
+            model.RetentionSampleSize,
             model.Header.LastStudied,
             model.Header.Icon,
             model.Header.CreatedAt,

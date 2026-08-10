@@ -12,8 +12,9 @@ import {
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
-import { dueLabel, frontPreview } from "../cards"
-import { MONO_CELL, ROW_GRID } from "./rowLayout"
+import { StateTag, cardStateKind } from "../../bits"
+import { LEECH_LAPSES, dueLabel, frontPreview, oneLine } from "../cards"
+import { BACK_CELL, ROW_GRID } from "./rowLayout"
 
 export interface CardRowActions {
   onEdit: (id: string) => void
@@ -24,8 +25,11 @@ export interface CardRowActions {
 }
 
 /**
- * One card in the deck table. Actions live on right-click, matching the desktop -
- * there is no per-row button, so the row stays quiet until asked.
+ * One card in the deck table.
+ *
+ * Everything a card can have done to it is on right-click, but right-click is not
+ * discoverable and neither is double-click until you have tried it, so the one
+ * action worth reaching for gets a button that appears under the pointer.
  */
 export function CardRow({
   view,
@@ -47,9 +51,9 @@ export function CardRow({
 
   const { card, schedule } = view
   const suspended = card.state === "suspended"
-  const isCloze = card.type === "cloze"
   const due = dueLabel(view, now, fc)
-  const firstTag = card.tags[0]
+  const front = frontPreview(card.front)
+  const leech = schedule.lapses >= LEECH_LAPSES
 
   return (
     <ContextMenu>
@@ -59,54 +63,67 @@ export function CardRow({
           onDoubleClick={() => actions.onEdit(card.id)}
           className={cn(
             ROW_GRID,
-            "h-[37px] border-b border-divider-subtle",
-            selected ? "bg-brand-subtle" : "hover:bg-[var(--widget-background-hover)]",
-            suspended && "opacity-60",
+            "group/card h-11 cursor-pointer border-b border-line-soft transition-colors",
+            selected ? "bg-frame-active" : "hover:bg-frame-hover",
+            suspended && "opacity-55",
           )}
+          style={{ transitionDuration: "var(--duration-instant)" }}
         >
-          <Checkbox
-            checked={selected}
-            onToggle={() => onToggleSelect(card.id)}
-            label={frontPreview(card.front)}
+          <Checkbox checked={selected} onToggle={() => onToggleSelect(card.id)} label={front} />
+
+          {/* Flagged is a property of the card, so it reads on the row rather than
+              only inside a filter. Always rendered: the slot has to hold its width
+              whether or not this particular card is flagged. */}
+          <AppIcon
+            name="common/flag"
+            size={12}
+            className={cn("shrink-0", card.isFlagged ? "text-state-due" : "text-transparent")}
           />
 
-          <div className="flex min-w-0 items-center gap-1.5">
-            {card.attachments.length > 0 ? (
-              <AppIcon name="common/image" size={13} className="shrink-0 text-text-faded" />
-            ) : null}
-            {card.isFlagged ? (
-              <AppIcon name="common/flag" size={13} className="shrink-0 text-[var(--flashcard-state-learning)]" />
-            ) : null}
-            {isCloze ? (
-              <span className="mr-1.5 grid h-4 shrink-0 place-items-center rounded-sm bg-[var(--widget-background-primary)] px-1 font-mono text-caption text-[var(--flashcard-state-new)]">
-                […]
-              </span>
-            ) : null}
-            <span
-              className={cn(
-                "truncate text-body-extra-small font-medium",
-                suspended ? "text-text-disabled line-through" : "text-text-primary",
-              )}
-              title={card.front}
-            >
-              {frontPreview(card.front)}
+          <span className="flex min-w-0 items-center gap-1.5">
+            {/* A type column read "Classic" on almost every row. A marker only where
+                the type differs says the same thing in no space at all. */}
+            {card.type === "cloze" ? <AppIcon name="braces" size={13} className="shrink-0 text-ink-icon" /> : null}
+            <span className={cn("truncate text-[13px]", suspended ? "text-ink-3" : "text-ink")} title={card.front}>
+              {front}
             </span>
-          </div>
+          </span>
 
-          <span className="text-caption text-text-tertiary">{fc(isCloze ? "TypeCloze" : "TypeClassic")}</span>
+          <span className={cn(BACK_CELL, "truncate text-[13px] text-ink-3")} title={card.back}>
+            {oneLine(card.back)}
+          </span>
 
-          <div className="min-w-0">
-            {/* A suspended card shows that instead of its tag: the state is the more
-                useful thing to know, and only one chip fits the column. */}
-            {suspended ? (
-              <TagChip className="text-[var(--flashcard-state-learning)]">{fc("SuspendedChip")}</TagChip>
-            ) : firstTag ? (
-              <TagChip className="text-text-tertiary">{firstTag}</TagChip>
-            ) : null}
-          </div>
+          <StateTag state={cardStateKind(card, schedule)} />
 
-          <span className={cn(MONO_CELL, due.isDue ? "text-brand" : "text-text-tertiary")}>{due.text}</span>
-          <span className={cn(MONO_CELL, "text-text-tertiary")}>{schedule.lapses}</span>
+          <span
+            className={cn("text-right text-[12.5px]", due.isDue ? "font-medium text-state-due" : "text-ink-2")}
+          >
+            {due.text}
+          </span>
+
+          <span
+            className={cn(
+              "text-right text-[12.5px] tabular-nums",
+              leech ? "font-medium text-state-learn" : "text-ink-3",
+            )}
+            title={leech ? fc("LeechHint") : undefined}
+          >
+            {schedule.lapses}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => actions.onEdit(card.id)}
+            title={fc("EditCard")}
+            aria-label={fc("EditCard")}
+            className={cn(
+              "grid size-7 shrink-0 place-items-center rounded-md text-ink-3 transition-opacity",
+              "hover:bg-frame-active hover:text-ink",
+              "opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100",
+            )}
+          >
+            <AppIcon name="pencil" size={14} />
+          </button>
         </div>
       </ContextMenuTrigger>
 
@@ -135,18 +152,5 @@ export function CardRow({
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-  )
-}
-
-function TagChip({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-block max-w-full truncate rounded-sm bg-[var(--widget-background-primary)] px-1.5 py-px text-caption",
-        className,
-      )}
-    >
-      {children}
-    </span>
   )
 }

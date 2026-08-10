@@ -4,9 +4,10 @@ import { Menu, MenuContent, MenuItem, MenuSectionLabel, MenuSeparator, MenuSubMe
 import { useT } from "@/i18n/useT"
 
 /**
- * The accent Study control: a primary segment that starts a review straight away
- * and a chevron segment holding the other session modes. Split rather than a plain
- * menu because starting a review is the one thing this page exists for.
+ * The Study control: a primary segment that starts a review straight away and a
+ * chevron segment holding the other session modes. Split rather than a plain menu
+ * because starting a review is the one thing this page exists for, so the common
+ * case is one click and the modes are one more.
  */
 export function StudySplitButton({
   deckId,
@@ -21,27 +22,27 @@ export function StudySplitButton({
   const fc = (key: string) => t("Flashcards", key)
 
   return (
-    <div className="flex h-8 items-stretch overflow-hidden rounded-md">
+    <div className="flex h-8 items-stretch">
       <button
         type="button"
         onClick={() => navigate("flashcard-session", deckId, "review", "due")}
-        className="flex items-center gap-1.5 bg-brand px-3 text-body-extra-small font-medium text-white hover:brightness-105"
+        className="flex items-center gap-1.5 rounded-lg rounded-r-none bg-solid pr-2.5 pl-3 text-[13px] font-medium tracking-[-0.006em] text-solid-fg transition-colors hover:bg-solid-hover"
       >
         <AppIcon name="common/play-filled" size={13} />
         {fc("Study")}
       </button>
 
-      {/* Hairline seam between the segments, drawn as a translucent white rule the
-          way the desktop does rather than a themed border - it sits on the accent
-          fill, not between two surfaces. */}
-      <span className="w-px bg-white/25" />
+      {/* Hairline seam between the segments, drawn against the button's own text
+          colour rather than as a themed border: it sits on one fill, not between
+          two surfaces. */}
+      <span className="w-px bg-solid-fg/20" />
 
       <Menu>
         <MenuTrigger asChild>
           <button
             type="button"
-            aria-label={fc("Study")}
-            className="grid w-7 place-items-center bg-brand text-white hover:brightness-105"
+            aria-label={fc("StudyModes")}
+            className="grid w-7 place-items-center rounded-lg rounded-l-none bg-solid text-solid-fg transition-colors hover:bg-solid-hover"
           >
             <AppIcon name="common/chevron-down" size={13} />
           </button>

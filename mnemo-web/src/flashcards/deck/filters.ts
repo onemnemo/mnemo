@@ -66,3 +66,15 @@ export const LAPSES_FILTER_KEY: Record<LapsesFilter, string> = {
   "three-or-more": "LapsesFilterThreeOrMore",
   never: "LapsesFilterNever",
 }
+
+/**
+ * The same options once the toolbar has already said "Forgotten" beside them. The
+ * menu options are whole phrases so they read on their own; repeating the word in
+ * the chip only stutters.
+ */
+export const LAPSES_TOKEN_KEY: Record<LapsesFilter, string> = {
+  any: "LapsesTokenAny",
+  "once-or-more": "LapsesTokenOnceOrMore",
+  "three-or-more": "LapsesTokenThreeOrMore",
+  never: "LapsesTokenNever",
+}

@@ -150,6 +150,7 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
         var due = FlashcardDueCalculator.Cap(raw, preset, stat);
         var sample = await _reviews.GetRetentionSampleAsync(conn, header.Id, now.AddDays(-RetentionWindowDays), cancellationToken).ConfigureAwait(false);
         var retention = sample.Total == 0 ? 0 : (int)Math.Round(100.0 * sample.Passed / sample.Total, MidpointRounding.AwayFromZero);
-        return new FlashcardDeckSummary(header, counts.Total, counts.Active, counts.Suspended, due, retention);
+        return new FlashcardDeckSummary(
+            header, counts.Total, counts.Active, counts.Suspended, due, retention, sample.Total);
     }
 }

@@ -3,17 +3,16 @@ import { Popover } from "radix-ui"
 
 import type { DeckSummaryDto } from "@/api/types"
 import { AppIcon } from "@/components/icon/AppIcon"
+import { Button } from "@/components/ui/button"
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu"
 import { useT } from "@/i18n/useT"
-import { cn } from "@/lib/utils"
-
-const ACTION_CLASS =
-  "rounded-md px-2 py-[5px] text-body-extra-small text-[var(--floating-chrome-row-text)] hover:bg-[var(--floating-chrome-hover)]"
 
 /**
- * The floating batch-action bar, shown while any card on the page is selected.
- * Dark floating chrome rather than page surface, so it reads as an overlay over
- * the table rather than another row of it.
+ * The batch-action bar, shown while any card on the page is selected.
+ *
+ * Checkboxes with nothing to do were the old table's real bug. The bar appears with
+ * the first selection and says what it will act on, so the boxes always lead
+ * somewhere.
  */
 export function SelectionBar({
   count,
@@ -50,20 +49,17 @@ export function SelectionBar({
   }
 
   return (
-    <div className="pointer-events-none sticky bottom-6 z-20 flex justify-center">
-      <div className="pointer-events-auto flex items-center gap-2.5 rounded-lg bg-[var(--floating-chrome-background)] px-3.5 py-2 shadow-[0_16px_44px_0_rgba(0,0,0,0.4)]">
-        <span className="text-body-extra-small font-semibold text-[var(--floating-chrome-foreground-strong)]">
-          {fc("DeckSelectedFormat", { 0: count })}
-        </span>
+    <div className="animate-rise pointer-events-none absolute inset-x-0 bottom-5 z-30 flex justify-center">
+      <div className="pointer-events-auto flex items-center gap-1.5 rounded-xl bg-canvas p-1.5 pl-3.5 shadow-pop">
+        <span className="text-[12.5px] font-medium text-ink">{fc("DeckSelectedFormat", { 0: count })}</span>
 
         <Divider />
 
         <Menu>
           <MenuTrigger asChild>
-            <button type="button" className={cn(ACTION_CLASS, "flex items-center gap-1")}>
+            <Button variant="ghost" className="h-7" trailing={<AppIcon name="chevron-down" size={12} />}>
               {fc("BatchMove")}
-              <AppIcon name="common/chevron-down" size={10} />
-            </button>
+            </Button>
           </MenuTrigger>
           <MenuContent align="start">
             {moveTargets.map((deck) => (
@@ -76,15 +72,15 @@ export function SelectionBar({
 
         <Popover.Root>
           <Popover.Trigger asChild>
-            <button type="button" className={ACTION_CLASS}>
+            <Button variant="ghost" className="h-7" icon={<AppIcon name="tag" size={14} strokeWidth={1.7} />}>
               {fc("BatchTag")}
-            </button>
+            </Button>
           </Popover.Trigger>
           <Popover.Portal>
             <Popover.Content
               side="top"
               sideOffset={6}
-              className="z-50 flex items-center gap-1.5 rounded-lg border border-line bg-popover p-1.5 shadow-elevation-2"
+              className="animate-pop-in z-50 flex items-center gap-1.5 rounded-lg bg-canvas p-1.5 shadow-pop"
             >
               <input
                 value={tag}
@@ -95,51 +91,52 @@ export function SelectionBar({
                 }}
                 placeholder={fc("TagAddPlaceholder")}
                 aria-label={fc("TagAddPlaceholder")}
-                className="h-7 w-[150px] rounded-md border border-line bg-surface px-2 text-body-extra-small text-text-primary outline-none placeholder:text-text-faded focus:border-brand"
+                className="h-7 w-[150px] rounded-md bg-canvas-sunken px-2 text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:shadow-[0_0_0_1px_var(--line)]"
               />
               <Popover.Close asChild>
-                <button
-                  type="button"
-                  onClick={commitTag}
-                  className="h-7 rounded-md bg-brand px-2.5 text-body-extra-small font-medium text-white"
-                >
+                <Button size="sm" onClick={commitTag}>
                   {fc("CardEditorAddTag")}
-                </button>
+                </Button>
               </Popover.Close>
             </Popover.Content>
           </Popover.Portal>
         </Popover.Root>
 
-        <button type="button" className={ACTION_CLASS} onClick={() => onSuspend(!allSuspended)}>
+        <Button
+          variant="ghost"
+          className="h-7"
+          icon={<AppIcon name="common/pause" size={14} />}
+          onClick={() => onSuspend(!allSuspended)}
+        >
           {fc(allSuspended ? "BatchUnsuspend" : "BatchSuspend")}
-        </button>
-        <button type="button" className={ACTION_CLASS} onClick={() => onFlag(!allFlagged)}>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-7"
+          icon={<AppIcon name="common/flag" size={14} />}
+          onClick={() => onFlag(!allFlagged)}
+        >
           {fc(allFlagged ? "BatchUnflag" : "BatchFlag")}
-        </button>
+        </Button>
 
         <Divider />
 
-        <button
-          type="button"
+        <Button
+          variant="danger"
+          className="h-7"
+          icon={<AppIcon name="common/trash" size={14} />}
           onClick={onDelete}
-          className="rounded-md px-2 py-[5px] text-body-extra-small text-[var(--floating-chrome-danger)] hover:bg-[var(--floating-chrome-danger-hover)]"
         >
           {t("Common", "Delete")}
-        </button>
-        <button
-          type="button"
-          onClick={onClear}
-          aria-label={fc("ClearSelection")}
-          title={fc("ClearSelection")}
-          className="grid size-6 place-items-center rounded-md text-[var(--floating-chrome-row-text)] hover:bg-[var(--floating-chrome-hover)]"
-        >
-          <AppIcon name="common/x" size={12} />
-        </button>
+        </Button>
+        <Button variant="ghost" className="h-7" onClick={onClear}>
+          {t("Common", "Cancel")}
+        </Button>
       </div>
     </div>
   )
 }
 
 function Divider() {
-  return <span className="h-[18px] w-px bg-[var(--floating-chrome-divider)]" />
+  return <span className="mx-1 h-5 w-px bg-line-soft" />
 }

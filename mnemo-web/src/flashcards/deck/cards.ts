@@ -3,9 +3,6 @@ import type { CardViewDto } from "@/api/types"
 /** Cards per page. Offset paging, matching the desktop's fixed page size. */
 export const PAGE_SIZE = 50
 
-/** Pixel width of the header's retention track. */
-export const RETENTION_TRACK_WIDTH = 30
-
 export const SEARCH_DEBOUNCE_MS = 250
 
 // The deck table hides the answer behind a marker rather than showing it, so a
@@ -15,13 +12,20 @@ export const SEARCH_DEBOUNCE_MS = 250
 // and then renders here unreplaced.
 const CLOZE_MARKER = /\{\{c\d+::(.*?)\}\}/g
 
+const DAY_MS = 86_400_000
+
+/** One line of whatever a card side holds, with every whitespace run closed up. */
+export function oneLine(text: string): string {
+  return text.replace(/\s+/g, " ").trim()
+}
+
 /**
  * Collapses a card's front into a single line for the table: cloze answers become
  * an ellipsis marker and all whitespace runs become single spaces. Visual
  * truncation is left to CSS so it follows the column's real width.
  */
 export function frontPreview(front: string): string {
-  return front.replace(CLOZE_MARKER, "[…]").replace(/[\r\n]/g, " ").replace(/\s+/g, " ").trim()
+  return oneLine(front.replace(CLOZE_MARKER, "[…]"))
 }
 
 export interface DueLabel {
@@ -33,6 +37,9 @@ export interface DueLabel {
 /**
  * The DUE cell. Suspended cards show a dash: their due date keeps advancing into
  * the past while suspended, so the real number would be alarming and meaningless.
+ *
+ * Overdue reads separately from due today. They are the same instruction, but a
+ * card six days late is the one worth seeing in a list where everything is owed.
  */
 export function dueLabel(
   view: CardViewDto,
@@ -41,12 +48,20 @@ export function dueLabel(
 ): DueLabel {
   if (view.card.state === "suspended") return { text: "—", isDue: false }
 
-  const due = new Date(view.schedule.dueDate).getTime()
-  if (due <= now) return { text: t("DueTodayCompact"), isDue: true }
+  const diff = new Date(view.schedule.dueDate).getTime() - now
+  if (diff <= 0) {
+    const overdue = Math.floor(-diff / DAY_MS)
+    return overdue >= 1
+      ? { text: t("DueOverdueFormat", { 0: overdue }), isDue: true }
+      : { text: t("DueToday"), isDue: true }
+  }
 
-  const days = Math.max(1, Math.ceil((due - now) / 86_400_000))
-  return { text: t("DueInDaysFormat", { 0: days }), isDue: false }
+  const days = Math.ceil(diff / DAY_MS)
+  return days === 1 ? { text: t("DueTomorrow"), isDue: false } : { text: t("DueInDaysLongFormat", { 0: days }), isDue: false }
 }
+
+/** At and above this many lapses a card is worth calling out: it keeps being forgotten. */
+export const LEECH_LAPSES = 3
 
 /**
  * Tri-state for the select-all box. Indeterminate whenever the page is partly

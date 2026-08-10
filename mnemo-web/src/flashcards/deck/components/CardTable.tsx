@@ -7,16 +7,19 @@ import { cn } from "@/lib/utils"
 import { PAGE_SIZE, pageRange, selectAllState } from "../cards"
 import { useDeckView } from "../store"
 import { CardRow, type CardRowActions } from "./CardRow"
-import { ROW_GRID } from "./rowLayout"
+import { BACK_CELL, ROW_GRID } from "./rowLayout"
 
-/** The bordered card holding the column header, the rows and the pager footer. */
+/** The column header, the rows and the count-and-pager footer. */
 export function CardTable({
   page,
+  deckTotal,
   moveTargets,
   actions,
   now,
 }: {
   page: CardPageDto
+  /** Cards in the deck, which is not the same as cards the filter matched. */
+  deckTotal: number
   moveTargets: DeckSummaryDto[]
   actions: CardRowActions
   now: number
@@ -35,29 +38,30 @@ export function CardTable({
   const pageIds = page.items.map((item) => item.card.id)
   const allState = selectAllState(pageIds, selected)
   const { first, last } = pageRange(offset, page.totalCount)
+  const pages = Math.max(1, Math.ceil(page.totalCount / PAGE_SIZE))
+  const current = Math.floor(offset / PAGE_SIZE) + 1
 
   return (
-    // Header and pager are sticky rows inside the one scroll container rather than
-    // siblings around it. As siblings they sat outside the scrollbar's gutter, so
-    // every column right of Front drew ~15px adrift of its own heading.
-    <div className="max-h-[calc(100vh-320px)] overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface">
-      <div className={cn(ROW_GRID, "sticky top-0 z-10 h-[34px] border-b border-divider-subtle bg-surface")}>
+    <div className="mt-3">
+      <div className={cn(ROW_GRID, "h-8 border-b border-line-soft text-[11.5px] text-ink-3")}>
         <Checkbox
           checked={allState}
           // An indeterminate box resolves to "select all", so decide from the
           // current state rather than the value the control would report next.
           onToggle={() => setPageSelection(pageIds, allState !== true)}
-          label={fc("ColFront")}
+          label={fc("SelectAllCards")}
         />
-        <HeadCell>{fc("ColFront")}</HeadCell>
-        <HeadCell>{fc("ColType")}</HeadCell>
-        <HeadCell>{fc("ColTags")}</HeadCell>
+        <span />
+        <span>{fc("ColFront")}</span>
+        <span className={BACK_CELL}>{fc("ColBack")}</span>
+        <span>{fc("ColState")}</span>
         {/* Due is the only sortable column, as on the desktop. */}
-        <button type="button" onClick={toggleDueSort} className="flex items-center justify-end gap-1">
-          <HeadCell>{fc("ColDue")}</HeadCell>
-          <AppIcon name={sortDescending ? "common/chevron-down" : "common/chevron-up"} size={10} className="text-text-faded" />
+        <button type="button" onClick={toggleDueSort} className="flex items-center justify-end gap-1 hover:text-ink">
+          {fc("ColDue")}
+          <AppIcon name={sortDescending ? "chevron-down" : "chevron-up"} size={10} />
         </button>
-        <HeadCell className="text-right">{fc("ColLapses")}</HeadCell>
+        <span className="text-right">{fc("ColLapses")}</span>
+        <span />
       </div>
 
       <div role="rowgroup">
@@ -74,33 +78,39 @@ export function CardTable({
         ))}
       </div>
 
-      {page.totalCount > PAGE_SIZE ? (
-        <div className="sticky bottom-0 z-10 flex h-[34px] items-center justify-between border-t border-divider-subtle bg-[var(--widget-background-hover)] px-[14px]">
-          <span className="text-caption text-text-tertiary">
-            {fc("DeckPageRangeFormat", { 0: first, 1: last, 2: page.totalCount })}
-          </span>
-          <div className="flex items-center gap-1">
+      <div className="flex h-10 items-center justify-between px-2 text-[12.5px] text-ink-3">
+        <span>
+          {fc("DeckPageRangeFormat", { 0: first, 1: last, 2: page.totalCount })}
+          {page.totalCount === deckTotal ? null : (
+            <>
+              {" · "}
+              {fc("DeckInDeckFormat", { 0: deckTotal.toLocaleString() })}
+            </>
+          )}
+        </span>
+
+        {pages > 1 ? (
+          <span className="flex items-center gap-1">
             <PagerButton
-              icon="common/chevron-left"
+              icon="chevron-left"
               label={t("Common", "Previous")}
               disabled={offset === 0}
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
             />
+            <span className="tabular-nums">
+              {current} / {pages}
+            </span>
             <PagerButton
-              icon="common/chevron-right"
+              icon="chevron-right"
               label={t("Common", "Next")}
               disabled={offset + PAGE_SIZE >= page.totalCount}
               onClick={() => setOffset(offset + PAGE_SIZE)}
             />
-          </div>
-        </div>
-      ) : null}
+          </span>
+        ) : null}
+      </div>
     </div>
   )
-}
-
-function HeadCell({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <span className={cn("text-caption font-semibold text-text-faded", className)}>{children}</span>
 }
 
 function PagerButton({
@@ -109,7 +119,7 @@ function PagerButton({
   disabled,
   onClick,
 }: {
-  icon: "common/chevron-left" | "common/chevron-right"
+  icon: "chevron-left" | "chevron-right"
   label: string
   disabled: boolean
   onClick: () => void
@@ -121,9 +131,9 @@ function PagerButton({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="grid h-[22px] w-6 place-items-center rounded-md text-text-secondary hover:bg-surface-subtle disabled:pointer-events-none disabled:opacity-35"
+      className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-frame-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35"
     >
-      <AppIcon name={icon} size={14} />
+      <AppIcon name={icon} size={15} />
     </button>
   )
 }

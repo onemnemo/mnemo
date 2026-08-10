@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react"
 
 import { navigate } from "@/app/router"
+import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { useT } from "@/i18n/useT"
@@ -131,48 +132,64 @@ export function DeckPage({ deckId }: { deckId?: string }) {
   const showNoResults = loaded && !hasRows && filtered
 
   return (
-    <div className="flex flex-col gap-3.5 px-10 pt-[26px] pb-6">
-      <DeckHeader deck={deck.data} />
+    // The page owns its scrolling rather than the shell, so the selection bar can
+    // sit against the bottom of the window instead of the bottom of the table.
+    <div className="relative flex h-full flex-col">
+      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-[1080px] px-8 pt-6 pb-20">
+          <button
+            type="button"
+            onClick={() => navigate("flashcards")}
+            className="-ml-1.5 flex h-7 items-center gap-1.5 rounded-md px-1.5 text-[12.5px] text-ink-3 transition-colors hover:bg-frame-hover hover:text-ink"
+          >
+            <AppIcon name="arrow-left" size={14} strokeWidth={1.8} />
+            {fc("AllDecks")}
+          </button>
 
-      {!showEmpty ? <DeckToolbar knownTags={tags.data ?? []} totalCount={page?.totalCount ?? 0} /> : null}
+          <DeckHeader deck={deck.data} />
 
-      {hasRows && page ? (
-        <CardTable
-          page={page}
-          moveTargets={moveTargets}
-          now={now}
-          actions={{
-            onEdit: (cardId) => openEdit(id, cardId),
-            onFlag: (cardId, value) => void run(flagCards.mutateAsync({ cardIds: [cardId], value })),
-            onSuspend: (cardId, value) => void run(suspendCards.mutateAsync({ cardIds: [cardId], value })),
-            onMove: (cardId, targetDeckId) => void run(moveCards.mutateAsync({ cardIds: [cardId], targetDeckId })),
-            onDelete: (cardId) => void confirmDelete([cardId]),
-          }}
-        />
-      ) : null}
+          {!showEmpty ? <DeckToolbar knownTags={tags.data ?? []} /> : null}
 
-      {showEmpty ? (
-        <EmptyState
-          className="mt-12"
-          icon="common/book"
-          title={fc("DeckEmptyTitle")}
-          description={fc("DeckEmptyDescription")}
-          action={
-            <Button size="sm" onClick={() => openAdd(id)}>
-              {fc("DeckAddCards")}
-            </Button>
-          }
-        />
-      ) : null}
+          {hasRows && page ? (
+            <CardTable
+              page={page}
+              deckTotal={deck.data.totalCards}
+              moveTargets={moveTargets}
+              now={now}
+              actions={{
+                onEdit: (cardId) => openEdit(id, cardId),
+                onFlag: (cardId, value) => void run(flagCards.mutateAsync({ cardIds: [cardId], value })),
+                onSuspend: (cardId, value) => void run(suspendCards.mutateAsync({ cardIds: [cardId], value })),
+                onMove: (cardId, targetDeckId) => void run(moveCards.mutateAsync({ cardIds: [cardId], targetDeckId })),
+                onDelete: (cardId) => void confirmDelete([cardId]),
+              }}
+            />
+          ) : null}
 
-      {showNoResults ? (
-        <EmptyState
-          className="mt-12"
-          icon="common/search"
-          title={fc("NoResultsTitle")}
-          description={fc("DeckNoResultsDescription")}
-        />
-      ) : null}
+          {showEmpty ? (
+            <EmptyState
+              className="mt-12"
+              icon="common/book"
+              title={fc("DeckEmptyTitle")}
+              description={fc("DeckEmptyDescription")}
+              action={
+                <Button size="sm" onClick={() => openAdd(id)}>
+                  {fc("DeckAddCards")}
+                </Button>
+              }
+            />
+          ) : null}
+
+          {showNoResults ? (
+            <EmptyState
+              className="mt-12"
+              icon="common/search"
+              title={fc("NoResultsTitle")}
+              description={fc("DeckNoResultsDescription")}
+            />
+          ) : null}
+        </div>
+      </div>
 
       {selectedIds.length > 0 ? (
         <SelectionBar

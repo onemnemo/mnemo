@@ -1,19 +1,28 @@
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Menu, MenuContent, MenuItem, MenuSubMenu, MenuTrigger } from "@/components/ui/menu"
 import { useT } from "@/i18n/useT"
+import { cn } from "@/lib/utils"
 
 import {
   CARD_TYPE_KEY,
   CARD_TYPES,
-  LAPSES_FILTER_KEY,
   LAPSES_FILTERS,
-  STATE_FILTER_KEY,
+  LAPSES_FILTER_KEY,
+  LAPSES_TOKEN_KEY,
   STATE_FILTERS,
+  STATE_FILTER_KEY,
 } from "../filters"
 import { useDeckView } from "../store"
 
-/** Search box, the state chip strip, the add-filter menu and the result count. */
-export function DeckToolbar({ knownTags, totalCount }: { knownTags: string[]; totalCount: number }) {
+/**
+ * Search, the state chips, and the dimensions that sit behind a menu.
+ *
+ * State lives on chips because it is the filter you use constantly, and a single
+ * "Filter" button hides both the options and whether one is on. The dimensions you
+ * reach for occasionally keep the menu: they are long lists, and as chips they
+ * would drown the strip that matters.
+ */
+export function DeckToolbar({ knownTags }: { knownTags: string[] }) {
   const t = useT()
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
 
@@ -39,108 +48,108 @@ export function DeckToolbar({ knownTags, totalCount }: { knownTags: string[]; to
     query.trim().length > 0
 
   return (
-    // Wraps rather than scrolls: the strip is six chips plus the search box, which
-    // is wider than the table at a narrow window, and a filter you have to scroll
-    // sideways to reach may as well not be there.
-    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
-      <div className="relative shrink-0">
-        <AppIcon
-          name="common/search"
-          size={13}
-          className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-text-faded"
-        />
+    <div className="mt-6 flex flex-wrap items-center gap-2">
+      <div className="flex h-8 w-[240px] shrink-0 items-center gap-1.5 rounded-lg bg-canvas-sunken px-2.5 focus-within:shadow-[0_0_0_1px_var(--line)]">
+        <AppIcon name="search" size={14} strokeWidth={1.7} className="shrink-0 text-ink-icon" />
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder={fc("SearchCardsPlaceholder")}
           aria-label={fc("SearchCardsPlaceholder")}
-          className="h-8 w-[220px] rounded-md border border-line bg-surface pr-2 pl-[30px] text-body-extra-small text-text-primary outline-none placeholder:text-text-faded focus:border-brand"
+          className="min-w-0 flex-1 bg-transparent text-[13px] text-ink placeholder:text-ink-3 focus:outline-none"
         />
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
-        {STATE_FILTERS.map((state) => (
-          <StateChip
-            key={state}
-            label={fc(STATE_FILTER_KEY[state])}
-            active={state === stateFilter}
-            onSelect={() => setStateFilter(state)}
-          />
-        ))}
-      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex items-center gap-1">
+          {STATE_FILTERS.map((state) => (
+            <StateChip
+              key={state}
+              label={fc(STATE_FILTER_KEY[state])}
+              flag={state === "flagged"}
+              active={state === stateFilter}
+              onSelect={() => setStateFilter(state)}
+            />
+          ))}
+        </div>
 
-      {typeFilter ? (
-        <FilterChip
-          label={fc("DeckFilterTypeFormat", { 0: fc(CARD_TYPE_KEY[typeFilter]) })}
-          onRemove={() => setTypeFilter(null)}
-        />
-      ) : null}
-      {/* Bare label, unlike the others: the lapse options are whole phrases
-          already, so a "Forgotten:" prefix only stutters. */}
-      {lapsesFilter !== "any" ? (
-        <FilterChip label={fc(LAPSES_FILTER_KEY[lapsesFilter])} onRemove={() => setLapsesFilter("any")} />
-      ) : null}
-      {tagFilter ? (
-        <FilterChip label={fc("DeckFilterTagFormat", { 0: tagFilter })} onRemove={clearTagFilter} />
-      ) : null}
+        <span className="mx-0.5 h-5 w-px bg-line-soft" />
 
-      <Menu>
-        <MenuTrigger asChild>
-          {/* The dashed outline is a plain CSS border rather than the desktop's
-              stroked rectangle; at 1px the dash rhythm is visually the same and it
-              stays in step with the pill radius. */}
-          <button
-            type="button"
-            className="flex h-[26px] shrink-0 items-center gap-[5px] rounded-full border border-dashed border-text-disabled px-2.5 text-caption text-text-tertiary hover:bg-surface-subtle"
-          >
-            <AppIcon name="common/plus" size={11} />
-            {fc("AddFilter")}
-          </button>
-        </MenuTrigger>
-        <MenuContent align="start">
-          <MenuSubMenu label={fc("FilterByType")}>
-            {CARD_TYPES.map((type) => (
-              <MenuItem key={type} onSelect={() => setTypeFilter(type)}>
-                <Checkable label={fc(CARD_TYPE_KEY[type])} active={type === typeFilter} />
-              </MenuItem>
-            ))}
-          </MenuSubMenu>
-          <MenuSubMenu label={fc("FilterByLapses")}>
-            {LAPSES_FILTERS.map((lapses) => (
-              <MenuItem key={lapses} onSelect={() => setLapsesFilter(lapses)}>
-                <Checkable label={fc(LAPSES_FILTER_KEY[lapses])} active={lapses === lapsesFilter} />
-              </MenuItem>
-            ))}
-          </MenuSubMenu>
-          {knownTags.length > 0 ? (
-            <MenuSubMenu label={fc("FilterByTag")}>
-              {knownTags.map((tag) => (
-                <MenuItem key={tag} onSelect={() => setTagFilter(tag)}>
-                  <Checkable label={tag} active={tag === tagFilter} />
+        <Menu>
+          <MenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12.5px] transition-colors",
+                "text-ink-2 hover:bg-frame-hover hover:text-ink aria-expanded:bg-frame-hover aria-expanded:text-ink",
+              )}
+            >
+              <AppIcon name="list-filter" size={14} strokeWidth={1.7} />
+              {fc("AddFilter")}
+            </button>
+          </MenuTrigger>
+          <MenuContent align="start">
+            {knownTags.length > 0 ? (
+              <MenuSubMenu label={fc("FilterByTag")} icon="tag" hint={tagFilter ?? undefined}>
+                {knownTags.map((tag) => (
+                  <MenuItem key={tag} onSelect={() => (tag === tagFilter ? clearTagFilter() : setTagFilter(tag))}>
+                    <Checkable label={tag} active={tag === tagFilter} />
+                  </MenuItem>
+                ))}
+              </MenuSubMenu>
+            ) : null}
+            <MenuSubMenu
+              label={fc("FilterByType")}
+              icon="type"
+              hint={typeFilter ? fc(CARD_TYPE_KEY[typeFilter]) : undefined}
+            >
+              {CARD_TYPES.map((type) => (
+                <MenuItem key={type} onSelect={() => setTypeFilter(type === typeFilter ? null : type)}>
+                  <Checkable label={fc(CARD_TYPE_KEY[type])} active={type === typeFilter} />
                 </MenuItem>
               ))}
             </MenuSubMenu>
-          ) : null}
-        </MenuContent>
-      </Menu>
+            <MenuSubMenu
+              label={fc("FilterByLapses")}
+              icon="repeat-2"
+              hint={lapsesFilter === "any" ? undefined : fc(LAPSES_TOKEN_KEY[lapsesFilter])}
+            >
+              {LAPSES_FILTERS.map((lapses) => (
+                <MenuItem
+                  key={lapses}
+                  onSelect={() => setLapsesFilter(lapses === lapsesFilter ? "any" : lapses)}
+                >
+                  <Checkable label={fc(LAPSES_FILTER_KEY[lapses])} active={lapses === lapsesFilter} />
+                </MenuItem>
+              ))}
+            </MenuSubMenu>
+          </MenuContent>
+        </Menu>
 
-      {/* ml-auto rather than a spacer element, so the pair still sits right on a
-          line of its own once the strip wraps. */}
-      <div className="ml-auto flex items-center gap-2.5">
+        {tagFilter ? <Token label={fc("FilterByTag")} value={tagFilter} onClear={clearTagFilter} /> : null}
+        {typeFilter ? (
+          <Token
+            label={fc("FilterByType")}
+            value={fc(CARD_TYPE_KEY[typeFilter])}
+            onClear={() => setTypeFilter(null)}
+          />
+        ) : null}
+        {lapsesFilter !== "any" ? (
+          <Token
+            label={fc("FilterByLapses")}
+            value={fc(LAPSES_TOKEN_KEY[lapsesFilter])}
+            onClear={() => setLapsesFilter("any")}
+          />
+        ) : null}
+
         {filtered ? (
           <button
             type="button"
             onClick={clearFilters}
-            className="shrink-0 rounded-md px-1.5 py-0.5 text-caption text-text-tertiary hover:text-text-primary"
+            className="h-7 shrink-0 rounded-md px-2 text-[12.5px] text-ink-3 transition-colors hover:bg-frame-hover hover:text-ink"
           >
             {fc("ClearFilters")}
           </button>
-        ) : null}
-
-        {filtered && totalCount > 0 ? (
-          <span className="shrink-0 text-caption text-text-tertiary">
-            {fc("DeckFilteredCountFormat", { 0: totalCount })}
-          </span>
         ) : null}
       </div>
     </div>
@@ -152,29 +161,47 @@ export function DeckToolbar({ knownTags, totalCount }: { knownTags: string[]; to
  * and All is always available, so there is nothing an x could do that picking a
  * different chip does not.
  */
-function StateChip({ label, active, onSelect }: { label: string; active: boolean; onSelect: () => void }) {
+function StateChip({
+  label,
+  flag,
+  active,
+  onSelect,
+}: {
+  label: string
+  /** Flagged is the one state with a mark of its own, and the row shows the same one. */
+  flag: boolean
+  active: boolean
+  onSelect: () => void
+}) {
   return (
     <button
       type="button"
       onClick={onSelect}
       aria-pressed={active}
-      className={
-        active
-          ? "flex h-[26px] shrink-0 items-center rounded-full bg-brand-subtle px-2.5 text-caption text-brand"
-          : "flex h-[26px] shrink-0 items-center rounded-full px-2.5 text-caption text-text-tertiary hover:bg-surface-subtle"
-      }
+      className={cn(
+        "flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12.5px] transition-colors",
+        active ? "bg-frame-active font-medium text-ink" : "text-ink-2 hover:bg-frame-hover hover:text-ink",
+      )}
     >
+      {flag ? <AppIcon name="common/flag" size={12} /> : null}
       {label}
     </button>
   )
 }
 
-function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+/** An active filter from the menu, named by its dimension so the chips stay readable. */
+function Token({ label, value, onClear }: { label: string; value: string; onClear: () => void }) {
   return (
-    <span className="flex h-[26px] shrink-0 items-center gap-1 rounded-full bg-brand-subtle px-2.5 text-caption text-brand">
-      {label}
-      <button type="button" onClick={onRemove} aria-label={label} className="rounded-sm p-0.5 hover:bg-brand/15">
-        <AppIcon name="common/x" size={10} />
+    <span className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-frame-active pr-1 pl-2 text-[12.5px]">
+      <span className="text-ink-3">{label}</span>
+      <span className="font-medium text-ink">{value}</span>
+      <button
+        type="button"
+        onClick={onClear}
+        aria-label={label}
+        className="grid size-5 place-items-center rounded text-ink-3 transition-colors hover:bg-canvas hover:text-ink"
+      >
+        <AppIcon name="x" size={11} strokeWidth={2.2} />
       </button>
     </span>
   )
@@ -185,7 +212,7 @@ function Checkable({ label, active }: { label: string; active: boolean }) {
   return (
     <span className="flex items-center gap-2.5">
       <span className="grid w-3.5 shrink-0 place-items-center">
-        {active ? <AppIcon name="common/check" size={12} /> : null}
+        {active ? <AppIcon name="check" size={12} /> : null}
       </span>
       {label}
     </span>
