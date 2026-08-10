@@ -323,7 +323,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
             </Dialog.Close>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-[18px]">
+          <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-5 py-[18px]">
             {importing ? (
               <NoteImportPanel
                 queue={queue}

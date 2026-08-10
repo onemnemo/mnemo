@@ -138,7 +138,7 @@ export function IndexChip({
     <div ref={chipRef} className="absolute bottom-3.5 left-4 z-20">
       {open ? (
         <div className="absolute bottom-full mb-2 w-[254px] rounded-lg border border-line bg-popover p-2 shadow-elevation-4">
-          <div className="max-h-[320px] overflow-y-auto">
+          <div className="scroll-thin max-h-[320px] overflow-y-auto">
             {headings.length === 0 ? (
               <div className="px-2 py-6 text-center text-body-extra-small text-text-faded">{nt('IndexEmpty')}</div>
             ) : (
