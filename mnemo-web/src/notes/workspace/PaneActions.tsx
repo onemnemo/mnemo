@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { navigate } from '@/app/router';
 import { AppIcon } from '@/components/icon/AppIcon';
@@ -18,7 +18,7 @@ import { dialog } from '@/stores/dialog';
 import { useSettingsStore } from '@/settings/store';
 import type { NoteSummaryDto } from '@/api/types';
 
-import { useDeleteNote, useUpdateNoteMetadata } from '../api';
+import { useDeleteNote, useDuplicateNote, useUpdateNoteMetadata } from '../api';
 import { metadataUpdateOf } from '../note-metadata';
 import { useNotePdf } from '../pdf/store';
 import { useNoteTransfer } from '../transfer/store';
@@ -38,6 +38,7 @@ export function PaneActions({ note }: { note: NoteSummaryDto }) {
   const nt = (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
   const updateNote = useUpdateNoteMetadata();
   const deleteNote = useDeleteNote();
+  const duplicateNote = useDuplicateNote();
   const openTransfer = useNoteTransfer((state) => state.open);
   const openPdf = useNotePdf((state) => state.open);
 
@@ -45,10 +46,29 @@ export function PaneActions({ note }: { note: NoteSummaryDto }) {
   const widthOptions = useEditorWidthOptions();
   const { value: width } = useEditorMeasure();
 
-  // Which picker the menu raised, if any. The menu closes on select, so the
-  // popover is anchored here and opened after the fact rather than nested in an
-  // item that is about to unmount.
+  // Which picker the menu raised, if any, and which one it is about to.
+  //
+  // Radix tears its menu layer down and returns focus as the menu closes, and a
+  // popover opened during that teardown is dismissed along with it. So a menu
+  // item only records the intent, and the picker opens on the frame after the
+  // menu has actually gone, leaving one layer on screen at a time.
+  // The intent is state, not a ref: an effect that consumed a ref would be spent
+  // by the first of StrictMode's two passes and the picker would never open.
+  const [menuOpen, setMenuOpen] = useState(false);
   const [picker, setPicker] = useState<'icon' | 'cover' | null>(null);
+  const [pending, setPending] = useState<'icon' | 'cover' | null>(null);
+
+  // A timer rather than an animation frame: frames are throttled or suspended
+  // entirely while the window is not compositing, and a control that needs the
+  // window painting to open at all is a control that sometimes does not open.
+  useEffect(() => {
+    if (menuOpen || !pending) return;
+    const timer = setTimeout(() => {
+      setPicker(pending);
+      setPending(null);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [menuOpen, pending]);
 
   const title = note.title.trim() || nt('Untitled');
   const overCover = coverCss(note.cover) !== null;
@@ -69,6 +89,11 @@ export function PaneActions({ note }: { note: NoteSummaryDto }) {
     await updateNote.mutateAsync(metadataUpdateOf(note, { title: trimmed }));
   };
 
+  const duplicate = async () => {
+    const copy = await duplicateNote.mutateAsync({ id: note.id, title: nt('CopyOfFormat', { 0: title }) });
+    if (copy && typeof copy === 'object' && 'id' in copy) navigate('notes', String(copy.id));
+  };
+
   const remove = async () => {
     const ok = await dialog.confirm({
       title: nt('DeleteNote'),
@@ -84,7 +109,7 @@ export function PaneActions({ note }: { note: NoteSummaryDto }) {
 
   return (
     <div className="relative">
-      <Menu>
+      <Menu open={menuOpen} onOpenChange={setMenuOpen}>
         <MenuTrigger asChild>
           <button
             type="button"
@@ -110,16 +135,19 @@ export function PaneActions({ note }: { note: NoteSummaryDto }) {
           <MenuItem icon="flyout/rename" onSelect={() => void rename()}>
             {nt('Rename')}
           </MenuItem>
-          <MenuItem icon="notes/emoji" onSelect={() => setPicker('icon')}>
+          <MenuItem icon="notes/emoji" onSelect={() => setPending('icon')}>
             {note.emoji ? nt('ChangeIcon') : nt('AddIcon')}
           </MenuItem>
-          <MenuItem icon="common/image" onSelect={() => setPicker('cover')}>
+          <MenuItem icon="common/image" onSelect={() => setPending('cover')}>
             {overCover ? nt('ChangeCover') : nt('AddCover')}
+          </MenuItem>
+          <MenuItem icon="common/copy" onSelect={() => void duplicate()}>
+            {nt('Duplicate')}
           </MenuItem>
           <MenuSeparator />
           {/* The same Editor Width the settings page writes, reachable from the
               document it changes: it is a per-read preference, not a setup step. */}
-          <MenuSubMenu label={t('Settings', 'EditorWidth')} icon="common/layout-grid">
+          <MenuSubMenu label={t('Settings', 'EditorWidth')} icon="notes/width">
             <MenuRadioGroup value={width} onValueChange={(next) => void setSetting(EDITOR_WIDTH_KEY, next)}>
               {widthOptions.map((option) => (
                 <MenuRadioItem key={option.value} value={option.value}>

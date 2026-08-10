@@ -134,6 +134,46 @@ export function useNoteContentCommitter() {
   }
 }
 
+/**
+ * Copies a note: its body, its icon, cover and tags, filed beside the original.
+ *
+ * Assembled client side from the three calls the API already has, because there
+ * is no server-side copy. The order matters: the body is committed against the
+ * version the create returned, so the copy is never left as an empty note that
+ * autosave could then write over. The copy is deliberately not a favourite and
+ * takes a fresh title, so it never reads as the original in the tree.
+ */
+export function useDuplicateNote() {
+  return useNotesMutation(async ({ id, title }: { id: string; title: string }) => {
+    const source = await apiFetch<NoteDto>(`/notes/${id}`)
+    const copy = await apiFetch<NoteDto>(
+      "/notes",
+      json({ title, folderId: source.folderId, parentNoteId: source.parentNoteId } satisfies CreateNoteDto),
+    )
+
+    const blocks = source.blocks ?? []
+    if (blocks.length > 0) {
+      await commitNoteContent(copy.id, { baseVer: copy.ver, requestId: crypto.randomUUID(), blocks })
+    }
+
+    await apiSend(`/notes/${copy.id}/metadata`, {
+      ...json({
+        title,
+        folderId: copy.folderId,
+        parentNoteId: copy.parentNoteId,
+        order: copy.order,
+        isFavorite: false,
+        emoji: source.emoji ?? null,
+        cover: source.cover ?? null,
+        tags: source.tags ?? [],
+      } satisfies UpdateNoteMetadataDto),
+      method: "PUT",
+    })
+
+    return copy
+  })
+}
+
 /** Deletes one note. Child pages and links to it survive and render as missing. */
 export function useDeleteNote() {
   return useNotesMutation((id: string) => apiSend(`/notes/${id}`, { method: "DELETE" }))

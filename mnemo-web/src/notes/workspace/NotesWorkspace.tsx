@@ -13,6 +13,7 @@ import { NoteTransferOverlay } from '../transfer/NoteTransferOverlay';
 import { NoteTreeSidebar, SIDEBAR_WIDTH } from '../tree/NoteTreeSidebar';
 import { NotePane } from './NotePane';
 import { NoteTabs, type NoteTab } from './NoteTabs';
+import { useNoteTabs } from './tabs';
 import { SidebarExpandButton } from './SidebarExpandButton';
 import { notesTrailCrumbs } from './trail';
 
@@ -48,13 +49,15 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
   );
   usePublishTrail(trail);
 
-  // Which notes are open as tabs, in the order they were opened. In memory only,
-  // like the tree's own state, so a reload starts from just the open note.
-  const [openTabs, setOpenTabs] = useState<string[]>(() => (noteId ? [noteId] : []));
+  const openTabs = useNoteTabs((s) => s.ids);
+  const openTab = useNoteTabs((s) => s.open);
+  const dropTab = useNoteTabs((s) => s.close);
+  const moveTab = useNoteTabs((s) => s.move);
+
+  // Navigating to a note opens it as a tab if it is not one already.
   useEffect(() => {
-    if (!noteId) return;
-    setOpenTabs((prev) => (prev.includes(noteId) ? prev : [...prev, noteId]));
-  }, [noteId]);
+    if (noteId) openTab(noteId);
+  }, [noteId, openTab]);
 
   // Rendered tabs: the open ids that still name a real note, titled and iconed
   // from the summaries, so a deleted note drops out rather than showing a stub.
@@ -72,27 +75,16 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
     (id: string) => {
       const ids = tabs.map((tab) => tab.id);
       const index = ids.indexOf(id);
-      setOpenTabs((prev) => prev.filter((tabId) => tabId !== id));
+      dropTab(id);
       if (id !== noteId) return;
+      // Closing the note you are on falls through to a neighbour rather than
+      // leaving the pane empty with tabs still open beside it.
       const fallback = ids[index + 1] ?? ids[index - 1] ?? null;
       if (fallback) navigate('notes', fallback);
       else navigate('notes');
     },
-    [tabs, noteId],
+    [tabs, noteId, dropTab],
   );
-
-  // Reorder by identity: the ids are what the tab bar renders from, so moving one
-  // is a splice on that list rather than anything the note itself carries.
-  const reorderTab = useCallback((id: string, toIndex: number) => {
-    setOpenTabs((prev) => {
-      const from = prev.indexOf(id);
-      if (from === -1 || from === toIndex) return prev;
-      const next = [...prev];
-      next.splice(from, 1);
-      next.splice(toIndex, 0, id);
-      return next;
-    });
-  }, []);
 
   const toggleFolder = useCallback((id: string) => {
     setCollapsed((prev) => {
@@ -167,7 +159,7 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
             activeId={noteId}
             onSelect={(id) => navigate('notes', id)}
             onClose={closeTab}
-            onReorder={reorderTab}
+            onReorder={moveTab}
             onExpandSidebar={sidebarOpen ? undefined : () => setSidebarOpen(true)}
           />
         ) : null}
