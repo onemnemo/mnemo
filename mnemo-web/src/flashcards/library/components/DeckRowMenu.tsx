@@ -58,9 +58,9 @@ export function DeckRowMenu({ deck, upToDate }: { deck: DeckSummaryDto; upToDate
           aria-label={fc("DeckMenu")}
           title={fc("DeckMenu")}
           onClick={(event) => event.stopPropagation()}
-          className="grid size-6 place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary"
+          className="grid size-7 place-items-center rounded-md text-ink-3 opacity-0 transition-opacity group-hover/deck:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 hover:bg-frame-active hover:text-ink"
         >
-          <AppIcon name="common/dots-vertical" size={16} />
+          <AppIcon name="common/ellipsis" size={15} />
         </button>
       </MenuTrigger>
 

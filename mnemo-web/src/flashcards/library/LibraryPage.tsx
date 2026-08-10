@@ -18,7 +18,8 @@ import {
   useFoldersQuery,
   type LibraryWrites,
 } from "../api"
-import { DueBanner } from "./components/DueBanner"
+import { DeckGrid } from "./components/DeckGrid"
+import { DuePanel } from "./components/DuePanel"
 import { LibraryToolbar } from "./components/LibraryToolbar"
 import { LibraryTree } from "./components/LibraryTree"
 import { DragLayer } from "./dnd/DragLayer"
@@ -27,7 +28,7 @@ import { planDeckMove, planFolderMove } from "./dnd/plan"
 import { useLibraryDrag } from "./dnd/useLibraryDrag"
 import { useTransfer } from "../transfer/store"
 import { useLibraryView } from "./store"
-import { buildLibrary, decksInScope } from "./tree"
+import { buildLibrary, decksInScope, sortDecks } from "./tree"
 
 export function LibraryPage() {
   const t = useT()
@@ -41,6 +42,7 @@ export function LibraryPage() {
 
   const search = useLibraryView((s) => s.search)
   const sort = useLibraryView((s) => s.sort)
+  const layout = useLibraryView((s) => s.layout)
   const collapsed = useLibraryView((s) => s.collapsed)
   const toggleFolder = useLibraryView((s) => s.toggleFolder)
   const toggleAll = useLibraryView((s) => s.toggleAll)
@@ -50,11 +52,31 @@ export function LibraryPage() {
     [folders.data, decks.data, search, sort, collapsed],
   )
 
+  // The grid is flat, so it takes everything the search leaves in scope rather than
+  // the rows: a collapsed folder is a list idea and must not hide a card.
+  const gridDecks = useMemo(
+    () => sortDecks(decksInScope(decks.data ?? [], search), sort),
+    [decks.data, search, sort],
+  )
+  const folderNames = useMemo(
+    () => new Map((folders.data ?? []).map((folder) => [folder.id, folder.name])),
+    [folders.data],
+  )
+
   const loaded = decks.isSuccess && folders.isSuccess
   const deckCount = decks.data?.length ?? 0
+  const shownCount = layout === "grid" ? gridDecks.length : model.rows.length
   const showEmpty = loaded && deckCount === 0
-  const showNoResults = loaded && deckCount > 0 && model.rows.length === 0
+  const showNoResults = loaded && deckCount > 0 && shownCount === 0
   const due = aggregateDue.data
+
+  // Study all opens the deck with the most waiting, which is what the sort already
+  // put first when it is sorting by due. There is no cross-deck session to start.
+  const studyTarget = useMemo(() => {
+    const withWork = (decks.data ?? []).filter((deck) => deck.dueCounts.total > 0)
+    const pool = withWork.length > 0 ? withWork : (decks.data ?? [])
+    return sortDecks(pool, "due")[0] ?? null
+  }, [decks.data])
 
   const onCreateDeck = async () => {
     const value = await dialog.prompt({
@@ -117,11 +139,11 @@ export function LibraryPage() {
     })
 
   return (
-    <div className="mx-auto flex max-w-[900px] flex-col gap-4 px-10 pt-[26px] pb-8">
+    <div className="mx-auto max-w-[980px] px-8 pt-7 pb-20">
       <header className="flex items-start justify-between gap-4">
-        <div className="space-y-[3px]">
-          <h1 className="text-heading-4 font-semibold text-text-primary">{fc("Title")}</h1>
-          <p className="text-body-extra-small text-text-tertiary">
+        <div>
+          <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-ink">{fc("Title")}</h1>
+          <p className="mt-0.5 text-[13px] text-ink-2">
             {fc("DeckCountCardCountFormat", {
               0: model.totals.deckCount,
               1: model.totals.cardCount.toLocaleString(),
@@ -130,14 +152,14 @@ export function LibraryPage() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <Button variant="outline" size="sm" onClick={openTransfer}>
-            <AppIcon name="common/download" size={14} />
+          <Button variant="ghost" icon={<AppIcon name="common/download" size={14} />} onClick={openTransfer}>
             {fc("Import")}
           </Button>
+          {/* Neutral, not solid: creating a deck is not the reason anyone opens this
+              screen, and it should not outrank the study button below it. */}
           <Menu>
             <MenuTrigger asChild>
-              <Button size="sm">
-                <AppIcon name="common/plus" size={16} />
+              <Button variant="outline" icon={<AppIcon name="plus" size={14} strokeWidth={1.9} />}>
                 {fc("NewButton")}
               </Button>
             </MenuTrigger>
@@ -153,16 +175,25 @@ export function LibraryPage() {
         </div>
       </header>
 
-      {due && due.total > 0 ? (
-        <DueBanner due={due} deckCount={(decks.data ?? []).filter((d) => d.dueCounts.total > 0).length} />
+      {due && !showEmpty ? (
+        <DuePanel
+          due={due}
+          deckCount={(decks.data ?? []).filter((d) => d.dueCounts.total > 0).length}
+          onStudy={() => {
+            if (studyTarget) navigate("flashcard-session", studyTarget.id, "review", due.total > 0 ? "due" : "all")
+          }}
+        />
       ) : null}
 
       {!showEmpty ? <LibraryToolbar onToggleAll={() => toggleAll(folderIds)} /> : null}
 
-      {model.rows.length > 0 ? (
+      {layout === "grid" ? (
+        gridDecks.length > 0 ? (
+          <DeckGrid decks={gridDecks} folderNames={folderNames} onOpenDeck={(id) => navigate("flashcard-deck", id)} />
+        ) : null
+      ) : model.rows.length > 0 ? (
         <LibraryTree
           rows={model.rows}
-          totals={model.totals}
           onOpenDeck={(id) => navigate("flashcard-deck", id)}
           onToggleFolder={toggleFolder}
           drag={drag}

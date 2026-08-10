@@ -1,43 +1,44 @@
-import type { ReactNode, RefObject } from "react"
+import type { RefObject } from "react"
 
 import { useT } from "@/i18n/useT"
-import { cn } from "@/lib/utils"
 
 import type { LibraryDrag } from "../dnd/useLibraryDrag"
-import type { LibraryRow, LibraryTotals } from "../tree"
+import type { LibraryRow } from "../tree"
 import { DeckRow } from "./DeckRow"
 import { FolderRow } from "./FolderRow"
-import { METRIC_CLASS, ROW_GRID } from "./rowLayout"
+import { RETENTION_CELL } from "./rowLayout"
 
-/** The library table: column header, the folder/deck rows, and a totals footer. */
+/** The library list: one quiet header over the folder and deck rows. */
 export function LibraryTree({
   rows,
-  totals,
   onOpenDeck,
   onToggleFolder,
   drag,
   surfaceRef,
 }: {
   rows: LibraryRow[]
-  totals: LibraryTotals
   onOpenDeck: (id: string) => void
   onToggleFolder: (id: string) => void
   drag: LibraryDrag
-  /** The whole card is the drop surface: anywhere on it that is not a row means the root. */
+  /** The whole surface is a drop target: anywhere on it that is not a row means the root. */
   surfaceRef: RefObject<HTMLDivElement | null>
 }) {
   const t = useT()
   const fc = (key: string) => t("Flashcards", key)
 
   return (
-    <div ref={surfaceRef} className="overflow-hidden rounded-lg border border-line bg-surface">
-      <div className={cn(ROW_GRID, "h-8 border-b border-divider-subtle")}>
-        <HeadCell className="text-left">{fc("ColDeck")}</HeadCell>
-        <HeadCell>{fc("ColNew")}</HeadCell>
-        <HeadCell>{fc("ColLearn")}</HeadCell>
-        <HeadCell>{fc("ColDue")}</HeadCell>
-        <HeadCell>{fc("ColRetention")}</HeadCell>
-        <span />
+    <div ref={surfaceRef} className="mt-3">
+      {/* Only the columns that are numbers get a heading. Naming the name column
+          says nothing the rows do not already say. */}
+      <div className="flex h-7 items-center gap-3 pr-2 pl-2.5 text-[11.5px] text-ink-3">
+        <span className="flex-1" />
+        <span className="flex items-center gap-4">
+          <span className="w-7 text-right">{fc("ColNew")}</span>
+          <span className="w-7 text-right">{fc("ColLearn")}</span>
+          <span className="w-7 text-right">{fc("ColDue")}</span>
+        </span>
+        <span className={RETENTION_CELL}>{fc("ColRetention")}</span>
+        <span className="size-7 shrink-0" />
       </div>
 
       <div role="rowgroup">
@@ -49,21 +50,6 @@ export function LibraryTree({
           ),
         )}
       </div>
-
-      <div className={cn(ROW_GRID, "h-[34px] bg-[var(--widget-background-hover)]")}>
-        <span className="text-caption font-semibold text-text-faded">{fc("Total")}</span>
-        <span className={cn(METRIC_CLASS, "text-caption text-[var(--flashcard-state-new)]")}>{totals.new}</span>
-        <span className={cn(METRIC_CLASS, "text-caption text-[var(--flashcard-state-learning)]")}>{totals.learning}</span>
-        <span className={cn(METRIC_CLASS, "text-caption text-[var(--accent)]")}>{totals.due}</span>
-        <span className={cn(METRIC_CLASS, "text-caption text-text-secondary")}>{totals.retentionPercent}%</span>
-        <span />
-      </div>
     </div>
-  )
-}
-
-function HeadCell({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <span className={cn("text-right text-caption font-semibold text-text-faded", className)}>{children}</span>
   )
 }

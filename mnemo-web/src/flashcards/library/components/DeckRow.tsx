@@ -1,15 +1,22 @@
+import { navigate } from "@/app/router"
+import { AppIcon } from "@/components/icon/AppIcon"
+import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
+import { formatRelative } from "@/lib/relative-date"
 
+import { Counts, Retention } from "../../bits"
 import type { DragHandle } from "../dnd/model"
 import type { LibraryDrag } from "../dnd/useLibraryDrag"
-import { RETENTION_HIGH_THRESHOLD, RETENTION_TRACK_WIDTH, retentionFillWidth, type DeckRowModel } from "../tree"
+import type { DeckRowModel } from "../tree"
 import { DeckRowMenu } from "./DeckRowMenu"
-import { DEPTH_INDENT, METRIC_CLASS, ROW_GRID } from "./rowLayout"
+import { DEPTH_INDENT, RETENTION_CELL } from "./rowLayout"
 
 /**
- * One deck in the library table. A deck with nothing waiting fades back and
- * trades its three count columns for a single "Up to date" note.
+ * One deck in the library list: what it is, what it owes, and the way in.
+ *
+ * Study lives on the row rather than behind the menu, because studying is the job.
+ * It only asks for attention when the pointer is already there.
  */
 export function DeckRow({
   row,
@@ -21,9 +28,13 @@ export function DeckRow({
   drag: LibraryDrag
 }) {
   const t = useT()
+  const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
   const { deck, dueToday } = row
-  const upToDate = dueToday === 0
-  const retentionHigh = deck.retentionPercent >= RETENTION_HIGH_THRESHOLD
+
+  // Caught up means nothing to do. Never opened does not: that deck has every one
+  // of its cards still waiting, they are simply not scheduled yet.
+  const started = deck.lastStudied !== null
+  const idle = dueToday === 0 && started
 
   const handle: DragHandle = {
     key: `deck:${deck.id}`,
@@ -31,7 +42,7 @@ export function DeckRow({
     id: deck.id,
     parentId: deck.folderId,
     label: deck.name,
-    subtitle: t("Flashcards", "DeckCardCountFormat", { 0: deck.totalCards }),
+    subtitle: fc("DeckCardCountFormat", { 0: deck.totalCards }),
   }
 
   return (
@@ -51,79 +62,78 @@ export function DeckRow({
           onOpen(deck.id)
         }
       }}
-      // The dimming while dragging has to beat the "up to date" fade, so it is set here
-      // rather than added as another opacity class.
-      style={{ opacity: drag.sourceKey === handle.key ? 0.35 : undefined }}
+      style={{
+        opacity: drag.sourceKey === handle.key ? 0.35 : undefined,
+        paddingLeft: 10 + row.depth * DEPTH_INDENT,
+      }}
       className={cn(
-        ROW_GRID,
-        "group relative h-[38px] cursor-pointer border-b border-divider-subtle outline-none",
-        "hover:bg-[var(--widget-background-hover)] focus-visible:bg-[var(--widget-background-hover)]",
-        upToDate && "opacity-45",
+        "group/deck flex h-12 cursor-pointer items-center gap-3 rounded-lg pr-2 outline-none transition-colors",
+        "hover:bg-frame-hover focus-visible:bg-frame-hover",
       )}
     >
-      <div className="flex min-w-0 items-center gap-2" style={{ marginLeft: row.depth * DEPTH_INDENT }}>
-        {/* Inline rather than in a reserved column: most decks have no icon, and an
-            empty slot on every row costs more than the ragged edge saves. */}
-        <span className="ml-1.5 flex min-w-0 items-center gap-1.5">
-          {deck.icon ? (
-            <span aria-hidden className="shrink-0 text-[13px] leading-none">
-              {deck.icon}
-            </span>
-          ) : null}
-          <span className="truncate text-body-extra-small font-medium text-text-primary" title={deck.name}>
-            {deck.name}
-          </span>
-        </span>
-        <span className="shrink-0 text-caption text-text-faded">
-          {t("Flashcards", "DeckCardCountFormat", { 0: deck.totalCards })}
-        </span>
-      </div>
+      <DeckIcon icon={deck.icon} />
 
-      {upToDate ? (
-        <div className="col-span-3 text-right text-caption text-[var(--flashcard-retention-high)]">
-          {t("Flashcards", "UpToDate")}
-        </div>
-      ) : (
-        <>
-          <Metric value={deck.dueCounts.new} color="var(--flashcard-state-new)" />
-          <Metric value={deck.dueCounts.learning} color="var(--flashcard-state-learning)" />
-          <Metric value={deck.dueCounts.due} color="var(--accent)" />
-        </>
-      )}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13.5px] text-ink" title={deck.name}>
+          {deck.name}
+        </span>
+        <span className="block truncate text-[12px] text-ink-3">
+          {fc("DeckCardCountFormat", { 0: deck.totalCards.toLocaleString() })}
+          {" · "}
+          {deck.lastStudied
+            ? fc("DeckLastStudiedFormat", { 0: formatRelative(deck.lastStudied, Date.now(), t) })
+            : fc("DeckNeverStudied")}
+        </span>
+      </span>
 
-      <div className="flex items-center justify-end gap-[7px]">
-        <span
-          className="h-[3px] shrink-0 overflow-hidden rounded-sm bg-[var(--widget-background-primary)]"
-          style={{ width: RETENTION_TRACK_WIDTH }}
+      {/* The whole row navigates, so anything clickable inside it has to stop the
+          event, or starting a session also opens the deck behind it. */}
+      <span
+        className="shrink-0 opacity-0 transition-opacity group-hover/deck:opacity-100 focus-within:opacity-100"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <Button
+          variant="outline"
+          disabled={idle}
+          onClick={(event) => {
+            event.stopPropagation()
+            navigate("flashcard-session", deck.id, "review", "due")
+          }}
+          className="h-7 bg-canvas px-2.5"
+          icon={<AppIcon name="common/play-filled" size={12} />}
         >
-          <span
-            className="block h-full rounded-sm"
-            style={{
-              width: retentionFillWidth(deck.retentionPercent),
-              background: retentionHigh ? "var(--flashcard-retention-high)" : "var(--flashcard-state-learning)",
-            }}
-          />
-        </span>
-        <span className="font-mono text-caption text-text-secondary tabular-nums">{deck.retentionPercent}%</span>
-      </div>
+          {idle ? fc("StudyDone") : fc("Study")}
+        </Button>
+      </span>
 
-      {/* Covers the retention column on hover, the way the desktop row swaps the
-          bar out for its actions rather than reserving space for them. Absolute
-          rather than grid-placed: an explicitly positioned grid item is placed
-          before the auto-flow ones, which would bump the retention cell to a
-          second row. Width spans the retention and action columns plus the row's
-          right padding. */}
-      <div className="absolute inset-y-0 right-0 flex w-[146px] items-center justify-end gap-1.5 bg-[var(--widget-background-hover)] pr-[18px] opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-        <DeckRowMenu deck={deck} upToDate={upToDate} />
-      </div>
+      <Counts counts={deck.dueCounts} className="shrink-0" />
+
+      <span className={RETENTION_CELL}>
+        <Retention percent={deck.retentionSampleSize > 0 ? deck.retentionPercent : null} />
+      </span>
+
+      <span className="shrink-0" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+        <DeckRowMenu deck={deck} upToDate={idle} />
+      </span>
     </div>
   )
 }
 
-function Metric({ value, color }: { value: number; color: string }) {
+/**
+ * Icons are opt-in. A deck without one gets a neutral mark rather than an empty
+ * slot, so a list of half-decorated decks still lines up: the missing icon should
+ * read as "not set", never as a rendering hole.
+ */
+function DeckIcon({ icon }: { icon: string | null }) {
   return (
-    <span className={METRIC_CLASS} style={{ color: value === 0 ? "var(--text-disabled)" : color }}>
-      {value}
+    <span className="grid size-[18px] shrink-0 place-items-center">
+      {icon ? (
+        <span aria-hidden className="text-[14px] leading-none">
+          {icon}
+        </span>
+      ) : (
+        <AppIcon name="square-stack" size={15} className="text-ink-icon" />
+      )}
     </span>
   )
 }
