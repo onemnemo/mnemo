@@ -188,10 +188,10 @@ function CardEditor({ target, onClose }: { target: CardEditorTarget; onClose: ()
               void save()
             }
           }}
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[86vh] w-[724px] max-w-[calc(100vw-3rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-line bg-[var(--overlay-background)] shadow-[0_16px_40px_0_rgba(0,0,0,0.22)] focus:outline-none"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[86vh] w-[724px] max-w-[calc(100vw-3rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-line-soft bg-canvas shadow-pop focus:outline-none"
         >
-          <div className="flex items-center gap-3.5 border-b border-divider-subtle px-5 py-3.5">
-            <Dialog.Title className="text-body-small font-semibold text-text-primary">
+          <div className="flex items-center gap-3.5 border-b border-line-soft px-5 py-3.5">
+            <Dialog.Title className="text-[14px] font-semibold text-ink">
               {fc(isEditMode ? "CardEditorTitleEdit" : "CardEditorTitleNew")}
             </Dialog.Title>
             <SelectControl
@@ -242,7 +242,7 @@ function CardEditor({ target, onClose }: { target: CardEditorTarget; onClose: ()
               }
             />
 
-            <p className="text-[11.5px] text-text-faded">{fc("CardEditorAttachmentsHint")}</p>
+            <p className="text-[11.5px] text-ink-3">{fc("CardEditorAttachmentsHint")}</p>
 
             <TagEditor tags={tags} onChange={setTags} />
           </div>

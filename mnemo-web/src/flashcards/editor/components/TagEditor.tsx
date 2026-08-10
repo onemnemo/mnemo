@@ -25,20 +25,20 @@ export function TagEditor({ tags, onChange }: { tags: string[]; onChange: (next:
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[10.5px] font-semibold tracking-[1px] text-text-faded">{fc("TagsLabel")}</span>
+      <span className="text-[12px] font-medium text-ink-3">{fc("TagsLabel")}</span>
 
       <div className="flex flex-wrap gap-1.5">
         {tags.map((tag) => (
           <span
             key={tag}
-            className="flex h-[26px] items-center gap-1.5 rounded-pill bg-[var(--card-background-secondary)] px-2.5 text-caption text-text-secondary"
+            className="flex h-7 items-center gap-1 rounded-md bg-canvas-sunken pr-1 pl-2 text-[12px] text-ink-2"
           >
             {tag}
             <button
               type="button"
               aria-label={`${t("Flashcards", "Remove")} ${tag}`}
               onClick={() => onChange(tags.filter((existing) => existing !== tag))}
-              className="grid size-4 place-items-center rounded-sm text-text-tertiary transition-colors hover:bg-[var(--navigation-button-background-hover)] hover:text-text-primary"
+              className="grid size-4 place-items-center rounded text-ink-3 transition-colors hover:bg-frame-active hover:text-ink"
             >
               <AppIcon name="common/x" size={10} />
             </button>
@@ -73,13 +73,13 @@ export function TagEditor({ tags, onChange }: { tags: string[]; onChange: (next:
                 setAdding(false)
               }
             }}
-            className="h-[26px] w-[150px] rounded-sm border border-line bg-[var(--workspace-background)] px-2 text-caption text-text-primary outline-none placeholder:text-text-faded focus:border-brand"
+            className="h-7 w-[120px] rounded-md bg-transparent px-2 text-[12px] text-ink shadow-[0_0_0_1px_var(--line)] outline-none placeholder:text-ink-3 focus:shadow-[0_0_0_1.5px_var(--solid)]"
           />
         ) : (
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="flex h-[26px] items-center gap-[5px] rounded-pill border border-line px-2.5 text-caption text-text-faded transition-colors hover:text-text-secondary"
+            className="flex h-7 items-center gap-1 rounded-md px-2 text-[12px] text-ink-3 shadow-[0_0_0_1px_var(--line-soft)] transition-colors hover:bg-frame-hover hover:text-ink"
           >
             <AppIcon name="common/plus" size={11} />
             {fc("CardEditorAddTag")}

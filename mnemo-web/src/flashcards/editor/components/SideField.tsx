@@ -5,11 +5,18 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import type { DraftAttachment } from "../draft"
-import { IMAGE_ACCEPT, MAX_ATTACHMENTS_PER_SIDE, wrapCloze, wrapWithMarker, type TextEdit } from "../editor-state"
+import {
+  IMAGE_ACCEPT,
+  MAX_ATTACHMENTS_PER_SIDE,
+  wrapAround,
+  wrapCloze,
+  wrapWithMarker,
+  type TextEdit,
+} from "../editor-state"
 import { AttachmentFigure } from "./AttachmentFigure"
 import { FormatBar } from "./FormatBar"
 
-/** One side of the card: its label, format bar, text and attached images. */
+/** One side of the card: its label, a format bar that floats on focus, text and attached images. */
 export function SideField({
   side,
   label,
@@ -67,31 +74,60 @@ export function SideField({
     })
   }
 
+  const mark = (marker: string) => () => applyEdit((text, start, end) => wrapWithMarker(text, start, end, marker))
+
   const attach = (files: File[]) => {
     const images = files.filter((file) => file.type.startsWith("image/"))
     if (images.length > 0) onAttachFiles(side, images)
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[10.5px] font-semibold tracking-[1px] text-text-faded">{label}</span>
-        {focused ? (
-          <FormatBar
-            isCloze={isCloze}
-            canAttach={canAttach}
-            onBold={() => applyEdit((text, start, end) => wrapWithMarker(text, start, end, "**"))}
-            onItalic={() => applyEdit((text, start, end) => wrapWithMarker(text, start, end, "*"))}
-            onCloze={() => applyEdit(wrapCloze)}
-            onInsertImage={() => {
-              replacing.current = null
-              picker.current?.click()
-            }}
-          />
-        ) : null}
-      </div>
+    <div className="relative flex flex-col gap-1.5">
+      <label className="text-[12px] font-medium text-ink-3">{label}</label>
 
-      <div
+      {/* Floats on the field's top edge rather than pushing it down, so tabbing between the two
+          sides does not make the whole dialog jump each time a toolbar appears. */}
+      {focused ? (
+        <FormatBar
+          className="animate-pop-in absolute -top-1 right-0 z-10 rounded-lg bg-canvas p-0.5 shadow-pop"
+          isCloze={isCloze}
+          canAttach={canAttach}
+          onBold={mark("**")}
+          onItalic={mark("*")}
+          onUnderline={mark("__")}
+          onCode={mark("`")}
+          onHighlight={mark("==")}
+          onFormula={mark("$")}
+          onBullet={() => applyEdit((text, start, end) => wrapAround(text, start, end, "\n- ", ""))}
+          onCloze={() => applyEdit(wrapCloze)}
+          onInsertImage={() => {
+            replacing.current = null
+            picker.current?.click()
+          }}
+        />
+      ) : null}
+
+      <textarea
+        ref={textarea}
+        // The visible label is a bare caption above the box, not a <label> for it.
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={onFocus}
+        onKeyDown={(event) => {
+          // Ctrl/Cmd+Shift+C wraps the selection as the next cloze, the desktop's shortcut.
+          if (isCloze && event.shiftKey && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
+            event.preventDefault()
+            applyEdit(wrapCloze)
+          }
+        }}
+        onPaste={(event) => {
+          const files = Array.from(event.clipboardData.files)
+          // Only swallow the paste when it actually carried an image; a mixed clipboard should
+          // still drop its text into the box.
+          if (files.some((file) => file.type.startsWith("image/"))) event.preventDefault()
+          attach(files)
+        }}
         onDragOver={(event) => {
           if (!canAttach) return
           event.preventDefault()
@@ -103,53 +139,32 @@ export function SideField({
           setDragging(false)
           attach(Array.from(event.dataTransfer.files))
         }}
+        rows={side === "front" ? 2 : 3}
         className={cn(
-          "rounded-md border bg-[var(--workspace-background)] px-3 py-2.5 transition-[border-color,box-shadow] duration-150 ease-out",
-          focused || dragging
-            ? "border-brand shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_15%,transparent)]"
-            : "border-line",
+          "w-full resize-none rounded-lg bg-transparent px-3 py-2.5 text-[13.5px] leading-[1.55] text-ink outline-none transition-shadow",
+          // The drop target is the side you are about to drop into, so the field itself says so;
+          // a dashed overlay across the whole dialog would leave you guessing which side gets it.
+          dragging
+            ? "bg-accent-wash shadow-[0_0_0_1.5px_var(--accent)]"
+            : "shadow-[0_0_0_1px_var(--line)] focus:shadow-[0_0_0_1.5px_var(--solid)]",
         )}
-      >
-        <textarea
-          ref={textarea}
-          // The visible label is a bare caption above the box, not a <label> for it.
-          aria-label={label}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          onFocus={onFocus}
-          onKeyDown={(event) => {
-            // Ctrl/Cmd+Shift+C wraps the selection as the next cloze, the desktop's shortcut.
-            if (isCloze && event.shiftKey && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
-              event.preventDefault()
-              applyEdit(wrapCloze)
-            }
-          }}
-          onPaste={(event) => {
-            const files = Array.from(event.clipboardData.files)
-            // Only swallow the paste when it actually carried an image; a mixed clipboard
-            // should still drop its text into the box.
-            if (files.some((file) => file.type.startsWith("image/"))) event.preventDefault()
-            attach(files)
-          }}
-          className="min-h-[56px] w-full resize-none bg-transparent text-body-small text-text-primary outline-none"
-        />
+      />
 
-        {attachments.length > 0 ? (
-          <div className="mt-2.5 flex flex-col gap-2">
-            {attachments.map((attachment) => (
-              <AttachmentFigure
-                key={attachment.key}
-                attachment={attachment}
-                onReplace={() => {
-                  replacing.current = attachment.key
-                  picker.current?.click()
-                }}
-                onRemove={() => onRemoveAttachment(attachment.key)}
-              />
-            ))}
-          </div>
-        ) : null}
-      </div>
+      {attachments.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          {attachments.map((attachment) => (
+            <AttachmentFigure
+              key={attachment.key}
+              attachment={attachment}
+              onReplace={() => {
+                replacing.current = attachment.key
+                picker.current?.click()
+              }}
+              onRemove={() => onRemoveAttachment(attachment.key)}
+            />
+          ))}
+        </div>
+      ) : null}
 
       <input
         ref={picker}
