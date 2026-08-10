@@ -136,6 +136,24 @@ describe('minting', () => {
   });
 });
 
+describe('the caller\'s selection', () => {
+  it('stays inside the block being identified, not in the one after it', () => {
+    const state = stateOf(['hello', 'world']);
+    const at = state.doc.child(0).nodeSize;
+    const bare = schema.nodes.paragraph.create(null, schema.nodes.line.create());
+    const tr = state.tr.insert(at, bare);
+    tr.setSelection(TextSelection.near(tr.doc.resolve(at + 1)));
+    const placed = tr.selection.from;
+
+    const next = state.apply(tr);
+
+    // The rewrite only changes attrs, so the caret belongs exactly where the
+    // command put it; mapping it through the rewrite would land it in 'world'.
+    expect(next.selection.from).toBe(placed);
+    expect(next.selection.$head.parent.textContent).toBe('');
+  });
+});
+
 describe('when it stays out of the way', () => {
   it('appends nothing for a keystroke that only edits text', () => {
     const state = stateOf(['hello']);

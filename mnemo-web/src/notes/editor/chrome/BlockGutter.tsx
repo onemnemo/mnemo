@@ -2,9 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom';
 import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
-import { TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
+import type { EditorState, Transaction } from 'prosemirror-state';
 
 import { AppIcon } from '@/components/icon/AppIcon';
+import { cn } from '@/lib/utils';
 import {
   Menu,
   MenuContent,
@@ -26,6 +27,7 @@ import {
   canTurnInto,
   deleteBlock,
   duplicateBlock,
+  insertBlockBelow,
   isCurrentType,
   locateBlock,
   moveBlockDown,
@@ -54,8 +56,26 @@ import {
  * the grip's selection act on that same unit; a drag on a nested block extracts
  * it to a top-level gap (see {@link useBlockDrag}).
  *
+ * Hover is a *row*, not an element. The pointer anywhere in the band that spans
+ * the document plus the margin the chrome is drawn in claims the block at that
+ * height, so reaching for the buttons never means threading the pointer back
+ * through the text first, and the vertical gaps between blocks hold the last
+ * block rather than blanking the chrome. That is what the layer being floating
+ * costs us: a per-block widget would get all of this from `:hover` on its own
+ * box, but paint containment forbids one.
+ *
  * The drag itself is {@link useBlockDrag}; this owns only the chrome and the menu.
  */
+
+/**
+ * How far left of the document the hover band and the chrome reach. The band is
+ * the wider of the two so the pointer enters it before the buttons appear under
+ * it; both stay inside the page's own margin.
+ */
+const LANE_WIDTH = 56;
+const CHROME_OFFSET = 46;
+/** Where in the text column a lane hover probes for the block on that row. */
+const PROBE_INSET = 8;
 
 interface ActiveBlock {
   /** Position just before the block node, any depth. */
@@ -68,6 +88,8 @@ interface ActiveBlock {
   /** The block's own DOM element, kept so a scroll re-reads one rect rather than a search. */
   dom: HTMLElement;
   rect: DOMRect;
+  /** The document's own left edge, for deciding whether the chrome has margin to sit in. */
+  rootLeft: number;
   /**
    * Whether block children live inside this block's DOM. False for a leaf,
    * which lets hover skip re-resolving while the pointer crosses the leaf's
@@ -143,6 +165,7 @@ function blockFromPos(view: EditorView, registry: BlockRegistry, pos: number): A
     topIndex: located.topIndex,
     dom,
     rect: dom.getBoundingClientRect(),
+    rootLeft: view.dom.getBoundingClientRect().left,
     hasNestedBlocks: blockChildrenOf(located.node).length > 0,
     doc: view.state.doc,
   };
@@ -164,6 +187,7 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
   const [announcement, setAnnouncement] = useState('');
 
   const gripRef = useRef<HTMLButtonElement | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   // The blocks hover and the caret point at, and the element hover last resolved,
   // so a pointer moving within one element does no work.
   const activeRef = useRef<ActiveBlock | null>(null);
@@ -199,7 +223,11 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
       setActive(null);
       return;
     }
-    const next: ActiveBlock = { ...chosen, rect: chosen.dom.getBoundingClientRect() };
+    const next: ActiveBlock = {
+      ...chosen,
+      rect: chosen.dom.getBoundingClientRect(),
+      rootLeft: view.dom.getBoundingClientRect().left,
+    };
     activeRef.current = next;
     setActive(next);
   }, [dragging, menuOpen, view, registry]);
@@ -220,7 +248,33 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     };
 
     const onPointerMove = (event: PointerEvent) => {
-      const el = event.target instanceof Element ? event.target : null;
+      // The chrome is drawn over the lane (and, beside a nested block, over the
+      // neighbouring cell): a pointer on it stays on the block it belongs to
+      // rather than retargeting to whatever it happens to cover.
+      if (event.target instanceof Node && overlayRef.current?.contains(event.target)) return;
+      const bounds = root.getBoundingClientRect();
+      const inBand =
+        event.clientY >= bounds.top &&
+        event.clientY <= bounds.bottom &&
+        event.clientX >= bounds.left - LANE_WIDTH &&
+        event.clientX <= bounds.right;
+      if (!inBand) {
+        hoveredElRef.current = null;
+        hoveredRef.current = null;
+        scheduleClear();
+        return;
+      }
+      // In the margin the row is what is hovered, so the block is read off the
+      // start of the text column at the pointer's height.
+      const el =
+        event.clientX >= bounds.left
+          ? event.target instanceof Element
+            ? event.target
+            : null
+          : document.elementFromPoint(bounds.left + PROBE_INSET, event.clientY);
+      // The gaps between blocks, and any floating chrome the probe lands on,
+      // resolve to nothing; the row keeps whichever block it had.
+      if (!el || el === root || !root.contains(el)) return;
       // A move within the same element is the common case and does nothing.
       if (el === hoveredElRef.current) return;
       hoveredElRef.current = el;
@@ -234,13 +288,12 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
         hovered &&
         !hovered.hasNestedBlocks &&
         hovered.doc === view.state.doc &&
-        el &&
         hovered.dom.isConnected &&
         hovered.dom.contains(el)
       ) {
         return;
       }
-      hoveredRef.current = el && el !== root ? blockFromElement(view, registry, el) : null;
+      hoveredRef.current = blockFromElement(view, registry, el);
       // Landing on the same block again (parent line to child and back) needs no
       // state churn; the rect is refreshed by the scroll listener when it moves.
       if (hovered && hoveredRef.current && hovered.pos === hoveredRef.current.pos && hovered.doc === hoveredRef.current.doc) {
@@ -248,24 +301,19 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
       }
       refresh();
     };
-    const onPointerLeave = () => {
-      hoveredElRef.current = null;
-      hoveredRef.current = null;
-      scheduleClear();
-    };
     const onCaret = () => {
       caretRef.current = blockFromPos(view, registry, view.state.selection.head);
       if (hoveredRef.current === null) refresh();
     };
 
-    root.addEventListener('pointermove', onPointerMove);
-    root.addEventListener('pointerleave', onPointerLeave);
+    // On the document, not the editor: the band reaches past the editor's own
+    // box, and a pointer that leaves it has to be seen leaving.
+    document.addEventListener('pointermove', onPointerMove);
     root.addEventListener('keyup', onCaret);
     root.addEventListener('mouseup', onCaret);
     root.addEventListener('focus', onCaret, true);
     return () => {
-      root.removeEventListener('pointermove', onPointerMove);
-      root.removeEventListener('pointerleave', onPointerLeave);
+      document.removeEventListener('pointermove', onPointerMove);
       root.removeEventListener('keyup', onCaret);
       root.removeEventListener('mouseup', onCaret);
       root.removeEventListener('focus', onCaret, true);
@@ -325,16 +373,21 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
       ? locateBlock(view.state, registry, handleBlock.pos, String(handleBlock.node.attrs.sid ?? ''))
       : null;
 
-  // Inside a column the -46 gutter would land on the neighbouring cell's text,
-  // so a nested block gets compact chrome: the grip alone, tucked into the
-  // narrow lane just left of the block. The desktop's cells made the same
-  // trade, collapsing the add gutter and keeping the handle.
-  const nested = (handleBlock?.depth ?? 1) > 1;
+  // Every block gets both buttons, at the same offset, so the chrome is one
+  // shape wherever it appears. A block in the right-hand cell of a two-column
+  // row has no margin of its own to put them in, so there they are drawn on the
+  // page: opaque, since the left cell's text is what they cover.
+  const chromeLeft = handleBlock ? handleBlock.rect.left - CHROME_OFFSET : 0;
+  const overContent = handleBlock ? chromeLeft < handleBlock.rootLeft : false;
 
   const overlay = handleBlock && handle && !dragging ? (
     <div
-      className="fixed z-40 flex items-center gap-0.5"
-      style={{ left: handleBlock.rect.left - (nested ? 24 : 46), top: handleBlock.rect.top + 1 }}
+      ref={overlayRef}
+      className={cn(
+        'fixed z-40 flex h-7 items-center gap-0.5 rounded',
+        overContent && 'bg-canvas shadow-elevation-1',
+      )}
+      style={{ left: chromeLeft, top: handleBlock.rect.top }}
       onPointerEnter={() => {
         overChromeRef.current = true;
       }}
@@ -342,16 +395,14 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
         overChromeRef.current = false;
       }}
     >
-      {nested ? null : (
-        <button
-          type="button"
-          aria-label="Add block below"
-          className="grid h-5 w-5 place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary"
-          onClick={() => addBlockBelow(view, handleBlock)}
-        >
-          <AppIcon name="common/plus" size={14} />
-        </button>
-      )}
+      <button
+        type="button"
+        aria-label="Insert block below"
+        className="grid h-5 w-5 place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary"
+        onClick={() => runCommand((state, loc) => insertBlockBelow(state, loc), 'Block inserted')}
+      >
+        <AppIcon name="common/plus" size={14} />
+      </button>
       <button
         ref={gripRef}
         type="button"
@@ -519,16 +570,4 @@ function Announcer({ message }: { message: string }) {
       {message}
     </div>
   );
-}
-
-/** Insert an empty paragraph after the block and drop the caret into it. */
-function addBlockBelow(view: EditorView, block: ActiveBlock) {
-  const paragraph = view.state.schema.nodes.paragraph;
-  const filled = paragraph.createAndFill();
-  if (!filled) return;
-  const at = block.pos + block.node.nodeSize;
-  const tr = view.state.tr.insert(at, filled);
-  tr.setSelection(TextSelection.near(tr.doc.resolve(at + 1)));
-  view.dispatch(tr);
-  view.focus();
 }
