@@ -153,7 +153,7 @@
     "SpellCheck": "Stavekontroll",
     "SpellCheckDescription": "Understrek feilstavede ord i editoren.",
     "SpellCheckLanguages": "Språk for stavekontroll",
-    "SpellCheckLanguagesDescription": "Velg språket som skal brukes for stavekontroll.",
+    "SpellCheckLanguagesDescription": "Velg språket som skal brukes for stavekontroll. Trer i kraft neste gang Mnemo starter.",
     "SpellCheckLanguageEnglish": "Engelsk",
     "SpellCheckLanguageGerman": "Tysk",
     "SpellCheckLanguageSpanish": "Spansk",

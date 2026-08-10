@@ -153,7 +153,7 @@
     "SpellCheck": "Rechtschreibprüfung",
     "SpellCheckDescription": "Hervorhebt falsch geschriebene Wörter im Bearbeitungsfeld.",
     "SpellCheckLanguages": "Rechtschreibsprache",
-    "SpellCheckLanguagesDescription": "Wählen Sie die Sprache für die Rechtschreibprüfung.",
+    "SpellCheckLanguagesDescription": "Wählen Sie die Sprache für die Rechtschreibprüfung. Wird beim nächsten Start von Mnemo wirksam.",
     "SpellCheckLanguageEnglish": "Englisch",
     "SpellCheckLanguageGerman": "Deutsch",
     "SpellCheckLanguageSpanish": "Spanisch",

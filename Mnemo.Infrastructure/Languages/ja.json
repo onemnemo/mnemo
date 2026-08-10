@@ -153,7 +153,7 @@
     "SpellCheck": "スペルチェック",
     "SpellCheckDescription": "エディタで誤字をハイライト表示します。",
     "SpellCheckLanguages": "スペルチェック言語",
-    "SpellCheckLanguagesDescription": "スペルチェックに使用する言語を選択します。",
+    "SpellCheckLanguagesDescription": "スペルチェックに使用する言語を選択します。次回 Mnemo 起動時に適用されます。",
     "SpellCheckLanguageEnglish": "英語",
     "SpellCheckLanguageGerman": "ドイツ語",
     "SpellCheckLanguageSpanish": "スペイン語",

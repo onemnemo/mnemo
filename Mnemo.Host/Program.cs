@@ -199,7 +199,9 @@ app.MapStatistics();
         {
             // Keep the WebView2 profile inside Mnemo's data root (which honors
             // MNEMO_DATA_DIR) instead of PhotinoX's default %LOCALAPPDATA%\Photino.
-            window.SetUserDataFolder(Path.Combine(MnemoAppPaths.GetLocalUserDataRoot(), "webview"));
+            var userDataFolder = Path.Combine(MnemoAppPaths.GetLocalUserDataRoot(), "webview");
+            window.SetUserDataFolder(userDataFolder);
+            ApplySpellcheckLanguage(userDataFolder, server.App.Services);
         }
 
         WindowChrome.Configure(window);
@@ -212,6 +214,23 @@ app.MapStatistics();
         // both double-create and, on Windows, trip Run's refusal to move an already
         // initialized window onto the STA thread it spins up.
         app.Run(window);
+    }
+
+    /// <summary>
+    /// Configures the WebView profile's spell checker from the saved editor
+    /// setting, before the window (and the WebView) is created.
+    /// </summary>
+    /// <remarks>
+    /// The settings read is bridged here for the same reason the server startup
+    /// is: this is Photino's STA thread and the window may not be created off it.
+    /// </remarks>
+    private static void ApplySpellcheckLanguage(string userDataFolder, IServiceProvider services)
+    {
+        var settings = services.GetRequiredService<ISettingsService>();
+        var logger = services.GetRequiredService<ILoggerService>();
+        var language = Task.Run(() => settings.GetAsync("Editor.SpellCheckLanguages", "en"))
+            .GetAwaiter().GetResult();
+        WebViewSpellcheck.Apply(userDataFolder, string.IsNullOrWhiteSpace(language) ? "en" : language, logger);
     }
 
     /// <summary>
