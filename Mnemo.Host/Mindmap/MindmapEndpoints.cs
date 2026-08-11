@@ -38,7 +38,11 @@ public static class MindmapEndpoints
         {
             var loaded = await maps.GetAsync(id, cancellationToken).ConfigureAwait(false);
             if (!loaded.IsSuccess)
-                return ServerError(loaded.ErrorMessage, $"Mindmap '{id}' could not be read.");
+                // A map that is not there reports as a failed read, not as a null value, so without
+                // this it comes back a 500 and the client retries a request that cannot ever succeed.
+                return IsMissing(loaded.ErrorMessage, id)
+                    ? UnknownMap(id)
+                    : ServerError(loaded.ErrorMessage, $"Mindmap '{id}' could not be read.");
             return loaded.Value is null ? UnknownMap(id) : MindmapJson.Ok(loaded.Value);
         });
 
@@ -48,9 +52,14 @@ public static class MindmapEndpoints
             if (!ok)
                 return error!;
 
+            var title = Blank(body!.Title) ?? DefaultTitle;
+
+            // A map with no root is not a map: every layout algorithm starts from one, the style
+            // cascade has no depth to band without one, and opening a brand new map would show an
+            // empty canvas. The desktop's create dialog seeds one too, from its own outline.
             var created = await maps.CreateAsync(
-                Blank(body!.Title) ?? DefaultTitle,
-                outline: null,
+                title,
+                outline: new[] { new MindmapNodeSpec { Text = title } },
                 layoutAlgorithm: Blank(body.LayoutAlgorithm),
                 templateId: Blank(body.TemplateId),
                 folderId: Blank(body.FolderId),
