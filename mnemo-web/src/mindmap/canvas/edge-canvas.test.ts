@@ -439,3 +439,81 @@ describe('createEdgeCanvasRenderer ribbons', () => {
     expect(ops(harness.entries, 'beginPath')).toHaveLength(2)
   })
 })
+
+describe('arrow and dot caps', () => {
+  it('draws nothing extra for an edge that asked for neither', () => {
+    const h = mount([edge('e1')])
+    h.draw(['e1'])
+
+    // One stroke and no fill: a fill here would mean a cap was traced for an edge with none.
+    expect(h.entries.filter((e) => e.op === 'fill')).toHaveLength(0)
+  })
+
+  it('fills a triangle at the end when the edge ends in an arrow', () => {
+    const h = mount([edge('e1', { endCap: 'arrow' })])
+    h.draw(['e1'])
+
+    const fills = h.entries.filter((e) => e.op === 'fill')
+    expect(fills).toHaveLength(1)
+    // Three points and a close: the arrowhead itself.
+    const after = h.entries.slice(h.entries.indexOf(fills[0]) - 5)
+    expect(after.filter((e) => e.op === 'lineTo')).toHaveLength(2)
+    expect(after.some((e) => e.op === 'closePath')).toBe(true)
+  })
+
+  it('puts the arrow where the line actually ends', () => {
+    const h = mount([edge('e1', { endCap: 'arrow' })])
+    h.draw(['e1'])
+
+    const anchors = anchorsFor(SOURCE, TARGET)
+    const tip = h.entries.filter((e) => e.op === 'moveTo').at(-1)!
+    expect(tip.args[0]).toBeCloseTo(anchors.tx, 6)
+    expect(tip.args[1]).toBeCloseTo(anchors.ty, 6)
+  })
+
+  it('points the arrow along the curve rather than along the chord', () => {
+    // A curve leaves and arrives along its attachment axis, so an arrowhead aligned to the straight
+    // line between the boxes would visibly disagree with the line it sits on.
+    const h = mount([edge('e1', { endCap: 'arrow' })])
+    h.draw(['e1'])
+
+    const moves = h.entries.filter((e) => e.op === 'moveTo')
+    const tip = moves.at(-1)!
+    const base = h.entries.filter((e) => e.op === 'lineTo').slice(-2)
+    const midX = ((base[0].args[0] as number) + (base[1].args[0] as number)) / 2
+    const midY = ((base[0].args[1] as number) + (base[1].args[1] as number)) / 2
+    // Horizontal attachment, so the head points along x and is level with its own base.
+    expect(midX).toBeLessThan(tip.args[0] as number)
+    expect(midY).toBeCloseTo(tip.args[1] as number, 6)
+  })
+
+  it('draws both ends when both were asked for', () => {
+    const h = mount([edge('e1', { startCap: 'dot', endCap: 'arrow' })])
+    h.draw(['e1'])
+
+    expect(h.entries.filter((e) => e.op === 'closePath').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('never caps a ribbon, which states its own direction by tapering', () => {
+    const h = mount([edge('e1', { kind: 'hierarchy', endCap: 'arrow', fromWidth: 7, toWidth: 2 })])
+    h.draw(['e1'])
+
+    // The ribbon is itself a fill, so the count rather than the presence is what distinguishes it.
+    expect(h.entries.filter((e) => e.op === 'fill')).toHaveLength(1)
+    expect(h.entries.filter((e) => e.op === 'moveTo')).toHaveLength(1)
+  })
+
+  it('holds caps back to one pass, so a capped edge does not split the stroke batch', () => {
+    const h = mount([
+      edge('e1', { endCap: 'arrow' }),
+      edge('e2', { fromId: 's', toId: 't' }),
+    ])
+    h.draw(['e1', 'e2'])
+
+    // Both edges share a style, so they share one stroke; the arrow is filled after it.
+    expect(h.entries.filter((e) => e.op === 'stroke')).toHaveLength(1)
+    const strokeAt = h.entries.findIndex((e) => e.op === 'stroke')
+    const fillAt = h.entries.findIndex((e) => e.op === 'fill')
+    expect(fillAt).toBeGreaterThan(strokeAt)
+  })
+})

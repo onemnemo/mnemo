@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   anchorsFor,
   branchShape,
+  capsOf,
   edgeGeometry,
   edgeShape,
   isFilled,
@@ -244,5 +245,43 @@ describe('path data', () => {
     expect(path.endsWith('Z')).toBe(true)
     // Out along one edge and back along the other: two curves, not one.
     expect(path.split('C')).toHaveLength(3)
+  })
+})
+
+describe('cap placement', () => {
+  const a = anchorsFor(box(0, 0), box(400, 60))
+
+  it('sits at the two ends of the curve', () => {
+    const caps = capsOf(edgeShape('curve', a).stroke)!
+
+    expect(caps.start).toMatchObject({ x: a.sx, y: a.sy })
+    expect(caps.end).toMatchObject({ x: a.tx, y: a.ty })
+  })
+
+  it('takes its direction from the curve, not from the chord between the boxes', () => {
+    // The attachment is horizontal, so the curve arrives level however far apart the ends are
+    // vertically. An arrowhead following the chord would come in at a visible angle to its own line.
+    const caps = capsOf(edgeShape('curve', a).stroke)!
+
+    expect(Math.sin(caps.end.angle)).toBeCloseTo(0, 6)
+    expect(Math.cos(caps.end.angle)).toBeGreaterThan(0)
+  })
+
+  it('points the start cap back down the line, away from the node it touches', () => {
+    const caps = capsOf(edgeShape('curve', a).stroke)!
+
+    expect(Math.cos(caps.start.angle)).toBeLessThan(0)
+  })
+
+  it('follows the last segment of an elbow rather than its overall direction', () => {
+    const vertical = anchorsFor(box(0, 0), box(20, 500))
+    const caps = capsOf(edgeShape('orthogonal', vertical).stroke)!
+
+    // The final leg of a vertically attached elbow runs down, so the cap points down.
+    expect(Math.abs(Math.cos(caps.end.angle))).toBeCloseTo(0, 6)
+  })
+
+  it('has none for a ribbon, whose taper already says which end is which', () => {
+    expect(capsOf(branchShape('curve', a, 7, 2).stroke)).toBeNull()
   })
 })

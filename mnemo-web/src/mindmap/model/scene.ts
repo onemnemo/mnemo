@@ -76,6 +76,11 @@ export interface SceneElement {
   /** How loudly it is drawn: no chrome, a tint, a card, an outline. */
   readonly nodeShape: NodeShape
   readonly text: MeasuredText
+  /**
+   * The inset the box was sized with. Carried rather than re-derived, because a renderer padding a
+   * node differently from how it was measured produces text that overflows a box built to hold it.
+   */
+  readonly padding: { readonly x: number; readonly y: number }
   readonly isRoot: boolean
   /** Children in the hierarchy, whether or not they are currently shown. Zero means no collapse control. */
   readonly childCount: number

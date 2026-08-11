@@ -189,6 +189,7 @@ function projectElement(
       lineHeight: measured.lineHeight,
       letterSpacing: measured.font.letterSpacing,
     },
+    padding: measured.padding,
     isRoot,
     childCount,
     hiddenCount: element.collapsed && node ? hiddenDescendantCount(hierarchy, node.id) : 0,

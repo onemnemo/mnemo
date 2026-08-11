@@ -55,6 +55,45 @@ export interface ElementBox {
   readonly underline?: number
 }
 
+/** Where a cap sits and which way it points, in canvas coordinates. */
+export interface CapPlacement {
+  readonly x: number
+  readonly y: number
+  /** Radians, pointing the way the line is travelling at that end. */
+  readonly angle: number
+}
+
+/**
+ * The two ends of a stroke, with the direction the line is actually going when it gets there.
+ *
+ * From the curve rather than from the chord: an arrowhead aligned to the straight line between two
+ * boxes points visibly wrong on anything but a straight edge, and every default routing here is a
+ * curve. The start cap points backwards along the line, which is what makes an arrow at the start
+ * read as pointing away from the node it touches.
+ */
+export function capsOf(stroke: EdgeStroke): { start: CapPlacement; end: CapPlacement } | null {
+  if (stroke.kind === 'cubic') {
+    return {
+      start: { x: stroke.sx, y: stroke.sy, angle: Math.atan2(stroke.sy - stroke.c1y, stroke.sx - stroke.c1x) },
+      end: { x: stroke.tx, y: stroke.ty, angle: Math.atan2(stroke.ty - stroke.c2y, stroke.tx - stroke.c2x) },
+    }
+  }
+
+  if (stroke.kind === 'polyline') {
+    const points = stroke.points
+    if (points.length < 2) return null
+    const [s0, s1] = [points[0], points[1]]
+    const [t1, t0] = [points[points.length - 2], points[points.length - 1]]
+    return {
+      start: { x: s0.x, y: s0.y, angle: Math.atan2(s0.y - s1.y, s0.x - s1.x) },
+      end: { x: t0.x, y: t0.y, angle: Math.atan2(t0.y - t1.y, t0.x - t1.x) },
+    }
+  }
+
+  // A ribbon is a filled shape whose ends are already its own statement about direction.
+  return null
+}
+
 export function boxOf(element: SceneElement): ElementBox {
   return {
     x: element.x,
