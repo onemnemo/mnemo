@@ -162,6 +162,12 @@ public sealed record LayoutOp : MindmapEditOp
     /// with no <see cref="Root"/>: an edge default is a property of the map, not of one cluster.
     /// </summary>
     public EdgeStyle? EdgeDefaults { get; init; }
+
+    /// <summary>
+    /// What the map sits on. Document-wide for the same reason the edge defaults are: a surface is a
+    /// property of the map rather than of one tree on it.
+    /// </summary>
+    public CanvasBackground? Background { get; init; }
 }
 
 /// <summary>Create a free (non-node) element: shape, free text, canvas image or frame.</summary>

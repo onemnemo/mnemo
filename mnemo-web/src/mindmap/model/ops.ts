@@ -11,7 +11,14 @@
  * ignored property.
  */
 
-import type { EdgeStyle, ElementContent, ElementKind, ElementStyle, LayoutOptions } from "./document"
+import type {
+  CanvasBackground,
+  EdgeStyle,
+  ElementContent,
+  ElementKind,
+  ElementStyle,
+  LayoutOptions,
+} from "./document"
 
 /** A node to create, possibly with a nested subtree under it. */
 export interface NodeSpec {
@@ -121,6 +128,8 @@ export interface LayoutOp {
   options?: LayoutOptions
   /** Merged onto the canvas defaults, so choosing a material does not clear a colour beside it. */
   edge_defaults?: EdgeStyle
+  /** What the map sits on. Document-wide, so it is only read when no `root` is named. */
+  background?: CanvasBackground
 }
 
 /** Create a free element: shape, free text, canvas image or frame. */
