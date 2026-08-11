@@ -1,4 +1,14 @@
 <Project>
+  <!-- Single source of truth for the app version: every project's entry assembly reads
+       AssemblyInformationalVersion at runtime (see VelopackUpdateService), so this has to
+       live somewhere shared rather than duplicated per csproj. -->
+  <PropertyGroup>
+    <Version>0.8.0</Version>
+    <AssemblyVersion>0.8.0</AssemblyVersion>
+    <AssemblyFileVersion>0.8.0</AssemblyFileVersion>
+    <AssemblyInformationalVersion>0.8.0-beta</AssemblyInformationalVersion>
+  </PropertyGroup>
+
   <!-- Smaller Release outputs: no loose .pdb next to shipped exes (portable zip / vpk pack). -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <DebugType>none</DebugType>

@@ -5,7 +5,6 @@
     <!-- Matches CI matrix; does not set RuntimeIdentifier so local build/run stays RID-agnostic. Publish with -r picks one RID and drives post-publish trim. -->
     <RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <Nullable>enable</Nullable>
-    <Version>0.7.0</Version>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\AppIcons/AppIconDawn.ico</ApplicationIcon>
@@ -16,9 +15,6 @@
     <AssemblyCompany>Mnemo</AssemblyCompany>
     <AssemblyProduct>Mnemo</AssemblyProduct>
     <AssemblyCopyright>Copyright © Mnemo 2026</AssemblyCopyright>
-    <AssemblyVersion>0.7.0</AssemblyVersion>
-    <AssemblyFileVersion>0.7.0</AssemblyFileVersion>
-    <AssemblyInformationalVersion>0.7.0-dev</AssemblyInformationalVersion>
 
     <!--
       Performance tuning:
