@@ -701,6 +701,8 @@
     "SlashMenuLabel": "Insert a block"
   },
   "Mindmap": {
+    "Move": "Move",
+    "EditRejected": "That change could not be applied.",
     "Loading": "Loading map...",
     "MapIsEmpty": "This map is empty.",
     "MapNotFound": "That mindmap could not be opened.",

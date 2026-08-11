@@ -651,6 +651,14 @@
     "ColorNone": "Ingen"
   },
   "Mindmap": {
+    "Loading": "Laster kartet...",
+    "MapIsEmpty": "Dette kartet er tomt.",
+    "MapNotFound": "Dette tankekartet kunne ikke åpnes.",
+    "NodeCountFormat": "{0} noder",
+    "TemplatesUnavailable": "Stilmaler kunne ikke lastes, så dette kartet tegnes uten dem.",
+    "UntitledMap": "Kart uten navn",
+    "Move": "Flytt",
+    "EditRejected": "Endringen kunne ikke brukes.",
     "Title": "Tankekart",
     "Subtitle": "Visualiser sammenhenger og brainstorm ideer",
     "NewMindmap": "Nytt tankekart",

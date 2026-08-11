@@ -20,7 +20,7 @@ import { createEdgeStrategySelector, type EdgeStrategy } from "./edge-strategy"
 import type { EdgeMode } from "./edge-style"
 import { LodController } from "./lod"
 import { createSceneIndex, type SceneIndex } from "./scene-index"
-import { boundsOf, fitZoom, type Scene, type Viewport } from "../model/scene"
+import { boundsOf, fitZoom, type Point, type Scene, type Viewport } from "../model/scene"
 
 /** The two swappable layers, whichever of them is currently mounted. */
 export interface EdgeElements {
@@ -36,6 +36,11 @@ export interface CanvasElements extends EdgeElements {
   readonly world: HTMLElement
   /** Gets the background's own pattern offset, so a dot grid pans with the map. */
   readonly background: HTMLElement | null
+  /**
+   * The selection highlight's camera group, held as a box rather than as a value because the layer
+   * is mounted only while something is selected and the runtime outlives every selection.
+   */
+  readonly overlayCamera?: { current: SVGGElement | null }
 }
 
 export interface CanvasRuntimeOptions {
@@ -61,6 +66,13 @@ export interface CanvasRuntime {
   zoomBy(factor: number): void
   /** Hands over the newly mounted edge layer after a substrate swap. */
   rebindEdges(next: EdgeElements): void
+  /** A client point in canvas coordinates. What a gesture needs to know where it is. */
+  toCanvas(clientX: number, clientY: number): Point
+  /**
+   * Redraws what the substrate owns, for a caller that moved elements under it. The camera has not
+   * changed, but the culler's bounds and the canvas edge layer are both read from positions.
+   */
+  redraw(): void
   index(): SceneIndex
   dispose(): void
 }
@@ -108,10 +120,13 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
   /** A fit was asked for before the pane had a size; the next resize honours it. */
   let pendingFit = false
 
-  const applyCamera = (): void => {
+  const applyCamera = (notify = true): void => {
     elements.world.style.transform = worldTransform(viewport)
     if (edgeCamera) {
       edgeCamera.setAttribute("transform", svgCameraTransform(viewport))
+    }
+    if (elements.overlayCamera?.current) {
+      elements.overlayCamera.current.setAttribute("transform", svgCameraTransform(viewport))
     }
     if (elements.background) {
       // The pattern is a background-image, so it pans by offset and zooms by size. Cheaper than a
@@ -144,7 +159,7 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
       edgeRenderer.draw(viewport, culler.renderedEdgeIds())
     }
 
-    if (options.onCameraSettled) {
+    if (notify && options.onCameraSettled) {
       window.clearTimeout(settleTimer)
       settleTimer = window.setTimeout(() => options.onCameraSettled?.(viewport), 120)
     }
@@ -273,6 +288,16 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
       viewport = zoomAt(viewport, -Math.log(factor) / 0.002, width, height)
       applyCamera()
     },
+
+    toCanvas(clientX, clientY) {
+      const rect = elements.pane.getBoundingClientRect()
+      return {
+        x: viewport.x + (clientX - rect.left) / viewport.zoom,
+        y: viewport.y + (clientY - rect.top) / viewport.zoom,
+      }
+    },
+
+    redraw: () => applyCamera(false),
 
     rebindEdges(next) {
       edgeCamera = next.edgeCamera

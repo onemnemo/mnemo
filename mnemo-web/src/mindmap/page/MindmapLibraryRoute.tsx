@@ -55,7 +55,7 @@ export function MindmapLibraryRoute() {
           <p className="py-16 text-center text-[13px] text-ink-3">{t("Mindmap", "Loading")}</p>
         ) : entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line py-20">
-            <AppIcon name="git-fork" size={24} strokeWidth={1.4} className="text-ink-icon" />
+            <AppIcon name="common/sitemap" size={24} className="text-ink-icon" />
             <p className="text-[14px] font-medium text-ink">{t("Mindmap", "LibraryEmptyTitle")}</p>
             <Button variant="outline" onClick={onCreate}>
               {t("Mindmap", "NewMap")}
