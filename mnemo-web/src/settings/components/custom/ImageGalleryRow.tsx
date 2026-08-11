@@ -1,7 +1,9 @@
+import { AppIcon } from "@/components/icon/AppIcon"
 import { cn } from "@/lib/utils"
 
 import { assetUrl } from "../../assets"
 import { useSettingsStore, useSettingValue } from "../../store"
+import { Block } from "../kit"
 
 /**
  * The picker shared by the profile-picture and app-icon rows: a strip of image tiles
@@ -35,38 +37,44 @@ export function ImageGalleryRow({
   const setValue = useSettingsStore((s) => s.setValue)
 
   return (
-    <div className={cn("py-3.5", divider && "border-b border-divider-subtle")}>
-      <div className="text-body-small font-medium text-text-primary">{title}</div>
-      {description ? (
-        <div className="mt-0.5 text-body-extra-small leading-[17px] text-text-tertiary">{description}</div>
-      ) : null}
+    <div className={cn(divider && "border-b border-line-soft")}>
+      <Block label={title} description={description}>
+        <div className="flex flex-wrap gap-2.5">
+          {options.map((option) => {
+            const url = assetUrl(option)
+            const isSelected = option === selected
 
-      <div className="mt-3 flex flex-wrap gap-3">
-        {options.map((option) => {
-          const url = assetUrl(option)
-          const isSelected = option === selected
-
-          return (
-            <button
-              key={option}
-              type="button"
-              onClick={() => void setValue(settingKey, option)}
-              aria-pressed={isSelected}
-              aria-label={labelFor(option)}
-              style={{ width: size, height: size }}
-              className={cn(
-                "overflow-hidden border bg-surface-subtle transition-colors",
-                shape === "circle" ? "rounded-full" : "rounded-lg",
-                isSelected ? "border-brand ring-2 ring-brand" : "border-border hover:border-text-faded",
-              )}
-            >
-              {url ? (
-                <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
-              ) : null}
-            </button>
-          )
-        })}
-      </div>
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => void setValue(settingKey, option)}
+                aria-pressed={isSelected}
+                aria-label={labelFor(option)}
+                style={{ width: size, height: size }}
+                className={cn(
+                  "relative overflow-hidden bg-canvas-sunken transition-shadow",
+                  shape === "circle" ? "rounded-full" : "rounded-xl",
+                  // Selection reads as contrast, the way the buttons and the theme cards
+                  // do. The second ring is the gap that keeps the first off the artwork.
+                  isSelected
+                    ? "shadow-[0_0_0_1.5px_var(--solid),0_0_0_4px_var(--canvas)]"
+                    : "shadow-[0_0_0_1px_var(--line-soft)] hover:shadow-[0_0_0_1px_var(--line)]",
+                )}
+              >
+                {url ? (
+                  <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
+                ) : null}
+                {isSelected ? (
+                  <span className="absolute bottom-0.5 right-0.5 flex size-[15px] items-center justify-center rounded-full bg-solid">
+                    <AppIcon name="check" size={9} strokeWidth={3} className="text-solid-fg" />
+                  </span>
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+      </Block>
     </div>
   )
 }

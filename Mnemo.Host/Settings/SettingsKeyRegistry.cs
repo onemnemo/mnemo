@@ -48,6 +48,10 @@ public static class SettingsKeyRegistry
         new("User.ProfilePicture", SettingValueKind.Text),
 
         new("App.LaunchAtStartup", SettingValueKind.Boolean),
+        // Which route a launch lands on: a route key, or "last" to resume where the
+        // window was closed. The SPA owns the route names, so this stores whatever it
+        // sends and an unknown one falls back to the default page there.
+        new("App.OpenTo", SettingValueKind.Text),
         new("App.EnableToasts", SettingValueKind.Boolean),
         new("App.EnableGamification", SettingValueKind.Boolean),
         new("App.Icon", SettingValueKind.Text),

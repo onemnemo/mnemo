@@ -1,6 +1,8 @@
+import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 import type { TranslateFn } from "@/i18n/types"
+import { openExternally } from "@/lib/external"
 
 import { optionLabel, optionValue, rowDescription, rowTitle } from "../labels"
 import { useSecretIsSet, useSettingsStore, useSettingValue } from "../store"
@@ -25,11 +27,9 @@ export function SettingRow({ row, divider }: { row: SettingsRow; divider: boolea
 
   switch (row.kind) {
     case "subheader":
-      return (
-        <div className="pb-1 pt-5 text-micro font-semibold uppercase tracking-[1px] text-text-faded">
-          {rowTitle(row, t)}
-        </div>
-      )
+      // Sentence case, matching the group headings above it. A letterspaced all-caps
+      // micro-label shouts a word like "WEB SEARCH" louder than the page title it sits under.
+      return <div className="pb-1 pt-6 text-[12.5px] font-medium text-ink-3">{rowTitle(row, t)}</div>
     case "notice":
       return (
         <SettingRowShell title={rowTitle(row, t)} description={rowDescription(row, t)} divider={divider} />
@@ -136,14 +136,26 @@ function SliderSettingRow({ row, divider, t }: { row: StepSliderRow; divider: bo
 
 function ActionSettingRow({ row, divider, t }: { row: ActionRow; divider: boolean; t: TranslateFn }) {
   const label = row.buttonLabelText ?? (row.buttonLabel ? t("Settings", row.buttonLabel) : "")
+  const variant = row.destructive ? "danger" : "outline"
 
   return (
     <SettingRowShell title={rowTitle(row, t)} description={rowDescription(row, t)} divider={divider}>
-      {/* The only schema action row is the desktop's cache button, which has never had
-          a command behind it. Rendered disabled rather than as a button that does nothing. */}
-      <Button variant={row.destructive ? "danger" : "outline"} size="sm" disabled>
-        {label}
-      </Button>
+      {row.href ? (
+        <Button
+          variant={variant}
+          size="sm"
+          onClick={() => openExternally(row.href!)}
+          trailing={<AppIcon name="external-link" size={13} strokeWidth={1.7} className="text-ink-icon" />}
+        >
+          {label}
+        </Button>
+      ) : (
+        // An action row with nothing behind it is rendered disabled rather than as a
+        // button that silently does nothing when pressed.
+        <Button variant={variant} size="sm" disabled>
+          {label}
+        </Button>
+      )}
     </SettingRowShell>
   )
 }

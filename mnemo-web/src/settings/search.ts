@@ -1,8 +1,8 @@
 import type { TranslateFn } from "@/i18n/types"
 
-import { rowDescription, rowTitle } from "./labels"
+import { rowDescription, rowTitle, SETTINGS_NS } from "./labels"
 import { isRowHidden, visibleCategories } from "./schema"
-import type { SettingsSchemaContext, SettingsRow } from "./types"
+import type { SettingsCategory, SettingsSchemaContext, SettingsRow } from "./types"
 
 // Cross-category search. Because the tree is declared as data, this is a filter over
 // the same schema the page renders, there is no second description of the settings
@@ -57,4 +57,27 @@ export function searchSettings(
 function rowMatches(row: SettingsRow, needle: string, t: TranslateFn): boolean {
   const haystack = `${rowTitle(row, t)}\n${rowDescription(row, t)}`.toLocaleLowerCase()
   return haystack.includes(needle)
+}
+
+/**
+ * Pages whose own name matches, listed above the row hits.
+ *
+ * Without this a page that is not a list of rows is unreachable by search: Keyboard
+ * renders one bespoke surface, so it contributes no rows to match against, and looking
+ * for "shortcuts" would report that nothing in settings mentions them.
+ */
+export function searchCategories(
+  query: string,
+  t: TranslateFn,
+  context: SettingsSchemaContext,
+): SettingsCategory[] {
+  const needle = query.trim().toLocaleLowerCase()
+  if (!needle) return []
+
+  return visibleCategories(context).filter((category) => {
+    const subtitle = category.subtitle ? t(SETTINGS_NS, category.subtitle) : ""
+    const keywords = category.keywords?.join("\n") ?? ""
+    const haystack = `${t(SETTINGS_NS, category.title)}\n${subtitle}\n${keywords}`
+    return haystack.toLocaleLowerCase().includes(needle)
+  })
 }

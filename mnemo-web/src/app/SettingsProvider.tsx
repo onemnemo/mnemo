@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useState } from "react"
 
 import { fetchAppSettings } from "@/api/settings"
 import { DEFAULT_LANGUAGE, useI18nStore } from "@/i18n/store"
-import { resolveThemeId } from "@/lib/themes"
+import { resolveThemePreference } from "@/lib/themes"
 import { fetchNav } from "@/nav/api"
 import { useNavStore } from "@/nav/store"
 import { useSettingsStore } from "@/settings/store"
@@ -35,10 +35,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
       useNavStore.getState().setCategories(nav)
 
-      // resolveThemeId, not a validity check: an install upgrading from the four-theme
-      // palette has a retired id stored, and it maps to the light or dark theme that
-      // replaced it rather than resetting the user to the default.
-      useThemeStore.getState().hydrate(resolveThemeId(settings?.theme))
+      // resolveThemePreference, not a validity check: an install upgrading from the
+      // four-theme palette has a retired id stored, and it maps to the light or dark
+      // theme that replaced it rather than resetting the user to the default. "system"
+      // is kept as itself, so it can keep following the OS rather than freezing on
+      // whatever the OS happened to say at startup.
+      useThemeStore.getState().hydrate(resolveThemePreference(settings?.theme))
 
       // Motion comes from the settings snapshot the store already loaded, not a second
       // request. Absent means "follow the OS", which the CSS handles unaided, so there

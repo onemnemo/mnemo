@@ -1,6 +1,16 @@
 import { useEffect, useSyncExternalStore } from "react"
 
 import { DEFAULT_ROUTE } from "@/app/routes"
+import { getSettingValue } from "@/settings/store"
+
+/**
+ * The route the window was last on.
+ *
+ * localStorage rather than a stored setting: it is written on every navigation, and a
+ * request per route change to remember something only this machine's next launch cares
+ * about is not a trade worth making.
+ */
+const LAST_ROUTE_KEY = "mnemo.last-route"
 
 function subscribe(onStoreChange: () => void): () => void {
   window.addEventListener("hashchange", onStoreChange)
@@ -22,15 +32,46 @@ export function navigate(key: string, ...params: readonly string[]): void {
 }
 
 /**
- * Normalizes an empty hash to the default route once on mount, without growing
- * browser history. Unknown routes are handled by resolveRoute (falls back to the
- * default page) so a wrong hash never blanks the shell.
+ * Normalizes an empty hash to the landing route once on mount, without growing browser
+ * history, and remembers where the window ends up. Unknown routes are handled by
+ * resolveRoute (falls back to the default page) so a wrong hash never blanks the shell.
  */
 export function useRouteNormalization(): void {
   const hash = useHashRoute()
+
   useEffect(() => {
     if (hash === "" || hash === "#" || hash === "#/") {
-      window.location.replace(`#/${DEFAULT_ROUTE}`)
+      window.location.replace(`#/${landingRoute()}`)
+      return
+    }
+
+    // Only real hashes are remembered, so the empty one this effect is about to replace
+    // never becomes the thing the next launch resumes.
+    try {
+      localStorage.setItem(LAST_ROUTE_KEY, hash)
+    } catch {
+      // Non-fatal: the next launch opens on the default route instead.
     }
   }, [hash])
+}
+
+/**
+ * Where a launch lands, per the App.OpenTo preference.
+ *
+ * Read once, not subscribed to: it decides what to do with an empty hash, and by the
+ * time the setting could change the window is already somewhere.
+ */
+function landingRoute(): string {
+  const preference = getSettingValue("App.OpenTo", "last")
+  if (preference !== "last") return preference
+
+  try {
+    // Stored as a full hash ("#/notes/abc"), so resuming keeps the note that was open
+    // and not merely the module it was in.
+    const stored = localStorage.getItem(LAST_ROUTE_KEY)
+    if (stored) return stored.replace(/^#\/?/, "")
+  } catch {
+    // Non-fatal.
+  }
+  return DEFAULT_ROUTE
 }

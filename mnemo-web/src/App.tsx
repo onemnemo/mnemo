@@ -7,7 +7,6 @@ import { CommandPalette } from "@/components/shell/palette/CommandPalette"
 import { CardEditorOverlay } from "@/flashcards/editor/CardEditorOverlay"
 import { ReviewSettingsOverlay } from "@/flashcards/presets/ReviewSettingsOverlay"
 import { TransferOverlay } from "@/flashcards/transfer/TransferOverlay"
-import { KeybindManagerOverlay } from "@/keybinds/manager/KeybindManagerOverlay"
 import { registerKeybindAction } from "@/keybinds/registry"
 import { OnboardingWizard } from "@/onboarding/OnboardingWizard"
 import { dialog } from "@/stores/dialog"
@@ -35,12 +34,17 @@ function App() {
     usePaletteStore.getState().toggle()
   }), [])
 
+  // What used to raise the quick-actions catalogue. It is a settings page now, so the
+  // shortcut opens that page rather than a modal listing the same thing.
+  useEffect(() => registerKeybindAction("global.quick-actions", () => {
+    window.location.hash = "#/settings/Keyboard"
+  }), [])
+
   return (
     <>
       <AppShell />
       <CommandPalette />
       <DialogHost />
-      <KeybindManagerOverlay />
       <CardEditorOverlay />
       <ReviewSettingsOverlay />
       <TransferOverlay />

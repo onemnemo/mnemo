@@ -79,8 +79,11 @@ function PaletteBody() {
       window.location.hash = href
     },
     toggleTheme: () => {
-      const { theme, setTheme } = useThemeStore.getState()
-      setTheme(theme === "dark" ? "light" : "dark")
+      // Toggling off the theme on screen rather than off the preference: from "system"
+      // it means "the other one to what I am looking at", which is also what makes the
+      // toggle an explicit choice and stops the OS overriding it a moment later.
+      const { theme, setPreference } = useThemeStore.getState()
+      setPreference(theme === "dark" ? "light" : "dark")
     },
     toggleSidebar: () => useShellStore.getState().toggleSidebar(),
     askSoma: () => useSomaStore.getState().setDockOpen(true),

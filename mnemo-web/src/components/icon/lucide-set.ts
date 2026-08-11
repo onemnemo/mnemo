@@ -34,6 +34,7 @@ import {
   Clock,
   Copy,
   CornerDownLeft,
+  Download,
   Ellipsis,
   ExternalLink,
   File,
@@ -47,6 +48,7 @@ import {
   ImagePlus,
   Info,
   Italic,
+  Keyboard,
   Layers,
   LayoutGrid,
   Library,
@@ -55,6 +57,7 @@ import {
   Sigma,
   Underline,
   LoaderCircle,
+  Monitor,
   Moon,
   Network,
   NotebookText,
@@ -82,6 +85,7 @@ import {
   TrendingUp,
   TriangleAlert,
   Type,
+  User,
   X,
   type LucideIcon,
 } from "lucide-react"
@@ -172,6 +176,13 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   "trending-up": TrendingUp,
   "trending-down": TrendingDown,
   store: Store,
+
+  // The settings rail, one page each.
+  user: User,
+  keyboard: Keyboard,
+  download: Download,
+  // The theme picker's "match system" card.
+  monitor: Monitor,
 
   // Status
   info: Info,

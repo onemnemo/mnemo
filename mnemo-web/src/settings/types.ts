@@ -10,7 +10,7 @@
 // same database during the port.
 
 /** Which nav section a category is listed under. */
-export type SettingsSection = "account" | "app" | "modules"
+export type SettingsSection = "you" | "app" | "modules" | "advanced"
 
 /**
  * Runtime facts the schema branches on, a few rows exist only in certain states,
@@ -119,6 +119,12 @@ export interface ActionRow extends RowBase {
   buttonLabel?: string
   buttonLabelText?: string
   destructive?: boolean
+  /**
+   * An absolute URL to hand to the system browser. A row with one is a link and is
+   * always live; a row without one has nothing behind it and renders disabled, which
+   * is the honest reading of a button that does nothing.
+   */
+  href?: string
 }
 
 /**
@@ -141,9 +147,9 @@ export type CustomRowId =
   | "assistant-model"
   | "utility-model"
   | "test-connection"
-  | "keybind-manager"
   | "clear-chat-history"
   | "check-for-updates"
+  | "about-identity"
 
 export type SettingsRow =
   | ToggleRow
@@ -178,6 +184,16 @@ export interface SettingsGroup {
   rows: SettingsRow[]
 }
 
+/**
+ * A category whose body is one bespoke surface rather than a list of rows.
+ *
+ * Almost every page in settings is label/control pairs, and the schema describes those
+ * completely. Keyboard is not one of those: it is a searchable catalogue of actions with
+ * a recorder in each row, and squeezing it into the row vocabulary would mean inventing
+ * row kinds that only ever have one instance.
+ */
+export type SettingsPageId = "keyboard"
+
 /** One page in the settings nav. */
 export interface SettingsCategory {
   id: string
@@ -188,8 +204,16 @@ export interface SettingsCategory {
   icon: string
   /** Key in the Settings i18n namespace. */
   subtitle?: string
+  /**
+   * Extra literal search terms for the page itself. People look for the setting, not the
+   * page it lives on, so these are the words someone would type when the page's own name
+   * is not one they would think of.
+   */
+  keywords?: string[]
   section: SettingsSection
   groups: SettingsGroup[]
+  /** Renders this component instead of {@link groups}, which are then empty. */
+  page?: SettingsPageId
   /** Omitted from the nav when this returns false. */
   visible?: (context: SettingsSchemaContext) => boolean
 }
