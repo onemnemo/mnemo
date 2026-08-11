@@ -80,18 +80,44 @@ export function capsOf(stroke: EdgeStroke): { start: CapPlacement; end: CapPlace
   }
 
   if (stroke.kind === 'polyline') {
-    const points = stroke.points
-    if (points.length < 2) return null
-    const [s0, s1] = [points[0], points[1]]
-    const [t1, t0] = [points[points.length - 2], points[points.length - 1]]
-    return {
-      start: { x: s0.x, y: s0.y, angle: Math.atan2(s0.y - s1.y, s0.x - s1.x) },
-      end: { x: t0.x, y: t0.y, angle: Math.atan2(t0.y - t1.y, t0.x - t1.x) },
-    }
+    return capsOfPoints(stroke.points)
+  }
+
+  // A cap sits on the line the rails were offset from, not on either rail, or a double line would
+  // arrive at its node with two arrowheads side by side.
+  if (stroke.kind === 'rails') {
+    return capsOfPoints(centreOf(stroke.rails))
   }
 
   // A ribbon is a filled shape whose ends are already its own statement about direction.
   return null
+}
+
+function capsOfPoints(points: readonly Point[]): { start: CapPlacement; end: CapPlacement } | null {
+  if (points.length < 2) return null
+  const [s0, s1] = [points[0], points[1]]
+  const [t1, t0] = [points[points.length - 2], points[points.length - 1]]
+  return {
+    start: { x: s0.x, y: s0.y, angle: Math.atan2(s0.y - s1.y, s0.x - s1.x) },
+    end: { x: t0.x, y: t0.y, angle: Math.atan2(t0.y - t1.y, t0.x - t1.x) },
+  }
+}
+
+/** The line a set of rails were offset from, recovered by averaging them sample for sample. */
+function centreOf(rails: readonly (readonly Point[])[]): readonly Point[] {
+  if (rails.length === 0) return []
+  const length = rails[0].length
+  const centre: Point[] = []
+  for (let i = 0; i < length; i++) {
+    let x = 0
+    let y = 0
+    for (const rail of rails) {
+      x += rail[i].x
+      y += rail[i].y
+    }
+    centre.push({ x: x / rails.length, y: y / rails.length })
+  }
+  return centre
 }
 
 export function boxOf(element: SceneElement): ElementBox {
@@ -187,6 +213,14 @@ export type EdgeStroke =
       readonly ty: number
     }
   | { readonly kind: 'polyline'; readonly points: readonly Point[] }
+  /**
+   * One line drawn as several running alongside each other. A double line is two of these.
+   *
+   * Held as flattened points rather than as offset curves because a cubic has no exact parallel: the
+   * offset of a bezier is not a bezier, and every closed form for it is an approximation that goes
+   * wrong exactly where a mindmap's branches turn hardest.
+   */
+  | { readonly kind: 'rails'; readonly rails: readonly (readonly Point[])[] }
   | {
       readonly kind: 'ribbon'
       /** Outward edge, source to target. */
@@ -363,13 +397,102 @@ export function strokeToPathData(stroke: EdgeStroke): string {
     )
   }
 
-  const [first, ...rest] = stroke.points
+  // One path element with a subpath per rail, rather than a path element each: an edge owns one node
+  // in the SVG layer and the culler hides that node, so a second one would be a second thing to keep
+  // in step with it for no gain.
+  if (stroke.kind === 'rails') {
+    return stroke.rails.map(polylineData).join(' ')
+  }
+
+  return polylineData(stroke.points)
+}
+
+function polylineData(points: readonly Point[]): string {
+  const [first, ...rest] = points
   return `M${first.x},${first.y}` + rest.map((p) => ` L${p.x},${p.y}`).join('')
 }
 
 /** True when the shape has to be filled rather than stroked. */
 export function isFilled(stroke: EdgeStroke): boolean {
   return stroke.kind === 'ribbon'
+}
+
+/**
+ * Samples along a curve when it has to become points. Enough that the offset below reads as a smooth
+ * line at the zoom anyone reads a map at, and few enough that a document of them is still cheap.
+ */
+const RAIL_SAMPLES = 28
+
+/**
+ * The same line drawn as two, offset either side of where it ran.
+ *
+ * This is what a double line actually is, and the port had been resolving it to a plain one because
+ * neither substrate could draw it. Faking it with a dense dash was the alternative and it reads as a
+ * third dash style rather than as the thing it is named after.
+ *
+ * A ribbon comes back untouched: it is a filled taper, which already says everything a doubled
+ * outline would, and doubling it would draw a shape with a hole in it.
+ */
+export function railsFor(stroke: EdgeStroke, separation: number): EdgeStroke {
+  if (stroke.kind === 'ribbon' || stroke.kind === 'rails') {
+    return stroke
+  }
+
+  const centre = stroke.kind === 'cubic' ? sampleCubic(stroke, RAIL_SAMPLES) : stroke.points
+  if (centre.length < 2) {
+    return stroke
+  }
+
+  const half = separation / 2
+  return { kind: 'rails', rails: [offsetBy(centre, half), offsetBy(centre, -half)] }
+}
+
+function sampleCubic(
+  stroke: Extract<EdgeStroke, { kind: 'cubic' }>,
+  samples: number,
+): readonly Point[] {
+  const points: Point[] = []
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples
+    const u = 1 - t
+    const a = u * u * u
+    const b = 3 * u * u * t
+    const c = 3 * u * t * t
+    const d = t * t * t
+    points.push({
+      x: a * stroke.sx + b * stroke.c1x + c * stroke.c2x + d * stroke.tx,
+      y: a * stroke.sy + b * stroke.c1y + c * stroke.c2y + d * stroke.ty,
+    })
+  }
+  return points
+}
+
+/**
+ * Every point pushed sideways by the same distance, along the normal of the line through it.
+ *
+ * The normal at an interior point comes from its neighbours rather than from the segment before it,
+ * so the two rails stay the same distance apart around a corner instead of pinching on the inside of
+ * it. Degenerate segments, where two samples land on the same spot, keep the last usable normal.
+ */
+function offsetBy(points: readonly Point[], distance: number): readonly Point[] {
+  const out: Point[] = []
+  let nx = 0
+  let ny = 0
+
+  for (let i = 0; i < points.length; i++) {
+    const before = points[Math.max(0, i - 1)]
+    const after = points[Math.min(points.length - 1, i + 1)]
+    const dx = after.x - before.x
+    const dy = after.y - before.y
+    const length = Math.hypot(dx, dy)
+    if (length > 1e-6) {
+      nx = -dy / length
+      ny = dx / length
+    }
+    out.push({ x: points[i].x + nx * distance, y: points[i].y + ny * distance })
+  }
+
+  return out
 }
 
 export interface EdgeGeometry {

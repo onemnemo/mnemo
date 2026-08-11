@@ -69,9 +69,8 @@ describe('line styles', () => {
     )
   })
 
-  it('currently render double as a continuous line, which is a known gap', () => {
-    // Pinned so the day someone implements the parallel pair, this test fails and says so, rather
-    // than the gap quietly persisting behind a control that appears to work.
+  it('give a double line no dash, because it is two continuous strokes and not a pattern', () => {
+    // Where the second stroke comes from is strokeFor's business, not this table's.
     expect(strokeStyleFor(edge({ lineStyle: 'double' })).dash).toBeNull()
   })
 })

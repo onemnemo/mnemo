@@ -27,9 +27,8 @@ const LINK_WIDTH = 1.5
  * Dash patterns in canvas units, shared instances so a renderer can tell "same dash as the last
  * edge" by identity instead of comparing arrays on every edge of every frame.
  *
- * A true double line is two parallel strokes; a dense dash reads similarly at a fraction of the
- * cost, and the spike's concern is per-edge cost rather than exact stroke shape. Matches the
- * choice a1 made, so neither arm draws more than the other.
+ * Shared instances so a renderer can tell "same dash as the last edge" by identity instead of
+ * comparing arrays on every edge of every frame.
  */
 const DASHED: number[] = [6, 4]
 const DOTTED: number[] = [1, 4]
@@ -38,10 +37,8 @@ const DASH_BY_STYLE: Record<string, number[] | null> = {
   solid: null,
   dashed: DASHED,
   dotted: DOTTED,
-  // KNOWN GAP: a true double line is two parallel strokes offset by their own width, which neither
-  // substrate draws yet. It resolves to a continuous line here, so choosing it currently looks
-  // identical to solid. Left visible rather than faked with a dense dash, which would look like a
-  // third dash style rather than like the thing it is named after.
+  // A double line is two continuous strokes, so it has no dash of its own. It is geometry rather
+  // than a stroke pattern and is built where the rest of the shape is, in strokeFor.
   double: null,
 }
 
