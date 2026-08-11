@@ -472,6 +472,11 @@ public sealed class MindmapDocumentService : IMindmapService
             foreach (var cluster in delta.Clusters)
                 working.SetCluster(cluster.RootId, cluster);
 
+            // Whole rather than merged, unlike the layout op that produced it: a delta records the state
+            // being restored, and merging would leave behind whatever the edit being undone had added.
+            if (delta.Canvas is not null)
+                working.SetCanvas(delta.Canvas);
+
             var newRevision = document.Revision + 1;
             var updated = working.Materialize(newRevision, DateTime.UtcNow);
             await _store.SaveAsync(updated, working.BuildSearchDelta(fullReplace: false), cancellationToken).ConfigureAwait(false);

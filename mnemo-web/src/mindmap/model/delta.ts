@@ -13,7 +13,13 @@
  * server reported, and the result is the server's document exactly.
  */
 
-import type { ClusterSettings, MindmapDocument, MindmapEdge, MindmapElement } from "./document"
+import type {
+  ClusterSettings,
+  MindmapCanvasOptions,
+  MindmapDocument,
+  MindmapEdge,
+  MindmapElement,
+} from "./document"
 
 /** The touched subset of a document: what to upsert, and what to drop. */
 export interface MindmapRestoreDelta {
@@ -22,6 +28,15 @@ export interface MindmapRestoreDelta {
   clusters?: ClusterSettings[]
   removeElementIds?: string[]
   removeEdgeIds?: string[]
+  /**
+   * The whole canvas, when the batch changed any part of it.
+   *
+   * It has to be carried separately because it is attached to nothing: a map's background, its
+   * default template and its edge defaults belong to the document rather than to any element, so a
+   * delta made only of touched rows comes back empty for them, and an undo built from that restores
+   * nothing at all.
+   */
+  canvas?: MindmapCanvasOptions
 }
 
 /** Element and edge ids in document order. */
@@ -36,7 +51,8 @@ export function isEmptyDelta(delta: MindmapRestoreDelta): boolean {
     !delta.edges?.length &&
     !delta.clusters?.length &&
     !delta.removeElementIds?.length &&
-    !delta.removeEdgeIds?.length
+    !delta.removeEdgeIds?.length &&
+    !delta.canvas
   )
 }
 
@@ -68,6 +84,9 @@ export function applyDelta(
     elements: order ? sortTo(elements, order.elements) : elements,
     edges: order ? sortTo(edges, order.edges) : edges,
     clusters,
+    // Replaced whole rather than merged: the delta carries the canvas as it should end up, so
+    // keeping fields from the state being left behind would be the opposite of restoring it.
+    canvas: delta.canvas ?? document.canvas,
   }
 }
 

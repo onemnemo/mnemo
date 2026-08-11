@@ -815,7 +815,19 @@
     "BranchColor": "ブランチの色",
     "StyleEdge": "エッジのスタイル",
     "StyleNode": "ノードのスタイル",
-    "EditLabel": "ラベルを編集"
+    "EditLabel": "ラベルを編集",
+    "MapStyle": "マップスタイル",
+    "GroupArrangement": "配置",
+    "GroupBranches": "ブランチ",
+    "GroupPalette": "パレット",
+    "GroupBackground": "背景",
+    "BranchLine": "線",
+    "BranchTaper": "テーパー",
+    "BranchStep": "段",
+    "BackgroundDots": "ドット",
+    "BackgroundGrid": "グリッド",
+    "BackgroundPlain": "なし",
+    "StyleMap": "マップのスタイル"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

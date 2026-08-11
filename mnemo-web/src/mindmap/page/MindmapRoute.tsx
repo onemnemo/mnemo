@@ -18,7 +18,15 @@ import { placeChild, type PlacedBox } from "../edit/placement"
 import type { MovedElement } from "../interaction/controller"
 import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } from "../interaction/selection"
 import { isOneShot, TOOL_KEYS, type MindmapTool } from "../interaction/tool"
-import type { EdgeStyle, ElementStyle, ShapeType } from "../model/document"
+import { MapStyleMenu } from "../chrome/MapStyleMenu"
+import { edgeDefaultsFor, materialOf } from "../chrome/material"
+import {
+  LAYOUT_ALGORITHMS,
+  type EdgeStyle,
+  type ElementStyle,
+  type LayoutAlgorithm,
+  type ShapeType,
+} from "../model/document"
 import { op, type MindmapOp } from "../model/ops"
 import type { Point } from "../model/scene"
 import { branchRootOf, branchSwatchOf } from "../scene/branch"
@@ -298,14 +306,44 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
    *
    * The sizes go with it. Every node is as wide as its rendered text and the server has never seen
    * the font, so the measurements the projector already made are the only honest ones there are.
+   *
+   * A named arrangement is chosen and applied in one step: the server writes it onto every cluster
+   * in the same batch as the moves it produced, so one undo puts back both.
    */
-  const arrange = useCallback(() => {
-    const sizes: Record<string, [number, number]> = {}
-    for (const element of scene?.elements ?? []) {
-      sizes[element.id] = [element.width, element.height]
-    }
-    void editor.arrange(sizes, { label: t("Mindmap", "Layout") })
-  }, [editor, scene, t])
+  const arrange = useCallback(
+    (algorithm?: LayoutAlgorithm) => {
+      const sizes: Record<string, [number, number]> = {}
+      for (const element of scene?.elements ?? []) {
+        sizes[element.id] = [element.width, element.height]
+      }
+      void editor.arrange(sizes, { label: t("Mindmap", "Layout") }, algorithm)
+    },
+    [editor, scene, t],
+  )
+
+  /** What the whole map looks like, as opposed to what one selected thing looks like. */
+  const mapStyle = useCallback(
+    (patch: Parameters<typeof op.layout>[0]) => {
+      void editor.apply([op.layout(patch)], { label: t("Mindmap", "StyleMap") })
+    },
+    [editor, t],
+  )
+
+  /**
+   * The arrangement to show as chosen.
+   *
+   * Null when the clusters disagree, which they can: arrangement is a per-cluster setting and a map
+   * with two trees can genuinely have one of each. Lighting the first one found would say something
+   * untrue about the other.
+   */
+  const algorithm = useMemo((): LayoutAlgorithm | null => {
+    const clusters = map.data?.clusters ?? []
+    const named = new Set(clusters.map((cluster) => cluster.layoutAlgorithm).filter(Boolean))
+    const only = named.size === 1 ? [...named][0] : null
+    return only && (LAYOUT_ALGORITHMS as readonly string[]).includes(only)
+      ? (only as LayoutAlgorithm)
+      : null
+  }, [map.data])
 
   const deleteSelection = useCallback(() => {
     const ops: MindmapOp[] = []
@@ -550,10 +588,21 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         </span>
 
         <div className="ml-auto flex items-center gap-1">
+          <MapStyleMenu
+            algorithm={algorithm}
+            onAlgorithm={arrange}
+            material={materialOf(map.data?.canvas?.edgeDefaults)}
+            onMaterial={(next) => mapStyle({ edge_defaults: edgeDefaultsFor(next) })}
+            templates={styling?.templates ?? []}
+            templateId={map.data?.canvas?.defaultTemplateId ?? styling?.defaultId ?? null}
+            onTemplate={(id) => mapStyle({ template: id })}
+            background={scene.background}
+            onBackground={(next) => mapStyle({ background: next })}
+          />
           <Button
             variant="ghost"
             size="sm"
-            onClick={arrange}
+            onClick={() => arrange()}
             disabled={scene.elements.length === 0}
             title={t("Mindmap", "LayoutTooltip")}
           >

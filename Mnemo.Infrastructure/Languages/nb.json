@@ -815,7 +815,19 @@
     "BranchColor": "Grenfarge",
     "StyleEdge": "Stil på kant",
     "StyleNode": "Stil på node",
-    "EditLabel": "Rediger etikett"
+    "EditLabel": "Rediger etikett",
+    "MapStyle": "Kartstil",
+    "GroupArrangement": "Ordning",
+    "GroupBranches": "Grener",
+    "GroupPalette": "Palett",
+    "GroupBackground": "Bakgrunn",
+    "BranchLine": "Strek",
+    "BranchTaper": "Kile",
+    "BranchStep": "Trinn",
+    "BackgroundDots": "Prikker",
+    "BackgroundGrid": "Rutenett",
+    "BackgroundPlain": "Enkel",
+    "StyleMap": "Stil på kart"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",
