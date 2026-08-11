@@ -9,18 +9,22 @@ import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
 import type { ConnectStyle } from "../chrome/ConnectFlyout"
 import { MindmapToolDock } from "../chrome/MindmapToolDock"
+import type { BranchControl } from "../chrome/NodeBar"
 import { RadialMenu } from "../chrome/RadialMenu"
 import { ON_CANVAS, ON_NODE } from "../chrome/sectors"
+import { MindmapSelectionBar } from "../chrome/SelectionBar"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
 import { placeChild, type PlacedBox } from "../edit/placement"
 import type { MovedElement } from "../interaction/controller"
 import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } from "../interaction/selection"
 import { isOneShot, TOOL_KEYS, type MindmapTool } from "../interaction/tool"
-import type { ShapeType } from "../model/document"
+import type { EdgeStyle, ElementStyle, ShapeType } from "../model/document"
 import { op, type MindmapOp } from "../model/ops"
 import type { Point } from "../model/scene"
+import { branchRootOf, branchSwatchOf } from "../scene/branch"
 import { analyzeHierarchy, childrenIds, descendantsOf } from "../scene/hierarchy"
 import { projectScene } from "../scene/project"
+import { branchToken } from "../scene/tokens"
 
 /** No rules at all: every node falls through to the theme. Stable, so it does not reproject a scene. */
 const EMPTY_TEMPLATES: MindmapTemplates = { defaultId: "", templates: [] }
@@ -70,6 +74,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const runtime = useRef<CanvasRuntime | null>(null)
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION)
   const [editing, setEditing] = useState<string | null>(null)
+  const [editingEdge, setEditingEdge] = useState<string | null>(null)
   const [tool, setTool] = useState<MindmapTool>("select")
   const [zoom, setZoom] = useState(1)
   const [shape, setShape] = useState<ShapeType>("rectangle")
@@ -317,6 +322,85 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     }
   }, [editor, selection, t])
 
+  /**
+   * Restyles every selected edge in one step.
+   *
+   * One op per edge, since an edge style is written to one edge at a time, but one batch: pressing
+   * Dashed with four edges selected is one decision and has to be one undo.
+   */
+  const styleEdges = useCallback(
+    (patch: EdgeStyle) => {
+      const ids = [...selection.edges]
+      if (ids.length === 0) {
+        return
+      }
+      void editor.apply(
+        ids.map((id) => op.setEdge(id, { style: patch })),
+        { label: t("Mindmap", "StyleEdge") },
+      )
+    },
+    [editor, selection, t],
+  )
+
+  /** Restyles every selected node. The bulk form exists, so more than one is still a single op. */
+  const styleNodes = useCallback(
+    (patch: ElementStyle) => {
+      const ids = [...selection.elements]
+      if (ids.length === 0) {
+        return
+      }
+      void editor.apply([ids.length === 1 ? op.set(ids[0], { style: patch }) : op.styleIds(ids, patch)], {
+        label: t("Mindmap", "StyleNode"),
+      })
+    },
+    [editor, selection, t],
+  )
+
+  /**
+   * The branch swatch, or null when this selection has no branch to recolour.
+   *
+   * Only ever offered for a single node, and never for a root. A multi-selection can span several
+   * branches, and "recolour every branch these happen to be in" is not what one swatch reads as.
+   */
+  const branch = useMemo((): BranchControl | null => {
+    if (!hierarchy || !scene || selection.elements.size !== 1) {
+      return null
+    }
+    const id = selection.primary?.kind === "element" ? selection.primary.id : null
+    const element = id ? scene.elements.find((candidate) => candidate.id === id) : null
+    const rootId = id ? branchRootOf(hierarchy, id) : null
+    if (!element || !rootId) {
+      return null
+    }
+    return {
+      slot: branchSwatchOf(element),
+      // Down the whole branch rather than onto the one node, because a branch's colour is the thing
+      // being set and a branch is a subtree. The cascade reads it back off the same override.
+      onPick: (index) =>
+        void editor.apply([op.styleSubtree(rootId, { stroke: branchToken(index) })], {
+          label: t("Mindmap", "BranchColor"),
+        }),
+    }
+  }, [editor, hierarchy, scene, selection, t])
+
+  const endEdgeLabel = useCallback(
+    (id: string, text: string | null) => {
+      setEditingEdge(null)
+      if (text === null) {
+        return
+      }
+      const typed = text.trim()
+      const edge = scene?.edges.find((candidate) => candidate.id === id)
+      // An unchanged label costs no revision and no undo step. An emptied one is sent, because an
+      // empty string is how the edit protocol says to take a label away.
+      if (!edge || (edge.label ?? "") === typed) {
+        return
+      }
+      void editor.apply([op.setEdge(id, { label: typed })], { label: t("Mindmap", "EditLabel") })
+    },
+    [editor, scene, t],
+  )
+
   /** What a sector does. Everything here is something the map already answers to. */
   const onRadial = useCallback(
     (id: string) => {
@@ -521,12 +605,29 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           onActivate={setEditing}
           editingId={editing}
           onEditEnd={endEdit}
+          editingEdgeId={editingEdge}
+          onEdgeLabelEnd={endEdgeLabel}
           subtreeOf={subtreeOf}
           tool={tool}
           onPlant={(armed, at) => void plant(armed, at)}
           onConnect={connect}
           onCameraSettled={(viewport) => setZoom(viewport.zoom)}
         />
+
+        {/* Not while a label is being typed: the bar would sit over the field, and none of what it
+            offers is a thing anyone reaches for mid-word. */}
+        {editing === null && editingEdge === null ? (
+          <MindmapSelectionBar
+            scene={scene}
+            selection={selection}
+            runtime={runtime}
+            pane={stage}
+            onEdgeStyle={styleEdges}
+            onNodeStyle={styleNodes}
+            onEdgeLabel={setEditingEdge}
+            branch={branch}
+          />
+        ) : null}
 
         <MindmapToolDock
           tool={tool}

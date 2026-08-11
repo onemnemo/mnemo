@@ -35,6 +35,9 @@ export interface MindmapCanvasProps {
   editingId?: string | null
   /** The field closed: the typed text, or null when the edit was abandoned. */
   onEditEnd?: (id: string, text: string | null) => void
+  /** The edge whose label is currently a field. */
+  editingEdgeId?: string | null
+  onEdgeLabelEnd?: (id: string, text: string | null) => void
   /** Descendants in the hierarchy, from the document rather than the scene. See the controller. */
   subtreeOf?: (id: string) => readonly string[]
   /** What a press means. Select unless the dock says otherwise. */
@@ -71,6 +74,8 @@ export function MindmapCanvas({
   onActivate,
   editingId,
   onEditEnd,
+  editingEdgeId,
+  onEdgeLabelEnd,
   subtreeOf,
   tool = "select",
   onPlant,
@@ -268,7 +273,7 @@ export function MindmapCanvas({
             onEditEnd={onEditEnd}
           />
         ))}
-        <MindmapEdgeLabels scene={scene} />
+        <MindmapEdgeLabels scene={scene} editingId={editingEdgeId} onEditEnd={onEdgeLabelEnd} />
       </div>
     </div>
   )

@@ -1,4 +1,6 @@
-import { memo } from "react"
+import { memo, useRef } from "react"
+
+import { cn } from "@/lib/utils"
 
 import { boxOf, anchorsFor, edgeShape, strokeToPathData, isFilled } from "./edge-paths"
 import { strokeFor } from "./edge-canvas"
@@ -113,7 +115,17 @@ function capUrl(cap: SceneEdge["startCap"]): string | undefined {
  * repositioned by attribute and would not inherit the app's type. The scene index finds them by the
  * data attribute, which is the whole contract between this and the repaint path.
  */
-export const MindmapEdgeLabels = memo(function MindmapEdgeLabels({ scene }: { scene: Scene }) {
+export const MindmapEdgeLabels = memo(function MindmapEdgeLabels({
+  scene,
+  editingId,
+  onEditEnd,
+}: {
+  scene: Scene
+  /** The edge whose label is currently a field. */
+  editingId?: string | null
+  /** The field closed: the typed text, or null when the edit was abandoned. */
+  onEditEnd?: (id: string, text: string | null) => void
+}) {
   const boxes = new Map<string, SceneElement>()
   for (const element of scene.elements) {
     boxes.set(element.id, element)
@@ -124,16 +136,28 @@ export const MindmapEdgeLabels = memo(function MindmapEdgeLabels({ scene }: { sc
       {scene.edges.map((edge) => {
         const from = boxes.get(edge.fromId)
         const to = boxes.get(edge.toId)
-        if (!edge.label || !from || !to) {
+        if (!from || !to) {
           return null
         }
+        // An edge with no label draws nothing, unless it is the one being labelled: a first label
+        // has to be typed somewhere, and the rule that skips empty ones would leave nothing to type
+        // into.
+        const editing = edge.id === editingId
+        if (!edge.label && !editing) {
+          return null
+        }
+
         const at = edgeShape(edge.routing ?? "curve", anchorsFor(boxOf(from), boxOf(to))).label
-        return (
+        const place = { transform: `translate(-50%, -50%) translate(${at.x}px, ${at.y}px)` }
+
+        return editing ? (
+          <EdgeLabelEditor key={edge.id} edge={edge} place={place} onEditEnd={onEditEnd} />
+        ) : (
           <span
             key={edge.id}
             data-mm-edge-label={edge.id}
-            className="absolute left-0 top-0 whitespace-nowrap rounded-full bg-canvas px-1.5 text-[10.5px] leading-[16px] text-ink-2 shadow-[0_0_0_1px_var(--line-soft)]"
-            style={{ transform: `translate(-50%, -50%) translate(${at.x}px, ${at.y}px)` }}
+            className={LABEL_PILL}
+            style={place}
           >
             {edge.label}
           </span>
@@ -142,3 +166,67 @@ export const MindmapEdgeLabels = memo(function MindmapEdgeLabels({ scene }: { sc
     </>
   )
 })
+
+/** The chip an edge label sits in, worn by the label and by the field that replaces it. */
+const LABEL_PILL =
+  "absolute left-0 top-0 whitespace-nowrap rounded-full bg-canvas px-1.5 text-[10.5px] leading-[16px] text-ink-2 shadow-[0_0_0_1px_var(--line-soft)]"
+
+/**
+ * A label, as a field, in the label's own place.
+ *
+ * On the canvas rather than in a popover hanging off the bar that opened it. An edge label is a thing
+ * on the map at a particular point, and typing it anywhere else means reading the result somewhere
+ * other than where you are looking. The bar's button is what starts the edit; it is not where the
+ * edit happens.
+ */
+function EdgeLabelEditor({
+  edge,
+  place,
+  onEditEnd,
+}: {
+  edge: SceneEdge
+  place: { transform: string }
+  onEditEnd?: (id: string, text: string | null) => void
+}) {
+  // A cancel blurs the field, and the blur must not then commit what the cancel just threw away.
+  const done = useRef(false)
+
+  const finish = (value: string | null): void => {
+    if (done.current) {
+      return
+    }
+    done.current = true
+    onEditEnd?.(edge.id, value)
+  }
+
+  return (
+    <input
+      data-mm-edge-label={edge.id}
+      ref={(node) => {
+        node?.focus({ preventScroll: true })
+        node?.select()
+      }}
+      defaultValue={edge.label ?? ""}
+      spellCheck={false}
+      // select-text against the pane's select-none, or the caret cannot select what it is editing.
+      className={cn(LABEL_PILL, "field-sizing-content w-[56px] min-w-[56px] select-text text-ink outline-none")}
+      style={place}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault()
+          event.stopPropagation()
+          finish(event.currentTarget.value)
+          return
+        }
+        if (event.key === "Escape") {
+          event.stopPropagation()
+          finish(null)
+        }
+      }}
+      onBlur={(event) => finish(event.currentTarget.value)}
+      // A press inside the field is not a press on the canvas, which would clear the selection and
+      // unmount the field before the caret ever moved.
+      onPointerDown={(event) => event.stopPropagation()}
+    />
+  )
+}

@@ -807,7 +807,15 @@
     "ErrorTitle": "エラー",
     "CreateFailed": "マインドマップを作成できませんでした。",
     "DeleteFolderTitle": "フォルダーを削除",
-    "DeleteFolderConfirm": "「{0}」を削除しますか？中のマップはルートに移動します。"
+    "DeleteFolderConfirm": "「{0}」を削除しますか？中のマップはルートに移動します。",
+    "SizeSmall": "小",
+    "SizeMedium": "中",
+    "SizeLarge": "大",
+    "SizeExtraLarge": "特大",
+    "BranchColor": "ブランチの色",
+    "StyleEdge": "エッジのスタイル",
+    "StyleNode": "ノードのスタイル",
+    "EditLabel": "ラベルを編集"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",
