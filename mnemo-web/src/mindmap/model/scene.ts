@@ -173,6 +173,10 @@ export const MAX_SCALE = 5.0
  * The zoom at which `bounds` fits a viewport with a margin, clamped to the camera's limits.
  * `clampedToFloor` says the map is too large to show whole, which is a thing to tell the user
  * rather than to silently pretend away.
+ *
+ * Never magnifies. Fitting means showing everything, and when everything already fits at 1:1 there
+ * is nothing left to do; blowing a one-node map up to fill the window is zooming, not fitting, and
+ * it is what a brand new map would otherwise open as.
  */
 export function fitZoom(
   bounds: Bounds,
@@ -186,7 +190,7 @@ export function fitZoom(
     return { zoom: 1, clampedToFloor: false }
   }
 
-  const raw = Math.min((viewportWidth * (1 - margin)) / w, (viewportHeight * (1 - margin)) / h)
+  const raw = Math.min((viewportWidth * (1 - margin)) / w, (viewportHeight * (1 - margin)) / h, 1)
   return {
     zoom: Math.min(MAX_SCALE, Math.max(MIN_SCALE, raw)),
     clampedToFloor: raw < MIN_SCALE,

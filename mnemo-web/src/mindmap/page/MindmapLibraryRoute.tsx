@@ -31,7 +31,7 @@ export function MindmapLibraryRoute() {
 
   function onCreate() {
     create.mutate(
-      { title: t("Mindmap", "UntitledMap") },
+      { title: t("Mindmap", "NewMindmap") },
       { onSuccess: (document) => navigate("mindmap", document.id) },
     )
   }
@@ -40,7 +40,7 @@ export function MindmapLibraryRoute() {
     <div className="min-h-full bg-canvas-sunken">
       <div className="mx-auto flex max-w-[1232px] flex-col gap-6 px-6 pb-20 pt-7">
         <header className="flex items-center gap-3">
-          <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-ink">{t("Mindmap", "Mindmaps")}</h1>
+          <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-ink">{t("Mindmap", "Title")}</h1>
           <Button
             className="ml-auto"
             onClick={onCreate}
@@ -56,7 +56,7 @@ export function MindmapLibraryRoute() {
         ) : entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line py-20">
             <AppIcon name="git-fork" size={24} strokeWidth={1.4} className="text-ink-icon" />
-            <p className="text-[14px] font-medium text-ink">{t("Mindmap", "NoMapsYet")}</p>
+            <p className="text-[14px] font-medium text-ink">{t("Mindmap", "LibraryEmptyTitle")}</p>
             <Button variant="outline" onClick={onCreate}>
               {t("Mindmap", "NewMap")}
             </Button>
@@ -80,7 +80,7 @@ export function MindmapLibraryRoute() {
                       {entry.document.title || t("Mindmap", "UntitledMap")}
                     </p>
                     <p className="mt-0.5 text-[11.5px] text-ink-3">
-                      {t("Mindmap", "ElementCount").replace(
+                      {t("Mindmap", "NodeCountFormat").replace(
                         "{0}",
                         String(entry.document.elements?.length ?? 0),
                       )}

@@ -258,9 +258,29 @@ export function useMindmapFolders() {
  * Templates change when the user saves one and at no other time, so they are fetched once and kept.
  * Every open map's cascade reads them, and refetching per map would be one request per open for data
  * that is the same every time.
+ *
+ * Barely retried on purpose. A map is styled by these but not made of them, so the caller draws with
+ * theme defaults rather than waiting; every retry is time the map is not on screen for a request that
+ * has already failed once, and a 4xx means the endpoint is not there and will not become there.
  */
 export function useMindmapTemplates() {
-  return useQuery({ queryKey: mindmapTemplatesKey, queryFn: fetchMindmapTemplates, staleTime: Infinity })
+  return useQuery({
+    queryKey: mindmapTemplatesKey,
+    queryFn: fetchMindmapTemplates,
+    staleTime: Infinity,
+    retry: (count, error) => count < 1 && !isClientError(error),
+  })
+}
+
+function isClientError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof error.status === "number" &&
+    error.status >= 400 &&
+    error.status < 500
+  )
 }
 
 export function useMindmap(id: string | null) {

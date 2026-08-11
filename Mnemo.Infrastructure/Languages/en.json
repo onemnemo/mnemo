@@ -701,6 +701,12 @@
     "SlashMenuLabel": "Insert a block"
   },
   "Mindmap": {
+    "Loading": "Loading map...",
+    "MapIsEmpty": "This map is empty.",
+    "MapNotFound": "That mindmap could not be opened.",
+    "NodeCountFormat": "{0} node(s)",
+    "TemplatesUnavailable": "Styling templates could not be loaded, so this map is drawn plain.",
+    "UntitledMap": "Untitled map",
     "Title": "Mindmaps",
     "Subtitle": "Visualize connections and brainstorm ideas",
     "NewMindmap": "New Mindmap",
