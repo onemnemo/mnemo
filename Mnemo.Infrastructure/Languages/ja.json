@@ -662,6 +662,7 @@
     "CapStart": "始点",
     "CapEnd": "終点",
     "LayoutTooltip": "マップ全体を整列",
+    "ArrangeNow": "今すぐ整列",
     "ShortcutHintFormat": "{0}（{1}）",
     "AddText": "テキストを追加",
     "Connect": "接続",

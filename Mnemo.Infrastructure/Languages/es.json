@@ -662,6 +662,7 @@
     "CapStart": "Inicio",
     "CapEnd": "Fin",
     "LayoutTooltip": "Organizar todo el mapa",
+    "ArrangeNow": "Organizar ahora",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Añadir texto",
     "Connect": "Conectar",

@@ -591,6 +591,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           <MapStyleMenu
             algorithm={algorithm}
             onAlgorithm={arrange}
+            onArrange={arrange}
+            canArrange={scene.elements.length > 0}
             material={materialOf(map.data?.canvas?.edgeDefaults)}
             onMaterial={(next) => mapStyle({ edge_defaults: edgeDefaultsFor(next) })}
             templates={styling?.templates ?? []}
@@ -599,16 +601,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             background={scene.background}
             onBackground={(next) => mapStyle({ background: next })}
           />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => arrange()}
-            disabled={scene.elements.length === 0}
-            title={t("Mindmap", "LayoutTooltip")}
-          >
-            <AppIcon name="common/sitemap" size={15} className="mr-1.5" />
-            {t("Mindmap", "Layout")}
-          </Button>
           <Button
             variant="ghost"
             size="sm"
