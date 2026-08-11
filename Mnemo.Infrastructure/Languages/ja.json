@@ -651,6 +651,7 @@
     "ColorNone": "なし"
   },
   "Mindmap": {
+    "LayoutTooltip": "マップ全体を整列",
     "ShortcutHintFormat": "{0}（{1}）",
     "AddText": "テキストを追加",
     "Connect": "接続",

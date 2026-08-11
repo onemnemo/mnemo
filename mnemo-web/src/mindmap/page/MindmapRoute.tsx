@@ -259,6 +259,20 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     [editor, map.data, t],
   )
 
+  /**
+   * Hands the whole map to the layout engine.
+   *
+   * The sizes go with it. Every node is as wide as its rendered text and the server has never seen
+   * the font, so the measurements the projector already made are the only honest ones there are.
+   */
+  const arrange = useCallback(() => {
+    const sizes: Record<string, [number, number]> = {}
+    for (const element of scene?.elements ?? []) {
+      sizes[element.id] = [element.width, element.height]
+    }
+    void editor.arrange(sizes, { label: t("Mindmap", "Layout") })
+  }, [editor, scene, t])
+
   const deleteSelection = useCallback(() => {
     const ops: MindmapOp[] = []
     if (selection.elements.size > 0) {
@@ -361,6 +375,16 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         </span>
 
         <div className="ml-auto flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={arrange}
+            disabled={scene.elements.length === 0}
+            title={t("Mindmap", "LayoutTooltip")}
+          >
+            <AppIcon name="common/sitemap" size={15} className="mr-1.5" />
+            {t("Mindmap", "Layout")}
+          </Button>
           <Button
             variant="ghost"
             size="sm"

@@ -651,6 +651,7 @@
     "ColorNone": "Ingen"
   },
   "Mindmap": {
+    "LayoutTooltip": "Ordne hele kartet",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Legg til tekst",
     "Connect": "Koble",

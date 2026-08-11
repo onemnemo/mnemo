@@ -128,6 +128,42 @@ export async function applyMindmapOps(
   }
 }
 
+/**
+ * Asks the server to lay the map out.
+ *
+ * It answers in the shape one edit batch does, because that is what it is: the moves are computed on
+ * the server and committed through the same op path, so an arrange folds into the cache like any other
+ * write and takes exactly one Ctrl+Z to take back.
+ *
+ * The sizes travel with the request because a node's size is the width of its rendered text, and the
+ * client that rendered it is the only thing that knows. Without them the layout spaces the map by a
+ * guess about a font it has never seen.
+ */
+export async function arrangeMindmap(
+  id: string,
+  expectedRevision: number,
+  sizes: Record<string, [number, number]>,
+  algorithm?: string,
+): Promise<EditOutcome> {
+  const { status, data } = await apiFetchExpecting<MindmapOpsResult | MindmapEditError>(
+    `/mindmaps/${encodeURIComponent(id)}/arrange`,
+    [400, 404, 409],
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedRevision, algorithm, sizes }),
+    },
+  )
+
+  if (status === 200) {
+    return { status: "applied", result: data as MindmapOpsResult }
+  }
+  return {
+    status: status === 409 ? "conflict" : "rejected",
+    error: data as MindmapEditError,
+  }
+}
+
 export async function restoreMindmap(
   id: string,
   expectedRevision: number,

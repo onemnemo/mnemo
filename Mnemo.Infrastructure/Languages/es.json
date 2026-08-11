@@ -651,6 +651,7 @@
     "ColorNone": "Ninguno"
   },
   "Mindmap": {
+    "LayoutTooltip": "Organizar todo el mapa",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Añadir texto",
     "Connect": "Conectar",

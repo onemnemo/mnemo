@@ -38,6 +38,20 @@ public sealed record ApplyMindmapOpsDto(long ExpectedRevision, JsonElement Ops);
 public sealed record RestoreMindmapDto(long ExpectedRevision, MindmapRestoreDelta Delta);
 
 /// <summary>
+/// A request to lay the map out.
+/// <para>
+/// <paramref name="Sizes"/> is <c>id -&gt; [width, height]</c> as the client rendered them. A node's size
+/// is the width of its rendered text, which only the client that measured it knows; without them every
+/// layout would space the map by a guess. <paramref name="Algorithm"/> overrides each cluster's own
+/// choice for this one pass, for an arrange that asks for a particular arrangement.
+/// </para>
+/// </summary>
+public sealed record ArrangeMindmapDto(
+    long ExpectedRevision,
+    string? Algorithm,
+    IReadOnlyDictionary<string, double[]>? Sizes);
+
+/// <summary>
 /// What an accepted batch hands back.
 /// <para>
 /// <paramref name="Redo"/> carries the batch's own effect, so the client folds it into the document it
