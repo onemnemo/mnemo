@@ -33,6 +33,7 @@ interface Recorder {
 function recorder(): Recorder {
   const entries: Entry[] = []
   let strokeStyle = ''
+  let fillStyle = ''
   let lineWidth = 0
   const context: EdgeCanvasContext = {
     get strokeStyle(): string {
@@ -41,6 +42,13 @@ function recorder(): Recorder {
     set strokeStyle(value: string | CanvasGradient | CanvasPattern) {
       strokeStyle = String(value)
       entries.push({ op: 'strokeStyle', args: [strokeStyle] })
+    },
+    get fillStyle(): string {
+      return fillStyle
+    },
+    set fillStyle(value: string | CanvasGradient | CanvasPattern) {
+      fillStyle = String(value)
+      entries.push({ op: 'fillStyle', args: [fillStyle] })
     },
     get lineWidth(): number {
       return lineWidth
@@ -60,6 +68,12 @@ function recorder(): Recorder {
     },
     beginPath: () => {
       entries.push({ op: 'beginPath', args: [] })
+    },
+    closePath: () => {
+      entries.push({ op: 'closePath', args: [] })
+    },
+    fill: () => {
+      entries.push({ op: 'fill', args: [] })
     },
     moveTo: (x, y) => {
       entries.push({ op: 'moveTo', args: [x, y] })
@@ -368,7 +382,9 @@ describe('createEdgeCanvasRenderer draw list', () => {
     ])
     harness.draw(['b'])
 
-    expect(argsOf(harness.entries, 'moveTo')).toEqual([[1100, 1020]])
+    // Exactly one move, and it is edge b's: `far` sits down and to the right of the target, so the
+    // edge leaves the top of its box at centre-x rather than the right flank.
+    expect(argsOf(harness.entries, 'moveTo')).toEqual([[1050, 1000]])
   })
 
   it('skips an id it does not know and an edge whose endpoint has no box', () => {
@@ -379,5 +395,47 @@ describe('createEdgeCanvasRenderer draw list', () => {
     expect(ops(harness.entries, 'stroke')).toHaveLength(0)
     // The clear still happens, so a frame that draws nothing leaves nothing behind.
     expect(ops(harness.entries, 'clearRect')).toHaveLength(1)
+  })
+})
+
+describe('createEdgeCanvasRenderer ribbons', () => {
+  it('fills a branch that tapers rather than stroking it', () => {
+    const harness = mount([edge('e1', { kind: 'hierarchy', fromWidth: 7, toWidth: 2.4 })])
+    harness.draw(['e1'])
+
+    expect(ops(harness.entries, 'fill')).toHaveLength(1)
+    expect(ops(harness.entries, 'stroke')).toHaveLength(0)
+    // Out along one edge, across the far end, back along the other, closed.
+    expect(ops(harness.entries, 'bezierCurveTo')).toHaveLength(2)
+    expect(ops(harness.entries, 'closePath')).toHaveLength(1)
+  })
+
+  it('colours a ribbon through fillStyle, since strokeStyle would not paint it', () => {
+    const harness = mount([edge('e1', { kind: 'hierarchy', fromWidth: 7, toWidth: 2.4, color: '#aa5533' })])
+    harness.draw(['e1'])
+
+    expect(argsOf(harness.entries, 'fillStyle')).toEqual([['#aa5533']])
+  })
+
+  it('strokes a branch whose ends weigh the same', () => {
+    const harness = mount([edge('e1', { kind: 'hierarchy', fromWidth: 3, toWidth: 3 })])
+    harness.draw(['e1'])
+
+    expect(ops(harness.entries, 'stroke')).toHaveLength(1)
+    expect(ops(harness.entries, 'fill')).toHaveLength(0)
+  })
+
+  it('never batches a filled ribbon into a stroked path', () => {
+    // One fill() over a batch holding open cubics would close each of them into a lens; one
+    // stroke() over a ribbon would outline it instead of filling it.
+    const harness = mount([
+      edge('a', { kind: 'hierarchy', fromWidth: 7, toWidth: 2.4, color: '#aa5533' }),
+      edge('b', { color: '#aa5533' }),
+    ])
+    harness.draw(['a', 'b'])
+
+    expect(ops(harness.entries, 'fill')).toHaveLength(1)
+    expect(ops(harness.entries, 'stroke')).toHaveLength(1)
+    expect(ops(harness.entries, 'beginPath')).toHaveLength(2)
   })
 })
