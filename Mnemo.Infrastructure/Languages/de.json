@@ -809,7 +809,19 @@
     "BranchColor": "Zweigfarbe",
     "StyleEdge": "Kante gestalten",
     "StyleNode": "Knoten gestalten",
-    "EditLabel": "Beschriftung bearbeiten"
+    "EditLabel": "Beschriftung bearbeiten",
+    "MapStyle": "Kartenstil",
+    "GroupArrangement": "Anordnung",
+    "GroupBranches": "Zweige",
+    "GroupPalette": "Palette",
+    "GroupBackground": "Hintergrund",
+    "BranchLine": "Linie",
+    "BranchTaper": "Verlauf",
+    "BranchStep": "Stufe",
+    "BackgroundDots": "Punkte",
+    "BackgroundGrid": "Raster",
+    "BackgroundPlain": "Schlicht",
+    "StyleMap": "Karte gestalten"
   },
   "GlobalSearch": {
     "ShortcutHint": "Strg/Cmd + K",

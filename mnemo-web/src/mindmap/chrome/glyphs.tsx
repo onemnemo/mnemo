@@ -10,7 +10,16 @@
 
 import { cn } from "@/lib/utils"
 
-import type { ArrowCap, EdgeRouting, FontScale, LineStyle, NodeShape } from "../model/document"
+import type {
+  ArrowCap,
+  CanvasBackground,
+  EdgeRouting,
+  FontScale,
+  LayoutAlgorithm,
+  LineStyle,
+  NodeShape,
+} from "../model/document"
+import type { BranchMaterial } from "./material"
 
 export function LineGlyph({ line }: { line: LineStyle }) {
   if (line === "double") {
@@ -115,6 +124,99 @@ export function ScaleGlyph({ scale }: { scale: FontScale }) {
     >
       A
     </span>
+  )
+}
+
+/**
+ * A shape of map, in twenty pixels.
+ *
+ * Each one is the arrangement's own idea rather than a picture of a particular map: where the root
+ * goes and which way the children run is the whole difference between them, and the difference is
+ * what a picker has to show.
+ */
+export function LayoutGlyph({ algorithm }: { algorithm: LayoutAlgorithm }) {
+  const dot = (x: number, y: number, r = 1.7) => <circle key={`${x}-${y}`} cx={x} cy={y} r={r} fill="currentColor" />
+  const line = (d: string) => <path key={d} d={d} stroke="currentColor" strokeWidth={1} fill="none" opacity={0.5} />
+
+  const parts: Record<LayoutAlgorithm, React.ReactNode[]> = {
+    balanced: [
+      line("M11 8 H4 M11 8 H18"),
+      dot(11, 8, 2.2),
+      dot(4, 4),
+      dot(4, 12),
+      dot(18, 4),
+      dot(18, 12),
+    ],
+    treeRight: [line("M4 8 H16"), dot(4, 8, 2.2), dot(16, 3), dot(16, 8), dot(16, 13)],
+    treeDown: [line("M11 3 V13"), dot(11, 3, 2.2), dot(4, 13), dot(11, 13), dot(18, 13)],
+    radial: [
+      line("M11 8 L4 4 M11 8 L18 4 M11 8 L4 12 M11 8 L18 12"),
+      dot(11, 8, 2.2),
+      dot(4, 4),
+      dot(18, 4),
+      dot(4, 12),
+      dot(18, 12),
+    ],
+    timeline: [line("M3 8 H19"), dot(3, 8, 2.2), dot(8, 8), dot(13, 8), dot(18, 8)],
+    // Nowhere in particular, which is the point: free is the arrangement that leaves a map alone.
+    free: [dot(5, 5), dot(15, 4), dot(9, 11), dot(18, 11)],
+  }
+
+  return (
+    <svg width={22} height={16} aria-hidden>
+      {parts[algorithm]}
+    </svg>
+  )
+}
+
+/** How a branch is drawn along its length: a stroke, a tapering ribbon, or a right-angle run. */
+export function BranchGlyph({ material }: { material: BranchMaterial }) {
+  if (material === "taper") {
+    return (
+      <svg width={22} height={16} aria-hidden>
+        <path d="M2 12 C8 12 10 4 20 3.4 L20 5.4 C10 6 8 13.4 2 13.4 Z" fill="currentColor" />
+      </svg>
+    )
+  }
+  return (
+    <svg width={22} height={16} aria-hidden>
+      <path
+        d={material === "step" ? "M2 12 H11 V4 H20" : "M2 12 C8 12 10 4 20 4"}
+        stroke="currentColor"
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  )
+}
+
+/** What the map sits on. */
+export function BackgroundGlyph({ background }: { background: CanvasBackground }) {
+  if (background === "plain") {
+    return (
+      <svg width={22} height={16} aria-hidden>
+        <rect x={2} y={2} width={18} height={12} rx={2} stroke="currentColor" strokeWidth={1.2} fill="none" />
+      </svg>
+    )
+  }
+  if (background === "grid") {
+    return (
+      <svg width={22} height={16} aria-hidden>
+        <path
+          d="M2 6 H20 M2 10 H20 M7 2 V14 M12 2 V14 M17 2 V14"
+          stroke="currentColor"
+          strokeWidth={1}
+          opacity={0.75}
+        />
+      </svg>
+    )
+  }
+  return (
+    <svg width={22} height={16} aria-hidden>
+      {[4, 9, 14].map((y) => [4, 9, 14, 19].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r={1} fill="currentColor" />))}
+    </svg>
   )
 }
 

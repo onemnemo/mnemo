@@ -31,7 +31,8 @@ internal static class MindmapArrange
     private const double DefaultHeight = 32;
 
     /// <summary>
-    /// Lays every cluster out and returns one move per node whose position actually changed.
+    /// Lays every cluster out and returns one move per node whose position actually changed, plus, when
+    /// an algorithm was named, the ops that record it as each cluster's arrangement.
     /// </summary>
     /// <remarks>
     /// Stored pins are deliberately ignored. Repositioning implies pinning, and the SPA gives every node
@@ -75,6 +76,7 @@ internal static class MindmapArrange
 
         var clusterSettings = document.Clusters.ToDictionary(c => c.RootId, StringComparer.Ordinal);
         var placed = new Dictionary<string, LayoutPosition>(StringComparer.Ordinal);
+        var chosen = new List<MindmapEditOp>();
         var stackTop = 0.0;
 
         // In document order, so arranging the same map twice lays the clusters out the same way round.
@@ -82,6 +84,12 @@ internal static class MindmapArrange
         {
             var nodes = Collect(root.Id, nodeById, childrenOf, parentOf, orderOf, sizes);
             var settings = clusterSettings.GetValueOrDefault(root.Id);
+
+            // Asking for a named arrangement is also choosing it. Recorded in the same batch as the moves
+            // it produced, so the choice and the layout it caused are one undo rather than two, and so a
+            // later arrange with nothing named still uses the arrangement last picked.
+            if (algorithm is not null && !string.Equals(settings?.LayoutAlgorithm, algorithm, StringComparison.Ordinal))
+                chosen.Add(new LayoutOp { Root = root.Id, Algorithm = algorithm });
 
             var snapshot = new LayoutSnapshot
             {
@@ -99,7 +107,7 @@ internal static class MindmapArrange
             Stack(placed, computed.Value.Positions, nodes, ref stackTop);
         }
 
-        var moves = new List<MindmapEditOp>();
+        var moves = new List<MindmapEditOp>(chosen);
         foreach (var (id, position) in placed)
         {
             var element = nodeById[id];

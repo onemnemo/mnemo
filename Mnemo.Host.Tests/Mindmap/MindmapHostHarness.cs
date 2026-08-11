@@ -1,6 +1,7 @@
 using Mnemo.Core.Enums;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Mindmap;
+using Mnemo.Infrastructure.Services.Mindmap.Layout;
 using Mnemo.Infrastructure.Services.Mindmap.Persistence;
 
 namespace Mnemo.Host.Tests.Mindmap;
@@ -16,11 +17,24 @@ internal sealed class MindmapHostHarness : IAsyncDisposable
 
     public MindmapDocumentService Service { get; }
 
+    /// <summary>The real providers, since an arrange is only worth testing against layouts that run.</summary>
+    public MindmapLayoutService Layout { get; }
+
     public MindmapHostHarness()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"mnemo_host_mm_{Guid.NewGuid():N}.db");
         _store = new MindmapStore(new SilentLogger(), _dbPath);
         Service = new MindmapDocumentService(_store, new SilentLogger());
+        Layout = new MindmapLayoutService(
+            [
+                new BalancedLayoutProvider(),
+                new TreeRightLayoutProvider(),
+                new TreeDownLayoutProvider(),
+                new RadialLayoutProvider(),
+                new TimelineLayoutProvider(),
+                new FreeLayoutProvider(),
+            ],
+            new SilentLogger());
     }
 
     public async ValueTask DisposeAsync()

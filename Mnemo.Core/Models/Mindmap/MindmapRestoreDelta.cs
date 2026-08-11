@@ -29,9 +29,20 @@ public sealed record MindmapRestoreDelta
 
     public IReadOnlyList<string> RemoveEdgeIds { get; init; } = Array.Empty<string>();
 
+    /// <summary>
+    /// The whole canvas, when the batch changed any part of it; null when it did not.
+    /// <para>
+    /// Whole rather than per-property because it is one small record and there is nothing to save by
+    /// splitting it. It is carried at all because the map's own settings, its background, its default
+    /// template and its edge defaults, are not attached to any element, so a delta made only of touched
+    /// rows would come back empty for them and an undo would restore nothing.
+    /// </para>
+    /// </summary>
+    public MindmapCanvasOptions? Canvas { get; init; }
+
     public bool IsEmpty =>
         Elements.Count == 0 && Edges.Count == 0 && Clusters.Count == 0 &&
-        RemoveElementIds.Count == 0 && RemoveEdgeIds.Count == 0;
+        RemoveElementIds.Count == 0 && RemoveEdgeIds.Count == 0 && Canvas is null;
 
     /// <summary>
     /// Builds the delta that, applied to <paramref name="from"/>, reproduces <paramref name="to"/>: every
@@ -71,6 +82,7 @@ public sealed record MindmapRestoreDelta
             Clusters = clusters,
             RemoveElementIds = removeElementIds,
             RemoveEdgeIds = removeEdgeIds,
+            Canvas = to.Canvas.Equals(from.Canvas) ? null : to.Canvas,
         };
     }
 }

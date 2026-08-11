@@ -93,4 +93,29 @@ describe("isEmptyDelta", () => {
   it("is false as soon as anything is set", () => {
     expect(isEmptyDelta({ removeEdgeIds: ["e1"] })).toBe(false)
   })
+
+  it("counts a canvas, which touches no row at all", () => {
+    // The map's own settings hang off the document rather than off any element, so a delta that only
+    // changed them has nothing in any of the lists. Reading that as empty is what made choosing a
+    // background or a template an edit nothing could undo.
+    expect(isEmptyDelta({ canvas: { background: "grid" } })).toBe(false)
+  })
+})
+
+describe("a canvas in a delta", () => {
+  it("replaces the document's canvas whole", () => {
+    const styled: MindmapDocument = { ...base, canvas: { background: "dots", defaultTemplateId: "study" } }
+
+    const next = applyDelta(styled, { canvas: { background: "grid" } }, 5)
+
+    // Whole, not merged: the delta says what the canvas should be, and keeping a field from the state
+    // being undone would leave the map half in each.
+    expect(next.canvas).toEqual({ background: "grid" })
+  })
+
+  it("leaves the canvas alone when the delta says nothing about it", () => {
+    const styled: MindmapDocument = { ...base, canvas: { background: "plain" } }
+
+    expect(applyDelta(styled, { elements: [node("b", "x")] }, 5).canvas).toEqual({ background: "plain" })
+  })
 })

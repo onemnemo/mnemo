@@ -815,7 +815,19 @@
     "BranchColor": "Color de rama",
     "StyleEdge": "Aplicar estilo al borde",
     "StyleNode": "Aplicar estilo al nodo",
-    "EditLabel": "Editar etiqueta"
+    "EditLabel": "Editar etiqueta",
+    "MapStyle": "Estilo del mapa",
+    "GroupArrangement": "Disposición",
+    "GroupBranches": "Ramas",
+    "GroupPalette": "Paleta",
+    "GroupBackground": "Fondo",
+    "BranchLine": "Línea",
+    "BranchTaper": "Cónica",
+    "BranchStep": "Escalón",
+    "BackgroundDots": "Puntos",
+    "BackgroundGrid": "Cuadrícula",
+    "BackgroundPlain": "Liso",
+    "StyleMap": "Aplicar estilo al mapa"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

@@ -865,7 +865,19 @@
     "BranchColor": "Branch color",
     "StyleEdge": "Style edge",
     "StyleNode": "Style node",
-    "EditLabel": "Edit label"
+    "EditLabel": "Edit label",
+    "MapStyle": "Map style",
+    "GroupArrangement": "Arrangement",
+    "GroupBranches": "Branches",
+    "GroupPalette": "Palette",
+    "GroupBackground": "Background",
+    "BranchLine": "Line",
+    "BranchTaper": "Taper",
+    "BranchStep": "Step",
+    "BackgroundDots": "Dots",
+    "BackgroundGrid": "Grid",
+    "BackgroundPlain": "Plain",
+    "StyleMap": "Style map"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",
