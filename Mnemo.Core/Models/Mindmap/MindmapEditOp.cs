@@ -156,6 +156,12 @@ public sealed record LayoutOp : MindmapEditOp
     public string? TemplateId { get; init; }
 
     public LayoutOptions? Options { get; init; }
+
+    /// <summary>
+    /// Document-wide edge defaults, merged onto whatever the canvas already carries. Only meaningful
+    /// with no <see cref="Root"/>: an edge default is a property of the map, not of one cluster.
+    /// </summary>
+    public EdgeStyle? EdgeDefaults { get; init; }
 }
 
 /// <summary>Create a free (non-node) element: shape, free text, canvas image or frame.</summary>

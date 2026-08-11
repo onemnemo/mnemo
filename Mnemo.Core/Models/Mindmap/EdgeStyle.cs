@@ -30,9 +30,30 @@ public enum ArrowCap
 /// so combinations impossible in v1 (e.g. "dashed + bidirectional") are expressible. All null-valued
 /// members inherit from the style cascade. <see cref="Color"/> is a theme token or a literal hex.
 /// </summary>
+/// <summary>
+/// How an edge's weight behaves along its length.
+/// </summary>
+/// <remarks>
+/// A tapering edge is a filled ribbon, thick where it leaves the parent and thin where it meets the
+/// child, and it is the mindmap material rather than a diagramming one. It is deliberately not a
+/// <see cref="EdgeRouting"/> value: routing is where the line goes, and a taper can follow any of the
+/// three routes. Folding it into routing would make "curved and tapering" unsayable.
+/// </remarks>
+public enum EdgeWidthProfile
+{
+    /// <summary>One weight end to end.</summary>
+    Uniform,
+
+    /// <summary>A ribbon, wide at the source and narrow at the target.</summary>
+    Taper,
+}
+
 public sealed record EdgeStyle
 {
     public LineStyle? Line { get; init; }
+
+    /// <summary>Uniform stroke or tapering ribbon. Null inherits, and the inherited default is uniform.</summary>
+    public EdgeWidthProfile? WidthProfile { get; init; }
 
     public EdgeRouting? Routing { get; init; }
 

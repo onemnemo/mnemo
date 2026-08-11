@@ -108,13 +108,19 @@ export interface StyleSubtreeOp {
   style: ElementStyle
 }
 
-/** Per-cluster layout and template. With no `root`, sets the document default template. */
+/**
+ * Per-cluster layout and template. With no `root` it sets document-wide defaults instead, which is
+ * how the map-style panel writes the branch material as a real, undoable edit rather than as view
+ * state that evaporates the moment you navigate away.
+ */
 export interface LayoutOp {
   op: "layout"
   root?: string
   algo?: string
   template?: string
   options?: LayoutOptions
+  /** Merged onto the canvas defaults, so choosing a material does not clear a colour beside it. */
+  edge_defaults?: EdgeStyle
 }
 
 /** Create a free element: shape, free text, canvas image or frame. */
