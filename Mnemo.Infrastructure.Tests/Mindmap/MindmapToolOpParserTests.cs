@@ -153,6 +153,24 @@ public sealed class MindmapToolOpParserTests
     }
 
     [Fact]
+    public void Layout_ReadsTheCanvasBackground()
+    {
+        var op = Assert.IsType<LayoutOp>(ParseOk("""[{ "op": "layout", "background": "grid" }]""").Single());
+        Assert.Equal(CanvasBackground.Grid, op.Background);
+
+        // Absent means "leave it alone", which is not the same as asking for the default.
+        var untouched = Assert.IsType<LayoutOp>(ParseOk("""[{ "op": "layout", "template": "Study" }]""").Single());
+        Assert.Null(untouched.Background);
+    }
+
+    [Fact]
+    public void Layout_RejectsABackgroundNobodyDraws()
+    {
+        var (error, _) = ParseFail("""[{ "op": "layout", "background": "hexagons" }]""");
+        Assert.Contains("dots, grid or plain", error);
+    }
+
+    [Fact]
     public void AddElement_ShapeWithXyWh()
     {
         var op = Assert.IsType<AddElementOp>(ParseOk("""

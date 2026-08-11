@@ -313,6 +313,18 @@ public static class MindmapToolOpParser
         if (!TryOptStyle<EdgeStyle>(el, "edge_defaults", out var edgeDefaults, out error))
             return false;
 
+        CanvasBackground? background = null;
+        var backgroundName = OptString(el, "background");
+        if (backgroundName is not null)
+        {
+            if (!Enum.TryParse(backgroundName, ignoreCase: true, out CanvasBackground parsed))
+            {
+                error = $"layout \"background\" must be one of dots, grid or plain, not \"{backgroundName}\".";
+                return false;
+            }
+            background = parsed;
+        }
+
         op = new LayoutOp
         {
             Root = OptString(el, "root"),
@@ -320,6 +332,7 @@ public static class MindmapToolOpParser
             TemplateId = OptString(el, "template"),
             Options = options,
             EdgeDefaults = edgeDefaults,
+            Background = background,
         };
         error = string.Empty;
         return true;

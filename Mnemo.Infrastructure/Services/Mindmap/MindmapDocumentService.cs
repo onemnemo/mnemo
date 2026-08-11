@@ -929,6 +929,9 @@ public sealed class MindmapDocumentService : IMindmapService
         if (op.TemplateId is not null)
             working.SetCanvas(working.Canvas with { DefaultTemplateId = op.TemplateId });
 
+        if (op.Background is not null)
+            working.SetCanvas(working.Canvas with { Background = op.Background.Value });
+
         // Merged rather than replaced, matching how Set and SetEdge treat a style: picking a branch
         // material should not silently clear the edge colour chosen beside it.
         if (op.EdgeDefaults is not null)
