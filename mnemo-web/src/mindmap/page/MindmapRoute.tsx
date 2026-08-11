@@ -9,6 +9,8 @@ import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
 import type { ConnectStyle } from "../chrome/ConnectFlyout"
 import { MindmapToolDock } from "../chrome/MindmapToolDock"
+import { RadialMenu } from "../chrome/RadialMenu"
+import { ON_CANVAS, ON_NODE } from "../chrome/sectors"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
 import { placeChild, type PlacedBox } from "../edit/placement"
 import type { MovedElement } from "../interaction/controller"
@@ -72,6 +74,12 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const [zoom, setZoom] = useState(1)
   const [shape, setShape] = useState<ShapeType>("rectangle")
   const [connectStyle, setConnectStyle] = useState(DEFAULT_CONNECT)
+  /** Where the ring is, while it is open. Null when it is not. */
+  const [radial, setRadial] = useState<Point | null>(null)
+  // Tracked continuously rather than sampled when the key goes down, because a key event carries no
+  // position of its own and the ring has to open where the hand already is.
+  const pointer = useRef<Point>({ x: 0, y: 0 })
+  const stage = useRef<HTMLDivElement>(null)
   /** The node this edit created. Abandoning the edit takes it away again. */
   const blank = useRef<string | null>(null)
 
@@ -309,11 +317,73 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     }
   }, [editor, selection, t])
 
+  /** What a sector does. Everything here is something the map already answers to. */
+  const onRadial = useCallback(
+    (id: string) => {
+      const primary = selection.primary?.kind === "element" ? selection.primary.id : null
+      switch (id) {
+        case "child":
+          if (primary) void addChild(primary)
+          return
+        case "sibling":
+          if (primary) void addSibling(primary)
+          return
+        case "edit":
+          if (primary) setEditing(primary)
+          return
+        case "collapse":
+          if (primary) {
+            void editor.apply([op.set(primary, { collapsed: !collapsed(scene, primary) })], {
+              label: t("Mindmap", "ToggleCollapse"),
+            })
+          }
+          return
+        case "delete":
+          deleteSelection()
+          return
+        case "connect":
+          setTool("connect")
+          return
+        case "node":
+        case "text":
+        case "shape":
+          // Armed rather than planted: the ring closes under the pointer, and planting there would
+          // put a node exactly where the hand was resting rather than where it is about to point.
+          setTool(id)
+          return
+        case "arrange":
+          arrange()
+          return
+        case "fit":
+          runtime.current?.fit()
+          return
+        default:
+          return
+      }
+    },
+    [addChild, addSibling, arrange, deleteSelection, editor, scene, selection, t],
+  )
+
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (isTyping(event.target)) {
         return
       }
+
+      // The ring owns the keyboard while it is up. It reads its own release from the window, and
+      // everything else the map answers to would be a second thing happening inside one gesture.
+      if (radial) {
+        return
+      }
+
+      // Hold, flick, release. Guarded on the repeat because holding a key fires it about thirty
+      // times a second, and each one would reopen the ring around a pointer that had moved on.
+      if (event.key.toLowerCase() === "q" && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault()
+        setRadial(pointer.current)
+        return
+      }
+
       const modified = event.ctrlKey || event.metaKey
       const key = event.key.toLowerCase()
       const primary = selection.primary?.kind === "element" ? selection.primary.id : null
@@ -375,7 +445,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         setSelection(EMPTY_SELECTION)
       }
     },
-    [addChild, addSibling, deleteSelection, editor, scene, selection, tool],
+    [addChild, addSibling, deleteSelection, editor, radial, scene, selection, tool],
   )
 
   if (map.isError) {
@@ -431,8 +501,17 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         </div>
       </header>
 
-      {/* The dock floats inside this, not under it, so the map keeps the whole pane. */}
-      <div className="relative min-h-0 flex-1">
+      {/* The dock and the ring float inside this, not under it, so the map keeps the whole pane. */}
+      <div
+        ref={stage}
+        className="relative min-h-0 flex-1"
+        onPointerMove={(event) => {
+          const bounds = stage.current?.getBoundingClientRect()
+          if (bounds) {
+            pointer.current = { x: event.clientX - bounds.left, y: event.clientY - bounds.top }
+          }
+        }}
+      >
         <MindmapCanvas
           scene={scene}
           runtimeRef={runtime}
@@ -463,6 +542,15 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           connectStyle={connectStyle}
           onConnectStyle={(patch) => setConnectStyle((current) => ({ ...current, ...patch }))}
         />
+
+        {radial ? (
+          <RadialMenu
+            sectors={selection.elements.size > 0 ? ON_NODE : ON_CANVAS}
+            at={radial}
+            onPick={onRadial}
+            onClose={() => setRadial(null)}
+          />
+        ) : null}
       </div>
 
       {scene.elements.length === 0 ? (
@@ -525,6 +613,11 @@ function Notice({ icon, title, spinning }: { icon: string; title: string; spinni
       <p className="text-[13px]">{title}</p>
     </div>
   )
+}
+
+/** Whether this node is already collapsed, so the ring's one control toggles rather than only closes. */
+function collapsed(scene: { elements: readonly { id: string; collapsed?: boolean }[] } | null, id: string): boolean {
+  return scene?.elements.find((element) => element.id === id)?.collapsed === true
 }
 
 /** The label as it stands, so an edit that changed nothing costs no revision and no undo step. */

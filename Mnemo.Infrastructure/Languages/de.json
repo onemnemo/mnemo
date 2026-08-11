@@ -645,6 +645,8 @@
     "ColorNone": "Keine"
   },
   "Mindmap": {
+    "AddChild": "Unterknoten",
+    "AddSibling": "Nachbar",
     "GroupLine": "LINIE",
     "GroupRouting": "VERLAUF",
     "GroupCaps": "ENDEN",

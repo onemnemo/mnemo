@@ -651,6 +651,8 @@
     "ColorNone": "Ingen"
   },
   "Mindmap": {
+    "AddChild": "Barn",
+    "AddSibling": "Søsken",
     "GroupLine": "LINJE",
     "GroupRouting": "RUTE",
     "GroupCaps": "ENDER",

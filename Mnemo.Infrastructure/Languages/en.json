@@ -701,6 +701,8 @@
     "SlashMenuLabel": "Insert a block"
   },
   "Mindmap": {
+    "AddChild": "Child",
+    "AddSibling": "Sibling",
     "GroupLine": "LINE",
     "GroupRouting": "ROUTING",
     "GroupCaps": "CAPS",
