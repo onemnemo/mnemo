@@ -51,8 +51,15 @@ export interface InteractionSurface {
   subtreeOf(id: string): readonly string[]
   toCanvas(clientX: number, clientY: number): Point
   zoom(): number
-  /** Redraws whatever the substrate owns after positions moved under it. */
-  redraw(): void
+  /**
+   * Redraws whatever the substrate owns after positions moved under it, naming the edges that
+   * moved with them. Naming matters: the canvas substrate caches an edge as a flattened curve and
+   * has no way to notice that an endpoint went somewhere else.
+   */
+  redraw(movedEdgeIds?: readonly string[]): void
+  /** Holds these elements and edges rendered wherever the gesture takes them. */
+  pin(elementIds: readonly string[], edgeIds: readonly string[]): void
+  unpin(): void
 }
 
 export interface InteractionHandlers {
@@ -220,14 +227,16 @@ export function installInteraction(
       membersOf: travellingWith,
       positionOf: (id) => index.positionOf(id),
     })
+    // Once per gesture, not once per frame: which edges touch the moving set cannot change while
+    // the set is moving.
+    const incident = index.incidentEdges(plan.ids)
     pane.setPointerCapture(press.pointerId)
+    surface.pin(plan.ids, incident)
     return {
       kind: "drag",
       pointerId: press.pointerId,
       plan,
-      // Once per gesture, not once per frame: which edges touch the moving set cannot change while
-      // the set is moving.
-      incident: index.incidentEdges(plan.ids),
+      incident,
       startCanvas: press.startCanvas,
       moves: [],
     }
@@ -283,7 +292,7 @@ export function installInteraction(
 
       index.writePositions(drag.plan.ids, (id) => landing.get(id))
       index.repaintEdges(drag.incident)
-      surface.redraw()
+      surface.redraw(drag.incident)
       return
     }
 
@@ -311,6 +320,7 @@ export function installInteraction(
     }
 
     if (finished.kind === "drag") {
+      surface.unpin()
       if (finished.moves.length > 0) {
         handlers.commitMove(finished.moves)
       }
@@ -346,7 +356,8 @@ export function installInteraction(
       const plan = gesture.plan
       index.writePositions(plan.ids, (id) => plan.origins.get(id))
       index.repaintEdges(gesture.incident)
-      surface.redraw()
+      surface.redraw(gesture.incident)
+      surface.unpin()
     }
     gesture = { kind: "none" }
     releaseCapture(pane, event.pointerId)
