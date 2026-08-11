@@ -32,6 +32,7 @@ function element(id: string, x: number, y: number): SceneElement {
     branch: 0,
     nodeShape: "card",
     text: { lines: [id], fontSize: 14, fontWeight: 500, lineHeight: 19, letterSpacing: "-0.005em" },
+    padding: { x: 11, y: 7 },
     isRoot: false,
     childCount: 0,
     hiddenCount: 0,

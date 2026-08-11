@@ -15,6 +15,7 @@
 import type { SceneEdge, Scene } from '../model/scene'
 import type { Point } from '../model/scene'
 import type { CullableNode, CullBounds, CullTarget } from './culler'
+import { strokeFor } from './edge-canvas'
 import { anchorsFor, edgeShape, strokeToPathData, type ElementBox } from './edge-paths'
 import type { EdgeMode } from './edge-style'
 
@@ -127,10 +128,19 @@ export function createSceneIndex(
   readEdgeDom()
 
   const positions = new Map<string, Point>()
-  const sizes = new Map<string, { readonly width: number; readonly height: number }>()
+  const sizes = new Map<
+    string,
+    { readonly width: number; readonly height: number; readonly underline?: number }
+  >()
   for (const element of scene.elements) {
     positions.set(element.id, { x: element.x, y: element.y })
-    sizes.set(element.id, { width: element.width, height: element.height })
+    // The underline travels with the size because it is where an edge meets this element, and an
+    // index that drops it hands the geometry a box with no rule on it and the branch lands short.
+    sizes.set(element.id, {
+      width: element.width,
+      height: element.height,
+      underline: element.underline,
+    })
   }
 
   const edgesById = new Map<string, SceneEdge>()
@@ -194,12 +204,13 @@ export function createSceneIndex(
         const to = boxOf(edge.toId)
         if (!from || !to) continue
         // The shape rather than the geometry, so a labelled edge in canvas mode does not build a
-        // path string that no element will ever read.
-        const shape = edgeShape(edge.routing ?? 'curve', anchorsFor(from, to))
-        if (path) path.setAttribute('d', strokeToPathData(shape.stroke))
+        // path string that no element will ever read. Routed through the same decision the canvas
+        // renderer makes, or a tapered branch would repaint as a plain stroke the moment it moved.
+        const anchors = anchorsFor(from, to)
+        if (path) path.setAttribute('d', strokeToPathData(strokeFor(edge, anchors)))
         if (label) {
-          label.style.transform =
-            `translate(-50%, -50%) translate(${shape.label.x}px, ${shape.label.y}px)`
+          const at = edgeShape(edge.routing ?? 'curve', anchors).label
+          label.style.transform = `translate(-50%, -50%) translate(${at.x}px, ${at.y}px)`
         }
       }
     },
@@ -243,6 +254,10 @@ export function createSceneIndex(
         targets.push({
           key: edgeCullKey(edge.id),
           nodes,
+          // What the canvas mode is actually handed each frame. Without it the culler's visible-edge
+          // set stays empty and the canvas clears and transforms and then draws nothing at all, which
+          // looks exactly like a camera parked off the map.
+          edgeId: edge.id,
           bounds: (): CullBounds | undefined => {
             const from = boxOf(edge.fromId)
             const to = boxOf(edge.toId)

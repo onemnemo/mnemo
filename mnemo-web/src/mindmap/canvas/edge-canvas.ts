@@ -14,9 +14,9 @@
  * the one thing being measured.
  */
 
-import type { SceneEdge } from '../model/scene'
+import type { ArrowCap, SceneEdge } from '../model/scene'
 import type { Viewport } from '../model/scene'
-import { anchorsFor, branchShape, edgeShape, type EdgeStroke, type ElementBox } from './edge-paths'
+import { anchorsFor, branchShape, capsOf, edgeShape, type EdgeStroke, type ElementBox } from './edge-paths'
 import { strokeStyleFor, type EdgeStrokeStyle } from './edge-style'
 
 /**
@@ -55,6 +55,14 @@ export interface EdgeCanvasDeps {
   readonly edges: readonly SceneEdge[]
   /** Live boxes, so a redraw mid-drag follows the elements rather than the fixture. */
   boxOf(elementId: string): ElementBox | undefined
+  /**
+   * Turns a scene colour into one a canvas can paint with.
+   *
+   * The scene stores theme variables, which a 2D context ignores without complaint. Injected rather
+   * than resolved here so this module stays free of the DOM and its tests keep driving it with a
+   * recording fake.
+   */
+  resolveColor?(color: string): string
 }
 
 export interface EdgeCanvasRenderer {
@@ -69,6 +77,13 @@ export interface EdgeCanvasRenderer {
   invalidate(edgeIds: Iterable<string>): void
   /** Drops every cached curve, for a relayout that moved the whole document. */
   invalidateAll(): void
+  /**
+   * Drops the resolved colours, for a theme change.
+   *
+   * Separate from the geometry: a theme flip does not move a single control point, and rebuilding
+   * every curve to repaint them would be the most expensive way to change a colour.
+   */
+  invalidateStyles(): void
   /**
    * Strokes exactly these edges, in this camera. Everything else is simply not drawn.
    *
@@ -104,6 +119,15 @@ interface CachedStroke {
   readonly sx: number
   readonly sy: number
   readonly rest: readonly number[]
+  /** Where an arrowhead or dot goes, when this edge asked for one. Cached with the curve it sits on. */
+  readonly caps: readonly CapDraw[]
+}
+
+interface CapDraw {
+  readonly kind: ArrowCap
+  readonly x: number
+  readonly y: number
+  readonly angle: number
 }
 
 /**
@@ -113,7 +137,7 @@ interface CachedStroke {
  * an ordinary stroke. The widths come from the projector rather than being derived here, so the two
  * substrates and the thumbnail all widen the same edge by the same amount.
  */
-function strokeFor(edge: SceneEdge, anchors: ReturnType<typeof anchorsFor>): EdgeStroke {
+export function strokeFor(edge: SceneEdge, anchors: ReturnType<typeof anchorsFor>): EdgeStroke {
   const routing = edge.routing ?? 'curve'
   if (edge.fromWidth !== undefined && edge.toWidth !== undefined) {
     return branchShape(routing, anchors, edge.fromWidth, edge.toWidth).stroke
@@ -121,13 +145,16 @@ function strokeFor(edge: SceneEdge, anchors: ReturnType<typeof anchorsFor>): Edg
   return edgeShape(routing, anchors).stroke
 }
 
-function cacheStroke(stroke: EdgeStroke): CachedStroke {
+function cacheStroke(stroke: EdgeStroke, edge: SceneEdge): CachedStroke {
+  const caps = capsFor(stroke, edge)
+
   if (stroke.kind === 'cubic') {
     return {
       kind: 'cubic',
       sx: stroke.sx,
       sy: stroke.sy,
       rest: [stroke.c1x, stroke.c1y, stroke.c2x, stroke.c2y, stroke.tx, stroke.ty],
+      caps,
     }
   }
 
@@ -139,13 +166,62 @@ function cacheStroke(stroke: EdgeStroke): CachedStroke {
       sx: o0.x,
       sy: o0.y,
       rest: [o1.x, o1.y, o2.x, o2.y, o3.x, o3.y, i0.x, i0.y, i1.x, i1.y, i2.x, i2.y, i3.x, i3.y],
+      caps,
     }
   }
 
   const points = stroke.points
   const rest: number[] = []
   for (let i = 1; i < points.length; i++) rest.push(points[i].x, points[i].y)
-  return { kind: 'polyline', sx: points[0].x, sy: points[0].y, rest }
+  return { kind: 'polyline', sx: points[0].x, sy: points[0].y, rest, caps }
+}
+
+const NO_CAPS: readonly CapDraw[] = []
+
+function capsFor(stroke: EdgeStroke, edge: SceneEdge): readonly CapDraw[] {
+  const wantsStart = edge.startCap !== undefined && edge.startCap !== 'none'
+  const wantsEnd = edge.endCap !== undefined && edge.endCap !== 'none'
+  if (!wantsStart && !wantsEnd) return NO_CAPS
+
+  const ends = capsOf(stroke)
+  if (!ends) return NO_CAPS
+
+  const caps: CapDraw[] = []
+  if (wantsStart) caps.push({ kind: edge.startCap!, ...ends.start })
+  if (wantsEnd) caps.push({ kind: edge.endCap!, ...ends.end })
+  return caps
+}
+
+/** Arrow length and half-width, and the dot's radius, all in multiples of the line's own weight. */
+const ARROW_LENGTH = 5
+const ARROW_HALF_WIDTH = 2
+const DOT_RADIUS = 2
+
+function traceCap(context: EdgeCanvasContext, cap: CapDraw, width: number): void {
+  if (cap.kind === 'dot') {
+    // No arc() in the context this renderer is written against, and a four-segment bezier circle is
+    // indistinguishable from one at the sizes a cap is drawn at.
+    const r = DOT_RADIUS * width
+    const k = r * 0.5523
+    context.moveTo(cap.x + r, cap.y)
+    context.bezierCurveTo(cap.x + r, cap.y + k, cap.x + k, cap.y + r, cap.x, cap.y + r)
+    context.bezierCurveTo(cap.x - k, cap.y + r, cap.x - r, cap.y + k, cap.x - r, cap.y)
+    context.bezierCurveTo(cap.x - r, cap.y - k, cap.x - k, cap.y - r, cap.x, cap.y - r)
+    context.bezierCurveTo(cap.x + k, cap.y - r, cap.x + r, cap.y - k, cap.x + r, cap.y)
+    context.closePath()
+    return
+  }
+
+  const cos = Math.cos(cap.angle)
+  const sin = Math.sin(cap.angle)
+  const length = ARROW_LENGTH * width
+  const half = ARROW_HALF_WIDTH * width
+  const bx = cap.x - cos * length
+  const by = cap.y - sin * length
+  context.moveTo(cap.x, cap.y)
+  context.lineTo(bx - sin * half, by + cos * half)
+  context.lineTo(bx + sin * half, by - cos * half)
+  context.closePath()
 }
 
 function traceCached(context: EdgeCanvasContext, cached: CachedStroke): void {
@@ -172,6 +248,7 @@ function traceCached(context: EdgeCanvasContext, cached: CachedStroke): void {
 
 export function createEdgeCanvasRenderer(deps: EdgeCanvasDeps): EdgeCanvasRenderer {
   const { canvas, context, boxOf } = deps
+  const paint = deps.resolveColor ?? ((color: string) => color)
 
   const byId = new Map<string, SceneEdge>()
   for (const edge of deps.edges) byId.set(edge.id, edge)
@@ -184,6 +261,8 @@ export function createEdgeCanvasRenderer(deps: EdgeCanvasDeps): EdgeCanvasRender
   const strokes = new Map<string, CachedStroke>()
   /** Style cache, for the same reason: strokeStyleFor allocates a record per call. */
   const styles = new Map<string, EdgeStrokeStyle>()
+  /** Reused across frames rather than allocated per frame; only its length is reset. */
+  const pendingCaps: Array<{ cap: CapDraw; style: EdgeStrokeStyle }> = []
 
   return {
     resize(width, height, dpr) {
@@ -204,6 +283,10 @@ export function createEdgeCanvasRenderer(deps: EdgeCanvasDeps): EdgeCanvasRender
 
     invalidateAll() {
       strokes.clear()
+    },
+
+    invalidateStyles() {
+      styles.clear()
     },
 
     draw(viewport, visibleEdgeIds) {
@@ -232,6 +315,26 @@ export function createEdgeCanvasRenderer(deps: EdgeCanvasDeps): EdgeCanvasRender
         open = null
       }
 
+      pendingCaps.length = 0
+      const drawCaps = (): void => {
+        if (pendingCaps.length === 0) return
+        let color: string | null = null
+        let started = false
+        for (const { cap, style } of pendingCaps) {
+          if (color !== style.color) {
+            if (started) context.fill()
+            context.fillStyle = style.color
+            context.beginPath()
+            color = style.color
+            started = true
+          }
+          traceCap(context, cap, style.width)
+        }
+        if (started) context.fill()
+        // The next frame's first stroke must not inherit a fill's state.
+        applied = null
+      }
+
       let drawn = 0
       for (const edgeId of visibleEdgeIds) {
         const edge = byId.get(edgeId)
@@ -245,7 +348,7 @@ export function createEdgeCanvasRenderer(deps: EdgeCanvasDeps): EdgeCanvasRender
           const from = boxOf(edge.fromId)
           const to = boxOf(edge.toId)
           if (!from || !to) continue
-          cached = cacheStroke(strokeFor(edge, anchorsFor(from, to)))
+          cached = cacheStroke(strokeFor(edge, anchorsFor(from, to)), edge)
           strokes.set(edgeId, cached)
         }
         drawn += 1
@@ -256,7 +359,11 @@ export function createEdgeCanvasRenderer(deps: EdgeCanvasDeps): EdgeCanvasRender
         // either way.
         let style = styles.get(edgeId)
         if (style === undefined) {
-          style = strokeStyleFor(edge)
+          const resolved = strokeStyleFor(edge)
+          const color = paint(resolved.color)
+          // Only rebuilt when the colour actually needed resolving, so the shared hierarchy style
+          // stays one object across the whole document and the batching below keeps collapsing on it.
+          style = color === resolved.color ? resolved : { ...resolved, color }
           styles.set(edgeId, style)
         }
         const wants = cached.kind === 'ribbon' ? 'fill' : 'stroke'
@@ -283,9 +390,17 @@ export function createEdgeCanvasRenderer(deps: EdgeCanvasDeps): EdgeCanvasRender
           open = wants
         }
         traceCached(context, cached)
+
+        // Caps are filled while most edges are stroked, so batching them alongside would flush the
+        // whole run twice per capped edge. Held back and drawn once at the end instead, which on a
+        // map where cross-links are the only capped edges is a single extra path for the frame.
+        if (cached.caps.length > 0) {
+          for (const cap of cached.caps) pendingCaps.push({ cap, style })
+        }
       }
 
       flush()
+      drawCaps()
       return drawn
     },
 

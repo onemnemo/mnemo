@@ -1,7 +1,6 @@
 import { lazy, Suspense, type ReactNode } from "react"
 
 import { ChatPage } from "@/chat/components/ChatPage"
-import { StubPage } from "@/components/shell/StubPage"
 import { DeckPage } from "@/flashcards/deck/DeckPage"
 import { LibraryPage } from "@/flashcards/library/LibraryPage"
 import { SessionPage } from "@/flashcards/session/SessionPage"
@@ -12,6 +11,15 @@ import { SettingsPage } from "@/pages/SettingsPage"
 // The notes editor (ProseMirror + mapper + KaTeX) is loaded on demand so its
 // ~0.5 MB stays out of the initial bundle, it is needed only on this route.
 const NotesRoute = lazy(() => import("@/notes/page/NotesRoute"))
+
+// Same reasoning for the mindmap: the render substrate, the projector and the
+// canvas layers are only ever needed once someone opens a map.
+const MindmapRoute = lazy(() =>
+  import("@/mindmap/page/MindmapRoute").then((m) => ({ default: m.MindmapRoute })),
+)
+const MindmapLibraryRoute = lazy(() =>
+  import("@/mindmap/page/MindmapLibraryRoute").then((m) => ({ default: m.MindmapLibraryRoute })),
+)
 
 // Client-side routing: which page renders for a route key. The sidebar model
 // (categories, items, order, visibility) is server-sourced - see src/nav.
@@ -27,8 +35,18 @@ const PAGES: Record<string, PageRenderer> = {
       <NotesRoute noteId={p[0]} />
     </Suspense>
   ),
-  mindmap: () => <StubPage title="Mindmaps" />,
-  "mindmap-detail": (p) => <StubPage title="Mindmap" subtitle={p[0] ? `Map ${p[0]}` : undefined} />,
+  // One route key, two pages: "#/mindmap" is the gallery and "#/mindmap/{id}" is that map open. A
+  // second key would need every link to know which of the two it was pointing at.
+  mindmap: (p) =>
+    p[0] ? (
+      <Suspense fallback={<div className="min-h-full" />}>
+        <MindmapRoute mapId={p[0]} />
+      </Suspense>
+    ) : (
+      <Suspense fallback={<div className="min-h-full" />}>
+        <MindmapLibraryRoute />
+      </Suspense>
+    ),
   flashcards: () => <LibraryPage />,
   "flashcard-deck": (p) => <DeckPage deckId={p[0]} />,
   "flashcard-session": (p) => <SessionPage deckId={p[0]} mode={p[1]} scope={p[2]} />,
