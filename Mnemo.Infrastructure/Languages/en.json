@@ -701,6 +701,14 @@
     "SlashMenuLabel": "Insert a block"
   },
   "Mindmap": {
+    "GroupLine": "LINE",
+    "GroupRouting": "ROUTING",
+    "GroupCaps": "CAPS",
+    "CapNone": "None",
+    "CapArrow": "Arrow",
+    "CapDot": "Dot",
+    "CapStart": "Start",
+    "CapEnd": "End",
     "LayoutTooltip": "Arrange the whole map",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Add text",

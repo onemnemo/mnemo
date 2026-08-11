@@ -194,7 +194,7 @@ export function installInteraction(
 
     // Planting reads the press rather than the release: the point under the pointer is where the
     // element goes, and waiting for the release would let a twitch move it.
-    if ((tool === "node" || tool === "text") && !elementId) {
+    if ((tool === "node" || tool === "text" || tool === "shape") && !elementId) {
       handlers.plant(tool, startCanvas)
       return
     }

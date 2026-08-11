@@ -4,7 +4,9 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { cn } from "@/lib/utils"
 
 import { branchWash, mixColor } from "../scene/tokens"
+import type { ShapeContent, ShapeType } from "../model/document"
 import type { SceneElement } from "../model/scene"
+import { isOpenShape, shapePath, shapeTextInset } from "./shape-path"
 
 export interface MindmapNodeProps {
   element: SceneElement
@@ -68,10 +70,13 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
         aria-hidden
       />
 
+      {element.kind === "shape" ? <ShapeOutline element={element} stroke={accentLine} /> : null}
+
       <div
         className={cn(
           "relative flex h-full w-full items-center",
           isRoot && "justify-center rounded-[14px]",
+          element.kind === "shape" && "justify-center",
           !isRoot && nodeShape === "pill" && "rounded-full",
           !isRoot && (nodeShape === "card" || nodeShape === "outline") && "rounded-[10px]",
         )}
@@ -99,15 +104,15 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
           <NodeEditor element={element} onEditEnd={onEditEnd} />
         ) : (
           <span
-            className={cn("mm-label block w-full", isRoot && "text-center")}
+            className={cn("mm-label block w-full", (isRoot || element.kind === "shape") && "text-center")}
             style={{
               fontSize: text.fontSize,
               fontWeight: text.fontWeight,
               lineHeight: `${text.lineHeight}px`,
               letterSpacing: text.letterSpacing,
               color: element.textColor,
-              paddingLeft: element.padding.x,
-              paddingRight: element.padding.x,
+              paddingLeft: element.padding.x + labelInset(element),
+              paddingRight: element.padding.x + labelInset(element),
             }}
           >
             {/* Never re-wrapped. The projector already decided where the lines break, and the box
@@ -134,6 +139,42 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
     </div>
   )
 })
+
+/**
+ * A free shape's outline.
+ *
+ * Drawn as one path in its own SVG sized to the box rather than as a div with a border, because five
+ * of the seven are not rectangles and CSS has no honest way to say diamond. It sits behind the label
+ * and takes no pointer events, so the host div stays the only thing a gesture can land on and the
+ * hit target is the box rather than the outline's own irregular area.
+ */
+function ShapeOutline({ element, stroke }: { element: SceneElement; stroke: string | undefined }) {
+  const shape = (element.content as ShapeContent).shape ?? DEFAULT_SHAPE
+  const open = isOpenShape(shape)
+
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 overflow-visible"
+      width={element.width}
+      height={element.height}
+      aria-hidden
+    >
+      <path
+        d={shapePath(shape, element.width, element.height)}
+        fill={open ? "none" : (element.fill ?? "var(--canvas)")}
+        stroke={stroke ?? "var(--line)"}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        // An arrow shape's head is the marker the edge layer already defines, so a shape arrow and
+        // an edge's arrow are the same glyph rather than two drawings of one idea.
+        markerEnd={shape === "arrow" ? "url(#mm-cap-arrow)" : undefined}
+      />
+    </svg>
+  )
+}
+
+/** What a shape is when its content never said. Every other kind has a real default of its own. */
+const DEFAULT_SHAPE: ShapeType = "rectangle"
 
 /**
  * The label, as a field.
@@ -225,6 +266,21 @@ function grow(node: HTMLTextAreaElement): void {
   node.style.height = `${node.scrollHeight}px`
 }
 
+/**
+ * How far a label has to come in from the box before the outline stops cutting through it.
+ *
+ * Zero for everything but a shape, where the box is a bounding box rather than the drawn area: a
+ * diamond's corners are the only part of its box that reaches the edge, and text set to the box would
+ * run straight out through its sides.
+ */
+function labelInset(element: SceneElement): number {
+  if (element.kind !== "shape") {
+    return 0
+  }
+  const shape = (element.content as ShapeContent).shape ?? DEFAULT_SHAPE
+  return shapeTextInset(shape, element.width, element.height).x
+}
+
 /** What was wrapped for drawing, joined back into what was typed. */
 function plainText(element: SceneElement): string {
   const content = element.content as { text?: string }
@@ -241,8 +297,8 @@ function bodyStyle(
   accentLine: string | undefined,
 ): React.CSSProperties {
   // A caption is words on the canvas rather than a node on it. Giving it a card would make every
-  // annotation look like something the map connects to.
-  if (element.kind === "text") {
+  // annotation look like something the map connects to. A shape has already drawn its own outline.
+  if (element.kind === "text" || element.kind === "shape") {
     return {}
   }
 

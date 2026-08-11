@@ -7,12 +7,14 @@ import { useT } from "@/i18n/useT"
 import { useMindmap, useMindmapTemplates, type MindmapTemplates } from "../api"
 import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
+import type { ConnectStyle } from "../chrome/ConnectFlyout"
 import { MindmapToolDock } from "../chrome/MindmapToolDock"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
 import { placeChild, type PlacedBox } from "../edit/placement"
 import type { MovedElement } from "../interaction/controller"
 import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } from "../interaction/selection"
 import { isOneShot, TOOL_KEYS, type MindmapTool } from "../interaction/tool"
+import type { ShapeType } from "../model/document"
 import { op, type MindmapOp } from "../model/ops"
 import type { Point } from "../model/scene"
 import { analyzeHierarchy, childrenIds, descendantsOf } from "../scene/hierarchy"
@@ -31,6 +33,22 @@ const NO_SUBTREE: readonly string[] = []
  * the very next frame.
  */
 const NEW_NODE_SIZE = { width: 68, height: 30 }
+
+/**
+ * A planted shape's box.
+ *
+ * Bigger than a node's, because a shape is a region drawn around a label rather than a box measured
+ * to fit one, and one dragged out to nothing would be a shape nobody could see to resize.
+ */
+const NEW_SHAPE_SIZE: [number, number] = [148, 86]
+
+/** What the connect tool draws with until the flyout says otherwise. */
+const DEFAULT_CONNECT: ConnectStyle = {
+  line: "solid",
+  routing: "curve",
+  startCap: "none",
+  endCap: "arrow",
+}
 
 /**
  * One open map.
@@ -52,6 +70,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const [editing, setEditing] = useState<string | null>(null)
   const [tool, setTool] = useState<MindmapTool>("select")
   const [zoom, setZoom] = useState(1)
+  const [shape, setShape] = useState<ShapeType>("rectangle")
+  const [connectStyle, setConnectStyle] = useState(DEFAULT_CONNECT)
   /** The node this edit created. Abandoning the edit takes it away again. */
   const blank = useRef<string | null>(null)
 
@@ -218,21 +238,20 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     async (armed: MindmapTool, at: Point) => {
       setTool("select")
       const xy: [number, number] = [Math.round(at.x), Math.round(at.y)]
-      const result = await editor.apply(
-        armed === "text"
-          ? [op.addElement("text", xy[0], xy[1], { $type: "freeText", text: "" }, { ref: "n" })]
-          : [op.addNodes([{ ref: "n", t: "", xy }])],
-        { label: t("Mindmap", armed === "text" ? "AddText" : "AddNode") },
-      )
+      const result = await editor.apply([plantOp(armed, xy, shape)], {
+        label: t("Mindmap", PLANT_LABEL[armed] ?? "AddNode"),
+      })
 
       const created = result?.createdIds?.n
       if (created) {
-        blank.current = created
+        // A shape with no label is still a shape someone meant to draw, so it is not taken back the
+        // way an unlabelled node is.
+        blank.current = armed === "shape" ? null : created
         setSelection(selectOnly("element", created))
         setEditing(created)
       }
     },
-    [editor, t],
+    [editor, shape, t],
   )
 
   /**
@@ -254,9 +273,11 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         void editor.apply([op.unlinkEdge(existing.id)], { label: t("Mindmap", "Disconnect") })
         return
       }
-      void editor.apply([op.link(fromId, toId)], { label: t("Mindmap", "Connect") })
+      void editor.apply([op.link(fromId, toId, { style: connectStyle })], {
+        label: t("Mindmap", "Connect"),
+      })
     },
-    [editor, map.data, t],
+    [connectStyle, editor, map.data, t],
   )
 
   /**
@@ -437,6 +458,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           // 1 and leaves the middle of the view where it was.
           onZoomReset={() => runtime.current?.zoomBy(1 / (runtime.current?.viewport().zoom ?? 1))}
           onFit={() => runtime.current?.fit()}
+          shape={shape}
+          onShape={setShape}
+          connectStyle={connectStyle}
+          onConnectStyle={(patch) => setConnectStyle((current) => ({ ...current, ...patch }))}
         />
       </div>
 
@@ -461,6 +486,28 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       ) : null}
     </div>
   )
+}
+
+/** What an armed tool creates, and what the undo entry for it is called. */
+const PLANT_LABEL: Partial<Record<MindmapTool, string>> = {
+  node: "AddNode",
+  text: "AddText",
+  shape: "ToolShape",
+}
+
+function plantOp(tool: MindmapTool, xy: [number, number], shape: ShapeType): MindmapOp {
+  if (tool === "shape") {
+    return op.addElement("shape", xy[0], xy[1], { $type: "shape", shape }, {
+      ref: "n",
+      // Sized up front, since a shape is a region rather than a box measured around its text, and
+      // the projector has no label to measure one from.
+      wh: NEW_SHAPE_SIZE,
+    })
+  }
+  if (tool === "text") {
+    return op.addElement("text", xy[0], xy[1], { $type: "freeText", text: "" }, { ref: "n" })
+  }
+  return op.addNodes([{ ref: "n", t: "", xy }])
 }
 
 function Pill({ children }: { children: React.ReactNode }) {

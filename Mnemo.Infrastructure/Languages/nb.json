@@ -651,6 +651,14 @@
     "ColorNone": "Ingen"
   },
   "Mindmap": {
+    "GroupLine": "LINJE",
+    "GroupRouting": "RUTE",
+    "GroupCaps": "ENDER",
+    "CapNone": "Ingen",
+    "CapArrow": "Pil",
+    "CapDot": "Prikk",
+    "CapStart": "Start",
+    "CapEnd": "Slutt",
     "LayoutTooltip": "Ordne hele kartet",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Legg til tekst",
