@@ -7,11 +7,14 @@ import { useT } from "@/i18n/useT"
 import { useMindmap, useMindmapTemplates, type MindmapTemplates } from "../api"
 import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
+import { MindmapToolDock } from "../chrome/MindmapToolDock"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
 import { placeChild, type PlacedBox } from "../edit/placement"
 import type { MovedElement } from "../interaction/controller"
 import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } from "../interaction/selection"
+import { isOneShot, TOOL_KEYS, type MindmapTool } from "../interaction/tool"
 import { op, type MindmapOp } from "../model/ops"
+import type { Point } from "../model/scene"
 import { analyzeHierarchy, childrenIds, descendantsOf } from "../scene/hierarchy"
 import { projectScene } from "../scene/project"
 
@@ -47,6 +50,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const runtime = useRef<CanvasRuntime | null>(null)
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION)
   const [editing, setEditing] = useState<string | null>(null)
+  const [tool, setTool] = useState<MindmapTool>("select")
+  const [zoom, setZoom] = useState(1)
   /** The node this edit created. Abandoning the edit takes it away again. */
   const blank = useRef<string | null>(null)
 
@@ -203,6 +208,57 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     [editor, scene, t],
   )
 
+  /**
+   * Puts a new element where the pointer said, and hands the map back to the select tool.
+   *
+   * A planted element belongs to nothing: it is its own cluster with no parent, which is what makes
+   * it different from Tab's child. Its position is the click, so nothing has to be worked out.
+   */
+  const plant = useCallback(
+    async (armed: MindmapTool, at: Point) => {
+      setTool("select")
+      const xy: [number, number] = [Math.round(at.x), Math.round(at.y)]
+      const result = await editor.apply(
+        armed === "text"
+          ? [op.addElement("text", xy[0], xy[1], { $type: "freeText", text: "" }, { ref: "n" })]
+          : [op.addNodes([{ ref: "n", t: "", xy }])],
+        { label: t("Mindmap", armed === "text" ? "AddText" : "AddNode") },
+      )
+
+      const created = result?.createdIds?.n
+      if (created) {
+        blank.current = created
+        setSelection(selectOnly("element", created))
+        setEditing(created)
+      }
+    },
+    [editor, t],
+  )
+
+  /**
+   * Links two nodes, or unlinks them if they are already linked.
+   *
+   * The prototype's connect gesture could only add, and taking a connector away meant selecting the
+   * line and pressing Delete. Drawing the same connector twice is not a thing anyone means, so the
+   * second draw is the natural place to put the undo.
+   */
+  const connect = useCallback(
+    (fromId: string, toId: string) => {
+      setTool("select")
+      const existing = (map.data?.edges ?? []).find(
+        (edge) =>
+          (edge.fromId === fromId && edge.toId === toId) ||
+          (edge.fromId === toId && edge.toId === fromId),
+      )
+      if (existing) {
+        void editor.apply([op.unlinkEdge(existing.id)], { label: t("Mindmap", "Disconnect") })
+        return
+      }
+      void editor.apply([op.link(fromId, toId)], { label: t("Mindmap", "Connect") })
+    },
+    [editor, map.data, t],
+  )
+
   const deleteSelection = useCallback(() => {
     const ops: MindmapOp[] = []
     if (selection.elements.size > 0) {
@@ -226,6 +282,14 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       const modified = event.ctrlKey || event.metaKey
       const key = event.key.toLowerCase()
       const primary = selection.primary?.kind === "element" ? selection.primary.id : null
+
+      // One letter each, no modifier, which is what makes a tool worth switching to for one node.
+      // Checked before anything else claims a bare letter.
+      if (!modified && !event.altKey && TOOL_KEYS[key]) {
+        event.preventDefault()
+        setTool(TOOL_KEYS[key])
+        return
+      }
 
       // Tab and Enter are the outliner's two moves, and they are why a mindmap is faster to write
       // than a diagram. Both are only reached when nothing is being typed into, since the guard
@@ -267,10 +331,16 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         return
       }
       if (event.key === "Escape") {
+        // An armed tool first: Escape is "never mind", and the thing most recently asked for is the
+        // thing it should take back.
+        if (isOneShot(tool)) {
+          setTool("select")
+          return
+        }
         setSelection(EMPTY_SELECTION)
       }
     },
-    [addChild, addSibling, deleteSelection, editor, scene, selection],
+    [addChild, addSibling, deleteSelection, editor, scene, selection, tool],
   )
 
   if (map.isError) {
@@ -313,19 +383,11 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
                 what the desktop does rather than carrying a second file that is the same drawing. */}
             <AppIcon name="common/undo" size={15} className="-scale-x-100" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => runtime.current?.zoomBy(1 / 1.2)} aria-label="Zoom out">
-            <AppIcon name="minus" size={14} strokeWidth={2} />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => runtime.current?.zoomBy(1.2)} aria-label="Zoom in">
-            <AppIcon name="plus" size={14} strokeWidth={2} />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => runtime.current?.fit()}>
-            {t("Mindmap", "FitToScreen")}
-          </Button>
         </div>
       </header>
 
-      <div className="min-h-0 flex-1">
+      {/* The dock floats inside this, not under it, so the map keeps the whole pane. */}
+      <div className="relative min-h-0 flex-1">
         <MindmapCanvas
           scene={scene}
           runtimeRef={runtime}
@@ -336,6 +398,21 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           editingId={editing}
           onEditEnd={endEdit}
           subtreeOf={subtreeOf}
+          tool={tool}
+          onPlant={(armed, at) => void plant(armed, at)}
+          onConnect={connect}
+          onCameraSettled={(viewport) => setZoom(viewport.zoom)}
+        />
+
+        <MindmapToolDock
+          tool={tool}
+          onTool={setTool}
+          zoom={zoom}
+          onZoomBy={(factor) => runtime.current?.zoomBy(factor)}
+          // Through the same anchored arithmetic every other zoom uses, so a reset lands on exactly
+          // 1 and leaves the middle of the view where it was.
+          onZoomReset={() => runtime.current?.zoomBy(1 / (runtime.current?.viewport().zoom ?? 1))}
+          onFit={() => runtime.current?.fit()}
         />
       </div>
 

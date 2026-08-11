@@ -110,8 +110,12 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
               paddingRight: element.padding.x,
             }}
           >
+            {/* Never re-wrapped. The projector already decided where the lines break, and the box
+                was measured against that decision; letting CSS wrap again means a label one pixel
+                wider than measured spills onto a second line inside a box built for one. Every
+                single-word label hides this, and every label with a space in it finds it. */}
             {text.lines.map((line, index) => (
-              <span key={index} className="block">
+              <span key={index} className="block whitespace-pre">
                 {line}
               </span>
             ))}
@@ -236,6 +240,12 @@ function bodyStyle(
   tinted: boolean,
   accentLine: string | undefined,
 ): React.CSSProperties {
+  // A caption is words on the canvas rather than a node on it. Giving it a card would make every
+  // annotation look like something the map connects to.
+  if (element.kind === "text") {
+    return {}
+  }
+
   if (element.isRoot) {
     return {
       background: element.fill,

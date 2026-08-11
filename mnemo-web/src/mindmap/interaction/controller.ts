@@ -16,6 +16,7 @@ import type { SceneIndex } from "../canvas/scene-index"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import { hitEdge } from "./hit-test"
 import { elementsInRect, rectBetween } from "./marquee"
+import type { MindmapTool } from "./tool"
 import {
   addElements,
   EMPTY_SELECTION,
@@ -50,6 +51,8 @@ export interface InteractionSurface {
    */
   subtreeOf(id: string): readonly string[]
   toCanvas(clientX: number, clientY: number): Point
+  /** The inverse, in pixels from the pane's top-left. What a preview drawn over the map needs. */
+  toPane(point: Point): Point
   zoom(): number
   /**
    * Redraws whatever the substrate owns after positions moved under it, naming the edges that
@@ -66,10 +69,16 @@ export interface InteractionHandlers {
   /** Read rather than passed, because the controller outlives any one selection. */
   selection(): Selection
   setSelection(next: Selection): void
+  /** Which tool is armed. Read at press time for the same reason the selection is. */
+  tool(): MindmapTool
   /** A drag finished, with every moved element's final position. One gesture, one call. */
   commitMove(moves: readonly MovedElement[]): void
   /** A double click, which is how a label asks to be edited. */
   activate(id: string): void
+  /** An armed creation tool was used on empty canvas. */
+  plant(tool: MindmapTool, at: Point): void
+  /** A connect drag landed on a node. Whether that links or unlinks is the caller's to decide. */
+  connect(fromId: string, toId: string): void
 }
 
 type Gesture =
@@ -100,6 +109,12 @@ type Gesture =
       readonly startCanvas: Point
       readonly additive: boolean
       readonly box: HTMLElement
+    }
+  | {
+      readonly kind: "connect"
+      readonly pointerId: number
+      readonly fromId: string
+      readonly line: SVGSVGElement
     }
 
 export function installInteraction(
@@ -163,6 +178,26 @@ export function installInteraction(
     const startClient = { x: event.clientX, y: event.clientY }
     const startCanvas = surface.toCanvas(event.clientX, event.clientY)
     const elementId = elementAt(event.target)
+    const tool = handlers.tool()
+
+    // A connect drag is a drag by definition, so it needs no threshold and takes the capture at
+    // once. It starts on a node and nowhere else; pressing empty canvas with it armed still clears
+    // the selection below, which is the only sensible reading of that press.
+    if (tool === "connect" && elementId) {
+      pane.setPointerCapture(event.pointerId)
+      const line = openConnectLine(pane)
+      gesture = { kind: "connect", pointerId: event.pointerId, fromId: elementId, line }
+      handlers.setSelection(selectOnly("element", elementId))
+      drawConnectLine(line, anchorOf(surface, elementId), panePoint(pane, startClient))
+      return
+    }
+
+    // Planting reads the press rather than the release: the point under the pointer is where the
+    // element goes, and waiting for the release would let a twitch move it.
+    if ((tool === "node" || tool === "text") && !elementId) {
+      handlers.plant(tool, startCanvas)
+      return
+    }
 
     if (elementId) {
       const selection = handlers.selection()
@@ -259,6 +294,15 @@ export function installInteraction(
       return
     }
 
+    if (gesture.kind === "connect") {
+      drawConnectLine(
+        gesture.line,
+        anchorOf(surface, gesture.fromId),
+        panePoint(pane, { x: event.clientX, y: event.clientY }),
+      )
+      return
+    }
+
     if (gesture.kind === "press") {
       const far =
         Math.abs(event.clientX - gesture.startClient.x) +
@@ -327,6 +371,17 @@ export function installInteraction(
       return
     }
 
+    if (finished.kind === "connect") {
+      finished.line.remove()
+      // Capture retargets the release to the pane, so the node under the pointer has to be looked
+      // up by position rather than read off the event.
+      const landed = elementAt(document.elementFromPoint(event.clientX, event.clientY))
+      if (landed && landed !== finished.fromId) {
+        handlers.connect(finished.fromId, landed)
+      }
+      return
+    }
+
     finished.box.remove()
     const rect = rectBetween(finished.startCanvas, surface.toCanvas(event.clientX, event.clientY))
     // A band this small is a click that wobbled, and treating it as a sweep would clear the
@@ -349,6 +404,9 @@ export function installInteraction(
     }
     if (gesture.kind === "marquee") {
       gesture.box.remove()
+    }
+    if (gesture.kind === "connect") {
+      gesture.line.remove()
     }
     if (gesture.kind === "drag") {
       // Put everything back. A cancelled gesture that leaves the nodes where the pointer left them
@@ -385,6 +443,9 @@ export function installInteraction(
     pane.removeEventListener("dblclick", onDoubleClick)
     if (gesture.kind === "marquee") {
       gesture.box.remove()
+    }
+    if (gesture.kind === "connect") {
+      gesture.line.remove()
     }
   }
 }
@@ -441,6 +502,57 @@ function drawMarquee(box: HTMLElement, pane: HTMLElement, from: Point, to: Point
   box.style.transform = `translate(${rect.x}px, ${rect.y}px)`
   box.style.width = `${rect.width}px`
   box.style.height = `${rect.height}px`
+}
+
+/* -------------------------------------------------------------------------- */
+/* The connect preview                                                        */
+/* -------------------------------------------------------------------------- */
+
+const SVG_NS = "http://www.w3.org/2000/svg"
+
+/**
+ * Drawn in pane pixels rather than canvas ones.
+ *
+ * One end of this line is a node and the other is the pointer, and the pointer is only ever known
+ * in screen coordinates. Projecting the node forward is one multiplication; projecting the pointer
+ * back would have to be undone again to draw it.
+ */
+function openConnectLine(pane: HTMLElement): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, "svg")
+  svg.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:30"
+  const line = document.createElementNS(SVG_NS, "line")
+  line.setAttribute("stroke", "var(--accent)")
+  line.setAttribute("stroke-width", "1.5")
+  line.setAttribute("stroke-dasharray", "4 3")
+  line.setAttribute("stroke-linecap", "round")
+  svg.append(line)
+  pane.append(svg)
+  return svg
+}
+
+function drawConnectLine(svg: SVGSVGElement, from: Point, to: Point): void {
+  const line = svg.firstElementChild
+  if (!line) {
+    return
+  }
+  line.setAttribute("x1", String(from.x))
+  line.setAttribute("y1", String(from.y))
+  line.setAttribute("x2", String(to.x))
+  line.setAttribute("y2", String(to.y))
+}
+
+/** The middle of an element, in pane pixels. Where a connector is drawn from. */
+function anchorOf(surface: InteractionSurface, id: string): Point {
+  const box = surface.index.boxOf(id)
+  if (!box) {
+    return { x: 0, y: 0 }
+  }
+  return surface.toPane({ x: box.x + box.width / 2, y: box.y + box.height / 2 })
+}
+
+function panePoint(pane: HTMLElement, client: Point): Point {
+  const bounds = pane.getBoundingClientRect()
+  return { x: client.x - bounds.left, y: client.y - bounds.top }
 }
 
 function releaseCapture(pane: HTMLElement, pointerId: number): void {

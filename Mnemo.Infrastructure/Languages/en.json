@@ -701,6 +701,11 @@
     "SlashMenuLabel": "Insert a block"
   },
   "Mindmap": {
+    "ShortcutHintFormat": "{0} ({1})",
+    "AddText": "Add text",
+    "Connect": "Connect",
+    "Disconnect": "Disconnect",
+    "ResetZoom": "Reset zoom",
     "AddNode": "Add node",
     "Move": "Move",
     "EditRejected": "That change could not be applied.",

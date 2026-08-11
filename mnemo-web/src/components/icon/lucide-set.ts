@@ -57,9 +57,11 @@ import {
   Sigma,
   Underline,
   LoaderCircle,
+  Maximize,
   Minus,
   Monitor,
   Moon,
+  MousePointer2,
   Network,
   NotebookText,
   Orbit,
@@ -75,6 +77,7 @@ import {
   Settings,
   Settings2,
   Sparkles,
+  Spline,
   SquareStack,
   Star,
   Store,
@@ -139,6 +142,11 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   terminal: Terminal,
   "list-filter": ListFilter,
   "external-link": ExternalLink,
+
+  // The mindmap's tool dock. Drawing-tool glyphs, and the project has no art of its own for them.
+  "mouse-pointer-2": MousePointer2,
+  spline: Spline,
+  maximize: Maximize,
 
   // The card editor's formatting bar.
   bold: Bold,

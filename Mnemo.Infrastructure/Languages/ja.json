@@ -651,6 +651,11 @@
     "ColorNone": "なし"
   },
   "Mindmap": {
+    "ShortcutHintFormat": "{0}（{1}）",
+    "AddText": "テキストを追加",
+    "Connect": "接続",
+    "Disconnect": "接続を解除",
+    "ResetZoom": "ズームをリセット",
     "AddNode": "ノードを追加",
     "Loading": "マップを読み込んでいます...",
     "MapIsEmpty": "このマップは空です。",

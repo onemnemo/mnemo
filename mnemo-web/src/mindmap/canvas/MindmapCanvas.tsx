@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react"
 
+import { cn } from "@/lib/utils"
+
 import { initialHybridMode } from "./edge-strategy"
 import type { EdgeMode } from "./edge-style"
 import { MindmapBackground } from "./MindmapBackground"
@@ -10,7 +12,8 @@ import { MindmapNode } from "./MindmapNode"
 import { createCanvasRuntime, type CanvasRuntime } from "./runtime"
 import { installInteraction, type MovedElement } from "../interaction/controller"
 import { EMPTY_SELECTION, type Selection } from "../interaction/selection"
-import type { Scene, Viewport } from "../model/scene"
+import { cursorFor, type MindmapTool } from "../interaction/tool"
+import type { Point, Scene, Viewport } from "../model/scene"
 
 const NO_SUBTREE: readonly string[] = []
 
@@ -34,6 +37,14 @@ export interface MindmapCanvasProps {
   onEditEnd?: (id: string, text: string | null) => void
   /** Descendants in the hierarchy, from the document rather than the scene. See the controller. */
   subtreeOf?: (id: string) => readonly string[]
+  /** What a press means. Select unless the dock says otherwise. */
+  tool?: MindmapTool
+  /** An armed creation tool was used on empty canvas. */
+  onPlant?: (tool: MindmapTool, at: Point) => void
+  /** A connect drag landed on a node. */
+  onConnect?: (fromId: string, toId: string) => void
+  /** The camera stopped moving, for a zoom readout. Never per frame. */
+  onCameraSettled?: (viewport: Viewport) => void
   className?: string
 }
 
@@ -61,6 +72,10 @@ export function MindmapCanvas({
   editingId,
   onEditEnd,
   subtreeOf,
+  tool = "select",
+  onPlant,
+  onConnect,
+  onCameraSettled,
   className,
 }: MindmapCanvasProps) {
   const pane = useRef<HTMLDivElement>(null)
@@ -77,8 +92,28 @@ export function MindmapCanvas({
 
   // Read by the controller at press time rather than captured when it was installed, which is once
   // per scene and would otherwise pin it to whatever was selected then.
-  const live = useRef({ selection, onSelection, onCommitMove, onActivate, subtreeOf })
-  live.current = { selection, onSelection, onCommitMove, onActivate, subtreeOf }
+  const live = useRef({
+    selection,
+    onSelection,
+    onCommitMove,
+    onActivate,
+    subtreeOf,
+    tool,
+    onPlant,
+    onConnect,
+    onCameraSettled,
+  })
+  live.current = {
+    selection,
+    onSelection,
+    onCommitMove,
+    onActivate,
+    subtreeOf,
+    tool,
+    onPlant,
+    onConnect,
+    onCameraSettled,
+  }
 
   // Starts wherever a camera at 1:1 belongs, which is where every runtime starts before it fits.
   const [edgeMode, setEdgeMode] = useState<EdgeMode>(() => initialHybridMode(1))
@@ -103,6 +138,7 @@ export function MindmapCanvas({
         overlayCamera,
       },
       onEdgeMode: setEdgeMode,
+      onCameraSettled: (next) => live.current.onCameraSettled?.(next),
     })
     runtime.current = created
     if (runtimeRef) {
@@ -127,6 +163,7 @@ export function MindmapCanvas({
         scene,
         subtreeOf: (id) => live.current.subtreeOf?.(id) ?? NO_SUBTREE,
         toCanvas: (x, y) => created.toCanvas(x, y),
+        toPane: (point) => created.toPane(point),
         zoom: () => created.viewport().zoom,
         redraw: (movedEdgeIds) => {
           created.redraw(movedEdgeIds)
@@ -138,8 +175,11 @@ export function MindmapCanvas({
       {
         selection: () => live.current.selection,
         setSelection: (next) => live.current.onSelection?.(next),
+        tool: () => live.current.tool,
         commitMove: (moves) => live.current.onCommitMove?.(moves),
         activate: (id) => live.current.onActivate?.(id),
+        plant: (armed, at) => live.current.onPlant?.(armed, at),
+        connect: (fromId, toId) => live.current.onConnect?.(fromId, toId),
       },
     )
 
@@ -190,7 +230,13 @@ export function MindmapCanvas({
   return (
     <div
       ref={pane}
-      className={`relative size-full select-none overflow-hidden bg-canvas outline-none ${className ?? ""}`}
+      // The cursor is on the pane rather than per element, so an armed tool reads the same over a
+      // node as over the space between two of them.
+      className={cn(
+        "relative size-full select-none overflow-hidden bg-canvas outline-none",
+        cursorFor(tool),
+        className,
+      )}
       // The pane takes focus so the map answers the keyboard without a click landing on a node
       // first, and so Escape has somewhere to be heard. No focus ring: it is focused for the whole
       // time the map is open, and a permanent line across the top of the canvas is not information.
