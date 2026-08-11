@@ -68,6 +68,8 @@ export interface CanvasRuntime {
   rebindEdges(next: EdgeElements): void
   /** A client point in canvas coordinates. What a gesture needs to know where it is. */
   toCanvas(clientX: number, clientY: number): Point
+  /** The inverse: a canvas point in pixels from the pane's top-left. */
+  toPane(point: Point): Point
   /**
    * Redraws what the substrate owns, for a caller that moved elements under it. The camera has not
    * changed, but the culler's bounds and the canvas edge layer are both read from positions.
@@ -312,6 +314,11 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
         y: viewport.y + (clientY - rect.top) / viewport.zoom,
       }
     },
+
+    toPane: (point) => ({
+      x: (point.x - viewport.x) * viewport.zoom,
+      y: (point.y - viewport.y) * viewport.zoom,
+    }),
 
     redraw(movedEdgeIds) {
       if (movedEdgeIds && movedEdgeIds.length > 0) {

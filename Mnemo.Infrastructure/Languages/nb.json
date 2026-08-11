@@ -651,6 +651,11 @@
     "ColorNone": "Ingen"
   },
   "Mindmap": {
+    "ShortcutHintFormat": "{0} ({1})",
+    "AddText": "Legg til tekst",
+    "Connect": "Koble",
+    "Disconnect": "Koble fra",
+    "ResetZoom": "Tilbakestill zoom",
     "AddNode": "Legg til node",
     "Loading": "Laster kartet...",
     "MapIsEmpty": "Dette kartet er tomt.",

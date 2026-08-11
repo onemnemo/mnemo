@@ -645,6 +645,11 @@
     "ColorNone": "Keine"
   },
   "Mindmap": {
+    "ShortcutHintFormat": "{0} ({1})",
+    "AddText": "Text hinzufügen",
+    "Connect": "Verbinden",
+    "Disconnect": "Trennen",
+    "ResetZoom": "Zoom zurücksetzen",
     "AddNode": "Knoten hinzufügen",
     "Loading": "Karte wird geladen...",
     "MapIsEmpty": "Diese Karte ist leer.",

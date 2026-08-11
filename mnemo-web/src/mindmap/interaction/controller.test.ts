@@ -16,6 +16,7 @@ import type { Point, Scene, SceneEdge, SceneElement } from "../model/scene"
 
 import { installInteraction, type MovedElement } from "./controller"
 import { EMPTY_SELECTION, type Selection } from "./selection"
+import type { MindmapTool } from "./tool"
 
 function element(id: string, x: number, y: number): SceneElement {
   return {
@@ -123,8 +124,11 @@ function harness(scene: Scene = SCENE) {
   const pins: { elements: readonly string[]; edges: readonly string[] }[] = []
   const commits: MovedElement[][] = []
   const activated: string[] = []
+  const planted: { tool: MindmapTool; at: Point }[] = []
+  const connected: [string, string][] = []
   let unpins = 0
   let selection: Selection = EMPTY_SELECTION
+  let tool: MindmapTool = "select"
 
   const uninstall = installInteraction(
     {
@@ -135,6 +139,7 @@ function harness(scene: Scene = SCENE) {
       // The camera is the runtime's business, and an identity one keeps the arithmetic here about
       // the gesture rather than about a projection.
       toCanvas: (x, y) => ({ x, y }),
+      toPane: (point) => point,
       zoom: () => 1,
       redraw: (moved) => void redraws.push(moved),
       pin: (elements, edges) => void pins.push({ elements, edges }),
@@ -147,8 +152,11 @@ function harness(scene: Scene = SCENE) {
       setSelection: (next) => {
         selection = next
       },
+      tool: () => tool,
       commitMove: (moves) => void commits.push([...moves]),
       activate: (id) => void activated.push(id),
+      plant: (armed, at) => void planted.push({ tool: armed, at }),
+      connect: (fromId, toId) => void connected.push([fromId, toId]),
     },
   )
 
@@ -157,6 +165,11 @@ function harness(scene: Scene = SCENE) {
     Object.defineProperty(event, "pointerId", { value: 1 })
     target.dispatchEvent(event)
   }
+
+  // A captured pointer retargets its release to the pane, so a connect drag has to look up what is
+  // under the pointer. jsdom has no hit testing at all, and this stands in for it.
+  let under: Element | null = null
+  document.elementFromPoint = () => under
 
   return {
     pane,
@@ -167,9 +180,20 @@ function harness(scene: Scene = SCENE) {
     pins,
     commits,
     activated,
-    uninstall,
+    planted,
+    connected,
+    uninstall: () => {
+      uninstall()
+      pane.remove()
+    },
     unpinCount: () => unpins,
     selection: () => selection,
+    arm: (next: MindmapTool) => {
+      tool = next
+    },
+    hover: (id: string | null) => {
+      under = id ? (hosts.get(id) ?? null) : null
+    },
     press: (id: string | null, at: Point, init?: MouseEventInit) =>
       send("pointerdown", at, id ? hosts.get(id)! : pane, init),
     move: (at: Point) => send("pointermove", at),
@@ -333,6 +357,80 @@ describe("installInteraction", () => {
     // a is swallowed whole and a1 is only clipped down its left edge, which is the point: a band
     // catches what it touches. b starts at y 60 and loose at y 400, so the band reaches neither.
     expect([...h.selection().elements].sort()).toEqual(["a", "a1"])
+    h.uninstall()
+  })
+
+  it("plants where the press landed, not where it was released", () => {
+    const h = harness()
+    h.arm("node")
+    h.press(null, { x: 640, y: 300 })
+    h.move({ x: 700, y: 340 })
+    h.release({ x: 700, y: 340 })
+
+    expect(h.planted).toEqual([{ tool: "node", at: { x: 640, y: 300 } }])
+    h.uninstall()
+  })
+
+  it("does not plant on top of an existing element", () => {
+    const h = harness()
+    h.arm("text")
+    h.press("a", { x: 210, y: -50 })
+    h.release({ x: 210, y: -50 })
+
+    expect(h.planted).toHaveLength(0)
+    // The press still reads as an ordinary one, since a plant that missed is not a plant.
+    expect([...h.selection().elements]).toEqual(["a"])
+    h.uninstall()
+  })
+
+  it("connects the node a connect drag started on to the one it ended on", () => {
+    const h = harness()
+    h.arm("connect")
+    h.press("a", { x: 210, y: -50 })
+    h.move({ x: 215, y: 400 })
+    h.hover("loose")
+    h.release({ x: 215, y: 410 })
+
+    expect(h.connected).toEqual([["a", "loose"]])
+    h.uninstall()
+  })
+
+  it("does not connect a node to itself, or to nothing", () => {
+    const h = harness()
+    h.arm("connect")
+    h.press("a", { x: 210, y: -50 })
+    h.hover("a")
+    h.release({ x: 212, y: -48 })
+
+    h.press("a", { x: 210, y: -50 })
+    h.hover(null)
+    h.release({ x: 600, y: 600 })
+
+    expect(h.connected).toHaveLength(0)
+    h.uninstall()
+  })
+
+  it("leaves no preview behind when a connect drag is cancelled", () => {
+    const h = harness()
+    h.arm("connect")
+    h.press("a", { x: 210, y: -50 })
+    h.move({ x: 300, y: 100 })
+    expect(h.pane.querySelectorAll("svg")).toHaveLength(1)
+
+    h.cancel({ x: 300, y: 100 })
+    expect(h.pane.querySelectorAll("svg")).toHaveLength(0)
+    expect(h.connected).toHaveLength(0)
+    h.uninstall()
+  })
+
+  it("never drags an element while the connect tool is armed", () => {
+    const h = harness()
+    h.arm("connect")
+    h.press("a", { x: 210, y: -50 })
+    h.move({ x: 400, y: 200 })
+
+    expect(h.positions.get("a")).toEqual({ x: 200, y: -60 })
+    expect(h.commits).toHaveLength(0)
     h.uninstall()
   })
 
