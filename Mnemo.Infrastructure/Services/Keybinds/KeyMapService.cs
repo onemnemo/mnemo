@@ -389,7 +389,8 @@ public sealed class KeyMapService : IKeyMap
                 DisplayLabelKey = man.DisplayLabelKey,
                 DisplayDescriptionKey = man.DisplayDescriptionKey,
                 DisplayCategoryKey = man.DisplayCategoryKey,
-                ToggleOnRepeat = man.ToggleOnRepeat
+                ToggleOnRepeat = man.ToggleOnRepeat,
+                IsOverridden = true
             };
         }
 
@@ -408,7 +409,8 @@ public sealed class KeyMapService : IKeyMap
             DisplayLabelKey = man.DisplayLabelKey,
             DisplayDescriptionKey = man.DisplayDescriptionKey,
             DisplayCategoryKey = man.DisplayCategoryKey,
-            ToggleOnRepeat = man.ToggleOnRepeat
+            ToggleOnRepeat = man.ToggleOnRepeat,
+            IsOverridden = true
         };
     }
 

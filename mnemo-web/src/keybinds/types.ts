@@ -25,6 +25,8 @@ export interface Keybind {
   descriptionKey?: string | null
   categoryKey?: string | null
   bindings: KeybindBinding[]
+  /** A user override is standing in for the manifest's bindings, so there is a default to go back to. */
+  isOverridden: boolean
 }
 
 /** Runs when a bound action fires. Returning nothing is fine; matching is one-shot. */

@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from "react"
 
+import { useHashRoute } from "@/app/router"
+import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
+import { cn } from "@/lib/utils"
+import { KeyboardPage } from "@/settings/components/pages/KeyboardPage"
 import { SettingsPageShell } from "@/settings/components/kit"
 import { SettingRow } from "@/settings/components/SettingRow"
 import { SettingsGroupView } from "@/settings/components/SettingsGroupView"
 import { SettingsNav } from "@/settings/components/SettingsNav"
 import { UNTRANSLATED_CATEGORY_TITLES, visibleCategories } from "@/settings/schema"
-import { searchSettings, type SettingsSearchMatch } from "@/settings/search"
+import { searchCategories, searchSettings, type SettingsSearchMatch } from "@/settings/search"
 import { useSettingsStore, useSettingValue } from "@/settings/store"
+import type { SettingsCategory, SettingsPageId } from "@/settings/types"
 
 const DEFAULT_CATEGORY = "General"
 
@@ -38,6 +43,16 @@ export function SettingsPage() {
   const [requestedId, setRequestedId] = useState(DEFAULT_CATEGORY)
   const [query, setQuery] = useState("")
 
+  // "#/settings/keyboard" opens a page directly, which is how the shortcut that used to
+  // raise the quick-actions catalogue reaches its replacement. Read here rather than
+  // taken as a route parameter, so the sub-route stays this page's own business.
+  const routedId = useRoutedCategoryId(categories)
+  useEffect(() => {
+    if (!routedId) return
+    setQuery("")
+    setRequestedId(routedId)
+  }, [routedId])
+
   // Turning developer mode off while on its page falls back rather than blanking.
   const selected =
     categories.find((c) => c.id === requestedId) ??
@@ -45,6 +60,7 @@ export function SettingsPage() {
     categories[0]
 
   const matches = useMemo(() => searchSettings(query, t, context), [query, t, context])
+  const pageHits = useMemo(() => searchCategories(query, t, context), [query, t, context])
   const searching = query.trim().length > 0
 
   function selectCategory(id: string) {
@@ -65,29 +81,68 @@ export function SettingsPage() {
         onQueryChange={setQuery}
       />
 
-      <main className="min-w-0 flex-1">
+      {/* A div, not a second <main>: the shell already provides the page's one main landmark. */}
+      <div className="min-w-0 flex-1">
         {searching ? (
-          <SearchResults query={query} matches={matches} />
+          <SearchResults query={query} matches={matches} pages={pageHits} onOpenPage={selectCategory} />
         ) : selected ? (
           <SettingsPageShell
             title={UNTRANSLATED_CATEGORY_TITLES[selected.id] ?? t("Settings", selected.title)}
             description={selected.subtitle ? t("Settings", selected.subtitle) : undefined}
           >
-            {selected.groups.map((group) => (
-              <SettingsGroupView key={group.id} group={group} context={context} />
-            ))}
+            {selected.page ? (
+              <SettingsCategoryPage id={selected.page} />
+            ) : (
+              selected.groups.map((group) => (
+                <SettingsGroupView key={group.id} group={group} context={context} />
+              ))
+            )}
           </SettingsPageShell>
         ) : null}
 
         {/* Rows read from a snapshot; until it lands they show schema defaults. */}
         {!loaded ? <p className="sr-only">Loading settings…</p> : null}
-      </main>
+      </div>
     </div>
   )
 }
 
-/** The synthetic results category: matched rows, each tagged with where it lives. */
-function SearchResults({ query, matches }: { query: string; matches: SettingsSearchMatch[] }) {
+/**
+ * The category named by the hash, if it names one this build has.
+ *
+ * Matched case-insensitively against the schema's ids so a link can be written the way
+ * a URL reads ("#/settings/keyboard") rather than the way the schema spells it.
+ */
+function useRoutedCategoryId(categories: SettingsCategory[]): string | undefined {
+  const hash = useHashRoute()
+  return useMemo(() => {
+    const segments = hash.replace(/^#\/?/, "").split("/").filter(Boolean)
+    if (segments[0] !== "settings" || !segments[1]) return undefined
+    const wanted = segments[1].toLowerCase()
+    return categories.find((category) => category.id.toLowerCase() === wanted)?.id
+  }, [hash, categories])
+}
+
+/** The body of a category that renders one bespoke surface instead of schema rows. */
+function SettingsCategoryPage({ id }: { id: SettingsPageId }) {
+  switch (id) {
+    case "keyboard":
+      return <KeyboardPage />
+  }
+}
+
+/** The synthetic results category: matched pages, then matched rows tagged with where they live. */
+function SearchResults({
+  query,
+  matches,
+  pages,
+  onOpenPage,
+}: {
+  query: string
+  matches: SettingsSearchMatch[]
+  pages: SettingsCategory[]
+  onOpenPage: (id: string) => void
+}) {
   const t = useT()
 
   const groups = matches.reduce<Map<string, SettingsSearchMatch[]>>((acc, match) => {
@@ -97,15 +152,47 @@ function SearchResults({ query, matches }: { query: string; matches: SettingsSea
     return acc
   }, new Map())
 
+  const total = matches.length + pages.length
+
   return (
     <SettingsPageShell
       title={t("Settings", "SearchResults")}
       description={
-        matches.length > 0
-          ? t("Settings", "SearchResultsSubtitleFormat", { 0: matches.length, 1: query })
+        total > 0
+          ? t("Settings", "SearchResultsSubtitleFormat", { 0: total, 1: query })
           : t("Settings", "SearchNoResultsFormat", { 0: query })
       }
     >
+      {pages.length > 0 ? (
+        <section className="mt-6">
+          <h2 className="mb-1 text-[12.5px] font-medium text-ink-3">{t("Settings", "SearchPages")}</h2>
+          {pages.map((category, i) => (
+            <button
+              key={category.id}
+              type="button"
+              onClick={() => onOpenPage(category.id)}
+              className={cn(
+                "flex w-full items-center gap-2.5 py-3 text-left",
+                i < pages.length - 1 && "border-b border-line-soft",
+              )}
+            >
+              <AppIcon name={category.icon} size={16} strokeWidth={1.5} className="shrink-0 text-ink-icon" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13.5px] text-ink">
+                  {UNTRANSLATED_CATEGORY_TITLES[category.id] ?? t("Settings", category.title)}
+                </span>
+                {category.subtitle ? (
+                  <span className="mt-0.5 block text-[12.5px] leading-snug text-ink-3">
+                    {t("Settings", category.subtitle)}
+                  </span>
+                ) : null}
+              </span>
+              <AppIcon name="chevron-right" size={14} strokeWidth={1.8} className="shrink-0 text-ink-icon" />
+            </button>
+          ))}
+        </section>
+      ) : null}
+
       {[...groups].map(([breadcrumb, rows]) => (
         <section key={breadcrumb} className="mt-8 first:mt-6">
           {/* The breadcrumb is where the row lives, which is the one thing a result needs to say

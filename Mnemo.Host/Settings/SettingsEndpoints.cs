@@ -37,12 +37,9 @@ public static class SettingsEndpoints
 
         endpoints.MapPut("/api/settings/theme", async (UpdateSettingDto body, IThemeService themes) =>
         {
-            // The SPA sends the lowercase id; resolve it back to the canonical name
-            // (ApplyThemeAsync validates and falls back to the default on a miss).
-            var all = await themes.GetAllThemesAsync().ConfigureAwait(false);
-            var canonical = all.FirstOrDefault(t => string.Equals(t.Name, body.Value, StringComparison.OrdinalIgnoreCase))?.Name
-                            ?? body.Value;
-            await themes.ApplyThemeAsync(canonical).ConfigureAwait(false);
+            // The SPA sends the lowercase id; ApplyThemeAsync matches case-insensitively,
+            // migrates a retired name and falls back to the default on a miss.
+            await themes.ApplyThemeAsync(body.Value).ConfigureAwait(false);
             return Results.NoContent();
         });
 

@@ -57,6 +57,11 @@ function eventKeyToken(event: KeyboardEvent): string | null {
   if (digit) return `D${digit[1]}`
   const fn = /^F([1-9]|1[0-2])$/.exec(code)
   if (fn) return code
+  // The numeric keypad is a separate set of keys in the Avalonia enum, and actions do
+  // bind to it (mindmap.recenter takes Primary+NumPad0 alongside Primary+D0), so a
+  // recorder that cannot produce one can never reproduce a shipped default.
+  const numpad = /^Numpad([0-9])$/.exec(code)
+  if (numpad) return `NumPad${numpad[1]}`
   const named = NAMED_CODES[code]
   if (named) return named
 
@@ -132,6 +137,12 @@ const NAMED_CODES: Record<string, string> = {
   Minus: "OemMinus",
   Equal: "OemPlus",
   Backquote: "OemTilde",
+  NumpadAdd: "Add",
+  NumpadSubtract: "Subtract",
+  NumpadMultiply: "Multiply",
+  NumpadDivide: "Divide",
+  NumpadDecimal: "Decimal",
+  NumpadEnter: "Enter",
 }
 
 /**
@@ -186,10 +197,40 @@ const KEY_DISPLAY: Record<string, string> = {
   Right: "→",
   Up: "↑",
   Down: "↓",
+  // Without these the catalog reads as its own storage format: editor.reset-view is
+  // bound to Primary+D0 and would render "Ctrl D0" on a page whose whole job is to
+  // tell someone which key to press.
+  Back: "⌫",
+  Delete: "Del",
+  Escape: "Esc",
+  Return: "Enter",
+  PageUp: "PgUp",
+  PageDown: "PgDn",
+  Add: "Num +",
+  Subtract: "Num -",
+  Multiply: "Num *",
+  Divide: "Num /",
+  Decimal: "Num .",
 }
 
-/** A human-readable pill for the first chord, formatted for the current platform. */
-export function formatChord(canonical: string): string {
+/** How a key token is spelled on a cap. */
+function keyLabel(key: string): string {
+  const mapped = KEY_DISPLAY[key]
+  if (mapped) return mapped
+  const digit = /^D([0-9])$/.exec(key)
+  if (digit) return digit[1]
+  const numpad = /^NumPad([0-9])$/.exec(key)
+  if (numpad) return `Num ${numpad[1]}`
+  return key
+}
+
+/**
+ * A chord as the sequence of keys someone presses, each ready to sit on its own cap.
+ *
+ * Modifiers first in the order the desktop pill uses, then the key. On macOS the caps
+ * are the symbols engraved on the keyboard; everywhere else they are words.
+ */
+export function formatChordParts(canonical: string): string[] {
   const chord = parseChord(canonical)
   const labels = isMac ? MOD_LABELS_MAC : MOD_LABELS_OTHER
   const parts: string[] = []
@@ -198,6 +239,12 @@ export function formatChord(canonical: string): string {
   if (chord.ctrl && !chord.primary) parts.push(labels.ctrl)
   if (chord.alt) parts.push(labels.alt)
   if (chord.shift) parts.push(labels.shift)
-  parts.push(KEY_DISPLAY[chord.key] ?? chord.key)
+  parts.push(keyLabel(chord.key))
+  return parts
+}
+
+/** A human-readable pill for the first chord, formatted for the current platform. */
+export function formatChord(canonical: string): string {
+  const parts = formatChordParts(canonical)
   return isMac ? parts.join("") : parts.join(" ")
 }

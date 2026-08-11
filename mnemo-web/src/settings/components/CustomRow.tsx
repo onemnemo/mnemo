@@ -9,10 +9,10 @@ import {
 } from "../assets"
 import { rowDescription, rowTitle } from "../labels"
 import type { CustomRow as CustomRowSchema } from "../types"
+import { AboutIdentityRow } from "./custom/AboutIdentityRow"
 import { CheckForUpdatesRow } from "./custom/CheckForUpdatesRow"
 import { ClearChatHistoryRow } from "./custom/ClearChatHistoryRow"
 import { ImageGalleryRow } from "./custom/ImageGalleryRow"
-import { KeybindManagerRow } from "./custom/KeybindManagerRow"
 import { LanguageRow } from "./custom/LanguageRow"
 import { ModelPickerRow } from "./custom/ModelPickerRow"
 import { ReduceMotionRow } from "./custom/ReduceMotionRow"
@@ -75,10 +75,16 @@ export function CustomRow({ row, divider }: { row: CustomRowSchema; divider: boo
     case "clear-chat-history":
       return <ClearChatHistoryRow {...shared} />
 
-    case "keybind-manager":
-      return <KeybindManagerRow {...shared} />
-
     case "check-for-updates":
       return <CheckForUpdatesRow title={title} divider={divider} />
+
+    case "about-identity":
+      return <AboutIdentityRow />
   }
+
+  // A new CustomRowId with no case above would otherwise return undefined, which React
+  // rejects at render with an error naming this component rather than the row. The
+  // annotation is what makes that a build failure instead: an unhandled id is not `never`.
+  const unhandled: never = row.id
+  throw new Error(`[settings] no renderer for custom row "${String(unhandled)}"`)
 }

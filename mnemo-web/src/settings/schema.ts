@@ -3,21 +3,24 @@ import type { SettingsCategory } from "./types"
 // The settings tree. Mirrors SettingsViewModel.RebuildCategories: same categories in
 // the same order, same storage keys, same defaults, same option lists.
 //
-// Keys named here must also be registered in Mnemo.Host/Settings/SettingsKeyRegistry, 
+// Keys named here must also be registered in Mnemo.Host/Settings/SettingsKeyRegistry,
 // that allowlist is what makes them readable and writable over the API.
+
+/** Where About's rows point. One constant, because three rows are paths under it. */
+const REPOSITORY_URL = "https://github.com/onemnemo/mnemo"
 
 /** Every category, in nav order. Filter with `visibleCategories` before rendering. */
 export const SETTINGS_SCHEMA: SettingsCategory[] = [
   {
-    id: "Account",
-    icon: "circle-user",
-    title: "Account",
-    subtitle: "AccountSubtitle",
-    section: "account",
+    id: "Profile",
+    icon: "user",
+    title: "Profile",
+    subtitle: "ProfileSubtitle",
+    section: "you",
     groups: [
       {
-        id: "Profile",
-        title: "Profile",
+        id: "Identity",
+        title: "Identity",
         rows: [
           {
             kind: "custom",
@@ -39,14 +42,14 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
 
   {
     id: "General",
-    icon: "settings",
+    icon: "settings-2",
     title: "General",
     subtitle: "GeneralSubtitle",
     section: "app",
     groups: [
       {
-        id: "Application",
-        title: "Application",
+        id: "Startup",
+        title: "Startup",
         rows: [
           {
             kind: "toggle",
@@ -56,34 +59,26 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
             defaultValue: false,
           },
           {
-            kind: "toggle",
-            key: "App.EnableToasts",
-            title: "EnableToasts",
-            description: "EnableToastsDescription",
-            defaultValue: true,
-          },
-          { kind: "custom", id: "language", title: "Language", description: "LanguageDescription" },
-          {
-            kind: "custom",
-            id: "keybind-manager",
-            title: "KeybindManager",
-            description: "KeybindManagerDescription",
+            kind: "dropdown",
+            key: "App.OpenTo",
+            title: "OpenTo",
+            description: "OpenToDescription",
+            defaultValue: "last",
+            options: [
+              { value: "last", label: "OpenToLast" },
+              { value: "overview", label: "OpenToOverview" },
+              { value: "notes", label: "OpenToNotes" },
+              { value: "flashcards", label: "OpenToFlashcards" },
+              { value: "soma", label: "OpenToSoma" },
+            ],
           },
         ],
       },
       {
-        id: "Storage",
-        title: "Storage",
+        id: "LanguageAndRegion",
+        title: "LanguageAndRegion",
         rows: [
-          // The desktop renders this button with no command behind it. Kept in place so
-          // the category matches, but rendered disabled rather than silently inert.
-          {
-            kind: "action",
-            id: "clear-cache",
-            title: "ClearCache",
-            description: "ClearCacheDescription",
-            buttonLabel: "ClearNow",
-          },
+          { kind: "custom", id: "language", title: "Language", description: "LanguageDescription" },
         ],
       },
       {
@@ -431,16 +426,15 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
     section: "app",
     groups: [
       {
-        id: "ThemeVisuals",
-        title: "ThemeVisuals",
+        id: "Theme",
+        title: "Theme",
         rows: [
           { kind: "custom", id: "theme-gallery", title: "AppTheme", description: "AppThemeDescription" },
-          { kind: "custom", id: "app-icon-gallery", title: "AppIcon", description: "AppIconDescription" },
         ],
       },
       {
-        id: "Motion",
-        title: "Motion",
+        id: "Interface",
+        title: "Interface",
         rows: [
           // Custom rather than a plain toggle because there are three states to
           // represent, not two: on, off, and following the operating system because the
@@ -448,12 +442,56 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
           { kind: "custom", id: "reduce-motion", title: "ReduceMotion", description: "ReduceMotionDescription" },
         ],
       },
+      {
+        id: "AppIconGroup",
+        title: "AppIconGroup",
+        rows: [
+          { kind: "custom", id: "app-icon-gallery", title: "AppIcon", description: "AppIconDescription" },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: "Keyboard",
+    icon: "keyboard",
+    title: "KeyboardCategoryTitle",
+    subtitle: "KeyboardSubtitle",
+    // The page is called Keyboard; nobody looking for one goes hunting for that word.
+    keywords: ["shortcut", "shortcuts", "keybind", "keybinds", "hotkey", "hotkeys", "quick actions"],
+    section: "app",
+    // Its own surface: a searchable catalogue with a recorder in every row is not a
+    // list of label/control pairs, and the rest of settings is nothing but those.
+    page: "keyboard",
+    groups: [],
+  },
+
+  {
+    id: "Notifications",
+    icon: "bell",
+    title: "Notifications",
+    subtitle: "NotificationsSubtitle",
+    section: "app",
+    groups: [
+      {
+        id: "InApp",
+        title: "InApp",
+        rows: [
+          {
+            kind: "toggle",
+            key: "App.EnableToasts",
+            title: "EnableToasts",
+            description: "EnableToastsDescription",
+            defaultValue: true,
+          },
+        ],
+      },
     ],
   },
 
   {
     id: "Updates",
-    icon: "refresh-cw",
+    icon: "download",
     title: "UpdatesCategoryTitle",
     subtitle: "UpdatesSubtitle",
     section: "app",
@@ -470,6 +508,57 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
             defaultValue: true,
           },
           { kind: "custom", id: "check-for-updates", title: "CheckForUpdatesNow" },
+          {
+            kind: "action",
+            id: "release-notes",
+            title: "ReleaseNotes",
+            description: "ReleaseNotesDescription",
+            buttonLabel: "ViewOnGitHub",
+            href: `${REPOSITORY_URL}/releases`,
+          },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: "About",
+    icon: "info",
+    title: "About",
+    subtitle: "AboutSubtitle",
+    keywords: ["licence", "license", "credits", "open source", "repository", "github", "version"],
+    section: "advanced",
+    groups: [
+      // Untitled: the identity block is the page's own header, not a section of it.
+      { id: "Identity", rows: [{ kind: "custom", id: "about-identity" }] },
+      {
+        id: "Project",
+        title: "Project",
+        rows: [
+          {
+            kind: "action",
+            id: "repository",
+            title: "Repository",
+            description: "RepositoryDescription",
+            buttonLabel: "ViewOnGitHub",
+            href: REPOSITORY_URL,
+          },
+          {
+            kind: "action",
+            id: "licence",
+            title: "Licence",
+            description: "LicenceDescription",
+            buttonLabel: "ReadIt",
+            href: `${REPOSITORY_URL}/blob/main/LICENSE`,
+          },
+          {
+            kind: "action",
+            id: "third-party-licences",
+            title: "ThirdPartyLicences",
+            description: "ThirdPartyLicencesDescription",
+            buttonLabel: "View",
+            href: `${REPOSITORY_URL}/blob/main/NOTICE`,
+          },
         ],
       },
     ],
@@ -480,7 +569,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
     icon: "terminal",
     // Untranslated in the desktop; carried over as-is.
     title: "Developer",
-    section: "app",
+    section: "advanced",
     visible: (context) => context.developerMode,
     groups: [
       {

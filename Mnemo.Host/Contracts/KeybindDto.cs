@@ -20,7 +20,8 @@ public sealed record KeybindDto(
     string? LabelKey,
     string? DescriptionKey,
     string? CategoryKey,
-    IReadOnlyList<KeybindBindingDto> Bindings)
+    IReadOnlyList<KeybindBindingDto> Bindings,
+    bool IsOverridden)
 {
     public static KeybindDto FromDefinition(KeybindActionDefinition def) => new(
         def.ActionId,
@@ -33,7 +34,8 @@ public sealed record KeybindDto(
         def.DisplayLabelKey,
         def.DisplayDescriptionKey,
         def.DisplayCategoryKey,
-        def.Bindings.Select(KeybindBindingDto.FromEntry).ToList());
+        def.Bindings.Select(KeybindBindingDto.FromEntry).ToList(),
+        def.IsOverridden);
 }
 
 /// <summary>One alternative binding: a single chord or an ordered sequence of chords.</summary>

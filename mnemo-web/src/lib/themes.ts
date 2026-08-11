@@ -1,40 +1,69 @@
-// The theme catalog. Two themes, matching the [data-theme] blocks in styles/tokens.css.
+// The theme catalog. Two themes, matching the [data-theme] blocks in styles/tokens.css,
+// plus the option of letting the operating system pick between them.
 //
 // The app used to ship four (dawn, noon, dusk, ember) ported from the Avalonia themes.
 // The rehaul replaced that palette with a single light and dark pair, so the old ids
 // survive only as something to migrate off: they are still sitting in Appearance.Theme
-// for every existing install, and in whatever GET /themes reports.
+// for every existing install.
 
+/** A theme that can actually be rendered. This is what lands on `data-theme`. */
 export type ThemeId = "light" | "dark"
+
+/** What the user chose. "system" resolves to a {@link ThemeId} at apply time. */
+export type ThemePreference = ThemeId | "system"
+
 export type ThemeAppearance = "light" | "dark"
+
+/**
+ * The surfaces a theme card draws its miniature app from.
+ *
+ * Literal rather than read off the live tokens, because every theme has to be
+ * previewable at once and only one of them is applied at any moment. Transcribed from
+ * `styles/tokens.css`; a change there is a change here.
+ */
+export interface ThemeSurfaces {
+  /** The sidebar rail. */
+  frame: string
+  /** The page the module sits on. */
+  canvas: string
+  /** Text, at full strength. The preview steps it down with opacity. */
+  ink: string
+  /** The hairline between rail and canvas. */
+  line: string
+}
 
 export interface ThemeInfo {
   id: ThemeId
   name: string
   description: string
   appearance: ThemeAppearance
-  /**
-   * Swatches for the picker, in rail-to-accent order. Literal rather than read off the
-   * live tokens, because both themes have to be previewable at once and only one of
-   * them is the applied one at any moment.
-   */
-  previewColors: readonly string[]
+  surfaces: ThemeSurfaces
 }
 
 export const THEMES: readonly ThemeInfo[] = [
   {
     id: "light",
     name: "Light",
-    description: "Mnemo's default light theme",
+    description: "Paper",
     appearance: "light",
-    previewColors: ["oklch(0.988 0.0015 260)", "oklch(1 0 0)", "oklch(0.937 0.003 260)", "oklch(0.63 0.185 40)"],
+    surfaces: {
+      frame: "oklch(0.988 0.0015 260)",
+      canvas: "oklch(1 0 0)",
+      ink: "oklch(0.26 0.008 260)",
+      line: "oklch(0.9 0.00225 260)",
+    },
   },
   {
     id: "dark",
     name: "Dark",
-    description: "Mnemo's dark theme",
+    description: "Ink",
     appearance: "dark",
-    previewColors: ["oklch(0.203 0.005 260)", "oklch(0.218 0.006 260)", "oklch(0.288 0.009 260)", "oklch(0.7 0.17 40)"],
+    surfaces: {
+      frame: "oklch(0.203 0.005 260)",
+      canvas: "oklch(0.218 0.006 260)",
+      ink: "oklch(0.955 0.003 260)",
+      line: "oklch(0.31 0.008 260)",
+    },
   },
 ]
 
@@ -70,4 +99,50 @@ export function resolveThemeId(value: string | null | undefined): ThemeId {
   if (isThemeId(value)) return value
   if (value != null && value in RETIRED) return RETIRED[value]
   return DEFAULT_THEME
+}
+
+/**
+ * A stored value as a preference, keeping "system" distinct from whatever it currently
+ * resolves to. Everything else collapses through {@link resolveThemeId}.
+ */
+export function resolveThemePreference(value: string | null | undefined): ThemePreference {
+  return value === "system" ? "system" : resolveThemeId(value)
+}
+
+const DARK_QUERY = "(prefers-color-scheme: dark)"
+
+/**
+ * The OS colour-scheme query, or null where there is nothing to ask.
+ *
+ * Checked rather than assumed because this module is imported by components under
+ * test, and a DOM implementation is free to omit `matchMedia`. A theme is not worth
+ * taking a test environment, or a webview, down over.
+ */
+function darkQuery(): MediaQueryList | null {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return null
+  return window.matchMedia(DARK_QUERY)
+}
+
+/** What the operating system currently asks for. */
+export function systemTheme(): ThemeId {
+  return darkQuery()?.matches ? "dark" : "light"
+}
+
+/**
+ * Calls back whenever the operating system's preference flips. Returns the disposer.
+ *
+ * Separate from the store so the store owns *when* it matters (only while the
+ * preference is "system") rather than having to know how the platform reports it.
+ */
+export function watchSystemTheme(onChange: (theme: ThemeId) => void): () => void {
+  const query = darkQuery()
+  if (!query) return () => {}
+  const listener = (event: MediaQueryListEvent) => onChange(event.matches ? "dark" : "light")
+  query.addEventListener("change", listener)
+  return () => query.removeEventListener("change", listener)
+}
+
+/** The theme a preference renders as right now. */
+export function themeFor(preference: ThemePreference): ThemeId {
+  return preference === "system" ? systemTheme() : preference
 }

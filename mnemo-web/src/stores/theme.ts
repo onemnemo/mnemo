@@ -1,7 +1,13 @@
 import { create } from "zustand"
 
 import { putTheme } from "@/api/settings"
-import { DEFAULT_THEME, type ThemeId } from "@/lib/themes"
+import {
+  DEFAULT_THEME,
+  themeFor,
+  watchSystemTheme,
+  type ThemeId,
+  type ThemePreference,
+} from "@/lib/themes"
 
 // The chosen theme lives in backend settings (Appearance.Theme), shared with the
 // desktop app. It is hydrated at startup (see SettingsProvider) and persisted on
@@ -10,34 +16,53 @@ import { DEFAULT_THEME, type ThemeId } from "@/lib/themes"
 // source of truth (see the early-apply script in index.html).
 const PAINT_HINT_KEY = "mnemo.theme"
 
-function applyTheme(theme: ThemeId): void {
+function applyTheme(theme: ThemeId, preference: ThemePreference): void {
   document.documentElement.setAttribute("data-theme", theme)
   try {
-    localStorage.setItem(PAINT_HINT_KEY, theme)
+    // The preference, not the resolved theme: a machine that changed its mind while
+    // the app was closed should paint the new answer, not the one from last time.
+    localStorage.setItem(PAINT_HINT_KEY, preference)
   } catch {
     // Non-fatal: the theme still applies for this session.
   }
 }
 
 interface ThemeState {
+  /** What the user chose. */
+  preference: ThemePreference
+  /** What that renders as, and what is on `data-theme`. */
   theme: ThemeId
-  /** Apply a theme from persisted settings without writing back (startup). */
-  hydrate: (theme: ThemeId) => void
-  /** Change the theme and persist it to backend settings. */
-  setTheme: (theme: ThemeId) => void
+  /** Apply a preference from persisted settings without writing back (startup). */
+  hydrate: (preference: ThemePreference) => void
+  /** Change the preference and persist it to backend settings. */
+  setPreference: (preference: ThemePreference) => void
 }
 
 export const useThemeStore = create<ThemeState>((set) => ({
+  preference: DEFAULT_THEME,
   theme: DEFAULT_THEME,
-  hydrate: (theme) => {
-    applyTheme(theme)
-    set({ theme })
+  hydrate: (preference) => {
+    const theme = themeFor(preference)
+    applyTheme(theme, preference)
+    set({ preference, theme })
   },
-  setTheme: (theme) => {
-    applyTheme(theme)
-    set({ theme })
+  setPreference: (preference) => {
+    const theme = themeFor(preference)
+    applyTheme(theme, preference)
+    set({ preference, theme })
     // Fire-and-forget: the DOM already reflects the change; persistence is durable
     // background work the user does not wait on.
-    void putTheme(theme)
+    void putTheme(preference)
   },
 }))
+
+// One listener for the life of the process rather than a subscription per component:
+// the operating system flipping is a fact about the machine, and the store decides
+// whether it is currently being followed. Re-applying while the preference is explicit
+// would override a choice the user made on purpose.
+watchSystemTheme((theme) => {
+  const state = useThemeStore.getState()
+  if (state.preference !== "system" || state.theme === theme) return
+  applyTheme(theme, "system")
+  useThemeStore.setState({ theme })
+})

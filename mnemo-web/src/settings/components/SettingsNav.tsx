@@ -9,12 +9,13 @@ import { useSettingValue } from "../store"
 import type { SettingsCategory, SettingsSection } from "../types"
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
-  account: "NavAccount",
+  you: "NavYou",
   app: "NavApp",
   modules: "NavModules",
+  advanced: "NavAdvanced",
 }
 
-const SECTION_ORDER: SettingsSection[] = ["account", "app", "modules"]
+const SECTION_ORDER: SettingsSection[] = ["you", "app", "modules", "advanced"]
 
 /**
  * The settings rail: search, then categories grouped by section.
@@ -118,9 +119,9 @@ function NavItem({
       )}
       style={{ transitionDuration: "var(--duration-fast)" }}
     >
-      {/* Account wears the actual profile picture rather than a generic mark: it is the one
+      {/* Profile wears the actual profile picture rather than a generic mark: it is the one
           category that is about a specific person, and the picture says so faster than any glyph. */}
-      {category.id === "Account" ? (
+      {category.id === "Profile" ? (
         <img src={assetUrl(avatar) ?? undefined} alt="" className="size-4 shrink-0 rounded-full object-cover" />
       ) : (
         <AppIcon name={category.icon} size={16} strokeWidth={1.5} className={cn(!selected && "text-ink-icon")} />
