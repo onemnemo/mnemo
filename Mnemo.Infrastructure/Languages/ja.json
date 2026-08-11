@@ -651,6 +651,14 @@
     "ColorNone": "なし"
   },
   "Mindmap": {
+    "Loading": "マップを読み込んでいます...",
+    "MapIsEmpty": "このマップは空です。",
+    "MapNotFound": "このマインドマップを開けませんでした。",
+    "NodeCountFormat": "{0} 個のノード",
+    "TemplatesUnavailable": "スタイルテンプレートを読み込めなかったため、このマップは装飾なしで表示されています。",
+    "UntitledMap": "無題のマップ",
+    "Move": "移動",
+    "EditRejected": "この変更を適用できませんでした。",
     "Title": "マインドマップ",
     "Subtitle": "つながりを可視化し、アイデアを Brainstorm します。",
     "NewMindmap": "新しいマインドマップ",

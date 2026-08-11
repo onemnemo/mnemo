@@ -126,6 +126,28 @@ export function childrenIds(hierarchy: Hierarchy, id: string): readonly string[]
   return hierarchy.childrenOf.get(id) ?? NO_CHILDREN
 }
 
+/**
+ * Every descendant of a node, flattened, collapsed ones included.
+ *
+ * Collapsed ones included is the point: they are absent from the scene but present in the document
+ * with stored coordinates, so a drag that skipped them would leave them where they were and expanding
+ * the node afterwards would find its children scattered back at the old place.
+ */
+export function descendantsOf(hierarchy: Hierarchy, id: string): string[] {
+  const found: string[] = []
+  const stack = [...childrenIds(hierarchy, id)]
+  const seen = new Set<string>()
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    if (!seen.add(current)) {
+      continue
+    }
+    found.push(current)
+    stack.push(...childrenIds(hierarchy, current))
+  }
+  return found
+}
+
 /** How many nodes a collapse is hiding, for the chip that says so. */
 export function hiddenDescendantCount(hierarchy: Hierarchy, id: string): number {
   let count = 0

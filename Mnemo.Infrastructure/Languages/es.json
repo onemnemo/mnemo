@@ -651,6 +651,14 @@
     "ColorNone": "Ninguno"
   },
   "Mindmap": {
+    "Loading": "Cargando el mapa...",
+    "MapIsEmpty": "Este mapa está vacío.",
+    "MapNotFound": "No se pudo abrir ese mapa mental.",
+    "NodeCountFormat": "{0} nodos",
+    "TemplatesUnavailable": "No se pudieron cargar las plantillas de estilo, así que este mapa se dibuja sin ellas.",
+    "UntitledMap": "Mapa sin título",
+    "Move": "Mover",
+    "EditRejected": "No se pudo aplicar ese cambio.",
     "Title": "Mapas mentales",
     "Subtitle": "Visualice conexiones y proponga ideas",
     "NewMindmap": "Nuevo mapa mental",

@@ -57,6 +57,7 @@ import {
   Sigma,
   Underline,
   LoaderCircle,
+  Minus,
   Monitor,
   Moon,
   Network,
@@ -122,6 +123,9 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
 
   // Actions
   plus: Plus,
+  // The other half of a zoom control. There is no project glyph for it, and a hyphen in a button is
+  // not an icon.
+  minus: Minus,
   x: X,
   check: Check,
   "check-check": CheckCheck,

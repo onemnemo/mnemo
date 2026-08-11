@@ -26,7 +26,7 @@ export const MindmapNode = memo(function MindmapNode({ element }: { element: Sce
 
   return (
     <div
-      className="mm-node absolute left-0 top-0 select-none will-change-transform"
+      className="mm-node group absolute left-0 top-0 select-none will-change-transform"
       data-mm-id={element.id}
       style={{
         transform: `translate(${element.x}px, ${element.y}px)`,
@@ -34,6 +34,17 @@ export const MindmapNode = memo(function MindmapNode({ element }: { element: Sce
         height: element.height,
       }}
     >
+      {/* Outside the body rather than a ring on it, so a plain node with no box still shows one, and
+          so selecting something never changes its size and nudges the layout. The attribute it keys
+          off is written by the scene index, not by React: selection changes at pointer rate. */}
+      <span
+        className={cn(
+          "pointer-events-none absolute -inset-[3px] hidden group-data-[selected]:block",
+          "shadow-[0_0_0_1.5px_var(--accent)]",
+          isRoot ? "rounded-[17px]" : nodeShape === "pill" ? "rounded-full" : "rounded-[13px]",
+        )}
+        aria-hidden
+      />
       <div
         className={cn(
           "flex h-full w-full items-center",
