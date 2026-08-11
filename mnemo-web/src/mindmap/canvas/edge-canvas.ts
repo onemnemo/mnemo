@@ -16,7 +16,15 @@
 
 import type { ArrowCap, SceneEdge } from '../model/scene'
 import type { Viewport } from '../model/scene'
-import { anchorsFor, branchShape, capsOf, edgeShape, type EdgeStroke, type ElementBox } from './edge-paths'
+import {
+  anchorsFor,
+  branchShape,
+  capsOf,
+  edgeShape,
+  railsFor,
+  type EdgeStroke,
+  type ElementBox,
+} from './edge-paths'
 import { strokeStyleFor, type EdgeStrokeStyle } from './edge-style'
 
 /**
@@ -97,6 +105,7 @@ export interface EdgeCanvasRenderer {
 }
 
 const NO_DASH: number[] = []
+const NO_NUMBERS: readonly number[] = []
 
 /**
  * A curve flattened to plain numbers, cached per edge.
@@ -113,12 +122,15 @@ const NO_DASH: number[] = []
 interface CachedStroke {
   /**
    * `cubic` is 6 numbers after the initial move; `polyline` is a flat tail of x,y pairs; `ribbon`
-   * is 6 for the outbound curve, 2 for the cap across the far end, then 6 for the return.
+   * is 6 for the outbound curve, 2 for the cap across the far end, then 6 for the return. `rails`
+   * leaves all three empty and carries its points in `runs` instead, one flat x,y run per rail.
    */
-  readonly kind: 'cubic' | 'polyline' | 'ribbon'
+  readonly kind: 'cubic' | 'polyline' | 'ribbon' | 'rails'
   readonly sx: number
   readonly sy: number
   readonly rest: readonly number[]
+  /** Only for `rails`: one flat x,y run per rail, each traced as its own subpath. */
+  readonly runs?: readonly (readonly number[])[]
   /** Where an arrowhead or dot goes, when this edge asked for one. Cached with the curve it sits on. */
   readonly caps: readonly CapDraw[]
 }
@@ -139,10 +151,28 @@ interface CapDraw {
  */
 export function strokeFor(edge: SceneEdge, anchors: ReturnType<typeof anchorsFor>): EdgeStroke {
   const routing = edge.routing ?? 'curve'
-  if (edge.fromWidth !== undefined && edge.toWidth !== undefined) {
-    return branchShape(routing, anchors, edge.fromWidth, edge.toWidth).stroke
+  const stroke =
+    edge.fromWidth !== undefined && edge.toWidth !== undefined
+      ? branchShape(routing, anchors, edge.fromWidth, edge.toWidth).stroke
+      : edgeShape(routing, anchors).stroke
+
+  // A double line is geometry rather than a dash pattern, so it is decided here with the rest of the
+  // shape and every consumer downstream just draws what it is handed.
+  if (edge.lineStyle === 'double') {
+    return railsFor(stroke, doubleSeparation(strokeStyleFor(edge).width))
   }
-  return edgeShape(routing, anchors).stroke
+  return stroke
+}
+
+/**
+ * How far apart the two lines of a double line sit, centre to centre.
+ *
+ * Two strokes with a gap the same weight as themselves, which is what makes it read as one doubled
+ * line rather than as two lines that happen to be near each other. Scaled by the edge's own weight so
+ * a thick double and a thin one look like the same idea.
+ */
+function doubleSeparation(width: number): number {
+  return width * 2
 }
 
 function cacheStroke(stroke: EdgeStroke, edge: SceneEdge): CachedStroke {
@@ -156,6 +186,15 @@ function cacheStroke(stroke: EdgeStroke, edge: SceneEdge): CachedStroke {
       rest: [stroke.c1x, stroke.c1y, stroke.c2x, stroke.c2y, stroke.tx, stroke.ty],
       caps,
     }
+  }
+
+  if (stroke.kind === 'rails') {
+    const runs = stroke.rails.map((rail) => {
+      const flat: number[] = []
+      for (const point of rail) flat.push(point.x, point.y)
+      return flat
+    })
+    return { kind: 'rails', sx: 0, sy: 0, rest: NO_NUMBERS, runs, caps }
   }
 
   if (stroke.kind === 'ribbon') {
@@ -225,6 +264,16 @@ function traceCap(context: EdgeCanvasContext, cap: CapDraw, width: number): void
 }
 
 function traceCached(context: EdgeCanvasContext, cached: CachedStroke): void {
+  // Each rail is its own subpath, so they are two lines rather than one line that doubles back.
+  if (cached.kind === 'rails') {
+    for (const run of cached.runs ?? []) {
+      if (run.length < 4) continue
+      context.moveTo(run[0], run[1])
+      for (let i = 2; i < run.length; i += 2) context.lineTo(run[i], run[i + 1])
+    }
+    return
+  }
+
   context.moveTo(cached.sx, cached.sy)
   const rest = cached.rest
 

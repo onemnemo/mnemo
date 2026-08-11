@@ -7,6 +7,7 @@ import {
   edgeGeometry,
   edgeShape,
   isFilled,
+  railsFor,
   strokeToPathData,
   type ElementBox,
 } from './edge-paths'
@@ -283,5 +284,71 @@ describe('cap placement', () => {
 
   it('has none for a ribbon, whose taper already says which end is which', () => {
     expect(capsOf(branchShape('curve', a, 7, 2).stroke)).toBeNull()
+  })
+})
+
+describe('railsFor', () => {
+  const straight = anchorsFor(box(0, 0), box(300, 0))
+
+  const railsOf = (separation: number) => {
+    const stroke = railsFor(edgeShape('curve', straight).stroke, separation)
+    if (stroke.kind !== 'rails') throw new Error('expected rails')
+    return stroke.rails
+  }
+
+  it('draws two lines, not one', () => {
+    expect(railsOf(4)).toHaveLength(2)
+  })
+
+  it('holds them the asked-for distance apart, all the way along', () => {
+    const [left, right] = railsOf(4)
+
+    for (let i = 0; i < left.length; i++) {
+      expect(Math.hypot(left[i].x - right[i].x, left[i].y - right[i].y)).toBeCloseTo(4, 6)
+    }
+  })
+
+  it('straddles the line it was offset from, rather than sitting to one side of it', () => {
+    // Both boxes are level here, so the curve between them runs flat and the rails land either side.
+    const [one, other] = railsOf(6)
+    const centre = edgeShape('curve', straight).stroke
+
+    if (centre.kind !== 'cubic') throw new Error('expected a cubic')
+    expect((one[0].y + other[0].y) / 2).toBeCloseTo(centre.sy, 6)
+    expect(Math.min(one[0].y, other[0].y)).toBeLessThan(centre.sy)
+    expect(Math.max(one[0].y, other[0].y)).toBeGreaterThan(centre.sy)
+  })
+
+  it('puts the caps on the line the rails came from, not on either rail', () => {
+    const doubled = capsOf(railsFor(edgeShape('curve', straight).stroke, 6))!
+    const single = capsOf(edgeShape('curve', straight).stroke)!
+
+    expect(doubled.end.x).toBeCloseTo(single.end.x, 6)
+    expect(doubled.end.y).toBeCloseTo(single.end.y, 6)
+  })
+
+  it('writes one path with a subpath per rail, so an edge still owns one node', () => {
+    const data = strokeToPathData(railsFor(edgeShape('curve', straight).stroke, 4))
+
+    expect(data.match(/M/g)).toHaveLength(2)
+    expect(isFilled(railsFor(edgeShape('curve', straight).stroke, 4))).toBe(false)
+  })
+
+  it('leaves a ribbon alone, because a taper doubled is a shape with a hole in it', () => {
+    const ribbon = branchShape('curve', straight, 7, 2).stroke
+
+    expect(railsFor(ribbon, 4)).toBe(ribbon)
+  })
+
+  it('keeps the rails parallel around the corner of an elbow', () => {
+    const corner = anchorsFor(box(0, 0), box(240, 300))
+    const stroke = railsFor(edgeShape('orthogonal', corner).stroke, 5)
+    if (stroke.kind !== 'rails') throw new Error('expected rails')
+
+    // A normal taken from the segment before each point would pinch the inside of the turn.
+    const [left, right] = stroke.rails
+    for (let i = 0; i < left.length; i++) {
+      expect(Math.hypot(left[i].x - right[i].x, left[i].y - right[i].y)).toBeCloseTo(5, 6)
+    }
   })
 })
