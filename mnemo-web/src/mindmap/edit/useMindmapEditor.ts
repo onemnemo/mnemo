@@ -20,10 +20,12 @@ import { EventType, type AppEvent, type MindmapChangedEventData } from "@/events
 
 import {
   applyMindmapOps,
+  arrangeMindmap,
   foldEditIntoCache,
   foldRestoreIntoCache,
   mapKey,
   restoreMindmap,
+  type EditOutcome,
   type MindmapEditError,
   type MindmapOpsResult,
 } from "../api"
@@ -62,6 +64,18 @@ export interface MindmapEditor {
    * landed, either because it was refused or because the map moved on and was refetched instead.
    */
   apply(ops: MindmapOp[], step: EditStep): Promise<MindmapOpsResult | null>
+  /**
+   * Asks the server to lay the map out and commits what it computes, as one batch and one undo step.
+   *
+   * The sizes are the client's, because a node is as wide as its rendered text and nothing on the
+   * server has seen the font. An arrange of a map already in that shape moves nothing and records
+   * nothing.
+   */
+  arrange(
+    sizes: Record<string, [number, number]>,
+    step: EditStep,
+    algorithm?: string,
+  ): Promise<MindmapOpsResult | null>
   undo(): void
   redo(): void
   canUndo: boolean
@@ -121,16 +135,28 @@ export function useMindmapEditor(mapId: string | null): MindmapEditor {
     return next
   }, [])
 
-  const apply = useCallback(
-    (ops: MindmapOp[], step: EditStep): Promise<MindmapOpsResult | null> =>
+  /**
+   * The one write path.
+   *
+   * Everything that changes the document comes through here whatever computed the batch, because this
+   * is where a write is serialized against the others, where it names the revision it expects, where
+   * the answer is folded into the cache, and where the undo step is recorded. A second path would be a
+   * second place for all four to be got subtly differently.
+   */
+  const commit = useCallback(
+    (
+      step: EditStep,
+      send: (id: string, revision: number) => Promise<EditOutcome>,
+    ): Promise<MindmapOpsResult | null> =>
       enqueue(async () => {
-        if (!mapId || ops.length === 0) {
+        if (!mapId) {
           return null
         }
 
+        const before = revisionOf(mapId)
         liveRef.current = beginWrite(liveRef.current)
         try {
-          const outcome = await applyMindmapOps(mapId, revisionOf(mapId), ops)
+          const outcome = await send(mapId, before)
 
           if (outcome.status !== "applied") {
             liveRef.current = endWrite(liveRef.current, outcome.error.revision)
@@ -145,6 +171,12 @@ export function useMindmapEditor(mapId: string | null): MindmapEditor {
           const { result } = outcome
           liveRef.current = endWrite(liveRef.current, result.revision)
           setRejected(null)
+
+          // A write that did not move the revision changed nothing, so there is nothing to fold and
+          // nothing worth an undo step. An arrange of a map already in that shape lands here.
+          if (result.revision === before) {
+            return result
+          }
 
           // The server withholds the delta when another session's commit interleaved, and a fold is
           // exactly what must not happen then.
@@ -170,6 +202,24 @@ export function useMindmapEditor(mapId: string | null): MindmapEditor {
         }
       }),
     [client, enqueue, mapId, reload, revisionOf, setHistory],
+  )
+
+  const apply = useCallback(
+    (ops: MindmapOp[], step: EditStep): Promise<MindmapOpsResult | null> =>
+      ops.length === 0
+        ? Promise.resolve(null)
+        : commit(step, (id, revision) => applyMindmapOps(id, revision, ops)),
+    [commit],
+  )
+
+  const arrange = useCallback(
+    (
+      sizes: Record<string, [number, number]>,
+      step: EditStep,
+      algorithm?: string,
+    ): Promise<MindmapOpsResult | null> =>
+      commit(step, (id, revision) => arrangeMindmap(id, revision, sizes, algorithm)),
+    [commit],
   )
 
   /**
@@ -223,6 +273,7 @@ export function useMindmapEditor(mapId: string | null): MindmapEditor {
 
   return {
     apply,
+    arrange,
     undo: useCallback(() => travel("undo"), [travel]),
     redo: useCallback(() => travel("redo"), [travel]),
     canUndo: canUndo(history),

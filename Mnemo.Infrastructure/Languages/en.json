@@ -701,6 +701,7 @@
     "SlashMenuLabel": "Insert a block"
   },
   "Mindmap": {
+    "LayoutTooltip": "Arrange the whole map",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Add text",
     "Connect": "Connect",

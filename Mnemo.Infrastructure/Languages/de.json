@@ -645,6 +645,7 @@
     "ColorNone": "Keine"
   },
   "Mindmap": {
+    "LayoutTooltip": "Die ganze Karte anordnen",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Text hinzufügen",
     "Connect": "Verbinden",

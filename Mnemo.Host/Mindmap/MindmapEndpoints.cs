@@ -24,6 +24,9 @@ public static class MindmapEndpoints
     private const string DefaultTitle = "Untitled map";
     private const int FindLimit = 50;
 
+    private static readonly IReadOnlyDictionary<string, string> EmptyIds =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
     public static void MapMindmaps(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/api/mindmaps", async (IMindmapService maps, CancellationToken cancellationToken) =>
@@ -135,6 +138,79 @@ public static class MindmapEndpoints
 
         endpoints.MapPost("/api/mindmaps/{id}/restore", (string id, HttpRequest request, IMindmapService maps, CancellationToken cancellationToken) =>
             RestoreAsync(id, request.Body, maps, cancellationToken));
+
+        endpoints.MapPost("/api/mindmaps/{id}/arrange", (
+                string id,
+                HttpRequest request,
+                IMindmapService maps,
+                IMindmapLayoutService layout,
+                CancellationToken cancellationToken) =>
+            ArrangeAsync(id, request.Body, maps, layout, cancellationToken));
+    }
+
+    /// <summary>
+    /// Lays the map out and commits the result as one batch of moves.
+    /// <para>
+    /// It answers in exactly the shape <c>/ops</c> does, because it IS an edit: the client folds the same
+    /// delta into the same cache and pushes the same single entry onto its undo stack. An arrange nobody
+    /// liked is one Ctrl+Z, which is the whole reason layout is a thing you ask for here rather than a
+    /// thing that happens to you after every keystroke.
+    /// </para>
+    /// </summary>
+    public static async Task<IResult> ArrangeAsync(
+        string id,
+        Stream requestBody,
+        IMindmapService maps,
+        IMindmapLayoutService layout,
+        CancellationToken cancellationToken = default)
+    {
+        var (ok, body, error) = await MindmapJson.ReadAsync<ArrangeMindmapDto>(requestBody, cancellationToken).ConfigureAwait(false);
+        if (!ok)
+            return error!;
+
+        var before = (await maps.GetAsync(id, cancellationToken).ConfigureAwait(false)).Value;
+        if (before is null)
+            return UnknownMap(id);
+
+        if (before.Revision != body!.ExpectedRevision)
+            return MindmapJson.Json(
+                new MindmapEditErrorDto(
+                    "rev_conflict",
+                    $"Revision {body.ExpectedRevision} is stale; the map is at {before.Revision}.",
+                    before.Revision, null, null, null),
+                StatusCodes.Status409Conflict);
+
+        var sizes = ReadSizes(body.Sizes);
+        var moves = await MindmapArrange
+            .ComputeAsync(before, sizes, Blank(body.Algorithm), layout, cancellationToken)
+            .ConfigureAwait(false);
+
+        // A map already in the shape the layout would give it is not an edit. Answering with the current
+        // revision and no deltas leaves the client's document and its undo stack alone.
+        if (moves.Count == 0)
+            return MindmapJson.Ok(new MindmapOpsResultDto(
+                before.Revision, EmptyIds, 0, null, null, OrderOf(before)));
+
+        return await CommitAsync(id, before, body.ExpectedRevision, moves, maps, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static IReadOnlyDictionary<string, MindmapArrangeSize> ReadSizes(
+        IReadOnlyDictionary<string, double[]>? sizes)
+    {
+        var read = new Dictionary<string, MindmapArrangeSize>(StringComparer.Ordinal);
+        if (sizes is null)
+            return read;
+
+        foreach (var (elementId, pair) in sizes)
+        {
+            // A malformed pair is dropped rather than refused: a size is an optimization over the stored
+            // one, and failing the whole arrange over a bad number would be a worse answer than a
+            // slightly crowded branch.
+            if (pair is { Length: >= 2 } && double.IsFinite(pair[0]) && double.IsFinite(pair[1]))
+                read[elementId] = new MindmapArrangeSize(pair[0], pair[1]);
+        }
+
+        return read;
     }
 
     /// <summary>
@@ -168,7 +244,21 @@ public static class MindmapEndpoints
         if (before is null)
             return UnknownMap(id);
 
-        var applied = await maps.ApplyAsync(id, body.ExpectedRevision, ops, cancellationToken).ConfigureAwait(false);
+        return await CommitAsync(id, before, body.ExpectedRevision, ops, maps, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Applies an op list against a document already read, and builds the answer both write paths share.
+    /// </summary>
+    private static async Task<IResult> CommitAsync(
+        string id,
+        MindmapDocument before,
+        long expectedRevision,
+        IReadOnlyList<MindmapEditOp> ops,
+        IMindmapService maps,
+        CancellationToken cancellationToken)
+    {
+        var applied = await maps.ApplyAsync(id, expectedRevision, ops, cancellationToken).ConfigureAwait(false);
         if (!applied.IsSuccess || applied.Value is null)
             return ServerError(applied.ErrorMessage, $"The edit batch for mindmap '{id}' could not be applied.");
 
