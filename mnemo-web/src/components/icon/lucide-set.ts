@@ -78,6 +78,7 @@ import {
   Settings2,
   Sparkles,
   Spline,
+  Square,
   SquareStack,
   Star,
   Store,
@@ -147,6 +148,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   "mouse-pointer-2": MousePointer2,
   spline: Spline,
   maximize: Maximize,
+  square: Square,
 
   // The card editor's formatting bar.
   bold: Bold,

@@ -651,6 +651,14 @@
     "ColorNone": "なし"
   },
   "Mindmap": {
+    "GroupLine": "線",
+    "GroupRouting": "経路",
+    "GroupCaps": "端点",
+    "CapNone": "なし",
+    "CapArrow": "矢印",
+    "CapDot": "点",
+    "CapStart": "始点",
+    "CapEnd": "終点",
     "LayoutTooltip": "マップ全体を整列",
     "ShortcutHintFormat": "{0}（{1}）",
     "AddText": "テキストを追加",

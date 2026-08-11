@@ -651,6 +651,14 @@
     "ColorNone": "Ninguno"
   },
   "Mindmap": {
+    "GroupLine": "LÍNEA",
+    "GroupRouting": "TRAZADO",
+    "GroupCaps": "EXTREMOS",
+    "CapNone": "Ninguno",
+    "CapArrow": "Flecha",
+    "CapDot": "Punto",
+    "CapStart": "Inicio",
+    "CapEnd": "Fin",
     "LayoutTooltip": "Organizar todo el mapa",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Añadir texto",

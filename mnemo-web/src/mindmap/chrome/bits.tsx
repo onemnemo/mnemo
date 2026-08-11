@@ -40,6 +40,8 @@ export interface SlotProps {
   onClick?: () => void
   onPointerDown?: (event: React.PointerEvent<HTMLButtonElement>) => void
   onPointerUp?: (event: React.PointerEvent<HTMLButtonElement>) => void
+  onPointerLeave?: (event: React.PointerEvent<HTMLButtonElement>) => void
+  onPointerCancel?: (event: React.PointerEvent<HTMLButtonElement>) => void
   /** For a readout rather than a glyph, which needs room for three digits and a sign. */
   wide?: boolean
 }
@@ -53,6 +55,8 @@ export function Slot({
   onClick,
   onPointerDown,
   onPointerUp,
+  onPointerLeave,
+  onPointerCancel,
   wide,
 }: SlotProps) {
   return (
@@ -65,6 +69,8 @@ export function Slot({
       onClick={onClick}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
+      onPointerLeave={onPointerLeave}
+      onPointerCancel={onPointerCancel}
       className={cn(
         "grid h-7 shrink-0 place-items-center rounded-[7px] transition-colors duration-120",
         wide ? "min-w-[46px] px-1.5 text-[11.5px] font-medium tabular-nums" : "w-7",

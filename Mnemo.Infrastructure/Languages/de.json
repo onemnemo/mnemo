@@ -645,6 +645,14 @@
     "ColorNone": "Keine"
   },
   "Mindmap": {
+    "GroupLine": "LINIE",
+    "GroupRouting": "VERLAUF",
+    "GroupCaps": "ENDEN",
+    "CapNone": "Keine",
+    "CapArrow": "Pfeil",
+    "CapDot": "Punkt",
+    "CapStart": "Anfang",
+    "CapEnd": "Ende",
     "LayoutTooltip": "Die ganze Karte anordnen",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Text hinzufügen",

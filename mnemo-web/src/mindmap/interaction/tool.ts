@@ -6,12 +6,13 @@
  * on is the one thing a canvas app can get wrong that nothing else makes up for.
  */
 
-export type MindmapTool = "select" | "node" | "text" | "connect"
+export type MindmapTool = "select" | "node" | "shape" | "text" | "connect"
 
 /** The letter that arms each tool: one press, no modifier, and not while a field has the keyboard. */
 export const TOOL_KEYS: Readonly<Record<string, MindmapTool>> = {
   v: "select",
   n: "node",
+  s: "shape",
   t: "text",
   c: "connect",
 }
@@ -20,6 +21,7 @@ export const TOOL_KEYS: Readonly<Record<string, MindmapTool>> = {
 export const TOOL_KEY_OF: Readonly<Record<MindmapTool, string>> = {
   select: "V",
   node: "N",
+  shape: "S",
   text: "T",
   connect: "C",
 }
@@ -43,6 +45,7 @@ export function isOneShot(tool: MindmapTool): boolean {
 export function cursorFor(tool: MindmapTool): string | undefined {
   switch (tool) {
     case "node":
+    case "shape":
     case "text":
       return "cursor-copy"
     case "connect":
