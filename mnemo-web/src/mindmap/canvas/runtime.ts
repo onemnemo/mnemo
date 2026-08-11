@@ -19,7 +19,7 @@ import { createEdgeCanvasRenderer, type EdgeCanvasRenderer } from "./edge-canvas
 import { createEdgeStrategySelector, type EdgeStrategy } from "./edge-strategy"
 import type { EdgeMode } from "./edge-style"
 import { LodController } from "./lod"
-import { createSceneIndex, type SceneIndex } from "./scene-index"
+import { createSceneIndex, edgeCullKey, nodeCullKey, type SceneIndex } from "./scene-index"
 import { boundsOf, fitZoom, type Point, type Scene, type Viewport } from "../model/scene"
 
 /** The two swappable layers, whichever of them is currently mounted. */
@@ -71,8 +71,24 @@ export interface CanvasRuntime {
   /**
    * Redraws what the substrate owns, for a caller that moved elements under it. The camera has not
    * changed, but the culler's bounds and the canvas edge layer are both read from positions.
+   *
+   * The edges whose endpoints moved have to be named. The canvas substrate caches each edge as a
+   * flattened curve and keeps that cache across a whole pan, which is most of why a pan costs
+   * nothing; an endpoint moving is the one thing the cache cannot see for itself. A redraw that
+   * does not say so repaints the curve the edge used to have, and the edges only catch up when the
+   * next projection rebuilds everything, which is to say when the drag is let go of.
    */
-  redraw(): void
+  redraw(movedEdgeIds?: readonly string[]): void
+  /**
+   * Holds these elements and edges rendered for the length of a gesture.
+   *
+   * The culler indexes its grid from where things were, and a drag moves them without reindexing.
+   * That costs nothing while the camera is still, since a cell range that has not moved does no
+   * work at all, but a wheel notch during a drag consults that stale grid and can hide the very
+   * node being dragged.
+   */
+  pin(elementIds: readonly string[], edgeIds: readonly string[]): void
+  unpin(): void
   index(): SceneIndex
   dispose(): void
 }
@@ -297,7 +313,22 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
       }
     },
 
-    redraw: () => applyCamera(false),
+    redraw(movedEdgeIds) {
+      if (movedEdgeIds && movedEdgeIds.length > 0) {
+        edgeRenderer?.invalidate(movedEdgeIds)
+      }
+      applyCamera(false)
+    },
+
+    pin(elementIds, edgeIds) {
+      const keys = elementIds.map(nodeCullKey)
+      for (const id of edgeIds) {
+        keys.push(edgeCullKey(id))
+      }
+      culler.pin(keys)
+    },
+
+    unpin: () => culler.unpinAll(),
 
     rebindEdges(next) {
       edgeCamera = next.edgeCamera

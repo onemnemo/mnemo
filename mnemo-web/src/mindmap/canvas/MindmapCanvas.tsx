@@ -128,10 +128,12 @@ export function MindmapCanvas({
         subtreeOf: (id) => live.current.subtreeOf?.(id) ?? NO_SUBTREE,
         toCanvas: (x, y) => created.toCanvas(x, y),
         zoom: () => created.viewport().zoom,
-        redraw: () => {
-          created.redraw()
+        redraw: (movedEdgeIds) => {
+          created.redraw(movedEdgeIds)
           repaintSelection(overlayCamera.current)
         },
+        pin: (elementIds, edgeIds) => created.pin(elementIds, edgeIds),
+        unpin: () => created.unpin(),
       },
       {
         selection: () => live.current.selection,
