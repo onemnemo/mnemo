@@ -13,9 +13,18 @@
  * move rather than re-deriving it.
  */
 
-import type { ArrowCap, EdgeKind, ElementContent, ElementKind, LineStyle, EdgeRouting } from "./document"
+import type {
+  ArrowCap,
+  CanvasBackground,
+  EdgeKind,
+  ElementContent,
+  ElementKind,
+  LineStyle,
+  EdgeRouting,
+  NodeShape,
+} from "./document"
 
-export type { ArrowCap, EdgeKind, ElementContent, ElementKind, LineStyle, EdgeRouting }
+export type { ArrowCap, CanvasBackground, EdgeKind, ElementContent, ElementKind, LineStyle, EdgeRouting, NodeShape }
 
 /** Canvas-space coordinate at the viewport's top-left, plus the scale. Top-left origin. */
 export interface Viewport {
@@ -27,6 +36,21 @@ export interface Viewport {
 export interface Point {
   readonly x: number
   readonly y: number
+}
+
+/**
+ * Text already wrapped and already measured.
+ *
+ * The lines travel with the element because wrapping them is what decided the box's size. Re-wrapping
+ * in the renderer would be a second implementation of the same greedy walk, free to disagree with the
+ * one the layout was packed against.
+ */
+export interface MeasuredText {
+  readonly lines: readonly string[]
+  readonly fontSize: number
+  readonly fontWeight: number
+  readonly lineHeight: number
+  readonly letterSpacing: string
 }
 
 /** One element, laid out and styled. */
@@ -49,6 +73,23 @@ export interface SceneElement {
   readonly depth: number
   /** Which of the eight branch slots this element inherited, or -1 when branch colouring is off. */
   readonly branch: number
+  /** How loudly it is drawn: no chrome, a tint, a card, an outline. */
+  readonly nodeShape: NodeShape
+  readonly text: MeasuredText
+  readonly isRoot: boolean
+  /** Children in the hierarchy, whether or not they are currently shown. Zero means no collapse control. */
+  readonly childCount: number
+  /** How many descendants a collapse is hiding; 0 when it is not collapsed. */
+  readonly hiddenCount: number
+  /** This element's branch colour as CSS, when branch colouring is on. */
+  readonly branchColor?: string
+  /**
+   * The rule a plain node draws under its own text, which is also where an incoming branch has to
+   * land. Absent on every other shape, which has a box to meet instead.
+   */
+  readonly underline?: number
+  /** Icon name shown before the label. */
+  readonly icon?: string
 }
 
 /**
@@ -83,6 +124,7 @@ export interface Scene {
   readonly id: string
   readonly elements: readonly SceneElement[]
   readonly edges: readonly SceneEdge[]
+  readonly background: CanvasBackground
 }
 
 /* -------------------------------------------------------------------------- */

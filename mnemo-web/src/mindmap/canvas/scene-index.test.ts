@@ -20,7 +20,22 @@ import {
 } from "./scene-index"
 
 function element(id: string, x: number, y: number): SceneElement {
-  return { id, kind: "node", content: { $type: "text", text: id }, x, y, width: 100, height: 40, depth: 1, branch: 0 }
+  return {
+    id,
+    kind: "node",
+    content: { $type: "text", text: id },
+    x,
+    y,
+    width: 100,
+    height: 40,
+    depth: 1,
+    branch: 0,
+    nodeShape: "card",
+    text: { lines: [id], fontSize: 14, fontWeight: 500, lineHeight: 19, letterSpacing: "-0.005em" },
+    isRoot: false,
+    childCount: 0,
+    hiddenCount: 0,
+  }
 }
 
 function edge(id: string, fromId: string, toId: string, label?: string): SceneEdge {
@@ -31,6 +46,7 @@ const SCENE: Scene = {
   id: "m",
   elements: [element("a", 0, 0), element("b", 300, 0), element("c", 0, 300)],
   edges: [edge("ab", "a", "b", "leads to"), edge("ac", "a", "c")],
+  background: "dots",
 }
 
 /** The DOM the renderer is contracted to produce: one host per element, one path per edge. */
