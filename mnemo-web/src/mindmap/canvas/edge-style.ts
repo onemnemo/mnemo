@@ -38,6 +38,10 @@ const DASH_BY_STYLE: Record<string, number[] | null> = {
   solid: null,
   dashed: DASHED,
   dotted: DOTTED,
+  // KNOWN GAP: a true double line is two parallel strokes offset by their own width, which neither
+  // substrate draws yet. It resolves to a continuous line here, so choosing it currently looks
+  // identical to solid. Left visible rather than faked with a dense dash, which would look like a
+  // third dash style rather than like the thing it is named after.
   double: null,
 }
 
@@ -56,7 +60,21 @@ const HIERARCHY_STYLE: EdgeStrokeStyle = {
 }
 
 export function strokeStyleFor(edge: SceneEdge): EdgeStrokeStyle {
-  if (edge.kind === 'hierarchy') return HIERARCHY_STYLE
+  if (edge.kind === 'hierarchy') {
+    // The shared object is an allocation win worth keeping for the common case, but only for the
+    // common case. Branch colour is the mindmap's signature, and returning the singleton for a
+    // branch that names a colour would discard it: every branch would draw the same slate grey no
+    // matter what the cascade resolved, which is the one thing a coloured map cannot survive.
+    if (edge.color === undefined && edge.thickness === undefined && edge.lineStyle === undefined) {
+      return HIERARCHY_STYLE
+    }
+    return {
+      color: edge.color ?? HIERARCHY_COLOR,
+      width: edge.thickness ?? HIERARCHY_WIDTH,
+      dash: DASH_BY_STYLE[edge.lineStyle ?? 'solid'] ?? null,
+    }
+  }
+
   return {
     color: edge.color ?? LINK_COLOR,
     width: edge.thickness ?? LINK_WIDTH,

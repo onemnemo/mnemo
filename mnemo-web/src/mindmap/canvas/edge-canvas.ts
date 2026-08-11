@@ -16,7 +16,7 @@
 
 import type { SceneEdge } from '../model/scene'
 import type { Viewport } from '../model/scene'
-import { anchorsFor, edgeShape, type EdgeStroke, type ElementBox } from './edge-paths'
+import { anchorsFor, branchShape, edgeShape, type EdgeStroke, type ElementBox } from './edge-paths'
 import { strokeStyleFor, type EdgeStrokeStyle } from './edge-style'
 
 /**
@@ -29,6 +29,7 @@ import { strokeStyleFor, type EdgeStrokeStyle } from './edge-style'
 export interface EdgeCanvasContext {
   /** Widened to the real context's type so a live `CanvasRenderingContext2D` still satisfies it. */
   strokeStyle: string | CanvasGradient | CanvasPattern
+  fillStyle: string | CanvasGradient | CanvasPattern
   lineWidth: number
   setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void
   clearRect(x: number, y: number, width: number, height: number): void
@@ -37,7 +38,9 @@ export interface EdgeCanvasContext {
   moveTo(x: number, y: number): void
   lineTo(x: number, y: number): void
   bezierCurveTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): void
+  closePath(): void
   stroke(): void
+  fill(): void
 }
 
 /** The backing store, which is all the renderer needs of the element itself. */
@@ -93,35 +96,77 @@ const NO_DASH: number[] = []
  * vertex, all of it garbage within the frame.
  */
 interface CachedStroke {
-  /** 6 numbers for a cubic (c1x c1y c2x c2y tx ty after the initial move), or a polyline's tail. */
-  readonly cubic: boolean
+  /**
+   * `cubic` is 6 numbers after the initial move; `polyline` is a flat tail of x,y pairs; `ribbon`
+   * is 6 for the outbound curve, 2 for the cap across the far end, then 6 for the return.
+   */
+  readonly kind: 'cubic' | 'polyline' | 'ribbon'
   readonly sx: number
   readonly sy: number
   readonly rest: readonly number[]
 }
 
+/**
+ * The shape an edge draws as.
+ *
+ * A hierarchy edge that carries two different end weights is a tapering ribbon; everything else is
+ * an ordinary stroke. The widths come from the projector rather than being derived here, so the two
+ * substrates and the thumbnail all widen the same edge by the same amount.
+ */
+function strokeFor(edge: SceneEdge, anchors: ReturnType<typeof anchorsFor>): EdgeStroke {
+  const routing = edge.routing ?? 'curve'
+  if (edge.fromWidth !== undefined && edge.toWidth !== undefined) {
+    return branchShape(routing, anchors, edge.fromWidth, edge.toWidth).stroke
+  }
+  return edgeShape(routing, anchors).stroke
+}
+
 function cacheStroke(stroke: EdgeStroke): CachedStroke {
   if (stroke.kind === 'cubic') {
     return {
-      cubic: true,
+      kind: 'cubic',
       sx: stroke.sx,
       sy: stroke.sy,
       rest: [stroke.c1x, stroke.c1y, stroke.c2x, stroke.c2y, stroke.tx, stroke.ty],
     }
   }
+
+  if (stroke.kind === 'ribbon') {
+    const [o0, o1, o2, o3] = stroke.outbound
+    const [i0, i1, i2, i3] = stroke.inbound
+    return {
+      kind: 'ribbon',
+      sx: o0.x,
+      sy: o0.y,
+      rest: [o1.x, o1.y, o2.x, o2.y, o3.x, o3.y, i0.x, i0.y, i1.x, i1.y, i2.x, i2.y, i3.x, i3.y],
+    }
+  }
+
   const points = stroke.points
   const rest: number[] = []
   for (let i = 1; i < points.length; i++) rest.push(points[i].x, points[i].y)
-  return { cubic: false, sx: points[0].x, sy: points[0].y, rest }
+  return { kind: 'polyline', sx: points[0].x, sy: points[0].y, rest }
 }
 
 function traceCached(context: EdgeCanvasContext, cached: CachedStroke): void {
   context.moveTo(cached.sx, cached.sy)
   const rest = cached.rest
-  if (cached.cubic) {
+
+  if (cached.kind === 'cubic') {
     context.bezierCurveTo(rest[0], rest[1], rest[2], rest[3], rest[4], rest[5])
     return
   }
+
+  if (cached.kind === 'ribbon') {
+    context.bezierCurveTo(rest[0], rest[1], rest[2], rest[3], rest[4], rest[5])
+    context.lineTo(rest[6], rest[7])
+    context.bezierCurveTo(rest[8], rest[9], rest[10], rest[11], rest[12], rest[13])
+    // Closed rather than left open: an unclosed fill would run a straight line back across the
+    // ribbon's mouth and paint a wedge over the parent node.
+    context.closePath()
+    return
+  }
+
   for (let i = 0; i < rest.length; i += 2) context.lineTo(rest[i], rest[i + 1])
 }
 
@@ -177,11 +222,14 @@ export function createEdgeCanvasRenderer(deps: EdgeCanvasDeps): EdgeCanvasRender
       // group. Transforming the points in JavaScript instead would draw hairlines at 0.1 zoom
       // where the other mode draws none, and the modes would no longer be comparable.
       let applied: EdgeStrokeStyle | null = null
-      let open = false
+      // A ribbon is filled, so it cannot share a path with stroked edges: one `stroke()` would
+      // outline it and one `fill()` would close every open curve in the batch into a lens. The
+      // batch therefore carries which operation ends it, and changing operation flushes.
+      let open: 'stroke' | 'fill' | null = null
       const flush = (): void => {
-        if (!open) return
-        context.stroke()
-        open = false
+        if (open === 'stroke') context.stroke()
+        else if (open === 'fill') context.fill()
+        open = null
       }
 
       let drawn = 0
@@ -197,7 +245,7 @@ export function createEdgeCanvasRenderer(deps: EdgeCanvasDeps): EdgeCanvasRender
           const from = boxOf(edge.fromId)
           const to = boxOf(edge.toId)
           if (!from || !to) continue
-          cached = cacheStroke(edgeShape(edge.routing ?? 'curve', anchorsFor(from, to)).stroke)
+          cached = cacheStroke(strokeFor(edge, anchorsFor(from, to)))
           strokes.set(edgeId, cached)
         }
         drawn += 1
@@ -211,22 +259,28 @@ export function createEdgeCanvasRenderer(deps: EdgeCanvasDeps): EdgeCanvasRender
           style = strokeStyleFor(edge)
           styles.set(edgeId, style)
         }
+        const wants = cached.kind === 'ribbon' ? 'fill' : 'stroke'
         if (
           applied === null ||
+          open !== wants ||
           style.color !== applied.color ||
           style.width !== applied.width ||
           style.dash !== applied.dash
         ) {
           flush()
-          context.strokeStyle = style.color
-          context.lineWidth = style.width
-          context.setLineDash(style.dash ?? NO_DASH)
+          if (wants === 'fill') {
+            context.fillStyle = style.color
+          } else {
+            context.strokeStyle = style.color
+            context.lineWidth = style.width
+            context.setLineDash(style.dash ?? NO_DASH)
+          }
           applied = style
         }
 
-        if (!open) {
+        if (open === null) {
           context.beginPath()
-          open = true
+          open = wants
         }
         traceCached(context, cached)
       }
