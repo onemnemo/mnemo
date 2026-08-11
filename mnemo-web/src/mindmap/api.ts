@@ -19,6 +19,7 @@ import type {
   MindmapDocumentSummary,
   MindmapFolder,
   MindmapLibraryEntry,
+  StyleTemplate,
 } from "./model/document"
 import type { MindmapOp } from "./model/ops"
 
@@ -26,6 +27,7 @@ export const mindmapKey = ["mindmap"] as const
 export const mindmapLibraryKey = [...mindmapKey, "library"] as const
 export const mindmapFoldersKey = [...mindmapKey, "folders"] as const
 export const mindmapListKey = [...mindmapKey, "list"] as const
+export const mindmapTemplatesKey = [...mindmapKey, "templates"] as const
 
 /**
  * One open document, keyed outside the library key on purpose: filing a map into a folder changes
@@ -86,6 +88,16 @@ export function fetchMindmapFolders(): Promise<MindmapFolder[]> {
 
 export function fetchMindmapList(): Promise<MindmapDocumentSummary[]> {
   return apiFetch<MindmapDocumentSummary[]>("/mindmaps")
+}
+
+/** The cascade's inputs: six shipped templates plus the user's, and which one an unclaimed map uses. */
+export interface MindmapTemplates {
+  defaultId: string
+  templates: StyleTemplate[]
+}
+
+export function fetchMindmapTemplates(): Promise<MindmapTemplates> {
+  return apiFetch<MindmapTemplates>("/mindmaps/templates")
 }
 
 /**
@@ -240,6 +252,15 @@ export function useMindmapLibrary() {
 
 export function useMindmapFolders() {
   return useQuery({ queryKey: mindmapFoldersKey, queryFn: fetchMindmapFolders })
+}
+
+/**
+ * Templates change when the user saves one and at no other time, so they are fetched once and kept.
+ * Every open map's cascade reads them, and refetching per map would be one request per open for data
+ * that is the same every time.
+ */
+export function useMindmapTemplates() {
+  return useQuery({ queryKey: mindmapTemplatesKey, queryFn: fetchMindmapTemplates, staleTime: Infinity })
 }
 
 export function useMindmap(id: string | null) {

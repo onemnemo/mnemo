@@ -127,9 +127,10 @@ public static class Program
         app.MapNoteTransfer();
         app.MapNotePdf();
         app.MapMindmapLibrary();
+        app.MapMindmapTemplates();
         app.MapMindmaps();
         app.MapOverview();
-app.MapStatistics();
+        app.MapStatistics();
 
         if (options.DevMode)
         {

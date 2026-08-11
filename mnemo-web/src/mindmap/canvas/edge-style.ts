@@ -60,26 +60,22 @@ const HIERARCHY_STYLE: EdgeStrokeStyle = {
 }
 
 export function strokeStyleFor(edge: SceneEdge): EdgeStrokeStyle {
-  if (edge.kind === 'hierarchy') {
-    // The shared object is an allocation win worth keeping for the common case, but only for the
-    // common case. Branch colour is the mindmap's signature, and returning the singleton for a
-    // branch that names a colour would discard it: every branch would draw the same slate grey no
-    // matter what the cascade resolved, which is the one thing a coloured map cannot survive.
-    if (edge.color === undefined && edge.thickness === undefined && edge.lineStyle === undefined) {
-      return HIERARCHY_STYLE
-    }
-    return {
-      color: edge.color ?? HIERARCHY_COLOR,
-      width: edge.thickness ?? HIERARCHY_WIDTH,
-      dash: DASH_BY_STYLE[edge.lineStyle ?? 'solid'] ?? null,
-    }
+  const hierarchy = edge.kind === 'hierarchy'
+  const color = edge.color ?? (hierarchy ? HIERARCHY_COLOR : LINK_COLOR)
+  const width = edge.thickness ?? (hierarchy ? HIERARCHY_WIDTH : LINK_WIDTH)
+  const dash = DASH_BY_STYLE[edge.lineStyle ?? 'solid'] ?? null
+
+  // The shared object is an allocation win worth keeping for the common case, but only for the common
+  // case. Branch colour is the mindmap's signature, and returning the singleton for a branch that
+  // resolved to one would discard it: every branch would draw the same slate grey however the cascade
+  // came out, which is the one thing a coloured map cannot survive. Keyed on the resolved values
+  // rather than on which fields were named, so a projector that writes out an edge's style in full
+  // still takes the fast path when that style is the ordinary one.
+  if (hierarchy && color === HIERARCHY_COLOR && width === HIERARCHY_WIDTH && dash === null) {
+    return HIERARCHY_STYLE
   }
 
-  return {
-    color: edge.color ?? LINK_COLOR,
-    width: edge.thickness ?? LINK_WIDTH,
-    dash: DASH_BY_STYLE[edge.lineStyle ?? 'solid'] ?? null,
-  }
+  return { color, width, dash }
 }
 
 /** The same dash as an SVG `stroke-dasharray`, undefined when the line is continuous. */

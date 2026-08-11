@@ -85,5 +85,8 @@ public sealed record MindmapFindResultDto(long Revision, IReadOnlyList<MindmapFi
 
 public sealed record MindmapFindHitDto(string ElementId, string Text, string Path);
 
-/// <summary>The style templates a map can draw from: the six built-ins plus whatever the user saved.</summary>
-public sealed record MindmapTemplatesDto(IReadOnlyList<StyleTemplate> Templates);
+/// <summary>
+/// The style templates a map can draw from: the six built-ins plus whatever the user saved, and which
+/// of them a document that names none resolves against.
+/// </summary>
+public sealed record MindmapTemplatesDto(string DefaultId, IReadOnlyList<StyleTemplate> Templates);

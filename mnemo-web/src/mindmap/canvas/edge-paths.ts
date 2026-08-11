@@ -56,7 +56,13 @@ export interface ElementBox {
 }
 
 export function boxOf(element: SceneElement): ElementBox {
-  return { x: element.x, y: element.y, width: element.width, height: element.height }
+  return {
+    x: element.x,
+    y: element.y,
+    width: element.width,
+    height: element.height,
+    underline: element.underline,
+  }
 }
 
 export interface Anchors {
