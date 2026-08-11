@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils"
 
 import type { ArrowCap, EdgeRouting, LineStyle } from "../model/document"
 import { FlyoutPanel } from "./FlyoutPanel"
+import { CapGlyph, LineGlyph, RouteGlyph } from "./glyphs"
 
 const LINES: readonly { value: LineStyle; key: string }[] = [
   { value: "solid", key: "EdgeSolid" },
@@ -160,61 +161,5 @@ function CapRow({
         </Cell>
       ))}
     </div>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/* Glyphs                                                                     */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Drawn here rather than pulled from the icon set.
- *
- * None of these are icons: each one is a sample of the thing it sets, drawn by the same rules the
- * canvas draws it by, which is the only way a picker can be trusted to show what you are about to get.
- */
-function LineGlyph({ line }: { line: LineStyle }) {
-  if (line === "double") {
-    return (
-      <svg width={22} height={12} aria-hidden>
-        <path d="M1 4.5 H21 M1 7.5 H21" stroke="currentColor" strokeWidth={1.3} fill="none" />
-      </svg>
-    )
-  }
-  return (
-    <svg width={22} height={12} aria-hidden>
-      <path
-        d="M1 6 H21"
-        stroke="currentColor"
-        strokeWidth={1.6}
-        strokeLinecap="round"
-        strokeDasharray={line === "dashed" ? "5 3" : line === "dotted" ? "0.5 3" : undefined}
-        fill="none"
-      />
-    </svg>
-  )
-}
-
-function RouteGlyph({ routing }: { routing: EdgeRouting }) {
-  const d =
-    routing === "curve"
-      ? "M1 11 C8 11 8 1 21 1"
-      : routing === "straight"
-        ? "M1 11 L21 1"
-        : "M1 11 H11 V1 H21"
-  return (
-    <svg width={22} height={12} aria-hidden>
-      <path d={d} stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </svg>
-  )
-}
-
-function CapGlyph({ cap, flipped }: { cap: ArrowCap; flipped?: boolean }) {
-  return (
-    <svg width={20} height={12} aria-hidden transform={flipped ? "scale(-1, 1)" : undefined}>
-      <path d="M2 6 H14" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" fill="none" />
-      {cap === "arrow" ? <path d="M12 2.5 L18 6 L12 9.5 Z" fill="currentColor" /> : null}
-      {cap === "dot" ? <circle cx={15} cy={6} r={2.6} fill="currentColor" /> : null}
-    </svg>
   )
 }

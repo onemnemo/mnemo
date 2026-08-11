@@ -807,7 +807,15 @@
     "ErrorTitle": "Error",
     "CreateFailed": "No se pudo crear el mapa mental.",
     "DeleteFolderTitle": "Eliminar carpeta",
-    "DeleteFolderConfirm": "¿Eliminar «{0}»? Los mapas que contiene pasarán a la raíz."
+    "DeleteFolderConfirm": "¿Eliminar «{0}»? Los mapas que contiene pasarán a la raíz.",
+    "SizeSmall": "Pequeño",
+    "SizeMedium": "Mediano",
+    "SizeLarge": "Grande",
+    "SizeExtraLarge": "Muy grande",
+    "BranchColor": "Color de rama",
+    "StyleEdge": "Aplicar estilo al borde",
+    "StyleNode": "Aplicar estilo al nodo",
+    "EditLabel": "Editar etiqueta"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

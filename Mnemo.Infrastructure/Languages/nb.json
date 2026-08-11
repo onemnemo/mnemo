@@ -807,7 +807,15 @@
     "ErrorTitle": "Feil",
     "CreateFailed": "Kunne ikke opprette tankekartet.",
     "DeleteFolderTitle": "Slett mappe",
-    "DeleteFolderConfirm": "Slette «{0}»? Kart inni flyttes til roten."
+    "DeleteFolderConfirm": "Slette «{0}»? Kart inni flyttes til roten.",
+    "SizeSmall": "Liten",
+    "SizeMedium": "Middels",
+    "SizeLarge": "Stor",
+    "SizeExtraLarge": "Ekstra stor",
+    "BranchColor": "Grenfarge",
+    "StyleEdge": "Stil på kant",
+    "StyleNode": "Stil på node",
+    "EditLabel": "Rediger etikett"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

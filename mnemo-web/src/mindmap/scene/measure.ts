@@ -34,6 +34,23 @@ export const FONTS: Record<FontScale, Font> = {
   s: { size: 12.5, weight: 450, maxWidth: 165, letterSpacing: "-0.005em" },
 }
 
+/**
+ * Which rung a measured size came from.
+ *
+ * The scene carries the resolved font size, not the scale it came from, because that is what the
+ * renderer needs. A control that has to show which of the four is currently on has to go the other
+ * way, and going back through the same table is what keeps it honest: it lights the rung the node is
+ * actually drawn at, whether that came from the node's own override or from a template rule.
+ */
+export function fontScaleOf(size: number): FontScale {
+  for (const scale of Object.keys(FONTS) as FontScale[]) {
+    if (FONTS[scale].size === size) {
+      return scale
+    }
+  }
+  return "m"
+}
+
 const LINE_RATIO = 1.35
 
 /**

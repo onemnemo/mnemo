@@ -857,7 +857,15 @@
     "ErrorTitle": "Error",
     "CreateFailed": "Could not create the mindmap.",
     "DeleteFolderTitle": "Delete folder",
-    "DeleteFolderConfirm": "Delete “{0}”? Maps inside move to the library root."
+    "DeleteFolderConfirm": "Delete “{0}”? Maps inside move to the library root.",
+    "SizeSmall": "Small",
+    "SizeMedium": "Medium",
+    "SizeLarge": "Large",
+    "SizeExtraLarge": "Extra large",
+    "BranchColor": "Branch color",
+    "StyleEdge": "Style edge",
+    "StyleNode": "Style node",
+    "EditLabel": "Edit label"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

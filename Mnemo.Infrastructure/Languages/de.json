@@ -801,7 +801,15 @@
     "ErrorTitle": "Fehler",
     "CreateFailed": "Mindmap konnte nicht erstellt werden.",
     "DeleteFolderTitle": "Ordner löschen",
-    "DeleteFolderConfirm": "„{0}“ löschen? Enthaltene Mindmaps werden in den Stamm verschoben."
+    "DeleteFolderConfirm": "„{0}“ löschen? Enthaltene Mindmaps werden in den Stamm verschoben.",
+    "SizeSmall": "Klein",
+    "SizeMedium": "Mittel",
+    "SizeLarge": "Groß",
+    "SizeExtraLarge": "Sehr groß",
+    "BranchColor": "Zweigfarbe",
+    "StyleEdge": "Kante gestalten",
+    "StyleNode": "Knoten gestalten",
+    "EditLabel": "Beschriftung bearbeiten"
   },
   "GlobalSearch": {
     "ShortcutHint": "Strg/Cmd + K",
