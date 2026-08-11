@@ -651,6 +651,8 @@
     "ColorNone": "Ninguno"
   },
   "Mindmap": {
+    "AddChild": "Hijo",
+    "AddSibling": "Hermano",
     "GroupLine": "LÍNEA",
     "GroupRouting": "TRAZADO",
     "GroupCaps": "EXTREMOS",

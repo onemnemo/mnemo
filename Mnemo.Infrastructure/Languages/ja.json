@@ -651,6 +651,8 @@
     "ColorNone": "なし"
   },
   "Mindmap": {
+    "AddChild": "子",
+    "AddSibling": "兄弟",
     "GroupLine": "線",
     "GroupRouting": "経路",
     "GroupCaps": "端点",
