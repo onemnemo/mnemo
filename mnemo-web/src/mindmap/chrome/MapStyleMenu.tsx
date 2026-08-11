@@ -1,5 +1,11 @@
 import { AppIcon } from "@/components/icon/AppIcon"
-import { Popover, PopoverContent, PopoverGroupLabel, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverGroupLabel,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
@@ -36,6 +42,10 @@ export interface MapStyleMenuProps {
   /** The arrangement every cluster agrees on, or null when they disagree or none was chosen. */
   algorithm: LayoutAlgorithm | null
   onAlgorithm: (algorithm: LayoutAlgorithm) => void
+  /** Lay the map out again under the arrangement it already has. */
+  onArrange: () => void
+  /** False for a map with nothing in it to arrange. */
+  canArrange: boolean
   material: BranchMaterial
   onMaterial: (material: BranchMaterial) => void
   templates: readonly StyleTemplate[]
@@ -54,11 +64,14 @@ export interface MapStyleMenuProps {
  * on a bar that only appears when something is selected.
  *
  * Every choice is an ordinary edit. Picking an arrangement lays the map out and remembers the
- * choice in the same step, so one undo puts back both.
+ * choice in the same step, so one undo puts back both. Laying out again is here too, under the
+ * arrangement it uses, since a header button for it reads as a second control for the same thing.
  */
 export function MapStyleMenu({
   algorithm,
   onAlgorithm,
+  onArrange,
+  canArrange,
   material,
   onMaterial,
   templates,
@@ -68,6 +81,10 @@ export function MapStyleMenu({
   onBackground,
 }: MapStyleMenuProps) {
   const t = useT()
+
+  // Free is the arrangement that keeps every node where it is, so arranging under it is a button
+  // that provably does nothing rather than one that might.
+  const idle = !canArrange || algorithm === "free"
 
   return (
     <Popover>
@@ -97,6 +114,30 @@ export function MapStyleMenu({
               <LayoutGlyph algorithm={value} />
             </Tile>
           ))}
+        </div>
+
+        {/* Laying out again lives with the arrangement rather than in the header, where a button
+            named Layout sat beside a control already reading Tree (vertical) and the two looked
+            like two names for one thing. Picking an arrangement already arranges; this is for the
+            map that has been added to since. */}
+        <div className="px-1 pt-1">
+          <PopoverClose asChild>
+            <button
+              type="button"
+              // Called with no arguments on purpose: the handler is passed the click, and an arrange
+              // reads its first argument as the arrangement to use.
+              onClick={() => onArrange()}
+              disabled={idle}
+              title={t("Mindmap", "LayoutTooltip")}
+              className={cn(
+                "flex h-8 w-full items-center gap-2 rounded-lg px-2 text-[13px] text-ink-2 transition-colors hover:bg-frame-hover hover:text-ink",
+                idle && "pointer-events-none opacity-35",
+              )}
+            >
+              <AppIcon name="common/sitemap" size={15} />
+              {t("Mindmap", "ArrangeNow")}
+            </button>
+          </PopoverClose>
         </div>
 
         {/* Its own control rather than a side effect of the palette. Burying "how are the lines

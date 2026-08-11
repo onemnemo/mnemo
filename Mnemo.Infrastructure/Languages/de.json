@@ -656,6 +656,7 @@
     "CapStart": "Anfang",
     "CapEnd": "Ende",
     "LayoutTooltip": "Die ganze Karte anordnen",
+    "ArrangeNow": "Jetzt anordnen",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Text hinzufügen",
     "Connect": "Verbinden",

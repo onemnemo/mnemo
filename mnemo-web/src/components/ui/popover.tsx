@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 
 export const Popover = RadixPopover.Root
 export const PopoverTrigger = RadixPopover.Trigger
+export const PopoverClose = RadixPopover.Close
 
 export function PopoverContent({
   children,

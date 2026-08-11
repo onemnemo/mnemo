@@ -712,6 +712,7 @@
     "CapStart": "Start",
     "CapEnd": "End",
     "LayoutTooltip": "Arrange the whole map",
+    "ArrangeNow": "Arrange now",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Add text",
     "Connect": "Connect",
