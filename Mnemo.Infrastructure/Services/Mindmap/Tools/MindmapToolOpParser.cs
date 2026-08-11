@@ -310,12 +310,16 @@ public static class MindmapToolOpParser
                 return false;
         }
 
+        if (!TryOptStyle<EdgeStyle>(el, "edge_defaults", out var edgeDefaults, out error))
+            return false;
+
         op = new LayoutOp
         {
             Root = OptString(el, "root"),
             Algorithm = OptString(el, "algo"),
             TemplateId = OptString(el, "template"),
             Options = options,
+            EdgeDefaults = edgeDefaults,
         };
         error = string.Empty;
         return true;

@@ -149,8 +149,16 @@ export type EdgeRouting = "curve" | "straight" | "orthogonal"
 /** What sits on an end. Start and end are independent, which is what gives arrow-left vs arrow-right. */
 export type ArrowCap = "none" | "arrow" | "dot"
 
+/**
+ * How the weight behaves along the length. A taper is a filled ribbon, thick where it leaves the
+ * parent and thin where it meets the child; it is the mindmap material rather than a diagramming
+ * one. Deliberately not a routing value, since a taper can follow any of the three routes.
+ */
+export type EdgeWidthProfile = "uniform" | "taper"
+
 export interface EdgeStyle {
   line?: LineStyle | null
+  widthProfile?: EdgeWidthProfile | null
   routing?: EdgeRouting | null
   startCap?: ArrowCap | null
   endCap?: ArrowCap | null
@@ -204,6 +212,8 @@ export type CanvasBackground = "dots" | "grid" | "plain"
 export interface MindmapCanvasOptions {
   background?: CanvasBackground
   defaultTemplateId?: string | null
+  /** How this map's edges are drawn when neither the edge nor its template says otherwise. */
+  edgeDefaults?: EdgeStyle | null
 }
 
 export interface MindmapDocument {

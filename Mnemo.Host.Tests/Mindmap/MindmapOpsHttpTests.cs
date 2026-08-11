@@ -185,6 +185,34 @@ public sealed class MindmapOpsHttpTests
     }
 
     [Fact]
+    public async Task TheBranchMaterialIsDocumentStateRatherThanViewState()
+    {
+        await using var h = new MindmapHostHarness();
+        var map = (await h.Service.CreateAsync("M")).Value!;
+
+        var body = Parse<MindmapOpsResultDto>((await Execute(await MindmapEndpoints.ApplyOpsAsync(map.Id, Body($$"""
+            { "expectedRevision": {{map.Revision}}, "ops": [
+              { "op": "layout", "edge_defaults": { "widthProfile": "taper", "color": "palette.3" } }
+            ] }
+            """), h.Service))).Body);
+
+        var stored = (await h.Service.GetAsync(map.Id)).Value!;
+        Assert.Equal(EdgeWidthProfile.Taper, stored.Canvas.EdgeDefaults!.WidthProfile);
+        Assert.Equal("palette.3", stored.Canvas.EdgeDefaults.Color);
+
+        // Merged, not replaced: picking a material must not clear the colour chosen beside it.
+        await MindmapEndpoints.ApplyOpsAsync(map.Id, Body($$"""
+            { "expectedRevision": {{body.Revision}}, "ops": [
+              { "op": "layout", "edge_defaults": { "widthProfile": "uniform" } }
+            ] }
+            """), h.Service);
+
+        var after = (await h.Service.GetAsync(map.Id)).Value!;
+        Assert.Equal(EdgeWidthProfile.Uniform, after.Canvas.EdgeDefaults!.WidthProfile);
+        Assert.Equal("palette.3", after.Canvas.EdgeDefaults.Color);
+    }
+
+    [Fact]
     public void ADocumentSerializesWithItsContentDiscriminatorIntact()
     {
         // The whole reason mindmap payloads bypass the host's default serializer: element content is

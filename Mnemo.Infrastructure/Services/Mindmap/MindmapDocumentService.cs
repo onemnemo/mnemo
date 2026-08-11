@@ -924,10 +924,16 @@ public sealed class MindmapDocumentService : IMindmapService
         }
 
         if (op.Algorithm is not null)
-            return Err(MindmapEditErrorCode.InvalidOperation, "A document-level layout requires a root; only a default template applies document-wide.");
+            return Err(MindmapEditErrorCode.InvalidOperation, "A document-level layout requires a root; only defaults apply document-wide.");
 
         if (op.TemplateId is not null)
             working.SetCanvas(working.Canvas with { DefaultTemplateId = op.TemplateId });
+
+        // Merged rather than replaced, matching how Set and SetEdge treat a style: picking a branch
+        // material should not silently clear the edge colour chosen beside it.
+        if (op.EdgeDefaults is not null)
+            working.SetCanvas(working.Canvas with { EdgeDefaults = MergeEdgeStyle(working.Canvas.EdgeDefaults, op.EdgeDefaults) });
+
         return null;
     }
 
@@ -1178,6 +1184,7 @@ public sealed class MindmapDocumentService : IMindmapService
         return new EdgeStyle
         {
             Line = incoming.Line ?? existing.Line,
+            WidthProfile = incoming.WidthProfile ?? existing.WidthProfile,
             Routing = incoming.Routing ?? existing.Routing,
             StartCap = incoming.StartCap ?? existing.StartCap,
             EndCap = incoming.EndCap ?? existing.EndCap,
