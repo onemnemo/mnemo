@@ -70,11 +70,13 @@ type Gesture =
   | {
       readonly kind: "press"
       readonly pointerId: number
-      readonly elementId: string
+      /** Null when the press landed on empty canvas, which is where a marquee starts. */
+      readonly elementId: string | null
       readonly startClient: Point
       readonly startCanvas: Point
       /** Deferred until the press turns out to be a click, so a multi-drag keeps its selection. */
       readonly selectOnUp: boolean
+      readonly additive: boolean
     }
   | {
       readonly kind: "drag"
@@ -142,6 +144,11 @@ export function installInteraction(
       return
     }
 
+    // Nothing here calls preventDefault. Cancelling a pointerdown suppresses the compatibility
+    // mouse events it would have produced, and dblclick is one of them, so a node press that
+    // prevented its default was a node that could never be double clicked into edit. Text
+    // selection is held off by the pane's own select-none instead.
+
     // So the map answers the keyboard without needing a second click somewhere neutral.
     pane.focus({ preventScroll: true })
 
@@ -171,9 +178,8 @@ export function installInteraction(
         startClient,
         startCanvas,
         selectOnUp: already && selectionCount(selection) > 1,
+        additive,
       }
-      pane.setPointerCapture(event.pointerId)
-      event.preventDefault()
       return
     }
 
@@ -181,7 +187,6 @@ export function installInteraction(
     if (edgeId) {
       const selection = handlers.selection()
       handlers.setSelection(additive ? toggle(selection, "edge", edgeId) : selectOnly("edge", edgeId))
-      event.preventDefault()
       return
     }
 
@@ -190,24 +195,32 @@ export function installInteraction(
     }
 
     gesture = {
-      kind: "marquee",
+      kind: "press",
       pointerId: event.pointerId,
+      elementId: null,
       startClient,
       startCanvas,
+      selectOnUp: false,
       additive,
-      box: openMarquee(pane),
     }
-    pane.setPointerCapture(event.pointerId)
-    event.preventDefault()
   }
 
+  /**
+   * Capture is taken here rather than on the press.
+   *
+   * A captured pointer retargets the compatibility mouse events it produces, click and dblclick
+   * included, to whatever holds the capture. Capturing on the press therefore made every node
+   * undoubleclickable: the dblclick arrived at the pane with the node nowhere in its path. A gesture
+   * that turns out to be a drag needs the capture; one that turns out to be a click never does.
+   */
   const beginDrag = (press: Extract<Gesture, { kind: "press" }>): Gesture => {
     const plan = planDrag({
-      pressedId: press.elementId,
+      pressedId: press.elementId!,
       selection: handlers.selection().elements,
       membersOf: travellingWith,
       positionOf: (id) => index.positionOf(id),
     })
+    pane.setPointerCapture(press.pointerId)
     return {
       kind: "drag",
       pointerId: press.pointerId,
@@ -217,6 +230,18 @@ export function installInteraction(
       incident: index.incidentEdges(plan.ids),
       startCanvas: press.startCanvas,
       moves: [],
+    }
+  }
+
+  const beginMarquee = (press: Extract<Gesture, { kind: "press" }>): Gesture => {
+    pane.setPointerCapture(press.pointerId)
+    return {
+      kind: "marquee",
+      pointerId: press.pointerId,
+      startClient: press.startClient,
+      startCanvas: press.startCanvas,
+      additive: press.additive,
+      box: openMarquee(pane),
     }
   }
 
@@ -233,7 +258,7 @@ export function installInteraction(
       if (!far) {
         return
       }
-      gesture = beginDrag(gesture)
+      gesture = gesture.elementId ? beginDrag(gesture) : beginMarquee(gesture)
     }
 
     if (gesture.kind === "drag") {
@@ -277,8 +302,9 @@ export function installInteraction(
 
     if (finished.kind === "press") {
       // A press that never moved is a click, and this is where a click on an already-selected member
-      // of a group finally collapses the selection onto it.
-      if (finished.selectOnUp) {
+      // of a group finally collapses the selection onto it. A press on empty canvas that never moved
+      // is just a click on empty canvas, which the press already answered by clearing the selection.
+      if (finished.selectOnUp && finished.elementId) {
         handlers.setSelection(selectOnly("element", finished.elementId))
       }
       return
