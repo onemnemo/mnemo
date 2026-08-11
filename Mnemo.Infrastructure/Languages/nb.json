@@ -651,6 +651,7 @@
     "ColorNone": "Ingen"
   },
   "Mindmap": {
+    "AddNode": "Legg til node",
     "Loading": "Laster kartet...",
     "MapIsEmpty": "Dette kartet er tomt.",
     "MapNotFound": "Dette tankekartet kunne ikke åpnes.",

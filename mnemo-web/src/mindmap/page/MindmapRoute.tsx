@@ -8,16 +8,26 @@ import { useMindmap, useMindmapTemplates, type MindmapTemplates } from "../api"
 import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
+import { placeChild, type PlacedBox } from "../edit/placement"
 import type { MovedElement } from "../interaction/controller"
-import { EMPTY_SELECTION, retain, selectElements, type Selection } from "../interaction/selection"
+import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } from "../interaction/selection"
 import { op, type MindmapOp } from "../model/ops"
-import { analyzeHierarchy, descendantsOf } from "../scene/hierarchy"
+import { analyzeHierarchy, childrenIds, descendantsOf } from "../scene/hierarchy"
 import { projectScene } from "../scene/project"
 
 /** No rules at all: every node falls through to the theme. Stable, so it does not reproject a scene. */
 const EMPTY_TEMPLATES: MindmapTemplates = { defaultId: "", templates: [] }
 
 const NO_SUBTREE: readonly string[] = []
+
+/**
+ * What a node is assumed to be before anything has measured it.
+ *
+ * A brand new node has no text, so this is the empty-label box the measurer would produce anyway. It
+ * only has to be close: it decides where the node is put, and the projector measures it properly on
+ * the very next frame.
+ */
+const NEW_NODE_SIZE = { width: 68, height: 30 }
 
 /**
  * One open map.
@@ -36,6 +46,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const editor = useMindmapEditor(mapId ?? null)
   const runtime = useRef<CanvasRuntime | null>(null)
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION)
+  const [editing, setEditing] = useState<string | null>(null)
+  /** The node this edit created. Abandoning the edit takes it away again. */
+  const blank = useRef<string | null>(null)
 
   // Waits for the templates to settle, not to succeed. They style a map rather than make one, so a
   // library that cannot be read costs the map its template rules and nothing else; refusing to draw
@@ -52,17 +65,17 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     })
   }, [map.data, styling])
 
+  const hierarchy = useMemo(() => (map.data ? analyzeHierarchy(map.data) : null), [map.data])
+
   /**
    * Descendants from the document rather than the scene, so a collapsed subtree still travels with
    * the node it hangs off. Memoized per node because a drag asks once per gesture and a big branch
    * is not free to walk.
    */
   const subtreeOf = useMemo(() => {
-    const document = map.data
-    if (!document) {
+    if (!hierarchy) {
       return () => NO_SUBTREE
     }
-    const hierarchy = analyzeHierarchy(document)
     const cache = new Map<string, readonly string[]>()
     return (id: string): readonly string[] => {
       const known = cache.get(id)
@@ -73,7 +86,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       cache.set(id, found)
       return found
     }
-  }, [map.data])
+  }, [hierarchy])
 
   // An edit, an undo or another session's change can all take something out from under a selection.
   useEffect(() => {
@@ -103,6 +116,93 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     [editor, t],
   )
 
+  const boxes = useMemo(() => {
+    const index = new Map<string, PlacedBox>()
+    for (const element of scene?.elements ?? []) {
+      index.set(element.id, {
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+      })
+    }
+    return index
+  }, [scene])
+
+  /**
+   * Adds a child and puts the caret in it.
+   *
+   * The position is worked out here rather than left to the server, because layout is freeform until
+   * Arrange and a node the server places at no position lands on the origin, on top of the root.
+   */
+  const addChild = useCallback(
+    async (parentId: string) => {
+      const parent = hierarchy && boxes.get(parentId)
+      if (!hierarchy || !parent) {
+        return
+      }
+      const grandparentId = hierarchy.byId.get(parentId)?.parentId ?? null
+      const siblings: PlacedBox[] = []
+      for (const childId of childrenIds(hierarchy, parentId)) {
+        const box = boxes.get(childId)
+        if (box) {
+          siblings.push(box)
+        }
+      }
+
+      const at = placeChild(
+        parent,
+        grandparentId ? (boxes.get(grandparentId) ?? null) : null,
+        siblings,
+        NEW_NODE_SIZE,
+      )
+      const result = await editor.apply(
+        [op.addNodes([{ ref: "n", t: "", xy: [at.x, at.y] }], parentId)],
+        { label: t("Mindmap", "AddNode") },
+      )
+
+      const created = result?.createdIds?.n
+      if (created) {
+        blank.current = created
+        setSelection(selectOnly("element", created))
+        setEditing(created)
+      }
+    },
+    [boxes, editor, hierarchy, t],
+  )
+
+  /** A sibling is a child of the same parent. A node with no parent gets a child instead. */
+  const addSibling = useCallback(
+    (id: string) => {
+      const parentId = hierarchy?.byId.get(id)?.parentId ?? null
+      return addChild(parentId ?? id)
+    },
+    [addChild, hierarchy],
+  )
+
+  const endEdit = useCallback(
+    (id: string, text: string | null) => {
+      setEditing(null)
+      const wasBlank = blank.current === id
+      blank.current = null
+      const typed = text?.trim() ?? ""
+
+      if (typed === "") {
+        // A node created for this edit and never given a label is a box nobody asked for. One that
+        // already had a label keeps it, because emptying a node is what Delete is for.
+        if (wasBlank) {
+          void editor.apply([op.del([id])], { label: t("Mindmap", "Delete") })
+        }
+        return
+      }
+      if (typed === currentText(scene, id)) {
+        return
+      }
+      void editor.apply([op.set(id, { t: typed })], { label: t("Mindmap", "Rename") })
+    },
+    [editor, scene, t],
+  )
+
   const deleteSelection = useCallback(() => {
     const ops: MindmapOp[] = []
     if (selection.elements.size > 0) {
@@ -125,6 +225,22 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       }
       const modified = event.ctrlKey || event.metaKey
       const key = event.key.toLowerCase()
+      const primary = selection.primary?.kind === "element" ? selection.primary.id : null
+
+      // Tab and Enter are the outliner's two moves, and they are why a mindmap is faster to write
+      // than a diagram. Both are only reached when nothing is being typed into, since the guard
+      // above hands every key to the field while one is open.
+      if (!modified && primary && (event.key === "Tab" || event.key === "Enter" || event.key === "F2")) {
+        event.preventDefault()
+        if (event.key === "Tab") {
+          void addChild(primary)
+        } else if (event.key === "Enter") {
+          void addSibling(primary)
+        } else {
+          setEditing(primary)
+        }
+        return
+      }
 
       if (modified && key === "z") {
         event.preventDefault()
@@ -154,7 +270,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         setSelection(EMPTY_SELECTION)
       }
     },
-    [deleteSelection, editor, scene],
+    [addChild, addSibling, deleteSelection, editor, scene, selection],
   )
 
   if (map.isError) {
@@ -216,6 +332,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           selection={selection}
           onSelection={setSelection}
           onCommitMove={commitMove}
+          onActivate={setEditing}
+          editingId={editing}
+          onEditEnd={endEdit}
           subtreeOf={subtreeOf}
         />
       </div>
@@ -258,6 +377,13 @@ function Notice({ icon, title, spinning }: { icon: string; title: string; spinni
       <p className="text-[13px]">{title}</p>
     </div>
   )
+}
+
+/** The label as it stands, so an edit that changed nothing costs no revision and no undo step. */
+function currentText(scene: { elements: readonly { id: string; content: unknown }[] } | null, id: string): string {
+  const element = scene?.elements.find((candidate) => candidate.id === id)
+  const content = element?.content as { text?: string } | undefined
+  return content?.text ?? ""
 }
 
 /** Keys belong to whatever is being typed into, not to the map behind it. */

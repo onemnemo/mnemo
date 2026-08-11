@@ -645,6 +645,7 @@
     "ColorNone": "Keine"
   },
   "Mindmap": {
+    "AddNode": "Knoten hinzufügen",
     "Loading": "Karte wird geladen...",
     "MapIsEmpty": "Diese Karte ist leer.",
     "MapNotFound": "Diese Mindmap konnte nicht geöffnet werden.",

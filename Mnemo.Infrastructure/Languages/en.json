@@ -701,6 +701,7 @@
     "SlashMenuLabel": "Insert a block"
   },
   "Mindmap": {
+    "AddNode": "Add node",
     "Move": "Move",
     "EditRejected": "That change could not be applied.",
     "Loading": "Loading map...",

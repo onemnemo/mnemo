@@ -651,6 +651,7 @@
     "ColorNone": "なし"
   },
   "Mindmap": {
+    "AddNode": "ノードを追加",
     "Loading": "マップを読み込んでいます...",
     "MapIsEmpty": "このマップは空です。",
     "MapNotFound": "このマインドマップを開けませんでした。",

@@ -28,6 +28,10 @@ export interface MindmapCanvasProps {
   onCommitMove?: (moves: readonly MovedElement[]) => void
   /** A double click, which is how a label asks to be edited. */
   onActivate?: (id: string) => void
+  /** The node whose label is currently a field. */
+  editingId?: string | null
+  /** The field closed: the typed text, or null when the edit was abandoned. */
+  onEditEnd?: (id: string, text: string | null) => void
   /** Descendants in the hierarchy, from the document rather than the scene. See the controller. */
   subtreeOf?: (id: string) => readonly string[]
   className?: string
@@ -54,6 +58,8 @@ export function MindmapCanvas({
   onSelection,
   onCommitMove,
   onActivate,
+  editingId,
+  onEditEnd,
   subtreeOf,
   className,
 }: MindmapCanvasProps) {
@@ -168,10 +174,21 @@ export function MindmapCanvas({
     runtime.current?.redraw()
   }, [selection.edges])
 
+  // A field that closes takes the focus with it, and it lands on the body. Every key the map
+  // answers would then do nothing until someone clicked the canvas again, which is the whole
+  // outliner rhythm of Tab, type, Enter, Tab broken at the second Tab.
+  const wasEditing = useRef<string | null>(null)
+  useEffect(() => {
+    if (wasEditing.current && !editingId) {
+      pane.current?.focus({ preventScroll: true })
+    }
+    wasEditing.current = editingId ?? null
+  }, [editingId])
+
   return (
     <div
       ref={pane}
-      className={`relative size-full overflow-hidden bg-canvas outline-none ${className ?? ""}`}
+      className={`relative size-full select-none overflow-hidden bg-canvas outline-none ${className ?? ""}`}
       // The pane takes focus so the map answers the keyboard without a click landing on a node
       // first, and so Escape has somewhere to be heard. No focus ring: it is focused for the whole
       // time the map is open, and a permanent line across the top of the canvas is not information.
@@ -196,7 +213,12 @@ export function MindmapCanvas({
 
       <div ref={world} className="absolute left-0 top-0 origin-top-left will-change-transform">
         {scene.elements.map((element) => (
-          <MindmapNode key={element.id} element={element} />
+          <MindmapNode
+            key={element.id}
+            element={element}
+            editing={element.id === editingId}
+            onEditEnd={onEditEnd}
+          />
         ))}
         <MindmapEdgeLabels scene={scene} />
       </div>
