@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
+import { eventKeyToken } from "@/keybinds/chord"
 import { cn } from "@/lib/utils"
 
 import { RADIAL_INNER, RADIAL_OUTER, sectorAt, wedgePath, type RadialSector } from "./radial"
@@ -13,6 +14,14 @@ export interface RadialMenuProps {
   sectors: readonly RadialSector[]
   /** Where the ring is centred, in pixels from the pane's top left. */
   at: { x: number; y: number }
+  /**
+   * The key token holding the ring open, whose release fires the sector under the pointer.
+   *
+   * It comes from whichever chord opened the ring rather than being a letter written in here,
+   * because the shortcut is the user's to rebind and a ring that only closes on the key it shipped
+   * with would be stuck open the moment they did.
+   */
+  holdKey: string
   onPick: (id: string) => void
   onClose: () => void
 }
@@ -29,7 +38,7 @@ export interface RadialMenuProps {
  * which is what lets the ring open on top of the map without the map losing the gesture underneath
  * it, and it is why the wedges can be drawn as one SVG rather than six hit targets.
  */
-export function RadialMenu({ sectors, at, onPick, onClose }: RadialMenuProps) {
+export function RadialMenu({ sectors, at, holdKey, onPick, onClose }: RadialMenuProps) {
   const t = useT()
   const root = useRef<HTMLDivElement>(null)
   const [hot, setHot] = useState<number | null>(null)
@@ -70,7 +79,9 @@ export function RadialMenu({ sectors, at, onPick, onClose }: RadialMenuProps) {
       handlers.current.onClose()
     }
     const keyUp = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === "q") commit()
+      // The key alone, not the whole chord: a modifier let go a moment before the letter is still
+      // the end of the same gesture, and waiting for the exact combination would drop the pick.
+      if (eventKeyToken(event) === holdKey) commit()
     }
     const keyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") handlers.current.onClose()
@@ -86,7 +97,7 @@ export function RadialMenu({ sectors, at, onPick, onClose }: RadialMenuProps) {
       window.removeEventListener("keyup", keyUp)
       window.removeEventListener("keydown", keyDown)
     }
-  }, [at.x, at.y, sectors])
+  }, [at.x, at.y, holdKey, sectors])
 
   const box = (RADIAL_OUTER + EDGE_PAD) * 2
   const labelRadius = (RADIAL_INNER + RADIAL_OUTER) / 2

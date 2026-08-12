@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
+import { parseChord } from "@/keybinds/chord"
+import { useLocalActions } from "@/keybinds/local"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
 
@@ -39,7 +41,7 @@ import { clearsAnything, restyledEdge } from "../edit/restyle"
 import type { MovedElement, NodeChrome } from "../interaction/controller"
 import type { ResizeBox } from "../interaction/resize"
 import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } from "../interaction/selection"
-import { isOneShot, TOOL_KEYS, type MindmapTool } from "../interaction/tool"
+import { isOneShot, TOOL_OF_ACTION, type MindmapTool } from "../interaction/tool"
 import { MapStyleMenu } from "../chrome/MapStyleMenu"
 import { edgeDefaultsFor, materialOf } from "../chrome/material"
 import { exportMap, type MapExportFormat } from "../export/save"
@@ -76,8 +78,6 @@ const DUPLICATE_STEP = 48
 
 /** A ref on a top-level spec, which is the only way the ids the server made come back. */
 const withRef = (spec: NodeSpec, index: number): NodeSpec => ({ ...spec, ref: `n${index}` })
-
-const CLIPBOARD_KEYS = new Set(["c", "x", "v", "d"])
 
 /**
  * What a node is assumed to be before anything has measured it.
@@ -119,6 +119,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const map = useMindmap(mapId ?? null)
   const templates = useMindmapTemplates()
   const editor = useMindmapEditor(mapId ?? null)
+  const actionFor = useLocalActions("mindmap")
   const runtime = useRef<CanvasRuntime | null>(null)
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION)
   const [editing, setEditing] = useState<string | null>(null)
@@ -127,8 +128,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const [zoom, setZoom] = useState(1)
   const [shape, setShape] = useState<ShapeType>("rectangle")
   const [connectStyle, setConnectStyle] = useState(DEFAULT_CONNECT)
-  /** Where the ring is, while it is open. Null when it is not. */
-  const [radial, setRadial] = useState<Point | null>(null)
+  /** Where the ring is and which key is holding it open, while it is open. Null when it is not. */
+  const [radial, setRadial] = useState<{ at: Point; key: string } | null>(null)
   // Tracked continuously rather than sampled when the key goes down, because a key event carries no
   // position of its own and the ring has to open where the hand already is.
   const pointer = useRef<Point>({ x: 0, y: 0 })
@@ -963,6 +964,13 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     [addChild, addSibling, arrange, beginEdit, deleteSelection, editor, scene, selection, t],
   )
 
+  /**
+   * The keyboard, as the catalog defines it.
+   *
+   * Nothing here decides which key does what. The press is resolved to one of the module's actions
+   * first and this only says what each action does, which is what makes every one of them
+   * rebindable from Settings and what keeps the map's shortcuts in the one list the app shows.
+   */
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (isTyping(event.target)) {
@@ -975,89 +983,107 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         return
       }
 
-      // Hold, flick, release. Guarded on the repeat because holding a key fires it about thirty
-      // times a second, and each one would reopen the ring around a pointer that had moved on.
-      if (event.key.toLowerCase() === "q" && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey) {
-        event.preventDefault()
-        setRadial(pointer.current)
+      const hit = actionFor(event.nativeEvent)
+      if (!hit) {
         return
       }
 
-      const modified = event.ctrlKey || event.metaKey
-      const key = event.key.toLowerCase()
+      const tooled = TOOL_OF_ACTION[hit.actionId]
+      if (tooled) {
+        event.preventDefault()
+        setTool(tooled)
+        return
+      }
+
       const primary = selection.primary?.kind === "element" ? selection.primary.id : null
 
-      // One letter each, no modifier, which is what makes a tool worth switching to for one node.
-      // Checked before anything else claims a bare letter.
-      if (!modified && !event.altKey && TOOL_KEYS[key]) {
-        event.preventDefault()
-        setTool(TOOL_KEYS[key])
-        return
-      }
-
-      // Tab and Enter are the outliner's two moves, and they are why a mindmap is faster to write
-      // than a diagram. Both are only reached when nothing is being typed into, since the guard
-      // above hands every key to the field while one is open.
-      if (!modified && primary && (event.key === "Tab" || event.key === "Enter" || event.key === "F2")) {
-        event.preventDefault()
-        if (event.key === "Tab") {
-          void addChild(primary)
-        } else if (event.key === "Enter") {
-          void addSibling(primary)
-        } else {
-          beginEdit(primary)
-        }
-        return
-      }
-
-      if (modified && key === "z") {
-        event.preventDefault()
-        if (event.shiftKey) {
-          editor.redo()
-        } else {
-          editor.undo()
-        }
-        return
-      }
-      if (modified && key === "y") {
-        event.preventDefault()
-        editor.redo()
-        return
-      }
-      if (modified && key === "a") {
-        event.preventDefault()
-        setSelection(selectElements(scene?.elements.map((element) => element.id) ?? []))
-        return
-      }
-      if (modified && CLIPBOARD_KEYS.has(key)) {
-        event.preventDefault()
-        if (key === "c") {
-          copySelection()
-        } else if (key === "x") {
-          cutSelection()
-        } else if (key === "v") {
-          void pasteCopy()
-        } else {
-          void duplicateSelection()
-        }
-        return
-      }
-      if (event.key === "Delete" || event.key === "Backspace") {
-        event.preventDefault()
-        deleteSelection()
-        return
-      }
-      if (event.key === "Escape") {
-        // An armed tool first: Escape is "never mind", and the thing most recently asked for is the
-        // thing it should take back.
-        if (isOneShot(tool)) {
-          setTool("select")
+      switch (hit.actionId) {
+        case "mindmap.radial":
+          // Hold, flick, release. Guarded on the repeat because holding a key fires it about thirty
+          // times a second, and each one would reopen the ring around a pointer that had moved on.
+          if (!event.repeat) {
+            event.preventDefault()
+            setRadial({ at: pointer.current, key: parseChord(hit.chord).key })
+          }
           return
-        }
-        setSelection(EMPTY_SELECTION)
+
+        // Tab and Enter are the outliner's two moves, and they are why a mindmap is faster to write
+        // than a diagram. Both are only reached when nothing is being typed into, since the guard
+        // above hands every key to the field while one is open.
+        case "mindmap.add-child":
+          event.preventDefault()
+          if (primary) void addChild(primary)
+          return
+        case "mindmap.enter":
+          event.preventDefault()
+          if (primary) void addSibling(primary)
+          return
+        case "mindmap.edit-edge-label":
+          event.preventDefault()
+          // A selected edge is what the label belongs to; with a node selected it is the node's own
+          // text, since that is the label in front of whoever pressed the key.
+          if (selection.primary?.kind === "edge") {
+            setEditingEdge(selection.primary.id)
+          } else if (primary) {
+            beginEdit(primary)
+          }
+          return
+
+        case "mindmap.undo":
+          event.preventDefault()
+          editor.undo()
+          return
+        case "mindmap.redo":
+          event.preventDefault()
+          editor.redo()
+          return
+        case "mindmap.select-all":
+          event.preventDefault()
+          setSelection(selectElements(scene?.elements.map((element) => element.id) ?? []))
+          return
+
+        case "mindmap.copy":
+          event.preventDefault()
+          copySelection()
+          return
+        case "mindmap.cut":
+          event.preventDefault()
+          cutSelection()
+          return
+        case "mindmap.paste":
+          event.preventDefault()
+          void pasteCopy()
+          return
+        case "mindmap.duplicate":
+          event.preventDefault()
+          void duplicateSelection()
+          return
+
+        case "mindmap.delete-selection":
+          event.preventDefault()
+          deleteSelection()
+          return
+        case "mindmap.recenter":
+          event.preventDefault()
+          runtime.current?.fit()
+          return
+        case "mindmap.clear-selection":
+          event.preventDefault()
+          // An armed tool first: Escape is "never mind", and the thing most recently asked for is
+          // the thing it should take back.
+          if (isOneShot(tool)) {
+            setTool("select")
+            return
+          }
+          setSelection(EMPTY_SELECTION)
+          return
+
+        default:
+          return
       }
     },
     [
+      actionFor,
       addChild,
       addSibling,
       beginEdit,
@@ -1203,7 +1229,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         {radial ? (
           <RadialMenu
             sectors={selection.elements.size > 0 ? ON_NODE : ON_CANVAS}
-            at={radial}
+            at={radial.at}
+            holdKey={radial.key}
             onPick={onRadial}
             onClose={() => setRadial(null)}
           />

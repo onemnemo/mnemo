@@ -87,10 +87,12 @@ internal static class MindmapKeybindManifest
     [
         Chords("mindmap.recenter", "Primary+D0", "Primary+NumPad0"),
         Chords("mindmap.undo", "Primary+Z"),
-        Chords("mindmap.redo", "Primary+Y"),
+        Chords("mindmap.redo", "Primary+Y", "Primary+Shift+Z"),
         Chords("mindmap.clear-selection", "Escape"),
         Chords("mindmap.delete-selection", "Delete", "Back"),
+        Chords("mindmap.select-all", "Primary+A"),
         Chords("mindmap.copy", "Primary+C"),
+        Chords("mindmap.cut", "Primary+X"),
         Chords("mindmap.paste", "Primary+V"),
         Chords("mindmap.duplicate", "Primary+D"),
         Chords("mindmap.add-child", "Tab"),
@@ -103,7 +105,9 @@ internal static class MindmapKeybindManifest
         Chords("mindmap.new-text", "T"),
         Chords("mindmap.new-frame", "F"),
         Chords("mindmap.shape-picker", "S"),
-        Chords("mindmap.radial", "Alt+W"),
+        // A bare letter because the ring is held open rather than toggled, and a chord is not
+        // something a hand can hold down while the other one flicks the pointer at a sector.
+        Chords("mindmap.radial", "Q"),
     ];
 
     private static KeybindActionDefinition Chords(string actionId, params string[] gestures) =>
