@@ -4,6 +4,7 @@ import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 
@@ -118,7 +119,7 @@ export function DeckPage({ deckId }: { deckId?: string }) {
     if (ok) await run(deleteCards.mutateAsync(ids))
   }
 
-  if (missing || !deck.data) return null
+  if (missing) return null
 
   const filtered =
     stateFilter !== "all" ||
@@ -146,48 +147,72 @@ export function DeckPage({ deckId }: { deckId?: string }) {
             {fc("AllDecks")}
           </button>
 
-          <DeckHeader deck={deck.data} />
+          {deck.isError ? (
+            <div className="mx-auto flex max-w-[360px] flex-col items-center gap-3 py-16 text-center">
+              <div className="grid size-14 place-items-center rounded-xl bg-canvas text-ink-icon shadow-[0_0_0_1px_var(--line)]">
+                <AppIcon name="triangle-alert" size={22} strokeWidth={1.5} />
+              </div>
+              <div>
+                <h2 className="text-[14px] font-medium text-ink">{fc("DeckLoadFailedTitle")}</h2>
+                <p className="mt-0.5 text-[12.5px] text-ink-3">{fc("DeckLoadFailedHint")}</p>
+              </div>
+              <Button variant="outline" className="mt-1" onClick={() => void deck.refetch()}>
+                {fc("Retry")}
+              </Button>
+            </div>
+          ) : !deck.data ? (
+            <div className="mt-6 flex flex-col gap-2">
+              {Array.from({ length: 6 }, (_, i) => (
+                <Skeleton key={i} className="h-11 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : (
+            <>
+              <DeckHeader deck={deck.data} />
 
-          {!showEmpty ? <DeckToolbar knownTags={tags.data ?? []} /> : null}
+              {!showEmpty ? <DeckToolbar knownTags={tags.data ?? []} /> : null}
 
-          {hasRows && page ? (
-            <CardTable
-              page={page}
-              deckTotal={deck.data.totalCards}
-              moveTargets={moveTargets}
-              now={now}
-              actions={{
-                onEdit: (cardId) => openEdit(id, cardId),
-                onFlag: (cardId, value) => void run(flagCards.mutateAsync({ cardIds: [cardId], value })),
-                onSuspend: (cardId, value) => void run(suspendCards.mutateAsync({ cardIds: [cardId], value })),
-                onMove: (cardId, targetDeckId) => void run(moveCards.mutateAsync({ cardIds: [cardId], targetDeckId })),
-                onDelete: (cardId) => void confirmDelete([cardId]),
-              }}
-            />
-          ) : null}
+              {hasRows && page ? (
+                <CardTable
+                  page={page}
+                  deckTotal={deck.data.totalCards}
+                  moveTargets={moveTargets}
+                  now={now}
+                  actions={{
+                    onEdit: (cardId) => openEdit(id, cardId),
+                    onFlag: (cardId, value) => void run(flagCards.mutateAsync({ cardIds: [cardId], value })),
+                    onSuspend: (cardId, value) => void run(suspendCards.mutateAsync({ cardIds: [cardId], value })),
+                    onMove: (cardId, targetDeckId) =>
+                      void run(moveCards.mutateAsync({ cardIds: [cardId], targetDeckId })),
+                    onDelete: (cardId) => void confirmDelete([cardId]),
+                  }}
+                />
+              ) : null}
 
-          {showEmpty ? (
-            <EmptyState
-              className="mt-12"
-              icon="common/book"
-              title={fc("DeckEmptyTitle")}
-              description={fc("DeckEmptyDescription")}
-              action={
-                <Button size="sm" onClick={() => openAdd(id)}>
-                  {fc("DeckAddCards")}
-                </Button>
-              }
-            />
-          ) : null}
+              {showEmpty ? (
+                <EmptyState
+                  className="mt-12"
+                  icon="common/book"
+                  title={fc("DeckEmptyTitle")}
+                  description={fc("DeckEmptyDescription")}
+                  action={
+                    <Button size="sm" onClick={() => openAdd(id)}>
+                      {fc("DeckAddCards")}
+                    </Button>
+                  }
+                />
+              ) : null}
 
-          {showNoResults ? (
-            <EmptyState
-              className="mt-12"
-              icon="common/search"
-              title={fc("NoResultsTitle")}
-              description={fc("DeckNoResultsDescription")}
-            />
-          ) : null}
+              {showNoResults ? (
+                <EmptyState
+                  className="mt-12"
+                  icon="common/search"
+                  title={fc("NoResultsTitle")}
+                  description={fc("DeckNoResultsDescription")}
+                />
+              ) : null}
+            </>
+          )}
         </div>
       </div>
 

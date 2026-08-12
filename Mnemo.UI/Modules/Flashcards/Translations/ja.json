@@ -289,6 +289,11 @@
     "StudyCramAllCards": "すべてのカード",
     "StudyMenuHintTest": "T",
     "ChangeDeckIcon": "デッキのアイコンを変更",
-    "AddDeckIcon": "アイコンを追加"
+    "AddDeckIcon": "アイコンを追加",
+    "LibraryLoadFailedTitle": "ライブラリを読み込めませんでした",
+    "LibraryLoadFailedHint": "Mnemoが起動しているか確認して、もう一度お試しください。",
+    "DeckLoadFailedTitle": "このデッキを読み込めませんでした",
+    "DeckLoadFailedHint": "Mnemoが起動しているか確認して、もう一度お試しください。",
+    "Retry": "再試行"
   }
 }

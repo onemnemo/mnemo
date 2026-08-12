@@ -289,6 +289,11 @@
     "StudyCramAllCards": "Alle Karten",
     "StudyMenuHintTest": "T",
     "ChangeDeckIcon": "Stapelsymbol ändern",
-    "AddDeckIcon": "Symbol hinzufügen"
+    "AddDeckIcon": "Symbol hinzufügen",
+    "LibraryLoadFailedTitle": "Deine Bibliothek konnte nicht geladen werden",
+    "LibraryLoadFailedHint": "Prüfe, ob Mnemo läuft, und versuche es erneut.",
+    "DeckLoadFailedTitle": "Dieser Stapel konnte nicht geladen werden",
+    "DeckLoadFailedHint": "Prüfe, ob Mnemo läuft, und versuche es erneut.",
+    "Retry": "Erneut versuchen"
   }
 }

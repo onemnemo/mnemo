@@ -289,6 +289,11 @@
     "StudyCramAllCards": "Todas las tarjetas",
     "StudyMenuHintTest": "T",
     "ChangeDeckIcon": "Cambiar icono del mazo",
-    "AddDeckIcon": "Añadir un icono"
+    "AddDeckIcon": "Añadir un icono",
+    "LibraryLoadFailedTitle": "No se pudo cargar tu biblioteca",
+    "LibraryLoadFailedHint": "Comprueba que Mnemo se esté ejecutando y vuelve a intentarlo.",
+    "DeckLoadFailedTitle": "No se pudo cargar este mazo",
+    "DeckLoadFailedHint": "Comprueba que Mnemo se esté ejecutando y vuelve a intentarlo.",
+    "Retry": "Reintentar"
   }
 }

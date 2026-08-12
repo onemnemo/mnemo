@@ -211,5 +211,8 @@ export function useSaveOverviewLayout() {
   return useMutation<void, ApiError, OverviewLayoutDto>({
     mutationFn: (layout) => apiSend("/overview/layout", { ...json(layout), method: "PUT" }),
     onSuccess: () => client.invalidateQueries({ queryKey: layoutKey }),
+    // Autosave reports its own failure, with wording about the board rather
+    // than a generic write.
+    meta: { silentError: true },
   })
 }

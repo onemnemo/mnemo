@@ -291,6 +291,11 @@
     "StudyCramAllCards": "All cards",
     "StudyMenuHintTest": "T",
     "ChangeDeckIcon": "Change deck icon",
-    "AddDeckIcon": "Add an icon"
+    "AddDeckIcon": "Add an icon",
+    "LibraryLoadFailedTitle": "Your library could not be loaded",
+    "LibraryLoadFailedHint": "Check that Mnemo is running, then try again.",
+    "DeckLoadFailedTitle": "This deck could not be loaded",
+    "DeckLoadFailedHint": "Check that Mnemo is running, then try again.",
+    "Retry": "Try again"
   }
 }
