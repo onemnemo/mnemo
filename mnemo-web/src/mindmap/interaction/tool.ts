@@ -8,25 +8,25 @@
 
 export type MindmapTool = "select" | "node" | "shape" | "text" | "connect" | "frame"
 
-/** The letter that arms each tool: one press, no modifier, and not while a field has the keyboard. */
-export const TOOL_KEYS: Readonly<Record<string, MindmapTool>> = {
-  v: "select",
-  n: "node",
-  s: "shape",
-  t: "text",
-  c: "connect",
-  g: "frame",
+/**
+ * The action that arms each tool.
+ *
+ * Which key that is belongs to the keybind catalog, not here, so the dock shows whatever someone
+ * has bound and a rebind moves the letter on the tooltip along with the key that works.
+ */
+export const TOOL_ACTIONS: Readonly<Record<MindmapTool, string>> = {
+  select: "mindmap.tool-select",
+  node: "mindmap.new-node",
+  shape: "mindmap.shape-picker",
+  text: "mindmap.new-text",
+  connect: "mindmap.connect",
+  frame: "mindmap.new-frame",
 }
 
-/** The letter shown next to a tool's name, so the dock teaches its own shortcuts. */
-export const TOOL_KEY_OF: Readonly<Record<MindmapTool, string>> = {
-  select: "V",
-  node: "N",
-  shape: "S",
-  text: "T",
-  connect: "C",
-  frame: "G",
-}
+/** The reverse, for a press that has already been resolved to an action id. */
+export const TOOL_OF_ACTION: Readonly<Record<string, MindmapTool>> = Object.fromEntries(
+  Object.entries(TOOL_ACTIONS).map(([tool, action]) => [action, tool as MindmapTool]),
+)
 
 /**
  * Every tool but select does one thing and hands the map back.

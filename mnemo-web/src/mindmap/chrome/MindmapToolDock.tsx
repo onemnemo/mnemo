@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
+import { useShortcutChord } from "@/keybinds/store"
 
 import type { ShapeType } from "../model/document"
-import { TOOL_KEY_OF, type MindmapTool } from "../interaction/tool"
+import { TOOL_ACTIONS, type MindmapTool } from "../interaction/tool"
 import { FloatBar, Sep, Slot } from "./bits"
 import { ConnectFlyout, type ConnectStyle } from "./ConnectFlyout"
 import { createHold } from "./hold"
@@ -69,6 +70,7 @@ export function MindmapToolDock({
 }: MindmapToolDockProps) {
   const t = useT()
   const [open, setOpen] = useState<MindmapTool | null>(null)
+  const fitChord = useShortcutChord("mindmap.recenter")
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-40 flex justify-center">
@@ -81,7 +83,7 @@ export function MindmapToolDock({
             <div key={entry.tool} className="relative">
               <ToolSlot
                 label={t("Mindmap", entry.key)}
-                chord={TOOL_KEY_OF[entry.tool]}
+                action={TOOL_ACTIONS[entry.tool]}
                 icon={entry.icon}
                 active={active}
                 onTap={() => onTool(entry.tool)}
@@ -125,7 +127,7 @@ export function MindmapToolDock({
 
         <Sep />
 
-        <Slot label={t("Mindmap", "FitToScreenTooltip")} onClick={onFit}>
+        <Slot label={t("Mindmap", "FitToScreenTooltip")} chord={fitChord} onClick={onFit}>
           <AppIcon name="maximize" size={15} strokeWidth={1.7} />
         </Slot>
       </FloatBar>
@@ -141,19 +143,21 @@ export function MindmapToolDock({
  */
 function ToolSlot({
   label,
-  chord,
+  action,
   icon,
   active,
   onTap,
   onHold,
 }: {
   label: string
-  chord: string
+  /** The keybind action the tool is armed by. Its chord is whatever the catalog currently says. */
+  action: string
   icon: string
   active: boolean
   onTap: () => void
   onHold?: () => void
 }) {
+  const chord = useShortcutChord(action)
   const hold = useMemo(() => createHold({ onTap, onHold: onHold ?? onTap }), [onTap, onHold])
   useEffect(() => hold.cancel, [hold])
 

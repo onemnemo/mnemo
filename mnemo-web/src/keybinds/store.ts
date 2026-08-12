@@ -36,3 +36,15 @@ export function useShortcutLabel(actionId: string): string | null {
   const chord = firstChord(keybind)
   return chord ? formatChord(chord) : null
 }
+
+/**
+ * An action's primary shortcut as the canonical chord ("Primary+D0"), or null.
+ *
+ * For anything that draws one cap per key: the label above has already joined the chord
+ * into a sentence, and splitting that back up cannot tell "Ctrl 0" from a key named
+ * "Ctrl 0".
+ */
+export function useShortcutChord(actionId: string): string | null {
+  const keybind = useKeybindStore((s) => s.byAction[actionId])
+  return firstChord(keybind) ?? null
+}

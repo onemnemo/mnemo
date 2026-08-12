@@ -49,7 +49,7 @@ export function parseChord(canonical: string): ParsedChord {
 }
 
 /** Maps a KeyboardEvent to the Avalonia-style token used in chords, or null if unmapped. */
-function eventKeyToken(event: KeyboardEvent): string | null {
+export function eventKeyToken(event: KeyboardEvent): string | null {
   const code = event.code
   const letter = /^Key([A-Z])$/.exec(code)
   if (letter) return letter[1]
