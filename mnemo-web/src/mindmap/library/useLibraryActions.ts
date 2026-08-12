@@ -1,3 +1,5 @@
+import { useState } from "react"
+
 import { navigate } from "@/app/router"
 import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
@@ -37,6 +39,10 @@ export function useLibraryActions() {
   const folderId = useLibraryView((state) => state.folderId)
   const openFolder = useLibraryView((state) => state.openFolder)
 
+  // Held here rather than in the header, because three surfaces offer "new map" and all three have
+  // to raise the same dialog.
+  const [creating, setCreating] = useState(false)
+
   async function createFolder(parentId: string | null) {
     const name = await dialog.prompt({
       title: mm("CreateFolderTitle"),
@@ -64,24 +70,20 @@ export function useLibraryActions() {
       saveFolder.isPending ||
       removeFolder.isPending,
 
+    /** Whether the new-map dialog is up. The route mounts it; every "new map" control opens it. */
+    creating,
+
+    createMapHere: () => setCreating(true),
+
+    cancelCreate: () => setCreating(false),
+
     /**
      * Creates in the folder on screen and opens it, because a map made from the gallery is a map
      * somebody is about to draw on. Landing back on the gallery would cost a second click every time.
      */
-    async createMapHere() {
-      const title = await dialog.prompt({
-        title: mm("CreateMapTitle"),
-        message: mm("CreateMapDescription"),
-        defaultValue: mm("NewMindmap"),
-        placeholder: mm("CreateMapNamePlaceholder"),
-        confirmLabel: mm("Create"),
-        cancelLabel: mm("Cancel"),
-      })
-      const name = title?.trim()
-      if (!name) {
-        return
-      }
-      const document = await create.mutateAsync({ title: name, folderId })
+    async confirmCreate(title: string, templateId: string | null) {
+      const document = await create.mutateAsync({ title, templateId: templateId ?? undefined, folderId })
+      setCreating(false)
       navigate("mindmap", document.id)
     },
 

@@ -7,6 +7,7 @@ import { useT } from "@/i18n/useT"
 
 import { useMindmapFolders, useMindmapLibrary, useMindmapTemplates } from "../api"
 import { Breadcrumb } from "../library/components/Breadcrumb"
+import { CreateMapDialog } from "../library/components/CreateMapDialog"
 import { FolderCard } from "../library/components/FolderCard"
 import { LibraryHeader } from "../library/components/LibraryHeader"
 import { FolderRow, MapRow } from "../library/components/LibraryRows"
@@ -183,7 +184,7 @@ export function MindmapLibraryRoute() {
             {!atRoot && !searching ? (
               <NewTile
                 label={mm("NewMapInFolder").replace("{0}", currentFolder?.folder.name ?? "")}
-                onClick={() => void actions.createMapHere()}
+                onClick={actions.createMapHere}
               />
             ) : null}
           </div>
@@ -211,7 +212,7 @@ export function MindmapLibraryRoute() {
             title={mm("LibraryEmptyTitle")}
             description={mm("LibraryEmptyDescription")}
             action={
-              <Button size="sm" onClick={() => void actions.createMapHere()}>
+              <Button size="sm" onClick={actions.createMapHere}>
                 {mm("NewMap")}
               </Button>
             }
@@ -229,6 +230,13 @@ export function MindmapLibraryRoute() {
       </div>
 
       <MindmapTransferOverlay />
+
+      <CreateMapDialog
+        open={actions.creating}
+        busy={actions.busy}
+        onCancel={actions.cancelCreate}
+        onCreate={(title, templateId) => void actions.confirmCreate(title, templateId)}
+      />
     </div>
   )
 }

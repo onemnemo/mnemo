@@ -101,8 +101,8 @@ export function LibraryHeader({
               {mm("New")}
             </Button>
           </MenuTrigger>
-          <MenuContent align="end">
-            <MenuItem icon="common/sitemap" onSelect={() => void actions.createMapHere()}>
+          <MenuContent align="end" opensDialog>
+            <MenuItem icon="common/sitemap" onSelect={actions.createMapHere}>
               {mm("NewMenuMap")}
             </MenuItem>
             <MenuItem icon="common/folder" onSelect={() => void actions.createFolderHere()}>

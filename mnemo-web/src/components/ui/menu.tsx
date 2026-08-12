@@ -20,14 +20,26 @@ export function MenuContent({
   children,
   align = "start",
   className,
+  opensDialog,
 }: {
   children: ReactNode
   align?: "start" | "center" | "end"
   className?: string
+  /**
+   * Set on a menu whose items raise a dialog. Closing a menu normally hands focus back to its
+   * trigger, which here lands a moment after the dialog has already put the caret in a field and
+   * takes it straight back out again.
+   */
+  opensDialog?: boolean
 }) {
   return (
     <DropdownMenu.Portal>
-      <DropdownMenu.Content align={align} sideOffset={4} className={cn(CONTENT_CLASS, className)}>
+      <DropdownMenu.Content
+        align={align}
+        sideOffset={4}
+        className={cn(CONTENT_CLASS, className)}
+        onCloseAutoFocus={opensDialog ? (event) => event.preventDefault() : undefined}
+      >
         {children}
       </DropdownMenu.Content>
     </DropdownMenu.Portal>
