@@ -98,6 +98,39 @@ export interface CanvasRuntime {
 /** Wide enough that a background pattern still covers after a pan without being redrawn. */
 const BACKGROUND_TILE = 24
 
+/**
+ * The smallest the tile is ever allowed to get on screen.
+ *
+ * Below roughly this the grid stops reading as ground and starts fighting the map: the lines crowd,
+ * then merge into a flat wash of line colour, then beat against the pixel grid as moire. At the
+ * camera floor a fixed tile would land at half a pixel, which is all three at once.
+ */
+const MIN_BACKGROUND_STEP = 18
+
+/**
+ * The tile's size on screen, coarsened by whole doublings until it clears the minimum.
+ *
+ * Doublings rather than an arbitrary factor because every coarser tile has to stay a multiple of the
+ * one below it. A grid that rescaled continuously would slide its lines off the world positions they
+ * marked at the previous zoom, and zooming out would look like the map drifting over its own paper.
+ */
+export function backgroundStep(zoom: number): number {
+  const step = BACKGROUND_TILE * zoom
+  if (!(step > 0)) {
+    return BACKGROUND_TILE
+  }
+
+  // Only ever coarsen. Subdividing when zoomed in would draw lines at world positions the document
+  // has no notion of, and the tile is already comfortable at the ceiling.
+  const doublings = Math.max(0, Math.ceil(Math.log2(MIN_BACKGROUND_STEP / step)))
+  return step * 2 ** doublings
+}
+
+/** A value folded into `[0, size)`, for an offset that only means anything modulo the tile. */
+function wrap(value: number, size: number): number {
+  return ((value % size) + size) % size
+}
+
 export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntime {
   const { scene, elements } = options
   const strategy: EdgeStrategy = options.strategy ?? "hybrid"
@@ -152,9 +185,12 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
     if (elements.background) {
       // The pattern is a background-image, so it pans by offset and zooms by size. Cheaper than a
       // transform on a viewport-sized element, and it never blurs the way a scaled bitmap would.
-      const step = BACKGROUND_TILE * viewport.zoom
+      const step = backgroundStep(viewport.zoom)
       elements.background.style.backgroundSize = `${step}px ${step}px`
-      elements.background.style.backgroundPosition = `${-viewport.x * viewport.zoom}px ${-viewport.y * viewport.zoom}px`
+      // Wrapped into one tile rather than handed over whole. CSS would take the raw offset and
+      // wrap it itself, but a map panned far from the origin at high zoom hands it a number large
+      // enough that the fractional part is gone, and the grid jitters against the elements on it.
+      elements.background.style.backgroundPosition = `${wrap(-viewport.x * viewport.zoom, step)}px ${wrap(-viewport.y * viewport.zoom, step)}px`
     }
 
     culler.update(viewport, elements.pane.clientWidth, elements.pane.clientHeight)
