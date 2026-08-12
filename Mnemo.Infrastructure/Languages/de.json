@@ -649,6 +649,7 @@
     "Page": "Seite",
     "PageDescription": "Verschachtelte Notiz, die von diesem Block aus geöffnet wird",
     "PageMissingTitle": "Notiz fehlt",
+    "PageUntitled": "Ohne Titel",
     "PageBlockOpenPage": "Seite öffnen",
     "PageBlockNestedPageCountOne": "• {0} untergeordnete Seite",
     "PageBlockNestedPageCountMany": "• {0} untergeordnete Seiten",

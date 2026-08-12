@@ -197,7 +197,7 @@ describe('payload and type agreement', () => {
   });
 
   it('accepts an empty payload on any block type, which legacy data relies on', () => {
-    for (const type of ['Checklist', 'Code', 'Image', 'Sketch', 'Equation'] as const) {
+    for (const type of ['Checklist', 'Code', 'Image', 'Sketch', 'Equation', 'Callout'] as const) {
       const result = mapper.toDoc([blockOf({ type, payload: { kind: 'empty' } })]);
       expect(result.ok, `${type} with an empty payload was rejected`).toBe(true);
     }
@@ -232,7 +232,7 @@ describe('robustness', () => {
   it('does not quarantine a whole note because a leaf block carries children', () => {
     // Nothing creates this shape, but one stray child made an entire readable
     // note fail to open.
-    for (const type of ['Divider', 'Image', 'Equation', 'Page'] as const) {
+    for (const type of ['Divider', 'Image', 'Equation', 'Page', 'Callout'] as const) {
       const result = mapper.toDoc([
         blockOf({ type, children: [blockOf({ id: 'kid', sid: 'ddddd' })] }),
       ]);

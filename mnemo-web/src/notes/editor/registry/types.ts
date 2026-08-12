@@ -186,6 +186,8 @@ export interface EstimateContext {
 export interface EditorServices {
   /** Resolves a note title for an embedded page reference. */
   resolveNoteTitle(noteId: string): string | undefined;
+  /** Absent wherever no note library is mounted, which is what a test and a preview get. */
+  readonly notes?: NoteReferenceServices;
   /**
    * Loads a stored asset reference as an object URL usable in `src`. Async because the
    * bytes sit behind the bearer-guarded API, and rejecting is the "cannot resolve" answer,
@@ -199,6 +201,24 @@ export interface EditorServices {
    * orphan the host sweeps once no open session could redo it.
    */
   uploadAsset(file: File): Promise<string>;
+}
+
+/**
+ * The note library a page reference is answered from, when the mount can reach it.
+ *
+ * `resolveNoteTitle` on its own cannot tell a deleted note from a library that
+ * has not arrived yet, and a card reading "Missing note" about a note that
+ * exists is a lie the user would act on. A supplier that knows the difference
+ * says so here. Omitted, every card resolves once at build and no page block can
+ * be created, which is what a test harness and a read-only preview want.
+ */
+export interface NoteReferenceServices {
+  /** False while the note list is still in flight. */
+  isLoaded(): boolean;
+  /** Calls back whenever `resolveNoteTitle` could answer differently; returns the unsubscribe. */
+  subscribe(listener: () => void): () => void;
+  /** Creates the nested note a new page block points at, resolving to its id. */
+  createChild(): Promise<string>;
 }
 
 /**
@@ -289,7 +309,21 @@ export interface SlashContribution {
   readonly keywords?: readonly string[];
   readonly group: SlashGroup;
   /** Async is allowed: Page must await child-note creation before committing. */
-  insert(state: EditorState, dispatch: Dispatch): void | Promise<void>;
+  insert(state: EditorState, dispatch: Dispatch, context?: SlashInsertContext): void | Promise<void>;
+}
+
+/**
+ * What the menu hands a row beyond the state it picked in.
+ *
+ * `state` is a snapshot, which is all a synchronous row needs. A row that has to
+ * await something first cannot build its step from that snapshot: the document
+ * may have moved on while the request was in flight, and applying a step mapped
+ * against the older document is how positions land in the wrong place. Those
+ * rows read `currentState` after the await instead.
+ */
+export interface SlashInsertContext {
+  readonly services: EditorServices;
+  readonly currentState: () => EditorState;
 }
 
 /**

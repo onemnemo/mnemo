@@ -170,6 +170,8 @@ function parsePayload(value: unknown): BlockPayload {
       };
     case 'sketch':
       return { kind: 'sketch', width: num(prop(value, 'width')), align: str(prop(value, 'align'), 'left') };
+    case 'callout':
+      return { kind: 'callout', emoji: str(prop(value, 'emoji')), tone: str(prop(value, 'tone'), 'note') };
     default:
       // Unknown kinds included: an unrecognised payload must not lose the block.
       return { kind: 'empty' };

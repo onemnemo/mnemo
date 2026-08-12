@@ -205,6 +205,18 @@ internal static class NoteTypstDocumentComposer
                 EmitInline(sb, block.Spans, options);
                 sb.Append("]]\n\n");
                 break;
+            case BlockType.Callout:
+            {
+                // The embedded fonts carry no emoji glyphs, so the tone is carried by the tint
+                // rather than by the leading character the editor draws.
+                var warn = string.Equals(MatchedPayload<CalloutPayload>(block)?.Tone, "warn", StringComparison.OrdinalIgnoreCase);
+                sb.Append("#block(width: 100%, inset: 8pt, radius: 3pt, fill: rgb(\"")
+                  .Append(warn ? "#fbf0d5" : "#f2f2f3")
+                  .Append("\"))[");
+                EmitInline(sb, block.Spans, options);
+                sb.Append("]\n\n");
+                break;
+            }
             case BlockType.Code:
                 EmitCode(sb, block, options);
                 break;

@@ -183,11 +183,14 @@ describe('the rows', () => {
       'NumberedList',
       'Todo',
       'Quote',
+      'Callout',
+      'CalloutWarning',
       'Code',
       'Divider',
       'TwoColumn',
       'Image',
       'Equation',
+      'Page',
     ]);
   });
 
@@ -247,13 +250,13 @@ describe('keyboard', () => {
     press(view, 'ArrowUp');
     expect(selectedLabel()).toBe('Text');
     for (let i = 0; i < 30; i++) press(view, 'ArrowDown');
-    expect(selectedLabel()).toBe('Equation');
+    expect(selectedLabel()).toBe('Page');
   });
 
   it('Home and End reach the ends in one press', () => {
     const view = openMenu();
     press(view, 'End');
-    expect(selectedLabel()).toBe('Equation');
+    expect(selectedLabel()).toBe('Page');
     press(view, 'Home');
     expect(selectedLabel()).toBe('Text');
   });
@@ -468,7 +471,7 @@ describe('what the menu tells a screen reader', () => {
     press(view, 'ArrowDown');
     expect(activeRow(view)?.dataset.label).toBe('Heading1');
     press(view, 'End');
-    expect(activeRow(view)?.dataset.label).toBe('Equation');
+    expect(activeRow(view)?.dataset.label).toBe('Page');
   });
 
   it('follows a filter down to the row it leaves standing', () => {

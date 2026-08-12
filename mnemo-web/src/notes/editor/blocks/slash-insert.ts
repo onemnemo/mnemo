@@ -23,6 +23,35 @@ import { blockContext, convertBlockType } from '../commands/structure';
 import type { SlashContribution } from '../registry/types';
 
 /**
+ * The page row: create the nested note first, then put a card in front of it.
+ *
+ * The order is the whole point, and it is why a slash insert is allowed to be
+ * async at all. A card stores an id and nothing else, so writing one before the
+ * note exists would leave the document holding a reference to nothing, which the
+ * card would honestly but uselessly render as a missing note. The desktop does
+ * the same thing for the same reason.
+ *
+ * The step is built from the state as it is after the request, not from the one
+ * the row was picked in: the user can go on typing while it is in flight, and a
+ * step mapped against the older document lands in the wrong place.
+ */
+export const insertPageBlock: SlashContribution['insert'] = async (_state, dispatch, context) => {
+  const create = context?.services.notes?.createChild;
+  if (!create || !context) return;
+
+  let referenceNoteId: string;
+  try {
+    referenceNoteId = await create();
+  } catch {
+    // The note is what the card would point at; with no note there is nothing
+    // honest to insert. The failure is reported where the request is made.
+    return;
+  }
+
+  insertAtomicBlock('page', { referenceNoteId })(context.currentState(), dispatch);
+};
+
+/**
  * The two-column row: replace the current block with a fresh split, an empty text
  * block seeded in each cell, and land the caret in the left one.
  *

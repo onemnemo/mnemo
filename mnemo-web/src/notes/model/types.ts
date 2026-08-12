@@ -23,13 +23,14 @@ export type BlockType =
   | 'TwoColumn'
   | 'Equation'
   | 'Page'
-  | 'Sketch';
+  | 'Sketch'
+  | 'Callout';
 
 /**
  * Every block type, in the C# enum's declaration order, the ordinal fallback
  * in `wire.ts` depends on that order.
  *
- * Built from an exhaustive record so adding an 18th `BlockType` without listing
+ * Built from an exhaustive record so adding another `BlockType` without listing
  * it here is a compile error. A plain array would type-check while silently
  * shrinking every completeness check that walks it.
  */
@@ -37,7 +38,7 @@ const blockTypeMembers = {
   Text: true, Heading1: true, Heading2: true, Heading3: true, Heading4: true,
   BulletList: true, NumberedList: true, Checklist: true, Quote: true,
   Code: true, Divider: true, Image: true, ColumnGroup: true, TwoColumn: true,
-  Equation: true, Page: true, Sketch: true,
+  Equation: true, Page: true, Sketch: true, Callout: true,
 } satisfies Record<BlockType, true>;
 
 export const allBlockTypes = Object.keys(blockTypeMembers) as readonly BlockType[];
@@ -113,7 +114,9 @@ export type BlockPayload =
   | { kind: 'twoColumn'; splitRatio: number }
   /** Embedded sub-note; the title is always read from the referenced note, never copied. */
   | { kind: 'page'; referenceNoteId: string }
-  | { kind: 'sketch'; width: number; align: string };
+  | { kind: 'sketch'; width: number; align: string }
+  /** Leading glyph and tone for a callout; its body is inline content in `spans`. */
+  | { kind: 'callout'; emoji: string; tone: string };
 
 export interface Block {
   id: string;

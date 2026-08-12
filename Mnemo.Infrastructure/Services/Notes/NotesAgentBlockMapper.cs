@@ -80,6 +80,12 @@ internal static class NotesAgentBlockMapper
                 dto["markdown"] = InlineMarkdownSerializer.SerializeSpans(block.Spans);
                 if (block.Type == BlockType.Checklist)
                     dto["checked"] = block.Payload is ChecklistPayload chk && chk.Checked;
+                if (block.Type == BlockType.Callout)
+                    dto["callout"] = new Dictionary<string, object?>
+                    {
+                        ["emoji"] = block.Payload is CalloutPayload co ? co.Emoji : "",
+                        ["tone"] = block.Payload is CalloutPayload co2 ? co2.Tone : "note"
+                    };
                 break;
         }
 

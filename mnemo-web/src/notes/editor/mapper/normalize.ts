@@ -20,8 +20,8 @@ import { plainSpan } from '../../model/spans';
 /**
  * The one payload kind each block type may carry, beyond `empty`.
  *
- * Exhaustive by construction: adding an eighteenth `BlockType` without deciding
- * its payload is a compile error rather than a silently unchecked type.
+ * Exhaustive by construction: adding another `BlockType` without deciding its
+ * payload is a compile error rather than a silently unchecked type.
  */
 const payloadKindFor = {
   Text: 'empty',
@@ -41,6 +41,7 @@ const payloadKindFor = {
   Equation: 'equation',
   Page: 'page',
   Sketch: 'sketch',
+  Callout: 'callout',
 } satisfies Record<BlockType, BlockPayload['kind']>;
 
 export interface NormalizeIssue {

@@ -693,6 +693,7 @@
     "Page": "Page",
     "PageDescription": "Create a nested note opened from this block",
     "PageMissingTitle": "Missing note",
+    "PageUntitled": "Untitled",
     "PageBlockOpenPage": "Open page",
     "PageBlockNestedPageCountOne": "• {0} nested page",
     "PageBlockNestedPageCountMany": "• {0} nested pages",

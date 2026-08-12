@@ -1,11 +1,11 @@
 /**
  * The scaffolding every block module shares.
  *
- * All fourteen modules have the same structural job, carry a line, carry block
- * children, carry the common attrs, and differ only in their typed attrs,
- * their wire type and payload, and how they render. Writing that structure out
- * fourteen times would mean fourteen chances to drop `sid`, mis-order children,
- * or forget that a block with no spans still needs one empty span back.
+ * Every module has the same structural job, carry a line, carry block children,
+ * carry the common attrs, and differ only in their typed attrs, their wire type
+ * and payload, and how they render. Writing that structure out once per module
+ * would mean one chance per module to drop `sid`, mis-order children, or forget
+ * that a block with no spans still needs one empty span back.
  *
  * So the factory owns the structure and each module declares only its
  * differences. What is left in a module file is the part a reader actually

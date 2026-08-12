@@ -127,6 +127,66 @@ public class NoteBlockMarkdownConverterTests
     }
 
     [Fact]
+    public void RoundTrip_Callout_PreservesToneAndEmoji()
+    {
+        var blocks = new List<Block>
+        {
+            new()
+            {
+                Type = BlockType.Callout,
+                Order = 0,
+                Payload = new CalloutPayload("💡", "note"),
+                Spans = new List<InlineSpan> { InlineSpan.Plain("Remember this") }
+            },
+            new()
+            {
+                Type = BlockType.Callout,
+                Order = 1,
+                Payload = new CalloutPayload("", "warn"),
+                Spans = new List<InlineSpan> { InlineSpan.Plain("Careful") }
+            }
+        };
+        foreach (var b in blocks) b.EnsureSpans();
+
+        var md = NoteBlockMarkdownConverter.Serialize(blocks);
+        var back = NoteBlockMarkdownConverter.Deserialize(md);
+
+        Assert.Equal(2, back.Count);
+        Assert.All(back, b => Assert.Equal(BlockType.Callout, b.Type));
+        Assert.Equal("💡", (back[0].Payload as CalloutPayload)?.Emoji);
+        Assert.Equal("note", (back[0].Payload as CalloutPayload)?.Tone);
+        Assert.Equal("Remember this", back[0].Content);
+        Assert.Equal(string.Empty, (back[1].Payload as CalloutPayload)?.Emoji);
+        Assert.Equal("warn", (back[1].Payload as CalloutPayload)?.Tone);
+        Assert.Equal("Careful", back[1].Content);
+    }
+
+    [Fact]
+    public void Deserialize_Callout_IsProbedBeforeQuote()
+    {
+        // A callout head is a quote line, so the quote branch would swallow it and
+        // the tone would come back as literal text inside a Quote block.
+        var back = NoteBlockMarkdownConverter.Deserialize("> [!note 💡] Heads up\n> and more\n> [!warn] Careful");
+
+        Assert.Equal(2, back.Count);
+        Assert.Equal(BlockType.Callout, back[0].Type);
+        Assert.Equal("Heads up\nand more", back[0].Content);
+        Assert.Equal("warn", (back[1].Payload as CalloutPayload)?.Tone);
+        Assert.Equal("Careful", back[1].Content);
+    }
+
+    [Fact]
+    public void Deserialize_QuoteFollowedByCallout_StaysTwoBlocks()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("> Just a quote\n> [!note] Heads up");
+
+        Assert.Equal(2, back.Count);
+        Assert.Equal(BlockType.Quote, back[0].Type);
+        Assert.Equal("Just a quote", back[0].Content);
+        Assert.Equal(BlockType.Callout, back[1].Type);
+    }
+
+    [Fact]
     public void EquationLatexNormalizer_StripsDollarDelimiters()
     {
         Assert.Equal("x^2", EquationLatexNormalizer.Normalize("$x^2$"));

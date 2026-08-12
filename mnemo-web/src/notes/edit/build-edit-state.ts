@@ -128,7 +128,9 @@ export function editorPlugins(
     // and dispatches no step on copy, so it never dirties the note. It restages
     // pasted images through the same services the node views resolve assets with.
     clipboardPlugin(registry, inline, defaultPasteAssetSupport(resolveServices(services))),
-    slashMenuPlugin(registry),
+    // Given the same services the node views get: the page row creates the note
+    // its card will point at before it writes anything into the document.
+    slashMenuPlugin(registry, { services: resolveServices(services) }),
     // Before the structural keymap so that, while a block selection is live, it
     // claims Backspace/Delete (delete the selection) and Escape (clear it)
     // before the per-character handlers see them, and claims Ctrl+A to select
