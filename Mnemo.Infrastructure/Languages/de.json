@@ -856,7 +856,10 @@
     "OpenRef": "Verweis öffnen",
     "ToggleTask": "Aufgabe umschalten",
     "ChangeType": "Typ ändern",
-    "LinkUrlRejected": "Diese Adresse kann nicht geöffnet werden"
+    "LinkUrlRejected": "Diese Adresse kann nicht geöffnet werden",
+    "Copy": "Kopieren",
+    "Cut": "Ausschneiden",
+    "Paste": "Einfügen"
   },
   "GlobalSearch": {
     "ShortcutHint": "Strg/Cmd + K",
