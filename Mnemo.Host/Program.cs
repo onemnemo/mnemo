@@ -23,6 +23,7 @@ using Mnemo.Host.Mindmap;
 using Mnemo.Host.Nav;
 using Mnemo.Host.Notes;
 using Mnemo.Host.Overview;
+using Mnemo.Host.Profile;
 using Mnemo.Host.Settings;
 using Mnemo.Host.Startup;
 using Mnemo.Host.Statistics;
@@ -152,6 +153,7 @@ public static class Program
         app.MapEventStream();
         app.MapLifecycle();
         app.MapSettings();
+        app.MapProfileAssets();
         app.MapKeybinds();
         app.MapNav();
         app.MapChat();

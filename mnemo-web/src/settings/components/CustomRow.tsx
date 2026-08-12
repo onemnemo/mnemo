@@ -1,15 +1,10 @@
 import { useT } from "@/i18n/useT"
 
-import {
-  APP_ICONS,
-  DEFAULT_APP_ICON,
-  DEFAULT_PROFILE_PICTURE,
-  PROFILE_PICTURES,
-  appIconName,
-} from "../assets"
+import { APP_ICONS, DEFAULT_APP_ICON, appIconName } from "../assets"
 import { rowDescription, rowTitle } from "../labels"
 import type { CustomRow as CustomRowSchema } from "../types"
 import { AboutIdentityRow } from "./custom/AboutIdentityRow"
+import { AvatarPicker } from "./custom/AvatarPicker"
 import { CheckForUpdatesRow } from "./custom/CheckForUpdatesRow"
 import { ClearChatHistoryRow } from "./custom/ClearChatHistoryRow"
 import { ImageGalleryRow } from "./custom/ImageGalleryRow"
@@ -53,15 +48,7 @@ export function CustomRow({ row, divider }: { row: CustomRowSchema; divider: boo
       )
 
     case "profile-picture-gallery":
-      return (
-        <ImageGalleryRow
-          {...shared}
-          settingKey="User.ProfilePicture"
-          options={PROFILE_PICTURES}
-          defaultValue={DEFAULT_PROFILE_PICTURE}
-          labelFor={(stored) => stored.split("/").pop() ?? stored}
-        />
-      )
+      return <AvatarPicker {...shared} />
 
     case "assistant-model":
       return <ModelPickerRow {...shared} settingKey="AI.OpenRouter.AssistantModel" />

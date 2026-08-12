@@ -102,12 +102,3 @@ export function useSecretIsSet(key: string): boolean {
 export function getSettingValue<T extends SettingValue>(key: string, fallback: T): Widen<T> {
   return (useSettingsStore.getState().values[key] as Widen<T> | undefined) ?? (fallback as Widen<T>)
 }
-
-/**
- * Whether to run first-time setup. Deliberately requires a successful load: if the
- * snapshot could not be read, an already-onboarded user would otherwise be walked
- * through the wizard again on every launch.
- */
-export function useNeedsOnboarding(): boolean {
-  return useSettingsStore((s) => s.loaded && !s.failed && s.values["Onboarding.Completed"] !== true)
-}

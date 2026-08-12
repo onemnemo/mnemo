@@ -3,11 +3,14 @@ import { useQuery } from "@tanstack/react-query"
 import { fetchLanguages } from "@/i18n/api"
 import { useI18nStore } from "@/i18n/store"
 import { useT } from "@/i18n/useT"
-import { cn } from "@/lib/utils"
+import { SelectControl } from "@/settings/components/controls/SelectControl"
+
+import { Head, Line } from "./kit"
 
 /**
- * Language choice, applied immediately so the rest of the wizard is already in the
- * chosen language when the user moves on.
+ * Language, applied immediately. The flow is the one place where picking a language has
+ * to prove it did something: a dropdown that changes nothing on screen is
+ * indistinguishable from one that is not wired up.
  */
 export function LanguageStep() {
   const t = useT()
@@ -15,31 +18,23 @@ export function LanguageStep() {
   const setLanguage = useI18nStore((s) => s.setLanguage)
   const { data } = useQuery({ queryKey: ["i18n", "languages"], queryFn: fetchLanguages })
 
-  return (
-    <ul className="space-y-1.5 py-2">
-      {(data ?? []).map((option) => {
-        const selected = option.code === language
+  const choices = (data ?? []).map((option) => ({ value: option.code, label: option.nativeName }))
+  const label = t("Onboarding", "LangLabel")
 
-        return (
-          <li key={option.code}>
-            <button
-              type="button"
-              onClick={() => void setLanguage(option.code)}
-              aria-pressed={selected}
-              className={cn(
-                "flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-colors",
-                selected ? "border-brand ring-1 ring-brand" : "hover:border-text-faded",
-              )}
-            >
-              <span className="text-body-small font-medium text-text-primary">{option.nativeName}</span>
-              <span className="text-caption text-text-tertiary">{option.name}</span>
-            </button>
-          </li>
-        )
-      })}
-      {(data ?? []).length === 0 ? (
-        <li className="py-2 text-body-small text-text-tertiary">{t("Settings", "Language")}</li>
-      ) : null}
-    </ul>
+  return (
+    <>
+      <Head title={t("Onboarding", "LangTitle")} body={t("Onboarding", "LangBody")} />
+
+      <div className="mt-8">
+        <Line label={label}>
+          <SelectControl
+            value={language}
+            choices={choices.length > 0 ? choices : [{ value: language, label: language }]}
+            onChange={(next) => void setLanguage(next)}
+            label={label}
+          />
+        </Line>
+      </div>
+    </>
   )
 }
