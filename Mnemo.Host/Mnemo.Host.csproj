@@ -1,16 +1,35 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- Console-visible during the parallel-UI phases; packaging decides WinExe at cutover. -->
-    <OutputType>Exe</OutputType>
+    <!-- No console window behind the app. Everything the host used to print now goes
+         through ILoggerService, whose file sink survives having no console at all. -->
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
+    <!-- One icon for both shells while they coexist, rather than a second copy to keep in sync. -->
+    <ApplicationIcon>..\Mnemo.UI\Assets\AppIcons\AppIconDawn.ico</ApplicationIcon>
+
+    <!-- Explorer reads these off the exe; the version fields come from Directory.Build.props.
+         These are the property names the SDK actually maps to the Win32 version resource.
+         The Assembly* spellings (AssemblyProduct, AssemblyCompany, AssemblyCopyright) are
+         not SDK properties and stamp nothing, which is why the shipped exe used to carry
+         its assembly name as the product. -->
+    <AssemblyTitle>Mnemo</AssemblyTitle>
+    <Description>Local-first AI-powered learning environment.</Description>
+    <Company>Mnemo</Company>
+    <Product>Mnemo</Product>
+    <Copyright>Copyright (c) Mnemo 2026</Copyright>
+
     <!-- RID whose Typst binary to copy: the publish RID when set, else the SDK host RID so
          plain `dotnet run` during dev picks up the locally restored binary. -->
     <TypstRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</TypstRid>
     <TypstRid Condition="'$(TypstRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</TypstRid>
+
+    <!-- Where `npm run build` in mnemo-web leaves the SPA. Overridable so a packaging job can
+         point at a dist built elsewhere. -->
+    <SpaDistDir Condition="'$(SpaDistDir)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '..', 'mnemo-web', 'dist'))</SpaDistDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,7 +37,28 @@
          5.0 preview is deliberate: BeginWindowDrag/BeginWindowResize and the Linux drag region
          are what the chromeless titlebar is built on, and they exist in no 4.x release. -->
     <PackageReference Include="PhotinoX" Version="5.0.0-preview.9" />
+    <!-- Main() calls VelopackApp directly; kept in step with Mnemo.Infrastructure's version. -->
+    <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
+
+  <!--
+    The published app serves the SPA from a wwwroot beside the executable (Program.ResolveSpaRoot),
+    and nothing else puts one there, so without this every packaged build dies on launch.
+    Publish-only: a plain `dotnet build` (and therefore the test run) must never need a web build,
+    so a missing dist is a warning and not an error.
+  -->
+  <Target Name="PublishSpaToWwwroot" AfterTargets="ComputeFilesToPublish">
+    <Warning Condition="!Exists('$(SpaDistDir)')"
+             Text="No SPA build found at $(SpaDistDir). The published app will have no wwwroot to serve; run `npm run build` in mnemo-web first." />
+    <ItemGroup Condition="Exists('$(SpaDistDir)')">
+      <_SpaDistFile Include="$(SpaDistDir)**\*" />
+      <ResolvedFileToPublish Include="@(_SpaDistFile)">
+        <RelativePath>wwwroot/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <!-- Vendored mitex package: committed, platform-independent, always copied to output. -->

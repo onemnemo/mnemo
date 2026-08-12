@@ -251,6 +251,9 @@ public static class HostComposition
         // The window's closing handler and the SPA's reply endpoint meet here.
         services.AddSingleton<ShutdownGate>();
 
+        // App.LaunchAtStartup is a stored value on its own; this is what makes the OS act on it.
+        services.AddSingleton<Startup.LaunchAtStartupService>();
+
         services.AddSingleton<IThemeService, HeadlessThemeService>();
         services.AddSingleton<IOverlayService, HeadlessOverlayService>();
         services.AddSingleton<IToastService, HeadlessToastService>();
@@ -369,8 +372,20 @@ public static class HostComposition
         // asks for is a bridge that never subscribes.
         _ = services.GetRequiredService<Mindmap.MindmapChangeBridge>();
 
-        await services.GetRequiredService<IFlashcardStore>()
-            .InitializeAsync().ConfigureAwait(false);
+        try
+        {
+            await services.GetRequiredService<IFlashcardStore>()
+                .InitializeAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Same policy as the migration above. The store logs and rethrows by design, and
+            // one corrupt or locked flashcards table must not take Notes, Chat and Settings
+            // down with it; every read retries the open, so the flashcard endpoints are the
+            // only ones that fail.
+            logger.Error("Mnemo.Host", "Flashcard store initialization failed during startup.", ex);
+        }
+
         _ = await services.GetRequiredService<IStorageProvider>()
             .LoadAsync<object>("__host_warmup__").ConfigureAwait(false);
 
@@ -386,6 +401,11 @@ public static class HostComposition
             // notes report unavailable. Serving a half-migrated corpus would be the worse outcome.
             logger.Error("Mnemo.Host", "Note sid migration failed during startup; note endpoints stay closed.", ex);
         }
+
+        // Resolved for its constructor, which subscribes to the settings change it acts on,
+        // then reconciled because the setting can have moved while this app was not running.
+        await services.GetRequiredService<Startup.LaunchAtStartupService>()
+            .ReconcileAsync().ConfigureAwait(false);
     }
 
     /// <summary>
