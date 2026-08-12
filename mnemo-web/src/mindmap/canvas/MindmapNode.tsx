@@ -65,7 +65,11 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
         transform: `translate(${element.x}px, ${element.y}px)`,
         width: element.width,
         height: element.height,
-      }}
+        // Read only below the label threshold, where the host is the only box left to paint. Set
+        // here rather than in the stylesheet because it is per element, and written once at render
+        // rather than per frame, so a band crossing stays one style recalculation.
+        "--mm-marker": markerFill(element, tinted, accentLine),
+      } as React.CSSProperties}
     >
       {/* Two spans rather than one with conflicting variants: the ring's state is a DOM attribute
           the scene index writes, so it cannot be branched on in JavaScript, and hover and selection
@@ -109,7 +113,7 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
           <span
             data-mm-chrome="task"
             className={cn(
-              "ml-2 grid size-[13px] shrink-0 cursor-pointer place-items-center rounded-[4px]",
+              "mm-chrome ml-2 grid size-[13px] shrink-0 cursor-pointer place-items-center rounded-[4px]",
               "shadow-[inset_0_0_0_1.5px_currentColor]",
             )}
             style={{ color: accentLine }}
@@ -123,7 +127,7 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
 
         {element.refBadge ? (
           <span
-            className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full px-1.5 text-[9.5px] font-medium leading-[14px] text-canvas"
+            className="mm-chrome pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full px-1.5 text-[9.5px] font-medium leading-[14px] text-canvas"
             style={{ background: accentLine ?? "var(--ink-3)" }}
           >
             {element.refBadge}
@@ -136,7 +140,7 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
             rather than runs under it. */}
         {codeLanguage(element) ? (
           <span
-            className="pointer-events-none absolute rounded-[3px] px-1 font-mono text-[9.5px] leading-[13px] text-ink-3"
+            className="mm-chrome pointer-events-none absolute rounded-[3px] px-1 font-mono text-[9.5px] leading-[13px] text-ink-3"
             style={{
               top: element.padding.y,
               right: element.padding.x,
@@ -155,7 +159,7 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
         <span
           data-mm-chrome="pin"
           title={t("Mindmap", "TogglePin")}
-          className="absolute right-px top-px grid size-4 cursor-pointer place-items-center"
+          className="mm-chrome absolute right-px top-px grid size-4 cursor-pointer place-items-center"
         >
           <span
             className="size-[9px] rounded-full"
@@ -166,7 +170,7 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
 
       {element.hiddenCount > 0 ? (
         <span
-          className="absolute -right-1 top-1/2 -translate-y-1/2 translate-x-full rounded-full px-1.5 text-[10px] font-medium leading-[15px] text-canvas"
+          className="mm-chrome absolute -right-1 top-1/2 -translate-y-1/2 translate-x-full rounded-full px-1.5 text-[10px] font-medium leading-[15px] text-canvas"
           style={{ background: accentLine }}
         >
           {element.hiddenCount}
@@ -202,13 +206,13 @@ function NodeGlyph({
   }
 
   if (!refGlyph) {
-    return <AppIcon name={glyph} size={13} strokeWidth={1.6} className="ml-2 shrink-0 text-ink-icon" />
+    return <AppIcon name={glyph} size={13} strokeWidth={1.6} className="mm-chrome ml-2 shrink-0 text-ink-icon" />
   }
 
   return (
     <span
       data-mm-chrome="ref"
-      className="ml-1.5 shrink-0 cursor-pointer hover:opacity-70"
+      className="mm-chrome ml-1.5 shrink-0 cursor-pointer hover:opacity-70"
       style={{ color: element.refMissing ? undefined : accent }}
       title={label}
     >
@@ -412,6 +416,46 @@ function surfaceOf(element: SceneElement, tinted: boolean): string {
 }
 
 /**
+ * The one colour an element reads as when it is a few pixels across.
+ *
+ * Below the label threshold every box inside a node is taken out of the layout, so the host is the
+ * only thing left to paint and it has to stand for whatever the node would have drawn: a card's
+ * fill, a plain node's rule, a shape's outline, a caption's ink. Falling back to the line colour
+ * keeps an element with no colour of its own from disappearing into the canvas.
+ */
+function markerFill(
+  element: SceneElement,
+  tinted: boolean,
+  accentLine: string | undefined,
+): string {
+  // A picture is gone at this size and there is nothing sensible to average it to, so it marks its
+  // place the way anything else without a colour does.
+  if (element.kind === "image") {
+    return "var(--line)"
+  }
+  if (element.kind === "text") {
+    return element.textColor ?? "var(--ink-3)"
+  }
+  if (element.kind === "shape") {
+    return element.fill ?? accentLine ?? "var(--line)"
+  }
+  if (element.isRoot) {
+    return element.fill ?? "var(--accent)"
+  }
+
+  switch (element.nodeShape) {
+    case "pill":
+      return tinted ? branchWash(element.branch) : (element.fill ?? accentLine ?? "var(--line)")
+    // Both draw their whole chrome as a line, so the line is what they are.
+    case "plain":
+    case "outline":
+      return accentLine ?? "var(--line)"
+    default:
+      return element.fill ?? accentLine ?? "var(--line)"
+  }
+}
+
+/**
  * Which elements can be dragged to a size.
  *
  * The free ones, and only those. A node's box is measured around its wrapped label, so a stored
@@ -494,7 +538,7 @@ function FrameBody({ element, editing, onEditEnd }: MindmapNodeProps) {
 
   return (
     <div
-      className="mm-node group pointer-events-none absolute left-0 top-0 select-none will-change-transform"
+      className="mm-node mm-frame group pointer-events-none absolute left-0 top-0 select-none will-change-transform"
       data-mm-id={element.id}
       style={{
         transform: `translate(${element.x}px, ${element.y}px)`,
