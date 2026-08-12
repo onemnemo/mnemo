@@ -98,6 +98,10 @@ export function readCachedNoteTitle(id: string): string | undefined {
   return queryClient.getQueryData<NoteSummaryDto[]>(noteListKey)?.find((note) => note.id === id)?.title
 }
 
+export function readCachedNoteEmoji(id: string): string | undefined {
+  return queryClient.getQueryData<NoteSummaryDto[]>(noteListKey)?.find((note) => note.id === id)?.emoji ?? undefined
+}
+
 /** Fires on every write to the note list, so a card built before the fetch landed can redraw. */
 export function subscribeToNoteList(listener: () => void): () => void {
   return queryClient.getQueryCache().subscribe((event) => {

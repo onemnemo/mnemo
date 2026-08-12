@@ -186,6 +186,12 @@ export interface EstimateContext {
 export interface EditorServices {
   /** Resolves a note title for an embedded page reference. */
   resolveNoteTitle(noteId: string): string | undefined;
+  /**
+   * The referenced note's own emoji, when it has one and the mount can reach it.
+   * A page row falls back to the neutral document icon, so a supplier that
+   * cannot answer costs nothing.
+   */
+  resolveNoteEmoji?(noteId: string): string | undefined;
   /** Absent wherever no note library is mounted, which is what a test and a preview get. */
   readonly notes?: NoteReferenceServices;
   /**

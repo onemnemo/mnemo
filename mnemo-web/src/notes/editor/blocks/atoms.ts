@@ -105,7 +105,7 @@ export function equationBlockModule(deps: BlockDeps): AnyBlockModule {
 }
 
 /**
- * A navigation card, not a transclusion. The referenced note's **title is never
+ * A navigation row, not a transclusion. The referenced note's **title is never
  * copied into the document**, it is resolved from the note store at render.
  * Storing it would mean every rename dirties every note that links to it, and
  * autosave would churn on a field the user never edited.
@@ -143,10 +143,11 @@ export function pageBlock(deps: BlockDeps): AnyBlockModule {
       // matches the desktop's dialect, so a page card round-trips through
       // markdown across both apps and a bare `[[wikilink]]` stays literal text.
       toMarkdown: (node) => `[[page:${String(node.attrs.referenceNoteId ?? '')}]]\n`,
-      // No projection: the only text a page card shows belongs to another note,
+      // No projection: the only text a page row shows belongs to another note,
       // and emitting it here would give find two hits for one string.
       segmentsFor: () => [],
-      estimate: () => 56,
+      // One line of prose plus the row's own padding.
+      estimate: () => metrics.bodyLineHeight + 6,
       holdsCaret: false,
       realizedView: pageBlockView,
       slash: [
