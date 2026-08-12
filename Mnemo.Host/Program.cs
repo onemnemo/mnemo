@@ -24,10 +24,12 @@ using Mnemo.Host.Nav;
 using Mnemo.Host.Notes;
 using Mnemo.Host.Overview;
 using Mnemo.Host.Settings;
+using Mnemo.Host.Startup;
 using Mnemo.Host.Statistics;
 using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
 using Photino.NET;
+using Velopack;
 
 namespace Mnemo.Host;
 
@@ -35,6 +37,27 @@ public static class Program
 {
     [STAThread]
     public static int Main(string[] args)
+    {
+        // First, before anything else runs: Velopack's install, update and uninstall hooks
+        // execute inside this call and exit the process when one of them applies. Work done
+        // ahead of it happens during those hooks too, and a shortcut, an uninstall or the
+        // first applied update all depend on it being reached.
+        VelopackApp.Build().Run();
+
+        CrashLog.InstallProcessHandlers();
+
+        try
+        {
+            return Run(args);
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("Mnemo.Host could not start.", ex);
+            return 1;
+        }
+    }
+
+    private static int Run(string[] args)
     {
         if (OperatingSystem.IsLinux() && Environment.GetEnvironmentVariable("WEBKIT_DISABLE_DMABUF_RENDERER") is null)
         {
@@ -56,11 +79,25 @@ public static class Program
         }
         finally
         {
+            StopServer(server);
+        }
+    }
+
+    private static void StopServer(ServerHandle server)
+    {
+        try
+        {
             Task.Run(async () =>
             {
                 await server.App.StopAsync().ConfigureAwait(false);
                 await server.App.DisposeAsync().ConfigureAwait(false);
             }).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            // This runs on the way out of a fault as often as a clean exit, and an
+            // exception thrown here would replace the one already on its way up.
+            CrashLog.Write("Mnemo.Host could not shut the server down cleanly.", ex);
         }
     }
 
@@ -82,6 +119,13 @@ public static class Program
         HostComposition.AddMnemoBackend(builder.Services, modules);
 
         var app = builder.Build();
+        var logger = app.Services.GetRequiredService<ILoggerService>();
+
+        // From here on a fault has somewhere better to go than the file fallback, and
+        // every line below reaches a packaged build's log rather than a console it has not
+        // got.
+        CrashLog.UseLogger(logger);
+
         var bearerToken = LocalApiSecurity.MintBearerToken();
 
         app.UseExceptionHandler(errorApp => errorApp.Run(async ctx =>
@@ -150,7 +194,7 @@ public static class Program
             var spaRoot = ResolveSpaRoot(options);
             var templatedIndex = SpaHosting.LoadTemplatedIndex(spaRoot, bearerToken);
             SpaHosting.MapSpa(app, spaRoot, templatedIndex);
-            Console.WriteLine($"[Mnemo.Host] Serving SPA from {spaRoot}");
+            logger.Info(CrashLog.Category, $"Serving SPA from {spaRoot}");
         }
 
         // Migration and storage warm-up complete before Kestrel accepts a request,
@@ -164,21 +208,22 @@ public static class Program
         app.Services.GetRequiredService<Notes.NoteAssets>().Sweeper.SweepInBackground();
 
         var apiBaseUrl = ResolveBoundAddress(app);
-        Console.WriteLine($"[Mnemo.Host] API listening on {apiBaseUrl}");
+        logger.Info(CrashLog.Category, $"API listening on {apiBaseUrl}");
 
         if (options.DevMode)
         {
             var infoPath = DevServerInfo.Write(new Uri(apiBaseUrl).Port, bearerToken);
-            Console.WriteLine(infoPath is null
-                ? "[Mnemo.Host] WARNING: could not locate mnemo-web to write .dev/api.json; set MNEMO_DEV_INFO_FILE. Proxied API calls will be unauthorized."
-                : $"[Mnemo.Host] Dev API info written to {infoPath}");
-            await WaitForDevServerAsync(options.DevServerUrl).ConfigureAwait(false);
+            if (infoPath is null)
+                logger.Warning(CrashLog.Category, "Could not locate mnemo-web to write .dev/api.json; set MNEMO_DEV_INFO_FILE. Proxied API calls will be unauthorized.");
+            else
+                logger.Info(CrashLog.Category, $"Dev API info written to {infoPath}");
+
+            await WaitForDevServerAsync(options.DevServerUrl, logger).ConfigureAwait(false);
         }
 
         var windowUrl = options.DevMode ? options.DevServerUrl : apiBaseUrl + "/";
-        Console.WriteLine($"[Mnemo.Host] MODE={(options.DevMode ? "DEV" : "PROD")}");
-        Console.WriteLine($"[Mnemo.Host] API_BASE={apiBaseUrl}");
-        Console.WriteLine($"[Mnemo.Host] WINDOW_URL={windowUrl}");
+        logger.Info(CrashLog.Category,
+            $"MODE={(options.DevMode ? "DEV" : "PROD")} API_BASE={apiBaseUrl} WINDOW_URL={windowUrl}");
         return new ServerHandle(app, apiBaseUrl, windowUrl);
     }
 
@@ -192,13 +237,16 @@ public static class Program
     private static void RunWindow(HostOptions options, ServerHandle server)
     {
         var url = server.WindowUrl;
+        var logger = server.App.Services.GetRequiredService<ILoggerService>();
 
         var app = new PhotinoApplication();
+        var bounds = WindowSizing.Resolve();
 
         var window = new PhotinoWindow()
             .SetTitle("Mnemo")
             .SetUseOsDefaultSize(false)
-            .SetSize(1440, 900)
+            .SetSize(bounds.Width, bounds.Height)
+            .SetMinSize(bounds.MinWidth, bounds.MinHeight)
             .Center();
 
         if (OperatingSystem.IsWindows())
@@ -213,7 +261,7 @@ public static class Program
         WindowChrome.Configure(window);
         AttachShutdownGate(window, server.App.Services);
 
-        Console.WriteLine($"[Mnemo.Host] Load({url})");
+        logger.Info(CrashLog.Category, $"Load({url})");
         window.Load(url);
 
         // Run shows the window and owns the message loop. Calling Show() first would
@@ -252,6 +300,7 @@ public static class Program
     {
         var gate = services.GetRequiredService<ShutdownGate>();
         var events = services.GetRequiredService<IAppEventPublisher>();
+        var logger = services.GetRequiredService<ILoggerService>();
 
         window.RegisterClosingHandler((_, e) =>
         {
@@ -268,7 +317,7 @@ public static class Program
             {
                 var ready = await gate.WaitForReadyAsync(ShutdownGrace).ConfigureAwait(false);
                 if (!ready)
-                    Console.WriteLine("[Mnemo.Host] No client reported ready before the shutdown grace expired; closing anyway.");
+                    logger.Warning(CrashLog.Category, "No client reported ready before the shutdown grace expired; closing anyway.");
                 window.Invoke(window.Close);
             });
         });
@@ -298,7 +347,7 @@ public static class Program
             "No SPA to serve. Build mnemo-web and set MNEMO_SPA_ROOT to its dist folder (or publish it as wwwroot next to the executable), or run with --dev.");
     }
 
-    private static async Task WaitForDevServerAsync(string url)
+    private static async Task WaitForDevServerAsync(string url, ILoggerService logger)
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(60);
@@ -317,13 +366,13 @@ public static class Program
 
             if (!reported)
             {
-                Console.WriteLine($"[Mnemo.Host] Waiting for the Vite dev server at {url} (npm run dev in mnemo-web)...");
+                logger.Info(CrashLog.Category, $"Waiting for the Vite dev server at {url} (npm run dev in mnemo-web)...");
                 reported = true;
             }
 
             await Task.Delay(500).ConfigureAwait(false);
         }
 
-        Console.WriteLine($"[Mnemo.Host] Dev server at {url} not reachable after 60s; opening the window anyway.");
+        logger.Warning(CrashLog.Category, $"Dev server at {url} not reachable after 60s; opening the window anyway.");
     }
 }

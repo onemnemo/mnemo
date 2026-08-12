@@ -3,10 +3,17 @@
        AssemblyInformationalVersion at runtime (see VelopackUpdateService), so this has to
        live somewhere shared rather than duplicated per csproj. -->
   <PropertyGroup>
-    <Version>0.8.0</Version>
-    <AssemblyVersion>0.8.0</AssemblyVersion>
-    <AssemblyFileVersion>0.8.0</AssemblyFileVersion>
-    <AssemblyInformationalVersion>0.8.0-beta</AssemblyInformationalVersion>
+    <!-- VersionPrefix is the numeric part; AssemblyVersion and FileVersion derive from it and
+         cannot carry a prerelease suffix. A release overrides both this and Version from the
+         tag, so the packaged exe reports the version it was tagged with. -->
+    <VersionPrefix>0.8.0</VersionPrefix>
+    <Version>0.8.0-beta</Version>
+    <!-- Read back at runtime for the version the app displays. The Assembly* spelling used
+         here before is not an SDK property and stamped nothing, so this reported 0.8.0. -->
+    <InformationalVersion>$(Version)</InformationalVersion>
+    <!-- Without this the informational version gains a +commitsha suffix, which then shows
+         up wherever the app displays its version. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <!-- Smaller Release outputs: no loose .pdb next to shipped exes (portable zip / vpk pack). -->
