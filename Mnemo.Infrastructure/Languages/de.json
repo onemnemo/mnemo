@@ -301,6 +301,13 @@
     "SearchResultsSubtitleFormat": "{0} Treffer für „{1}“",
     "SearchNoResultsFormat": "Keine Einstellungen für „{0}“ gefunden",
     "Support": "Support",
+    "LogFolder": "Protokollordner",
+    "LogFolderDescription": "Die Dateien, die Mnemo schreibt, wenn etwas schiefgeht. Nützlich für einen Fehlerbericht.",
+    "DataFolder": "Datenordner",
+    "DataFolderDescription": "Hier liegen Notizen, Stapel und Einstellungen auf diesem Gerät.",
+    "OpenFolder": "Öffnen",
+    "FolderMissing": "Diesen Ordner gibt es noch nicht.",
+    "FolderOpenFailed": "Der Ordner konnte nicht geöffnet werden.",
     "ReportProblem": "Problem melden",
     "ReportProblemDescription": "Etwas ist kaputt, verwirrend oder einfach falsch. Sagen Sie es uns auf GitHub.",
     "ReportProblemButton": "Issue öffnen"

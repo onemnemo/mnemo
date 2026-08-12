@@ -301,6 +301,13 @@
     "SearchResultsSubtitleFormat": "{0} treff for «{1}»",
     "SearchNoResultsFormat": "Ingen innstillinger samsvarer med «{0}»",
     "Support": "Support",
+    "LogFolder": "Loggmappe",
+    "LogFolderDescription": "Filene Mnemo skriver når noe går galt. Nyttige i en feilrapport.",
+    "DataFolder": "Datamappe",
+    "DataFolderDescription": "Her ligger notater, kortstokker og innstillinger på denne maskinen.",
+    "OpenFolder": "Åpne",
+    "FolderMissing": "Den mappen finnes ikke ennå.",
+    "FolderOpenFailed": "Kunne ikke åpne den mappen.",
     "ReportProblem": "Meld en feil",
     "ReportProblemDescription": "Noe er ødelagt, forvirrende eller rett og slett feil. Si fra på GitHub.",
     "ReportProblemButton": "Åpne en sak"

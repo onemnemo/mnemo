@@ -1,5 +1,6 @@
 using Mnemo.Core.Enums;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Common;
 
 namespace Mnemo.Host.Startup;
 
@@ -77,11 +78,7 @@ public static class CrashLog
     {
         try
         {
-            var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            if (string.IsNullOrWhiteSpace(root))
-                root = AppContext.BaseDirectory;
-
-            var directory = Path.Combine(root, "Mnemo", "logs");
+            var directory = MnemoAppPaths.GetLogsDirectory();
             Directory.CreateDirectory(directory);
             var path = Path.Combine(directory, $"log_{DateTime.Now:yyyyMMdd}.txt");
 

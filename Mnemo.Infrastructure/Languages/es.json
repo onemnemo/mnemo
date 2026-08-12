@@ -301,6 +301,13 @@
     "SearchResultsSubtitleFormat": "{0} coincidencias para “{1}”",
     "SearchNoResultsFormat": "Ningún ajuste coincide con “{0}”",
     "Support": "Ayuda",
+    "LogFolder": "Carpeta de registros",
+    "LogFolderDescription": "Los archivos que Mnemo escribe cuando algo falla. Útiles para un informe de errores.",
+    "DataFolder": "Carpeta de datos",
+    "DataFolderDescription": "Aquí se guardan las notas, los mazos y los ajustes de este equipo.",
+    "OpenFolder": "Abrir",
+    "FolderMissing": "Esa carpeta todavía no existe.",
+    "FolderOpenFailed": "No se pudo abrir esa carpeta.",
     "ReportProblem": "Informar de un problema",
     "ReportProblemDescription": "Algo está roto, confuso o simplemente mal. Cuéntanoslo en GitHub.",
     "ReportProblemButton": "Abrir una incidencia"

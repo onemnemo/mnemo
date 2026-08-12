@@ -34,6 +34,15 @@ public static class MnemoAppPaths
         => Path.Combine(GetLocalUserDataRoot(), fileName);
 
     /// <summary>
+    /// Returns the directory holding the daily log files: <c>%LocalAppData%\Mnemo\logs\</c>.
+    /// The logger's file sink, the startup crash sink and the endpoint that shows the folder
+    /// all resolve it here, so an overridden data root moves the three of them together
+    /// instead of writing to one place and opening another.
+    /// </summary>
+    public static string GetLogsDirectory()
+        => Path.Combine(GetLocalUserDataRoot(), "logs");
+
+    /// <summary>
     /// Returns the directory where image block assets are stored:
     /// <c>%LocalAppData%\Mnemo\images\</c>.
     /// </summary>
