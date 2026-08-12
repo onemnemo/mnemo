@@ -9,6 +9,7 @@ import { CardEditorOverlay } from "@/flashcards/editor/CardEditorOverlay"
 import { ReviewSettingsOverlay } from "@/flashcards/presets/ReviewSettingsOverlay"
 import { TransferOverlay } from "@/flashcards/transfer/TransferOverlay"
 import { registerKeybindAction } from "@/keybinds/registry"
+import { installContextMenuGuard } from "@/lib/native-menu"
 import { OnboardingWizard } from "@/onboarding/OnboardingWizard"
 import { dialog } from "@/stores/dialog"
 import { usePaletteStore } from "@/stores/palette"
@@ -23,6 +24,8 @@ if (import.meta.env.DEV) {
 
 function App() {
   useRouteNormalization()
+
+  useEffect(() => installContextMenuGuard(), [])
 
   // global.assistant toggles the dock rather than navigating: the point of Soma is
   // that it comes to the work, and a shortcut that throws away the page you were
