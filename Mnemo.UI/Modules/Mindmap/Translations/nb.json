@@ -88,6 +88,7 @@
     "ShapeParallelogram": "Parallellogram",
     "ShapeLine": "Linje",
     "ShapeArrow": "Pil",
+    "ShapeBlob": "Klatt",
     "LayoutBalanced": "Balansert",
     "LayoutTreeRight": "Tre · høyre",
     "LayoutTreeDown": "Tre · ned",

@@ -268,7 +268,9 @@ public partial class MindmapEdgeItem : ObservableObject, IDisposable
             var hw = node.Width / 2;
             var hh = node.Height / 2;
 
-            if (node.FreeShape == ShapeType.Ellipse)
+            // A blob is an ellipse pulled a little out of true, and the ellipse exit lands close
+            // enough to its outline that no edge reads as detached.
+            if (node.FreeShape is ShapeType.Ellipse or ShapeType.Blob)
             {
                 var t = 1 / Math.Sqrt(dx * dx / (hw * hw) + dy * dy / (hh * hh));
                 return new Point(cx + dx * t, cy + dy * t);

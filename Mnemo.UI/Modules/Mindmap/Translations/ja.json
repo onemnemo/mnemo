@@ -88,6 +88,7 @@
     "ShapeParallelogram": "平行四辺形",
     "ShapeLine": "線",
     "ShapeArrow": "矢印",
+    "ShapeBlob": "アメーバ",
     "LayoutBalanced": "バランス",
     "LayoutTreeRight": "ツリー・右",
     "LayoutTreeDown": "ツリー・下",

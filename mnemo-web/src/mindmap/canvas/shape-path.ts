@@ -5,8 +5,8 @@
  * pill and box, on the argument that nobody can say what a hexagon means in a mindmap, so every map
  * ends up using rectangles anyway. That argument still holds for text nodes, and nothing in this file
  * is reachable from a node's style. What is here is for `kind: "shape"` elements, whose whole point is
- * to be a drawn figure rather than a labelled idea, and whose vocabulary Core already fixes at seven
- * members. The dock's Shape tool has to be able to draw all seven, so all seven live here.
+ * to be a drawn figure rather than a labelled idea, and whose vocabulary Core fixes at eight
+ * members. The dock's Shape tool has to be able to draw all eight, so all eight live here.
  *
  * Everything is pure geometry in a box whose origin is 0,0. The caller positions the element with a
  * transform, which means a shape that moves does not re-derive its path, and two elements of the same
@@ -45,7 +45,29 @@ const SLANT_OF_HEIGHT = 0.35
 const SLANT_CAP_OF_WIDTH = 1 / 3
 
 /**
- * Reached only if Core grows an eighth `ShapeType`, which makes this fail to compile rather than
+ * The blob's four anchors, as fractions of the box.
+ *
+ * They sit on the edges rather than at the corners, so the shape touches every side and fills its
+ * box the way an ellipse does. Nudging each one off the midpoint is the whole of what makes it a
+ * blob: centre all four and give every quarter the same roundness and this is an ellipse.
+ */
+const BLOB_TOP = 0.38
+const BLOB_RIGHT = 0.34
+const BLOB_BOTTOM = 0.62
+const BLOB_LEFT = 0.66
+
+/**
+ * How far each quarter swells towards the corner it passes, going clockwise from the top anchor.
+ *
+ * Around the 0.552 that draws a true quarter circle, above it to bulge into the corner and below it
+ * to pull away. Varying them is the second half of the asymmetry, and keeping them under one is what
+ * guarantees the curve stays in its box: every control point below lands on a box edge, and a cubic
+ * never leaves the convex hull of its four points.
+ */
+const BLOB_ROUNDNESS = [0.86, 0.54, 0.9, 0.62]
+
+/**
+ * Reached only if Core grows a ninth `ShapeType`, which makes this fail to compile rather than
  * silently drawing the new shape as nothing.
  */
 function unhandled(shape: never): never {
@@ -112,6 +134,33 @@ function parallelogramPath(w: number, h: number): string {
 }
 
 /**
+ * A hand-drawn looking closed curve: four cubics between four anchors on the four edges.
+ *
+ * The one shape here that is not a figure from a flowchart, and the reason it is worth having. A
+ * hexagon says "this is a step in a process" whether or not that is true; a blob says only "this is
+ * a region", which is what someone circling three related ideas actually means.
+ *
+ * The same curve every time rather than a sampled wobble, because a shape that is drawn from noise
+ * is a shape that changes silhouette on every render, and two blobs on one map should read as the
+ * same kind of thing.
+ */
+function blobPath(w: number, h: number): string {
+  const [tr, rb, bl, lt] = BLOB_ROUNDNESS
+  const tx = w * BLOB_TOP
+  const ry = h * BLOB_RIGHT
+  const bx = w * BLOB_BOTTOM
+  const ly = h * BLOB_LEFT
+
+  return (
+    `M${n(tx)},0 ` +
+    `C${n(tx + tr * (w - tx))},0 ${n(w)},${n(ry * (1 - tr))} ${n(w)},${n(ry)} ` +
+    `C${n(w)},${n(ry + rb * (h - ry))} ${n(bx + rb * (w - bx))},${n(h)} ${n(bx)},${n(h)} ` +
+    `C${n(bx * (1 - bl))},${n(h)} 0,${n(ly + bl * (h - ly))} 0,${n(ly)} ` +
+    `C0,${n(ly * (1 - lt))} ${n(tx * (1 - lt))},0 ${n(tx)},0 Z`
+  )
+}
+
+/**
  * The shaft shared by the line and the arrow, corner to corner across the box.
  *
  * Bottom left to top right so that dragging a corner handle moves the end of the stroke that the
@@ -141,6 +190,8 @@ export function shapePath(shape: ShapeType, width: number, height: number): stri
       return hexagonPath(w, h)
     case "parallelogram":
       return parallelogramPath(w, h)
+    case "blob":
+      return blobPath(w, h)
     case "line":
     case "arrow":
       return diagonalPath(w, h)
@@ -202,6 +253,11 @@ export function shapeTextInset(
       const k = slant(w, h)
       return similarFit((w - k) / (w + k), w, h)
     }
+    case "blob":
+      // No closed form worth deriving from four cubics, so it is the ellipse's inscribed square
+      // pulled in far enough to clear the quarters that bulge least. Erring tight costs a little
+      // width; erring loose puts the outline through the text.
+      return similarFit(0.62, w, h)
     case "line":
     case "arrow":
       // No interior to inset into. A caption on one of these sits alongside the stroke the way an
@@ -223,6 +279,7 @@ export function isOpenShape(shape: ShapeType): boolean {
     case "diamond":
     case "hexagon":
     case "parallelogram":
+    case "blob":
       return false
   }
 

@@ -11,6 +11,7 @@ const ALL: readonly ShapeType[] = [
   "parallelogram",
   "line",
   "arrow",
+  "blob",
 ]
 
 /** A wide, short box, which is the shape a measured label actually produces. */
@@ -28,6 +29,10 @@ interface Vertex {
  * Reading every number out of the string would count an arc's radii and flags as coordinates and
  * pass a path that overhangs its box, so the commands are walked properly: only the last pair of an
  * arc is a point on the outline.
+ *
+ * A cubic hands back all three of its pairs, control points included. They are not on the outline,
+ * but a curve stays inside the convex hull of its four points, so bounding the controls bounds the
+ * curve. Checking only the endpoints would pass a bulge that left the box entirely.
  */
 function vertices(d: string): Vertex[] {
   const tokens = d.match(/[A-Za-z]|-?\d*\.?\d+/g) ?? []
@@ -40,13 +45,18 @@ function vertices(d: string): Vertex[] {
     if (command === "Z") {
       continue
     }
+    let pairs = 1
     if (command === "A") {
       i += 5
+    } else if (command === "C") {
+      pairs = 3
     } else if (command !== "M" && command !== "L") {
       throw new Error(`unexpected command ${command} in ${d}`)
     }
-    out.push({ x: Number(tokens[i]), y: Number(tokens[i + 1]) })
-    i += 2
+    for (let pair = 0; pair < pairs; pair += 1) {
+      out.push({ x: Number(tokens[i]), y: Number(tokens[i + 1]) })
+      i += 2
+    }
   }
 
   return out
@@ -117,6 +127,91 @@ describe("open shapes", () => {
 
     expect(start).toEqual({ x: 0, y: H })
     expect(end).toEqual({ x: W, y: 0 })
+  })
+})
+
+/**
+ * The blob's outline as a polygon.
+ *
+ * Its `d` is four cubics laid end to end, and `vertices` hands them back as a flat list where every
+ * fourth point is both the end of one and the start of the next, so walking it in threes rebuilds
+ * the segments.
+ */
+function blobOutline(w: number, h: number): Vertex[] {
+  const points = vertices(shapePath("blob", w, h))
+  const out: Vertex[] = []
+
+  for (let i = 0; i + 3 < points.length; i += 3) {
+    const [p0, p1, p2, p3] = [points[i], points[i + 1], points[i + 2], points[i + 3]]
+    for (let step = 0; step < 32; step += 1) {
+      const t = step / 32
+      const u = 1 - t
+      const at = (a: number, b: number, c: number, d: number) =>
+        u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d
+      out.push({ x: at(p0.x, p1.x, p2.x, p3.x), y: at(p0.y, p1.y, p2.y, p3.y) })
+    }
+  }
+
+  return out
+}
+
+/** Crossing count of a ray cast east from the point. Odd means inside. */
+function encloses(polygon: readonly Vertex[], point: Vertex): boolean {
+  let inside = false
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const a = polygon[i]
+    const b = polygon[j]
+    if (
+      a.y > point.y !== b.y > point.y &&
+      point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x
+    ) {
+      inside = !inside
+    }
+  }
+
+  return inside
+}
+
+describe("the blob", () => {
+  it("touches all four edges, so it fills its box the way an ellipse does", () => {
+    const points = vertices(shapePath("blob", W, H))
+
+    expect(points.some((point) => point.y === 0)).toBe(true)
+    expect(points.some((point) => point.x === W)).toBe(true)
+    expect(points.some((point) => point.y === H)).toBe(true)
+    expect(points.some((point) => point.x === 0)).toBe(true)
+  })
+
+  it("puts none of its anchors on a midpoint, which is all that separates it from an ellipse", () => {
+    const points = vertices(shapePath("blob", W, H))
+    const onTop = points.filter((point) => point.y === 0).map((point) => point.x)
+
+    expect(onTop).not.toContain(W / 2)
+  })
+
+  it("draws the same curve every time, since a sampled wobble is a different shape per render", () => {
+    expect(shapePath("blob", W, H)).toBe(shapePath("blob", W, H))
+  })
+
+  it("keeps its text inset clear of the curve at every shape of box", () => {
+    // The inset is a chosen fraction rather than a derived one, so the thing it promises has to be
+    // checked: too generous and the outline runs through the label.
+    for (const [w, h] of [
+      [W, H],
+      [140, 140],
+      [300, 70],
+      [90, 180],
+    ]) {
+      const outline = blobOutline(w, h)
+      const inset = shapeTextInset("blob", w, h)
+
+      for (const x of [inset.x, w - inset.x]) {
+        for (const y of [inset.y, h - inset.y]) {
+          expect(encloses(outline, { x, y })).toBe(true)
+        }
+      }
+    }
   })
 })
 
@@ -194,6 +289,9 @@ describe("the exact outlines", () => {
     parallelogram: "M28,0 L160,0 L132,80 L0,80 Z",
     line: "M0,80 L160,0",
     arrow: "M0,80 L160,0",
+    blob:
+      "M60.8,0 C146.112,0 160,3.808 160,27.2 C160,55.712 132.032,80 99.2,80 " +
+      "C9.92,80 0,77.28 0,52.8 C0,20.064 23.104,0 60.8,0 Z",
   }
 
   for (const shape of ALL) {
