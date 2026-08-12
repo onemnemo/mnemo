@@ -482,6 +482,44 @@ export interface NoteTransferExportDto {
   noteIds: string[]
 }
 
+/** Mirrors Mnemo.Host/Contracts/MindmapTransferDto.cs MindmapTransferUploadDto. */
+export interface MindmapTransferUploadDto {
+  uploadId: string
+  fileName: string
+  sizeBytes: number
+  formatId: string
+  formatName: string
+  /** False when the file staged but could not be read; the warnings say why. */
+  canImport: boolean
+  /** Maps the file will yield, read from the package manifest. */
+  mapCount: number | null
+  warnings: string[]
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/MindmapTransferDto.cs MindmapTransferImportDto. No target folder,
+ * unlike the note side: a package carries the folders its maps were filed in and restores them.
+ */
+export interface MindmapTransferImportDto {
+  uploadIds: string[]
+  conflictPolicy: ConflictPolicy
+}
+
+/** Mirrors Mnemo.Host/Contracts/MindmapTransferDto.cs MindmapTransferImportResultDto. */
+export interface MindmapTransferImportResultDto {
+  succeededFiles: number
+  failedFiles: number
+  importedMaps: number
+  warnings: string[]
+  errors: string[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/MindmapTransferDto.cs MindmapTransferExportDto. */
+export interface MindmapTransferExportDto {
+  formatId: string
+  mapIds: string[]
+}
+
 // --- Notes -----------------------------------------------------------------
 
 /** Mirrors Mnemo.Host/Contracts/NoteDto.cs NoteSummaryDto. Dates are ISO 8601 strings. */
