@@ -208,6 +208,8 @@
     "ReviewSettingsDeleteConfirmMessage": "「{0}」を削除しますか？この操作は元に戻せません。",
     "ReviewSettingsDeleteBlockedTitle": "プリセットを削除できません",
     "ReviewSettingsDeleteBlockedMessage": "このプリセットは1つ以上のデッキで使用されています。",
+    "LibraryMoveErrorTitle": "移動を完了できませんでした",
+    "LibraryMoveErrorMessage": "移動の一部が保存されていない可能性があります。ライブラリを再読み込みしました。",
     "ReviewSettingsLoadErrorTitle": "復習設定を読み込めませんでした",
     "ReviewSettingsErrorTitle": "問題が発生しました",
     "ReviewSettingsSaveErrorTitle": "復習設定を保存できませんでした",

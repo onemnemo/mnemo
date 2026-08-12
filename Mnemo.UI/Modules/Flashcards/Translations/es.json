@@ -208,6 +208,8 @@
     "ReviewSettingsDeleteConfirmMessage": "¿Eliminar \"{0}\"? Esta acción no se puede deshacer.",
     "ReviewSettingsDeleteBlockedTitle": "No se puede eliminar el perfil",
     "ReviewSettingsDeleteBlockedMessage": "Este perfil todavía lo usan uno o más mazos.",
+    "LibraryMoveErrorTitle": "No se pudo terminar de mover eso",
+    "LibraryMoveErrorMessage": "Puede que parte del movimiento no se haya guardado. Se ha actualizado la biblioteca.",
     "ReviewSettingsLoadErrorTitle": "No se pudieron cargar los ajustes de repaso",
     "ReviewSettingsErrorTitle": "Algo salió mal",
     "ReviewSettingsSaveErrorTitle": "No se pudieron guardar los ajustes de repaso",
