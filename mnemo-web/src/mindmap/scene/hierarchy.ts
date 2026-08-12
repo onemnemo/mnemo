@@ -148,6 +148,25 @@ export function descendantsOf(hierarchy: Hierarchy, id: string): string[] {
   return found
 }
 
+/**
+ * Every hierarchy edge hanging off a node: the ones leaving it and the ones leaving anything under
+ * it. What "and everything below it" means when the thing being restyled is an edge.
+ *
+ * Read off the document rather than the scene, for the same reason descendants are: a collapsed
+ * branch is not drawn but is still part of the branch, and styling that skipped it would leave a
+ * different-looking subtree waiting behind the next expand.
+ */
+export function hierarchyEdgesBelow(document: MindmapDocument, hierarchy: Hierarchy, id: string): string[] {
+  const within = new Set([id, ...descendantsOf(hierarchy, id)])
+  const found: string[] = []
+  for (const edge of document.edges ?? []) {
+    if (edgeKind(edge) === "hierarchy" && within.has(edge.fromId)) {
+      found.push(edge.id)
+    }
+  }
+  return found
+}
+
 /** How many nodes a collapse is hiding, for the chip that says so. */
 export function hiddenDescendantCount(hierarchy: Hierarchy, id: string): number {
   let count = 0

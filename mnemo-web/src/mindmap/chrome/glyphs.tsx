@@ -43,6 +43,37 @@ export function LineGlyph({ line }: { line: LineStyle }) {
   )
 }
 
+/**
+ * A stroke at the weight it sets, on the same rule the line styles are drawn on.
+ *
+ * The real number rather than an exaggerated one. Three lines a pixel apart is a small difference to
+ * look at, and it is exactly the difference the map will show.
+ */
+export function ThicknessGlyph({ thickness }: { thickness: number }) {
+  return (
+    <svg width={22} height={12} aria-hidden>
+      <path d="M1 6 H21" stroke="currentColor" strokeWidth={thickness} strokeLinecap="round" fill="none" />
+    </svg>
+  )
+}
+
+/** A branch and what hangs off it, for the control that sends a style down the whole thing. */
+export function CascadeGlyph() {
+  return (
+    <svg width={22} height={14} aria-hidden>
+      <path
+        d="M5 3 V11 H18 M5 7 H13"
+        stroke="currentColor"
+        strokeWidth={1.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <circle cx={5} cy={3} r={1.7} fill="currentColor" />
+    </svg>
+  )
+}
+
 export function RouteGlyph({ routing }: { routing: EdgeRouting }) {
   const d =
     routing === "curve"

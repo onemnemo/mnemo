@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { MindmapDocument, MindmapEdge, MindmapElement } from "../model/document"
 
-import { analyzeHierarchy, childrenIds, hiddenDescendantCount } from "./hierarchy"
+import { analyzeHierarchy, childrenIds, hiddenDescendantCount, hierarchyEdgesBelow } from "./hierarchy"
 
 const node = (id: string, over: Partial<MindmapElement> = {}): MindmapElement => ({
   id,
@@ -153,6 +153,50 @@ describe("collapse", () => {
 
     expect(hiddenDescendantCount(h, "a")).toBe(2)
     expect(hiddenDescendantCount(h, "c")).toBe(0)
+  })
+})
+
+describe("the edges below a node", () => {
+  it("are the ones leaving it and the ones leaving anything under it", () => {
+    const document = doc(
+      [node("r"), node("a"), node("b"), node("c")],
+      [link("r", "a"), link("a", "b"), link("b", "c")],
+    )
+
+    expect(hierarchyEdgesBelow(document, analyzeHierarchy(document), "a")).toEqual(["a-b", "b-c"])
+  })
+
+  it("stop at the branch, leaving the rest of the map alone", () => {
+    const document = doc(
+      [node("r"), node("a"), node("b"), node("kid")],
+      [link("r", "a"), link("r", "b"), link("b", "kid")],
+    )
+
+    expect(hierarchyEdgesBelow(document, analyzeHierarchy(document), "a")).toEqual([])
+  })
+
+  it("skip a cross-link, which is a remark rather than part of the branch", () => {
+    const document = doc(
+      [node("r"), node("a"), node("b"), node("far")],
+      [link("r", "a"), link("a", "b"), link("b", "far", { kind: "link" })],
+    )
+
+    expect(hierarchyEdgesBelow(document, analyzeHierarchy(document), "a")).toEqual(["a-b"])
+  })
+
+  it("include a collapsed branch, which is out of sight rather than out of the map", () => {
+    const document = doc(
+      [node("r"), node("a", { collapsed: true }), node("deep")],
+      [link("r", "a"), link("a", "deep")],
+    )
+
+    expect(hierarchyEdgesBelow(document, analyzeHierarchy(document), "a")).toEqual(["a-deep"])
+  })
+
+  it("are none for a leaf", () => {
+    const document = doc([node("r"), node("a")], [link("r", "a")])
+
+    expect(hierarchyEdgesBelow(document, analyzeHierarchy(document), "a")).toEqual([])
   })
 })
 

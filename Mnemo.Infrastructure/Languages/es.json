@@ -831,7 +831,16 @@
     "StyleMap": "Aplicar estilo al mapa",
     "Group": "Agrupar",
     "Ungroup": "Desagrupar",
-    "Resize": "Redimensionar"
+    "Resize": "Redimensionar",
+    "EdgeColor": "Color de la conexión",
+    "MatchBranch": "Igualar la rama",
+    "DefaultColor": "Color predeterminado",
+    "EdgeThickness": "Grosor",
+    "ThicknessHairline": "Fino",
+    "ThicknessNormal": "Normal",
+    "ThicknessBold": "Grueso",
+    "ApplyBelow": "Y todo lo que hay debajo",
+    "StyleBranch": "Aplicar estilo a la rama"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",
