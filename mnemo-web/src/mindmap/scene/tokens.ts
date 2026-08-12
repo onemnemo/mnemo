@@ -54,6 +54,31 @@ export function branchWash(index: number): string {
   return `var(--branch-${branchSlot(index)}-wash)`
 }
 
+/** A palette hue resolves to this, so this is how one is recognised again. */
+const PALETTE_VAR = /^var\(--branch-([1-8])\)$/
+
+/**
+ * Which of the eight a resolved colour is, or null when it is not one of them.
+ *
+ * Null is a real answer rather than a failure: a map can carry a hand-written hex, and a template can
+ * turn palette colouring off entirely.
+ */
+export function paletteSlotOf(color: string | null | undefined): number | null {
+  const found = color ? PALETTE_VAR.exec(color) : null
+  return found ? Number(found[1]) : null
+}
+
+/**
+ * The wash that goes with a resolved colour, or null when the colour is not a palette hue.
+ *
+ * Taken from the colour rather than from the element's branch, so a node given a hue of its own is
+ * washed in that hue instead of in the one its position would have given it.
+ */
+export function washOf(color: string | null | undefined): string | null {
+  const slot = paletteSlotOf(color)
+  return slot === null ? null : `var(--branch-${slot}-wash)`
+}
+
 /**
  * A colour at partial strength.
  *

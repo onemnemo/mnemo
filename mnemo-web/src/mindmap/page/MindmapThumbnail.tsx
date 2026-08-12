@@ -3,6 +3,7 @@ import { memo, useMemo } from "react"
 import { anchorsFor, boxOf, isFilled, strokeToPathData } from "../canvas/edge-paths"
 import { strokeFor } from "../canvas/edge-canvas"
 import { dashAttribute, strokeStyleFor } from "../canvas/edge-style"
+import { accentOf } from "../scene/branch"
 import { estimateWidth, measurersFrom } from "../scene/measure"
 import { projectScene } from "../scene/project"
 import { boundsOf } from "../model/scene"
@@ -92,7 +93,7 @@ export const MindmapThumbnail = memo(function MindmapThumbnail({
             height={element.height}
             rx={element.isRoot ? 8 : element.nodeShape === "pill" ? element.height / 2 : 4}
             fill={element.nodeShape === "plain" ? "none" : element.fill}
-            stroke={element.nodeShape === "plain" ? "none" : (element.branchColor ?? element.stroke)}
+            stroke={element.nodeShape === "plain" ? "none" : accentOf(element)}
             strokeWidth={1}
           />
         ))}
