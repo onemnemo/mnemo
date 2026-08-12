@@ -26,6 +26,8 @@ export interface SelectionBarProps {
   onKind: ((kind: NodeKind) => void) | null
   /** Save the selected branch's styling as a template; null when the selection is not one branch. */
   onSaveTemplate: (() => void) | null
+  /** Hold every selected node where it is, or hand them all back to the layout. */
+  onPin: (pinned: boolean) => void
 }
 
 /**
@@ -51,6 +53,7 @@ export function MindmapSelectionBar({
   branch,
   onKind,
   onSaveTemplate,
+  onPin,
 }: SelectionBarProps) {
   if (selection.edges.size > 0 && selection.elements.size > 0) {
     return null
@@ -89,6 +92,7 @@ export function MindmapSelectionBar({
         branch={branch}
         onKind={onKind}
         onSaveTemplate={onSaveTemplate}
+        onPin={onPin}
       />
     </Anchored>
   )

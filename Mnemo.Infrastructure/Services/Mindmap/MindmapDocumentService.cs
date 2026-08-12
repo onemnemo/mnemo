@@ -666,7 +666,7 @@ public sealed class MindmapDocumentService : IMindmapService
         if (!IsNodeContent(content))
             return Err(MindmapEditErrorCode.BadContentType, $"Content '{content.TypeDiscriminator}' is not valid for a node (use add_el for shapes/text/images/frames).");
 
-        var pinned = spec.X.HasValue && spec.Y.HasValue;
+        var pinned = spec.Pin ?? (spec.X.HasValue && spec.Y.HasValue);
         var id = working.NewId();
         working.AddElement(new MindmapElement
         {
@@ -747,18 +747,22 @@ public sealed class MindmapDocumentService : IMindmapService
             var dx = op.X.Value - element.X;
             var dy = op.Y.Value - element.Y;
 
+            // A move claims the coordinate for the author unless it says otherwise. Free kinds are
+            // pinned by definition and carry no flag, so the claim only ever lands on nodes.
+            var pin = op.Pin ?? true;
+
             working.ReplaceElement(element with
             {
                 X = op.X.Value,
                 Y = op.Y.Value,
-                Pinned = element.Kind == ElementKind.Node ? true : element.Pinned,
+                Pinned = (pin && element.Kind == ElementKind.Node) || element.Pinned,
             });
 
-            // Moving a frame translates its members by the same delta so the group moves together
-            // Member nodes pin, matching the "reposition implies pin" rule
-            // above — otherwise the next auto-layout would snap them back and split the group.
+            // Moving a frame translates its members by the same delta so the group moves together.
+            // Member nodes pin along with it, matching the "reposition implies pin" rule above,
+            // otherwise the next auto-layout would snap them back and split the group.
             if ((dx != 0 || dy != 0) && element.Content is FrameContent frame)
-                TranslateFrameMembers(working, frame, dx, dy);
+                TranslateFrameMembers(working, frame, dx, dy, pin);
 
             return null;
         }
@@ -1018,7 +1022,7 @@ public sealed class MindmapDocumentService : IMindmapService
 
     // ---- Helpers --------------------------------------------------------------------------------
 
-    private static void TranslateFrameMembers(MindmapWorkingDocument working, FrameContent frame, double dx, double dy)
+    private static void TranslateFrameMembers(MindmapWorkingDocument working, FrameContent frame, double dx, double dy, bool pin)
     {
         foreach (var childId in frame.ChildIds)
         {
@@ -1028,7 +1032,7 @@ public sealed class MindmapDocumentService : IMindmapService
             {
                 X = child.X + dx,
                 Y = child.Y + dy,
-                Pinned = child.Kind == ElementKind.Node ? true : child.Pinned,
+                Pinned = (pin && child.Kind == ElementKind.Node) || child.Pinned,
             });
         }
     }

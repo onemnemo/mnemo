@@ -36,6 +36,7 @@ import {
   holdCopy,
   offsetPlacement,
   translated,
+  unpinned,
 } from "../edit/clipboard"
 import { carriedText, isPlainKind, linkContent, plainContent } from "../edit/convert"
 import { placeChild, type PlacedBox } from "../edit/placement"
@@ -307,7 +308,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         return
       }
       const result = await editor.apply(
-        [op.addNodes([{ ref: "n", t: "", xy: [at.x, at.y] }], parentId)],
+        // Unpinned: the spot is only there so the node does not land on the origin, and a guess
+        // should not outrank the layout the way a position someone dragged it to does.
+        [op.addNodes([{ ref: "n", t: "", xy: [at.x, at.y], pin: false }], parentId)],
         { label: t("Mindmap", "AddNode") },
       )
 
@@ -391,9 +394,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   /**
    * A press on a node's own chrome rather than on the node.
    *
-   * Both parts act at once and leave the selection alone. Ticking a box is not selecting the node
-   * the box is on, and a reference's mark is a way to leave the map rather than a way to pick
-   * something on it.
+   * Every part acts at once and leaves the selection alone. Ticking a box is not selecting the node
+   * the box is on, a reference's mark is a way to leave the map rather than a way to pick something
+   * on it, and letting a pin go is a thing you do to a node you can already see.
    */
   const pressChrome = useCallback(
     (id: string, part: NodeChrome) => {
@@ -403,6 +406,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       }
       if (part === "ref") {
         followRef(content)
+        return
+      }
+      if (part === "pin") {
+        void editor.apply([op.set(id, { pinned: false })], { label: t("Mindmap", "TogglePin") })
         return
       }
       if (content.$type === "task") {
@@ -708,9 +715,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
 
     const origin = captureOrigin(held)
     const placed = origin ? translated(held, at.x - origin.x, at.y - origin.y) : held
-    const result = await editor.apply([op.addNodes(placed.map(withRef), under?.id)], {
-      label: t("Mindmap", "Paste"),
-    })
+    const result = await editor.apply(
+      [op.addNodes(unpinned(placed, under !== undefined).map(withRef), under?.id)],
+      { label: t("Mindmap", "Paste") },
+    )
     selectCreated(result)
   }, [childSpot, editor, scene, selectCreated, selection, t, viewportCentre])
 
@@ -734,9 +742,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       return
     }
     const result = await editor.apply(
-      taken.specs.map((spec, index) =>
-        op.addNodes([withRef(spec, index)], hierarchy?.byId.get(taken.ids[index])?.parentId ?? undefined),
-      ),
+      taken.specs.map((spec, index) => {
+        const parentId = hierarchy?.byId.get(taken.ids[index])?.parentId ?? undefined
+        return op.addNodes(unpinned([withRef(spec, index)], parentId !== undefined), parentId)
+      }),
       { label: t("Mindmap", "Duplicate") },
     )
     selectCreated(result)
@@ -812,6 +821,27 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       void editor.apply([ids.length === 1 ? op.set(ids[0], { style: patch }) : op.styleIds(ids, patch)], {
         label: t("Mindmap", "StyleNode"),
       })
+    },
+    [editor, selection, t],
+  )
+
+  /**
+   * Holds every selected node where it is, or hands them all back to the layout.
+   *
+   * One op per node rather than a bulk form, because there is no bulk form for a pin: it is not a
+   * style, and the subtree op only carries styles. A selection is what someone can point at, so the
+   * batch is small even when the map is not.
+   */
+  const pinNodes = useCallback(
+    (pinned: boolean) => {
+      const ids = [...selection.elements]
+      if (ids.length === 0) {
+        return
+      }
+      void editor.apply(
+        ids.map((id) => op.set(id, { pinned })),
+        { label: t("Mindmap", "TogglePin") },
+      )
     },
     [editor, selection, t],
   )
@@ -1212,6 +1242,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             branch={branch}
             onKind={soleNode ? (kind) => void changeKind(kind) : null}
             onSaveTemplate={soleNode ? () => setCapturing(soleNode) : null}
+            onPin={pinNodes}
           />
         ) : null}
 

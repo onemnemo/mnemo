@@ -154,6 +154,54 @@ public sealed class MindmapDocumentServiceTests
     }
 
     [Fact]
+    public async Task Move_Reposition_LeavesTheNodeUnpinnedWhenTheMoveSaysItGuessed()
+    {
+        // How a layout pass reports where things landed. Without it an arrange would pin the whole
+        // map, and every arrange after it would have nothing left it was allowed to move.
+        await using var h = new MindmapTestHarness();
+        var (map, ids) = await SeedAsync(h, new MindmapNodeSpec { Ref = "n", Text = "n" });
+
+        await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new MoveOp { Id = ids["n"], X = 120, Y = 40, Pin = false },
+        });
+
+        var node = (await h.Service.GetAsync(map.Id)).Value!.Elements.Single(e => e.Id == ids["n"]);
+        Assert.Equal(120, node.X);
+        Assert.False(node.Pinned);
+    }
+
+    [Fact]
+    public async Task AddNodes_PlacesWithoutPinningWhenTheSpecSaysSo()
+    {
+        // A new child has to be given somewhere to land or it appears on top of its parent, and that
+        // guess should not outrank the layout the way a spot someone dragged it to does.
+        await using var h = new MindmapTestHarness();
+        var (map, ids) = await SeedAsync(h, new MindmapNodeSpec { Ref = "p", Text = "p" });
+
+        var result = (await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new AddNodesOp
+            {
+                Under = ids["p"],
+                Nodes = new List<MindmapNodeSpec>
+                {
+                    new() { Ref = "guessed", X = 10, Y = 20, Pin = false },
+                    new() { Ref = "chosen", X = 30, Y = 40 },
+                },
+            },
+        })).Value!;
+
+        var doc = (await h.Service.GetAsync(map.Id)).Value!;
+        var guessed = doc.Elements.Single(e => e.Id == result.CreatedIds["guessed"]);
+        var chosen = doc.Elements.Single(e => e.Id == result.CreatedIds["chosen"]);
+
+        Assert.Equal((10, 20), (guessed.X, guessed.Y));
+        Assert.False(guessed.Pinned);
+        Assert.True(chosen.Pinned);
+    }
+
+    [Fact]
     public async Task Delete_CascadesSubtree_AndEchoesCount()
     {
         await using var h = new MindmapTestHarness();

@@ -8,6 +8,7 @@ import {
   offsetPlacement,
   topLevelIds,
   translated,
+  unpinned,
 } from "./clipboard"
 
 const node = (id: string, over: Partial<MindmapElement> = {}): MindmapElement => ({
@@ -163,5 +164,34 @@ describe("moving a copy to where it was asked for", () => {
     const origin = captureOrigin(placed)!
     const moved = translated(placed, 300 - origin.x, 400 - origin.y)
     expect(captureOrigin(moved)).toEqual({ x: 300, y: 400 })
+  })
+})
+
+describe("which of a copy's coordinates were chosen and which were guessed", () => {
+  const SHAPED = doc([node("p", { x: 100, y: 100 }), node("c", { x: 40, y: 60 })], [link("p", "c")])
+  const placed = captureSelection(SHAPED, analyzeHierarchy(SHAPED), ["p"], (id) =>
+    id === "p" ? { x: 100, y: 100 } : { x: 40, y: 60 },
+  ).specs
+
+  it("marks the inside of a copy as a guess, since it is the shape it came from", () => {
+    expect(unpinned(placed, false)[0]!.c![0]!.pin).toBe(false)
+  })
+
+  it("leaves the top alone when the copy is put down on open canvas", () => {
+    expect(unpinned(placed, false)[0]).not.toHaveProperty("pin")
+  })
+
+  it("marks the top too when the copy goes into a tree, which the tree then lays out", () => {
+    expect(unpinned(placed)[0]!.pin).toBe(false)
+  })
+
+  it("says nothing about a node that was never placed", () => {
+    expect(unpinned(captureSelection(TREE, H, ["a"]).specs)[0]).not.toHaveProperty("pin")
+  })
+
+  it("leaves the copy it was given alone", () => {
+    unpinned(placed)
+    expect(placed[0]).not.toHaveProperty("pin")
+    expect(placed[0]!.c![0]).not.toHaveProperty("pin")
   })
 })

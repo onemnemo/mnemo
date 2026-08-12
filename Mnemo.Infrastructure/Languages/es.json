@@ -864,6 +864,7 @@
     "StyleBranch": "Aplicar estilo a la rama",
     "OpenRef": "Abrir referencia",
     "ToggleTask": "Alternar tarea",
+    "TogglePin": "Fijar / soltar",
     "ChangeType": "Cambiar tipo",
     "LinkUrlRejected": "No se puede abrir esa dirección",
     "Copy": "Copiar",

@@ -151,6 +151,22 @@ export function translated(specs: readonly NodeSpec[], dx: number, dy: number): 
   }))
 }
 
+/**
+ * The same copy, with the app's guesses at position marked as guesses.
+ *
+ * The coordinates inside a copy are the shape it was taken from rather than a spot anyone pointed at,
+ * so an arrange should be free to flow them. Whether that goes for the tops as well is the caller's to
+ * say: a branch put into a tree belongs to that tree, but one put down on open canvas is a cluster of
+ * its own, and where it landed is the whole of what was chosen about it.
+ */
+export function unpinned(specs: readonly NodeSpec[], tops = true): NodeSpec[] {
+  return specs.map((spec) => ({
+    ...spec,
+    ...(tops && spec.xy ? { pin: false } : {}),
+    ...(spec.c ? { c: unpinned(spec.c) } : {}),
+  }))
+}
+
 /* -------------------------------------------------------------------------- */
 /* What is being held                                                         */
 /* -------------------------------------------------------------------------- */

@@ -44,6 +44,22 @@ public sealed class MindmapToolOpParserTests
     }
 
     [Fact]
+    public void Add_NodeCanBePlacedWithoutBeingPinned()
+    {
+        var ops = ParseOk("""
+            [{ "op": "add", "nodes": [
+                { "t": "guessed", "xy": [10, 20], "pin": false },
+                { "t": "chosen", "xy": [30, 40] }
+            ] }]
+            """);
+
+        var nodes = Assert.IsType<AddNodesOp>(ops.Single()).Nodes;
+        Assert.False(nodes[0].Pin);
+        Assert.Equal(10, nodes[0].X);
+        Assert.Null(nodes[1].Pin);
+    }
+
+    [Fact]
     public void Add_NodeWithContentObject_ParsesTypedContent()
     {
         var ops = ParseOk("""
@@ -94,6 +110,16 @@ public sealed class MindmapToolOpParserTests
         Assert.Equal(12, reposition.X);
         Assert.Equal(34, reposition.Y);
         Assert.Null(reposition.Under);
+
+        // Absent means "a move claims the coordinate", which is what every caller before the flag existed meant.
+        Assert.Null(reposition.Pin);
+    }
+
+    [Fact]
+    public void Move_Reposition_CanSayThePlaceIsNotTheAuthorsChoice()
+    {
+        var move = Assert.IsType<MoveOp>(ParseOk("""[{ "op": "move", "id": "n", "xy": [1, 2], "pin": false }]""").Single());
+        Assert.False(move.Pin);
     }
 
     [Fact]
