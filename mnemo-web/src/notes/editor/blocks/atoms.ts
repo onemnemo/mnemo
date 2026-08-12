@@ -17,8 +17,9 @@ import type { AnyBlockModule } from '../registry/types';
 import type { BlockType } from '../../model/types';
 import { plainSpan } from '../../model/spans';
 import { defineBlock, metrics, type BlockDeps } from './shared';
-import { insertAtomicBlock } from './slash-insert';
+import { insertAtomicBlock, insertPageBlock } from './slash-insert';
 import { equationBlockView } from './equation-block-view';
+import { pageBlockView } from './page-view';
 
 /** Spans that the C# converter force-clears, so nothing renders behind the payload. */
 const noSpans = () => [plainSpan('')];
@@ -147,6 +148,17 @@ export function pageBlock(deps: BlockDeps): AnyBlockModule {
       segmentsFor: () => [],
       estimate: () => 56,
       holdsCaret: false,
+      realizedView: pageBlockView,
+      slash: [
+        {
+          label: 'Page',
+          description: 'PageDescription',
+          icon: 'common/file-text',
+          keywords: ['subpage', 'nested', 'note', 'link'],
+          group: 'insert',
+          insert: insertPageBlock,
+        },
+      ],
     },
     deps,
   );

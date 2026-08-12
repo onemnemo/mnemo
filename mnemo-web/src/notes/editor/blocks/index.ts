@@ -15,8 +15,9 @@ import { codeBlock, sketchBlock } from './source';
 import { dividerBlock, equationBlockModule, pageBlock } from './atoms';
 import { imageBlock } from './image';
 import { columnGroupBlock, twoColumnBlock } from './columns';
+import { calloutBlock } from './callout';
 
-/** Fourteen modules covering all seventeen wire types; `heading` owns four. */
+/** Fifteen modules covering all eighteen wire types; `heading` owns four. */
 export function createBlockModules(deps: BlockDeps): readonly AnyBlockModule[] {
   return [
     paragraphBlock(deps),
@@ -25,6 +26,7 @@ export function createBlockModules(deps: BlockDeps): readonly AnyBlockModule[] {
     numberedItemBlock(deps),
     checklistItemBlock(deps),
     quoteBlock(deps),
+    calloutBlock(deps),
     codeBlock(deps),
     dividerBlock(deps),
     twoColumnBlock(deps),

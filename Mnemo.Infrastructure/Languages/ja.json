@@ -649,6 +649,7 @@
     "Page": "ページ",
     "PageDescription": "このブロックから開く入れ子のノートを作成",
     "PageMissingTitle": "ノートがありません",
+    "PageUntitled": "無題",
     "PageBlockOpenPage": "ページを開く",
     "PageBlockNestedPageCountOne": "・ネストされたページ {0} 件",
     "PageBlockNestedPageCountMany": "・ネストされたページ {0} 件",

@@ -122,6 +122,26 @@ export function structuralFixtures(): readonly Fixture[] {
       ],
     },
     {
+      name: 'callouts, including a glyph-less one and a tone the menu never offers',
+      blocks: [
+        block('Callout', [span('remember this'), span('bit', { bold: true })], {
+          kind: 'callout',
+          emoji: '💡',
+          tone: 'note',
+        }),
+        block('Callout', [span('careful')], { kind: 'callout', emoji: '⚠️', tone: 'warn' }),
+        block('Callout', [span('no glyph')], { kind: 'callout', emoji: '', tone: 'note' }),
+        block('Callout', [span('hand written')], {
+          kind: 'callout',
+          emoji: '📌',
+          tone: 'custom-tone',
+        }),
+        // Written before the payload existed, so it carries the wire format's
+        // "no payload" sentinel and must still open.
+        block('Callout', [span('a legacy callout')]),
+      ],
+    },
+    {
       name: 'code storing its source in both places',
       blocks: [
         block('Code', [span('const x = 1;\nconst y = 2;')], {

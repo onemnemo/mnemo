@@ -134,6 +134,9 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
             "sketch" => new SketchPayload(
                 TryGetPropertyCaseInsensitive(el, "width", out var sw) && sw.TryGetDouble(out var swd) ? swd : 0,
                 TryGetPropertyCaseInsensitive(el, "align", out var sal) ? sal.GetString() ?? "left" : "left"),
+            "callout" => new CalloutPayload(
+                TryGetPropertyCaseInsensitive(el, "emoji", out var em) ? em.GetString() ?? string.Empty : string.Empty,
+                TryGetPropertyCaseInsensitive(el, "tone", out var tn) ? tn.GetString() ?? "note" : "note"),
             "empty" => new EmptyPayload(),
             null or "" => new EmptyPayload(),
             _ => throw new JsonException($"Unknown block payload kind '{kind}'.")
@@ -280,6 +283,11 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
                 writer.WriteString("kind", "sketch");
                 writer.WriteNumber("width", sk.Width);
                 writer.WriteString("align", sk.Align);
+                break;
+            case CalloutPayload co:
+                writer.WriteString("kind", "callout");
+                writer.WriteString("emoji", co.Emoji ?? string.Empty);
+                writer.WriteString("tone", string.IsNullOrEmpty(co.Tone) ? "note" : co.Tone);
                 break;
             default:
                 throw new UnreachableException($"Unknown block payload type: {payload.GetType().Name}");

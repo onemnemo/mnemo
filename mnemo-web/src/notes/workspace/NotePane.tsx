@@ -40,7 +40,7 @@ export function NotePane({ noteId }: { noteId: string }) {
     const current = latest.current;
     if (!current) return null;
     const blocks = parseBlocks(current.blocks ?? []);
-    const assets = createNoteAssetServices();
+    const assets = createNoteAssetServices(current.id);
     // A note with no blocks but plain legacy content is shown read-only. Anything
     // else, a brand-new note included, opens the editor: `buildNoteEditState`
     // seeds a single empty block, so the never-fully-empty invariant holds and the

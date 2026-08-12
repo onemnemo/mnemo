@@ -79,6 +79,21 @@ describe('createMarkdownSerializer', () => {
     expect(md.document(doc(block('equationBlock', { latex: 'x^2' })))).toBe('$$\nx^2\n$$');
   });
 
+  it('renders a callout as a quote carrying its tone and glyph', () => {
+    expect(md.document(doc(block('callout', { emoji: '💡', tone: 'note' }, text('heads up'))))).toBe(
+      '> [!note 💡] heads up',
+    );
+    // A glyph-less callout still names its tone, otherwise it reads back as a quote.
+    expect(md.document(doc(block('callout', { emoji: '', tone: 'warn' }, text('careful'))))).toBe(
+      '> [!warn] careful',
+    );
+    // Every line carries its own marker; without it the tail re-imports as
+    // separate paragraphs sitting outside the callout.
+    expect(md.document(doc(block('callout', { emoji: '💡', tone: 'note' }, text('one\ntwo'))))).toBe(
+      '> [!note 💡] one\n> two',
+    );
+  });
+
   it('renders a numbered item with a literal 1. (markdown renumbers on parse)', () => {
     expect(md.document(doc(block('numberedItem', {}, text('one')), block('numberedItem', {}, text('two'))))).toBe(
       '1. one\n1. two',

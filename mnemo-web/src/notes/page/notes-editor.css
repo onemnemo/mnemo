@@ -168,6 +168,47 @@
   color: var(--text-secondary);
 }
 
+/* Callout. A tinted aside with a leading glyph, for the line the author wants
+ * read even by someone skimming. Unlike the quote it keeps the body's own
+ * colour and weight: the tint is doing the work, so styling the text as well
+ * would make it read as an aside rather than as emphasis. */
+.notes-doc aside[data-callout] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 10px 0;
+  padding: 12px 16px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--canvas-sunken);
+  color: var(--ink);
+}
+.notes-doc aside[data-callout][data-callout-tone="warn"] {
+  background: oklch(var(--tag-bg-l) var(--tag-bg-c) 75);
+}
+/* The glyph is drawn from the attr rather than by a node view. A pseudo-element
+ * is invisible to ProseMirror's MutationObserver, so there is no chrome the
+ * caret can land in and nothing the view has to be taught to ignore. */
+.notes-doc aside[data-callout]::before {
+  content: attr(data-callout-emoji);
+  flex: 0 0 auto;
+  user-select: none;
+}
+/* No glyph means no column: without this the text sits indented past an empty
+ * gap, which reads as a broken image rather than as a deliberate plain callout. */
+.notes-doc aside[data-callout][data-callout-emoji=""]::before {
+  display: none;
+}
+.notes-doc aside[data-callout] > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+/* Nothing creates a callout with block children, but the schema tolerates one
+ * so a stray child cannot quarantine the note. Give it its own row rather than
+ * squeezing it into the glyph's line. */
+.notes-doc aside[data-callout] > :not([data-line]) {
+  flex-basis: 100%;
+}
+
 /* Code block. Source, framed and monospaced; horizontal overflow scrolls inside
  * the block rather than widening the page. */
 .notes-doc pre {
@@ -480,23 +521,88 @@
   pointer-events: none;
 }
 
-/* Page reference, a navigation card to another note. The title lives in that
- * note and is resolved when page navigation ships; here it reads as a link. */
-.notes-doc a[data-page-ref] {
-  display: inline-flex;
+/* Page reference, a navigation card to another note, laid out like the desktop's
+ * PageBlockComponent: a 32px tinted tile, the title over an "Open page"
+ * subtitle, a chevron on the right, and a hover the whole card takes. The title
+ * belongs to the referenced note and is resolved at render, so the card has
+ * three states and each looks like what it is. */
+.notes-doc a.notes-page-card {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  border: 1px solid var(--line-color);
-  border-radius: 6px;
-  color: var(--text-secondary);
+  gap: 12px;
+  min-height: 48px;
+  margin: 6px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 8px);
+  color: var(--ink);
   text-decoration: none;
+  cursor: pointer;
 }
-.notes-doc a[data-page-ref]::before {
-  content: "📄";
+.notes-doc a.notes-page-card:hover {
+  background: var(--frame-hover);
 }
-.notes-doc a[data-page-ref]:empty::after {
-  content: "Linked page";
+.notes-page-card-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--canvas-sunken);
+  color: var(--ink-2);
+}
+.notes-page-card-tile svg {
+  width: 18px;
+  height: 18px;
+}
+.notes-page-card-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.notes-page-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.notes-page-card-subtitle {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.notes-page-card-chevron {
+  display: flex;
+  flex: 0 0 auto;
+  color: var(--ink-3);
+}
+.notes-page-card-chevron svg {
+  width: 16px;
+  height: 16px;
+}
+/* Gone, not merely untitled: still legible, but it stops looking like something
+ * that leads anywhere. */
+.notes-doc a.notes-page-card[data-page-state="missing"] {
+  border-style: dashed;
+  cursor: default;
+}
+.notes-doc a.notes-page-card[data-page-state="missing"] .notes-page-card-title {
+  color: var(--ink-3);
+}
+/* The library has not answered yet. A bar holds the line's height rather than a
+ * word the next frame would contradict. */
+.notes-page-card[data-page-state="resolving"] .notes-page-card-title::after {
+  content: "";
+  display: inline-block;
+  width: 8em;
+  max-width: 100%;
+  height: 0.9em;
+  border-radius: 4px;
+  background: var(--canvas-sunken);
+  vertical-align: middle;
 }
 
 /* Block equation. Left-aligned and hugging its rendered width like the

@@ -649,6 +649,7 @@
     "Page": "Página",
     "PageDescription": "Crea una nota anidada que se abre desde este bloque",
     "PageMissingTitle": "Nota no encontrada",
+    "PageUntitled": "Sin título",
     "PageBlockOpenPage": "Abrir página",
     "PageBlockNestedPageCountOne": "• {0} página anidada",
     "PageBlockNestedPageCountMany": "• {0} páginas anidadas",

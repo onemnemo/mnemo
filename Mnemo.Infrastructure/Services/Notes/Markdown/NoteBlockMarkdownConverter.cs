@@ -52,6 +52,7 @@ public static class NoteBlockMarkdownConverter
             BlockType.NumberedList => $"{listNum}. {body}",
             BlockType.Checklist => isChecked ? $"- [x] {body}" : $"- [ ] {body}",
             BlockType.Quote => "> " + body.Replace("\n", "\n> ", StringComparison.Ordinal),
+            BlockType.Callout => SerializeCallout(block, body),
             BlockType.Code => SerializeCodeFence(block),
             BlockType.Sketch => SerializeSketchFence(block),
             BlockType.Divider => "---",
@@ -61,6 +62,12 @@ public static class NoteBlockMarkdownConverter
             _ => body
         };
     }
+
+    /// <summary>The "&gt; [!tone glyph]" head that distinguishes a callout from a plain quote.</summary>
+    private static readonly Regex CalloutHeadPattern = new(@"^>\s*\[!([A-Za-z]+)(?:\s+([^\]]+))?\]\s?(.*)$");
+
+    /// <summary>True when the line opens a new callout, which ends whatever quoted run precedes it.</summary>
+    private static bool StartsCallout(string trimmed) => CalloutHeadPattern.IsMatch(trimmed);
 
     public static List<Block> Deserialize(string markdown)
     {
@@ -240,6 +247,44 @@ public static class NoteBlockMarkdownConverter
                 continue;
             }
 
+            // Probed ahead of the quote branch: a callout is a quote line whose first token is the
+            // "[!tone emoji]" head, so quote would otherwise swallow it.
+            var calloutHead = CalloutHeadPattern.Match(trimmed);
+            if (calloutHead.Success)
+            {
+                var calloutLines = new List<string> { calloutHead.Groups[3].Value.Trim() };
+                i++;
+                while (i < lines.Length)
+                {
+                    var nextTrimmed = lines[i].TrimStart();
+                    // A second head starts its own callout; without this the run below
+                    // absorbs it and two callouts come back as one.
+                    if (StartsCallout(nextTrimmed))
+                        break;
+                    if (nextTrimmed.StartsWith("> ", StringComparison.Ordinal))
+                    {
+                        calloutLines.Add(nextTrimmed["> ".Length..].Trim());
+                        i++;
+                    }
+                    else if (nextTrimmed == ">")
+                    {
+                        calloutLines.Add(string.Empty);
+                        i++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                var callout = CreateRichBlock(BlockType.Callout, string.Join("\n", calloutLines), order++);
+                callout.Payload = new CalloutPayload(
+                    calloutHead.Groups[2].Value.Trim(),
+                    calloutHead.Groups[1].Value.Trim().ToLowerInvariant());
+                result.Add(callout);
+                continue;
+            }
+
             if (trimmed.StartsWith("> ", StringComparison.Ordinal) || trimmed == ">")
             {
                 var firstLine = trimmed == ">" ? string.Empty : trimmed["> ".Length..].Trim();
@@ -248,6 +293,10 @@ public static class NoteBlockMarkdownConverter
                 while (i < lines.Length)
                 {
                     var nextTrimmed = lines[i].TrimStart();
+                    // Same reason as above: a callout head following a quote is a new
+                    // block, not another line of the quotation.
+                    if (StartsCallout(nextTrimmed))
+                        break;
                     if (nextTrimmed.StartsWith("> ", StringComparison.Ordinal))
                     {
                         quoteLines.Add(nextTrimmed["> ".Length..].Trim());
@@ -425,6 +474,15 @@ public static class NoteBlockMarkdownConverter
         }
 
         return sb.ToString();
+    }
+
+    private static string SerializeCallout(Block block, string body)
+    {
+        var payload = block.Payload as CalloutPayload;
+        var tone = string.IsNullOrWhiteSpace(payload?.Tone) ? "note" : payload!.Tone.Trim();
+        var emoji = (payload?.Emoji ?? string.Empty).Trim();
+        var head = "> [!" + tone + (emoji.Length == 0 ? "]" : " " + emoji + "]");
+        return body.Length == 0 ? head : head + " " + body.Replace("\n", "\n> ", StringComparison.Ordinal);
     }
 
     private static string SerializeSketchFence(Block block) =>

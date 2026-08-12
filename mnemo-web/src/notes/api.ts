@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { apiFetch, apiFetchExpecting, apiSend, ApiError } from "@/api/client"
+import { queryClient } from "@/app/query-client"
 import type { ReorderPlan } from "./tree/reorder"
 import type {
   CommitNoteContentDto,
@@ -75,6 +76,51 @@ function useNotesMutation<TArgs, TResult = unknown>(mutationFn: (args: TArgs) =>
 
 export function useCreateNote() {
   return useNotesMutation((body: CreateNoteDto) => apiFetch<NoteDto>("/notes", json(body)))
+}
+
+/**
+ * The note list read from outside React, for the page cards in the block editor.
+ *
+ * A page card resolves the note it points at every time ProseMirror builds its view, and a
+ * NodeView is not a component: it cannot hold a hook. These read the same cache entry
+ * `useNotesQuery` fills, so a card costs no request of its own and follows every rename the
+ * tree has already refetched.
+ *
+ * `noteListLoaded` is separate on purpose. A title that comes back undefined means one of two
+ * very different things, the note is gone or the list has not arrived, and only the first is
+ * something to tell the user about.
+ */
+export function noteListLoaded(): boolean {
+  return queryClient.getQueryData<NoteSummaryDto[]>(noteListKey) !== undefined
+}
+
+export function readCachedNoteTitle(id: string): string | undefined {
+  return queryClient.getQueryData<NoteSummaryDto[]>(noteListKey)?.find((note) => note.id === id)?.title
+}
+
+/** Fires on every write to the note list, so a card built before the fetch landed can redraw. */
+export function subscribeToNoteList(listener: () => void): () => void {
+  return queryClient.getQueryCache().subscribe((event) => {
+    const key = event.query.queryKey
+    if (key[0] === noteListKey[0] && key[1] === noteListKey[1]) listener()
+  })
+}
+
+/**
+ * Creates the nested note a new page block points at, filed where its parent is.
+ *
+ * Not a hook: the slash menu awaits this before it commits the block, so a card is never
+ * written pointing at a note that does not exist. Deliberately untitled, like every other
+ * new note in the app; the card renders that as "Untitled" rather than as missing.
+ */
+export async function createChildNote(parentNoteId: string): Promise<string> {
+  const parent = queryClient.getQueryData<NoteSummaryDto[]>(noteListKey)?.find((note) => note.id === parentNoteId)
+  const created = await apiFetch<NoteDto>(
+    "/notes",
+    json({ parentNoteId: parentNoteId || null, folderId: parent?.folderId ?? null } satisfies CreateNoteDto),
+  )
+  await queryClient.invalidateQueries({ queryKey: notesKey })
+  return created.id
 }
 
 /**

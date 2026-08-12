@@ -649,6 +649,7 @@
     "Page": "Side",
     "PageDescription": "Opprett et undernotat som åpnes fra denne blokken",
     "PageMissingTitle": "Manglende notat",
+    "PageUntitled": "Uten tittel",
     "PageBlockOpenPage": "Åpne side",
     "PageBlockNestedPageCountOne": "• {0} underside",
     "PageBlockNestedPageCountMany": "• {0} undersider",

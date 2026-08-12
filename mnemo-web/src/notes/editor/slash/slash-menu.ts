@@ -19,6 +19,7 @@
 import { Plugin, PluginKey } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import type { BlockRegistry, SlashEntry } from '../registry/build';
+import type { EditorServices, SlashInsertContext } from '../registry/types';
 import { asOwnUndoStep } from '../history';
 import { blockContext, hasInlineAtom } from '../commands/structure';
 import { placeMenu, type Rect } from '../floating/position';
@@ -32,6 +33,12 @@ export const slashMenuKey = new PluginKey('mnemo-slash-menu');
 export interface SlashMenuOptions {
   /** Injected so a test asserts on stable keys, not on the shipped bundle. */
   readonly translate?: (key: string) => string;
+  /**
+   * Handed on to the row that is picked. Only the rows that reach outside the
+   * document need it, the page row has to create a note before it has anything
+   * to point a card at; the rest ignore it.
+   */
+  readonly services?: EditorServices;
 }
 
 /**
@@ -106,6 +113,7 @@ function createController(
   view: EditorView,
   allRows: readonly MenuRow[],
   translate: (key: string) => string,
+  services: EditorServices | undefined,
 ): MenuController {
   const menu = createSlashMenuView(translate);
   let open = false;
@@ -160,11 +168,20 @@ function createController(
     // menu still open could pick a second time out of a document the first
     // pick has already changed.
     close();
-    row.entry.insert(view.state, (tr) => {
-      // One pick is one undo step, so a single press takes the block type back
-      // and leaves the typed query there to be corrected.
-      view.dispatch(asOwnUndoStep(tr));
-    });
+    const context: SlashInsertContext | undefined = services
+      ? // Read through a getter rather than captured: a row that awaits something
+        // has to build its step against the document as it is when it returns.
+        { services, currentState: () => view.state }
+      : undefined;
+    void row.entry.insert(
+      view.state,
+      (tr) => {
+        // One pick is one undo step, so a single press takes the block type back
+        // and leaves the typed query there to be corrected.
+        view.dispatch(asOwnUndoStep(tr));
+      },
+      context,
+    );
   }
 
   function reposition(): void {
@@ -259,7 +276,7 @@ export function slashMenuPlugin(registry: BlockRegistry, options: SlashMenuOptio
   return new Plugin({
     key: slashMenuKey,
     view(editorView) {
-      const controller = createController(editorView, allRows, translate);
+      const controller = createController(editorView, allRows, translate, options.services);
       controllers.set(editorView, controller);
       controller.sync();
       return {

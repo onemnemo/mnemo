@@ -23,7 +23,8 @@ public enum BlockType
     TwoColumn,
     Equation,
     Page,
-    Sketch
+    Sketch,
+    Callout
 }
 
 [JsonConverter(typeof(BlockJsonConverter))]

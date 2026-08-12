@@ -21,8 +21,8 @@ import type { BlockType } from '../model/types';
 /**
  * Two characters per block type.
  *
- * `satisfies` rather than a plain annotation so an eighteenth `BlockType`
- * without a code is a compile error. A missing code would otherwise surface as
+ * `satisfies` rather than a plain annotation so another `BlockType` without a
+ * code is a compile error. A missing code would otherwise surface as
  * `undefined` in an outline the model then tries to reason about.
  */
 export const typeCodes = {
@@ -43,6 +43,7 @@ export const typeCodes = {
   Equation: 'eq',
   Page: 'pg',
   Sketch: 'sk',
+  Callout: 'co',
 } satisfies Record<BlockType, string>;
 
 /** Inverse of `typeCodes`, for parsing a `type` op's target. */
