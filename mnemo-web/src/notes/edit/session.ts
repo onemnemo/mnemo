@@ -18,6 +18,7 @@
 
 import type { EditorState } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
+import { getSettingValue } from '@/settings/store';
 import {
   createNoteAuthority,
   type NoteAuthority,
@@ -87,7 +88,12 @@ export function createNoteSession(options: NoteSessionOptions): NoteSession {
     },
   });
 
-  const autosave = startAutosave({ authority, persist: options.persist, ...options.autosave });
+  const autosave = startAutosave({
+    authority,
+    persist: options.persist,
+    enabled: () => getSettingValue('Editor.AutoSave', true),
+    ...options.autosave,
+  });
 
   let closing: Promise<SaveResult> | null = null;
 

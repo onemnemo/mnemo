@@ -226,6 +226,99 @@ describe('when it writes', () => {
   });
 });
 
+describe('when it is switched off', () => {
+  it('schedules nothing, however long the typing goes on', async () => {
+    const h = harness();
+    autosaveOn(h, { enabled: false });
+    h.type('a');
+    h.tick(100_000);
+    await settle();
+    expect(h.commits).toEqual([]);
+    expect(h.pending()).toBe(0);
+  });
+
+  it('still writes on flush, because closing a note is not typing', async () => {
+    const h = harness();
+    const autosave = autosaveOn(h, { enabled: false });
+    h.type('a');
+    h.tick(100_000);
+    await settle();
+
+    expect(await autosave.flush()).toMatchObject({ status: 'saved' });
+    expect(h.commits).toEqual([1]);
+    expect(h.authority.snapshot().dirty).toBe(false);
+  });
+
+  it('leaves the scheduler running when it is on', async () => {
+    const h = harness();
+    autosaveOn(h, { enabled: true });
+    h.type('a');
+    h.tick(799);
+    await settle();
+    expect(h.commits).toEqual([]);
+
+    h.tick(1);
+    await settle();
+    expect(h.commits).toEqual([1]);
+  });
+});
+
+describe('when it is switched mid-session', () => {
+  it('drops a write already waiting, without needing another edit to notice', async () => {
+    let on = true;
+    const h = harness();
+    autosaveOn(h, { enabled: () => on });
+    h.type('a');
+    h.tick(400);
+    expect(h.pending()).toBe(1);
+
+    // No keystroke after the flip: the armed timer itself has to find the
+    // setting off, since nothing else will run before it comes due.
+    on = false;
+    h.tick(100_000);
+    await settle();
+    expect(h.commits).toEqual([]);
+    expect(h.pending()).toBe(0);
+  });
+
+  it('drops a retry a failed write had already armed', async () => {
+    let on = true;
+    const h = harness();
+    h.answers(() => ({ status: 'failed', error: new Error('offline') }));
+    autosaveOn(h, { enabled: () => on, retryDelaysMs: [100] });
+    h.type('a');
+    h.tick(800);
+    await settle();
+    expect(h.commits).toHaveLength(1);
+
+    on = false;
+    h.tick(100_000);
+    await settle();
+    expect(h.commits).toHaveLength(1);
+  });
+
+  it('takes the next edit, with a full quiet period rather than an expired ceiling', async () => {
+    let on = false;
+    const h = harness();
+    autosaveOn(h, { enabled: () => on });
+    h.type('a');
+    h.tick(100_000);
+    await settle();
+    expect(h.commits).toEqual([]);
+
+    on = true;
+    h.type('b');
+    h.tick(799);
+    await settle();
+    expect(h.commits).toEqual([]);
+
+    h.tick(1);
+    await settle();
+    expect(h.commits).toEqual([2]);
+    expect(h.authority.snapshot().dirty).toBe(false);
+  });
+});
+
 describe('when a write fails', () => {
   it('retries on the given backoff', async () => {
     const h = harness();
