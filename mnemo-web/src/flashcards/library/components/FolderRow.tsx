@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
-import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { dialog } from "@/stores/dialog"
@@ -11,6 +10,9 @@ import type { DragHandle } from "../dnd/model"
 import type { LibraryDrag } from "../dnd/useLibraryDrag"
 import type { FolderRowModel } from "../tree"
 import { Counts } from "../../bits"
+import { folderMenuItems } from "./folder-row-menu-items"
+import { FolderRowContextMenu } from "./FolderRowContextMenu"
+import { FolderRowMenu } from "./FolderRowMenu"
 import { DEPTH_INDENT, RETENTION_CELL } from "./rowLayout"
 
 /** A folder in the library table: its own row, plus its subtree's totals. */
@@ -27,6 +29,7 @@ export function FolderRow({
   const saveFolder = useSaveFolder()
   const deleteFolder = useDeleteFolder()
   const [editing, setEditing] = useState(false)
+  const renaming = useRef(false)
   const { folder, counts } = row
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
 
@@ -37,6 +40,28 @@ export function FolderRow({
     parentId: folder.parentId,
     label: folder.name,
     subtitle: fc("DeckCountFormat", { 0: counts.deckCount }),
+  }
+
+  /**
+   * Radix runs a menu item's action inside flushSync, while the menu is still open and
+   * still trapping focus, so an editor mounted straight from there is focused by autoFocus
+   * and pulled back into the menu on the same tick, which blurs it and commits it. A
+   * microtask puts the mount after the menu has closed.
+   */
+  const startRename = () => {
+    renaming.current = true
+    queueMicrotask(() => setEditing(true))
+  }
+
+  /**
+   * Asked as either menu closes. Only a rename holds focus where it is; every other verb,
+   * and Escape, hands the row back so the next Tab carries on from here. Cleared on the
+   * way out so one rename never covers the close after it.
+   */
+  const opensEditor = () => {
+    const wanted = renaming.current
+    renaming.current = false
+    return wanted
   }
 
   const commitRename = async (name: string) => {
@@ -57,84 +82,75 @@ export function FolderRow({
     if (ok) await deleteFolder.mutateAsync(folder.id)
   }
 
+  const entries = folderMenuItems({
+    row,
+    t,
+    on: {
+      toggle: () => onToggle(folder.id),
+      rename: startRename,
+      remove: () => void remove(),
+    },
+  })
+
   return (
-    <div
-      role="row"
-      tabIndex={0}
-      data-row-key={handle.key}
-      data-row-kind="folder"
-      data-row-id={folder.id}
-      data-row-depth={row.depth}
-      data-row-folder={folder.id}
-      onPointerDown={(event) => !editing && drag.press(event, handle)}
-      onClick={() => !drag.suppressClick(handle.key) && !editing && onToggle(folder.id)}
-      onDoubleClick={() => setEditing(true)}
-      onKeyDown={(event) => {
-        if (editing) return
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault()
-          onToggle(folder.id)
-        }
-      }}
-      style={{
-        opacity: drag.sourceKey === handle.key ? 0.35 : undefined,
-        paddingLeft: 6 + row.depth * DEPTH_INDENT,
-      }}
-      className={cn(
-        "group flex h-9 cursor-pointer items-center gap-2 rounded-lg pr-2 outline-none transition-colors",
-        "hover:bg-frame-hover focus-visible:bg-frame-hover",
-      )}
-    >
-      <AppIcon
-        name="chevron-right"
-        size={14}
-        strokeWidth={2}
-        className={cn("shrink-0 text-ink-icon transition-transform", row.expanded && "rotate-90")}
-      />
-      <AppIcon name="folder" size={16} className="shrink-0 text-ink-icon" />
+    <FolderRowContextMenu entries={entries} disabled={editing} opensEditor={opensEditor}>
+      <div
+        role="row"
+        tabIndex={0}
+        data-row-key={handle.key}
+        data-row-kind="folder"
+        data-row-id={folder.id}
+        data-row-depth={row.depth}
+        data-row-folder={folder.id}
+        onPointerDown={(event) => !editing && drag.press(event, handle)}
+        onClick={() => !drag.suppressClick(handle.key) && !editing && onToggle(folder.id)}
+        onDoubleClick={() => setEditing(true)}
+        onKeyDown={(event) => {
+          if (editing) return
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault()
+            onToggle(folder.id)
+          }
+        }}
+        style={{
+          opacity: drag.sourceKey === handle.key ? 0.35 : undefined,
+          paddingLeft: 6 + row.depth * DEPTH_INDENT,
+        }}
+        className={cn(
+          "group flex h-9 cursor-pointer items-center gap-2 rounded-lg pr-2 outline-none transition-colors",
+          "hover:bg-frame-hover focus-visible:bg-frame-hover",
+        )}
+      >
+        <AppIcon
+          name="chevron-right"
+          size={14}
+          strokeWidth={2}
+          className={cn("shrink-0 text-ink-icon transition-transform", row.expanded && "rotate-90")}
+        />
+        <AppIcon name="folder" size={16} className="shrink-0 text-ink-icon" />
 
-      {editing ? (
-        <FolderNameInput initial={folder.name} onCommit={commitRename} onCancel={() => setEditing(false)} />
-      ) : (
-        <span className="flex-1 truncate text-left text-[13px] font-medium text-ink" title={folder.name}>
-          {folder.name}
+        {editing ? (
+          <FolderNameInput initial={folder.name} onCommit={commitRename} onCancel={() => setEditing(false)} />
+        ) : (
+          <span className="flex-1 truncate text-left text-[13px] font-medium text-ink" title={folder.name}>
+            {folder.name}
+          </span>
+        )}
+        <span className="shrink-0 text-[12px] text-ink-3">
+          {counts.deckCount === 1 ? fc("DeckCountSingular") : fc("DeckCountFormat", { 0: counts.deckCount })}
         </span>
-      )}
-      <span className="shrink-0 text-[12px] text-ink-3">
-        {counts.deckCount === 1 ? fc("DeckCountSingular") : fc("DeckCountFormat", { 0: counts.deckCount })}
-      </span>
 
-      {/* Only while collapsed: with the children on screen the aggregate is just
-          the same numbers a second time. */}
-      {row.expanded ? <span className="w-[100px] shrink-0" /> : <Counts counts={counts} className="shrink-0" />}
-      <span className={RETENTION_CELL} />
+        {/* Only while collapsed: with the children on screen the aggregate is just
+            the same numbers a second time. */}
+        {row.expanded ? <span className="w-[100px] shrink-0" /> : <Counts counts={counts} className="shrink-0" />}
+        <span className={RETENTION_CELL} />
 
-      <div className="flex shrink-0 items-center justify-end opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-        <Menu>
-          <MenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={fc("FolderActions")}
-              title={fc("FolderActions")}
-              onClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-              className="grid size-7 place-items-center rounded-md text-ink-3 hover:bg-frame-active hover:text-ink"
-            >
-              <AppIcon name="common/ellipsis" size={15} />
-            </button>
-          </MenuTrigger>
-          <MenuContent align="end">
-            <MenuItem icon="flyout/rename" onSelect={() => setEditing(true)}>
-              {fc("RenameFolder")}
-            </MenuItem>
-            <MenuSeparator />
-            <MenuItem icon="common/trash" danger onSelect={() => void remove()}>
-              {fc("DeleteFolder")}
-            </MenuItem>
-          </MenuContent>
-        </Menu>
+        {/* The row toggles and drags, so the menu has to keep its own clicks to itself. */}
+        <div className="flex shrink-0 items-center justify-end" onPointerDown={(event) => event.stopPropagation()}>
+          <FolderRowMenu entries={entries} opensEditor={opensEditor} />
+        </div>
       </div>
-    </div>
+    </FolderRowContextMenu>
   )
 }
 

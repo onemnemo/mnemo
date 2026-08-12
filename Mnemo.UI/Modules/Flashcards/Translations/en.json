@@ -28,6 +28,8 @@
     "SummaryLearnFormat": "{0} learning",
     "SummaryReviewFormat": "{0} review",
     "NewDeck": "New deck",
+    "ExpandFolder": "Expand folder",
+    "CollapseFolder": "Collapse folder",
     "RenameFolder": "Rename folder",
     "FolderActions": "Folder actions",
     "OpenDeck": "Open deck",

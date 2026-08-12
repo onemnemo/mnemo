@@ -28,6 +28,8 @@
     "SummaryLearnFormat": "{0} lernen",
     "SummaryReviewFormat": "{0} Wiederholung",
     "NewDeck": "Neuer Stapel",
+    "ExpandFolder": "Ordner aufklappen",
+    "CollapseFolder": "Ordner zuklappen",
     "RenameFolder": "Ordner umbenennen",
     "FolderActions": "Ordneraktionen",
     "OpenDeck": "Stapel öffnen",

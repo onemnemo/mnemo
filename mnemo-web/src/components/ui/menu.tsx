@@ -5,6 +5,7 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import type { IconName } from "@/components/icon/icon-registry"
 import { cn } from "@/lib/utils"
 
+import { closeFocusHandler, type OpensDialog } from "./menu-focus"
 import { CONTENT_CLASS, ITEM_CLASS, itemClass } from "./menu-styles"
 
 // The app's flyout menu, styled once. Mirrors the desktop MenuFlyout: an icon
@@ -25,12 +26,8 @@ export function MenuContent({
   children: ReactNode
   align?: "start" | "center" | "end"
   className?: string
-  /**
-   * Set on a menu whose items raise a dialog. Closing a menu normally hands focus back to its
-   * trigger, which here lands a moment after the dialog has already put the caret in a field and
-   * takes it straight back out again.
-   */
-  opensDialog?: boolean
+  /** Set on a menu whose items put a caret on screen, a dialog or an inline editor. */
+  opensDialog?: OpensDialog
 }) {
   return (
     <DropdownMenu.Portal>
@@ -38,7 +35,7 @@ export function MenuContent({
         align={align}
         sideOffset={4}
         className={cn(CONTENT_CLASS, className)}
-        onCloseAutoFocus={opensDialog ? (event) => event.preventDefault() : undefined}
+        onCloseAutoFocus={closeFocusHandler(opensDialog)}
       >
         {children}
       </DropdownMenu.Content>
