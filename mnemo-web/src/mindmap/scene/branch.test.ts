@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import type { SceneElement } from "../model/scene"
-import { accentOf, branchSwatchOf } from "./branch"
+import { accentOf, branchSwatchOf, markColor } from "./branch"
+import { cssColor } from "./tokens"
 
-/** Only the two fields the colour readers look at; the rest is not their business. */
-function coloured(colours: { branchColor?: string; stroke?: string }): SceneElement {
+/** Only the fields the colour readers look at; the rest is not their business. */
+function coloured(colours: { branchColor?: string; stroke?: string; fill?: string }): SceneElement {
   return colours as unknown as SceneElement
 }
 
@@ -42,5 +43,27 @@ describe("branchSwatchOf", () => {
     // light a swatch for a hue nothing on the map has.
     expect(branchSwatchOf(coloured({ stroke: "#3366ff" }))).toBeNull()
     expect(branchSwatchOf(coloured({}))).toBeNull()
+  })
+})
+
+describe("markColor", () => {
+  it("keeps a fill somebody chose", () => {
+    expect(markColor(coloured({ fill: "var(--accent)", stroke: cssColor("stroke") }))).toBe("var(--accent)")
+  })
+
+  it("reaches past a paper fill to the branch hue, which is where a branch's colour lives", () => {
+    expect(markColor(coloured({ fill: cssColor("surface"), stroke: "var(--branch-3)" }))).toBe("var(--branch-3)")
+  })
+
+  it("marks an element nobody has coloured in the muted ink", () => {
+    // The whole of the defect. Paper is the honest answer at full size and no answer at all on a
+    // panel that is itself paper: an ordinary map showed its coloured roots and nothing else.
+    expect(markColor(coloured({ fill: cssColor("surface"), stroke: cssColor("stroke") }))).toBe("var(--ink-3)")
+    expect(markColor(coloured({ fill: cssColor("surfaceAlt") }))).toBe("var(--ink-3)")
+    expect(markColor(coloured({}))).toBe("var(--ink-3)")
+  })
+
+  it("keeps a hand-written colour, which is not one of the eight and was still chosen", () => {
+    expect(markColor(coloured({ fill: "#3366ff" }))).toBe("#3366ff")
   })
 })

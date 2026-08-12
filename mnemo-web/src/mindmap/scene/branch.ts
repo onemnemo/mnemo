@@ -10,7 +10,7 @@
  * the hue that is on screen whether it came from the walk or from somebody choosing one.
  */
 
-import { paletteSlotOf } from "./tokens"
+import { cssColor, paletteSlotOf } from "./tokens"
 import type { SceneElement } from "../model/scene"
 
 /** Just enough of an element to say what colour it came out. */
@@ -18,6 +18,25 @@ export interface Accented {
   readonly stroke?: string
   readonly branchColor?: string
 }
+
+/** The same, plus the fill, for asking what mark an element makes when it is drawn too small to read. */
+export interface Marked extends Accented {
+  readonly fill?: string
+}
+
+/**
+ * What the cascade hands back for an element nobody has coloured: the paper the canvas is made of,
+ * and the hairline drawn on it.
+ *
+ * Built from the tokens rather than written out, so a theme vocabulary that moves cannot leave this
+ * list quietly behind.
+ */
+const PAPER: ReadonlySet<string | undefined> = new Set(
+  ["surface", "surfaceAlt", "stroke"].map((token) => cssColor(token)),
+)
+
+/** What a mark falls back to when its element carries no colour of its own. */
+const MUTED = "var(--ink-3)"
 
 /**
  * The colour an element is drawn in.
@@ -30,6 +49,28 @@ export interface Accented {
  */
 export function accentOf(element: Accented): string | undefined {
   return element.stroke ?? element.branchColor
+}
+
+/**
+ * The colour an element makes as a mark, where it is too small to have an inside and an outline.
+ *
+ * The minimap and the library thumbnail both shrink a map until a node is a few pixels, and both are
+ * drawn on paper. An element nobody has coloured resolves to that same paper, which is the honest
+ * answer at full size and no answer at all at this one: a paper mark on a paper panel is not faint,
+ * it is absent, and an ordinary map showed its coloured roots and nothing else. So a colour somebody
+ * chose is kept, and paper becomes the muted ink.
+ *
+ * The fill is asked first and the accent second, because a branch hue lives on the stroke and never on
+ * the fill: reading only the fill would draw a whole rainbow map in one flat grey.
+ */
+export function markColor(element: Marked): string {
+  for (const color of [element.fill, accentOf(element)]) {
+    if (color !== undefined && !PAPER.has(color)) {
+      return color
+    }
+  }
+
+  return MUTED
 }
 
 /**

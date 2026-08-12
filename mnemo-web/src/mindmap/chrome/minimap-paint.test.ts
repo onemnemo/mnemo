@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { cssColor } from "../scene/tokens"
 import type { SceneElement } from "../model/scene"
 import {
   minimapToWorld,
@@ -139,12 +140,14 @@ describe("the swatches", () => {
     expect(context.drawn.map((swatch) => swatch.op)).toEqual(["stroke", "fill"])
   })
 
-  it("falls back from a fill to a stroke to the muted ink", () => {
+  it("falls back from a fill to a branch hue to the muted ink", () => {
     const context = recorder()
     const elements = [
       element({ id: "a", fill: "var(--accent)", stroke: "var(--line)" }),
-      element({ id: "b", stroke: "var(--line)" }),
-      element({ id: "c" }),
+      // What the cascade produces for a branch coloured node: the hue is on the stroke, and the fill
+      // is still the canvas's own paper.
+      element({ id: "b", fill: "var(--canvas)", stroke: "var(--branch-3)" }),
+      element({ id: "c", fill: "var(--canvas)", stroke: "var(--line)" }),
     ]
     const map = projectMinimap(elements, BOX.width, BOX.height)!
 
@@ -152,9 +155,59 @@ describe("the swatches", () => {
 
     expect(context.drawn.map((swatch) => swatch.color)).toEqual([
       "[var(--accent)]",
-      "[var(--line)]",
+      "[var(--branch-3)]",
       "[var(--ink-3)]",
     ])
+  })
+
+  it("marks a node nobody has coloured, rather than painting it in the panel's own paper", () => {
+    // The whole of the defect: a map of ordinary nodes showed its coloured roots and nothing else.
+    const context = recorder()
+    const elements = [
+      element({ id: "root", fill: "var(--accent)" }),
+      ...["a", "b", "c"].map((id, index) =>
+        element({
+          id,
+          x: 200 + index * 40,
+          y: 100,
+          fill: cssColor("surface"),
+          stroke: cssColor("stroke"),
+          nodeShape: "plain",
+        }),
+      ),
+    ]
+    const map = projectMinimap(elements, BOX.width, BOX.height)!
+
+    paintSwatches(context, elements, map, resolve)
+
+    for (const swatch of context.drawn.slice(1)) {
+      expect(swatch.color).toBe("[var(--ink-3)]")
+    }
+  })
+
+  it("outlines a frame in its own hue, and in the muted ink when it has none", () => {
+    const context = recorder()
+    const elements = [
+      element({ id: "own", kind: "frame", width: 400, height: 300, stroke: "var(--branch-5)" }),
+      element({ id: "bare", kind: "frame", x: 500, width: 400, height: 300, stroke: cssColor("stroke") }),
+    ]
+    const map = projectMinimap(elements, BOX.width, BOX.height)!
+
+    paintSwatches(context, elements, map, resolve)
+
+    expect(context.drawn.map((swatch) => swatch.color)).toEqual(["[var(--branch-5)]", "[var(--ink-3)]"])
+  })
+
+  it("colours a frame by its line rather than by whatever is washed inside it", () => {
+    const context = recorder()
+    const elements = [
+      element({ id: "f", kind: "frame", width: 400, height: 300, fill: "var(--branch-2-wash)", stroke: "var(--branch-2)" }),
+    ]
+    const map = projectMinimap(elements, BOX.width, BOX.height)!
+
+    paintSwatches(context, elements, map, resolve)
+
+    expect(context.drawn[0].color).toBe("[var(--branch-2)]")
   })
 })
 

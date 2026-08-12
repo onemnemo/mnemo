@@ -3,10 +3,10 @@ import { memo, useMemo } from "react"
 import { anchorsFor, boxOf, isFilled, strokeToPathData } from "../canvas/edge-paths"
 import { strokeFor } from "../canvas/edge-canvas"
 import { dashAttribute, strokeStyleFor } from "../canvas/edge-style"
-import { accentOf } from "../scene/branch"
+import { accentOf, markColor } from "../scene/branch"
 import { estimateWidth, measurersFrom } from "../scene/measure"
 import { projectScene } from "../scene/project"
-import { boundsOf } from "../model/scene"
+import { boundsOf, type SceneElement } from "../model/scene"
 import type { MindmapDocument, StyleTemplate } from "../model/document"
 
 const WIDTH = 232
@@ -84,20 +84,39 @@ export const MindmapThumbnail = memo(function MindmapThumbnail({
           )
         })}
 
-        {view.scene.elements.map((element) => (
-          <rect
-            key={element.id}
-            x={element.x}
-            y={element.y}
-            width={element.width}
-            height={element.height}
-            rx={element.isRoot ? 8 : element.nodeShape === "pill" ? element.height / 2 : 4}
-            fill={element.nodeShape === "plain" ? "none" : element.fill}
-            stroke={element.nodeShape === "plain" ? "none" : accentOf(element)}
-            strokeWidth={1}
-          />
-        ))}
+        {view.scene.elements.map((element) =>
+          element.nodeShape === "plain" ? (
+            // A plain node is a label with a rule under it and no box at all, and at this size the
+            // label is not drawn either. Leaving the rule out too left an ordinary map showing its
+            // coloured roots, a few hairline edges, and nothing where most of its nodes are.
+            <rect
+              key={element.id}
+              x={element.x}
+              y={element.y + element.height - underlineOf(element)}
+              width={element.width}
+              height={underlineOf(element)}
+              fill={markColor(element)}
+            />
+          ) : (
+            <rect
+              key={element.id}
+              x={element.x}
+              y={element.y}
+              width={element.width}
+              height={element.height}
+              rx={element.isRoot ? 8 : element.nodeShape === "pill" ? element.height / 2 : 4}
+              fill={element.fill}
+              stroke={accentOf(element)}
+              strokeWidth={1}
+            />
+          ),
+        )}
       </g>
     </svg>
   )
 })
+
+/** The weight the canvas draws a plain node's rule at, fallback included, so the two stay in step. */
+function underlineOf(element: SceneElement): number {
+  return element.underline ?? 2
+}
