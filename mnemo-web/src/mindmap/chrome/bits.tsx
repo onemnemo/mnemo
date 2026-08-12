@@ -8,6 +8,7 @@
 
 import type { ReactNode } from "react"
 
+import { Tooltip } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 /**
@@ -34,6 +35,8 @@ export interface SlotProps {
   children: ReactNode
   /** The accessible name, and what the tooltip says. */
   label: string
+  /** The key that does the same thing, drawn on a cap beside the label. */
+  chord?: string | null
   /** Filled accent rather than a tint: which tool is armed has to be readable at a glance. */
   active?: boolean
   disabled?: boolean
@@ -50,6 +53,7 @@ export interface SlotProps {
 export function Slot({
   children,
   label,
+  chord,
   active,
   disabled,
   onClick,
@@ -60,26 +64,27 @@ export function Slot({
   wide,
 }: SlotProps) {
   return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-      disabled={disabled}
-      onClick={onClick}
-      onPointerDown={onPointerDown}
-      onPointerUp={onPointerUp}
-      onPointerLeave={onPointerLeave}
-      onPointerCancel={onPointerCancel}
-      className={cn(
-        "grid h-7 shrink-0 place-items-center rounded-[7px] transition-colors duration-120",
-        wide ? "min-w-[46px] px-1.5 text-[11.5px] font-medium tabular-nums" : "w-7",
-        disabled && "pointer-events-none opacity-35",
-        active ? "bg-accent text-accent-fg" : "text-ink-2 hover:bg-frame-hover hover:text-ink",
-      )}
-    >
-      {children}
-    </button>
+    <Tooltip label={label} chord={chord}>
+      <button
+        type="button"
+        aria-label={label}
+        aria-pressed={active}
+        disabled={disabled}
+        onClick={onClick}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerLeave}
+        onPointerCancel={onPointerCancel}
+        className={cn(
+          "grid h-7 shrink-0 place-items-center rounded-[7px] transition-colors duration-120",
+          wide ? "min-w-[46px] px-1.5 text-[11.5px] font-medium tabular-nums" : "w-7",
+          disabled && "pointer-events-none opacity-35",
+          active ? "bg-accent text-accent-fg" : "text-ink-2 hover:bg-frame-hover hover:text-ink",
+        )}
+      >
+        {children}
+      </button>
+    </Tooltip>
   )
 }
 

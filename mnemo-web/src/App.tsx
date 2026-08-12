@@ -4,6 +4,7 @@ import { useRouteNormalization } from "@/app/router"
 import { AppShell } from "@/components/shell/AppShell"
 import { DialogHost } from "@/components/shell/DialogHost"
 import { CommandPalette } from "@/components/shell/palette/CommandPalette"
+import { TooltipHost } from "@/components/ui/tooltip"
 import { CardEditorOverlay } from "@/flashcards/editor/CardEditorOverlay"
 import { ReviewSettingsOverlay } from "@/flashcards/presets/ReviewSettingsOverlay"
 import { TransferOverlay } from "@/flashcards/transfer/TransferOverlay"
@@ -49,6 +50,9 @@ function App() {
       <ReviewSettingsOverlay />
       <TransferOverlay />
       <OnboardingWizard />
+      {/* Last, so its portal is the topmost thing in the body and a hint is never drawn
+          under the overlay whose button raised it. */}
+      <TooltipHost />
     </>
   )
 }

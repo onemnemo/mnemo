@@ -70,9 +70,6 @@ export function MindmapToolDock({
   const t = useT()
   const [open, setOpen] = useState<MindmapTool | null>(null)
 
-  const hint = (label: string, key: string): string =>
-    t("Mindmap", "ShortcutHintFormat").replace("{0}", label).replace("{1}", key)
-
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-40 flex justify-center">
       <FloatBar>
@@ -83,7 +80,8 @@ export function MindmapToolDock({
           return (
             <div key={entry.tool} className="relative">
               <ToolSlot
-                label={hint(t("Mindmap", entry.key), TOOL_KEY_OF[entry.tool])}
+                label={t("Mindmap", entry.key)}
+                chord={TOOL_KEY_OF[entry.tool]}
                 icon={entry.icon}
                 active={active}
                 onTap={() => onTool(entry.tool)}
@@ -143,12 +141,14 @@ export function MindmapToolDock({
  */
 function ToolSlot({
   label,
+  chord,
   icon,
   active,
   onTap,
   onHold,
 }: {
   label: string
+  chord: string
   icon: string
   active: boolean
   onTap: () => void
@@ -160,6 +160,7 @@ function ToolSlot({
   return (
     <Slot
       label={label}
+      chord={chord}
       active={active}
       onPointerDown={hold.onPointerDown}
       onPointerUp={hold.onPointerUp}

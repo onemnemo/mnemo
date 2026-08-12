@@ -273,6 +273,15 @@
   --diff-del-bg: oklch(0.958 0.03 25);
   --diff-del-fg: oklch(0.5 0.12 25);
 
+  /* Tooltips. The one surface that is deliberately not part of the light/dark pair:
+     a hint is an annotation over the UI, not another panel in it, so it stays dark in
+     both themes and never competes with the popovers it floats above. The key caps are
+     alpha over that surface rather than their own colour, so one value covers both. */
+  --tooltip-surface: oklch(0.235 0.008 var(--neutral-hue));
+  --tooltip-ink: oklch(0.985 0 0);
+  --tooltip-key: oklch(1 0 0 / 0.12);
+  --tooltip-key-ink: oklch(1 0 0 / 0.72);
+
   /* Elevation. The canvas sits at e-canvas; popovers go higher. */
   --e-canvas:
     0 0 0 1px oklch(0.7 0.01 var(--neutral-hue) / 0.06),
@@ -373,6 +382,10 @@
   --diff-add-fg: oklch(0.86 0.1 152);
   --diff-del-bg: oklch(0.31 0.055 25);
   --diff-del-fg: oklch(0.85 0.1 25);
+
+  /* Lifted off the dark canvas rather than inverted. The light value is darker than
+     the surfaces it would sit on here, which reads as a hole instead of a hint. */
+  --tooltip-surface: oklch(0.305 0.008 var(--neutral-hue));
 
   --e-canvas:
     0 0 0 1px oklch(1 0 0 / 0.055),
