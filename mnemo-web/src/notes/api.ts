@@ -220,5 +220,7 @@ export function useApplyNoteReorder() {
       }
     },
     onSettled: () => client.invalidateQueries({ queryKey: notesKey }),
+    // The sidebar's drop handler already reports this one.
+    meta: { silentError: true },
   })
 }

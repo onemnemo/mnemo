@@ -1,6 +1,5 @@
 import { lazy, Suspense, type ReactNode } from "react"
 
-import { ChatPage } from "@/chat/components/ChatPage"
 import { DeckPage } from "@/flashcards/deck/DeckPage"
 import { LibraryPage } from "@/flashcards/library/LibraryPage"
 import { SessionPage } from "@/flashcards/session/SessionPage"
@@ -19,6 +18,12 @@ const MindmapRoute = lazy(() =>
 )
 const MindmapLibraryRoute = lazy(() =>
   import("@/mindmap/page/MindmapLibraryRoute").then((m) => ({ default: m.MindmapLibraryRoute })),
+)
+
+// Soma pulls in react-markdown and remark-gfm for message rendering; keep that
+// out of the initial bundle for everyone who never opens the assistant.
+const ChatPage = lazy(() =>
+  import("@/chat/components/ChatPage").then((m) => ({ default: m.ChatPage })),
 )
 
 // Client-side routing: which page renders for a route key. The sidebar model
@@ -52,7 +57,11 @@ const PAGES: Record<string, PageRenderer> = {
   "flashcard-session": (p) => <SessionPage deckId={p[0]} mode={p[1]} scope={p[2]} />,
   "flashcard-test": (p) => <TestPage deckId={p[0]} />,
   settings: () => <SettingsPage />,
-  soma: () => <ChatPage />,
+  soma: () => (
+    <Suspense fallback={<div className="min-h-full" />}>
+      <ChatPage />
+    </Suspense>
+  ),
 }
 
 // Routes that were renamed. Kept so a bookmark, a stored last-route or a link in

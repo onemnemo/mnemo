@@ -174,5 +174,8 @@ export function useApplyLibraryMove() {
       }
     },
     onSettled: () => client.invalidateQueries({ queryKey: libraryKey }),
+    // The drop handler already reports this one, and it names the item that
+    // failed to move.
+    meta: { silentError: true },
   })
 }

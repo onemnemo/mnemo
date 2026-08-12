@@ -1,8 +1,17 @@
-import { ChatPage } from "@/chat/components/ChatPage"
+import { lazy, Suspense } from "react"
+
 import { FrameButton } from "@/components/shell/topbar/FrameButton"
 import { useT } from "@/i18n/useT"
 import { useSettingValue } from "@/settings/store"
 import { useSomaStore } from "@/stores/soma"
+
+// The dock is frame furniture, so it is mounted on every route. Importing the
+// chat page statically here would pull react-markdown into the initial bundle
+// no matter how the route imports it: a module is only split when every
+// importer is dynamic.
+const ChatPage = lazy(() =>
+  import("@/chat/components/ChatPage").then((m) => ({ default: m.ChatPage })),
+)
 
 /**
  * Soma, beside the work instead of instead of it.
@@ -32,7 +41,9 @@ export function SomaDock() {
         <FrameButton icon="x" label={t("Common", "Close")} onClick={close} className="size-7" />
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
-        <ChatPage />
+        <Suspense fallback={<div className="min-h-full" />}>
+          <ChatPage />
+        </Suspense>
       </div>
     </aside>
   )

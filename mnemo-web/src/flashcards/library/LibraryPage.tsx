@@ -5,6 +5,7 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
@@ -64,6 +65,7 @@ export function LibraryPage() {
   )
 
   const loaded = decks.isSuccess && folders.isSuccess
+  const isError = decks.isError || folders.isError
   const deckCount = decks.data?.length ?? 0
   const shownCount = layout === "grid" ? gridDecks.length : model.rows.length
   const showEmpty = loaded && deckCount === 0
@@ -175,56 +177,90 @@ export function LibraryPage() {
         </div>
       </header>
 
-      {due && !showEmpty ? (
-        <DuePanel
-          due={due}
-          deckCount={(decks.data ?? []).filter((d) => d.dueCounts.total > 0).length}
-          onStudy={() => {
-            if (studyTarget) navigate("flashcard-session", studyTarget.id, "review", due.total > 0 ? "due" : "all")
-          }}
-        />
-      ) : null}
+      {isError ? (
+        <div className="mx-auto flex max-w-[360px] flex-col items-center gap-3 py-16 text-center">
+          <div className="grid size-14 place-items-center rounded-xl bg-canvas text-ink-icon shadow-[0_0_0_1px_var(--line)]">
+            <AppIcon name="triangle-alert" size={22} strokeWidth={1.5} />
+          </div>
+          <div>
+            <h2 className="text-[14px] font-medium text-ink">{fc("LibraryLoadFailedTitle")}</h2>
+            <p className="mt-0.5 text-[12.5px] text-ink-3">{fc("LibraryLoadFailedHint")}</p>
+          </div>
+          <Button
+            variant="outline"
+            className="mt-1"
+            onClick={() => {
+              void decks.refetch()
+              void folders.refetch()
+            }}
+          >
+            {fc("Retry")}
+          </Button>
+        </div>
+      ) : !loaded ? (
+        <div className="mt-6 flex flex-col gap-2">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} className="h-11 w-full rounded-lg" />
+          ))}
+        </div>
+      ) : (
+        <>
+          {due && !showEmpty ? (
+            <DuePanel
+              due={due}
+              deckCount={(decks.data ?? []).filter((d) => d.dueCounts.total > 0).length}
+              onStudy={() => {
+                if (studyTarget) navigate("flashcard-session", studyTarget.id, "review", due.total > 0 ? "due" : "all")
+              }}
+            />
+          ) : null}
 
-      {!showEmpty ? <LibraryToolbar onToggleAll={() => toggleAll(folderIds)} /> : null}
+          {!showEmpty ? <LibraryToolbar onToggleAll={() => toggleAll(folderIds)} /> : null}
 
-      {layout === "grid" ? (
-        gridDecks.length > 0 ? (
-          <DeckGrid decks={gridDecks} folderNames={folderNames} onOpenDeck={(id) => navigate("flashcard-deck", id)} />
-        ) : null
-      ) : model.rows.length > 0 ? (
-        <LibraryTree
-          rows={model.rows}
-          onOpenDeck={(id) => navigate("flashcard-deck", id)}
-          onToggleFolder={toggleFolder}
-          drag={drag}
-          surfaceRef={surfaceRef}
-        />
-      ) : null}
+          {layout === "grid" ? (
+            gridDecks.length > 0 ? (
+              <DeckGrid
+                decks={gridDecks}
+                folderNames={folderNames}
+                onOpenDeck={(id) => navigate("flashcard-deck", id)}
+              />
+            ) : null
+          ) : model.rows.length > 0 ? (
+            <LibraryTree
+              rows={model.rows}
+              onOpenDeck={(id) => navigate("flashcard-deck", id)}
+              onToggleFolder={toggleFolder}
+              drag={drag}
+              surfaceRef={surfaceRef}
+            />
+          ) : null}
 
-      <DragLayer {...drag} />
+          <DragLayer {...drag} />
 
-      {showEmpty ? (
-        <EmptyState
-          className="mt-12"
-          icon="common/book"
-          title={fc("LibraryEmptyTitle")}
-          description={fc("LibraryEmptyDescription")}
-          action={
-            <Button size="sm" onClick={() => void onCreateDeck()}>
-              {fc("NewDeck")}
-            </Button>
-          }
-        />
-      ) : null}
+          {showEmpty ? (
+            <EmptyState
+              className="mt-12"
+              icon="common/book"
+              title={fc("LibraryEmptyTitle")}
+              description={fc("LibraryEmptyDescription")}
+              action={
+                <Button size="sm" onClick={() => void onCreateDeck()}>
+                  {fc("NewDeck")}
+                </Button>
+              }
+            />
+          ) : null}
 
-      {showNoResults ? (
-        <EmptyState
-          className="mt-12"
-          icon="common/search"
-          title={fc("NoResultsTitle")}
-          description={fc("NoResultsDescription")}
-        />
-      ) : null}
+          {showNoResults ? (
+            <EmptyState
+              className="mt-12"
+              icon="common/search"
+              title={fc("NoResultsTitle")}
+              description={fc("NoResultsDescription")}
+            />
+          ) : null}
+        </>
+      )}
     </div>
   )
 }

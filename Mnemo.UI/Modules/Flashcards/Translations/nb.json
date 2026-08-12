@@ -289,6 +289,11 @@
     "StudyCramAllCards": "Alle kort",
     "StudyMenuHintTest": "T",
     "ChangeDeckIcon": "Endre kortstokkikon",
-    "AddDeckIcon": "Legg til ikon"
+    "AddDeckIcon": "Legg til ikon",
+    "LibraryLoadFailedTitle": "Biblioteket kunne ikke lastes",
+    "LibraryLoadFailedHint": "Sjekk at Mnemo kjører, og prøv igjen.",
+    "DeckLoadFailedTitle": "Denne kortstokken kunne ikke lastes",
+    "DeckLoadFailedHint": "Sjekk at Mnemo kjører, og prøv igjen.",
+    "Retry": "Prøv igjen"
   }
 }

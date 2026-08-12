@@ -2,8 +2,11 @@ import { useEffect, useState } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
+import { useI18nStore } from "@/i18n/store"
+import { createTranslate } from "@/i18n/translate"
 import { useT } from "@/i18n/useT"
 import { isModalOpen } from "@/lib/modal"
+import { toast } from "@/stores/toast"
 
 import { useOverviewBoard, useSaveOverviewLayout } from "../api"
 import { WidgetBoard } from "../board/WidgetBoard"
@@ -58,6 +61,11 @@ export function OverviewRoute() {
             // looking at now.
             if (useOverviewStore.getState().sessionId !== sessionId) return
             console.error("[overview] the board could not be saved", error)
+            // Read fresh rather than closing over the component's `t`: this sink is built once for
+            // the life of the page (see above), so a closed-over translate function would go stale
+            // on a language change made after this effect ran.
+            const translate = createTranslate(useI18nStore.getState().bundle)
+            toast.warning(translate("Overview", "LayoutSaveFailed"))
           },
         })
       },
