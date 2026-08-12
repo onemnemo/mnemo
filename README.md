@@ -38,32 +38,25 @@ Mnemo is designed to be:
 <tr>
 <td width="50%">
 
-**Overview**
-
-![Overview-Edit](https://www.mnemo.one/images/overview.png)
-
-</td>
-<td width="50%">
-
 **Notes Editor**
 
-![Unit-View](https://www.mnemo.one/images/notes-editor-2.png)
+![Notes editor](https://www.mnemo.one/screenshots/notes.png)
 
 </td>
-</tr>
-<tr>
 <td width="50%">
 
 **Flashcards Module**
 
-![NotesEditor](https://www.mnemo.one/images/flashcard.png)
+![Flashcard review](https://www.mnemo.one/screenshots/flashcards.png)
 
 </td>
-<td width="50%">
+</tr>
+<tr>
+<td colspan="2">
 
 **Mindmap**
 
-![Account Settings](https://www.mnemo.one/images/mindmap.png)
+![Mindmap](https://www.mnemo.one/screenshots/mindmaps.png)
 
 </td>
 </tr>
