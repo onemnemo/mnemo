@@ -14,28 +14,18 @@ import {
   MenuSubMenu,
   MenuTrigger,
 } from '@/components/ui/menu';
+import { useT } from '@/i18n/useT';
 
 import { deepestBlockAt } from '../pipeline/block-locate';
 import { blockChildrenOf } from '../blocks/shared';
 import type { BlockRegistry } from '../registry/build';
 import { getBlockSelection, setBlockSelection } from '../../selection/block-selection-plugin';
-import { buildDeleteSelected } from '../../selection/delete-selected';
 import { applyGrip, gripIntent } from '../../selection/grip-selection';
-import { sidsWithin } from '../../selection/block-selection';
 import { useBlockDrag, type BlockDragHandle } from './useBlockDrag';
-import {
-  canTurnInto,
-  deleteBlock,
-  duplicateBlock,
-  insertBlockBelow,
-  isCurrentType,
-  locateBlock,
-  moveBlockDown,
-  moveBlockUp,
-  turnInto,
-  TURN_INTO_OPTIONS,
-  type BlockLocation,
-} from './block-commands';
+import { insertBlockBelow, locateBlock, type BlockLocation } from './block-commands';
+import { blockLabel, blockMenuItems, runBlockVerb, type BlockMenuVerb } from './block-menu-items';
+import { Announcer } from './Announcer';
+import { useAnnouncer } from './useAnnouncer';
 
 /**
  * The gutter chrome for one note's blocks: a drag handle and an add-below button
@@ -100,27 +90,6 @@ interface ActiveBlock {
   doc: PMNode;
 }
 
-function blockLabel(node: PMNode): string {
-  const name = node.type.name;
-  if (name === 'heading') return `Heading ${String(node.attrs.level ?? 1)}`;
-  const labels: Record<string, string> = {
-    paragraph: 'Text',
-    quote: 'Quote',
-    bulletItem: 'Bulleted list',
-    numberedItem: 'Numbered list',
-    checklistItem: 'Checklist',
-    codeBlock: 'Code',
-    divider: 'Divider',
-    image: 'Image',
-    equationBlock: 'Equation',
-    twoColumn: 'Columns',
-    columnGroup: 'Columns',
-    page: 'Page',
-    sketch: 'Sketch',
-  };
-  return labels[name] ?? 'Block';
-}
-
 /** The direct child element of the editor root that an event target sits inside. O(depth), no search. */
 function topLevelElement(root: HTMLElement, target: EventTarget | null): HTMLElement | null {
   let el: Node | null = target instanceof Node ? target : null;
@@ -179,12 +148,13 @@ function blockFromElement(view: EditorView, registry: BlockRegistry, el: Element
 }
 
 export function BlockGutter({ view, registry }: { view: EditorView; registry: BlockRegistry }) {
+  const t = useT();
   const drag = useBlockDrag(view);
   const dragging = drag.handle !== null;
 
   const [active, setActive] = useState<ActiveBlock | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [announcement, setAnnouncement] = useState('');
+  const { message: announcement, announce } = useAnnouncer();
 
   const gripRef = useRef<HTMLButtonElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
@@ -196,12 +166,6 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
   const caretRef = useRef<ActiveBlock | null>(null);
   const overChromeRef = useRef(false);
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const announce = useCallback((message: string) => {
-    // Re-set even to the same text so a repeated action still speaks: a trailing
-    // space forces a new string the screen reader treats as a fresh announcement.
-    setAnnouncement((prev) => (prev === message ? `${message} ` : message));
-  }, []);
 
   const refresh = useCallback(() => {
     if (dragging) return;
@@ -357,13 +321,25 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     [view, registry, announce, refresh],
   );
 
+  const runVerb = useCallback(
+    (verb: BlockMenuVerb) => {
+      const current = activeRef.current;
+      if (!current) return;
+      const target = { pos: current.pos, sid: String(current.node.attrs.sid ?? '') };
+      if (!runBlockVerb(view, registry, target, verb)) return;
+      refresh();
+      if (verb.announce !== null) announce(verb.announce);
+    },
+    [view, registry, announce, refresh],
+  );
+
   const handleBlock = active;
   const handle: BlockDragHandle | null = handleBlock
     ? {
         index: handleBlock.depth === 1 ? handleBlock.topIndex : null,
         pos: handleBlock.pos,
         sid: String(handleBlock.node.attrs.sid),
-        label: blockLabel(handleBlock.node),
+        label: blockLabel(handleBlock.node, t),
       }
     : null;
 
@@ -372,6 +348,24 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     handleBlock && menuOpen
       ? locateBlock(view.state, registry, handleBlock.pos, String(handleBlock.node.attrs.sid ?? ''))
       : null;
+
+  const menuEntries =
+    handleBlock && menuOpen
+      ? blockMenuItems({ state: view.state, registry, node: handleBlock.node, location: menuLocation, t })
+      : [];
+
+  const renderVerb = (verb: BlockMenuVerb) => (
+    <MenuItem
+      key={verb.id}
+      icon={verb.icon}
+      danger={verb.danger}
+      emphasis={verb.emphasis}
+      disabled={verb.disabled}
+      onSelect={() => runVerb(verb)}
+    >
+      {verb.label}
+    </MenuItem>
+  );
 
   // Every block gets both buttons, at the same offset, so the chrome is one
   // shape wherever it appears. A block in the right-hand cell of a two-column
@@ -397,16 +391,18 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     >
       <button
         type="button"
-        aria-label="Insert block below"
+        aria-label={t('NotesEditor', 'InsertBlockBelow')}
         className="grid h-5 w-5 place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary"
-        onClick={() => runCommand((state, loc) => insertBlockBelow(state, loc), 'Block inserted')}
+        onClick={() =>
+          runCommand((state, loc) => insertBlockBelow(state, loc), t('NotesEditor', 'BlockInserted'))
+        }
       >
         <AppIcon name="common/plus" size={14} />
       </button>
       <button
         ref={gripRef}
         type="button"
-        aria-label={`Block actions for ${handle.label}`}
+        aria-label={t('NotesEditor', 'BlockActionsFormat', { 0: handle.label })}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         className="grid h-5 w-5 cursor-grab place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary active:cursor-grabbing"
@@ -457,69 +453,20 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
           <span aria-hidden className="pointer-events-none absolute bottom-0 right-0 h-0 w-0" />
         </MenuTrigger>
         <MenuContent align="start">
-          <MenuItem
-            icon="common/arrow-up"
-            disabled={!menuLocation?.prev}
-            onSelect={() => runCommand((state, loc) => moveBlockUp(state, loc), 'Block moved up')}
-          >
-            Move up
-          </MenuItem>
-          <MenuItem
-            icon="common/arrow-down"
-            disabled={!menuLocation?.next}
-            onSelect={() => runCommand((state, loc) => moveBlockDown(state, loc), 'Block moved down')}
-          >
-            Move down
-          </MenuItem>
-          <MenuItem icon="common/copy" onSelect={() => runCommand((state, loc) => duplicateBlock(state, loc), 'Block duplicated')}>
-            Duplicate
-          </MenuItem>
-          {canTurnInto(handleBlock.node) ? (
-            <MenuSubMenu label="Turn into" icon="common/file-text">
-              {TURN_INTO_OPTIONS.map((option) => (
-                <MenuItem
-                  key={option.id}
-                  emphasis={isCurrentType(handleBlock.node, option)}
-                  onSelect={() => runCommand((state, loc) => turnInto(state, loc, option), `Turned into ${option.label}`)}
-                >
-                  {option.label}
-                </MenuItem>
-              ))}
-            </MenuSubMenu>
-          ) : null}
-          <MenuSeparator />
-          <MenuItem
-            icon="common/trash"
-            danger
-            disabled={
-              (menuLocation?.parentPos ?? 0) < 0 &&
-              view.state.doc.childCount <= 1 &&
-              getBlockSelection(view.state).selected.size === 0
+          {menuEntries.map((entry) => {
+            switch (entry.kind) {
+              case 'separator':
+                return <MenuSeparator key={entry.id} />;
+              case 'submenu':
+                return (
+                  <MenuSubMenu key={entry.id} label={entry.label} icon={entry.icon}>
+                    {entry.items.map(renderVerb)}
+                  </MenuSubMenu>
+                );
+              case 'verb':
+                return renderVerb(entry);
             }
-            onSelect={() => {
-              // When this block is part of a live multi-block selection, Delete
-              // removes the whole selection; otherwise it removes just this block.
-              // Located fresh: the snapshot's pos may predate a menu command.
-              const selection = getBlockSelection(view.state);
-              const loc = locateBlock(view.state, registry, handleBlock.pos, String(handleBlock.node.attrs.sid ?? ''));
-              if (!loc) return;
-              const leaves = sidsWithin(view.state.doc, registry, loc.pos, loc.node);
-              const inSelection = selection.selected.size > 0 && leaves.some((sid) => selection.selected.has(sid));
-              if (inSelection) {
-                // The selection announcer speaks the clear that follows; deleting
-                // the whole selection here would double the live region.
-                const tr = buildDeleteSelected(view.state, registry, selection.selected);
-                if (tr) {
-                  view.dispatch(tr);
-                  view.focus();
-                }
-                return;
-              }
-              runCommand((state, loc) => deleteBlock(state, loc), 'Block deleted');
-            }}
-          >
-            Delete
-          </MenuItem>
+          })}
         </MenuContent>
       </Menu>
     </div>
@@ -560,14 +507,5 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
       )}
       <Announcer message={announcement} />
     </>
-  );
-}
-
-/** Off-screen live region so a menu or keyboard action is spoken. */
-function Announcer({ message }: { message: string }) {
-  return (
-    <div aria-live="polite" role="status" className="sr-only">
-      {message}
-    </div>
   );
 }
