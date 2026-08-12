@@ -914,6 +914,7 @@
     "StyleBranch": "Style branch",
     "OpenRef": "Open reference",
     "ToggleTask": "Toggle task",
+    "TogglePin": "Pin / unpin",
     "ChangeType": "Change type",
     "LinkUrlRejected": "That address cannot be opened",
     "Copy": "Copy",

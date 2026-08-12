@@ -99,6 +99,46 @@ public sealed class MindmapArrangeHttpTests
     }
 
     [Fact]
+    public async Task ArrangingDoesNotPinTheNodesItMoved()
+    {
+        // Arrange writes coordinates the same way a drag does, so without saying otherwise it would
+        // claim every one of them for the author and leave the map frozen against the next arrange.
+        await using var h = new MindmapHostHarness();
+        var map = await SeededMap(h);
+
+        await MindmapEndpoints.ArrangeAsync(
+            map.Id, Body($$"""{ "expectedRevision": {{map.Revision}} }"""), h.Service, h.Layout);
+
+        var stored = (await h.Service.GetAsync(map.Id)).Value!;
+        Assert.All(stored.Elements, element => Assert.False(element.Pinned));
+    }
+
+    [Fact]
+    public async Task APinnedNodeSitsOutTheArrange()
+    {
+        await using var h = new MindmapHostHarness();
+        var map = await SeededMap(h);
+        var pinned = map.Elements.First(e => e.Id != Root(map).Id);
+
+        var moved = Parse<MindmapOpsResultDto>((await Execute(await MindmapEndpoints.ApplyOpsAsync(map.Id, Body($$"""
+            { "expectedRevision": {{map.Revision}}, "ops": [
+              { "op": "move", "id": "{{pinned.Id}}", "xy": [777, 555] }
+            ] }
+            """), h.Service))).Body);
+
+        await MindmapEndpoints.ArrangeAsync(
+            map.Id, Body($$"""{ "expectedRevision": {{moved.Revision}} }"""), h.Service, h.Layout);
+
+        var stored = (await h.Service.GetAsync(map.Id)).Value!;
+        var after = stored.Elements.Single(e => e.Id == pinned.Id);
+        Assert.Equal((777, 555), (after.X, after.Y));
+        Assert.True(after.Pinned);
+
+        // And the rest of the map still got laid out around it.
+        Assert.Contains(stored.Elements, e => e.Id != pinned.Id && (e.X != 0 || e.Y != 0));
+    }
+
+    [Fact]
     public async Task AMapWideStyleChangeComesBackWithADeltaThatUndoesIt()
     {
         // The map's own settings hang off the document rather than off any element, so the delta the

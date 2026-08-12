@@ -45,6 +45,8 @@ export interface NodeBarProps {
   onKind: ((kind: NodeKind) => void) | null
   /** Save this branch's styling as a template, or null when the selection is not one branch. */
   onSaveTemplate: (() => void) | null
+  /** Hold everything selected where it is, or hand it all back to the layout. */
+  onPin: (pinned: boolean) => void
 }
 
 /**
@@ -59,7 +61,15 @@ export interface NodeBarProps {
  * pill, text colour has no precedent to copy anywhere in the app, and an icon needs a picker that
  * does not exist yet. Each is a deliberate omission rather than an oversight.
  */
-export function NodeBar({ element, count, onStyle, branch, onKind, onSaveTemplate }: NodeBarProps) {
+export function NodeBar({
+  element,
+  count,
+  onStyle,
+  branch,
+  onKind,
+  onSaveTemplate,
+  onPin,
+}: NodeBarProps) {
   const t = useT()
   const [swatches, setSwatches] = useState(false)
   const scale = fontScaleOf(element.text.fontSize)
@@ -155,6 +165,18 @@ export function NodeBar({ element, count, onStyle, branch, onKind, onSaveTemplat
           </Slot>
         </>
       ) : null}
+
+      {/* The one control here that is not about how a node looks. It earns the place because the
+          badge on a node only releases that node, and a map that has been worked in for a while is
+          pinned nearly everywhere: this is the only way to hand a whole selection back at once. */}
+      <Sep />
+      <Slot
+        label={t("Mindmap", "TogglePin")}
+        active={element.pinned === true}
+        onClick={() => onPin(element.pinned !== true)}
+      >
+        <AppIcon name="common/pin" size={14} />
+      </Slot>
 
       {count > 1 ? (
         <>

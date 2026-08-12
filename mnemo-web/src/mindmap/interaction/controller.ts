@@ -91,12 +91,13 @@ export interface InteractionHandlers {
 /**
  * The parts of a node that answer a press themselves.
  *
- * Two, and both are the node's content rather than its styling: a task's box, which is how done gets
- * set without opening anything, and a reference's mark, which is how you get to what it points at.
- * They are read off the DOM the way the resize grips are, so a node stays a thing React renders once
- * and never a thing the controller has to be told the inside of.
+ * A task's box, which is how done gets set without opening anything; a reference's mark, which is how
+ * you get to what it points at; and a pin badge, which is how a node is handed back to the layout it
+ * was taken out of. Each is a thing you can only do to that one node, which is why none of them are on
+ * the selection bar. They are read off the DOM the way the resize grips are, so a node stays a thing
+ * React renders once and never a thing the controller has to be told the inside of.
  */
-export type NodeChrome = "task" | "ref"
+export type NodeChrome = "task" | "ref" | "pin"
 
 type Gesture =
   | { readonly kind: "none" }

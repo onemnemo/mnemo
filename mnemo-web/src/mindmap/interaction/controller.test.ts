@@ -622,6 +622,14 @@ describe("a node's own chrome", () => {
     h.uninstall()
   })
 
+  it("carries the pin badge too, which is a third thing a node answers for itself", () => {
+    const h = harness()
+    h.pressChrome("a", "pin", { x: 215, y: -50 })
+
+    expect(h.chromed).toEqual([["a", "pin"]])
+    h.uninstall()
+  })
+
   it("never drags the node it sits on", () => {
     const h = harness()
     h.pressChrome("a", "task", { x: 215, y: -50 })

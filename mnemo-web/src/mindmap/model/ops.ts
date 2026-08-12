@@ -28,8 +28,15 @@ export interface NodeSpec {
   t?: string
   content?: ElementContent
   c?: NodeSpec[]
-  /** Placing a node explicitly also pins it. */
+  /** Placing a node explicitly also pins it, unless `pin` says otherwise. */
   xy?: [number, number]
+  /**
+   * Whether the coordinate is the author's or the app's.
+   *
+   * False says the app guessed: a new child has to be given somewhere to land or it appears on top of
+   * the root, and that guess should not survive the next arrange the way a dragged position does.
+   */
+  pin?: boolean
 }
 
 export type MindmapOp =

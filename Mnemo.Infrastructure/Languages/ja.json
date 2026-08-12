@@ -864,6 +864,7 @@
     "StyleBranch": "ブランチのスタイル",
     "OpenRef": "参照を開く",
     "ToggleTask": "タスクを切り替え",
+    "TogglePin": "固定 / 解除",
     "ChangeType": "種類を変更",
     "LinkUrlRejected": "このアドレスは開けません",
     "Copy": "コピー",

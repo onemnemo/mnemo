@@ -166,7 +166,7 @@ public static class MindmapToolOpParser
         {
             if (!TryPair(el, "xy", out var x, out var y, out error))
                 return false;
-            op = new MoveOp { Id = id!, X = x, Y = y };
+            op = new MoveOp { Id = id!, X = x, Y = y, Pin = OptBool(el, "pin") };
             return true;
         }
 
@@ -469,7 +469,16 @@ public static class MindmapToolOpParser
             return false;
         }
 
-        spec = new MindmapNodeSpec { Ref = OptString(n, "ref"), Text = text, Content = content, Children = children, X = x, Y = y };
+        spec = new MindmapNodeSpec
+        {
+            Ref = OptString(n, "ref"),
+            Text = text,
+            Content = content,
+            Children = children,
+            X = x,
+            Y = y,
+            Pin = OptBool(n, "pin"),
+        };
         return true;
     }
 

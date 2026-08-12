@@ -35,10 +35,9 @@ internal static class MindmapArrange
     /// an algorithm was named, the ops that record it as each cluster's arrangement.
     /// </summary>
     /// <remarks>
-    /// Stored pins are deliberately ignored. Repositioning implies pinning, and the SPA gives every node
-    /// it creates or drags an explicit position, so honoring pins here would make Arrange a no-op on
-    /// exactly the maps people have been working in. A pin records that a coordinate was meant, and
-    /// asking for an arrange is saying you no longer mean it.
+    /// A pinned node keeps its coordinate: that is the whole meaning of the pin, and the layout honors it
+    /// already, so an arrange emits no move for one. The moves this produces are themselves unpinned, so
+    /// arranging a map twice does not quietly pin every node in it.
     /// </remarks>
     public static async Task<IReadOnlyList<MindmapEditOp>> ComputeAsync(
         MindmapDocument document,
@@ -104,7 +103,7 @@ internal static class MindmapArrange
             if (!computed.IsSuccess || computed.Value is null)
                 continue;
 
-            Stack(placed, computed.Value.Positions, nodes, ref stackTop);
+            Merge(placed, computed.Value.Positions, nodes, root.Pinned, ref stackTop);
         }
 
         var moves = new List<MindmapEditOp>(chosen);
@@ -117,7 +116,9 @@ internal static class MindmapArrange
             // listening for changes, so it is not free and it is not sent.
             if (x == Math.Round(element.X) && y == Math.Round(element.Y))
                 continue;
-            moves.Add(new MoveOp { Id = id, X = x, Y = y });
+            // Unpinned: the layout chose this coordinate, the author did not. Without that a single
+            // arrange would pin the whole map and every arrange after it would have nothing left to do.
+            moves.Add(new MoveOp { Id = id, X = x, Y = y, Pin = false });
         }
 
         return moves;
@@ -149,6 +150,7 @@ internal static class MindmapArrange
                 Width = size.Width > 0 ? size.Width : element.Width ?? DefaultWidth,
                 Height = size.Height > 0 ? size.Height : element.Height ?? DefaultHeight,
                 Collapsed = element.Collapsed,
+                Pinned = element.Pinned,
                 X = element.X,
                 Y = element.Y,
             });
@@ -163,31 +165,59 @@ internal static class MindmapArrange
     }
 
     /// <summary>
-    /// Drops one cluster's positions below whatever has been placed already, so two root trees never
-    /// land on top of each other. Each cluster is laid out about its own origin, so without this every
-    /// tree in the document would be arranged into the same space.
+    /// Folds one cluster's positions into the result, dropping it below whatever has been placed already
+    /// so two root trees never land on top of each other. Each cluster is laid out about its own origin,
+    /// so without this every tree in the document would be arranged into the same space.
+    /// <para>
+    /// Stacking is for clusters with no home of their own. A pinned root has one, and so does any pinned
+    /// node inside a cluster: it was put somewhere on purpose, often into a frame, and shifting it to
+    /// tidy up the map is the one thing a pin is there to prevent.
+    /// </para>
     /// </summary>
-    private static void Stack(
+    private static void Merge(
         Dictionary<string, LayoutPosition> placed,
         IReadOnlyDictionary<string, LayoutPosition> cluster,
         IReadOnlyList<LayoutNode> nodes,
+        bool rootPinned,
         ref double stackTop)
     {
-        if (cluster.Count == 0)
+        if (rootPinned || cluster.Count == 0)
+        {
+            foreach (var (id, position) in cluster)
+                placed[id] = position;
             return;
+        }
 
-        var heightById = nodes.ToDictionary(n => n.Id, n => n.Height, StringComparer.Ordinal);
+        var byId = nodes.ToDictionary(n => n.Id, StringComparer.Ordinal);
         var minY = double.MaxValue;
         var maxY = double.MinValue;
         foreach (var (id, position) in cluster)
         {
+            var height = DefaultHeight;
+            if (byId.TryGetValue(id, out var node))
+            {
+                if (node.Pinned)
+                    continue;
+                height = node.Height;
+            }
+
             minY = Math.Min(minY, position.Y);
-            maxY = Math.Max(maxY, position.Y + heightById.GetValueOrDefault(id, DefaultHeight));
+            maxY = Math.Max(maxY, position.Y + height);
+        }
+
+        // Every node in the cluster is pinned: there is nothing to stack, and nothing to move.
+        if (minY == double.MaxValue)
+        {
+            foreach (var (id, position) in cluster)
+                placed[id] = position;
+            return;
         }
 
         var dy = stackTop - minY;
         foreach (var (id, position) in cluster)
-            placed[id] = new LayoutPosition(position.X, position.Y + dy);
+            placed[id] = byId.TryGetValue(id, out var node) && node.Pinned
+                ? position
+                : new LayoutPosition(position.X, position.Y + dy);
         stackTop = maxY + dy + ClusterGap;
     }
 }

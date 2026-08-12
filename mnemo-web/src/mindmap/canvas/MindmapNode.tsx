@@ -142,6 +142,22 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
         ) : null}
       </div>
 
+      {/* A dot in the corner, and pressing it lets go. A pin is easy to acquire without meaning to,
+          since dragging a node anywhere makes one, so the node that will sit out the next arrange has
+          to say so where it stands rather than only once you have selected it. */}
+      {element.kind === "node" && element.pinned ? (
+        <span
+          data-mm-chrome="pin"
+          title={t("Mindmap", "TogglePin")}
+          className="absolute right-px top-px grid size-4 cursor-pointer place-items-center"
+        >
+          <span
+            className="size-[9px] rounded-full"
+            style={{ background: element.textColor ?? "var(--ink)" }}
+          />
+        </span>
+      ) : null}
+
       {element.hiddenCount > 0 ? (
         <span
           className="absolute -right-1 top-1/2 -translate-y-1/2 translate-x-full rounded-full px-1.5 text-[10px] font-medium leading-[15px] text-canvas"
