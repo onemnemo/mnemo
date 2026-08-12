@@ -80,7 +80,7 @@ describe("the picture", () => {
     const { picture } = draw(
       document({
         elements: [node("r"), node("a"), node("t", { content: { $type: "task", text: "t", done: true } })],
-        edges: [edge("r", "a"), edge("r", "t", { kind: "link", endCap: "arrow" })],
+        edges: [edge("r", "a"), edge("r", "t", { kind: "link", style: { endCap: "arrow" } })],
       }),
     )
 
