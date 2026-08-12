@@ -447,8 +447,8 @@ public sealed class MindmapDocumentService : IMindmapService
 
             var working = new MindmapWorkingDocument(document, _idGenerator);
 
-            // Clear removed rows first, then restore verbatim: elements before edges so an edge's endpoints
-            // exist, and remove-then-add on an existing edge keeps document order duplicate-free.
+            // Clear removed rows first, then restore verbatim, elements before edges so an edge's
+            // endpoints exist.
             foreach (var edgeId in delta.RemoveEdgeIds)
                 working.RemoveEdge(edgeId);
             foreach (var elementId in delta.RemoveElementIds)
@@ -462,11 +462,16 @@ public sealed class MindmapDocumentService : IMindmapService
                     working.AddElement(element);
             }
 
+            // In place for an edge that is still there, the same way elements are. An edge's position in
+            // the array is the sibling order that the branch colours and the layout both read, so
+            // re-adding a restyled edge would send it to the end and recolour the map that the undo was
+            // supposed to be putting back.
             foreach (var edge in delta.Edges)
             {
                 if (working.TryGetEdge(edge.Id, out _))
-                    working.RemoveEdge(edge.Id);
-                working.AddEdge(edge, insertAfterEdgeId: null);
+                    working.ReplaceEdge(edge);
+                else
+                    working.AddEdge(edge, insertAfterEdgeId: null);
             }
 
             foreach (var cluster in delta.Clusters)
