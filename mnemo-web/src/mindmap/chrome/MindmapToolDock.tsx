@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useState } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
@@ -8,21 +8,22 @@ import type { ShapeType } from "../model/document"
 import { TOOL_ACTIONS, type MindmapTool } from "../interaction/tool"
 import { FloatBar, Sep, Slot } from "./bits"
 import { ConnectFlyout, type ConnectStyle } from "./ConnectFlyout"
-import { createHold } from "./hold"
 import { ShapeFlyout } from "./ShapeFlyout"
 
 interface ToolEntry {
   readonly tool: MindmapTool
   readonly icon: string
   readonly key: string
+  /** Whether the tool owns a set of sub-choices, which arming it also puts on screen. */
+  readonly choices?: boolean
 }
 
 const TOOLS: readonly ToolEntry[] = [
   { tool: "select", icon: "mouse-pointer-2", key: "ToolSelect" },
   { tool: "node", icon: "plus", key: "ToolNode" },
-  { tool: "shape", icon: "square", key: "ToolShape" },
+  { tool: "shape", icon: "square", key: "ToolShape", choices: true },
   { tool: "text", icon: "type", key: "ToolText" },
-  { tool: "connect", icon: "spline", key: "ToolConnect" },
+  { tool: "connect", icon: "spline", key: "ToolConnect", choices: true },
   { tool: "frame", icon: "frame", key: "ToolFrame" },
 ]
 
@@ -54,9 +55,15 @@ export interface MindmapToolDockProps {
  * pointer-events-none and only the bar itself takes presses, or the invisible full-width row it is
  * centred in would swallow every click along the bottom of the map.
  *
- * Two of the tools own a set of sub-choices, and those open on a hold rather than as separate
- * controls on the bar. Putting every choice on the bar is how a toolbar ends up as wide as the
- * feature list, and putting them behind a second panel is how nobody finds them.
+ * Two of the tools own a set of sub-choices, and arming one of those puts its choices on screen. The
+ * choices used to be behind a hold, which is a gesture with nothing on screen to suggest it: pressing
+ * the shape tool armed it and did nothing else, so eight shapes sat behind a press nobody had a
+ * reason to try. The corner mark now says the panel is there and an ordinary press opens it.
+ *
+ * That costs nothing to anyone who did not want it. The panel closes on the next press anywhere
+ * outside it, and that press still reaches whatever it landed on, so a press on the map plants the
+ * shape and puts the panel away in the same gesture. The keyboard skips it entirely: a tool's own key
+ * arms it with what it had last without opening anything.
  */
 export function MindmapToolDock({
   tool,
@@ -80,8 +87,7 @@ export function MindmapToolDock({
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-40 flex justify-center">
       <FloatBar>
         {TOOLS.map((entry) => {
-          const active = tool === entry.tool
-          const holds = entry.tool === "shape" || entry.tool === "connect"
+          const opened = open === entry.tool
 
           return (
             <div key={entry.tool} className="relative">
@@ -89,24 +95,20 @@ export function MindmapToolDock({
                 label={t("Mindmap", entry.key)}
                 action={TOOL_ACTIONS[entry.tool]}
                 icon={entry.icon}
-                active={active}
-                onTap={() => onTool(entry.tool)}
-                // A hold arms the tool as well as opening its choices, since nobody holds a tool
-                // they were not about to use.
-                onHold={
-                  holds
-                    ? () => {
-                        onTool(entry.tool)
-                        setOpen(entry.tool)
-                      }
-                    : undefined
-                }
+                active={tool === entry.tool}
+                menu={entry.choices ? { open: opened } : undefined}
+                onClick={() => {
+                  onTool(entry.tool)
+                  // Pressing the tool whose choices are already up puts them away, so the one
+                  // control that opened the panel is the one that closes it.
+                  setOpen(entry.choices && !opened ? entry.tool : null)
+                }}
               />
 
-              {open === "shape" && entry.tool === "shape" ? (
+              {opened && entry.tool === "shape" ? (
                 <ShapeFlyout shape={shape} onShape={onShape} onClose={() => setOpen(null)} />
               ) : null}
-              {open === "connect" && entry.tool === "connect" ? (
+              {opened && entry.tool === "connect" ? (
                 <ConnectFlyout
                   style={connectStyle}
                   onStyle={onConnectStyle}
@@ -146,42 +148,27 @@ export function MindmapToolDock({
   )
 }
 
-/**
- * One tool, which is a click for the tool itself and, where it has them, a hold for its choices.
- *
- * The gesture is rebuilt whenever its callbacks change and torn down with the slot, so a press left
- * mid-flight by a rerender cannot fire its timer into a callback nobody is listening to any more.
- */
+/** One tool, and the key that arms it, which the catalog is asked for rather than told. */
 function ToolSlot({
   label,
   action,
   icon,
   active,
-  onTap,
-  onHold,
+  menu,
+  onClick,
 }: {
   label: string
   /** The keybind action the tool is armed by. Its chord is whatever the catalog currently says. */
   action: string
   icon: string
   active: boolean
-  onTap: () => void
-  onHold?: () => void
+  menu?: { open: boolean }
+  onClick: () => void
 }) {
   const chord = useShortcutChord(action)
-  const hold = useMemo(() => createHold({ onTap, onHold: onHold ?? onTap }), [onTap, onHold])
-  useEffect(() => hold.cancel, [hold])
 
   return (
-    <Slot
-      label={label}
-      chord={chord}
-      active={active}
-      onPointerDown={hold.onPointerDown}
-      onPointerUp={hold.onPointerUp}
-      onPointerLeave={hold.onPointerLeave}
-      onPointerCancel={hold.onPointerCancel}
-    >
+    <Slot label={label} chord={chord} active={active} menu={menu} onClick={onClick}>
       {/* A heavier stroke on the armed tool, so it reads as active even where the accent fill is
           hard to tell from a hover wash. */}
       <AppIcon name={icon} size={15} strokeWidth={active ? 2 : 1.7} />
