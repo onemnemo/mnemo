@@ -8,8 +8,9 @@ import { renderMath } from "@/notes/editor/atoms/katex"
 
 import { useMindmapImage } from "../assets"
 import { bodyOf, imageRefOf, refGlyphOf, type ImageRef } from "../scene/content"
+import { accentOf } from "../scene/branch"
 import { FRAME_HEAD } from "../scene/project"
-import { branchWash, mixColor } from "../scene/tokens"
+import { mixColor, washOf } from "../scene/tokens"
 import {
   contentText,
   type CodeContent,
@@ -48,8 +49,8 @@ export interface MindmapNodeProps {
 export const MindmapNode = memo(function MindmapNode({ element, editing, onEditEnd }: MindmapNodeProps) {
   const t = useT()
   const { nodeShape, isRoot } = element
-  const tinted = element.branchColor !== undefined
-  const accentLine = element.branchColor ?? element.stroke
+  const accentLine = accentOf(element)
+  const wash = washOf(accentLine)
 
   // A frame is a region rather than a thing with a label in the middle, so none of what follows
   // applies to it: no card, no halo bled around the box, and a hit target that is not the whole area.
@@ -68,7 +69,7 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
         // Read only below the label threshold, where the host is the only box left to paint. Set
         // here rather than in the stylesheet because it is per element, and written once at render
         // rather than per frame, so a band crossing stays one style recalculation.
-        "--mm-marker": markerFill(element, tinted, accentLine),
+        "--mm-marker": markerFill(element, wash, accentLine),
       } as React.CSSProperties}
     >
       {/* Two spans rather than one with conflicting variants: the ring's state is a DOM attribute
@@ -105,7 +106,7 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
           !isRoot && nodeShape === "pill" && "rounded-full",
           !isRoot && (nodeShape === "card" || nodeShape === "outline") && "rounded-[10px]",
         )}
-        style={bodyStyle(element, tinted, accentLine)}
+        style={bodyStyle(element, wash, accentLine)}
       >
         <NodeGlyph element={element} accent={accentLine} label={t("Mindmap", "OpenRef")} />
 
@@ -144,7 +145,7 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
             style={{
               top: element.padding.y,
               right: element.padding.x,
-              background: surfaceOf(element, tinted),
+              background: surfaceOf(element, wash),
             }}
           >
             {codeLanguage(element)}
@@ -408,9 +409,9 @@ function codeLanguage(element: SceneElement): string | null {
  * The colour the body was painted, for the chrome that has to sit on top of the text rather than
  * beside it. Falls back to the canvas, which is what a node with no fill of its own is showing.
  */
-function surfaceOf(element: SceneElement, tinted: boolean): string {
-  if (!element.isRoot && element.nodeShape === "pill" && tinted) {
-    return branchWash(element.branch)
+function surfaceOf(element: SceneElement, wash: string | null): string {
+  if (!element.isRoot && element.nodeShape === "pill" && wash) {
+    return wash
   }
   return element.fill ?? "var(--canvas)"
 }
@@ -425,7 +426,7 @@ function surfaceOf(element: SceneElement, tinted: boolean): string {
  */
 function markerFill(
   element: SceneElement,
-  tinted: boolean,
+  wash: string | null,
   accentLine: string | undefined,
 ): string {
   // A picture is gone at this size and there is nothing sensible to average it to, so it marks its
@@ -445,7 +446,7 @@ function markerFill(
 
   switch (element.nodeShape) {
     case "pill":
-      return tinted ? branchWash(element.branch) : (element.fill ?? accentLine ?? "var(--line)")
+      return wash ?? element.fill ?? accentLine ?? "var(--line)"
     // Both draw their whole chrome as a line, so the line is what they are.
     case "plain":
     case "outline":
@@ -533,7 +534,7 @@ const FRAME_GRIP = 12
  * always around what the frame actually holds rather than around wherever a stored rectangle was left.
  */
 function FrameBody({ element, editing, onEditEnd }: MindmapNodeProps) {
-  const hue = element.branchColor ?? element.stroke
+  const hue = accentOf(element)
   const title = (element.content as FrameContent).title ?? ""
 
   return (
@@ -806,7 +807,7 @@ function plainText(element: SceneElement): string {
  */
 function bodyStyle(
   element: SceneElement,
-  tinted: boolean,
+  wash: string | null,
   accentLine: string | undefined,
 ): React.CSSProperties {
   // A caption is words on the canvas rather than a node on it. Giving it a card would make every
@@ -828,7 +829,7 @@ function bodyStyle(
       return { borderBottom: `${element.underline ?? 2}px solid ${accentLine ?? "var(--line)"}` }
     case "pill":
       return {
-        background: tinted ? branchWash(element.branch) : element.fill,
+        background: wash ?? element.fill,
         boxShadow: accentLine ? `inset 0 0 0 1px ${mixColor(accentLine, 16)}` : undefined,
       }
     case "outline":

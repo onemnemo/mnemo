@@ -29,7 +29,8 @@ import { dashAttribute, strokeStyleFor } from "../canvas/edge-style"
 import { isOpenShape, shapePath } from "../canvas/shape-path"
 import { bodyOf, imageRefOf, refGlyphOf, type ImageRef } from "../scene/content"
 import { FONT_FAMILY, MONO_FAMILY, type TextMeasurer } from "../scene/measure"
-import { branchWash, mixColor } from "../scene/tokens"
+import { accentOf } from "../scene/branch"
+import { mixColor, washOf } from "../scene/tokens"
 import { boundsOf, type Scene, type SceneEdge, type SceneElement } from "../model/scene"
 import type { ArrowCap, CodeContent, FrameContent, ShapeContent, ShapeType } from "../model/document"
 
@@ -213,7 +214,7 @@ function emitElement(element: SceneElement, paint: Paint): string {
     return emitFrame(element, paint)
   }
 
-  const accent = element.branchColor ?? element.stroke
+  const accent = accentOf(element)
   const out: string[] = [emitBox(element, accent, paint)]
 
   if (element.content.$type === "task") {
@@ -347,7 +348,7 @@ function emitShape(element: SceneElement, accent: string | undefined, paint: Pai
  * a file cannot ask for "whatever the browser would have done".
  */
 function emitFrame(element: SceneElement, paint: Paint): string {
-  const hue = element.branchColor ?? element.stroke
+  const hue = accentOf(element)
   const title = (element.content as FrameContent).title ?? ""
   const color = paint.color(hue ? mixColor(hue, 55) : "var(--line)")
 
@@ -658,16 +659,18 @@ function leadInset(element: SceneElement): number {
 
 /** What a body is painted, or nothing at all when it was never given a colour of its own. */
 function fillOf(element: SceneElement, paint: Paint): string {
-  if (element.nodeShape === "pill" && element.branchColor !== undefined) {
-    return paint.color(branchWash(element.branch))
+  const wash = washOf(accentOf(element))
+  if (element.nodeShape === "pill" && wash) {
+    return paint.color(wash)
   }
   return element.fill ? paint.color(element.fill) : "none"
 }
 
 /** The colour the body was painted, which is also what a chip sitting on top of it paints behind. */
 function surfaceOf(element: SceneElement): string {
-  if (!element.isRoot && element.nodeShape === "pill" && element.branchColor !== undefined) {
-    return branchWash(element.branch)
+  const wash = washOf(accentOf(element))
+  if (!element.isRoot && element.nodeShape === "pill" && wash) {
+    return wash
   }
   return element.fill ?? "var(--canvas)"
 }

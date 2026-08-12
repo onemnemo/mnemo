@@ -9,7 +9,7 @@ import type { NodeKind } from "../scene/content"
 import { AlignBar, type AlignControl } from "./AlignBar"
 import { boxesAnchor, edgeAnchor } from "./anchor"
 import { EdgeBar } from "./EdgeBar"
-import { NodeBar, type BranchControl } from "./NodeBar"
+import { NodeBar, type ColorControl, type NodeActions } from "./NodeBar"
 import { useBarAnchor, type Held } from "./useBarAnchor"
 
 export interface SelectionBarProps {
@@ -22,15 +22,14 @@ export interface SelectionBarProps {
   onEdgeStyle: (patch: EdgeStyle, deep: boolean) => void
   onNodeStyle: (patch: ElementStyle) => void
   onEdgeLabel: (edgeId: string) => void
-  branch: BranchControl | null
+  /** Recolour the selection; null when there is no colour to set. */
+  color: ColorControl | null
   /** Line the selection up; null when it is not several free elements. */
   align: AlignControl | null
   /** Turn the selected node into another kind; null when the selection is not a single node. */
   onKind: ((kind: NodeKind) => void) | null
-  /** Save the selected branch's styling as a template; null when the selection is not one branch. */
-  onSaveTemplate: (() => void) | null
-  /** Hold every selected node where it is, or hand them all back to the layout. */
-  onPin: (pinned: boolean) => void
+  /** Everything the node overflow menu offers. */
+  actions: NodeActions
 }
 
 /**
@@ -53,11 +52,10 @@ export function MindmapSelectionBar({
   onEdgeStyle,
   onNodeStyle,
   onEdgeLabel,
-  branch,
+  color,
   align,
   onKind,
-  onSaveTemplate,
-  onPin,
+  actions,
 }: SelectionBarProps) {
   if (selection.edges.size > 0 && selection.elements.size > 0) {
     return null
@@ -107,10 +105,9 @@ export function MindmapSelectionBar({
         element={primary}
         count={ids.length}
         onStyle={onNodeStyle}
-        branch={branch}
+        color={color}
         onKind={onKind}
-        onSaveTemplate={onSaveTemplate}
-        onPin={onPin}
+        actions={actions}
       />
     </Anchored>
   )

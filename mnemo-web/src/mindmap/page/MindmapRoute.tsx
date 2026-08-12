@@ -22,7 +22,7 @@ import type { ConnectStyle } from "../chrome/ConnectFlyout"
 import { ExportMenu } from "../chrome/ExportMenu"
 import { MindmapMinimap } from "../chrome/Minimap"
 import { MindmapToolDock } from "../chrome/MindmapToolDock"
-import type { BranchControl } from "../chrome/NodeBar"
+import type { ColorControl, NodeActions } from "../chrome/NodeBar"
 import { RadialMenu } from "../chrome/RadialMenu"
 import { RefPicker, type RefTarget } from "../chrome/RefPicker"
 import { ON_CANVAS, ON_NODE } from "../chrome/sectors"
@@ -44,7 +44,7 @@ import {
 } from "../edit/clipboard"
 import { carriedText, isPlainKind, linkContent, plainContent } from "../edit/convert"
 import { placeChild, type PlacedBox } from "../edit/placement"
-import { clearsAnything, restyledEdge } from "../edit/restyle"
+import { clearsAnything, restyled } from "../edit/restyle"
 import type { MovedElement, NodeChrome } from "../interaction/controller"
 import type { ResizeBox } from "../interaction/resize"
 import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } from "../interaction/selection"
@@ -67,12 +67,11 @@ import {
 import { op, type FrameOp, type MindmapOp, type NodeSpec } from "../model/ops"
 import { absoluteUrl, followRef, isFollowable } from "./follow"
 import type { Point, Scene, SceneElement } from "../model/scene"
-import { branchRootOf, branchSwatchOf } from "../scene/branch"
+import { accentOf, branchSwatchOf } from "../scene/branch"
 import { imageRefOf, nodeKindOf, type NodeKind } from "../scene/content"
 import { analyzeHierarchy, childrenIds, descendantsOf, hierarchyEdgesBelow } from "../scene/hierarchy"
 import { frameBox, projectScene, type FrameMemberBox } from "../scene/project"
 import { sceneMeasurers } from "../scene/measurers"
-import { branchToken } from "../scene/tokens"
 import { useMindmapRefs } from "../scene/useRefs"
 
 /** No rules at all: every node falls through to the theme. Stable, so it does not reproject a scene. */
@@ -874,7 +873,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             return op.setEdge(id, { style: patch })
           }
           const own = data?.edges?.find((candidate) => candidate.id === id)?.style
-          return op.setEdge(id, { clear_style: true, style: restyledEdge(own, patch) })
+          return op.setEdge(id, { clear_style: true, style: restyled(own, patch) })
         }),
         { label: t("Mindmap", deep ? "StyleBranch" : "StyleEdge") },
       )
@@ -961,31 +960,64 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   }, [boxes, editor, scene, selection, t])
 
   /**
-   * The branch swatch, or null when this selection has no branch to recolour.
+   * The colour control, or null when nothing coloured is selected.
    *
-   * Only ever offered for a single node, and never for a root. A multi-selection can span several
-   * branches, and "recolour every branch these happen to be in" is not what one swatch reads as.
+   * It sets the colour of what is highlighted, and nothing else. It used to write every pick down
+   * the whole branch a node sat in, on the reasoning that a colour is a branch's rather than a
+   * node's, which meant recolouring one node repainted its parent, its grandparent and every cousin
+   * hanging off them. The subtree is still reachable, as an option inside the panel, and it starts
+   * at the selected node rather than at the top of its branch.
+   *
+   * Clearing is a different op from setting. The protocol merges a patch member by member and reads
+   * a missing member as "leave it alone", so there is no value meaning "unset this"; handing a node
+   * back to its branch means sending what it should keep with the stroke left out. `style_subtree`
+   * carries no such flag, so a deep reset is written one node at a time.
    */
-  const branch = useMemo((): BranchControl | null => {
-    if (!hierarchy || !scene || selection.elements.size !== 1) {
+  const color = useMemo((): ColorControl | null => {
+    const ids = [...selection.elements]
+    if (!scene || ids.length === 0) {
       return null
     }
-    const id = selection.primary?.kind === "element" ? selection.primary.id : null
-    const element = id ? scene.elements.find((candidate) => candidate.id === id) : null
-    const rootId = id ? branchRootOf(hierarchy, id) : null
-    if (!element || !rootId) {
+    const primaryId = selection.primary?.kind === "element" ? selection.primary.id : ids[0]
+    const element = scene.elements.find((candidate) => candidate.id === primaryId)
+    if (!element) {
       return null
     }
+
+    const children = hierarchy ? childrenIds(hierarchy, primaryId) : []
     return {
       slot: branchSwatchOf(element),
-      // Down the whole branch rather than onto the one node, because a branch's colour is the thing
-      // being set and a branch is a subtree. The cascade reads it back off the same override.
-      onPick: (index) =>
-        void editor.apply([op.styleSubtree(rootId, { stroke: branchToken(index) })], {
-          label: t("Mindmap", "BranchColor"),
-        }),
+      color: accentOf(element),
+      // Only when one node is selected and there is something under it. A multi-selection can span
+      // several branches, and "and everything under all of these" is not one thing to picture.
+      hasSubtree: ids.length === 1 && children.length > 0,
+      branching: element.branchColor !== undefined,
+      onPick: (token, subtree) => {
+        const reached = subtree && hierarchy ? [primaryId, ...descendantsOf(hierarchy, primaryId)] : ids
+        const label = t("Mindmap", subtree ? "StyleSubtree" : "StyleNode")
+        if (token !== null) {
+          void editor.apply(
+            [
+              subtree
+                ? op.styleSubtree(primaryId, { stroke: token })
+                : ids.length === 1
+                  ? op.set(ids[0], { style: { stroke: token } })
+                  : op.styleIds(ids, { stroke: token }),
+            ],
+            { label },
+          )
+          return
+        }
+        void editor.apply(
+          reached.map((id) => {
+            const own = map.data?.elements?.find((candidate) => candidate.id === id)?.style
+            return op.set(id, { clear_style: true, style: restyled(own, { stroke: null }) })
+          }),
+          { label },
+        )
+      },
     }
-  }, [editor, hierarchy, scene, selection, t])
+  }, [editor, hierarchy, map.data, scene, selection, t])
 
   /**
    * The one selected node, or null when there is not exactly one.
@@ -996,6 +1028,32 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
    */
   const soleNode =
     selection.elements.size === 1 && selection.primary?.kind === "element" ? selection.primary.id : null
+
+  /**
+   * Everything the node bar's overflow menu offers.
+   *
+   * These are things a node is told to do rather than ways it can be styled, which is why they are
+   * gathered here and not next to the style controls. Collapsing and saving a template both ask for
+   * one node with something under it; the rest work on the whole selection.
+   */
+  const nodeActions = useMemo((): NodeActions => {
+    const branchy = soleNode && hierarchy && childrenIds(hierarchy, soleNode).length > 0 ? soleNode : null
+    return {
+      onPin: pinNodes,
+      collapse: branchy
+        ? {
+            collapsed: collapsed(scene, branchy),
+            onToggle: () =>
+              void editor.apply([op.set(branchy, { collapsed: !collapsed(scene, branchy) })], {
+                label: t("Mindmap", "ToggleCollapse"),
+              }),
+          }
+        : null,
+      onSaveTemplate: soleNode ? () => setCapturing(soleNode) : null,
+      onDuplicate: () => void duplicateSelection(),
+      onDelete: deleteSelection,
+    }
+  }, [deleteSelection, duplicateSelection, editor, hierarchy, pinNodes, scene, soleNode, t])
 
   const minimap = useMinimapShown((scene?.elements.length ?? 0) > 0)
 
@@ -1411,11 +1469,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             onEdgeStyle={styleEdges}
             onNodeStyle={styleNodes}
             onEdgeLabel={setEditingEdge}
-            branch={branch}
+            color={color}
             align={align}
             onKind={soleNode ? (kind) => void changeKind(kind) : null}
-            onSaveTemplate={soleNode ? () => setCapturing(soleNode) : null}
-            onPin={pinNodes}
+            actions={nodeActions}
           />
         ) : null}
 

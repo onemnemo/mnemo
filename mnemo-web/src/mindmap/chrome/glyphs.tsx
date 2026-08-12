@@ -105,6 +105,25 @@ export function CapGlyph({ cap, flipped }: { cap: ArrowCap; flipped?: boolean })
 }
 
 /**
+ * Both ends of an edge on one stub of line, for the slot that collapses the two of them.
+ *
+ * Drawn together rather than as two mirrored halves, because what someone is choosing here is a
+ * direction: which way the edge points is the shape of the whole picture, not a property of each
+ * end read separately.
+ */
+export function EndsGlyph({ start, end }: { start: ArrowCap; end: ArrowCap }) {
+  return (
+    <svg width={22} height={12} aria-hidden>
+      <path d="M2 6 H20" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" fill="none" />
+      {start === "arrow" ? <path d="M7 2.5 L1 6 L7 9.5 Z" fill="currentColor" /> : null}
+      {start === "dot" ? <circle cx={3.4} cy={6} r={2.4} fill="currentColor" /> : null}
+      {end === "arrow" ? <path d="M15 2.5 L21 6 L15 9.5 Z" fill="currentColor" /> : null}
+      {end === "dot" ? <circle cx={18.6} cy={6} r={2.4} fill="currentColor" /> : null}
+    </svg>
+  )
+}
+
+/**
  * One rung of the loudness ladder.
  *
  * Card and outline are the same box with and without a fill, because that is the whole difference
