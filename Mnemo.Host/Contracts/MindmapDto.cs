@@ -102,5 +102,25 @@ public sealed record MindmapFindHitDto(string ElementId, string Text, string Pat
 /// <summary>
 /// The style templates a map can draw from: the six built-ins plus whatever the user saved, and which
 /// of them a document that names none resolves against.
+/// <para>
+/// <paramref name="BuiltInIds"/> is what tells the two apart, since a template carries no flag saying
+/// where it came from. The client needs to know because only a saved one can be deleted, and the id
+/// prefix the store happens to mint is a contract nobody wrote down.
+/// </para>
 /// </summary>
-public sealed record MindmapTemplatesDto(string DefaultId, IReadOnlyList<StyleTemplate> Templates);
+public sealed record MindmapTemplatesDto(
+    string DefaultId,
+    IReadOnlyList<StyleTemplate> Templates,
+    IReadOnlyList<string> BuiltInIds);
+
+/// <summary>
+/// How much of a subtree is worth saving: the depth bands under the chosen node that actually carry a
+/// style override. Zero means nothing there was styled, and there is no template to make.
+/// </summary>
+public sealed record MindmapCaptureInfoDto(int AvailableLevels);
+
+/// <summary>
+/// Save the subtree at <paramref name="RootId"/> as a template named <paramref name="Name"/>, taking
+/// <paramref name="Levels"/> depth bands from it.
+/// </summary>
+public sealed record MindmapCaptureTemplateDto(string RootId, string Name, int Levels);

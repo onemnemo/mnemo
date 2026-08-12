@@ -21,6 +21,8 @@ export interface SelectionBarProps {
   onNodeStyle: (patch: ElementStyle) => void
   onEdgeLabel: (edgeId: string) => void
   branch: BranchControl | null
+  /** Save the selected branch's styling as a template; null when the selection is not one branch. */
+  onSaveTemplate: (() => void) | null
 }
 
 /**
@@ -44,6 +46,7 @@ export function MindmapSelectionBar({
   onNodeStyle,
   onEdgeLabel,
   branch,
+  onSaveTemplate,
 }: SelectionBarProps) {
   if (selection.edges.size > 0 && selection.elements.size > 0) {
     return null
@@ -75,7 +78,13 @@ export function MindmapSelectionBar({
 
   return (
     <Anchored runtime={runtime} pane={pane} locate={locateElements(ids)}>
-      <NodeBar element={primary} count={ids.length} onStyle={onNodeStyle} branch={branch} />
+      <NodeBar
+        element={primary}
+        count={ids.length}
+        onStyle={onNodeStyle}
+        branch={branch}
+        onSaveTemplate={onSaveTemplate}
+      />
     </Anchored>
   )
 }

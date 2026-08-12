@@ -1,5 +1,6 @@
 import { useState } from "react"
 
+import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 
 import type { ElementStyle, FontScale, NodeShape } from "../model/document"
@@ -38,6 +39,8 @@ export interface NodeBarProps {
   count: number
   onStyle: (patch: ElementStyle) => void
   branch: BranchControl | null
+  /** Save this branch's styling as a template, or null when the selection is not one branch. */
+  onSaveTemplate: (() => void) | null
 }
 
 /**
@@ -52,7 +55,7 @@ export interface NodeBarProps {
  * pill, text colour has no precedent to copy anywhere in the app, and an icon needs a picker that
  * does not exist yet. Each is a deliberate omission rather than an oversight.
  */
-export function NodeBar({ element, count, onStyle, branch }: NodeBarProps) {
+export function NodeBar({ element, count, onStyle, branch, onSaveTemplate }: NodeBarProps) {
   const t = useT()
   const [swatches, setSwatches] = useState(false)
   const scale = fontScaleOf(element.text.fontSize)
@@ -125,6 +128,18 @@ export function NodeBar({ element, count, onStyle, branch }: NodeBarProps) {
               </FlyoutPanel>
             ) : null}
           </span>
+        </>
+      ) : null}
+
+      {/* Here rather than in the map's style panel, because what gets captured is this branch and
+          the bar is the only thing on screen that knows which branch that is. The panel lists the
+          templates; this is where one comes from. */}
+      {onSaveTemplate ? (
+        <>
+          <Sep />
+          <Slot label={t("Mindmap", "SaveAsTemplate")} onClick={onSaveTemplate}>
+            <AppIcon name="palette" size={15} />
+          </Slot>
         </>
       ) : null}
 
