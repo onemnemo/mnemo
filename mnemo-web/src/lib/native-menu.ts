@@ -41,8 +41,11 @@ export function installContextMenuGuard(): () => void {
     event.preventDefault()
   }
 
-  // Capture, so a handler that stops propagation on its way up cannot leave the
-  // native menu on screen.
-  window.addEventListener("contextmenu", onContextMenu, true)
-  return () => window.removeEventListener("contextmenu", onContextMenu, true)
+  // Bubble, and last, because the app's own right-click menus have to see the
+  // event first. Radix reads defaultPrevented before deciding to open, so a
+  // capture-phase preventDefault here would stop every one of them from ever
+  // appearing. The webview makes its own decision after the dispatch finishes,
+  // so suppressing at the end of it works just as well.
+  window.addEventListener("contextmenu", onContextMenu)
+  return () => window.removeEventListener("contextmenu", onContextMenu)
 }

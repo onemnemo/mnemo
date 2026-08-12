@@ -59,4 +59,19 @@ describe("installContextMenuGuard", () => {
     installContextMenuGuard()()
     expect(rightClick(mount("<div>deck</div>"))).toBe(false)
   })
+
+  // The app's own right-click menus decline to open on an event that is already
+  // prevented, so the guard has to run after them rather than before.
+  it("lets a handler on the way up see the event unprevented", () => {
+    dispose = installContextMenuGuard()
+    const row = mount("<div>deck</div>")
+
+    let seen: boolean | undefined
+    row.addEventListener("contextmenu", (event) => {
+      seen = event.defaultPrevented
+    })
+
+    expect(rightClick(row)).toBe(true)
+    expect(seen).toBe(false)
+  })
 })

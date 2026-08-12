@@ -30,6 +30,7 @@ export function ContextMenuItem({
   icon,
   hint,
   danger,
+  emphasis,
   disabled,
 }: {
   children: ReactNode
@@ -37,10 +38,12 @@ export function ContextMenuItem({
   icon?: IconName
   hint?: string
   danger?: boolean
+  /** Draws the item as the suggested action (the deck menu pre-highlights one). */
+  emphasis?: boolean
   disabled?: boolean
 }) {
   return (
-    <RadixContextMenu.Item disabled={disabled} onSelect={onSelect} className={itemClass(danger)}>
+    <RadixContextMenu.Item disabled={disabled} onSelect={onSelect} className={itemClass(danger, emphasis)}>
       <MenuItemBody icon={icon} hint={hint}>
         {children}
       </MenuItemBody>
@@ -52,10 +55,14 @@ export function ContextMenuSubMenu({
   children,
   label,
   icon,
+  hint,
+  emphasis,
 }: {
   children: ReactNode
   label: string
   icon?: IconName
+  hint?: string
+  emphasis?: boolean
 }) {
   return (
     <RadixContextMenu.Sub>
@@ -63,9 +70,10 @@ export function ContextMenuSubMenu({
         className={cn(
           ITEM_CLASS,
           "text-text-secondary data-[highlighted]:bg-surface-subtle data-[highlighted]:text-foreground data-[state=open]:bg-surface-subtle",
+          emphasis && "font-medium text-foreground",
         )}
       >
-        <MenuItemBody icon={icon} trailing={<AppIcon name="common/chevron-right" size={12} />}>
+        <MenuItemBody icon={icon} hint={hint} trailing={<AppIcon name="common/chevron-right" size={12} />}>
           {label}
         </MenuItemBody>
       </RadixContextMenu.SubTrigger>
@@ -80,4 +88,13 @@ export function ContextMenuSubMenu({
 
 export function ContextMenuSeparator() {
   return <RadixContextMenu.Separator className="my-1 h-px bg-divider-subtle" />
+}
+
+/** A non-interactive grouping caption, e.g. "PRACTICE / NO SCHEDULE". */
+export function ContextMenuSectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <RadixContextMenu.Label className="px-2 pt-2 pb-1 text-caption font-semibold tracking-wide text-text-faded uppercase">
+      {children}
+    </RadixContextMenu.Label>
+  )
 }

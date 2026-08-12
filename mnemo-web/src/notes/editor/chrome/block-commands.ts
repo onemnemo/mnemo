@@ -15,9 +15,7 @@
  *
  * The desktop editor has no such menu - it reorders by drag-handle only and
  * deletes/duplicates through three per-block flyouts - so this is a deliberate
- * step toward the Notion-style block menu the plan calls for, not a 1:1 port.
- * Labels are English literals for now; the shared bundle has no keys for a menu
- * that did not exist, and new Notes strings in this port are localized later.
+ * step toward the Notion-style block menu, not a 1:1 port.
  */
 
 import { TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
@@ -107,22 +105,23 @@ export function canTurnInto(node: PMNode): boolean {
 
 export interface TurnIntoOption {
   readonly id: string;
-  readonly label: string;
+  /** Key in the NotesEditor namespace, the same one the slash menu names this type by. */
+  readonly labelKey: string;
   readonly nodeName: string;
   readonly attrs?: Record<string, unknown>;
 }
 
 /** The types "Turn into" offers, in menu order. */
 export const TURN_INTO_OPTIONS: readonly TurnIntoOption[] = [
-  { id: 'text', label: 'Text', nodeName: 'paragraph' },
-  { id: 'heading1', label: 'Heading 1', nodeName: 'heading', attrs: { level: 1 } },
-  { id: 'heading2', label: 'Heading 2', nodeName: 'heading', attrs: { level: 2 } },
-  { id: 'heading3', label: 'Heading 3', nodeName: 'heading', attrs: { level: 3 } },
-  { id: 'bullet', label: 'Bulleted list', nodeName: 'bulletItem' },
-  { id: 'numbered', label: 'Numbered list', nodeName: 'numberedItem' },
-  { id: 'checklist', label: 'Checklist', nodeName: 'checklistItem' },
-  { id: 'quote', label: 'Quote', nodeName: 'quote' },
-  { id: 'code', label: 'Code', nodeName: 'codeBlock' },
+  { id: 'text', labelKey: 'Text', nodeName: 'paragraph' },
+  { id: 'heading1', labelKey: 'Heading1', nodeName: 'heading', attrs: { level: 1 } },
+  { id: 'heading2', labelKey: 'Heading2', nodeName: 'heading', attrs: { level: 2 } },
+  { id: 'heading3', labelKey: 'Heading3', nodeName: 'heading', attrs: { level: 3 } },
+  { id: 'bullet', labelKey: 'BulletList', nodeName: 'bulletItem' },
+  { id: 'numbered', labelKey: 'NumberedList', nodeName: 'numberedItem' },
+  { id: 'checklist', labelKey: 'Checklist', nodeName: 'checklistItem' },
+  { id: 'quote', labelKey: 'Quote', nodeName: 'quote' },
+  { id: 'code', labelKey: 'Code', nodeName: 'codeBlock' },
 ];
 
 /** Whether an option is the block's current type, so the menu can mark it and skip a no-op. */

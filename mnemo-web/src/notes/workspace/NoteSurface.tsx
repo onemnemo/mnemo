@@ -22,6 +22,7 @@ import { documentWordCount } from '../editor/projection/word-count';
 import { useNoteSession } from '../edit/useNoteSession';
 import { useSpellcheck } from '../edit/useSpellcheck';
 import { BlockGutter } from '../editor/chrome/BlockGutter';
+import { EditorContextMenu } from '../editor/chrome/EditorContextMenu';
 import { FindReplaceOverlay } from '../find/FindReplaceOverlay';
 import { createPersist } from '../save/persist';
 import { BlockSelectionAnnouncer } from '../selection/BlockSelectionAnnouncer';
@@ -129,7 +130,11 @@ export function NoteSurface({
             {' · '}
             {nt('EditedRelativeFormat', { 0: formatRelative(note.modifiedAt, Date.now(), t) })}
           </div>
-          <div ref={ref} className="notes-doc" lang={lang} spellCheck={spellCheck} />
+          {/* Rendered whether or not the view exists yet: this owns the element
+              ProseMirror mounts into, so it must never come and go under it. */}
+          <EditorContextMenu view={view} registry={registry}>
+            <div ref={ref} className="notes-doc" lang={lang} spellCheck={spellCheck} />
+          </EditorContextMenu>
         </div>
       </div>
       {view ? <IndexChip view={view} registry={registry} scrollRef={scrollRef} /> : null}
