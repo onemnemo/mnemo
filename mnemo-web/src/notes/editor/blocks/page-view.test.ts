@@ -25,9 +25,10 @@ function pageNode(referenceNoteId: string): PMNode {
  * A note library under the test's control, so the three states are reached
  * deliberately rather than by racing a fetch.
  */
-function library(titles: Record<string, string> | null) {
+function library(titles: Record<string, string> | null, emoji: Record<string, string> = {}) {
   const listeners = new Set<() => void>();
   let current = titles;
+  let marks = emoji;
   const notes: NoteReferenceServices = {
     isLoaded: () => current !== null,
     subscribe: (listener) => {
@@ -39,16 +40,22 @@ function library(titles: Record<string, string> | null) {
   return {
     notes,
     resolve: (id: string) => current?.[id],
-    arrive(next: Record<string, string>) {
+    resolveEmoji: (id: string) => marks[id],
+    arrive(next: Record<string, string>, nextEmoji: Record<string, string> = {}) {
       current = next;
+      marks = nextEmoji;
       for (const listener of listeners) listener();
     },
     listenerCount: () => listeners.size,
   };
 }
 
-function mount(referenceNoteId: string, titles: Record<string, string> | null = {}) {
-  const lib = library(titles);
+function mount(
+  referenceNoteId: string,
+  titles: Record<string, string> | null = {},
+  emoji: Record<string, string> = {},
+) {
+  const lib = library(titles, emoji);
   const doc = schema.nodes.doc.create(null, [pageNode(referenceNoteId)]);
   const state = EditorState.create({ schema, doc });
   const view = {
@@ -60,6 +67,7 @@ function mount(referenceNoteId: string, titles: Record<string, string> | null = 
 
   const services: EditorServices = {
     resolveNoteTitle: (id) => lib.resolve(id),
+    resolveNoteEmoji: (id) => lib.resolveEmoji(id),
     notes: lib.notes,
     loadAssetUrl: () => Promise.reject(new Error('none')),
     uploadAsset: () => Promise.reject(new Error('none')),
@@ -77,7 +85,11 @@ function mount(referenceNoteId: string, titles: Record<string, string> | null = 
 }
 
 function titleOf(realized: { dom: HTMLElement }): string {
-  return realized.dom.querySelector('.notes-page-card-title')!.textContent ?? '';
+  return realized.dom.querySelector('.notes-page-row-title')!.textContent ?? '';
+}
+
+function markOf(realized: { dom: HTMLElement }): HTMLElement {
+  return realized.dom.querySelector('.notes-page-row-mark')!;
 }
 
 afterEach(() => {
@@ -85,18 +97,41 @@ afterEach(() => {
 });
 
 describe('page block NodeView', () => {
-  it('draws the desktop card and links to the referenced note', () => {
+  it('draws a mark and a title, and links to the referenced note', () => {
     const { realized } = mount('note-1', { 'note-1': 'Chapter one' });
     expect(realized.dom.tagName).toBe('A');
     expect(realized.dom.getAttribute('contenteditable')).toBe('false');
     expect(realized.dom.getAttribute('data-page-state')).toBe('ready');
     expect(realized.dom.getAttribute('href')).toBe('#/notes/note-1');
     expect(titleOf(realized)).toBe('Chapter one');
-    // Tile, chevron and subtitle are the card's own chrome, never editable content.
+    // The mark is the row's own chrome, never editable content.
     expect(realized.contentDOM).toBeUndefined();
-    expect(realized.dom.querySelector('.notes-page-card-tile svg')).not.toBeNull();
-    expect(realized.dom.querySelector('.notes-page-card-chevron svg')).not.toBeNull();
-    expect(realized.dom.querySelector('.notes-page-card-subtitle')!.textContent).toBe('PageBlockOpenPage');
+    expect(markOf(realized).querySelector('svg')).not.toBeNull();
+  });
+
+  it('leaves the row to the mark and the title alone', () => {
+    const { realized } = mount('note-1', { 'note-1': 'Chapter one' });
+    expect(realized.dom.children).toHaveLength(2);
+    expect(realized.dom.textContent).toBe('Chapter one');
+  });
+
+  it('shows the note own emoji in place of the document icon', () => {
+    const { realized } = mount('note-1', { 'note-1': 'Chapter one' }, { 'note-1': '📉' });
+    expect(markOf(realized).textContent).toBe('📉');
+    expect(markOf(realized).querySelector('svg')).toBeNull();
+  });
+
+  it('falls back to the document icon when the note carries no emoji', () => {
+    const { realized } = mount('note-1', { 'note-1': 'Chapter one' }, { 'note-1': '  ' });
+    expect(markOf(realized).querySelector('svg')).not.toBeNull();
+  });
+
+  it('swaps the icon for an emoji added after the row was built', () => {
+    const { realized, lib } = mount('note-1', { 'note-1': 'Chapter one' });
+    expect(markOf(realized).querySelector('svg')).not.toBeNull();
+    lib.arrive({ 'note-1': 'Chapter one' }, { 'note-1': '💊' });
+    expect(markOf(realized).textContent).toBe('💊');
+    expect(markOf(realized).querySelector('svg')).toBeNull();
   });
 
   it('reads a note with no title as untitled, not as missing', () => {

@@ -521,80 +521,86 @@
   pointer-events: none;
 }
 
-/* Page reference, a navigation card to another note, laid out like the desktop's
- * PageBlockComponent: a 32px tinted tile, the title over an "Open page"
- * subtitle, a chevron on the right, and a hover the whole card takes. The title
- * belongs to the referenced note and is resolved at render, so the card has
- * three states and each looks like what it is. */
-.notes-doc a.notes-page-card {
+/* Page reference: a link to another note at the rank of a bullet, not of a
+ * figure. A mark, the title, nothing else. The title belongs to the referenced
+ * note and is resolved at render, so the row has three states and each looks
+ * like what it is.
+ *
+ * The hover ground bleeds the same 8px past the measure as a selection band, so
+ * hovering a page and selecting one describe the same shape.
+ *
+ * Qualified by `[data-page-state]`, which every row carries, only to outrank the
+ * inline-link rule further down this file. That rule matches any `a[href]` at
+ * the same specificity and lands later, so without this the row would take the
+ * link blue and a second underline at a different offset. A page reference is
+ * not a web link and must not read as one. */
+.notes-doc a.notes-page-row[data-page-state] {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 48px;
-  margin: 6px 0;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
+  gap: 8px;
+  margin: 0 -8px 6px;
+  padding: 3px 8px;
   border-radius: var(--radius-md, 8px);
   color: var(--ink);
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 100ms;
 }
-.notes-doc a.notes-page-card:hover {
+.notes-doc a.notes-page-row[data-page-state]:hover {
   background: var(--frame-hover);
 }
-.notes-page-card-tile {
+.notes-page-row-mark {
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  background: var(--canvas-sunken);
-  color: var(--ink-2);
+  width: 20px;
+  height: 20px;
+  color: var(--ink-icon);
 }
-.notes-page-card-tile svg {
-  width: 18px;
-  height: 18px;
+.notes-page-row-mark svg {
+  width: 17px;
+  height: 17px;
 }
-.notes-page-card-text {
-  display: flex;
-  flex-direction: column;
+/* An emoji is drawn by the font, not by the icon set, so it wants its own size
+ * and none of the icon colour. */
+.notes-page-row-mark[data-emoji] {
+  font-size: 15px;
+  line-height: 1;
+}
+.notes-page-row-title {
   flex: 1 1 auto;
   min-width: 0;
-}
-.notes-page-card-title {
-  font-size: 14px;
-  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* The only thing left saying "this goes somewhere", now that the subtitle and
+   * the chevron are gone. At full --ink-3 it measured the same weight as a
+   * divider, which is furniture meant to be ignored, so it sits a step under
+   * that at rest and resolves on hover. */
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--ink-3) 40%, transparent);
+  text-underline-offset: 3px;
 }
-.notes-page-card-subtitle {
-  font-size: 12px;
-  color: var(--ink-3);
-}
-.notes-page-card-chevron {
-  display: flex;
-  flex: 0 0 auto;
-  color: var(--ink-3);
-}
-.notes-page-card-chevron svg {
-  width: 16px;
-  height: 16px;
+.notes-doc a.notes-page-row:hover .notes-page-row-title {
+  text-decoration-color: var(--ink-3);
 }
 /* Gone, not merely untitled: still legible, but it stops looking like something
  * that leads anywhere. */
-.notes-doc a.notes-page-card[data-page-state="missing"] {
-  border-style: dashed;
+.notes-doc a.notes-page-row[data-page-state="missing"] {
   cursor: default;
 }
-.notes-doc a.notes-page-card[data-page-state="missing"] .notes-page-card-title {
+.notes-doc a.notes-page-row[data-page-state="missing"] .notes-page-row-title {
   color: var(--ink-3);
+  text-decoration: none;
 }
 /* The library has not answered yet. A bar holds the line's height rather than a
- * word the next frame would contradict. */
-.notes-page-card[data-page-state="resolving"] .notes-page-card-title::after {
+ * word the next frame would contradict, and the underline goes with the word:
+ * it would otherwise draw across the bar with no text above it. */
+.notes-doc a.notes-page-row[data-page-state="resolving"] .notes-page-row-title {
+  text-decoration: none;
+}
+.notes-page-row[data-page-state="resolving"] .notes-page-row-title::after {
   content: "";
   display: inline-block;
   width: 8em;

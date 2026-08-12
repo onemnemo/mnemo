@@ -12,7 +12,13 @@ import { createAssetUrlCache, type AssetUrlCache } from "@/api/asset-cache"
 import { useI18nStore } from "@/i18n/store"
 import { createTranslate } from "@/i18n/translate"
 import { toast } from "@/stores/toast"
-import { createChildNote, noteListLoaded, readCachedNoteTitle, subscribeToNoteList } from "../api"
+import {
+  createChildNote,
+  noteListLoaded,
+  readCachedNoteEmoji,
+  readCachedNoteTitle,
+  subscribeToNoteList,
+} from "../api"
 import type { EditorServices } from "../editor/registry/types"
 import { loadNoteAssetUrl, uploadNoteAsset } from "./api"
 
@@ -45,6 +51,7 @@ export function createNoteAssetServices(hostNoteId?: string): NoteAssetServices 
   return {
     services: {
       resolveNoteTitle: readCachedNoteTitle,
+      resolveNoteEmoji: readCachedNoteEmoji,
       notes: {
         isLoaded: noteListLoaded,
         subscribe: subscribeToNoteList,
