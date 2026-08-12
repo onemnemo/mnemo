@@ -60,6 +60,12 @@ export interface AutosaveOptions {
   readonly maxWaitMs?: number;
   /** Backoff between retries of a failed save; its length is the retry count. */
   readonly retryDelaysMs?: readonly number[];
+  /**
+   * Whether editing schedules a write. Off means "do not write while I type",
+   * and only that: `flush` and `destroy` ignore it, so closing a note still
+   * saves. A function is read at each decision rather than captured here.
+   */
+  readonly enabled?: boolean | (() => boolean);
   readonly clock?: Clock;
   /** Every save outcome, in order. For tests and telemetry; the UI reads `saveState`. */
   onResult?(result: SaveResult): void;
@@ -86,6 +92,8 @@ export function startAutosave(options: AutosaveOptions): Autosave {
   const maxWaitMs = options.maxWaitMs ?? 5_000;
   const retryDelaysMs = options.retryDelaysMs ?? defaultRetryDelaysMs;
   const clock = options.clock ?? systemClock;
+  const enabled = options.enabled ?? true;
+  const isEnabled = typeof enabled === 'function' ? enabled : () => enabled;
 
   let cancelTimer: (() => void) | null = null;
   /** When the oldest currently-unsaved change arrived. */
@@ -112,6 +120,15 @@ export function startAutosave(options: AutosaveOptions): Autosave {
     cancel();
     cancelTimer = clock.schedule(() => {
       cancelTimer = null;
+      // Read again here and not only in `consider`, because the setting can be
+      // turned off after a timer is already armed, and a retry arms one with no
+      // edit behind it. Guarding `run` instead would stop `flush` and `destroy`
+      // too. Left in the state `consider` would leave, so turning it back on
+      // starts a clean quiet period rather than resuming an expired ceiling.
+      if (!isEnabled()) {
+        dirtySince = null;
+        return;
+      }
       void run();
     }, Math.max(0, delayMs));
   }
@@ -119,6 +136,14 @@ export function startAutosave(options: AutosaveOptions): Autosave {
   /** Decides what, if anything, should be waiting to happen. */
   function consider(): void {
     if (destroyed || conflicted || current) return;
+
+    // Read through on every decision rather than captured at construction, so
+    // the scheduler can never act on an answer the settings store has replaced.
+    if (!isEnabled()) {
+      cancel();
+      dirtySince = null;
+      return;
+    }
 
     const snapshot = authority.snapshot();
     if (!snapshot.dirty) {
