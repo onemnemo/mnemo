@@ -912,7 +912,10 @@
     "OpenRef": "Open reference",
     "ToggleTask": "Toggle task",
     "ChangeType": "Change type",
-    "LinkUrlRejected": "That address cannot be opened"
+    "LinkUrlRejected": "That address cannot be opened",
+    "Copy": "Copy",
+    "Cut": "Cut",
+    "Paste": "Paste"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

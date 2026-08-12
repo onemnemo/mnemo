@@ -862,7 +862,10 @@
     "OpenRef": "Åpne referanse",
     "ToggleTask": "Veksle oppgave",
     "ChangeType": "Endre type",
-    "LinkUrlRejected": "Denne adressen kan ikke åpnes"
+    "LinkUrlRejected": "Denne adressen kan ikke åpnes",
+    "Copy": "Kopier",
+    "Cut": "Klipp ut",
+    "Paste": "Lim inn"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

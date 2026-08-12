@@ -6,7 +6,13 @@ import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
 
-import { useDeleteMindmapTemplate, useMindmap, useMindmapTemplates, type MindmapTemplates } from "../api"
+import {
+  useDeleteMindmapTemplate,
+  useMindmap,
+  useMindmapTemplates,
+  type MindmapOpsResult,
+  type MindmapTemplates,
+} from "../api"
 import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
 import type { ConnectStyle } from "../chrome/ConnectFlyout"
@@ -18,6 +24,14 @@ import { ON_CANVAS, ON_NODE } from "../chrome/sectors"
 import { SaveTemplateDialog } from "../chrome/SaveTemplateDialog"
 import { MindmapSelectionBar } from "../chrome/SelectionBar"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
+import {
+  captureOrigin,
+  captureSelection,
+  heldCopy,
+  holdCopy,
+  offsetPlacement,
+  translated,
+} from "../edit/clipboard"
 import { carriedText, isPlainKind, linkContent, plainContent } from "../edit/convert"
 import { placeChild, type PlacedBox } from "../edit/placement"
 import { clearsAnything, restyledEdge } from "../edit/restyle"
@@ -39,7 +53,7 @@ import {
   type ShapeType,
   type StyleTemplate,
 } from "../model/document"
-import { op, type FrameOp, type MindmapOp } from "../model/ops"
+import { op, type FrameOp, type MindmapOp, type NodeSpec } from "../model/ops"
 import { absoluteUrl, followRef, isFollowable } from "./follow"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import { branchRootOf, branchSwatchOf } from "../scene/branch"
@@ -54,6 +68,14 @@ import { useMindmapRefs } from "../scene/useRefs"
 const EMPTY_TEMPLATES: MindmapTemplates = { defaultId: "", templates: [], builtInIds: [] }
 
 const NO_SUBTREE: readonly string[] = []
+
+/** How far a duplicate sits from what it was copied from. Far enough to be two nodes, near enough to be a pair. */
+const DUPLICATE_STEP = 48
+
+/** A ref on a top-level spec, which is the only way the ids the server made come back. */
+const withRef = (spec: NodeSpec, index: number): NodeSpec => ({ ...spec, ref: `n${index}` })
+
+const CLIPBOARD_KEYS = new Set(["c", "x", "v", "d"])
 
 /**
  * What a node is assumed to be before anything has measured it.
@@ -232,16 +254,17 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   )
 
   /**
-   * Adds a child and puts the caret in it.
+   * Where a new child of this node goes.
    *
-   * The position is worked out here rather than left to the server, because layout is freeform until
-   * Arrange and a node the server places at no position lands on the origin, on top of the root.
+   * Worked out here rather than left to the server, because layout is freeform until Arrange and a
+   * node the server places at no position lands on the origin, on top of the root. Both of the ways
+   * to gain a child, typing one and pasting one, ask this.
    */
-  const addChild = useCallback(
-    async (parentId: string) => {
+  const childSpot = useCallback(
+    (parentId: string): Point | null => {
       const parent = hierarchy && boxes.get(parentId)
       if (!hierarchy || !parent) {
-        return
+        return null
       }
       const grandparentId = hierarchy.byId.get(parentId)?.parentId ?? null
       const siblings: PlacedBox[] = []
@@ -251,13 +274,33 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           siblings.push(box)
         }
       }
-
-      const at = placeChild(
+      return placeChild(
         parent,
         grandparentId ? (boxes.get(grandparentId) ?? null) : null,
         siblings,
         NEW_NODE_SIZE,
       )
+    },
+    [boxes, hierarchy],
+  )
+
+  /** The middle of what is on screen, in canvas coordinates. Where something with nothing to hang off goes. */
+  const viewportCentre = useCallback((): Point => {
+    const bounds = stage.current?.getBoundingClientRect()
+    const canvas = runtime.current
+    if (!bounds || !canvas) {
+      return { x: 0, y: 0 }
+    }
+    return canvas.toCanvas(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)
+  }, [])
+
+  /** Adds a child and puts the caret in it. */
+  const addChild = useCallback(
+    async (parentId: string) => {
+      const at = childSpot(parentId)
+      if (!at) {
+        return
+      }
       const result = await editor.apply(
         [op.addNodes([{ ref: "n", t: "", xy: [at.x, at.y] }], parentId)],
         { label: t("Mindmap", "AddNode") },
@@ -270,7 +313,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         setEditing(created)
       }
     },
-    [boxes, editor, hierarchy, t],
+    [childSpot, editor, t],
   )
 
   /** A sibling is a child of the same parent. A node with no parent gets a child instead. */
@@ -585,6 +628,115 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       : null
   }, [map.data])
 
+  /** What a copy or a cut would carry off, with each node's subtree under it. */
+  const capture = useCallback(
+    (placeAt?: Parameters<typeof captureSelection>[3]) =>
+      map.data && hierarchy
+        ? captureSelection(map.data, hierarchy, selection.elements, placeAt)
+        : { ids: [], specs: [] },
+    [hierarchy, map.data, selection],
+  )
+
+  /**
+   * Selects whatever an add op just made.
+   *
+   * Every spec sent for a paste or a duplicate carries a ref, and nothing else in the batch does, so
+   * what comes back is exactly the new tops and not their children. Selecting them is what makes a
+   * paste feel like the thing you pasted arrived, and it puts a second press of the same keys where
+   * you would expect it.
+   */
+  const selectCreated = useCallback((result: MindmapOpsResult | null | undefined) => {
+    const created = Object.values(result?.createdIds ?? {})
+    if (created.length > 0) {
+      setSelection(selectElements(created))
+    }
+  }, [])
+
+  /**
+   * Holds a copy of the selection. An empty selection leaves the last copy alone rather than clearing it.
+   *
+   * Captured where it is drawn, which a paste then moves as one piece. The absolute coordinates are
+   * meaningless anywhere else, but the distances between them are the shape of the branch, and that is
+   * what a paste has to arrive with.
+   */
+  const copySelection = useCallback(() => {
+    const taken = map.data
+      ? capture(offsetPlacement(map.data, scene?.elements ?? [], 0, 0))
+      : { ids: [], specs: [] }
+    if (taken.specs.length > 0) {
+      holdCopy(taken.specs)
+    }
+    return taken
+  }, [capture, map.data, scene])
+
+  const cutSelection = useCallback(() => {
+    const taken = copySelection()
+    // Only what the copy actually carried. A selection can hold a shape the capture left behind, and
+    // a cut that took it away would be removing something nothing is holding on to.
+    if (taken.ids.length > 0) {
+      void editor.apply([op.del(taken.ids)], { label: t("Mindmap", "Cut") })
+    }
+  }, [copySelection, editor, t])
+
+  /**
+   * Puts the held copy down, under the selected node.
+   *
+   * Under rather than beside, because a mindmap is written by hanging things off other things and the
+   * node you have selected is the one you are working on. With nothing selected it lands in the middle
+   * of what is on screen, which is the only other honest answer: a paste has to arrive somewhere you
+   * are looking, and off-screen is the same as lost.
+   *
+   * Placed here rather than left to the server for the reason a new child is, and moved as one piece
+   * so the branch keeps its shape. One op for the whole thing however deep it is: the add op plants a
+   * nested subtree in a single step, so a paste of forty nodes is one undo.
+   */
+  const pasteCopy = useCallback(async () => {
+    const held = heldCopy()
+    if (held.length === 0) {
+      return
+    }
+    const primary = selection.primary?.kind === "element" ? selection.primary.id : null
+    const under = scene?.elements.find(
+      (candidate) => candidate.id === primary && candidate.kind === "node",
+    )
+    const at = (under ? childSpot(under.id) : null) ?? viewportCentre()
+
+    const origin = captureOrigin(held)
+    const placed = origin ? translated(held, at.x - origin.x, at.y - origin.y) : held
+    const result = await editor.apply([op.addNodes(placed.map(withRef), under?.id)], {
+      label: t("Mindmap", "Paste"),
+    })
+    selectCreated(result)
+  }, [childSpot, editor, scene, selectCreated, selection, t, viewportCentre])
+
+  /**
+   * A second copy of the selection, a step down and to the right of the first.
+   *
+   * Each one is planted under the parent of what it was copied from, so a duplicated child is a
+   * sibling rather than a child of itself. One op per top and one batch, because a selection can span
+   * parents and an add op plants under one.
+   *
+   * The step is what makes it visible as a second thing. A copy sent with no coordinates would land
+   * on the origin rather than beside what it came from, and one sent with the same coordinates would
+   * sit exactly on top of it, which reads as nothing having happened.
+   */
+  const duplicateSelection = useCallback(async () => {
+    if (!map.data) {
+      return
+    }
+    const taken = capture(offsetPlacement(map.data, scene?.elements ?? [], DUPLICATE_STEP, DUPLICATE_STEP))
+    if (taken.specs.length === 0) {
+      return
+    }
+    const result = await editor.apply(
+      taken.specs.map((spec, index) =>
+        op.addNodes([withRef(spec, index)], hierarchy?.byId.get(taken.ids[index])?.parentId ?? undefined),
+      ),
+      { label: t("Mindmap", "Duplicate") },
+    )
+    selectCreated(result)
+  }, [capture, editor, hierarchy, map.data, scene, selectCreated, t])
+
   const deleteSelection = useCallback(() => {
     const ops: MindmapOp[] = []
     if (selection.elements.size > 0) {
@@ -852,6 +1004,19 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         setSelection(selectElements(scene?.elements.map((element) => element.id) ?? []))
         return
       }
+      if (modified && CLIPBOARD_KEYS.has(key)) {
+        event.preventDefault()
+        if (key === "c") {
+          copySelection()
+        } else if (key === "x") {
+          cutSelection()
+        } else if (key === "v") {
+          void pasteCopy()
+        } else {
+          void duplicateSelection()
+        }
+        return
+      }
       if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault()
         deleteSelection()
@@ -867,7 +1032,21 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         setSelection(EMPTY_SELECTION)
       }
     },
-    [addChild, addSibling, beginEdit, deleteSelection, editor, radial, scene, selection, tool],
+    [
+      addChild,
+      addSibling,
+      beginEdit,
+      copySelection,
+      cutSelection,
+      deleteSelection,
+      duplicateSelection,
+      editor,
+      pasteCopy,
+      radial,
+      scene,
+      selection,
+      tool,
+    ],
   )
 
   if (map.isError) {

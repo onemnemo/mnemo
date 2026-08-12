@@ -862,7 +862,10 @@
     "OpenRef": "参照を開く",
     "ToggleTask": "タスクを切り替え",
     "ChangeType": "種類を変更",
-    "LinkUrlRejected": "このアドレスは開けません"
+    "LinkUrlRejected": "このアドレスは開けません",
+    "Copy": "コピー",
+    "Cut": "切り取り",
+    "Paste": "貼り付け"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",
