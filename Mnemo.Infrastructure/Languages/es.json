@@ -830,7 +830,8 @@
     "BackgroundPlain": "Liso",
     "StyleMap": "Aplicar estilo al mapa",
     "Group": "Agrupar",
-    "Ungroup": "Desagrupar"
+    "Ungroup": "Desagrupar",
+    "Resize": "Redimensionar"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

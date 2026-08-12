@@ -140,6 +140,9 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
 
   const applyCamera = (notify = true): void => {
     elements.world.style.transform = worldTransform(viewport)
+    // Chrome drawn inside an element, which is scaled with everything else, has to be told what to
+    // undo. Only the selection carries any, so this costs a property write per selected element.
+    index.writeZoom(viewport.zoom)
     if (edgeCamera) {
       edgeCamera.setAttribute("transform", svgCameraTransform(viewport))
     }

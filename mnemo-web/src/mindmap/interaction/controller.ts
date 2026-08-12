@@ -16,6 +16,7 @@ import type { SceneIndex } from "../canvas/scene-index"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import { hitEdge } from "./hit-test"
 import { elementsInRect, rectBetween } from "./marquee"
+import { boxChanged, resizeBox, type ResizeBox, type ResizeDir } from "./resize"
 import type { MindmapTool } from "./tool"
 import {
   addElements,
@@ -79,6 +80,8 @@ export interface InteractionHandlers {
   plant(tool: MindmapTool, at: Point): void
   /** A sweep with the frame tool armed. Never called with nothing caught. */
   group(ids: readonly string[]): void
+  /** A grip was dragged, and let go somewhere that means a different box. One gesture, one call. */
+  commitResize(id: string, box: ResizeBox): void
   /** A connect drag landed on a node. Whether that links or unlinks is the caller's to decide. */
   connect(fromId: string, toId: string): void
 }
@@ -119,6 +122,18 @@ type Gesture =
       readonly pointerId: number
       readonly fromId: string
       readonly line: SVGSVGElement
+    }
+  | {
+      readonly kind: "resize"
+      readonly pointerId: number
+      readonly id: string
+      readonly dir: ResizeDir
+      readonly startCanvas: Point
+      /** The box the grip was taken from. Every frame is measured off this, never off the last one. */
+      readonly origin: ResizeBox
+      readonly incident: readonly string[]
+      /** Where the box currently is, which is what a release commits. */
+      box: ResizeBox
     }
 
 export function installInteraction(
@@ -169,6 +184,10 @@ export function installInteraction(
   const elementAt = (target: EventTarget | null): string | null =>
     (target as HTMLElement | null)?.closest?.<HTMLElement>(".mm-node")?.dataset.mmId ?? null
 
+  const handleAt = (target: EventTarget | null): ResizeDir | null =>
+    ((target as HTMLElement | null)?.closest?.<HTMLElement>("[data-mm-handle]")?.dataset
+      .mmHandle as ResizeDir | undefined) ?? null
+
   const edgeAt = (point: Point): string | null =>
     hitEdge({
       edges: scene.edges,
@@ -197,6 +216,28 @@ export function installInteraction(
     const startCanvas = surface.toCanvas(event.clientX, event.clientY)
     const elementId = elementAt(event.target)
     const tool = handlers.tool()
+
+    // Before anything else, including the armed tool: a grip is only on screen because the element
+    // is selected, and pressing one can mean nothing but "resize this". Like a connect drag it is a
+    // drag by definition, so it takes the capture at once and skips the threshold.
+    const dir = handleAt(event.target)
+    const grabbed = dir && elementId ? index.boxOf(elementId) : undefined
+    if (dir && elementId && grabbed) {
+      const incident = index.incidentEdges([elementId])
+      pane.setPointerCapture(event.pointerId)
+      surface.pin([elementId], incident)
+      gesture = {
+        kind: "resize",
+        pointerId: event.pointerId,
+        id: elementId,
+        dir,
+        startCanvas,
+        origin: grabbed,
+        incident,
+        box: grabbed,
+      }
+      return
+    }
 
     // A connect drag is a drag by definition, so it needs no threshold and takes the capture at
     // once. It starts on a node and nowhere else; pressing empty canvas with it armed still clears
@@ -322,6 +363,23 @@ export function installInteraction(
       return
     }
 
+    if (gesture.kind === "resize") {
+      const at = surface.toCanvas(event.clientX, event.clientY)
+      // Off the origin and the total delta, for the same reason a drag is: an accumulated delta
+      // drifts, and here it would drift against the grip the pointer is still holding.
+      gesture.box = resizeBox(
+        gesture.origin,
+        gesture.dir,
+        at.x - gesture.startCanvas.x,
+        at.y - gesture.startCanvas.y,
+        event.shiftKey,
+      )
+      index.writeBox(gesture.id, gesture.box)
+      index.repaintEdges(gesture.incident)
+      surface.redraw(gesture.incident)
+      return
+    }
+
     if (gesture.kind === "press") {
       const far =
         Math.abs(event.clientX - gesture.startClient.x) +
@@ -390,6 +448,16 @@ export function installInteraction(
       return
     }
 
+    if (finished.kind === "resize") {
+      surface.unpin()
+      // A grip pressed and let go without moving is a click on a grip, which is not an edit. Left
+      // unchecked it would put a no-op on the undo stack for every miss.
+      if (boxChanged(finished.origin, finished.box)) {
+        handlers.commitResize(finished.id, finished.box)
+      }
+      return
+    }
+
     if (finished.kind === "connect") {
       finished.line.remove()
       // Capture retargets the release to the pane, so the node under the pointer has to be looked
@@ -442,6 +510,12 @@ export function installInteraction(
       // is an edit nobody asked for and nothing recorded.
       const plan = gesture.plan
       index.writePositions(plan.ids, (id) => plan.origins.get(id))
+      index.repaintEdges(gesture.incident)
+      surface.redraw(gesture.incident)
+      surface.unpin()
+    }
+    if (gesture.kind === "resize") {
+      index.writeBox(gesture.id, gesture.origin)
       index.repaintEdges(gesture.incident)
       surface.redraw(gesture.incident)
       surface.unpin()

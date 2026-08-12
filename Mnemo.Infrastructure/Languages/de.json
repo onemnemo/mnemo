@@ -824,7 +824,8 @@
     "BackgroundPlain": "Schlicht",
     "StyleMap": "Karte gestalten",
     "Group": "Gruppieren",
-    "Ungroup": "Gruppierung aufheben"
+    "Ungroup": "Gruppierung aufheben",
+    "Resize": "Größe ändern"
   },
   "GlobalSearch": {
     "ShortcutHint": "Strg/Cmd + K",

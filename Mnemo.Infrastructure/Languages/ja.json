@@ -830,7 +830,8 @@
     "BackgroundPlain": "なし",
     "StyleMap": "マップのスタイル",
     "Group": "グループ化",
-    "Ungroup": "グループ解除"
+    "Ungroup": "グループ解除",
+    "Resize": "サイズ変更"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

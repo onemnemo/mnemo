@@ -880,7 +880,8 @@
     "BackgroundPlain": "Plain",
     "StyleMap": "Style map",
     "Group": "Group",
-    "Ungroup": "Ungroup"
+    "Ungroup": "Ungroup",
+    "Resize": "Resize"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",
