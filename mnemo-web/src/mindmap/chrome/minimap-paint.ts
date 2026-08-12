@@ -11,6 +11,7 @@
  * rectangle over it.
  */
 
+import { markColor } from "../scene/branch"
 import { boundsOf, type SceneElement, type Point, type Viewport } from "../model/scene"
 
 /** World units of air kept around the content, so the outermost nodes are not against the frame. */
@@ -23,9 +24,6 @@ const SWATCH_RADIUS = 1.5
 const VIEWPORT_RADIUS = 2
 const VIEWPORT_WEIGHT = 1.5
 
-/** What a swatch falls back to when its element carries no colour of its own. */
-const MUTED = "var(--ink-3)"
-const FRAME_STROKE = "var(--line)"
 const VIEWPORT_STROKE = "var(--ink-3)"
 
 /** Only the parts of a 2D context the minimap touches. */
@@ -110,15 +108,16 @@ export function paintSwatches(
     context.roundRect(x, y, width, height, SWATCH_RADIUS)
 
     // A frame reads as a container: outline only, so the members inside it stay visible. Filled, it
-    // would hide the part of the map it is there to group.
+    // would hide the part of the map it is there to group. Its fill is left out of the question for
+    // the same reason: a container is coloured by the line around it.
     if (element.kind === "frame") {
-      context.strokeStyle = resolve(element.stroke ?? FRAME_STROKE)
+      context.strokeStyle = resolve(markColor({ stroke: element.stroke, branchColor: element.branchColor }))
       context.lineWidth = 1
       context.stroke()
       continue
     }
 
-    context.fillStyle = resolve(element.fill ?? element.stroke ?? MUTED)
+    context.fillStyle = resolve(markColor(element))
     context.fill()
   }
 }
