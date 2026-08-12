@@ -18,6 +18,7 @@ import { buildShelf, folderNames, recentMaps, resolveFolderId } from "../library
 import { useLibraryView } from "../library/store"
 import { useDueByMap } from "../library/useDueByMap"
 import { useLibraryActions } from "../library/useLibraryActions"
+import { MindmapTransferOverlay } from "../transfer/MindmapTransferOverlay"
 
 const RECENT_COUNT = 3
 
@@ -59,6 +60,7 @@ export function MindmapLibraryRoute() {
 
   const recents = useMemo(() => recentMaps(entries, RECENT_COUNT), [entries])
   const names = useMemo(() => folderNames(entries, folders), [entries, folders])
+  const allMapIds = useMemo(() => entries.map((entry) => entry.document.id), [entries])
 
   const templates = templatesQuery.data?.templates ?? []
   const defaultTemplateId = templatesQuery.data?.defaultId ?? ""
@@ -126,6 +128,7 @@ export function MindmapLibraryRoute() {
           mapCount={entries.length}
           folderCount={folders.length}
           dueCount={folderDue}
+          allMapIds={allMapIds}
           actions={actions}
         />
 
@@ -224,6 +227,8 @@ export function MindmapLibraryRoute() {
           />
         ) : null}
       </div>
+
+      <MindmapTransferOverlay />
     </div>
   )
 }

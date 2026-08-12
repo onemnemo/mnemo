@@ -5,6 +5,7 @@ import { useI18nStore } from "@/i18n/store"
 import { useT } from "@/i18n/useT"
 import { formatSmart } from "@/lib/relative-date"
 
+import { useMindmapTransfer } from "../../transfer/store"
 import type { FolderCardModel } from "../shelf"
 import type { LibraryActions } from "../useLibraryActions"
 import { FolderMenuItems } from "./FolderCard"
@@ -20,6 +21,7 @@ export function LibraryHeader({
   mapCount,
   folderCount,
   dueCount,
+  allMapIds,
   actions,
 }: {
   /** Null at the root, where the header names the module instead of a folder. */
@@ -27,11 +29,14 @@ export function LibraryHeader({
   mapCount: number
   folderCount: number
   dueCount: number
+  /** Every map in the library, which is what the root's export offers. */
+  allMapIds: readonly string[]
   actions: LibraryActions
 }) {
   const t = useT()
   const language = useI18nStore((state) => state.language)
   const mm = (key: string) => t("Mindmap", key)
+  const openTransfer = useMindmapTransfer((state) => state.open)
 
   const updated = folder?.modifiedAt ? formatSmart(folder.modifiedAt, Date.now(), t, language) : "—"
   const countLine = folder
@@ -73,7 +78,22 @@ export function LibraryHeader({
               <FolderMenuItems folder={folder} actions={actions} leaving />
             </MenuContent>
           </Menu>
-        ) : null}
+        ) : (
+          // Root only. An imported package restores the folders its maps were filed in, so there is
+          // nothing a folder's own Transfer button would do differently than this one.
+          <Button
+            variant="outline"
+            icon={<AppIcon name="common/download" size={15} />}
+            onClick={() =>
+              openTransfer({
+                direction: "both",
+                scope: { label: mm("TransferScopeAllMindmaps"), mapIds: [...allMapIds] },
+              })
+            }
+          >
+            {mm("Transfer")}
+          </Button>
+        )}
 
         <Menu>
           <MenuTrigger asChild>

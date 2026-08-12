@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 
 import type { StyleTemplate } from "../../model/document"
 import { MindmapThumbnail } from "../../page/MindmapThumbnail"
+import { useMindmapTransfer } from "../../transfer/store"
 import type { MapCardModel } from "../shelf"
 import type { LibraryActions } from "../useLibraryActions"
 import { CardMenuButton } from "./CardMenuButton"
@@ -102,6 +103,8 @@ export function DueBadge({ due, className }: { due: number; className?: string }
 export function MapMenuItems({ map, actions }: { map: MapCardModel; actions: LibraryActions }) {
   const t = useT()
   const mm = (key: string) => t("Mindmap", key)
+  const openTransfer = useMindmapTransfer((state) => state.open)
+  const title = map.title || mm("UntitledMap")
 
   return (
     <>
@@ -110,6 +113,12 @@ export function MapMenuItems({ map, actions }: { map: MapCardModel; actions: Lib
       </MenuItem>
       <MenuItem icon="common/copy" onSelect={() => void actions.duplicateMap(map.id)}>
         {mm("Duplicate")}
+      </MenuItem>
+      <MenuItem
+        icon="common/upload"
+        onSelect={() => openTransfer({ direction: "export", scope: { label: title, mapIds: [map.id] } })}
+      >
+        {mm("Export")}
       </MenuItem>
       <MenuSeparator />
       <MenuItem icon="common/trash" danger onSelect={() => void actions.deleteMap(map.id, map.title)}>
