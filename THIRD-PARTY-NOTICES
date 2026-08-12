@@ -1,0 +1,195 @@
+Mnemo third-party notices
+
+Mnemo's own source code is licensed under the Apache License, Version 2.0; see LICENSE
+at the repository root. This file lists the third-party software, fonts, and other
+assets that Mnemo bundles, redistributes, or depends on, together with their licenses.
+It supplements, and does not replace, the license each package already carries.
+
+Full license texts that are not already short enough to quote in full live under
+LICENSES/ at the repository root, or travel directly alongside the asset they cover
+(the bundled fonts each carry their own copy; see the Fonts section).
+
+This list was built from the dependency manifests in this repository (package.json,
+the .csproj files, scripts/typst-manifest.json) as of this writing. It is not a
+substitute for running your own license scan before redistributing a build; see
+"What this does not cover" at the end of this file.
+
+
+FONTS
+
+Mnemo bundles four font families under the SIL Open Font License, Version 1.1. The
+full license text ships as LICENSES/OFL-1.1.txt, and again as OFL.txt directly beside
+each set of font files so the notice travels with the packaged app.
+
+  Inter
+    Files:     mnemo-web/public/fonts/inter-*.woff2 (8 files); also embedded in the
+               compiled Avalonia.Fonts.Inter NuGet package used by Mnemo.UI
+    Copyright: (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
+    License:   SIL Open Font License 1.1
+
+  Geist
+    Files:     Mnemo.Host/TypstRuntime/fonts/Geist-*.ttf (6 weights)
+    Copyright: (c) 2023 Vercel, in collaboration with basement.studio
+               (https://github.com/vercel/geist-font)
+    License:   SIL Open Font License 1.1
+
+  Geist Mono
+    Files:     mnemo-web/public/fonts/GeistMono-Regular.ttf,
+               Mnemo.Host/TypstRuntime/fonts/GeistMono-Regular.ttf
+    Copyright: (c) 2023 Vercel, in collaboration with basement.studio
+               (https://github.com/vercel/geist-font)
+    License:   SIL Open Font License 1.1
+
+  STIX Two Math
+    Files:     mnemo-web/public/fonts/STIXTwoMath-Regular.ttf
+    Copyright: 2001-2021 The STIX Fonts Project Authors
+               (https://github.com/stipub/stixfonts), with Reserved Font Name
+               "TM Math". STIX Fonts(TM) is a trademark of The Institute of
+               Electrical and Electronics Engineers, Inc.
+    License:   SIL Open Font License 1.1
+
+None of these four are Mnemo's own work, and none of their copyright holders endorse
+Mnemo.
+
+
+TYPST AND MITEX (PDF export pipeline)
+
+Mnemo.Host bundles a per-platform Typst compiler binary (restored by
+scripts/restore-typst at build time, pinned in scripts/typst-manifest.json) and
+vendors the mitex Typst package, used together to render Notes documents to PDF.
+
+  Typst
+    Version:   0.15.1
+    Source:    https://github.com/typst/typst
+    License:   Apache License, Version 2.0 (same license as this project; see LICENSE)
+
+  mitex
+    Version:   0.2.7
+    Source:    https://github.com/mitex-rs/mitex
+    Vendored:  Mnemo.Host/TypstRuntime/typst-packages/preview/mitex/0.2.7/
+    License:   Apache License, Version 2.0. A copy ships with the vendored package at
+               Mnemo.Host/TypstRuntime/typst-packages/preview/mitex/0.2.7/LICENSE
+
+
+SPELLCHECK DICTIONARIES
+
+Mnemo.Infrastructure/Dictionaries/Spellcheck/ bundles Hunspell dictionary files
+(.aff/.dic pairs) for en, de, es, and nb, used by the WeCantSpell.Hunspell package
+(see below). Their licenses are not uniform:
+
+  de (German)
+    The bundled de.aff states its own header: "Copyright (C) 1998-2015 Bjoern Jacke
+    <bjoern@j3e.de>", derived from the igerman98 dictionary, "License: GPLv2, GPLv3".
+    This is a copyleft license, unlike everything else in this file. A copy of the
+    GPL was not found bundled with the dictionary files in this repository as of this
+    writing; that needs fixing separately from this notice file.
+
+  en, es, nb
+    These files carry no license header of their own. The en dictionary's affix file
+    credits wordlist.aspell.net; published guidance for that project describes its
+    English word lists as covering a mix of LGPL and BSD-style terms, but that could
+    not be confirmed from the files as shipped in this repository. The provenance and
+    license of the es and nb dictionaries could not be established from the files
+    themselves. Treat these three as unverified rather than as confirmed-permissive.
+
+This section is a known gap, not a completed clearance. It is called out here rather
+than left silent because the German dictionary's GPL terms are a real redistribution
+obligation that nothing else in the repository currently documents.
+
+
+FRONTEND (mnemo-web) NPM DEPENDENCIES
+
+Direct dependencies declared in mnemo-web/package.json, grouped by license. Version
+ranges are as pinned there; run `npm ls` in mnemo-web/ for exact resolved versions.
+Transitive dependencies are not enumerated individually here; see "What this does not
+cover" below.
+
+  MIT License
+    @tailwindcss/vite, @tanstack/react-query, @xyflow/react, clsx, emojilib, katex,
+    prosemirror-commands, prosemirror-history, prosemirror-keymap, prosemirror-model,
+    prosemirror-state, prosemirror-view, radix-ui, react, react-dom, react-markdown,
+    remark-gfm, remark-math, remark-parse, tailwind-merge, tailwindcss,
+    tw-animate-css, unicode-emoji-json, zustand
+    (dev) @types/katex, @types/node, @types/react, @types/react-dom,
+    @vitejs/plugin-react, jsdom, oxlint, vite, vitest
+
+  Apache License, Version 2.0
+    class-variance-authority, pdfjs-dist
+    (dev) typescript
+
+  ISC License
+    lucide-react
+    Used only through the AppIcon wrapper (mnemo-web/src/components/icon); Mnemo does
+    not import lucide-react's icons directly outside that one module.
+
+The full text of the MIT and ISC licenses is short and standard; copies live at
+LICENSES/MIT.txt and LICENSES/ISC.txt. Apache License 2.0 is the same license this
+project's own source code uses; see LICENSE at the repository root for its full text.
+
+
+BACKEND (.NET) NUGET DEPENDENCIES
+
+Direct PackageReferences across Mnemo.Core, Mnemo.Infrastructure, Mnemo.Host, and
+Mnemo.UI, the assemblies that ship in a built app. Test-project-only packages
+(coverlet.collector, Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) are
+omitted; they never leave the test binaries. Transitive package dependencies are not
+enumerated individually here; see "What this does not cover" below.
+
+  MIT License
+    Avalonia, Avalonia.Controls.ItemsRepeater, Avalonia.Desktop, Avalonia.Fonts.Inter,
+    CommunityToolkit.Mvvm, Microsoft.Data.Sqlite, Microsoft.Extensions.DependencyInjection,
+    Microsoft.Extensions.Http, Microsoft.ML.OnnxRuntime, Microsoft.ML.OnnxRuntime.Managed,
+    SkiaSharp, SkiaSharp.NativeAssets.Linux, Svg.Skia, System.Management,
+    TextMateSharp, TextMateSharp.Grammars, Tmds.DBus.Protocol, Velopack,
+    DocumentFormat.OpenXml
+
+  Apache License, Version 2.0
+    Google.Apis.Auth, ModelContextProtocol.AspNetCore, PhotinoX (and its native
+    counterpart PhotinoX.Native, pulled in transitively; do not reference it directly,
+    see Mnemo.Host.csproj)
+
+  BSD 2-Clause License
+    Markdig
+
+  MPL-1.1 / GPL-2.0 / LGPL-2.1 (tri-licensed, choose one)
+    WeCantSpell.Hunspell. The package is a C# port of the original Hunspell project
+    and inherits its license; a copy ships with the package's own NuGet metadata.
+
+  License not declared by the publisher
+    AvaloniaUI.DiagnosticsSupport. Its NuGet package metadata carries no license
+    expression, license file, or license URL, and none could be confirmed from the
+    AvaloniaUI project pages at the time of writing. It is part of the same AvaloniaUI
+    organization's toolset as the MIT-licensed Avalonia packages above, but that is
+    not the same as a confirmed license and should not be treated as one.
+
+  Custom fork, upstream license Apache-2.0
+    UglyToad.PdfPig, restored from a private feed at version 1.7.0-custom-5. That
+    package build carries no license metadata of its own. The upstream open-source
+    project it is forked from (https://github.com/UglyToad/PdfPig) is Apache License
+    2.0; this notice records that as the best available basis rather than as a
+    verified statement about the exact custom build in use.
+
+Mnemo.Host also declares a FrameworkReference on Microsoft.AspNetCore.App, and every
+.NET project targets net10.0. Both are part of the .NET runtime and ASP.NET Core,
+distributed under the MIT license by Microsoft as part of the .NET SDK and runtime
+installers; Mnemo does not vendor or redistribute the runtime itself, contributors
+and users each install their own.
+
+PhotinoX renders the app window using the operating system's own web view control
+(Microsoft Edge WebView2 on Windows, WebKitGTK on Linux, WKWebView on macOS) rather
+than bundling a browser engine. Those components are not Mnemo's to license: they
+ship with, or are installed by, the operating system, under their own vendors' terms.
+
+
+WHAT THIS DOES NOT COVER
+
+This file lists direct dependencies as declared in this repository's own manifests.
+It does not enumerate the full transitive dependency tree (the packages your direct
+dependencies themselves depend on), and it does not cover build-time-only tooling
+that never ships in a built app (test frameworks, linters, the TypeScript compiler's
+own runtime). A full software bill of materials would need a generated report from
+each ecosystem's own tooling (for example `npm ls` plus each package's declared
+license, or a NuGet license-audit tool), which this file is not a substitute for.
+
+If you find an inaccuracy here, or a bundled asset that is missing entirely, please
+open an issue.
