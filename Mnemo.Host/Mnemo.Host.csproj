@@ -12,10 +12,9 @@
     <ApplicationIcon>..\Mnemo.UI\Assets\AppIcons\AppIconDawn.ico</ApplicationIcon>
 
     <!-- Explorer reads these off the exe; the version fields come from Directory.Build.props.
-         These are the property names the SDK actually maps to the Win32 version resource.
-         The Assembly* spellings (AssemblyProduct, AssemblyCompany, AssemblyCopyright) are
-         not SDK properties and stamp nothing, which is why the shipped exe used to carry
-         its assembly name as the product. -->
+         The five the SDK maps into the Win32 version resource, AssemblyTitle as its
+         FileDescription. AssemblyDescription, AssemblyCompany, AssemblyProduct and
+         AssemblyCopyright are not SDK properties and stamp nothing into the exe. -->
     <AssemblyTitle>Mnemo</AssemblyTitle>
     <Description>Local-first AI-powered learning environment.</Description>
     <Company>Mnemo</Company>

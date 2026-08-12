@@ -10,11 +10,14 @@
     <ApplicationIcon>Assets\AppIcons/AppIconDawn.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 
+    <!-- The five the SDK maps into the Win32 version resource, AssemblyTitle as its
+         FileDescription. AssemblyDescription, AssemblyCompany, AssemblyProduct and
+         AssemblyCopyright are not SDK properties and stamp nothing into the exe. -->
     <AssemblyTitle>Mnemo</AssemblyTitle>
-    <AssemblyDescription>Local-first AI-powered learning environment.</AssemblyDescription>
-    <AssemblyCompany>Mnemo</AssemblyCompany>
-    <AssemblyProduct>Mnemo</AssemblyProduct>
-    <AssemblyCopyright>Copyright © Mnemo 2026</AssemblyCopyright>
+    <Description>Local-first AI-powered learning environment.</Description>
+    <Company>Mnemo</Company>
+    <Product>Mnemo</Product>
+    <Copyright>Copyright © Mnemo 2026</Copyright>
 
     <!--
       Performance tuning:

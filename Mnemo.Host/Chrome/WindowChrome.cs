@@ -1,5 +1,6 @@
 using System;
 using System.Text.Json;
+using Mnemo.Core.Services;
 using Photino.NET;
 
 namespace Mnemo.Host.Chrome;
@@ -29,7 +30,7 @@ internal static class WindowChrome
 
     private const int LinuxResizeBorder = 6;
 
-    public static void Configure(PhotinoWindow window)
+    public static void Configure(PhotinoWindow window, ILoggerService? logger = null)
     {
         window.SetChromeless(true);
 
@@ -52,7 +53,7 @@ internal static class WindowChrome
 
             // The drag regions decide who runs the gesture; this decides whether
             // Windows considers the result a window worth snapping.
-            WindowFrame.Attach(window);
+            WindowFrame.Attach(window, logger);
         }
 
         if (OperatingSystem.IsLinux())
