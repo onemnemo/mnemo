@@ -828,7 +828,9 @@
     "BackgroundDots": "Puntos",
     "BackgroundGrid": "Cuadrícula",
     "BackgroundPlain": "Liso",
-    "StyleMap": "Aplicar estilo al mapa"
+    "StyleMap": "Aplicar estilo al mapa",
+    "Group": "Agrupar",
+    "Ungroup": "Desagrupar"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

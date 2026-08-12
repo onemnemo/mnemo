@@ -828,7 +828,9 @@
     "BackgroundDots": "Prikker",
     "BackgroundGrid": "Rutenett",
     "BackgroundPlain": "Enkel",
-    "StyleMap": "Stil på kart"
+    "StyleMap": "Stil på kart",
+    "Group": "Grupper",
+    "Ungroup": "Løs opp gruppe"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

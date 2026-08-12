@@ -44,6 +44,8 @@ export interface MindmapCanvasProps {
   tool?: MindmapTool
   /** An armed creation tool was used on empty canvas. */
   onPlant?: (tool: MindmapTool, at: Point) => void
+  /** A sweep with the frame tool armed caught these. */
+  onGroup?: (ids: readonly string[]) => void
   /** A connect drag landed on a node. */
   onConnect?: (fromId: string, toId: string) => void
   /** The camera stopped moving, for a zoom readout. Never per frame. */
@@ -79,6 +81,7 @@ export function MindmapCanvas({
   subtreeOf,
   tool = "select",
   onPlant,
+  onGroup,
   onConnect,
   onCameraSettled,
   className,
@@ -105,6 +108,7 @@ export function MindmapCanvas({
     subtreeOf,
     tool,
     onPlant,
+    onGroup,
     onConnect,
     onCameraSettled,
   })
@@ -116,6 +120,7 @@ export function MindmapCanvas({
     subtreeOf,
     tool,
     onPlant,
+    onGroup,
     onConnect,
     onCameraSettled,
   }
@@ -184,6 +189,7 @@ export function MindmapCanvas({
         commitMove: (moves) => live.current.onCommitMove?.(moves),
         activate: (id) => live.current.onActivate?.(id),
         plant: (armed, at) => live.current.onPlant?.(armed, at),
+        group: (ids) => live.current.onGroup?.(ids),
         connect: (fromId, toId) => live.current.onConnect?.(fromId, toId),
       },
     )

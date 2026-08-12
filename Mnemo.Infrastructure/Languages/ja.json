@@ -828,7 +828,9 @@
     "BackgroundDots": "ドット",
     "BackgroundGrid": "グリッド",
     "BackgroundPlain": "なし",
-    "StyleMap": "マップのスタイル"
+    "StyleMap": "マップのスタイル",
+    "Group": "グループ化",
+    "Ungroup": "グループ解除"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

@@ -22,6 +22,7 @@ const TOOLS: readonly ToolEntry[] = [
   { tool: "shape", icon: "square", key: "ToolShape" },
   { tool: "text", icon: "type", key: "ToolText" },
   { tool: "connect", icon: "spline", key: "ToolConnect" },
+  { tool: "frame", icon: "frame", key: "ToolFrame" },
 ]
 
 /** What a zoom button multiplies by. Matches a wheel notch closely enough that the two agree. */

@@ -77,6 +77,8 @@ export interface InteractionHandlers {
   activate(id: string): void
   /** An armed creation tool was used on empty canvas. */
   plant(tool: MindmapTool, at: Point): void
+  /** A sweep with the frame tool armed. Never called with nothing caught. */
+  group(ids: readonly string[]): void
   /** A connect drag landed on a node. Whether that links or unlinks is the caller's to decide. */
   connect(fromId: string, toId: string): void
 }
@@ -108,6 +110,8 @@ type Gesture =
       readonly startClient: Point
       readonly startCanvas: Point
       readonly additive: boolean
+      /** What the sweep is for. Decided when it starts, so a tool change mid-gesture cannot rewrite it. */
+      readonly groups: boolean
       readonly box: HTMLElement
     }
   | {
@@ -142,9 +146,23 @@ export function installInteraction(
    * children would stretch the branches rather than move the idea. This is the one place the port
    * needs it explicitly, because layout here is freeform until Arrange: there is no engine that will
    * quietly reflow the children afterwards the way the desktop's does.
+   *
+   * A frame's list is expanded through the same rule before it is handed over, since the drag plan
+   * expands one level only by design and a member that is a topic still owns its branch.
    */
-  const travellingWith = (id: string): readonly string[] | undefined =>
-    frameMembers.get(id) ?? surface.subtreeOf(id)
+  const travellingWith = (id: string): readonly string[] | undefined => {
+    const members = frameMembers.get(id)
+    if (!members) {
+      return surface.subtreeOf(id)
+    }
+    const travelling = new Set(members)
+    for (const memberId of members) {
+      for (const descendantId of surface.subtreeOf(memberId)) {
+        travelling.add(descendantId)
+      }
+    }
+    return [...travelling]
+  }
 
   let gesture: Gesture = { kind: "none" }
 
@@ -285,6 +303,7 @@ export function installInteraction(
       startClient: press.startClient,
       startCanvas: press.startCanvas,
       additive: press.additive,
+      groups: handlers.tool() === "frame",
       box: openMarquee(pane),
     }
   }
@@ -391,6 +410,16 @@ export function installInteraction(
       return
     }
     const hits = elementsInRect(rect, sweepable(scene))
+
+    // The frame tool sweeps the same way selection does, and for the same reason: what a frame holds
+    // is a set of elements, and a rectangle dragged around them is how anyone says which.
+    if (finished.groups) {
+      if (hits.length > 0) {
+        handlers.group(hits)
+      }
+      return
+    }
+
     // Replace on release rather than add, which is deliberate and matches the desktop: a marquee is
     // how you say "these", and shift is how you say "and these too".
     handlers.setSelection(

@@ -6,7 +6,7 @@
  * on is the one thing a canvas app can get wrong that nothing else makes up for.
  */
 
-export type MindmapTool = "select" | "node" | "shape" | "text" | "connect"
+export type MindmapTool = "select" | "node" | "shape" | "text" | "connect" | "frame"
 
 /** The letter that arms each tool: one press, no modifier, and not while a field has the keyboard. */
 export const TOOL_KEYS: Readonly<Record<string, MindmapTool>> = {
@@ -15,6 +15,7 @@ export const TOOL_KEYS: Readonly<Record<string, MindmapTool>> = {
   s: "shape",
   t: "text",
   c: "connect",
+  g: "frame",
 }
 
 /** The letter shown next to a tool's name, so the dock teaches its own shortcuts. */
@@ -24,6 +25,7 @@ export const TOOL_KEY_OF: Readonly<Record<MindmapTool, string>> = {
   shape: "S",
   text: "T",
   connect: "C",
+  frame: "G",
 }
 
 /**
@@ -49,6 +51,7 @@ export function cursorFor(tool: MindmapTool): string | undefined {
     case "text":
       return "cursor-copy"
     case "connect":
+    case "frame":
       return "cursor-crosshair"
     default:
       return undefined
