@@ -860,7 +860,9 @@
     "ApplyBelow": "Og alt under den",
     "StyleBranch": "Utform grenen",
     "OpenRef": "Åpne referanse",
-    "ToggleTask": "Veksle oppgave"
+    "ToggleTask": "Veksle oppgave",
+    "ChangeType": "Endre type",
+    "LinkUrlRejected": "Denne adressen kan ikke åpnes"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

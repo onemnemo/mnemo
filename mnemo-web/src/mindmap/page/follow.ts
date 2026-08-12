@@ -51,8 +51,12 @@ export function followRef(content: ElementContent): void {
  * A scheme is added rather than demanded, because "mnemo.app" is what people type and a link node
  * that refused it would be a link node nobody could make. The scheme check is the same one the notes
  * editor gates its links with, so `javascript:` is no more openable from a map than from a document.
+ *
+ * Exported because it is also the gate on making a link node in the first place. One function for
+ * both means a link that cannot be opened is a link that was never stored, rather than a node that
+ * looks like a link and does nothing when you double click it.
  */
-function absoluteUrl(raw: string | undefined): string | null {
+export function absoluteUrl(raw: string | undefined): string | null {
   const url = raw?.trim()
   if (!url || !isSafeUrl(url)) {
     return null

@@ -13,10 +13,12 @@ import type { ConnectStyle } from "../chrome/ConnectFlyout"
 import { MindmapToolDock } from "../chrome/MindmapToolDock"
 import type { BranchControl } from "../chrome/NodeBar"
 import { RadialMenu } from "../chrome/RadialMenu"
+import { RefPicker, type RefTarget } from "../chrome/RefPicker"
 import { ON_CANVAS, ON_NODE } from "../chrome/sectors"
 import { SaveTemplateDialog } from "../chrome/SaveTemplateDialog"
 import { MindmapSelectionBar } from "../chrome/SelectionBar"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
+import { carriedText, isPlainKind, linkContent, plainContent } from "../edit/convert"
 import { placeChild, type PlacedBox } from "../edit/placement"
 import { clearsAnything, restyledEdge } from "../edit/restyle"
 import type { MovedElement, NodeChrome } from "../interaction/controller"
@@ -30,6 +32,7 @@ import {
   edgeKind,
   LAYOUT_ALGORITHMS,
   type EdgeStyle,
+  type ElementContent,
   type ElementStyle,
   type FrameContent,
   type LayoutAlgorithm,
@@ -37,9 +40,10 @@ import {
   type StyleTemplate,
 } from "../model/document"
 import { op, type FrameOp, type MindmapOp } from "../model/ops"
-import { followRef, isFollowable } from "./follow"
+import { absoluteUrl, followRef, isFollowable } from "./follow"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import { branchRootOf, branchSwatchOf } from "../scene/branch"
+import { nodeKindOf, type NodeKind } from "../scene/content"
 import { analyzeHierarchy, childrenIds, descendantsOf, hierarchyEdgesBelow } from "../scene/hierarchy"
 import { frameBox, projectScene, type FrameMemberBox } from "../scene/project"
 import { sceneMeasurers } from "../scene/measurers"
@@ -109,6 +113,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const blank = useRef<string | null>(null)
   /** The node whose branch is being saved as a template, for as long as the dialog is up. */
   const [capturing, setCapturing] = useState<string | null>(null)
+  /** The node waiting on a reference to point at, and which library it is being picked from. */
+  const [picking, setPicking] = useState<{ id: string; target: RefTarget } | null>(null)
 
   // Waits for the templates to settle, not to succeed. They style a map rather than make one, so a
   // library that cannot be read costs the map its template rules and nothing else; refusing to draw
@@ -361,6 +367,79 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   )
 
   /**
+   * Turns the selected node into a different kind of node.
+   *
+   * The words come with it, because they are what is on screen and nobody converting a line into a
+   * task meant to lose the line. Four kinds are made of nothing else and land straight away. The
+   * other three point at something, which is a question rather than a conversion: a link is asked
+   * for as an address, and the two reference kinds open the picker on their own library.
+   *
+   * An address that will not open is refused rather than stored. The gate is the same function that
+   * follows a link, so a link node that exists is a link node that goes somewhere.
+   */
+  const changeKind = useCallback(
+    async (kind: NodeKind) => {
+      const id = selection.primary?.kind === "element" ? selection.primary.id : null
+      const element = id ? scene?.elements.find((candidate) => candidate.id === id) : null
+      if (!id || !element || nodeKindOf(element.content) === kind) {
+        return
+      }
+
+      const carried = carriedText(element.content, refs)
+      const step = { label: t("Mindmap", "ChangeType") }
+
+      if (isPlainKind(kind)) {
+        void editor.apply([op.set(id, { content: plainContent(kind, carried) })], step)
+        return
+      }
+      if (kind !== "link") {
+        setPicking({ id, target: kind })
+        return
+      }
+
+      const typed = await dialog.prompt({
+        title: t("Mindmap", "LinkUrlTitle"),
+        message: t("Mindmap", "LinkUrlDescription"),
+        // Only when the node is already showing an address, which is the paste-then-convert route.
+        // Anything looser guesses, and a guess here becomes the stored destination.
+        defaultValue: /^https?:\/\//i.test(carried) ? carried : "",
+        placeholder: "https://",
+        confirmLabel: t("Mindmap", "Save"),
+        cancelLabel: t("Mindmap", "Cancel"),
+      })
+      if (typed === null) {
+        return
+      }
+
+      const url = absoluteUrl(typed)
+      if (!url) {
+        toast.warning(t("Mindmap", "LinkUrlRejected"), {
+          description: t("Mindmap", "LinkUrlDescription"),
+        })
+        return
+      }
+      void editor.apply([op.set(id, { content: linkContent(url, carried) })], step)
+    },
+    [editor, refs, scene, selection, t],
+  )
+
+  /** What the picker came back with. It lands on the node the picker was opened for. */
+  const pickRef = useCallback(
+    (targetId: string) => {
+      if (!picking) {
+        return
+      }
+      const content: ElementContent =
+        picking.target === "note"
+          ? { $type: "note", noteId: targetId }
+          : { $type: "flashcard", deckId: targetId }
+      void editor.apply([op.set(picking.id, { content })], { label: t("Mindmap", "ChangeType") })
+      setPicking(null)
+    },
+    [editor, picking, t],
+  )
+
+  /**
    * Puts a new element where the pointer said, and hands the map back to the select tool.
    *
    * A planted element belongs to nothing: it is its own cluster with no parent, which is what makes
@@ -608,12 +687,13 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   }, [editor, hierarchy, scene, selection, t])
 
   /**
-   * The node a save-as-template would capture from, or null when there is no single answer.
+   * The one selected node, or null when there is not exactly one.
    *
-   * One node only, for the same reason the branch swatch is: a capture reads a subtree from one
-   * root, and a selection spanning several has no root to offer.
+   * Two controls hang off this, for the same reason the branch swatch does. A capture reads a
+   * subtree from one root, and a kind change rewrites one node's content and may have to ask what
+   * it should point at; a selection spanning several has no single answer to either.
    */
-  const captureRoot =
+  const soleNode =
     selection.elements.size === 1 && selection.primary?.kind === "element" ? selection.primary.id : null
 
   const removeTemplate = useDeleteMindmapTemplate()
@@ -892,7 +972,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             onNodeStyle={styleNodes}
             onEdgeLabel={setEditingEdge}
             branch={branch}
-            onSaveTemplate={captureRoot ? () => setCapturing(captureRoot) : null}
+            onKind={soleNode ? (kind) => void changeKind(kind) : null}
+            onSaveTemplate={soleNode ? () => setCapturing(soleNode) : null}
           />
         ) : null}
 
@@ -933,6 +1014,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       ) : null}
 
       <SaveTemplateDialog mapId={mapId ?? ""} rootId={capturing} onClose={() => setCapturing(null)} />
+
+      <RefPicker target={picking?.target ?? null} onPick={pickRef} onClose={() => setPicking(null)} />
 
       {editor.rejected ? (
         <Pill>{t("Mindmap", "EditRejected")}</Pill>

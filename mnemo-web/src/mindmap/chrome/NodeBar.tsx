@@ -5,11 +5,13 @@ import { useT } from "@/i18n/useT"
 
 import type { ElementStyle, FontScale, NodeShape } from "../model/document"
 import type { SceneElement } from "../model/scene"
+import { nodeKindOf, type NodeKind } from "../scene/content"
 import { fontScaleOf } from "../scene/measure"
 import { BRANCH_COUNT, branchColor, branchSlot } from "../scene/tokens"
 import { FloatBar, Sep, Slot } from "./bits"
 import { FlyoutPanel } from "./FlyoutPanel"
 import { NodeShapeGlyph, ScaleGlyph, SwatchGlyph } from "./glyphs"
+import { KindMenu } from "./KindMenu"
 
 const SHAPES: readonly { value: NodeShape; key: string }[] = [
   { value: "card", key: "ShapeCard" },
@@ -39,6 +41,8 @@ export interface NodeBarProps {
   count: number
   onStyle: (patch: ElementStyle) => void
   branch: BranchControl | null
+  /** Turn this node into another kind, or null when the selection is not a single node. */
+  onKind: ((kind: NodeKind) => void) | null
   /** Save this branch's styling as a template, or null when the selection is not one branch. */
   onSaveTemplate: (() => void) | null
 }
@@ -55,13 +59,22 @@ export interface NodeBarProps {
  * pill, text colour has no precedent to copy anywhere in the app, and an icon needs a picker that
  * does not exist yet. Each is a deliberate omission rather than an oversight.
  */
-export function NodeBar({ element, count, onStyle, branch, onSaveTemplate }: NodeBarProps) {
+export function NodeBar({ element, count, onStyle, branch, onKind, onSaveTemplate }: NodeBarProps) {
   const t = useT()
   const [swatches, setSwatches] = useState(false)
   const scale = fontScaleOf(element.text.fontSize)
 
   return (
     <FloatBar>
+      {/* First, because what a node is comes before how it looks, and because three of the kinds go
+          on to ask a question of their own. */}
+      {onKind ? (
+        <>
+          <KindMenu kind={nodeKindOf(element.content)} onPick={onKind} />
+          <Sep />
+        </>
+      ) : null}
+
       {SHAPES.map((entry) => (
         <Slot
           key={entry.value}

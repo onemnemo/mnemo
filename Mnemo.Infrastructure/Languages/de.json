@@ -854,7 +854,9 @@
     "ApplyBelow": "Und alles darunter",
     "StyleBranch": "Zweig gestalten",
     "OpenRef": "Verweis öffnen",
-    "ToggleTask": "Aufgabe umschalten"
+    "ToggleTask": "Aufgabe umschalten",
+    "ChangeType": "Typ ändern",
+    "LinkUrlRejected": "Diese Adresse kann nicht geöffnet werden"
   },
   "GlobalSearch": {
     "ShortcutHint": "Strg/Cmd + K",
