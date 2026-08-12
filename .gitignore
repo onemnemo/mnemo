@@ -1,6 +1,11 @@
 ## .NET Build Artifacts
 bin/
 obj/
+
+# Mnemo.Core carries a restore output folder under this literal name, which the
+# [Oo]bj/ pattern above does not match. It holds machine-specific NuGet paths and
+# must never be committed.
+obj_scratch/
 *.user
 *.suo
 *.cache
