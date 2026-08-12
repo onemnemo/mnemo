@@ -94,10 +94,42 @@ export function fetchMindmapList(): Promise<MindmapDocumentSummary[]> {
 export interface MindmapTemplates {
   defaultId: string
   templates: StyleTemplate[]
+  /** Which of them ship in the build. The rest are the user's, and only those can be deleted. */
+  builtInIds: string[]
 }
 
 export function fetchMindmapTemplates(): Promise<MindmapTemplates> {
   return apiFetch<MindmapTemplates>("/mindmaps/templates")
+}
+
+/** How many depth bands under a node carry a style, which is how many a template could take. */
+export interface MindmapCaptureInfo {
+  /**
+   * Optional on the wire even though the server always sets it: the mindmap serializer omits
+   * default-valued fields, so a branch with nothing styled arrives as an empty object.
+   */
+  availableLevels?: number
+}
+
+export function fetchMindmapCaptureInfo(mapId: string, rootId: string): Promise<MindmapCaptureInfo> {
+  return apiFetch<MindmapCaptureInfo>(
+    `/mindmaps/${encodeURIComponent(mapId)}/style-capture/${encodeURIComponent(rootId)}`,
+  )
+}
+
+export function saveMindmapTemplate(
+  mapId: string,
+  body: { rootId: string; name: string; levels: number },
+): Promise<StyleTemplate> {
+  return apiFetch<StyleTemplate>(`/mindmaps/${encodeURIComponent(mapId)}/style-capture`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteMindmapTemplate(id: string): Promise<void> {
+  return apiSend(`/mindmaps/templates/${encodeURIComponent(id)}`, { method: "DELETE" })
 }
 
 /**
@@ -317,6 +349,46 @@ function isClientError(error: unknown): boolean {
     error.status >= 400 &&
     error.status < 500
   )
+}
+
+/**
+ * How deep a capture could go, asked when the save dialog opens.
+ *
+ * Deliberately not kept: it reads the styling the document has right now, and an answer cached from
+ * before the last few edits would offer a level the capture would then find nothing at.
+ */
+export function useMindmapCaptureInfo(mapId: string, rootId: string | null) {
+  return useQuery({
+    queryKey: [...mindmapKey, "capture", mapId, rootId ?? ""] as const,
+    queryFn: () => fetchMindmapCaptureInfo(mapId, rootId!),
+    enabled: rootId != null,
+    gcTime: 0,
+  })
+}
+
+/**
+ * Saves a branch's styling as a template.
+ *
+ * Invalidating rather than patching the list: the server names the template and decides what its
+ * depth rules came out as, so what to insert is only knowable from the refetch anyway.
+ */
+export function useSaveMindmapTemplate() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ mapId, ...body }: { mapId: string; rootId: string; name: string; levels: number }) =>
+      saveMindmapTemplate(mapId, body),
+    onSuccess: () => void client.invalidateQueries({ queryKey: mindmapTemplatesKey }),
+  })
+}
+
+export function useDeleteMindmapTemplate() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: deleteMindmapTemplate,
+    // Only the template list. A map that named the deleted one still holds that id, and the cascade
+    // already falls back to the document template for a name it cannot resolve.
+    onSuccess: () => void client.invalidateQueries({ queryKey: mindmapTemplatesKey }),
+  })
 }
 
 export function useMindmap(id: string | null) {

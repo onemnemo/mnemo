@@ -3,8 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
+import { dialog } from "@/stores/dialog"
+import { toast } from "@/stores/toast"
 
-import { useMindmap, useMindmapTemplates, type MindmapTemplates } from "../api"
+import { useDeleteMindmapTemplate, useMindmap, useMindmapTemplates, type MindmapTemplates } from "../api"
 import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
 import type { ConnectStyle } from "../chrome/ConnectFlyout"
@@ -12,6 +14,7 @@ import { MindmapToolDock } from "../chrome/MindmapToolDock"
 import type { BranchControl } from "../chrome/NodeBar"
 import { RadialMenu } from "../chrome/RadialMenu"
 import { ON_CANVAS, ON_NODE } from "../chrome/sectors"
+import { SaveTemplateDialog } from "../chrome/SaveTemplateDialog"
 import { MindmapSelectionBar } from "../chrome/SelectionBar"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
 import { placeChild, type PlacedBox } from "../edit/placement"
@@ -30,6 +33,7 @@ import {
   type FrameContent,
   type LayoutAlgorithm,
   type ShapeType,
+  type StyleTemplate,
 } from "../model/document"
 import { op, type FrameOp, type MindmapOp } from "../model/ops"
 import type { Point, Scene, SceneElement } from "../model/scene"
@@ -39,7 +43,7 @@ import { frameBox, projectScene, type FrameMemberBox } from "../scene/project"
 import { branchToken } from "../scene/tokens"
 
 /** No rules at all: every node falls through to the theme. Stable, so it does not reproject a scene. */
-const EMPTY_TEMPLATES: MindmapTemplates = { defaultId: "", templates: [] }
+const EMPTY_TEMPLATES: MindmapTemplates = { defaultId: "", templates: [], builtInIds: [] }
 
 const NO_SUBTREE: readonly string[] = []
 
@@ -99,6 +103,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const stage = useRef<HTMLDivElement>(null)
   /** The node this edit created. Abandoning the edit takes it away again. */
   const blank = useRef<string | null>(null)
+  /** The node whose branch is being saved as a template, for as long as the dialog is up. */
+  const [capturing, setCapturing] = useState<string | null>(null)
 
   // Waits for the templates to settle, not to succeed. They style a map rather than make one, so a
   // library that cannot be read costs the map its template rules and nothing else; refusing to draw
@@ -530,6 +536,40 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     }
   }, [editor, hierarchy, scene, selection, t])
 
+  /**
+   * The node a save-as-template would capture from, or null when there is no single answer.
+   *
+   * One node only, for the same reason the branch swatch is: a capture reads a subtree from one
+   * root, and a selection spanning several has no root to offer.
+   */
+  const captureRoot =
+    selection.elements.size === 1 && selection.primary?.kind === "element" ? selection.primary.id : null
+
+  const removeTemplate = useDeleteMindmapTemplate()
+
+  const deleteTemplate = useCallback(
+    async (template: StyleTemplate) => {
+      const ok = await dialog.confirm({
+        title: t("Mindmap", "DeleteTemplateTitle"),
+        message: t("Mindmap", "DeleteTemplateMessage").replace("{0}", template.name),
+        destructive: true,
+        confirmLabel: t("Mindmap", "Delete"),
+        cancelLabel: t("Mindmap", "Cancel"),
+      })
+      if (!ok) {
+        return
+      }
+      try {
+        await removeTemplate.mutateAsync(template.id)
+      } catch (error) {
+        toast.warning(t("Mindmap", "ErrorTitle"), {
+          description: error instanceof Error ? error.message : undefined,
+        })
+      }
+    },
+    [removeTemplate, t],
+  )
+
   const endEdgeLabel = useCallback(
     (id: string, text: string | null) => {
       setEditingEdge(null)
@@ -707,6 +747,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             templates={styling?.templates ?? []}
             templateId={map.data?.canvas?.defaultTemplateId ?? styling?.defaultId ?? null}
             onTemplate={(id) => mapStyle({ template: id })}
+            builtInIds={styling?.builtInIds ?? []}
+            onDeleteTemplate={(template) => void deleteTemplate(template)}
             background={scene.background}
             onBackground={(next) => mapStyle({ background: next })}
           />
@@ -778,6 +820,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             onNodeStyle={styleNodes}
             onEdgeLabel={setEditingEdge}
             branch={branch}
+            onSaveTemplate={captureRoot ? () => setCapturing(captureRoot) : null}
           />
         ) : null}
 
@@ -816,6 +859,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           </div>
         </div>
       ) : null}
+
+      <SaveTemplateDialog mapId={mapId ?? ""} rootId={capturing} onClose={() => setCapturing(null)} />
 
       {editor.rejected ? (
         <Pill>{t("Mindmap", "EditRejected")}</Pill>

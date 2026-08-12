@@ -51,6 +51,9 @@ export interface MapStyleMenuProps {
   templates: readonly StyleTemplate[]
   templateId: string | null
   onTemplate: (id: string) => void
+  /** Which templates ship in the build. Everything else is the user's, and can be thrown away. */
+  builtInIds: readonly string[]
+  onDeleteTemplate: (template: StyleTemplate) => void
   background: CanvasBackground
   onBackground: (background: CanvasBackground) => void
 }
@@ -77,6 +80,8 @@ export function MapStyleMenu({
   templates,
   templateId,
   onTemplate,
+  builtInIds,
+  onDeleteTemplate,
   background,
   onBackground,
 }: MapStyleMenuProps) {
@@ -158,36 +163,55 @@ export function MapStyleMenu({
 
         <PopoverGroupLabel>{t("Mindmap", "GroupPalette")}</PopoverGroupLabel>
         <div className="px-1">
-          {templates.map((template) => (
-            <button
-              key={template.id}
-              type="button"
-              onClick={() => onTemplate(template.id)}
-              className={cn(
-                "flex h-8 w-full items-center gap-2.5 rounded-lg px-2 text-[13px] transition-colors",
-                template.id === templateId
-                  ? "bg-frame-active text-ink"
-                  : "text-ink-2 hover:bg-frame-hover hover:text-ink",
-              )}
-            >
-              {/* The hues are the theme's, the same eight for every template, so the dots say
-                  whether a template colours its branches at all rather than which colours it uses.
-                  A template that does not is drawn in one neutral, which is what it looks like. */}
-              <span className="flex shrink-0 gap-[3px]">
-                {PREVIEW_HUES.map((hue) => (
-                  <span
-                    key={hue}
-                    className="size-[9px] rounded-full"
-                    style={{
-                      background:
-                        template.branchColors === "byBranch" ? branchColor(hue) : "var(--line)",
-                    }}
-                  />
-                ))}
-              </span>
-              <span className="truncate">{template.name}</span>
-            </button>
-          ))}
+          {templates.map((template) => {
+            // A built-in lives in the build, not the store, so there is nothing about it to throw
+            // away. Which is which is told by the server rather than read off the id, so an
+            // imported template is not mistaken for a shipped one by the shape of its name.
+            const mine = !builtInIds.includes(template.id)
+            return (
+              <div key={template.id} className="group relative flex items-center">
+                <button
+                  type="button"
+                  onClick={() => onTemplate(template.id)}
+                  className={cn(
+                    "flex h-8 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 text-[13px] transition-colors",
+                    mine && "pr-8",
+                    template.id === templateId
+                      ? "bg-frame-active text-ink"
+                      : "text-ink-2 hover:bg-frame-hover hover:text-ink",
+                  )}
+                >
+                  {/* The hues are the theme's, the same eight for every template, so the dots say
+                      whether a template colours its branches at all rather than which colours it uses.
+                      A template that does not is drawn in one neutral, which is what it looks like. */}
+                  <span className="flex shrink-0 gap-[3px]">
+                    {PREVIEW_HUES.map((hue) => (
+                      <span
+                        key={hue}
+                        className="size-[9px] rounded-full"
+                        style={{
+                          background:
+                            template.branchColors === "byBranch" ? branchColor(hue) : "var(--line)",
+                        }}
+                      />
+                    ))}
+                  </span>
+                  <span className="truncate">{template.name}</span>
+                </button>
+                {mine ? (
+                  <button
+                    type="button"
+                    title={t("Mindmap", "DeleteTemplate")}
+                    aria-label={t("Mindmap", "DeleteTemplate")}
+                    onClick={() => onDeleteTemplate(template)}
+                    className="absolute right-1 grid size-6 place-items-center rounded-md text-ink-3 opacity-0 transition-opacity hover:bg-frame-hover hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+                  >
+                    <AppIcon name="common/trash" size={13} />
+                  </button>
+                ) : null}
+              </div>
+            )
+          })}
         </div>
 
         <PopoverGroupLabel>{t("Mindmap", "GroupBackground")}</PopoverGroupLabel>
