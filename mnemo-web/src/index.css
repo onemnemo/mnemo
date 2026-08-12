@@ -144,6 +144,12 @@
     --color-state-new-wash: var(--state-new-wash);
     --color-state-learn-wash: var(--state-learn-wash);
     --color-state-due-wash: var(--state-due-wash);
+    /* Named -surface/-ink rather than -bg/-fg so `text-tooltip` keeps meaning the
+       tooltip font size; a `--color-tooltip` would make that utility ambiguous. */
+    --color-tooltip-surface: var(--tooltip-surface);
+    --color-tooltip-ink: var(--tooltip-ink);
+    --color-tooltip-key: var(--tooltip-key);
+    --color-tooltip-key-ink: var(--tooltip-key-ink);
     --color-diff-add-bg: var(--diff-add-bg);
     --color-diff-add-fg: var(--diff-add-fg);
     --color-diff-del-bg: var(--diff-del-bg);
