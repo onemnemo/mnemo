@@ -19,6 +19,7 @@ import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
 import type { ConnectStyle } from "../chrome/ConnectFlyout"
 import { ExportMenu } from "../chrome/ExportMenu"
+import { MindmapMinimap } from "../chrome/Minimap"
 import { MindmapToolDock } from "../chrome/MindmapToolDock"
 import type { BranchControl } from "../chrome/NodeBar"
 import { RadialMenu } from "../chrome/RadialMenu"
@@ -26,6 +27,7 @@ import { RefPicker, type RefTarget } from "../chrome/RefPicker"
 import { ON_CANVAS, ON_NODE } from "../chrome/sectors"
 import { SaveTemplateDialog } from "../chrome/SaveTemplateDialog"
 import { MindmapSelectionBar } from "../chrome/SelectionBar"
+import { useMinimapShown } from "../chrome/useMinimapShown"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
 import {
   captureOrigin,
@@ -851,6 +853,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const soleNode =
     selection.elements.size === 1 && selection.primary?.kind === "element" ? selection.primary.id : null
 
+  const minimap = useMinimapShown((scene?.elements.length ?? 0) > 0)
+
   const removeTemplate = useDeleteMindmapTemplate()
 
   const deleteTemplate = useCallback(
@@ -1225,6 +1229,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           connectStyle={connectStyle}
           onConnectStyle={(patch) => setConnectStyle((current) => ({ ...current, ...patch }))}
         />
+
+        {minimap ? <MindmapMinimap scene={scene} runtime={runtime} pane={stage} /> : null}
 
         {radial ? (
           <RadialMenu
