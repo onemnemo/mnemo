@@ -129,6 +129,7 @@ public static class Program
         app.MapMindmapLibrary();
         app.MapMindmapTemplates();
         app.MapMindmaps();
+        app.MapMindmapAssets();
         app.MapMindmapTransfer();
         app.MapOverview();
         app.MapStatistics();

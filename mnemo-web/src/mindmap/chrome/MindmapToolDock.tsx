@@ -42,6 +42,8 @@ export interface MindmapToolDockProps {
   onShape: (shape: ShapeType) => void
   connectStyle: ConnectStyle
   onConnectStyle: (patch: Partial<ConnectStyle>) => void
+  /** Opens the file picker. An image is chosen before it is placed, so this arms nothing. */
+  onInsertImage: () => void
 }
 
 /**
@@ -67,10 +69,12 @@ export function MindmapToolDock({
   onShape,
   connectStyle,
   onConnectStyle,
+  onInsertImage,
 }: MindmapToolDockProps) {
   const t = useT()
   const [open, setOpen] = useState<MindmapTool | null>(null)
   const fitChord = useShortcutChord("mindmap.recenter")
+  const imageChord = useShortcutChord("mindmap.new-image")
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-40 flex justify-center">
@@ -112,6 +116,13 @@ export function MindmapToolDock({
             </div>
           )
         })}
+
+        {/* Beside the tools rather than among them, because it is not one: a picture has to be
+            chosen before it can be placed, so the press opens a picker instead of arming the
+            canvas for the next click. */}
+        <Slot label={t("Mindmap", "ToolImage")} chord={imageChord} onClick={onInsertImage}>
+          <AppIcon name="common/image" size={15} strokeWidth={1.7} />
+        </Slot>
 
         <Sep />
 

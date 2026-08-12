@@ -10,7 +10,14 @@
  * about which kind draws what. Two switches drift the first time a kind is added to one of them.
  */
 
-import type { ElementContent, FlashcardContent, LinkContent, NoteContent } from "../model/document"
+import type {
+  CanvasImageContent,
+  ElementContent,
+  FlashcardContent,
+  ImageContent,
+  LinkContent,
+  NoteContent,
+} from "../model/document"
 import { contentText } from "../model/document"
 
 /** How a box is built: from a wrapped label, from preformatted source, or from a rendered equation. */
@@ -50,6 +57,33 @@ export function refGlyphOf(content: ElementContent): string | null {
 
 export function isRef(content: ElementContent): boolean {
   return content.$type in REF_GLYPH
+}
+
+/** A picture a content carries: the file it names, and the words under it if it has any. */
+export interface ImageRef {
+  readonly assetId: string
+  readonly caption: string | null
+}
+
+/**
+ * The picture a content carries, if it carries one.
+ *
+ * Two kinds do, and they are not the same thing: an image element is a picture on the canvas, while
+ * a node can be a picture with a caption. Only the first is something this app plants, but the
+ * second is a shape the document format allows and the desktop reads, so anything that draws a
+ * picture asks here rather than casting to whichever of the two it expected.
+ */
+export function imageRefOf(content: ElementContent): ImageRef | null {
+  switch (content.$type) {
+    case "canvasImage":
+      return { assetId: (content as CanvasImageContent).assetId, caption: null }
+    case "image": {
+      const image = content as ImageContent
+      return { assetId: image.assetId, caption: image.caption ?? null }
+    }
+    default:
+      return null
+  }
 }
 
 /**
