@@ -6,10 +6,16 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { renderMath } from "@/notes/editor/atoms/katex"
 
-import { bodyOf, refGlyphOf } from "../scene/content"
+import { useMindmapImage } from "../assets"
+import { bodyOf, imageRefOf, refGlyphOf, type ImageRef } from "../scene/content"
 import { FRAME_HEAD } from "../scene/project"
 import { branchWash, mixColor } from "../scene/tokens"
-import { contentText, type CodeContent, type FrameContent, type MathContent } from "../model/document"
+import {
+  contentText,
+  type CodeContent,
+  type FrameContent,
+  type MathContent,
+} from "../model/document"
 import type { ShapeContent, ShapeType } from "../model/document"
 import type { SceneElement } from "../model/scene"
 import { isOpenShape, shapePath, shapeTextInset } from "./shape-path"
@@ -218,6 +224,10 @@ function NodeGlyph({
 
 /** What a node draws in the space its box was measured around. */
 function NodeBody({ element }: { element: SceneElement }) {
+  const image = imageRefOf(element.content)
+  if (image) {
+    return <ImageBody image={image} />
+  }
   switch (bodyOf(element.content)) {
     case "code":
       return <CodeBody element={element} />
@@ -334,6 +344,47 @@ function MathBody({ element }: { element: SceneElement }) {
         paddingRight: element.padding.x,
       }}
     />
+  )
+}
+
+/**
+ * A picture, drawn to the box it was given.
+ *
+ * Stretched rather than fitted, which is what the desktop does: the box arrives at the picture's own
+ * proportions, so the only way to distort one is to drag a corner and ask for it.
+ *
+ * The bytes sit behind the API's token, so they come through a fetch and arrive as a blob URL rather
+ * than as an address the element could carry. Nothing is drawn while they are in flight and a
+ * placeholder is drawn once the answer comes back empty, because an asset that is genuinely gone has
+ * to say so: an image element drawing nothing at all is indistinguishable from a blank one.
+ */
+function ImageBody({ image }: { image: ImageRef }) {
+  const t = useT()
+  const { url, missing } = useMindmapImage(image.assetId)
+
+  if (url) {
+    return (
+      <img
+        src={url}
+        // The caption when it has one, and nothing to announce when it does not.
+        alt={image.caption ?? ""}
+        // Or the browser's own image drag would start instead of the gesture the canvas is running.
+        draggable={false}
+        className="pointer-events-none block h-full w-full rounded-[6px] border border-line-soft object-fill"
+      />
+    )
+  }
+
+  return (
+    <span
+      className={cn(
+        "grid h-full w-full place-items-center overflow-hidden rounded-[6px] px-2",
+        "text-center text-[11px] text-ink-3",
+        missing ? "border border-dashed border-line bg-frame-hover" : "bg-frame-hover",
+      )}
+    >
+      {missing ? t("Mindmap", "ImageMissing") : null}
+    </span>
   )
 }
 
@@ -715,8 +766,9 @@ function bodyStyle(
   accentLine: string | undefined,
 ): React.CSSProperties {
   // A caption is words on the canvas rather than a node on it. Giving it a card would make every
-  // annotation look like something the map connects to. A shape has already drawn its own outline.
-  if (element.kind === "text" || element.kind === "shape") {
+  // annotation look like something the map connects to. A shape has already drawn its own outline,
+  // and a picture is its own box: a card behind one is a rim nobody asked for around every photo.
+  if (element.kind === "text" || element.kind === "shape" || element.kind === "image") {
     return {}
   }
 

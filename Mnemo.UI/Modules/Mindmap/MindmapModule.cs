@@ -105,6 +105,9 @@ internal static class MindmapKeybindManifest
         Chords("mindmap.new-text", "T"),
         Chords("mindmap.new-frame", "F"),
         Chords("mindmap.shape-picker", "S"),
+        // Not a tool the way its neighbours are: it opens a file picker, since a picture has to be
+        // chosen before there is anything to place.
+        Chords("mindmap.new-image", "I"),
         // A bare letter because the ring is held open rather than toggled, and a chord is not
         // something a hand can hold down while the other one flicks the pointer at a sector.
         Chords("mindmap.radial", "Q"),

@@ -27,7 +27,7 @@ import {
 } from "../canvas/edge-paths"
 import { dashAttribute, strokeStyleFor } from "../canvas/edge-style"
 import { isOpenShape, shapePath } from "../canvas/shape-path"
-import { bodyOf, refGlyphOf } from "../scene/content"
+import { bodyOf, imageRefOf, refGlyphOf, type ImageRef } from "../scene/content"
 import { FONT_FAMILY, MONO_FAMILY, type TextMeasurer } from "../scene/measure"
 import { branchWash, mixColor } from "../scene/tokens"
 import { boundsOf, type Scene, type SceneEdge, type SceneElement } from "../model/scene"
@@ -48,6 +48,14 @@ export interface SvgOptions {
   readonly margin?: number
   /** CSS put in the file's own stylesheet, which is how the raster path carries its fonts. */
   readonly style?: string
+  /**
+   * An asset id turned into something the file can carry, which in practice is a data URI.
+   *
+   * Resolved by the caller rather than here because this stays pure and synchronous, and bytes have
+   * to be fetched. Null for a picture that could not be read, and absent when the caller does not
+   * deal in pictures at all; both draw the same empty box.
+   */
+  readonly image?: (assetId: string) => string | null
 }
 
 export interface SvgPicture {
@@ -60,6 +68,7 @@ interface Paint {
   readonly color: (css: string) => string
   readonly measure: TextMeasurer
   readonly measureMono: TextMeasurer
+  readonly image?: (assetId: string) => string | null
 }
 
 export function emitSvg(scene: Scene, options: SvgOptions): SvgPicture | null {
@@ -74,7 +83,12 @@ export function emitSvg(scene: Scene, options: SvgOptions): SvgPicture | null {
   const width = Math.max(1, Math.ceil(bounds.maxX - bounds.minX + margin * 2))
   const height = Math.max(1, Math.ceil(bounds.maxY - bounds.minY + margin * 2))
 
-  const paint: Paint = { color: options.color, measure: options.measure, measureMono: options.measureMono }
+  const paint: Paint = {
+    color: options.color,
+    measure: options.measure,
+    measureMono: options.measureMono,
+    image: options.image,
+  }
   const boxes = new Map(scene.elements.map((element) => [element.id, element]))
 
   const body: string[] = []
@@ -206,7 +220,10 @@ function emitElement(element: SceneElement, paint: Paint): string {
     out.push(emitCheckbox(element, accent, paint))
   }
 
-  out.push(emitBody(element, paint))
+  // A picture stands in for the body rather than sitting beside it, which is what the canvas does
+  // too: the box was sized to the picture, so there is no room for both.
+  const image = imageRefOf(element.content)
+  out.push(image ? emitImage(element, image, paint) : emitBody(element, paint))
 
   if (element.refBadge) {
     const y = element.y + element.height / 2
@@ -260,8 +277,9 @@ function emitBox(element: SceneElement, accent: string | undefined, paint: Paint
     return emitShape(element, accent, paint)
   }
   // A caption is words on the canvas rather than a node on it. Giving it a card would make every
-  // annotation look like something the map connects to.
-  if (element.kind === "text") {
+  // annotation look like something the map connects to. A picture is its own box, and a card behind
+  // one is a rim nobody asked for around every photo.
+  if (element.kind === "text" || element.kind === "image") {
     return ""
   }
 
@@ -428,6 +446,38 @@ function emitBody(element: SceneElement, paint: Paint): string {
     `<clipPath id="${clip}"><rect x="${n(element.x)}" y="${n(element.y)}" width="${n(element.width)}"` +
     ` height="${n(element.height)}"/></clipPath>` +
     `<g clip-path="url(#${clip})">${lines}</g>`
+  )
+}
+
+/**
+ * A picture, stretched to the box it was given.
+ *
+ * The bytes travel inside the file. An exported map is read without the app's token and often without
+ * the app running, so a picture that was only an address would be a broken image everywhere except
+ * here, and the raster path refuses anything but a data URI outright.
+ *
+ * One that could not be read leaves a dashed box behind rather than nothing. A picture missing from
+ * an export should look like the gap it is, not like a place where the map happened to be empty.
+ */
+function emitImage(element: SceneElement, image: ImageRef, paint: Paint): string {
+  const { x, y, width, height } = element
+  const href = paint.image?.(image.assetId) ?? null
+  if (!href) {
+    return rect(x, y, width, height, 6, {
+      fill: paint.color("var(--frame-hover)"),
+      ring: paint.color("var(--line)"),
+      dash: "4 3",
+    })
+  }
+
+  // Clipped rather than rounded, since an image has no radius of its own, and stretched rather than
+  // fitted so a box someone dragged out of proportion stays the shape they dragged it to.
+  const clip = `mm-img-${safeId(element.id)}`
+  return (
+    `<clipPath id="${clip}"><rect x="${n(x)}" y="${n(y)}" width="${n(width)}" height="${n(height)}" rx="6"/></clipPath>` +
+    `<image clip-path="url(#${clip})" x="${n(x)}" y="${n(y)}" width="${n(width)}" height="${n(height)}"` +
+    ` preserveAspectRatio="none" href="${escape(href)}"/>` +
+    rect(x, y, width, height, 6, { ring: paint.color("var(--line-soft)") })
   )
 }
 

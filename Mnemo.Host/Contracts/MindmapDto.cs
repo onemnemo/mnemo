@@ -124,3 +124,13 @@ public sealed record MindmapCaptureInfoDto(int AvailableLevels);
 /// <paramref name="Levels"/> depth bands from it.
 /// </summary>
 public sealed record MindmapCaptureTemplateDto(string RootId, string Name, int Levels);
+
+/// <summary>
+/// A stored canvas image: the file name an image element carries, and how big the upload was.
+/// <para>
+/// No pixel size, deliberately. The client decoded the file to place the element and already knows
+/// it, and reading it here would mean an image decoder in the host for a number it would then send
+/// back to whoever just measured it.
+/// </para>
+/// </summary>
+public sealed record MindmapAssetDto(string AssetId, long SizeBytes);

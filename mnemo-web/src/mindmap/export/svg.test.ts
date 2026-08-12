@@ -29,6 +29,16 @@ const node = (id: string, over: Partial<MindmapElement> = {}): MindmapElement =>
   ...over,
 })
 
+const photo = (id: string, assetId: string): MindmapElement => ({
+  id,
+  kind: "image",
+  content: { $type: "canvasImage", assetId },
+  x: 200,
+  y: 40,
+  width: 120,
+  height: 80,
+})
+
 const edge = (from: string, to: string, over: Partial<MindmapEdge> = {}): MindmapEdge => ({
   id: `${from}-${to}`,
   fromId: from,
@@ -159,6 +169,28 @@ describe("what a node is drawn as", () => {
     )
 
     expect(seen).toContain("typescript")
+  })
+
+  it("carries a picture's bytes, since a file opened outside the app cannot fetch them", () => {
+    const { picture } = draw(
+      document({ elements: [node("r"), photo("i", "a.png")], edges: [] }),
+      { image: () => "data:image/png;base64,AAA" },
+    )
+
+    expect(picture!.markup).toContain('href="data:image/png;base64,AAA"')
+    expect(picture!.markup).toContain('clip-path="url(#mm-img-i)"')
+    // Stretched to the box, which is the one the picture was placed at its own proportions in.
+    expect(picture!.markup).toContain('preserveAspectRatio="none"')
+  })
+
+  it("leaves a picture that could not be read as a gap rather than as nothing", () => {
+    const { picture } = draw(
+      document({ elements: [node("r"), photo("i", "gone.png")], edges: [] }),
+      { image: () => null },
+    )
+
+    expect(picture!.markup).not.toContain("<image")
+    expect(picture!.markup).toContain('stroke-dasharray="4 3"')
   })
 
   it("says what an equation was, since a rendered one cannot leave the app", () => {
