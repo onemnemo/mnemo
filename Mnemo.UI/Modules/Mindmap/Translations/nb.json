@@ -141,6 +141,8 @@
     "AlignMiddleV": "Sentrer loddrett",
     "AlignBottom": "Bunnjuster",
     "DistributeH": "Fordel vannrett",
-    "DistributeV": "Fordel loddrett"
+    "DistributeV": "Fordel loddrett",
+    "Align": "Juster",
+    "Distribute": "Fordel"
   }
 }

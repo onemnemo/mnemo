@@ -27,9 +27,12 @@ import { RadialMenu } from "../chrome/RadialMenu"
 import { RefPicker, type RefTarget } from "../chrome/RefPicker"
 import { ON_CANVAS, ON_NODE } from "../chrome/sectors"
 import { SaveTemplateDialog } from "../chrome/SaveTemplateDialog"
+import type { AlignControl } from "../chrome/AlignBar"
 import { MindmapSelectionBar } from "../chrome/SelectionBar"
 import { useMinimapShown } from "../chrome/useMinimapShown"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
+import { ALIGN_MIN } from "../edit/align"
+import { canDistribute, planAlign, type AlignCandidate } from "../edit/align-plan"
 import {
   captureOrigin,
   captureSelection,
@@ -915,6 +918,49 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   )
 
   /**
+   * The align controls, or null when this selection is not something to line up.
+   *
+   * Free elements only, and two or more of them. A node's position is the layout's to decide, and
+   * moving one writes a pin, so lining a branch up against a shape would quietly take that branch out
+   * of the arrangement it was in. A selection mixing the two gets no bar rather than a bar that only
+   * moves half of what is highlighted.
+   */
+  const align = useMemo((): AlignControl | null => {
+    if (!scene || selection.elements.size < ALIGN_MIN) {
+      return null
+    }
+
+    const selected: AlignCandidate[] = []
+    for (const id of selection.elements) {
+      const element = scene.elements.find((candidate) => candidate.id === id)
+      if (!element || element.kind === "node") {
+        return null
+      }
+      selected.push({
+        id: element.id,
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+        members: element.kind === "frame" ? (element.content as FrameContent).childIds : undefined,
+      })
+    }
+
+    return {
+      canDistribute: canDistribute(selected),
+      apply: (which) => {
+        // One batch, so lining six things up is one press and one Ctrl+Z. Rounded for the same reason
+        // a drag is: a stored coordinate is where the user put something, not a float.
+        const moves = planAlign(which, selected, (id) => boxes.get(id))
+        void editor.apply(
+          moves.map((move) => op.moveTo(move.id, Math.round(move.x), Math.round(move.y))),
+          { label: t("Mindmap", which.startsWith("distribute") ? "Distribute" : "Align") },
+        )
+      },
+    }
+  }, [boxes, editor, scene, selection, t])
+
+  /**
    * The branch swatch, or null when this selection has no branch to recolour.
    *
    * Only ever offered for a single node, and never for a root. A multi-selection can span several
@@ -1366,6 +1412,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             onNodeStyle={styleNodes}
             onEdgeLabel={setEditingEdge}
             branch={branch}
+            align={align}
             onKind={soleNode ? (kind) => void changeKind(kind) : null}
             onSaveTemplate={soleNode ? () => setCapturing(soleNode) : null}
             onPin={pinNodes}
