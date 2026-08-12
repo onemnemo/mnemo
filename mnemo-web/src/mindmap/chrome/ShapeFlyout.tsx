@@ -44,6 +44,10 @@ export interface ShapeFlyoutProps {
  *
  * Each primitive is previewed with the same function that draws it on the canvas, so the picker and
  * the map cannot disagree about what a hexagon is.
+ *
+ * A pick closes the panel, unlike the connect tool's, which holds four values and is not finished
+ * after one press. There is one question here, and the answer to it is followed by putting the shape
+ * somewhere, which is behind wherever the panel is.
  */
 export function ShapeFlyout({ shape, onShape, onClose }: ShapeFlyoutProps) {
   const t = useT()
@@ -58,7 +62,10 @@ export function ShapeFlyout({ shape, onShape, onClose }: ShapeFlyoutProps) {
               key={entry.shape}
               type="button"
               aria-pressed={active}
-              onClick={() => onShape(entry.shape)}
+              onClick={() => {
+                onShape(entry.shape)
+                onClose()
+              }}
               className={cn(
                 "flex flex-col items-center gap-1 rounded-lg py-1.5 transition-colors duration-120",
                 active ? "bg-frame-active text-ink" : "text-ink-2 hover:bg-frame-hover hover:text-ink",
