@@ -141,6 +141,8 @@
     "AlignMiddleV": "上下中央揃え",
     "AlignBottom": "下揃え",
     "DistributeH": "左右に分布",
-    "DistributeV": "上下に分布"
+    "DistributeV": "上下に分布",
+    "Align": "整列",
+    "Distribute": "分布"
   }
 }

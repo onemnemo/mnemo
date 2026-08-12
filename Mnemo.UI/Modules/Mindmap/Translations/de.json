@@ -141,6 +141,8 @@
     "AlignMiddleV": "Vertikal zentrieren",
     "AlignBottom": "Unten ausrichten",
     "DistributeH": "Horizontal verteilen",
-    "DistributeV": "Vertikal verteilen"
+    "DistributeV": "Vertikal verteilen",
+    "Align": "Ausrichten",
+    "Distribute": "Verteilen"
   }
 }

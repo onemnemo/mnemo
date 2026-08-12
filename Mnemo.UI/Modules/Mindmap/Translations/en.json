@@ -141,6 +141,8 @@
     "AlignMiddleV": "Align middles vertically",
     "AlignBottom": "Align bottom",
     "DistributeH": "Distribute horizontally",
-    "DistributeV": "Distribute vertically"
+    "DistributeV": "Distribute vertically",
+    "Align": "Align",
+    "Distribute": "Distribute"
   }
 }

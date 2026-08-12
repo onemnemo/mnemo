@@ -6,6 +6,7 @@ import type { Selection } from "../interaction/selection"
 import type { EdgeStyle, ElementStyle } from "../model/document"
 import type { Point, Scene, SceneEdge } from "../model/scene"
 import type { NodeKind } from "../scene/content"
+import { AlignBar, type AlignControl } from "./AlignBar"
 import { boxesAnchor, edgeAnchor } from "./anchor"
 import { EdgeBar } from "./EdgeBar"
 import { NodeBar, type BranchControl } from "./NodeBar"
@@ -22,6 +23,8 @@ export interface SelectionBarProps {
   onNodeStyle: (patch: ElementStyle) => void
   onEdgeLabel: (edgeId: string) => void
   branch: BranchControl | null
+  /** Line the selection up; null when it is not several free elements. */
+  align: AlignControl | null
   /** Turn the selected node into another kind; null when the selection is not a single node. */
   onKind: ((kind: NodeKind) => void) | null
   /** Save the selected branch's styling as a template; null when the selection is not one branch. */
@@ -33,14 +36,14 @@ export interface SelectionBarProps {
 /**
  * The bar over whatever is selected.
  *
- * One component for both bars because the hard part is shared and the easy part is not: placing a
- * bar over a moving thing inside a pane it must not leave is the same problem for an edge and for a
+ * One component for all three bars because the hard part is shared and the easy part is not: placing
+ * a bar over a moving thing inside a pane it must not leave is the same problem for an edge and for a
  * node, while what goes on the bar is entirely different. So this owns the anchoring and hands the
  * contents off.
  *
- * A selection that mixes edges with elements, or that includes a shape or a caption, gets no bar.
- * There is no honest set of controls for "these four things, two of which have no shape and one of
- * which has no text", and a bar that greyed out most of itself would be worse than no bar.
+ * A selection that mixes edges with elements gets no bar, and neither does one that mixes nodes with
+ * shapes. There is no honest set of controls for "these four things, two of which have no shape and
+ * one of which has no text", and a bar that greyed out most of itself would be worse than no bar.
  */
 export function MindmapSelectionBar({
   scene,
@@ -51,6 +54,7 @@ export function MindmapSelectionBar({
   onNodeStyle,
   onEdgeLabel,
   branch,
+  align,
   onKind,
   onSaveTemplate,
   onPin,
@@ -79,7 +83,21 @@ export function MindmapSelectionBar({
   const ids = [...selection.elements]
   const elements = ids.map((id) => scene.elements.find((candidate) => candidate.id === id))
   const primary = elements.find((element) => element?.id === selection.primary?.id)
-  if (!primary || elements.some((element) => element?.kind !== "node")) {
+  if (!primary) {
+    return null
+  }
+
+  // Anchoring over the whole selection rather than over what actually moves comes to the same bounds,
+  // because a frame's box is only ever the extent of the members it would carry.
+  if (align) {
+    return (
+      <Anchored runtime={runtime} pane={pane} locate={locateElements(ids)}>
+        <AlignBar align={align} />
+      </Anchored>
+    )
+  }
+
+  if (elements.some((element) => element?.kind !== "node")) {
     return null
   }
 
