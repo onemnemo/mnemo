@@ -14,7 +14,7 @@ import type { ElementBox } from "../canvas/edge-paths"
 import type { SceneIndex } from "../canvas/scene-index"
 import type { Point, Scene, SceneEdge, SceneElement } from "../model/scene"
 
-import { installInteraction, type MovedElement } from "./controller"
+import { installInteraction, type MovedElement, type NodeChrome } from "./controller"
 import type { ResizeBox, ResizeDir } from "./resize"
 import { EMPTY_SELECTION, type Selection } from "./selection"
 import type { MindmapTool } from "./tool"
@@ -70,6 +70,7 @@ function harness(scene: Scene = SCENE) {
   const boxes = new Map<string, ElementBox>()
   const hosts = new Map<string, HTMLElement>()
   const grips = new Map<string, HTMLElement>()
+  const chromes = new Map<string, HTMLElement>()
   for (const item of scene.elements) {
     positions.set(item.id, { x: item.x, y: item.y })
     boxes.set(item.id, { x: item.x, y: item.y, width: item.width, height: item.height })
@@ -81,9 +82,16 @@ function harness(scene: Scene = SCENE) {
     const grip = document.createElement("span")
     grip.dataset.mmHandle = "se"
     host.append(grip)
+    // Likewise one piece of chrome, whose part each test sets before it presses. A real node wears at
+    // most one, and the mark inside it is what a press actually lands on.
+    const chrome = document.createElement("span")
+    chrome.dataset.mmChrome = "task"
+    chrome.append(document.createElement("i"))
+    host.append(chrome)
     pane.append(host)
     hosts.set(item.id, host)
     grips.set(item.id, grip)
+    chromes.set(item.id, chrome)
   }
 
   // jsdom implements none of the pointer capture API, and the controller's whole reason for taking
@@ -143,6 +151,7 @@ function harness(scene: Scene = SCENE) {
   const planted: { tool: MindmapTool; at: Point }[] = []
   const connected: [string, string][] = []
   const grouped: string[][] = []
+  const chromed: [string, NodeChrome][] = []
   let unpins = 0
   let selection: Selection = EMPTY_SELECTION
   let tool: MindmapTool = "select"
@@ -176,6 +185,7 @@ function harness(scene: Scene = SCENE) {
       plant: (armed, at) => void planted.push({ tool: armed, at }),
       connect: (fromId, toId) => void connected.push([fromId, toId]),
       group: (ids) => void grouped.push([...ids]),
+      chrome: (id, part) => void chromed.push([id, part]),
     },
   )
 
@@ -204,6 +214,7 @@ function harness(scene: Scene = SCENE) {
     planted,
     connected,
     grouped,
+    chromed,
     uninstall: () => {
       uninstall()
       pane.remove()
@@ -222,6 +233,13 @@ function harness(scene: Scene = SCENE) {
       const grip = grips.get(id)!
       grip.dataset.mmHandle = dir
       send("pointerdown", at, grip, init)
+    },
+    pressChrome: (id: string, part: NodeChrome, at: Point) => {
+      const chrome = chromes.get(id)!
+      chrome.dataset.mmChrome = part
+      // On the mark inside rather than on the span itself, because that is where a click on a real
+      // one lands: the attribute is on what holds the glyph, not on the glyph.
+      send("pointerdown", at, chrome.firstElementChild!)
     },
     move: (at: Point) => send("pointermove", at),
     release: (at: Point) => send("pointerup", at),
@@ -581,6 +599,50 @@ describe("a resize grip", () => {
 
     expect(h.resizes).toHaveLength(1)
     expect(h.connected).toHaveLength(0)
+    h.uninstall()
+  })
+})
+
+describe("a node's own chrome", () => {
+  it("reports the part that was pressed, and the node it is on", () => {
+    const h = harness()
+    h.pressChrome("a", "task", { x: 215, y: -50 })
+
+    expect(h.chromed).toEqual([["a", "task"]])
+    h.uninstall()
+  })
+
+  it("leaves the selection alone, because ticking a box is not picking the node", () => {
+    const h = harness()
+    h.pressChrome("a", "ref", { x: 215, y: -50 })
+    h.release({ x: 215, y: -50 })
+
+    expect(h.chromed).toEqual([["a", "ref"]])
+    expect(h.selection().elements.size).toBe(0)
+    h.uninstall()
+  })
+
+  it("never drags the node it sits on", () => {
+    const h = harness()
+    h.pressChrome("a", "task", { x: 215, y: -50 })
+    h.move({ x: 400, y: 200 })
+    h.release({ x: 400, y: 200 })
+
+    expect(h.positions.get("a")).toEqual({ x: 200, y: -60 })
+    expect(h.commits).toHaveLength(0)
+    h.uninstall()
+  })
+
+  it("means what the armed tool means instead, so a connect drag can start on one", () => {
+    const h = harness()
+    h.arm("connect")
+    h.pressChrome("a", "task", { x: 215, y: -50 })
+    h.move({ x: 410, y: -50 })
+    h.hover("a1")
+    h.release({ x: 410, y: -50 })
+
+    expect(h.chromed).toHaveLength(0)
+    expect(h.connected).toEqual([["a", "a1"]])
     h.uninstall()
   })
 })

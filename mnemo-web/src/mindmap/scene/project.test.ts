@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest"
 
 import type { MindmapDocument, MindmapEdge, MindmapElement, StyleTemplate } from "../model/document"
 
-import { estimateWidth } from "./measure"
+import { estimateWidth, measurersFrom } from "./measure"
 import { projectScene, type ProjectOptions } from "./project"
 
 const DAWN: StyleTemplate = {
@@ -26,7 +26,7 @@ const RAINBOW: StyleTemplate = { ...DAWN, id: "rainbow", name: "Rainbow", branch
 const options = (over: Partial<ProjectOptions> = {}): ProjectOptions => ({
   templates: [DAWN, RAINBOW],
   defaultTemplateId: DAWN.id,
-  measure: estimateWidth,
+  measurers: measurersFrom(estimateWidth),
   ...over,
 })
 

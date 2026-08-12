@@ -858,7 +858,9 @@
     "ThicknessNormal": "Normal",
     "ThicknessBold": "Grueso",
     "ApplyBelow": "Y todo lo que hay debajo",
-    "StyleBranch": "Aplicar estilo a la rama"
+    "StyleBranch": "Aplicar estilo a la rama",
+    "OpenRef": "Abrir referencia",
+    "ToggleTask": "Alternar tarea"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

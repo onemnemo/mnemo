@@ -3,7 +3,7 @@ import { memo, useMemo } from "react"
 import { anchorsFor, boxOf, isFilled, strokeToPathData } from "../canvas/edge-paths"
 import { strokeFor } from "../canvas/edge-canvas"
 import { dashAttribute, strokeStyleFor } from "../canvas/edge-style"
-import { estimateWidth } from "../scene/measure"
+import { estimateWidth, measurersFrom } from "../scene/measure"
 import { projectScene } from "../scene/project"
 import { boundsOf } from "../model/scene"
 import type { MindmapDocument, StyleTemplate } from "../model/document"
@@ -33,7 +33,7 @@ export const MindmapThumbnail = memo(function MindmapThumbnail({
   defaultTemplateId: string
 }) {
   const view = useMemo(() => {
-    const scene = projectScene(document, { templates, defaultTemplateId, measure: estimateWidth })
+    const scene = projectScene(document, { templates, defaultTemplateId, measurers: measurersFrom(estimateWidth) })
     if (scene.elements.length === 0) {
       return null
     }

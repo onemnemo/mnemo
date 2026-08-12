@@ -858,7 +858,9 @@
     "ThicknessNormal": "標準",
     "ThicknessBold": "太字",
     "ApplyBelow": "配下すべてにも適用",
-    "StyleBranch": "ブランチのスタイル"
+    "StyleBranch": "ブランチのスタイル",
+    "OpenRef": "参照を開く",
+    "ToggleTask": "タスクを切り替え"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

@@ -852,7 +852,9 @@
     "ThicknessNormal": "Normal",
     "ThicknessBold": "Fett",
     "ApplyBelow": "Und alles darunter",
-    "StyleBranch": "Zweig gestalten"
+    "StyleBranch": "Zweig gestalten",
+    "OpenRef": "Verweis öffnen",
+    "ToggleTask": "Aufgabe umschalten"
   },
   "GlobalSearch": {
     "ShortcutHint": "Strg/Cmd + K",

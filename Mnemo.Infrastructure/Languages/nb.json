@@ -858,7 +858,9 @@
     "ThicknessNormal": "Normal",
     "ThicknessBold": "Kraftig",
     "ApplyBelow": "Og alt under den",
-    "StyleBranch": "Utform grenen"
+    "StyleBranch": "Utform grenen",
+    "OpenRef": "Åpne referanse",
+    "ToggleTask": "Veksle oppgave"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

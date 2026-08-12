@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { estimateWidth, FONTS, measureNode, wrapText, type TextMeasurer } from "./measure"
+import { estimateWidth, FONTS, measureNode, measurersFrom, wrapText, type TextMeasurer } from "./measure"
 
 /** One unit per character, so an expected width is arithmetic rather than a font's opinion. */
 const perChar: TextMeasurer = (text) => text.length
+
+/** The same one for text and for source, so a code box is arithmetic too. */
+const unit = measurersFrom(perChar)
 
 describe("wrapping", () => {
   it("keeps a short label on one line", () => {
@@ -44,7 +47,7 @@ describe("wrapping", () => {
 
 describe("node boxes", () => {
   const box = (text: string, over: Partial<Parameters<typeof measureNode>[0]> = {}) =>
-    measureNode({ text, shape: "card", fontScale: "m", isRoot: false, ...over }, perChar)
+    measureNode({ text, shape: "card", fontScale: "m", isRoot: false, ...over }, unit)
 
   // Long enough that the minimum-width floor is not what is being measured.
   const long = "abcdefghijklmnopqrstuvwxyz1234"
@@ -83,7 +86,7 @@ describe("node boxes", () => {
     const one = box("abcd")
     const two = measureNode(
       { text: "aaaa bbbb", shape: "card", fontScale: "m", isRoot: false },
-      (t) => t.length * 30,
+      measurersFrom((t) => t.length * 30),
     )
 
     expect(two.lines).toHaveLength(2)

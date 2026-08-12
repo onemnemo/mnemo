@@ -908,7 +908,9 @@
     "ThicknessNormal": "Normal",
     "ThicknessBold": "Bold",
     "ApplyBelow": "And everything below it",
-    "StyleBranch": "Style branch"
+    "StyleBranch": "Style branch",
+    "OpenRef": "Open reference",
+    "ToggleTask": "Toggle task"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

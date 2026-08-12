@@ -19,13 +19,14 @@ import { MindmapSelectionBar } from "../chrome/SelectionBar"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
 import { placeChild, type PlacedBox } from "../edit/placement"
 import { clearsAnything, restyledEdge } from "../edit/restyle"
-import type { MovedElement } from "../interaction/controller"
+import type { MovedElement, NodeChrome } from "../interaction/controller"
 import type { ResizeBox } from "../interaction/resize"
 import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } from "../interaction/selection"
 import { isOneShot, TOOL_KEYS, type MindmapTool } from "../interaction/tool"
 import { MapStyleMenu } from "../chrome/MapStyleMenu"
 import { edgeDefaultsFor, materialOf } from "../chrome/material"
 import {
+  contentText,
   edgeKind,
   LAYOUT_ALGORITHMS,
   type EdgeStyle,
@@ -36,11 +37,14 @@ import {
   type StyleTemplate,
 } from "../model/document"
 import { op, type FrameOp, type MindmapOp } from "../model/ops"
+import { followRef, isFollowable } from "./follow"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import { branchRootOf, branchSwatchOf } from "../scene/branch"
 import { analyzeHierarchy, childrenIds, descendantsOf, hierarchyEdgesBelow } from "../scene/hierarchy"
 import { frameBox, projectScene, type FrameMemberBox } from "../scene/project"
+import { sceneMeasurers } from "../scene/measurers"
 import { branchToken } from "../scene/tokens"
+import { useMindmapRefs } from "../scene/useRefs"
 
 /** No rules at all: every node falls through to the theme. Stable, so it does not reproject a scene. */
 const EMPTY_TEMPLATES: MindmapTemplates = { defaultId: "", templates: [], builtInIds: [] }
@@ -111,6 +115,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   // until they arrive turns a styling problem into a blank page that says "Loading" forever.
   const styling = templates.isPending ? null : (templates.data ?? EMPTY_TEMPLATES)
 
+  // What the map's note and deck nodes point at, resolved before the projector runs so a reference
+  // is laid out around the title it reads as rather than around a blank that arrives late.
+  const refs = useMindmapRefs(map.data)
+
   const scene = useMemo(() => {
     if (!map.data || !styling) {
       return null
@@ -118,8 +126,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     return projectScene(map.data, {
       templates: styling.templates,
       defaultTemplateId: styling.defaultId,
+      measurers: sceneMeasurers(),
+      refs,
     })
-  }, [map.data, styling])
+  }, [map.data, styling, refs])
 
   const hierarchy = useMemo(() => (map.data ? analyzeHierarchy(map.data) : null), [map.data])
 
@@ -285,6 +295,67 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         return
       }
       void editor.apply([op.set(id, { t: typed })], { label: t("Mindmap", "Rename") })
+    },
+    [editor, scene, t],
+  )
+
+  /**
+   * Opens a node's label for typing, unless it has no label of its own.
+   *
+   * A note or deck reference reads as its target's title, which is the target's to change; and the
+   * edit protocol's text slot for those two kinds is a plain-text conversion, so committing one
+   * would quietly replace the reference with the words it happened to be showing. They are not
+   * editable here at all. A link, which does have a title of its own, still is.
+   */
+  const beginEdit = useCallback(
+    (id: string) => {
+      const kind = scene?.elements.find((candidate) => candidate.id === id)?.content.$type
+      if (kind === "note" || kind === "flashcard") {
+        return
+      }
+      setEditing(id)
+    },
+    [scene],
+  )
+
+  /**
+   * A double click, which is how a label asks to be edited, except on a reference: there it opens
+   * what the node points at, which is the thing anyone double clicking one is after.
+   */
+  const activate = useCallback(
+    (id: string) => {
+      const content = scene?.elements.find((candidate) => candidate.id === id)?.content
+      if (content && isFollowable(content)) {
+        followRef(content)
+        return
+      }
+      beginEdit(id)
+    },
+    [beginEdit, scene],
+  )
+
+  /**
+   * A press on a node's own chrome rather than on the node.
+   *
+   * Both parts act at once and leave the selection alone. Ticking a box is not selecting the node
+   * the box is on, and a reference's mark is a way to leave the map rather than a way to pick
+   * something on it.
+   */
+  const pressChrome = useCallback(
+    (id: string, part: NodeChrome) => {
+      const content = scene?.elements.find((candidate) => candidate.id === id)?.content
+      if (!content) {
+        return
+      }
+      if (part === "ref") {
+        followRef(content)
+        return
+      }
+      if (content.$type === "task") {
+        void editor.apply([op.set(id, { content: { ...content, done: content.done !== true } })], {
+          label: t("Mindmap", "ToggleTask"),
+        })
+      }
     },
     [editor, scene, t],
   )
@@ -600,7 +671,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           if (primary) void addSibling(primary)
           return
         case "edit":
-          if (primary) setEditing(primary)
+          if (primary) beginEdit(primary)
           return
         case "collapse":
           if (primary) {
@@ -632,7 +703,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           return
       }
     },
-    [addChild, addSibling, arrange, deleteSelection, editor, scene, selection, t],
+    [addChild, addSibling, arrange, beginEdit, deleteSelection, editor, scene, selection, t],
   )
 
   const onKeyDown = useCallback(
@@ -677,7 +748,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         } else if (event.key === "Enter") {
           void addSibling(primary)
         } else {
-          setEditing(primary)
+          beginEdit(primary)
         }
         return
       }
@@ -716,7 +787,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         setSelection(EMPTY_SELECTION)
       }
     },
-    [addChild, addSibling, deleteSelection, editor, radial, scene, selection, tool],
+    [addChild, addSibling, beginEdit, deleteSelection, editor, radial, scene, selection, tool],
   )
 
   if (map.isError) {
@@ -795,7 +866,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           onSelection={setSelection}
           onCommitMove={commitMove}
           onCommitResize={commitResize}
-          onActivate={setEditing}
+          onActivate={activate}
+          onChrome={pressChrome}
           editingId={editing}
           onEditEnd={endEdit}
           editingEdgeId={editingEdge}
@@ -918,12 +990,13 @@ function collapsed(scene: { elements: readonly { id: string; collapsed?: boolean
   return scene?.elements.find((element) => element.id === id)?.collapsed === true
 }
 
-/** The label as it stands, so an edit that changed nothing costs no revision and no undo step. */
-function currentText(scene: { elements: readonly { id: string; content: unknown }[] } | null, id: string): string {
+/** The text slot as it stands, so an edit that changed nothing costs no revision and no undo step. */
+function currentText(scene: Scene | null, id: string): string {
   const element = scene?.elements.find((candidate) => candidate.id === id)
-  // A frame keeps its label under `title`, and the edit protocol writes both through `t`.
-  const content = element?.content as { text?: string; title?: string } | undefined
-  return content?.text ?? content?.title ?? ""
+  // The same slot `t` writes back into: a code node's source, a link's title, a frame's heading.
+  // Reading `text` alone answered "" for half the kinds, so an edit that changed nothing still cost
+  // a revision on every one of them.
+  return element ? (contentText(element.content) ?? "") : ""
 }
 
 /**
