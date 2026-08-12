@@ -260,7 +260,7 @@ public static class Program
             ApplySpellcheckLanguage(userDataFolder, server.App.Services);
         }
 
-        WindowChrome.Configure(window);
+        WindowChrome.Configure(window, logger);
         AttachShutdownGate(window, server.App.Services);
 
         logger.Info(CrashLog.Category, $"Load({url})");

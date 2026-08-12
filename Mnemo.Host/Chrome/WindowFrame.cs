@@ -1,6 +1,8 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using Mnemo.Core.Services;
+using Mnemo.Host.Startup;
 using Photino.NET;
 
 namespace Mnemo.Host.Chrome;
@@ -40,7 +42,7 @@ internal static class WindowFrame
 
     private static IntPtr s_previousProc;
 
-    public static void Attach(PhotinoWindow window)
+    public static void Attach(PhotinoWindow window, ILoggerService? logger = null)
     {
         // The handle only exists once the native window does, and PhotinoX shows
         // it during construction, so the frame arrives a beat after the first
@@ -48,11 +50,11 @@ internal static class WindowFrame
         window.RegisterCreatedHandler((sender, _) =>
         {
             if (sender is PhotinoWindow created)
-                Apply(created);
+                Apply(created, logger);
         });
     }
 
-    private static void Apply(PhotinoWindow window)
+    private static void Apply(PhotinoWindow window, ILoggerService? logger)
     {
         try
         {
@@ -88,7 +90,10 @@ internal static class WindowFrame
             // A window that does not snap is worth strictly less than a window
             // that does not open, so any interop failure leaves the popup as it
             // was.
-            Console.WriteLine($"[Mnemo.Host] Native window frame not applied: {ex.Message}");
+            if (logger is not null)
+                logger.Error(CrashLog.Category, "Native window frame not applied.", ex);
+            else
+                CrashLog.Write("Native window frame not applied.", ex);
         }
     }
 
