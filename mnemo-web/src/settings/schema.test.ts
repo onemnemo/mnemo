@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url"
 
 import { describe, expect, it } from "vitest"
 
-import { SETTINGS_SCHEMA } from "./schema"
+import { isRowHidden, SETTINGS_SCHEMA } from "./schema"
 import type { SettingsRow } from "./types"
 
 const REGISTRY = fileURLToPath(
@@ -76,5 +76,59 @@ describe("the settings schema", () => {
       if (row.kind !== "action" || !row.href) continue
       expect(row.href).toMatch(/^https:\/\//)
     }
+  })
+})
+
+describe("isRowHidden", () => {
+  const context = { developerGateUnlocked: true }
+
+  // Every setting the port does not read yet has to actually be hidden, not just
+  // absent from some other checklist; this is what the renderer and search both
+  // consult, so a miss here is a row visibly lying to the user again.
+  const unwiredKeys = [
+    "Markdown.BlockSpacing",
+    "Markdown.LineHeight",
+    "Markdown.LetterSpacing",
+    "Markdown.CodeFontSize",
+    "Markdown.MathFontSize",
+    "Markdown.RenderMath",
+    "App.EnableGamification",
+    "Chat.StreamingReveal",
+    "AI.WebSearch.Provider",
+    "AI.WebSearch.SearxngUrl",
+    "AI.WebSearch.BraveApiKey",
+  ]
+
+  it.each(unwiredKeys)("hides %s", (key) => {
+    const row = everyRow().find((r) => "key" in r && r.key === key)
+    expect(row, `no row named ${key}`).toBeDefined()
+    expect(isRowHidden(row as SettingsRow, context)).toBe(true)
+  })
+
+  it("hides the app icon gallery, a custom row with no key of its own", () => {
+    const row = everyRow().find((r) => r.kind === "custom" && r.id === "app-icon-gallery")
+    expect(row).toBeDefined()
+    expect(isRowHidden(row as SettingsRow, context)).toBe(true)
+  })
+
+  it("does not hide a sibling row that happens to share a namespace", () => {
+    // AI.WebSearch.Enabled is wired server-side; only the provider it selects between
+    // is not. Hiding by prefix would have caught this one by accident.
+    const enabled = everyRow().find((r) => "key" in r && r.key === "AI.WebSearch.Enabled")
+    expect(enabled).toBeDefined()
+    expect(isRowHidden(enabled as SettingsRow, context)).toBe(false)
+
+    // Markdown.FontSize is read by flashcards; only its Markdown-rendering siblings
+    // above are unwired there.
+    const baseFontSize = everyRow().find((r) => "key" in r && r.key === "Markdown.FontSize")
+    expect(baseFontSize).toBeDefined()
+    expect(isRowHidden(baseFontSize as SettingsRow, context)).toBe(false)
+  })
+
+  it("still gates the developer switch behind the tap gate, not the unwired list", () => {
+    const row = everyRow().find((r) => "key" in r && r.key === "App.DeveloperMode")
+    expect(row).toBeDefined()
+    expect(isRowHidden(row as SettingsRow, { developerGateUnlocked: false })).toBe(true)
+    expect(isRowHidden(row as SettingsRow, { developerGateUnlocked: true })).toBe(false)
   })
 })

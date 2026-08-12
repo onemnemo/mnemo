@@ -18,7 +18,7 @@ export function SettingsGroupView({
   context: SettingsSchemaContext
 }) {
   const t = useT()
-  const rows = group.rows.filter((row) => !("key" in row) || !isRowHidden(row.key, context))
+  const rows = group.rows.filter((row) => !isRowHidden(row, context))
   if (rows.length === 0 && !group.master) return null
 
   return (

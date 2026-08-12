@@ -1,5 +1,7 @@
 import { create } from "zustand"
 
+import { getSettingValue } from "@/settings/store"
+
 // Mirrors Mnemo.Core ToastType. Each maps to a --toast-accent-* / --toast-icon-badge-*
 // token pair in the theme (see ToastHost).
 export type ToastType = "info" | "success" | "warning" | "action" | "task"
@@ -76,9 +78,12 @@ export const useToastStore = create<ToastState>((set) => ({
       durationMs: options.durationMs ?? DEFAULT_DURATION_MS,
       createdAt: Date.now(),
     }
+    // App.EnableToasts only silences the pop-up card; the notification list still
+    // gets every entry, so turning it off loses nothing, just the interruption.
+    const showPopup = getSettingValue("App.EnableToasts", true)
     set((state) => ({
       // Keep the newest MAX_VISIBLE on screen; older ones fall off but stay in history.
-      toasts: [...state.toasts, toast].slice(-MAX_VISIBLE),
+      toasts: showPopup ? [...state.toasts, toast].slice(-MAX_VISIBLE) : state.toasts,
       history: [
         {
           id,

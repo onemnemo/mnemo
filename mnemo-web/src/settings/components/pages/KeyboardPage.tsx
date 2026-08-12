@@ -198,6 +198,12 @@ function ActionRow({
   const t = useT()
   const chord = action.bindings.find((b) => b.kind === "Chord" && b.chord)?.chord ?? null
 
+  // The ProseMirror keymap that actually handles these chords is built once, with no
+  // overrides threaded in, and always dispatches on the hardcoded default. A recorded
+  // override here would show as bound and do nothing, so the row goes read-only instead
+  // of lying about a rebind it cannot honour.
+  const rebindable = action.module !== "editor"
+
   return (
     <div className="group/kb flex items-center justify-between gap-6 py-2">
       <div className="min-w-0">
@@ -215,13 +221,14 @@ function ActionRow({
       <div className="flex shrink-0 items-center gap-1">
         <button
           type="button"
-          {...{ [RECORD_ATTR]: "" }}
-          onClick={onToggleRecord}
-          disabled={busy}
-          title={t("Keybinds", "keybindManager.editShortcut")}
+          {...(rebindable ? { [RECORD_ATTR]: "" } : {})}
+          onClick={rebindable ? onToggleRecord : undefined}
+          disabled={busy || !rebindable}
+          title={rebindable ? t("Keybinds", "keybindManager.editShortcut") : t("Keybinds", "keybindManager.editorScopeLocked")}
           className={cn(
             "flex h-8 items-center rounded-lg px-1.5 transition-colors disabled:opacity-45",
             recording ? "bg-accent-wash" : "hover:bg-frame-hover",
+            !rebindable && "hover:bg-transparent",
           )}
           style={{ transitionDuration: "var(--duration-fast)" }}
         >
@@ -235,7 +242,8 @@ function ActionRow({
         </button>
 
         {/* Only meaningful once a binding has moved, so it only exists then, and it stays
-            out of the way until the row is hovered. */}
+            out of the way until the row is hovered. Stays live even for a locked row: an
+            override recorded before the row was locked still needs a way back out. */}
         <button
           type="button"
           onClick={onReset}
