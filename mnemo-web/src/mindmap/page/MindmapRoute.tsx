@@ -16,6 +16,7 @@ import {
 import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
 import type { ConnectStyle } from "../chrome/ConnectFlyout"
+import { ExportMenu } from "../chrome/ExportMenu"
 import { MindmapToolDock } from "../chrome/MindmapToolDock"
 import type { BranchControl } from "../chrome/NodeBar"
 import { RadialMenu } from "../chrome/RadialMenu"
@@ -41,6 +42,7 @@ import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } f
 import { isOneShot, TOOL_KEYS, type MindmapTool } from "../interaction/tool"
 import { MapStyleMenu } from "../chrome/MapStyleMenu"
 import { edgeDefaultsFor, materialOf } from "../chrome/material"
+import { exportMap, type MapExportFormat } from "../export/save"
 import {
   contentText,
   edgeKind,
@@ -873,6 +875,29 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     [removeTemplate, t],
   )
 
+  /**
+   * Saving the map as a file.
+   *
+   * The scene rather than the document, because a picture of a map is a picture of what is on the
+   * screen: a collapsed branch is not in it, and a box is the size its label came out at here. The
+   * outline ignores all of that and is fetched from the server instead.
+   */
+  const runExport = useCallback(
+    async (format: MapExportFormat, transparent: boolean) => {
+      if (!scene || !mapId) {
+        return
+      }
+      try {
+        await exportMap(format, { id: mapId, title: map.data?.title ?? "", scene, transparent })
+      } catch (error) {
+        toast.warning(t("Mindmap", "ExportFailedTitle"), {
+          description: error instanceof Error ? error.message : undefined,
+        })
+      }
+    },
+    [map.data?.title, mapId, scene, t],
+  )
+
   const endEdgeLabel = useCallback(
     (id: string, text: string | null) => {
       setEditingEdge(null)
@@ -1081,6 +1106,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             onDeleteTemplate={(template) => void deleteTemplate(template)}
             background={scene.background}
             onBackground={(next) => mapStyle({ background: next })}
+          />
+          <ExportMenu
+            canExport={scene.elements.length > 0}
+            onExport={(format, transparent) => void runExport(format, transparent)}
           />
           <Button
             variant="ghost"

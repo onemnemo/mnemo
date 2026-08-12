@@ -99,8 +99,11 @@ export type TextMeasurer = (text: string, size: number, weight: number) => numbe
 /** A rendered equation's box. Only KaTeX can answer this, and only by rendering it. */
 export type MathMeasurer = (latex: string, size: number) => { width: number; height: number }
 
-const FONT_FAMILY = '"Inter Variable", ui-sans-serif, system-ui, "Segoe UI", sans-serif'
-const MONO_FAMILY = '"Geist Mono", ui-monospace, "Cascadia Mono", "Consolas", monospace'
+// The app's own two faces, spelled the way the stylesheet spells them. A measurement taken in a face
+// the page does not load is a box sized for text nobody will see: the label still draws in Inter and
+// the box around it was built for whatever the system fell back to.
+export const FONT_FAMILY = '"Inter", "Segoe UI", Arial, sans-serif'
+export const MONO_FAMILY = '"Geist Mono", ui-monospace, "Cascadia Mono", monospace'
 
 /**
  * Width by character count. The fallback when there is no canvas, and the measurer tests use so a

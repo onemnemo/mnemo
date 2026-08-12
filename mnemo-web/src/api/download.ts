@@ -51,7 +51,8 @@ function fileNameFromDisposition(header: string | null): string {
   return plain?.[1]?.trim() || "download"
 }
 
-function saveBlob(blob: Blob, fileName: string): void {
+/** Saves bytes under a name. Exported for the files the client makes itself rather than fetches. */
+export function saveBlob(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob)
   const link = document.createElement("a")
   link.href = url
