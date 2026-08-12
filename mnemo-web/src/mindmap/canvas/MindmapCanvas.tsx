@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "re
 
 import { cn } from "@/lib/utils"
 
+import "./mindmap-lod.css"
+
 import { initialHybridMode } from "./edge-strategy"
 import type { EdgeMode } from "./edge-style"
 import { MindmapBackground } from "./MindmapBackground"
