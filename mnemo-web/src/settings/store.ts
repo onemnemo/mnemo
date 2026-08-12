@@ -2,6 +2,8 @@ import { create } from "zustand"
 
 import { useI18nStore } from "@/i18n/store"
 import { createTranslate } from "@/i18n/translate"
+import { fetchNav } from "@/nav/api"
+import { useNavStore } from "@/nav/store"
 import { toast } from "@/stores/toast"
 
 import { fetchSettingValues, putSettingValue } from "./api"
@@ -58,6 +60,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     try {
       await putSettingValue(key, value)
+      // Any setting can gate a nav item's visibility server-side (the nav endpoint
+      // recomputes it live), so the sidebar has to reread the nav model after every
+      // successful write, not just the ones known to affect it today. A stale sidebar
+      // otherwise looks broken until the app restarts.
+      void fetchNav()
+        .then((nav) => useNavStore.getState().setCategories(nav))
+        .catch(() => {})
     } catch {
       set((s) => {
         const values = { ...s.values }

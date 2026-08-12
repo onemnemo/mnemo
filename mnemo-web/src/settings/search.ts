@@ -43,7 +43,7 @@ export function searchSettings(
       const candidates: SettingsRow[] = group.master ? [group.master, ...group.rows] : group.rows
       for (const row of candidates) {
         if (row.kind === "subheader" || row.kind === "notice") continue
-        if ("key" in row && isRowHidden(row.key, context)) continue
+        if (isRowHidden(row, context)) continue
         if (!rowMatches(row, needle, t)) continue
 
         matches.push({ categoryId: category.id, breadcrumb, row })

@@ -36,7 +36,7 @@ export function PasteProgressOverlay() {
 
   if (!snapshot.active) return null;
 
-  const nt = (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
+  const nt = (key: string, params?: Record<string, string | number>) => t('Keybinds', key, params);
   const label =
     snapshot.total > 1
       ? nt('editor.clipboard.pasteStagingImages', { 0: snapshot.done, 1: snapshot.total })
@@ -48,10 +48,10 @@ export function PasteProgressOverlay() {
       role="status"
       aria-live="polite"
     >
-      <div className="flex min-w-[240px] flex-col gap-3 rounded-lg border border-line bg-popover px-5 py-4 shadow-elevation-4">
-        <div className="flex items-center gap-2.5 text-body-medium text-text-primary">
+      <div className="flex min-w-[240px] flex-col gap-3 rounded-lg border border-line-soft bg-canvas px-5 py-4 shadow-pop">
+        <div className="flex items-center gap-2.5 text-body-medium text-ink">
           <span
-            className="size-4 shrink-0 animate-spin rounded-full border-2 border-text-faded border-t-transparent"
+            className="size-4 shrink-0 animate-spin rounded-full border-2 border-ink-icon border-t-transparent"
             aria-hidden
           />
           {label}
@@ -60,7 +60,7 @@ export function PasteProgressOverlay() {
           <button
             type="button"
             onClick={() => onCancel()}
-            className="self-end rounded-md px-2 py-1 text-body-small text-text-secondary hover:bg-surface-subtle hover:text-text-primary"
+            className="self-end rounded-md px-2 py-1 text-body-small text-ink-2 hover:bg-canvas-sunken hover:text-ink"
           >
             {nt('editor.clipboard.pasteCancel')}
           </button>

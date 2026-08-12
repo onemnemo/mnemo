@@ -1,4 +1,4 @@
-import type { SettingsCategory } from "./types"
+import type { SettingsCategory, SettingsRow } from "./types"
 
 // The settings tree. Mirrors SettingsViewModel.RebuildCategories: same categories in
 // the same order, same storage keys, same defaults, same option lists.
@@ -297,7 +297,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
             key: "AI.AgentMode",
             title: "AgentMode",
             description: "AgentModeDescription",
-            defaultValue: true,
+            defaultValue: false,
           },
           {
             kind: "dropdown",
@@ -561,6 +561,24 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
           },
         ],
       },
+      {
+        id: "Support",
+        title: "Support",
+        rows: [
+          // Log and data folder rows are not here yet: opening a local folder needs
+          // an Explorer-launching endpoint the host does not expose, and the one
+          // it does (open-external) is deliberately restricted to http/https by
+          // its own scheme allowlist. This row needs nothing beyond that endpoint.
+          {
+            kind: "action",
+            id: "report-problem",
+            title: "ReportProblem",
+            description: "ReportProblemDescription",
+            buttonLabel: "ReportProblemButton",
+            href: `${REPOSITORY_URL}/issues/new`,
+          },
+        ],
+      },
     ],
   },
 
@@ -604,11 +622,39 @@ export function visibleCategories(context: {
 }
 
 /**
- * True when a row should be hidden outright. Only the Developer-mode switch behaves
- * this way: it stays invisible until the 7-tap gate is unlocked.
+ * Rows that persist a setting nothing in the port reads yet. A visible control the
+ * app quietly ignores is worse than no control: it tells the user they changed
+ * something when they did not. Hidden here rather than deleted, since the fix for
+ * each is to wire it up, not to re-author the row; unhiding is then a one-line
+ * removal from this set.
  */
-export function isRowHidden(rowKey: string | undefined, context: { developerGateUnlocked: boolean }): boolean {
-  return rowKey === "App.DeveloperMode" && !context.developerGateUnlocked
+const UNWIRED_ROW_IDS = new Set<string>([
+  "Markdown.BlockSpacing",
+  "Markdown.LineHeight",
+  "Markdown.LetterSpacing",
+  "Markdown.CodeFontSize",
+  "Markdown.MathFontSize",
+  "Markdown.RenderMath",
+  "App.EnableGamification",
+  "Chat.StreamingReveal",
+  "AI.WebSearch.Provider",
+  "AI.WebSearch.SearxngUrl",
+  "AI.WebSearch.BraveApiKey",
+  // A custom row, not a value row, but it names the same setting key it writes
+  // through {@link CustomRow}'s `settingKey`; nothing reads App.Icon back.
+  "app-icon-gallery",
+])
+
+/**
+ * True when a row should be hidden outright, for one of two reasons: the
+ * Developer-mode switch waits for its 7-tap gate, or the row is in
+ * {@link UNWIRED_ROW_IDS}. Identified by storage key for value rows, or by id for
+ * the custom rows that have no key of their own.
+ */
+export function isRowHidden(row: SettingsRow, context: { developerGateUnlocked: boolean }): boolean {
+  const identity = "key" in row ? row.key : "id" in row ? row.id : undefined
+  if (identity === "App.DeveloperMode") return !context.developerGateUnlocked
+  return identity !== undefined && UNWIRED_ROW_IDS.has(identity)
 }
 
 /** The Developer category's title is untranslated, so the nav renders it literally. */
