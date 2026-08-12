@@ -28,6 +28,8 @@
     "SummaryLearnFormat": "{0} aprendiendo",
     "SummaryReviewFormat": "{0} repaso",
     "NewDeck": "Nuevo mazo",
+    "ExpandFolder": "Expandir carpeta",
+    "CollapseFolder": "Contraer carpeta",
     "RenameFolder": "Renombrar carpeta",
     "FolderActions": "Acciones de carpeta",
     "OpenDeck": "Abrir mazo",

@@ -28,6 +28,8 @@
     "SummaryLearnFormat": "学習中 {0}",
     "SummaryReviewFormat": "復習 {0}",
     "NewDeck": "新しいデッキ",
+    "ExpandFolder": "フォルダを展開",
+    "CollapseFolder": "フォルダを折りたたむ",
     "RenameFolder": "フォルダ名を変更",
     "FolderActions": "フォルダ操作",
     "OpenDeck": "デッキを開く",

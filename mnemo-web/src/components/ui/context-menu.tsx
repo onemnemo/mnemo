@@ -7,6 +7,7 @@ import type { IconName } from "@/components/icon/icon-registry"
 import { cn } from "@/lib/utils"
 
 import { MenuItemBody } from "./menu"
+import { closeFocusHandler, type OpensDialog } from "./menu-focus"
 import { CONTENT_CLASS, ITEM_CLASS, itemClass } from "./menu-styles"
 
 // The right-click twin of ./menu. Shares its styling so a context menu and a
@@ -16,10 +17,19 @@ import { CONTENT_CLASS, ITEM_CLASS, itemClass } from "./menu-styles"
 export const ContextMenu = RadixContextMenu.Root
 export const ContextMenuTrigger = RadixContextMenu.Trigger
 
-export function ContextMenuContent({ children }: { children: ReactNode }) {
+export function ContextMenuContent({
+  children,
+  opensDialog,
+}: {
+  children: ReactNode
+  /** Set on a menu whose items put a caret on screen, a dialog or an inline editor. */
+  opensDialog?: OpensDialog
+}) {
   return (
     <RadixContextMenu.Portal>
-      <RadixContextMenu.Content className={CONTENT_CLASS}>{children}</RadixContextMenu.Content>
+      <RadixContextMenu.Content className={CONTENT_CLASS} onCloseAutoFocus={closeFocusHandler(opensDialog)}>
+        {children}
+      </RadixContextMenu.Content>
     </RadixContextMenu.Portal>
   )
 }

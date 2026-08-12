@@ -28,6 +28,8 @@
     "SummaryLearnFormat": "{0} lærer",
     "SummaryReviewFormat": "{0} repetisjon",
     "NewDeck": "Ny kortstokk",
+    "ExpandFolder": "Utvid mappe",
+    "CollapseFolder": "Skjul mappe",
     "RenameFolder": "Gi nytt navn til mappe",
     "FolderActions": "Mappekhandlinger",
     "OpenDeck": "Åpne kortstokk",
