@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
+import { useInlineEditor } from "@/components/ui/useInlineEditor"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { dialog } from "@/stores/dialog"
@@ -28,8 +29,7 @@ export function FolderRow({
   const t = useT()
   const saveFolder = useSaveFolder()
   const deleteFolder = useDeleteFolder()
-  const [editing, setEditing] = useState(false)
-  const renaming = useRef(false)
+  const rename = useInlineEditor()
   const { folder, counts } = row
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
 
@@ -42,30 +42,8 @@ export function FolderRow({
     subtitle: fc("DeckCountFormat", { 0: counts.deckCount }),
   }
 
-  /**
-   * Radix runs a menu item's action inside flushSync, while the menu is still open and
-   * still trapping focus, so an editor mounted straight from there is focused by autoFocus
-   * and pulled back into the menu on the same tick, which blurs it and commits it. A
-   * microtask puts the mount after the menu has closed.
-   */
-  const startRename = () => {
-    renaming.current = true
-    queueMicrotask(() => setEditing(true))
-  }
-
-  /**
-   * Asked as either menu closes. Only a rename holds focus where it is; every other verb,
-   * and Escape, hands the row back so the next Tab carries on from here. Cleared on the
-   * way out so one rename never covers the close after it.
-   */
-  const opensEditor = () => {
-    const wanted = renaming.current
-    renaming.current = false
-    return wanted
-  }
-
   const commitRename = async (name: string) => {
-    setEditing(false)
+    rename.close()
     const trimmed = name.trim()
     if (!trimmed || trimmed === folder.name) return
     await saveFolder.mutateAsync({ id: folder.id, name: trimmed, parentId: folder.parentId, order: folder.order })
@@ -87,13 +65,13 @@ export function FolderRow({
     t,
     on: {
       toggle: () => onToggle(folder.id),
-      rename: startRename,
+      rename: rename.openFromMenu,
       remove: () => void remove(),
     },
   })
 
   return (
-    <FolderRowContextMenu entries={entries} disabled={editing} opensEditor={opensEditor}>
+    <FolderRowContextMenu entries={entries} disabled={rename.editing} opensEditor={rename.opensEditor}>
       <div
         role="row"
         tabIndex={0}
@@ -102,11 +80,11 @@ export function FolderRow({
         data-row-id={folder.id}
         data-row-depth={row.depth}
         data-row-folder={folder.id}
-        onPointerDown={(event) => !editing && drag.press(event, handle)}
-        onClick={() => !drag.suppressClick(handle.key) && !editing && onToggle(folder.id)}
-        onDoubleClick={() => setEditing(true)}
+        onPointerDown={(event) => !rename.editing && drag.press(event, handle)}
+        onClick={() => !drag.suppressClick(handle.key) && !rename.editing && onToggle(folder.id)}
+        onDoubleClick={rename.open}
         onKeyDown={(event) => {
-          if (editing) return
+          if (rename.editing) return
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault()
             onToggle(folder.id)
@@ -129,8 +107,8 @@ export function FolderRow({
         />
         <AppIcon name="folder" size={16} className="shrink-0 text-ink-icon" />
 
-        {editing ? (
-          <FolderNameInput initial={folder.name} onCommit={commitRename} onCancel={() => setEditing(false)} />
+        {rename.editing ? (
+          <FolderNameInput initial={folder.name} onCommit={commitRename} onCancel={rename.close} />
         ) : (
           <span className="flex-1 truncate text-left text-[13px] font-medium text-ink" title={folder.name}>
             {folder.name}
@@ -147,7 +125,7 @@ export function FolderRow({
 
         {/* The row toggles and drags, so the menu has to keep its own clicks to itself. */}
         <div className="flex shrink-0 items-center justify-end" onPointerDown={(event) => event.stopPropagation()}>
-          <FolderRowMenu entries={entries} opensEditor={opensEditor} />
+          <FolderRowMenu entries={entries} opensEditor={rename.opensEditor} />
         </div>
       </div>
     </FolderRowContextMenu>

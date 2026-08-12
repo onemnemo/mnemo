@@ -9,6 +9,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { useInlineEditor } from '@/components/ui/useInlineEditor';
 import { useT } from '@/i18n/useT';
 import { cn } from '@/lib/utils';
 import { dialog } from '@/stores/dialog';
@@ -100,7 +101,7 @@ export function FolderRow({
 }) {
   const nt = useNotesT();
   const t = useT();
-  const [editing, setEditing] = useState(false);
+  const rename = useInlineEditor();
   const saveFolder = useSaveNoteFolder();
   const deleteFolder = useDeleteNoteFolder();
   const createNote = useCreateNote();
@@ -109,7 +110,7 @@ export function FolderRow({
   const handle: TreeDragHandle = { key: `folder:${folder.id}`, kind: 'folder', id: folder.id, label: folder.name };
 
   const commitRename = async (name: string) => {
-    setEditing(false);
+    rename.close();
     const trimmed = name.trim();
     if (!trimmed || trimmed === folder.name) return;
     await saveFolder.mutateAsync({ id: folder.id, name: trimmed, parentId: folder.parentId, order: folder.order });
@@ -143,11 +144,11 @@ export function FolderRow({
           data-row-id={folder.id}
           data-row-depth={row.depth}
           data-row-folder={folder.id}
-          onPointerDown={(event) => !editing && drag.press(event, handle)}
-          onClick={() => !drag.suppressClick(handle.key) && !editing && onToggle(folder.id)}
-          onDoubleClick={() => setEditing(true)}
+          onPointerDown={(event) => !rename.editing && drag.press(event, handle)}
+          onClick={() => !drag.suppressClick(handle.key) && !rename.editing && onToggle(folder.id)}
+          onDoubleClick={rename.open}
           onKeyDown={(event) => {
-            if (editing) return;
+            if (rename.editing) return;
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();
               onToggle(folder.id);
@@ -162,8 +163,8 @@ export function FolderRow({
             size={12}
             className="shrink-0 text-ink-icon"
           />
-          {editing ? (
-            <RenameInput initial={folder.name} onCommit={commitRename} onCancel={() => setEditing(false)} />
+          {rename.editing ? (
+            <RenameInput initial={folder.name} onCommit={commitRename} onCancel={rename.close} />
           ) : (
             <span className="min-w-0 flex-1 truncate" title={folder.name}>
               {folder.name}
@@ -187,11 +188,11 @@ export function FolderRow({
           </span>
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent>
+      <ContextMenuContent opensDialog={rename.opensEditor}>
         <ContextMenuItem icon="notes/compose" onSelect={() => void newNoteHere()}>
           {nt('NewNote')}
         </ContextMenuItem>
-        <ContextMenuItem icon="flyout/rename" onSelect={() => setEditing(true)}>
+        <ContextMenuItem icon="flyout/rename" onSelect={rename.openFromMenu}>
           {nt('Rename')}
         </ContextMenuItem>
         <ContextMenuSeparator />
@@ -218,7 +219,7 @@ export function NoteRow({
 }) {
   const nt = useNotesT();
   const t = useT();
-  const [editing, setEditing] = useState(false);
+  const rename = useInlineEditor();
   const updateNote = useUpdateNoteMetadata();
   const deleteNote = useDeleteNote();
   const duplicateNote = useDuplicateNote();
@@ -229,12 +230,12 @@ export function NoteRow({
   const handle: TreeDragHandle = { key: `note:${note.id}`, kind: 'note', id: note.id, label: note.title.trim() || nt('Untitled') };
 
   const open = () => {
-    if (drag?.suppressClick(handle.key) || editing) return;
+    if (drag?.suppressClick(handle.key) || rename.editing) return;
     navigate('notes', note.id);
   };
 
   const commitRename = async (title: string) => {
-    setEditing(false);
+    rename.close();
     const trimmed = title.trim();
     if (trimmed === note.title.trim()) return;
     await updateNote.mutateAsync(metadataUpdateOf(note, { title: trimmed }));
@@ -273,11 +274,11 @@ export function NoteRow({
           data-row-id={note.id}
           data-row-depth={row.depth}
           data-row-folder={note.folderId ?? ''}
-          onPointerDown={(event) => !favourite && !editing && drag?.press(event, handle)}
+          onPointerDown={(event) => !favourite && !rename.editing && drag?.press(event, handle)}
           onClick={open}
-          onDoubleClick={() => setEditing(true)}
+          onDoubleClick={rename.open}
           onKeyDown={(event) => {
-            if (editing) return;
+            if (rename.editing) return;
             if (event.key === 'Enter') {
               event.preventDefault();
               navigate('notes', note.id);
@@ -298,14 +299,14 @@ export function NoteRow({
           ) : (
             <AppIcon name="common/file-text" size={14} className="shrink-0 text-ink-icon" preserveColors={false} />
           )}
-          {editing ? (
-            <RenameInput initial={note.title} onCommit={commitRename} onCancel={() => setEditing(false)} />
+          {rename.editing ? (
+            <RenameInput initial={note.title} onCommit={commitRename} onCancel={rename.close} />
           ) : (
             <span className="min-w-0 flex-1 truncate" title={note.title.trim() || nt('Untitled')}>
               {note.title.trim() || nt('Untitled')}
             </span>
           )}
-          {!editing ? (
+          {!rename.editing ? (
             <FavouriteStar
               on={note.isFavorite}
               onToggle={toggleFavourite}
@@ -314,8 +315,8 @@ export function NoteRow({
           ) : null}
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem icon="flyout/rename" onSelect={() => setEditing(true)}>
+      <ContextMenuContent opensDialog={rename.opensEditor}>
+        <ContextMenuItem icon="flyout/rename" onSelect={rename.openFromMenu}>
           {nt('Rename')}
         </ContextMenuItem>
         <ContextMenuItem icon={note.isFavorite ? 'common/star-filled' : 'common/star'} onSelect={toggleFavourite}>
