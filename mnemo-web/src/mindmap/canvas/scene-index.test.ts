@@ -18,6 +18,7 @@ import {
   nodeCullKey,
   type SceneIndex,
 } from "./scene-index"
+import { shapePath } from "./shape-path"
 
 function element(id: string, x: number, y: number): SceneElement {
   return {
@@ -232,11 +233,66 @@ describe("rebinding after a substrate swap", () => {
 describe("selection", () => {
   it("marks the current set and clears the previous one", () => {
     index.setSelected(["a", "b"])
-    expect(index.hostFor("a")!.dataset.selected).toBe("1")
+    expect(index.hostFor("a")!.dataset.selected).toBeDefined()
 
     index.setSelected(["b"])
 
     expect(index.hostFor("a")!.dataset.selected).toBeUndefined()
-    expect(index.hostFor("b")!.dataset.selected).toBe("1")
+    expect(index.hostFor("b")!.dataset.selected).toBeDefined()
+  })
+
+  it("says how many are selected, for chrome that only makes sense on one", () => {
+    index.setSelected(["a", "b"])
+    expect(index.hostFor("a")!.dataset.selected).toBe("many")
+
+    index.setSelected(["a"])
+    expect(index.hostFor("a")!.dataset.selected).toBe("one")
+  })
+
+  it("hands a host the camera's scale as it becomes selected, not on the next pan", () => {
+    // A grip drawn before the scale arrives is a grip at the wrong size for a frame, and at a low
+    // zoom that frame is the one the pointer is already over.
+    index.writeZoom(2)
+    index.setSelected(["a"])
+
+    expect(index.hostFor("a")!.style.getPropertyValue("--mm-zoom")).toBe("2")
+  })
+})
+
+describe("writeBox", () => {
+  it("writes the size to the host as well as the position", () => {
+    index.writeBox("a", { x: 10, y: 20, width: 150, height: 60 })
+    const host = index.hostFor("a")!
+
+    expect(host.style.transform).toBe("translate(10px, 20px)")
+    expect(host.style.width).toBe("150px")
+    expect(host.style.height).toBe("60px")
+  })
+
+  it("reports the new box, so an edge meeting it lands on the border that is there now", () => {
+    index.writeBox("a", { x: 10, y: 20, width: 150, height: 60 })
+
+    expect(index.boxOf("a")).toMatchObject({ x: 10, y: 20, width: 150, height: 60 })
+  })
+
+  it("hands the culler the new bounds rather than the ones it was built with", () => {
+    index.writeBox("a", { x: 10, y: 20, width: 150, height: 60 })
+    const target = index.cullTargets().find((t) => t.key === nodeCullKey("a"))!
+
+    expect(target.bounds()).toMatchObject({ x: 10, y: 20, width: 150, height: 60 })
+  })
+
+  it("redraws a shape's outline, which is drawn to the box rather than scaled into it", () => {
+    const host = index.hostFor("a")!
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path")
+    path.dataset.mmShape = "diamond"
+    svg.append(path)
+    host.append(svg)
+
+    index.writeBox("a", { x: 0, y: 0, width: 200, height: 100 })
+
+    expect(svg.getAttribute("width")).toBe("200")
+    expect(path.getAttribute("d")).toBe(shapePath("diamond", 200, 100))
   })
 })

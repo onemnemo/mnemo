@@ -11,6 +11,7 @@ import { MindmapSelectionLayer } from "./MindmapSelectionLayer"
 import { MindmapNode } from "./MindmapNode"
 import { createCanvasRuntime, type CanvasRuntime } from "./runtime"
 import { installInteraction, type MovedElement } from "../interaction/controller"
+import type { ResizeBox } from "../interaction/resize"
 import { EMPTY_SELECTION, type Selection } from "../interaction/selection"
 import { cursorFor, type MindmapTool } from "../interaction/tool"
 import type { Point, Scene, Viewport } from "../model/scene"
@@ -29,6 +30,8 @@ export interface MindmapCanvasProps {
   onSelection?: (next: Selection) => void
   /** One gesture, one call, with every element's final position. */
   onCommitMove?: (moves: readonly MovedElement[]) => void
+  /** A resize grip was let go somewhere that means a different box. */
+  onCommitResize?: (id: string, box: ResizeBox) => void
   /** A double click, which is how a label asks to be edited. */
   onActivate?: (id: string) => void
   /** The node whose label is currently a field. */
@@ -73,6 +76,7 @@ export function MindmapCanvas({
   selection = EMPTY_SELECTION,
   onSelection,
   onCommitMove,
+  onCommitResize,
   onActivate,
   editingId,
   onEditEnd,
@@ -104,6 +108,7 @@ export function MindmapCanvas({
     selection,
     onSelection,
     onCommitMove,
+    onCommitResize,
     onActivate,
     subtreeOf,
     tool,
@@ -116,6 +121,7 @@ export function MindmapCanvas({
     selection,
     onSelection,
     onCommitMove,
+    onCommitResize,
     onActivate,
     subtreeOf,
     tool,
@@ -187,6 +193,7 @@ export function MindmapCanvas({
         setSelection: (next) => live.current.onSelection?.(next),
         tool: () => live.current.tool,
         commitMove: (moves) => live.current.onCommitMove?.(moves),
+        commitResize: (id, box) => live.current.onCommitResize?.(id, box),
         activate: (id) => live.current.onActivate?.(id),
         plant: (armed, at) => live.current.onPlant?.(armed, at),
         group: (ids) => live.current.onGroup?.(ids),

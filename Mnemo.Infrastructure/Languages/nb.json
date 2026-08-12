@@ -830,7 +830,8 @@
     "BackgroundPlain": "Enkel",
     "StyleMap": "Stil på kart",
     "Group": "Grupper",
-    "Ungroup": "Løs opp gruppe"
+    "Ungroup": "Løs opp gruppe",
+    "Resize": "Endre størrelse"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

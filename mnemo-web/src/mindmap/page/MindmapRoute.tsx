@@ -16,6 +16,7 @@ import { MindmapSelectionBar } from "../chrome/SelectionBar"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
 import { placeChild, type PlacedBox } from "../edit/placement"
 import type { MovedElement } from "../interaction/controller"
+import type { ResizeBox } from "../interaction/resize"
 import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } from "../interaction/selection"
 import { isOneShot, TOOL_KEYS, type MindmapTool } from "../interaction/tool"
 import { MapStyleMenu } from "../chrome/MapStyleMenu"
@@ -185,6 +186,26 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     }
     return index
   }, [scene])
+
+  const commitResize = useCallback(
+    (id: string, box: ResizeBox) => {
+      // Rounded for the same reason a move is: a stored size is a number someone will read back, and
+      // the fractional part of it is the pointer's noise rather than anything anyone meant.
+      const ops: MindmapOp[] = [op.set(id, { wh: [Math.round(box.width), Math.round(box.height)] })]
+      // Every grip but the bottom-right one moves the anchor too, and a size committed without its
+      // position would slide the box out from under the corner that was not being held.
+      const before = boxes.get(id)
+      if (
+        !before ||
+        Math.round(before.x) !== Math.round(box.x) ||
+        Math.round(before.y) !== Math.round(box.y)
+      ) {
+        ops.push(op.moveTo(id, Math.round(box.x), Math.round(box.y)))
+      }
+      void editor.apply(ops, { label: t("Mindmap", "Resize") })
+    },
+    [boxes, editor, t],
+  )
 
   /**
    * Adds a child and puts the caret in it.
@@ -704,6 +725,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           selection={selection}
           onSelection={setSelection}
           onCommitMove={commitMove}
+          onCommitResize={commitResize}
           onActivate={setEditing}
           editingId={editing}
           onEditEnd={endEdit}

@@ -79,6 +79,8 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
 
       {element.kind === "shape" ? <ShapeOutline element={element} stroke={accentLine} /> : null}
 
+      {isResizable(element) && !editing ? <ResizeHandles /> : null}
+
       <div
         className={cn(
           "relative flex h-full w-full items-center",
@@ -146,6 +148,69 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
     </div>
   )
 })
+
+/**
+ * Which elements can be dragged to a size.
+ *
+ * The free ones, and only those. A node's box is measured around its wrapped label, so a stored
+ * width would be a box that no longer says anything about the text inside it; a frame's box is
+ * derived from its members, so a handle on one would be a number the next member to move overwrites.
+ * Both of those are things to say with a different gesture, not with a grip on a corner.
+ */
+function isResizable(element: SceneElement): boolean {
+  return element.kind === "shape" || element.kind === "text" || element.kind === "image"
+}
+
+/** The eight grips, as fractions of the box, with the cursor each one should show. */
+const HANDLES = [
+  { dir: "nw", x: 0, y: 0, cursor: "nwse-resize" },
+  { dir: "n", x: 0.5, y: 0, cursor: "ns-resize" },
+  { dir: "ne", x: 1, y: 0, cursor: "nesw-resize" },
+  { dir: "e", x: 1, y: 0.5, cursor: "ew-resize" },
+  { dir: "se", x: 1, y: 1, cursor: "nwse-resize" },
+  { dir: "s", x: 0.5, y: 1, cursor: "ns-resize" },
+  { dir: "sw", x: 0, y: 1, cursor: "nesw-resize" },
+  { dir: "w", x: 0, y: 0.5, cursor: "ew-resize" },
+] as const
+
+/**
+ * The grips on a selected free element.
+ *
+ * Drawn inside the host rather than in an overlay, so they travel with the box for free while the
+ * resize itself is written to the DOM: an overlay would need its own copy of the geometry, updated
+ * on every frame of the gesture, and the two would drift the first time one of them was missed.
+ *
+ * They undo the camera's scale on themselves, since a grip that shrinks with the map is a grip you
+ * cannot hit when zoomed out. The scale arrives as a custom property the scene index writes onto
+ * the selected hosts, and the whole undo is one transform, so the border and the radius stay the
+ * size they were drawn at too.
+ *
+ * Only while exactly one thing is selected. Eight grips on every member of a sweep is noise, and
+ * there is no sensible answer for what one of them would do to a set.
+ */
+function ResizeHandles() {
+  return (
+    <>
+      {HANDLES.map((handle) => (
+        <span
+          key={handle.dir}
+          data-mm-handle={handle.dir}
+          className={cn(
+            "absolute hidden size-[9px] rounded-[2px] border border-accent bg-canvas",
+            "group-data-[selected=one]:block",
+          )}
+          style={{
+            left: `${handle.x * 100}%`,
+            top: `${handle.y * 100}%`,
+            transform: "translate(-50%, -50%) scale(calc(1 / var(--mm-zoom, 1)))",
+            cursor: handle.cursor,
+          }}
+          aria-hidden
+        />
+      ))}
+    </>
+  )
+}
 
 /** How wide a band along a frame's border can be grabbed, on top of its title strip. */
 const FRAME_GRIP = 12
@@ -281,6 +346,9 @@ function ShapeOutline({ element, stroke }: { element: SceneElement; stroke: stri
       aria-hidden
     >
       <path
+        // Named so a live resize can redraw the path from the DOM. The outline is drawn to the box
+        // rather than scaled into it, so it cannot simply follow a size the gesture wrote.
+        data-mm-shape={shape}
         d={shapePath(shape, element.width, element.height)}
         fill={open ? "none" : (element.fill ?? "var(--canvas)")}
         stroke={stroke ?? "var(--line)"}

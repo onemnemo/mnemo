@@ -12,12 +12,14 @@
  * a component is a position that costs a render to change.
  */
 
+import type { ShapeType } from '../model/document'
 import type { SceneEdge, Scene } from '../model/scene'
 import type { Point } from '../model/scene'
 import type { CullableNode, CullBounds, CullTarget } from './culler'
 import { strokeFor } from './edge-canvas'
 import { anchorsFor, edgeShape, strokeToPathData, type ElementBox } from './edge-paths'
 import type { EdgeMode } from './edge-style'
+import { shapePath } from './shape-path'
 
 /**
  * Cull keys are namespaced because elements and edges share one grid. One grid rather than two
@@ -53,6 +55,24 @@ export interface SceneIndex {
   labelFor(id: string): HTMLElement | null
   /** Writes new positions for exactly these ids. Does not touch edges. */
   writePositions(ids: readonly string[], at: (id: string) => Point | undefined): void
+  /**
+   * A new box for one element, position and size together.
+   *
+   * Size as well as position because a resize has to reach three things at once: the host, so the
+   * box on screen follows the pointer; the size this index reports, so an edge meeting the element
+   * lands on its new border rather than its old one; and a shape's outline, which is a path drawn
+   * to the box and so would otherwise keep the size React last rendered it at.
+   */
+  writeBox(id: string, box: ElementBox): void
+  /**
+   * The camera's scale, for the chrome that has to stay the same size on screen while the world
+   * scales under it.
+   *
+   * Written onto the selected hosts rather than onto the world, because an inherited custom
+   * property on the world would invalidate the style of every element in the document on every
+   * frame of a pan, to move eight grips on one of them.
+   */
+  writeZoom(zoom: number): void
   /** Edge ids with an endpoint among these elements. Computed once per gesture, not per frame. */
   incidentEdges(ids: readonly string[]): readonly string[]
   /**
@@ -163,6 +183,9 @@ export function createSceneIndex(
   }
 
   let selected: readonly string[] = []
+  // Remembered so a host that becomes selected mid-gesture is handed the scale it has to draw its
+  // chrome at, rather than waiting for the camera to move before its grips are the right size.
+  let cameraZoom = 1
 
   return {
     positionOf: (id) => positions.get(id),
@@ -178,6 +201,28 @@ export function createSceneIndex(
         if (!point) continue
         positions.set(id, point)
         host.style.transform = `translate(${point.x}px, ${point.y}px)`
+      }
+    },
+
+    writeBox(id, box) {
+      const host = hosts.get(id)
+      if (!host) return
+      positions.set(id, { x: box.x, y: box.y })
+      sizes.set(id, {
+        width: box.width,
+        height: box.height,
+        underline: sizes.get(id)?.underline,
+      })
+      host.style.transform = `translate(${box.x}px, ${box.y}px)`
+      host.style.width = `${box.width}px`
+      host.style.height = `${box.height}px`
+      redrawShape(host, box.width, box.height)
+    },
+
+    writeZoom(zoom) {
+      cameraZoom = zoom
+      for (const id of selected) {
+        hosts.get(id)?.style.setProperty('--mm-zoom', String(zoom))
       }
     },
 
@@ -228,12 +273,14 @@ export function createSceneIndex(
       for (const element of scene.elements) {
         const host = hosts.get(element.id)
         if (!host) continue
-        const size = sizes.get(element.id)
         targets.push({
           key: nodeCullKey(element.id),
           nodes: [host],
+          // Both read inside rather than captured outside: a resize replaces the size entry, and a
+          // target holding the one from build time would keep the culler working off the old box.
           bounds: (): CullBounds | undefined => {
             const position = positions.get(element.id)
+            const size = sizes.get(element.id)
             return position && size ? { x: position.x, y: position.y, ...size } : undefined
           },
         })
@@ -281,8 +328,38 @@ export function createSceneIndex(
 
     setSelected(ids) {
       for (const id of selected) hosts.get(id)?.removeAttribute('data-selected')
-      for (const id of ids) hosts.get(id)?.setAttribute('data-selected', '1')
+      // The value says how many, not which, so chrome that only makes sense for one thing at a time
+      // can be a CSS variant rather than a second render. Resize grips are the case: eight of them
+      // on every member of a twenty-element sweep is noise, and there is nothing sensible for one
+      // of them to do to a set.
+      const value = ids.length === 1 ? 'one' : 'many'
+      for (const id of ids) {
+        const host = hosts.get(id)
+        if (!host) continue
+        host.setAttribute('data-selected', value)
+        host.style.setProperty('--mm-zoom', String(cameraZoom))
+      }
       selected = [...ids]
     },
   }
+}
+
+/**
+ * A shape's outline after its box changed under it.
+ *
+ * The path is drawn to the box rather than scaled into it, which is the same reason it is a path at
+ * all: scaling would stretch the stroke and the corner radius with the shape, and the radius is
+ * matching a CSS one, which does not stretch. Reading the shape off the element rather than being
+ * told it keeps the resize gesture from having to know what a shape is.
+ */
+function redrawShape(host: HTMLElement, width: number, height: number): void {
+  const path = host.querySelector<SVGPathElement>('path[data-mm-shape]')
+  const shape = path?.dataset.mmShape
+  if (!path || !shape) return
+  const svg = path.ownerSVGElement
+  if (svg) {
+    svg.setAttribute('width', String(width))
+    svg.setAttribute('height', String(height))
+  }
+  path.setAttribute('d', shapePath(shape as ShapeType, width, height))
 }

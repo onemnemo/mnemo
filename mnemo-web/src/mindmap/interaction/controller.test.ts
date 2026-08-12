@@ -15,6 +15,7 @@ import type { SceneIndex } from "../canvas/scene-index"
 import type { Point, Scene, SceneEdge, SceneElement } from "../model/scene"
 
 import { installInteraction, type MovedElement } from "./controller"
+import type { ResizeBox, ResizeDir } from "./resize"
 import { EMPTY_SELECTION, type Selection } from "./selection"
 import type { MindmapTool } from "./tool"
 
@@ -66,14 +67,23 @@ function harness(scene: Scene = SCENE) {
   document.body.append(pane)
 
   const positions = new Map<string, Point>()
+  const boxes = new Map<string, ElementBox>()
   const hosts = new Map<string, HTMLElement>()
+  const grips = new Map<string, HTMLElement>()
   for (const item of scene.elements) {
     positions.set(item.id, { x: item.x, y: item.y })
+    boxes.set(item.id, { x: item.x, y: item.y, width: item.width, height: item.height })
     const host = document.createElement("div")
     host.className = "mm-node"
     host.dataset.mmId = item.id
+    // One grip, whose direction each test sets before it presses. The real element renders eight,
+    // and which of them was pressed is the only thing the controller reads off any of them.
+    const grip = document.createElement("span")
+    grip.dataset.mmHandle = "se"
+    host.append(grip)
     pane.append(host)
     hosts.set(item.id, host)
+    grips.set(item.id, grip)
   }
 
   // jsdom implements none of the pointer capture API, and the controller's whole reason for taking
@@ -94,18 +104,23 @@ function harness(scene: Scene = SCENE) {
   const repainted: string[][] = []
   const index: SceneIndex = {
     positionOf: (id) => positions.get(id),
-    boxOf: (id): ElementBox | undefined => {
-      const at = positions.get(id)
-      return at ? { ...at, width: 100, height: 40 } : undefined
-    },
+    boxOf: (id): ElementBox | undefined => boxes.get(id),
     hostFor: (id) => hosts.get(id) ?? null,
     labelFor: () => null,
     writePositions(ids, at) {
       for (const id of ids) {
         const point = at(id)
-        if (point) positions.set(id, point)
+        if (!point) continue
+        positions.set(id, point)
+        const box = boxes.get(id)
+        if (box) boxes.set(id, { ...box, x: point.x, y: point.y })
       }
     },
+    writeBox(id, box) {
+      positions.set(id, { x: box.x, y: box.y })
+      boxes.set(id, box)
+    },
+    writeZoom: () => {},
     incidentEdges(ids) {
       const seen = new Set<string>()
       for (const item of scene.edges) {
@@ -123,6 +138,7 @@ function harness(scene: Scene = SCENE) {
   const redraws: (readonly string[] | undefined)[] = []
   const pins: { elements: readonly string[]; edges: readonly string[] }[] = []
   const commits: MovedElement[][] = []
+  const resizes: { id: string; box: ResizeBox }[] = []
   const activated: string[] = []
   const planted: { tool: MindmapTool; at: Point }[] = []
   const connected: [string, string][] = []
@@ -155,6 +171,7 @@ function harness(scene: Scene = SCENE) {
       },
       tool: () => tool,
       commitMove: (moves) => void commits.push([...moves]),
+      commitResize: (id, box) => void resizes.push({ id, box }),
       activate: (id) => void activated.push(id),
       plant: (armed, at) => void planted.push({ tool: armed, at }),
       connect: (fromId, toId) => void connected.push([fromId, toId]),
@@ -177,10 +194,12 @@ function harness(scene: Scene = SCENE) {
     pane,
     hosts,
     positions,
+    boxes,
     repainted,
     redraws,
     pins,
     commits,
+    resizes,
     activated,
     planted,
     connected,
@@ -199,6 +218,11 @@ function harness(scene: Scene = SCENE) {
     },
     press: (id: string | null, at: Point, init?: MouseEventInit) =>
       send("pointerdown", at, id ? hosts.get(id)! : pane, init),
+    pressGrip: (id: string, dir: ResizeDir, at: Point, init?: MouseEventInit) => {
+      const grip = grips.get(id)!
+      grip.dataset.mmHandle = dir
+      send("pointerdown", at, grip, init)
+    },
     move: (at: Point) => send("pointermove", at),
     release: (at: Point) => send("pointerup", at),
     cancel: (at: Point) => send("pointercancel", at),
@@ -469,6 +493,94 @@ describe("installInteraction", () => {
 
     expect(h.positions.get("a")).toEqual({ x: 200, y: -60 })
     expect(h.selection().elements.size).toBe(0)
+    h.uninstall()
+  })
+})
+
+describe("a resize grip", () => {
+  it("changes the box as the pointer moves, without waiting for a threshold", () => {
+    const h = harness()
+    h.pressGrip("a", "se", { x: 300, y: -20 })
+    h.move({ x: 340, y: 0 })
+
+    expect(h.boxes.get("a")).toEqual({ x: 200, y: -60, width: 140, height: 60 })
+    h.uninstall()
+  })
+
+  it("commits once, on release, with the box it ended on", () => {
+    const h = harness()
+    h.pressGrip("a", "se", { x: 300, y: -20 })
+    h.move({ x: 320, y: -10 })
+    h.move({ x: 340, y: 0 })
+    h.release({ x: 340, y: 0 })
+
+    expect(h.resizes).toEqual([{ id: "a", box: { x: 200, y: -60, width: 140, height: 60 } }])
+    h.uninstall()
+  })
+
+  it("takes the position with it when the grip is on the far side", () => {
+    const h = harness()
+    h.pressGrip("a", "nw", { x: 200, y: -60 })
+    h.move({ x: 180, y: -80 })
+    h.release({ x: 180, y: -80 })
+
+    expect(h.resizes[0].box).toEqual({ x: 180, y: -80, width: 120, height: 60 })
+    h.uninstall()
+  })
+
+  it("keeps the element and its branches rendered while it is being dragged", () => {
+    const h = harness()
+    h.pressGrip("a", "se", { x: 300, y: -20 })
+    h.move({ x: 340, y: 0 })
+
+    expect(h.pins).toEqual([{ elements: ["a"], edges: ["r-a", "a-a1"] }])
+    expect(h.repainted.at(-1)).toEqual(["r-a", "a-a1"])
+    h.release({ x: 340, y: 0 })
+    expect(h.unpinCount()).toBe(1)
+    h.uninstall()
+  })
+
+  it("moves nothing: a grip is not a drag on the element it sits on", () => {
+    const h = harness()
+    h.pressGrip("a", "se", { x: 300, y: -20 })
+    h.move({ x: 340, y: 0 })
+    h.release({ x: 340, y: 0 })
+
+    expect(h.positions.get("a1")).toEqual({ x: 400, y: -60 })
+    expect(h.commits).toHaveLength(0)
+    h.uninstall()
+  })
+
+  it("says nothing when the grip was pressed and let go where it stood", () => {
+    const h = harness()
+    h.pressGrip("a", "se", { x: 300, y: -20 })
+    h.release({ x: 300, y: -20 })
+
+    expect(h.resizes).toHaveLength(0)
+    h.uninstall()
+  })
+
+  it("puts the box back when the gesture is cancelled", () => {
+    const h = harness()
+    h.pressGrip("a", "se", { x: 300, y: -20 })
+    h.move({ x: 500, y: 200 })
+    h.cancel({ x: 500, y: 200 })
+
+    expect(h.boxes.get("a")).toEqual({ x: 200, y: -60, width: 100, height: 40 })
+    expect(h.resizes).toHaveLength(0)
+    expect(h.unpinCount()).toBe(1)
+    h.uninstall()
+  })
+
+  it("resizes whatever tool is armed, since a grip is only there because it was selected", () => {
+    const h = harness()
+    h.arm("connect")
+    h.pressGrip("a", "se", { x: 300, y: -20 })
+    h.move({ x: 340, y: 0 })
+    h.release({ x: 340, y: 0 })
+
+    expect(h.resizes).toHaveLength(1)
+    expect(h.connected).toHaveLength(0)
     h.uninstall()
   })
 })
