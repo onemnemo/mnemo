@@ -85,7 +85,15 @@ export interface ImageContent {
   caption?: string | null
 }
 
-export type ShapeType = "rectangle" | "ellipse" | "diamond" | "hexagon" | "parallelogram" | "line" | "arrow"
+export type ShapeType =
+  | "rectangle"
+  | "ellipse"
+  | "diamond"
+  | "hexagon"
+  | "parallelogram"
+  | "line"
+  | "arrow"
+  | "blob"
 
 export interface ShapeContent {
   $type: "shape"

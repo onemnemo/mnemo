@@ -5,12 +5,7 @@ import { shapePath } from "../canvas/shape-path"
 import type { ShapeType } from "../model/document"
 import { FlyoutPanel } from "./FlyoutPanel"
 
-/**
- * The primitives, in a fixed order.
- *
- * Seven rather than the eight in that image: blob is not in the model, and a control that plants a
- * shape the document cannot store is worse than one that does not offer it.
- */
+/** The primitives, in a fixed order: two rows of four. */
 const SHAPES: readonly { shape: ShapeType; key: string }[] = [
   { shape: "rectangle", key: "ShapeRectangle" },
   { shape: "ellipse", key: "ShapeEllipse" },
@@ -19,11 +14,24 @@ const SHAPES: readonly { shape: ShapeType; key: string }[] = [
   { shape: "parallelogram", key: "ShapeParallelogram" },
   { shape: "line", key: "ShapeLine" },
   { shape: "arrow", key: "ShapeArrow" },
+  { shape: "blob", key: "ShapeBlob" },
 ]
 
 /** The glyph box each primitive is previewed in. Wider than tall, like the shapes it plants. */
 const GLYPH_WIDTH = 26
 const GLYPH_HEIGHT = 18
+
+/**
+ * The box the outline is actually built in, before being scaled down into the glyph.
+ *
+ * A rectangle's corner radius is the one absolute number in the geometry, so a shape drawn straight
+ * into a 26 pixel box came out with rounding half its own height: the rectangle previewed as a
+ * stadium and read as the same tile as the ellipse and the blob. Building at something near the size
+ * of a real element and scaling the result gives every primitive the proportions it will have on the
+ * canvas, which is the only thing that makes a picker of eight rounded outlines legible.
+ */
+const BUILD_SCALE = 4
+const PAD = 1
 
 export interface ShapeFlyoutProps {
   shape: ShapeType
@@ -56,14 +64,24 @@ export function ShapeFlyout({ shape, onShape, onClose }: ShapeFlyoutProps) {
                 active ? "bg-frame-active text-ink" : "text-ink-2 hover:bg-frame-hover hover:text-ink",
               )}
             >
-              <svg width={GLYPH_WIDTH} height={GLYPH_HEIGHT} aria-hidden>
+              <svg
+                width={GLYPH_WIDTH}
+                height={GLYPH_HEIGHT}
+                viewBox={`0 0 ${GLYPH_WIDTH * BUILD_SCALE} ${GLYPH_HEIGHT * BUILD_SCALE}`}
+                aria-hidden
+              >
                 <path
-                  d={shapePath(entry.shape, GLYPH_WIDTH - 2, GLYPH_HEIGHT - 2)}
-                  transform="translate(1, 1)"
+                  d={shapePath(
+                    entry.shape,
+                    (GLYPH_WIDTH - PAD * 2) * BUILD_SCALE,
+                    (GLYPH_HEIGHT - PAD * 2) * BUILD_SCALE,
+                  )}
+                  transform={`translate(${PAD * BUILD_SCALE}, ${PAD * BUILD_SCALE})`}
                   fill="none"
                   stroke="currentColor"
                   strokeWidth={1.4}
                   strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
                 />
               </svg>
               <span className="text-[10.5px] leading-none">{t("Mindmap", entry.key)}</span>
