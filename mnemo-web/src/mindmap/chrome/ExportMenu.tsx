@@ -45,6 +45,7 @@ export function ExportMenu({ onExport, canExport }: ExportMenuProps) {
           aria-label={t("Mindmap", "ExportMap")}
         >
           <AppIcon name="common/download" size={15} />
+          {t("Mindmap", "Export")}
         </Button>
       </PopoverTrigger>
 
