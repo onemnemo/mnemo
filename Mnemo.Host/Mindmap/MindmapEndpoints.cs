@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -23,6 +24,7 @@ public static class MindmapEndpoints
 {
     private const string DefaultTitle = "Untitled map";
     private const int FindLimit = 50;
+    private const string OutlineContentType = "text/markdown; charset=utf-8";
 
     private static readonly IReadOnlyDictionary<string, string> EmptyIds =
         new Dictionary<string, string>(StringComparer.Ordinal);
@@ -131,6 +133,24 @@ public static class MindmapEndpoints
             return MindmapJson.Ok(new MindmapFindResultDto(
                 found.Value.Revision,
                 found.Value.Hits.Select(h => new MindmapFindHitDto(h.ElementId, h.Text, h.Path)).ToList()));
+        });
+
+        // The one export that is served rather than drawn. A picture of a map can only be made where
+        // the map was measured, which is the browser, but an outline is a projection of the stored
+        // document and knows nothing about how wide a label came out, so it is produced here by the
+        // same exporter the desktop has always used.
+        endpoints.MapGet("/api/mindmaps/{id}/outline", async (string id, IMindmapService maps, CancellationToken cancellationToken) =>
+        {
+            var loaded = await maps.GetAsync(id, cancellationToken).ConfigureAwait(false);
+            if (!loaded.IsSuccess)
+                return IsMissing(loaded.ErrorMessage, id)
+                    ? UnknownMap(id)
+                    : ServerError(loaded.ErrorMessage, $"Mindmap '{id}' could not be read.");
+            if (loaded.Value is null)
+                return UnknownMap(id);
+
+            var outline = MindmapMarkdownExporter.ExportOutline(loaded.Value);
+            return Results.File(Encoding.UTF8.GetBytes(outline), OutlineContentType, OutlineFileName(loaded.Value.Title));
         });
 
         endpoints.MapPost("/api/mindmaps/{id}/ops", (string id, HttpRequest request, IMindmapService maps, CancellationToken cancellationToken) =>
@@ -354,4 +374,19 @@ public static class MindmapEndpoints
         && errorMessage.Contains("not found", StringComparison.OrdinalIgnoreCase);
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>
+    /// What an outline lands under. The title with anything a file system would refuse taken out, which
+    /// leaves a name of nothing at all for a map called "?" and is why there is a fallback under it.
+    /// </summary>
+    private static string OutlineFileName(string? title)
+    {
+        var name = Blank(title) ?? "mindmap";
+
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+            name = name.Replace(invalid, '_');
+
+        name = name.Trim().Trim('.');
+        return (name.Length == 0 ? "mindmap" : name) + ".md";
+    }
 }
