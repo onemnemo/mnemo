@@ -1,11 +1,16 @@
-import { memo, useCallback, useRef } from "react"
+import { memo, useCallback, useEffect, useRef } from "react"
+import "katex/dist/katex.min.css"
 
 import { AppIcon } from "@/components/icon/AppIcon"
+import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
+import { renderMath } from "@/notes/editor/atoms/katex"
 
+import { bodyOf, refGlyphOf } from "../scene/content"
 import { FRAME_HEAD } from "../scene/project"
 import { branchWash, mixColor } from "../scene/tokens"
-import type { FrameContent, ShapeContent, ShapeType } from "../model/document"
+import { contentText, type CodeContent, type FrameContent, type MathContent } from "../model/document"
+import type { ShapeContent, ShapeType } from "../model/document"
 import type { SceneElement } from "../model/scene"
 import { isOpenShape, shapePath, shapeTextInset } from "./shape-path"
 
@@ -35,7 +40,8 @@ export interface MindmapNodeProps {
  * that changed the box would move the node the moment you pointed at it.
  */
 export const MindmapNode = memo(function MindmapNode({ element, editing, onEditEnd }: MindmapNodeProps) {
-  const { text, nodeShape, isRoot } = element
+  const t = useT()
+  const { nodeShape, isRoot } = element
   const tinted = element.branchColor !== undefined
   const accentLine = element.branchColor ?? element.stroke
 
@@ -91,50 +97,49 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
         )}
         style={bodyStyle(element, tinted, accentLine)}
       >
-        {element.icon ? (
-          <AppIcon name={element.icon} size={13} strokeWidth={1.6} className="ml-2 shrink-0 text-ink-icon" />
-        ) : null}
+        <NodeGlyph element={element} accent={accentLine} label={t("Mindmap", "OpenRef")} />
 
         {element.content.$type === "task" ? (
           <span
+            data-mm-chrome="task"
             className={cn(
-              "ml-2 grid size-[13px] shrink-0 place-items-center rounded-[4px]",
+              "ml-2 grid size-[13px] shrink-0 cursor-pointer place-items-center rounded-[4px]",
               "shadow-[inset_0_0_0_1.5px_currentColor]",
             )}
             style={{ color: accentLine }}
+            title={t("Mindmap", "ToggleTask")}
           >
-            {(element.content as { done?: boolean }).done ? (
-              <AppIcon name="check" size={9} strokeWidth={2.5} />
-            ) : null}
+            {isDone(element) ? <AppIcon name="check" size={9} strokeWidth={2.5} /> : null}
           </span>
         ) : null}
 
-        {editing ? (
-          <NodeEditor element={element} onEditEnd={onEditEnd} />
-        ) : (
+        {editing ? <NodeEditor element={element} onEditEnd={onEditEnd} /> : <NodeBody element={element} />}
+
+        {element.refBadge ? (
           <span
-            className={cn("mm-label block w-full", (isRoot || element.kind === "shape") && "text-center")}
+            className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full px-1.5 text-[9.5px] font-medium leading-[14px] text-canvas"
+            style={{ background: accentLine ?? "var(--ink-3)" }}
+          >
+            {element.refBadge}
+          </span>
+        ) : null}
+
+        {/* Over the source rather than beside it, because the box was measured around the code and
+            a chip that took room of its own would widen every code node by the length of the word
+            "javascript". It paints the body's own colour behind itself so the line it covers ends
+            rather than runs under it. */}
+        {codeLanguage(element) ? (
+          <span
+            className="pointer-events-none absolute rounded-[3px] px-1 font-mono text-[9.5px] leading-[13px] text-ink-3"
             style={{
-              fontSize: text.fontSize,
-              fontWeight: text.fontWeight,
-              lineHeight: `${text.lineHeight}px`,
-              letterSpacing: text.letterSpacing,
-              color: element.textColor,
-              paddingLeft: element.padding.x + labelInset(element),
-              paddingRight: element.padding.x + labelInset(element),
+              top: element.padding.y,
+              right: element.padding.x,
+              background: surfaceOf(element, tinted),
             }}
           >
-            {/* Never re-wrapped. The projector already decided where the lines break, and the box
-                was measured against that decision; letting CSS wrap again means a label one pixel
-                wider than measured spills onto a second line inside a box built for one. Every
-                single-word label hides this, and every label with a space in it finds it. */}
-            {text.lines.map((line, index) => (
-              <span key={index} className="block whitespace-pre">
-                {line}
-              </span>
-            ))}
+            {codeLanguage(element)}
           </span>
-        )}
+        ) : null}
       </div>
 
       {element.hiddenCount > 0 ? (
@@ -148,6 +153,196 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
     </div>
   )
 })
+
+/**
+ * The mark before the text.
+ *
+ * One slot, two sources. A style can put any icon on any node, and a reference brings a mark of its
+ * own saying what it points at; when both are there the style wins, because that one was asked for.
+ *
+ * A reference's mark is also its handle: pressing it follows the reference, which is the one gesture
+ * on a node that does something other than select it. That is why it carries the chrome attribute
+ * even when the glyph on it came from a style, and why a node that is not a reference never does.
+ */
+function NodeGlyph({
+  element,
+  accent,
+  label,
+}: {
+  element: SceneElement
+  accent: string | undefined
+  label: string
+}) {
+  const refGlyph = refGlyphOf(element.content)
+  const glyph = element.icon ?? refGlyph
+  if (!glyph) {
+    return null
+  }
+
+  if (!refGlyph) {
+    return <AppIcon name={glyph} size={13} strokeWidth={1.6} className="ml-2 shrink-0 text-ink-icon" />
+  }
+
+  return (
+    <span
+      data-mm-chrome="ref"
+      className="ml-1.5 shrink-0 cursor-pointer hover:opacity-70"
+      style={{ color: element.refMissing ? undefined : accent }}
+      title={label}
+    >
+      <AppIcon
+        name={glyph}
+        size={14}
+        strokeWidth={1.6}
+        className={cn("block", element.refMissing && "text-ink-3")}
+      />
+    </span>
+  )
+}
+
+/** What a node draws in the space its box was measured around. */
+function NodeBody({ element }: { element: SceneElement }) {
+  switch (bodyOf(element.content)) {
+    case "code":
+      return <CodeBody element={element} />
+    case "math":
+      return <MathBody element={element} />
+    default:
+      return <NodeLabel element={element} />
+  }
+}
+
+/**
+ * The label: the lines the projector wrapped, set with the metrics it wrapped them at.
+ *
+ * Never re-wrapped. The projector already decided where the lines break, and the box was measured
+ * against that decision; letting CSS wrap again means a label one pixel wider than measured spills
+ * onto a second line inside a box built for one. Every single-word label hides this, and every label
+ * with a space in it finds it.
+ */
+function NodeLabel({ element }: { element: SceneElement }) {
+  const { text } = element
+  const done = isDone(element)
+  // A finished task and a reference to something deleted are both text that is still there and no
+  // longer current. Said with weight rather than with a colour of their own, so a node that was
+  // given a colour keeps reading as that colour.
+  const faded = done || element.refMissing === true
+
+  return (
+    <span
+      className={cn(
+        "mm-label block w-full",
+        (element.isRoot || element.kind === "shape") && "text-center",
+        faded && "text-ink-3",
+        done && "line-through",
+        element.refMissing && "italic",
+      )}
+      style={{
+        fontSize: text.fontSize,
+        fontWeight: text.fontWeight,
+        lineHeight: `${text.lineHeight}px`,
+        letterSpacing: text.letterSpacing,
+        color: faded ? undefined : element.textColor,
+        paddingLeft: element.padding.x + labelInset(element),
+        paddingRight: element.padding.x + labelInset(element),
+      }}
+    >
+      {text.lines.map((line, index) => (
+        <span key={index} className="block whitespace-pre">
+          {line}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/**
+ * Source, as typed.
+ *
+ * Not wrapped and not re-indented: indentation is what makes code readable, and a wrap loses it. A
+ * line wider than the box is cut off at the edge instead, which is the same call the measurement
+ * makes when it caps the box at eight lines.
+ */
+function CodeBody({ element }: { element: SceneElement }) {
+  const { text } = element
+
+  return (
+    <span
+      className="mm-label block w-full overflow-hidden font-mono"
+      style={{
+        fontSize: text.fontSize,
+        fontWeight: text.fontWeight,
+        lineHeight: `${text.lineHeight}px`,
+        color: element.textColor,
+        paddingLeft: element.padding.x,
+        paddingRight: element.padding.x,
+      }}
+    >
+      {text.lines.map((line, index) => (
+        <span key={index} className="block whitespace-pre">
+          {line}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/**
+ * An equation, rendered.
+ *
+ * Written to the DOM by KaTeX rather than described as JSX, so this is one of the few places on the
+ * canvas React does not own the subtree. It carries the same class and the same font size the
+ * measurer used on its offscreen host, which is what makes the box the layout packed match the box
+ * that lands in it.
+ */
+function MathBody({ element }: { element: SceneElement }) {
+  const host = useRef<HTMLSpanElement>(null)
+  const latex = (element.content as MathContent).latex ?? ""
+
+  useEffect(() => {
+    if (host.current) {
+      // The source doubles as the accessible label, which is what a screen reader should hear: it is
+      // what the user wrote, and the rendering is a picture of it.
+      renderMath(host.current, latex, latex)
+    }
+  }, [latex])
+
+  return (
+    <span
+      ref={host}
+      className="mm-math mm-label block w-full overflow-hidden whitespace-nowrap text-center"
+      style={{
+        fontSize: element.text.fontSize,
+        color: element.textColor,
+        paddingLeft: element.padding.x,
+        paddingRight: element.padding.x,
+      }}
+    />
+  )
+}
+
+function isDone(element: SceneElement): boolean {
+  return element.content.$type === "task" && (element.content as { done?: boolean }).done === true
+}
+
+/** The chip a code node wears, or nothing when its language was never said. */
+function codeLanguage(element: SceneElement): string | null {
+  if (element.content.$type !== "code") {
+    return null
+  }
+  return (element.content as CodeContent).language?.trim() || null
+}
+
+/**
+ * The colour the body was painted, for the chrome that has to sit on top of the text rather than
+ * beside it. Falls back to the canvas, which is what a node with no fill of its own is showing.
+ */
+function surfaceOf(element: SceneElement, tinted: boolean): string {
+  if (!element.isRoot && element.nodeShape === "pill" && tinted) {
+    return branchWash(element.branch)
+  }
+  return element.fill ?? "var(--canvas)"
+}
 
 /**
  * Which elements can be dragged to a size.
@@ -384,6 +579,7 @@ function NodeEditor({
   onEditEnd?: (id: string, text: string | null) => void
 }) {
   const { text, isRoot } = element
+  const body = bodyOf(element.content)
   // A cancel blurs the field, and the blur must not then commit what the cancel just threw away.
   const done = useRef(false)
 
@@ -408,7 +604,12 @@ function NodeEditor({
     <textarea
       ref={mount}
       // select-text against the pane's select-none, or the caret cannot select what it is editing.
-      className="mm-editor block w-full select-text resize-none overflow-hidden bg-transparent outline-none"
+      className={cn(
+        "mm-editor block w-full select-text resize-none overflow-hidden bg-transparent outline-none",
+        // Source and LaTeX are both typed as characters in fixed columns, and both are read back by
+        // eye against what they will render as, so neither is set in the label's proportional face.
+        body !== "label" && "whitespace-pre font-mono",
+      )}
       defaultValue={plainText(element)}
       rows={1}
       spellCheck={false}
@@ -426,6 +627,12 @@ function NodeEditor({
       onInput={(event) => grow(event.currentTarget)}
       onKeyDown={(event) => {
         if (event.key === "Enter" && !event.shiftKey) {
+          // Source is lines by definition, so Enter opens one rather than finishing the edit. A code
+          // node is left with the modifier, with Escape, or by clicking away.
+          if (body === "code" && !(event.ctrlKey || event.metaKey)) {
+            event.stopPropagation()
+            return
+          }
           event.preventDefault()
           event.stopPropagation()
           finish(event.currentTarget.value)
@@ -470,10 +677,16 @@ function labelInset(element: SceneElement): number {
   return shapeTextInset(shape, element.width, element.height).x
 }
 
-/** What was wrapped for drawing, joined back into what was typed. */
+/**
+ * What the field opens on: the content's own text slot, not what was drawn.
+ *
+ * The two are different for more kinds than they are the same. Code is drawn capped at eight lines
+ * and has to be edited whole; a link is drawn as its address and edited as its title; an equation is
+ * drawn as a rendering and edited as its source. Falling back to the drawn lines only covers the
+ * kinds that carry no text at all, which are the ones this field never opens on.
+ */
 function plainText(element: SceneElement): string {
-  const content = element.content as { text?: string }
-  return content.text ?? element.text.lines.join(" ")
+  return contentText(element.content) ?? element.text.lines.join(" ")
 }
 
 /**

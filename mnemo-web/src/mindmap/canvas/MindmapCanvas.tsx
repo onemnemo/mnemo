@@ -10,7 +10,7 @@ import { createSelectionRepainter } from "./edge-highlight"
 import { MindmapSelectionLayer } from "./MindmapSelectionLayer"
 import { MindmapNode } from "./MindmapNode"
 import { createCanvasRuntime, type CanvasRuntime } from "./runtime"
-import { installInteraction, type MovedElement } from "../interaction/controller"
+import { installInteraction, type MovedElement, type NodeChrome } from "../interaction/controller"
 import type { ResizeBox } from "../interaction/resize"
 import { EMPTY_SELECTION, type Selection } from "../interaction/selection"
 import { cursorFor, type MindmapTool } from "../interaction/tool"
@@ -51,6 +51,8 @@ export interface MindmapCanvasProps {
   onGroup?: (ids: readonly string[]) => void
   /** A connect drag landed on a node. */
   onConnect?: (fromId: string, toId: string) => void
+  /** A node's own chrome was pressed: a task's box, or a reference's mark. */
+  onChrome?: (id: string, part: NodeChrome) => void
   /** The camera stopped moving, for a zoom readout. Never per frame. */
   onCameraSettled?: (viewport: Viewport) => void
   className?: string
@@ -87,6 +89,7 @@ export function MindmapCanvas({
   onPlant,
   onGroup,
   onConnect,
+  onChrome,
   onCameraSettled,
   className,
 }: MindmapCanvasProps) {
@@ -115,6 +118,7 @@ export function MindmapCanvas({
     onPlant,
     onGroup,
     onConnect,
+    onChrome,
     onCameraSettled,
   })
   live.current = {
@@ -128,6 +132,7 @@ export function MindmapCanvas({
     onPlant,
     onGroup,
     onConnect,
+    onChrome,
     onCameraSettled,
   }
 
@@ -198,6 +203,7 @@ export function MindmapCanvas({
         plant: (armed, at) => live.current.onPlant?.(armed, at),
         group: (ids) => live.current.onGroup?.(ids),
         connect: (fromId, toId) => live.current.onConnect?.(fromId, toId),
+        chrome: (id, part) => live.current.onChrome?.(id, part),
       },
     )
 

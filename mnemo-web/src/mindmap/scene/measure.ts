@@ -11,6 +11,7 @@
  */
 
 import type { FontScale, NodeShape } from "../model/document"
+import type { ContentBody } from "./content"
 
 export interface Font {
   readonly size: number
@@ -77,9 +78,29 @@ const TASK_EXTRA = 20
 /** Room for the chip saying how much a collapse is hiding. */
 const COLLAPSED_EXTRA = 24
 
+/** Room for the mark a reference leads with, and the gap after it. */
+const REF_EXTRA = 20
+
+/** The chip a resolved reference trails, sized so its room can be reserved before it is drawn. */
+export const BADGE_SIZE = 9.5
+const BADGE_GAP = 10
+
+/**
+ * A code body sits in more air than a label does, and stops at eight lines.
+ *
+ * Eight because a node is a point in an outline, not a file: past that the box stops being something
+ * you read at a glance and starts being something you scroll, which a canvas has no way to do.
+ */
+const CODE_PAD = { x: 8, y: 8 }
+const CODE_LINES = 8
+
 export type TextMeasurer = (text: string, size: number, weight: number) => number
 
+/** A rendered equation's box. Only KaTeX can answer this, and only by rendering it. */
+export type MathMeasurer = (latex: string, size: number) => { width: number; height: number }
+
 const FONT_FAMILY = '"Inter Variable", ui-sans-serif, system-ui, "Segoe UI", sans-serif'
+const MONO_FAMILY = '"Geist Mono", ui-monospace, "Cascadia Mono", "Consolas", monospace'
 
 /**
  * Width by character count. The fallback when there is no canvas, and the measurer tests use so a
@@ -94,7 +115,7 @@ export const estimateWidth: TextMeasurer = (text, size) => text.length * size * 
  * again on every relayout, and the strings barely change between them; without the memo the measuring
  * costs more than the layout it feeds.
  */
-export function canvasMeasurer(): TextMeasurer {
+export function canvasMeasurer(family: string = FONT_FAMILY): TextMeasurer {
   let context: CanvasRenderingContext2D | null = null
   try {
     context = document.createElement("canvas").getContext("2d")
@@ -118,11 +139,89 @@ export function canvasMeasurer(): TextMeasurer {
     if (cache.size > 4000) {
       cache.clear()
     }
-    ctx.font = `${weight} ${size}px ${FONT_FAMILY}`
+    ctx.font = `${weight} ${size}px ${family}`
     const width = ctx.measureText(text).width
     cache.set(key, width)
     return width
   }
+}
+
+/**
+ * How big a rendered equation is.
+ *
+ * By rendering it. There is no shortcut: the box of `\sum_{i=1}^{n}` has nothing to do with the
+ * length of that string, and the layout packs boxes, so a guess here is a tree that overlaps itself
+ * around every math node.
+ *
+ * One detached host, reused and memoized. It is offscreen rather than hidden, because a display of
+ * none has no box to read, and it carries the same class the canvas draws math under so the two are
+ * measuring and drawing the same thing.
+ */
+export function katexMeasurer(render: (host: HTMLElement, latex: string) => void): MathMeasurer {
+  let host: HTMLElement | null = null
+  const cache = new Map<string, { width: number; height: number }>()
+
+  return (latex, size) => {
+    const key = `${size}|${latex}`
+    const hit = cache.get(key)
+    if (hit !== undefined) {
+      return hit
+    }
+
+    try {
+      if (!host) {
+        host = document.createElement("div")
+        host.className = "mm-math"
+        host.setAttribute("aria-hidden", "true")
+        host.style.cssText = "position:absolute;left:-99999px;top:0;visibility:hidden;white-space:nowrap"
+        document.body.appendChild(host)
+      }
+      host.style.fontSize = `${size}px`
+      render(host, latex)
+      const box = { width: Math.ceil(host.offsetWidth), height: Math.ceil(host.offsetHeight) }
+      if (cache.size > 500) {
+        cache.clear()
+      }
+      cache.set(key, box)
+      return box
+    } catch {
+      return estimateMath(latex, size)
+    }
+  }
+}
+
+/** Width by character count, for a test with no DOM and for a render that would not run. */
+export const estimateMath: MathMeasurer = (latex, size) => ({
+  width: Math.ceil(latex.length * size * 0.5),
+  height: Math.ceil(size * 1.6),
+})
+
+/**
+ * Everything a box can need measuring, gathered so the projector passes one thing.
+ *
+ * Three rather than one because they are three different questions: proportional text wraps,
+ * monospace source does not, and an equation is not text at all.
+ */
+export interface Measurers {
+  readonly text: TextMeasurer
+  readonly mono: TextMeasurer
+  readonly math: MathMeasurer
+}
+
+/**
+ * A full set from a single text measurer, for the callers that only have one.
+ *
+ * The thumbnail is the real one: it projects off the main canvas with the estimating measurer, and a
+ * thumbnail with a slightly wrong equation box is a thumbnail, where a synchronous KaTeX render per
+ * math node per card is a scroll that stutters.
+ */
+export function measurersFrom(measure: TextMeasurer): Measurers {
+  return { text: measure, mono: measure, math: estimateMath }
+}
+
+/** The real thing: a canvas per face, and KaTeX for the equations. */
+export function domMeasurers(render: (host: HTMLElement, latex: string) => void): Measurers {
+  return { text: canvasMeasurer(), mono: canvasMeasurer(MONO_FAMILY), math: katexMeasurer(render) }
 }
 
 export interface WrappedText {
@@ -197,6 +296,12 @@ export interface MeasureRequest {
   readonly isTask?: boolean
   /** Leaves room for the hidden-count chip. */
   readonly isCollapsed?: boolean
+  /** Leaves room for the mark a reference leads with. */
+  readonly isRef?: boolean
+  /** Room on the right for a chip a reference resolved to, such as a deck's due count. */
+  readonly badge?: string
+  /** How the box is built. Absent means from a wrapped label, which is what most kinds are. */
+  readonly body?: ContentBody
 }
 
 export interface MeasuredNode {
@@ -208,17 +313,31 @@ export interface MeasuredNode {
   readonly padding: { readonly x: number; readonly y: number }
 }
 
-export function measureNode(request: MeasureRequest, measure: TextMeasurer): MeasuredNode {
+export function measureNode(request: MeasureRequest, measurers: Measurers): MeasuredNode {
   const font = FONTS[request.fontScale] ?? FONTS.m
+
+  if (request.body === "code") {
+    return measureCode(request.text, font, measurers.mono)
+  }
+  if (request.body === "math") {
+    return measureMath(request.text, font, measurers.math)
+  }
+
   const padding = request.isRoot ? ROOT_PAD : (PAD[request.shape] ?? PAD.card)
   const lineHeight = Math.round(font.size * LINE_RATIO)
 
-  const wrapped = wrapText(request.text, font, measure)
+  const wrapped = wrapText(request.text, font, measurers.text)
   const floor = request.text.trim() ? MIN_WIDTH : EMPTY_WIDTH
 
   let width = Math.max(Math.ceil(wrapped.width) + padding.x * 2, floor)
   if (request.isTask) {
     width += TASK_EXTRA
+  }
+  if (request.isRef) {
+    width += REF_EXTRA
+  }
+  if (request.badge) {
+    width += Math.ceil(measurers.text(request.badge, BADGE_SIZE, 500)) + BADGE_GAP
   }
   if (request.isCollapsed) {
     width += COLLAPSED_EXTRA
@@ -230,6 +349,48 @@ export function measureNode(request: MeasureRequest, measure: TextMeasurer): Mea
     lines: wrapped.lines,
     font,
     lineHeight,
+    padding,
+  }
+}
+
+/**
+ * A code body: the lines as typed, in monospace, up to the cap.
+ *
+ * Not wrapped. Indentation is what makes source readable and a wrap loses it, so a line too long for
+ * the box is cut off at the edge instead. That is a deliberate difference from every other kind here,
+ * and it is the same call the desktop makes.
+ */
+function measureCode(source: string, font: Font, mono: TextMeasurer): MeasuredNode {
+  const all = source.split("\n")
+  const lines = all.length > CODE_LINES ? all.slice(0, CODE_LINES) : all
+  const lineHeight = Math.round(font.size * LINE_RATIO)
+
+  let widest = 0
+  for (const line of lines) {
+    widest = Math.max(widest, mono(line, font.size, font.weight))
+  }
+
+  return {
+    width: Math.max(Math.ceil(Math.min(widest, font.maxWidth)) + CODE_PAD.x * 2, EMPTY_WIDTH),
+    height: lines.length * lineHeight + CODE_PAD.y * 2,
+    lines,
+    font,
+    lineHeight,
+    padding: CODE_PAD,
+  }
+}
+
+/** A math body: whatever the equation rendered to, in the same air a card gives its label. */
+function measureMath(latex: string, font: Font, math: MathMeasurer): MeasuredNode {
+  const padding = PAD.card
+  const box = latex.trim() ? math(latex, font.size) : { width: EMPTY_WIDTH - padding.x * 2, height: font.size }
+
+  return {
+    width: Math.max(box.width + padding.x * 2, MIN_WIDTH),
+    height: box.height + padding.y * 2,
+    lines: [latex],
+    font,
+    lineHeight: box.height,
     padding,
   }
 }

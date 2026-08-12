@@ -84,7 +84,19 @@ export interface InteractionHandlers {
   commitResize(id: string, box: ResizeBox): void
   /** A connect drag landed on a node. Whether that links or unlinks is the caller's to decide. */
   connect(fromId: string, toId: string): void
+  /** A piece of a node's own chrome was pressed rather than the node itself. */
+  chrome(id: string, part: NodeChrome): void
 }
+
+/**
+ * The parts of a node that answer a press themselves.
+ *
+ * Two, and both are the node's content rather than its styling: a task's box, which is how done gets
+ * set without opening anything, and a reference's mark, which is how you get to what it points at.
+ * They are read off the DOM the way the resize grips are, so a node stays a thing React renders once
+ * and never a thing the controller has to be told the inside of.
+ */
+export type NodeChrome = "task" | "ref"
 
 type Gesture =
   | { readonly kind: "none" }
@@ -188,6 +200,10 @@ export function installInteraction(
     ((target as HTMLElement | null)?.closest?.<HTMLElement>("[data-mm-handle]")?.dataset
       .mmHandle as ResizeDir | undefined) ?? null
 
+  const chromeAt = (target: EventTarget | null): NodeChrome | null =>
+    ((target as HTMLElement | null)?.closest?.<HTMLElement>("[data-mm-chrome]")?.dataset
+      .mmChrome as NodeChrome | undefined) ?? null
+
   const edgeAt = (point: Point): string | null =>
     hitEdge({
       edges: scene.edges,
@@ -236,6 +252,16 @@ export function installInteraction(
         incident,
         box: grabbed,
       }
+      return
+    }
+
+    // A node's own chrome, which answers for itself. Only with the select tool armed: with anything
+    // else the press means what that tool means, and a connect drag has to be able to start on a
+    // task node like it does on any other. The selection is deliberately left alone, because ticking
+    // a box is not selecting the thing the box is on.
+    const part = elementId && tool === "select" ? chromeAt(event.target) : null
+    if (part && elementId) {
+      handlers.chrome(elementId, part)
       return
     }
 

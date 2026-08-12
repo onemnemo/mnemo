@@ -29,10 +29,17 @@ function json(body: unknown): RequestInit {
   }
 }
 
-export function useDecksQuery() {
+/**
+ * Every deck with its counts.
+ *
+ * `enabled` is for the surfaces that only sometimes need the library: a mindmap resolves deck
+ * references against it, and a map with no deck nodes should not be paying for the whole library.
+ */
+export function useDecksQuery(enabled = true) {
   return useQuery<DeckSummaryDto[], ApiError>({
     queryKey: decksKey,
     queryFn: () => apiFetch<DeckSummaryDto[]>("/decks"),
+    enabled,
   })
 }
 

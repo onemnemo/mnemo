@@ -29,11 +29,17 @@ function json(body: unknown): RequestInit {
   }
 }
 
-/** Every note without its body, newest-modified first. */
-export function useNotesQuery() {
+/**
+ * Every note without its body, newest-modified first.
+ *
+ * `enabled` is for the surfaces that only sometimes need the list: a mindmap resolves note
+ * references against it, and a map with no note nodes should not be paying for the whole corpus.
+ */
+export function useNotesQuery(enabled = true) {
   return useQuery<NoteSummaryDto[], ApiError>({
     queryKey: noteListKey,
     queryFn: () => apiFetch<NoteSummaryDto[]>("/notes"),
+    enabled,
   })
 }
 

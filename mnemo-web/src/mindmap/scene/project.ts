@@ -13,12 +13,12 @@
 
 import { branchWidth } from "./branch-width"
 import { FREE_CONTEXT, resolveStyle, templateChain, type StyleContext } from "./cascade"
+import { bodyOf, displayText, isRef, refKey, type RefInfo } from "./content"
 import { resolveEdgeStyle, ribbonWidths } from "./edge-cascade"
 import { analyzeHierarchy, childrenIds, hiddenDescendantCount, type Hierarchy } from "./hierarchy"
-import { canvasMeasurer, measureNode, type TextMeasurer } from "./measure"
+import { measureNode, type Measurers } from "./measure"
 import { cssColor } from "./tokens"
 import {
-  contentText,
   edgeKind,
   elementKind,
   type ElementKind,
@@ -79,12 +79,23 @@ export interface ProjectOptions {
   /** The templates the server serves, and which of them a document that names none resolves against. */
   readonly templates: readonly StyleTemplate[]
   readonly defaultTemplateId: string
-  /** Left out in the browser, where the canvas measurer is right; supplied by tests and by arrange. */
-  readonly measure?: TextMeasurer
+  /**
+   * How text and equations are sized. Required rather than defaulted, because the right answer is
+   * not the same everywhere: the canvas wants real rendering, and a wall of thumbnails wants
+   * arithmetic. A default here would quietly give one of them the other one's cost.
+   */
+  readonly measurers: Measurers
+  /**
+   * What the map's note and deck references turned out to be, keyed as `refKey` says.
+   *
+   * Applied here rather than in the renderer because a resolved title is what the box was sized
+   * around: a node whose label arrives after layout is a node the layout packed at the wrong width.
+   * A key that is absent has not come back yet, which is a node drawn with its mark and no title.
+   */
+  readonly refs?: ReadonlyMap<string, RefInfo>
 }
 
 export function projectScene(document: MindmapDocument, options: ProjectOptions): Scene {
-  const measure = options.measure ?? canvasMeasurer()
   const hierarchy = analyzeHierarchy(document)
 
   const byId = new Map<string, StyleTemplate>()
@@ -123,7 +134,7 @@ export function projectScene(document: MindmapDocument, options: ProjectOptions)
       continue
     }
 
-    const projected = projectElement(element, node ? contextOf(node) : FREE_CONTEXT, node, hierarchy, chainFor, measure)
+    const projected = projectElement(element, node ? contextOf(node) : FREE_CONTEXT, node, hierarchy, chainFor, options)
     // Frames wait for a second pass: one is wherever its members are, and none of them have been
     // measured yet at this point in the walk.
     if (projected.kind === "frame") {
@@ -220,7 +231,7 @@ function projectElement(
   node: { id: string; depth: number; branch: number; rootId: string } | undefined,
   hierarchy: Hierarchy,
   chainFor: (rootId: string) => readonly StyleTemplate[],
-  measure: TextMeasurer,
+  options: ProjectOptions,
 ): SceneElement {
   const kind = elementKind(element)
   // Templates describe trees. A shape, a caption or a frame is not in one, and gets its own style over
@@ -229,7 +240,11 @@ function projectElement(
   const style = resolveStyle(element.style, context, chain)
 
   const isRoot = context.isRoot
-  const text = contentText(element.content) ?? ""
+  const key = refKey(element.content)
+  const ref = key ? options.refs?.get(key) : undefined
+  // A reference reads as whatever it points at, so its label replaces the content's own text rather
+  // than sitting beside it. Nothing while the lookup is out, which is a node with only its mark.
+  const text = ref?.label ?? displayText(element.content)
   const measured = measureNode(
     {
       text,
@@ -238,8 +253,11 @@ function projectElement(
       isRoot,
       isTask: element.content.$type === "task",
       isCollapsed: element.collapsed === true,
+      isRef: isRef(element.content),
+      badge: ref?.badge,
+      body: bodyOf(element.content),
     },
-    measure,
+    options.measurers,
   )
 
   const childCount = node ? childrenIds(hierarchy, node.id).length : 0
@@ -275,6 +293,8 @@ function projectElement(
     // Only a plain node has a rule for a branch to meet. Every other shape has a box.
     underline: kind === "node" && style.nodeShape === "plain" ? branchWidth(context.depth) : undefined,
     icon: style.icon ?? undefined,
+    refBadge: ref?.badge,
+    refMissing: ref?.missing,
   }
 }
 

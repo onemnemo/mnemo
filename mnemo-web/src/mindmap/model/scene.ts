@@ -98,6 +98,10 @@ export interface SceneElement {
   readonly underline?: number
   /** Icon name shown before the label. */
   readonly icon?: string
+  /** A chip a resolved reference trails, such as a deck's due count. */
+  readonly refBadge?: string
+  /** The thing this reference points at is gone. Absent also means the lookup has not come back. */
+  readonly refMissing?: boolean
 }
 
 /**
