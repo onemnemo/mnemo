@@ -878,7 +878,9 @@
     "BackgroundDots": "Dots",
     "BackgroundGrid": "Grid",
     "BackgroundPlain": "Plain",
-    "StyleMap": "Style map"
+    "StyleMap": "Style map",
+    "Group": "Group",
+    "Ungroup": "Ungroup"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

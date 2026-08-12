@@ -822,7 +822,9 @@
     "BackgroundDots": "Punkte",
     "BackgroundGrid": "Raster",
     "BackgroundPlain": "Schlicht",
-    "StyleMap": "Karte gestalten"
+    "StyleMap": "Karte gestalten",
+    "Group": "Gruppieren",
+    "Ungroup": "Gruppierung aufheben"
   },
   "GlobalSearch": {
     "ShortcutHint": "Strg/Cmd + K",

@@ -3,8 +3,9 @@ import { memo, useCallback, useRef } from "react"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { cn } from "@/lib/utils"
 
+import { FRAME_HEAD } from "../scene/project"
 import { branchWash, mixColor } from "../scene/tokens"
-import type { ShapeContent, ShapeType } from "../model/document"
+import type { FrameContent, ShapeContent, ShapeType } from "../model/document"
 import type { SceneElement } from "../model/scene"
 import { isOpenShape, shapePath, shapeTextInset } from "./shape-path"
 
@@ -37,6 +38,12 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
   const { text, nodeShape, isRoot } = element
   const tinted = element.branchColor !== undefined
   const accentLine = element.branchColor ?? element.stroke
+
+  // A frame is a region rather than a thing with a label in the middle, so none of what follows
+  // applies to it: no card, no halo bled around the box, and a hit target that is not the whole area.
+  if (element.kind === "frame") {
+    return <FrameBody element={element} editing={editing} onEditEnd={onEditEnd} />
+  }
 
   return (
     <div
@@ -139,6 +146,120 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
     </div>
   )
 })
+
+/** How wide a band along a frame's border can be grabbed, on top of its title strip. */
+const FRAME_GRIP = 12
+
+/**
+ * A frame: a dashed region around the things it holds.
+ *
+ * It takes pointer events on its title strip and on a band just inside its border, and nowhere else.
+ * A frame is mostly empty space with other people's nodes in it, and one that swallowed presses over
+ * its whole area would be a region you could not start a marquee inside, could not click through to
+ * the canvas in, and would drag every time you meant to catch two of its members.
+ *
+ * Nothing here is sized: the box arrives already derived from the members, so what this draws is
+ * always around what the frame actually holds rather than around wherever a stored rectangle was left.
+ */
+function FrameBody({ element, editing, onEditEnd }: MindmapNodeProps) {
+  const hue = element.branchColor ?? element.stroke
+  const title = (element.content as FrameContent).title ?? ""
+
+  return (
+    <div
+      className="mm-node group pointer-events-none absolute left-0 top-0 select-none will-change-transform"
+      data-mm-id={element.id}
+      style={{
+        transform: `translate(${element.x}px, ${element.y}px)`,
+        width: element.width,
+        height: element.height,
+      }}
+    >
+      {/* Two borders rather than one, for the same reason a node has two halos: the selected state is
+          a DOM attribute the scene index writes, so it cannot be branched on here, and an inline
+          colour would win over whatever class tried to change it. */}
+      <span
+        className="absolute inset-0 rounded-2xl border border-dashed border-line group-data-[selected]:hidden"
+        style={{ borderColor: hue ? mixColor(hue, 55) : undefined }}
+        aria-hidden
+      />
+      <span
+        className="absolute inset-0 hidden rounded-2xl border border-dashed border-accent group-data-[selected]:block"
+        aria-hidden
+      />
+
+      {/* The grips. Bands rather than the whole box, and siblings rather than one padded element,
+          because a child that turns pointer events off does not hand them back to the canvas behind
+          it, it hands them to its own parent. */}
+      <span className="pointer-events-auto absolute inset-x-0 top-0" style={{ height: FRAME_HEAD }} />
+      <span className="pointer-events-auto absolute bottom-0 left-0 top-0" style={{ width: FRAME_GRIP }} />
+      <span className="pointer-events-auto absolute bottom-0 right-0 top-0" style={{ width: FRAME_GRIP }} />
+      <span className="pointer-events-auto absolute inset-x-0 bottom-0" style={{ height: FRAME_GRIP }} />
+
+      {editing ? (
+        <FrameTitle element={element} title={title} onEditEnd={onEditEnd} />
+      ) : (
+        <span
+          className="mm-label absolute left-3 top-[3px] text-[11px] font-medium tracking-[0.01em] text-ink-2"
+          style={{ color: hue }}
+        >
+          {title}
+          <span className="ml-1.5 text-ink-3">{element.childCount}</span>
+        </span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The title, as a field.
+ *
+ * Its own rather than the node editor, because a frame's label is chrome at a fixed size in a corner
+ * of the region, not text the box was measured around, and there is no second line to grow onto.
+ */
+function FrameTitle({
+  element,
+  title,
+  onEditEnd,
+}: {
+  element: SceneElement
+  title: string
+  onEditEnd?: (id: string, text: string | null) => void
+}) {
+  const done = useRef(false)
+
+  const finish = (value: string | null): void => {
+    if (done.current) {
+      return
+    }
+    done.current = true
+    onEditEnd?.(element.id, value)
+  }
+
+  return (
+    <input
+      ref={(node) => node?.select()}
+      autoFocus
+      className="mm-editor pointer-events-auto absolute left-3 top-[3px] w-[60%] select-text bg-transparent text-[11px] font-medium tracking-[0.01em] text-ink outline-none"
+      defaultValue={title}
+      spellCheck={false}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault()
+          event.stopPropagation()
+          finish(event.currentTarget.value)
+          return
+        }
+        if (event.key === "Escape") {
+          event.stopPropagation()
+          finish(null)
+        }
+      }}
+      onBlur={(event) => finish(event.currentTarget.value)}
+      onPointerDown={(event) => event.stopPropagation()}
+    />
+  )
+}
 
 /**
  * A free shape's outline.

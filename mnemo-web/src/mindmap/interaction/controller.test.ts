@@ -126,6 +126,7 @@ function harness(scene: Scene = SCENE) {
   const activated: string[] = []
   const planted: { tool: MindmapTool; at: Point }[] = []
   const connected: [string, string][] = []
+  const grouped: string[][] = []
   let unpins = 0
   let selection: Selection = EMPTY_SELECTION
   let tool: MindmapTool = "select"
@@ -157,6 +158,7 @@ function harness(scene: Scene = SCENE) {
       activate: (id) => void activated.push(id),
       plant: (armed, at) => void planted.push({ tool: armed, at }),
       connect: (fromId, toId) => void connected.push([fromId, toId]),
+      group: (ids) => void grouped.push([...ids]),
     },
   )
 
@@ -182,6 +184,7 @@ function harness(scene: Scene = SCENE) {
     activated,
     planted,
     connected,
+    grouped,
     uninstall: () => {
       uninstall()
       pane.remove()
@@ -357,6 +360,31 @@ describe("installInteraction", () => {
     // a is swallowed whole and a1 is only clipped down its left edge, which is the point: a band
     // catches what it touches. b starts at y 60 and loose at y 400, so the band reaches neither.
     expect([...h.selection().elements].sort()).toEqual(["a", "a1"])
+    h.uninstall()
+  })
+
+  it("hands a sweep to the frame tool instead of to the selection", () => {
+    const h = harness()
+    h.arm("frame")
+    h.press(null, { x: 150, y: -100 })
+    h.move({ x: 450, y: 20 })
+    h.release({ x: 450, y: 20 })
+
+    expect(h.grouped.map((ids) => [...ids].sort())).toEqual([["a", "a1"]])
+    // The band said what to group, not what to select, and leaving the new frame's members ringed
+    // would say the sweep had done both.
+    expect(h.selection().elements.size).toBe(0)
+    h.uninstall()
+  })
+
+  it("groups nothing when the band caught nothing", () => {
+    const h = harness()
+    h.arm("frame")
+    h.press(null, { x: 900, y: 900 })
+    h.move({ x: 1000, y: 1000 })
+    h.release({ x: 1000, y: 1000 })
+
+    expect(h.grouped).toHaveLength(0)
     h.uninstall()
   })
 

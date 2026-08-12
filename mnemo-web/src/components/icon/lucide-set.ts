@@ -42,6 +42,7 @@ import {
   Flame,
   Folder,
   FolderOpen,
+  Frame,
   Code,
   Highlighter,
   House,
@@ -149,6 +150,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   spline: Spline,
   maximize: Maximize,
   square: Square,
+  frame: Frame,
 
   // The card editor's formatting bar.
   bold: Bold,

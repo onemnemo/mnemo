@@ -22,6 +22,7 @@ import {
   edgeKind,
   elementKind,
   type ElementKind,
+  type FrameContent,
   type MindmapDocument,
   type MindmapElement,
   type StyleTemplate,
@@ -33,6 +34,46 @@ const FREE_WIDTH = 160
 const FREE_HEIGHT = 90
 const FRAME_WIDTH = 320
 const FRAME_HEIGHT = 220
+
+/** How far a frame stands off the things it holds, and the strip its title sits in above them. */
+export const FRAME_PAD = 18
+export const FRAME_HEAD = 22
+
+/** Enough of an element to put a frame around. Boxes come from the scene, or from a live drag. */
+export interface FrameMemberBox {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
+
+/**
+ * A frame's box, from the things it holds, or null when it holds nothing.
+ *
+ * Exported because the frame tool works this out before the frame exists: what it stores has to be
+ * what the projector will derive, or a new group would jump the first time anything moved it.
+ */
+export function frameBox(members: readonly FrameMemberBox[]): FrameMemberBox | null {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const member of members) {
+    if (member.x < minX) minX = member.x
+    if (member.y < minY) minY = member.y
+    if (member.x + member.width > maxX) maxX = member.x + member.width
+    if (member.y + member.height > maxY) maxY = member.y + member.height
+  }
+  if (!Number.isFinite(minX)) {
+    return null
+  }
+  return {
+    x: minX - FRAME_PAD,
+    y: minY - FRAME_PAD - FRAME_HEAD,
+    width: maxX - minX + FRAME_PAD * 2,
+    height: maxY - minY + FRAME_PAD * 2 + FRAME_HEAD,
+  }
+}
 
 export interface ProjectOptions {
   /** The templates the server serves, and which of them a document that names none resolves against. */
@@ -71,6 +112,7 @@ export function projectScene(document: MindmapDocument, options: ProjectOptions)
   }
 
   const elements: SceneElement[] = []
+  const frames: SceneElement[] = []
   const drawn = new Map<string, SceneElement>()
 
   for (const element of document.elements ?? []) {
@@ -82,8 +124,19 @@ export function projectScene(document: MindmapDocument, options: ProjectOptions)
     }
 
     const projected = projectElement(element, node ? contextOf(node) : FREE_CONTEXT, node, hierarchy, chainFor, measure)
+    // Frames wait for a second pass: one is wherever its members are, and none of them have been
+    // measured yet at this point in the walk.
+    if (projected.kind === "frame") {
+      frames.push(projected)
+      continue
+    }
     elements.push(projected)
     drawn.set(projected.id, projected)
+  }
+
+  const sized = frames.map((frame) => sizeFrame(frame, drawn))
+  for (const frame of sized) {
+    drawn.set(frame.id, frame)
   }
 
   const edges: SceneEdge[] = []
@@ -123,10 +176,35 @@ export function projectScene(document: MindmapDocument, options: ProjectOptions)
 
   return {
     id: document.id,
-    elements,
+    // Frames first, because the scene is in paint order and a frame is a backdrop for what it holds
+    // rather than a box drawn over it.
+    elements: [...sized, ...elements],
     edges,
     background: document.canvas?.background ?? "dots",
   }
+}
+
+/**
+ * A frame, sized by its members.
+ *
+ * Membership is an explicit id list rather than a region, which is what makes the box derived rather
+ * than stored: a region frame stops holding what it held the moment anything moves, and Arrange moves
+ * everything. A frame whose members are all gone or all under a collapse keeps its stored box, since
+ * a group with no area is one nobody could see to drop anything into.
+ */
+function sizeFrame(frame: SceneElement, drawn: ReadonlyMap<string, SceneElement>): SceneElement {
+  const members: SceneElement[] = []
+  for (const id of (frame.content as FrameContent).childIds ?? []) {
+    const member = drawn.get(id)
+    if (member) {
+      members.push(member)
+    }
+  }
+
+  const box = frameBox(members)
+  // The count is the live membership rather than the stored list, so a member that was deleted is off
+  // the badge as well as out of the box.
+  return box ? { ...frame, ...box, childCount: members.length } : { ...frame, childCount: members.length }
 }
 
 /** A document naming a template nobody has: no rules, so every node falls through to the theme. */

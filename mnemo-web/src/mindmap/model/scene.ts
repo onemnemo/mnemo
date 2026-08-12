@@ -82,7 +82,10 @@ export interface SceneElement {
    */
   readonly padding: { readonly x: number; readonly y: number }
   readonly isRoot: boolean
-  /** Children in the hierarchy, whether or not they are currently shown. Zero means no collapse control. */
+  /**
+   * Children in the hierarchy, whether or not they are currently shown. Zero means no collapse
+   * control. On a frame it is how many members are drawn, which is what its badge counts.
+   */
   readonly childCount: number
   /** How many descendants a collapse is hiding; 0 when it is not collapsed. */
   readonly hiddenCount: number

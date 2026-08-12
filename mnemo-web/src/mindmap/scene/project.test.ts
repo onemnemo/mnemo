@@ -245,3 +245,63 @@ describe("the document as a whole", () => {
     expect(scene.elements.find((e) => e.id === "a")!.branchColor).toBe("var(--branch-1)")
   })
 })
+
+describe("frames", () => {
+  const shape = (id: string, x: number, y: number): MindmapElement => ({
+    id,
+    kind: "shape",
+    content: { $type: "shape", shape: "rectangle" },
+    x,
+    y,
+    width: 100,
+    height: 50,
+  })
+
+  const withFrame = (childIds: string[], over: Partial<MindmapElement> = {}): MindmapDocument => ({
+    id: "m",
+    elements: [
+      shape("s1", 100, 100),
+      shape("s2", 300, 200),
+      {
+        id: "f",
+        kind: "frame",
+        content: { $type: "frame", title: "Group", childIds },
+        // Deliberately nowhere near its members: a frame is wherever they are, and a stored box that
+        // still decided anything would put this one somewhere else.
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        ...over,
+      },
+    ],
+  })
+
+  const frameOf = (document: MindmapDocument) =>
+    projectScene(document, options()).elements.find((e) => e.id === "f")!
+
+  it("takes their bounds from their members, not from what was stored", () => {
+    // Members span 100,100 to 400,250, and the frame stands 18 off that with a 22 strip on top.
+    expect(frameOf(withFrame(["s1", "s2"]))).toMatchObject({
+      x: 82,
+      y: 60,
+      width: 336,
+      height: 208,
+    })
+  })
+
+  it("count the members that are actually drawn", () => {
+    expect(frameOf(withFrame(["s1", "s2", "gone"])).childCount).toBe(2)
+  })
+
+  it("keep their stored box when nothing is left to derive one from", () => {
+    // A group with no area is one nobody could see to drop anything back into.
+    expect(frameOf(withFrame([]))).toMatchObject({ x: 0, y: 0, width: 10, height: 10, childCount: 0 })
+  })
+
+  it("are drawn first, because a frame is a backdrop for its members", () => {
+    const scene = projectScene(withFrame(["s1", "s2"]), options())
+
+    expect(scene.elements[0].id).toBe("f")
+  })
+})

@@ -24,14 +24,15 @@ import {
   LAYOUT_ALGORITHMS,
   type EdgeStyle,
   type ElementStyle,
+  type FrameContent,
   type LayoutAlgorithm,
   type ShapeType,
 } from "../model/document"
-import { op, type MindmapOp } from "../model/ops"
-import type { Point } from "../model/scene"
+import { op, type FrameOp, type MindmapOp } from "../model/ops"
+import type { Point, Scene, SceneElement } from "../model/scene"
 import { branchRootOf, branchSwatchOf } from "../scene/branch"
 import { analyzeHierarchy, childrenIds, descendantsOf } from "../scene/hierarchy"
-import { projectScene } from "../scene/project"
+import { frameBox, projectScene, type FrameMemberBox } from "../scene/project"
 import { branchToken } from "../scene/tokens"
 
 /** No rules at all: every node falls through to the theme. Stable, so it does not reproject a scene. */
@@ -158,8 +159,18 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         moves.map((move) => op.moveTo(move.id, Math.round(move.x), Math.round(move.y))),
         { label: t("Mindmap", "Move") },
       )
+
+      // A second batch, so joining or leaving a group is its own undo. Dragging a node onto a frame
+      // is one action to the hand but two to the document, and someone who only wanted the node back
+      // where it was should not have to un-join it first.
+      const regroup = scene ? regroupOps(scene, moves) : []
+      if (regroup.length > 0) {
+        void editor.apply(regroup, {
+          label: t("Mindmap", regroup.some((change) => change.add) ? "Group" : "Ungroup"),
+        })
+      }
     },
-    [editor, t],
+    [editor, scene, t],
   )
 
   const boxes = useMemo(() => {
@@ -273,6 +284,56 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       }
     },
     [editor, shape, t],
+  )
+
+  /**
+   * Puts a frame around whatever the sweep caught.
+   *
+   * The box is worked out here rather than left to the server, with the helper the projector uses,
+   * because a frame's drawn bounds come from its members: a stored box that disagreed would jump the
+   * first time anything inside it moved.
+   */
+  const group = useCallback(
+    async (ids: readonly string[]) => {
+      setTool("select")
+      const caught = new Set(ids)
+      const members: string[] = []
+      const memberBoxes: FrameMemberBox[] = []
+      // Walked in document order rather than in the order the sweep found them, so the membership
+      // list reads the same way the map does.
+      for (const element of scene?.elements ?? []) {
+        if (caught.has(element.id)) {
+          members.push(element.id)
+          memberBoxes.push(element)
+        }
+      }
+
+      const box = frameBox(memberBoxes)
+      if (!box) {
+        return
+      }
+      const result = await editor.apply(
+        [
+          op.addElement(
+            "frame",
+            Math.round(box.x),
+            Math.round(box.y),
+            { $type: "frame", title: "", childIds: members },
+            { ref: "n", wh: [Math.round(box.width), Math.round(box.height)] },
+          ),
+        ],
+        { label: t("Mindmap", "Group") },
+      )
+
+      const created = result?.createdIds?.n
+      if (created) {
+        // Straight into the title, since a group is a thing someone made in order to call it
+        // something. Left unnamed it is still a group, so this edit is not one that takes it back.
+        setSelection(selectOnly("element", created))
+        setEditing(created)
+      }
+    },
+    [editor, scene, t],
   )
 
   /**
@@ -651,6 +712,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           subtreeOf={subtreeOf}
           tool={tool}
           onPlant={(armed, at) => void plant(armed, at)}
+          onGroup={(ids) => void group(ids)}
           onConnect={connect}
           onCameraSettled={(viewport) => setZoom(viewport.zoom)}
         />
@@ -765,8 +827,103 @@ function collapsed(scene: { elements: readonly { id: string; collapsed?: boolean
 /** The label as it stands, so an edit that changed nothing costs no revision and no undo step. */
 function currentText(scene: { elements: readonly { id: string; content: unknown }[] } | null, id: string): string {
   const element = scene?.elements.find((candidate) => candidate.id === id)
-  const content = element?.content as { text?: string } | undefined
-  return content?.text ?? ""
+  // A frame keeps its label under `title`, and the edit protocol writes both through `t`.
+  const content = element?.content as { text?: string; title?: string } | undefined
+  return content?.text ?? content?.title ?? ""
+}
+
+/**
+ * Who changed hands in a drag: what was dropped into a frame, and what was taken out of one.
+ *
+ * Joining asks for the whole element to be inside the frame and leaving asks for none of it to be,
+ * so a member left straddling the edge stays a member and a stranger overlapping a corner does not
+ * become one. Both are measured against the frame as it was drawn when the drop happened, since its
+ * box comes from its members and would otherwise already have grown around whatever was let go
+ * beside it.
+ */
+function regroupOps(scene: Scene, moves: readonly MovedElement[]): FrameOp[] {
+  const frames = scene.elements.filter((element) => element.kind === "frame")
+  if (frames.length === 0) {
+    return []
+  }
+
+  const byId = new Map(scene.elements.map((element) => [element.id, element] as const))
+  const moved = new Set(moves.map((move) => move.id))
+  const memberOf = new Map<string, string>()
+  for (const frame of frames) {
+    for (const id of (frame.content as FrameContent).childIds ?? []) {
+      if (!memberOf.has(id)) {
+        memberOf.set(id, frame.id)
+      }
+    }
+  }
+
+  const joined = new Map<string, string[]>()
+  const left = new Map<string, string[]>()
+  const note = (into: Map<string, string[]>, frameId: string, id: string) => {
+    const list = into.get(frameId)
+    if (list) {
+      list.push(id)
+    } else {
+      into.set(frameId, [id])
+    }
+  }
+
+  for (const move of moves) {
+    const element = byId.get(move.id)
+    if (!element || element.kind === "frame") {
+      continue
+    }
+    const was = memberOf.get(move.id) ?? null
+    // Its frame travelled with it, which is the group being moved rather than anything leaving it.
+    if (was && moved.has(was)) {
+      continue
+    }
+
+    const dropped = { x: move.x, y: move.y, width: element.width, height: element.height }
+    let home: SceneElement | null = null
+    for (const frame of frames) {
+      // Frames do not nest, so overlapping ones are the only way an element sits inside two. The
+      // smaller is the one someone aimed at; the larger is the one that happens to be behind it.
+      if (moved.has(frame.id) || !contains(frame, dropped)) {
+        continue
+      }
+      if (!home || frame.width * frame.height < home.width * home.height) {
+        home = frame
+      }
+    }
+
+    if (home && home.id !== was) {
+      note(joined, home.id, move.id)
+    }
+    const old = was ? byId.get(was) : null
+    if (old && old.id !== home?.id && (home || !overlaps(old, dropped))) {
+      note(left, old.id, move.id)
+    }
+  }
+
+  const ops: FrameOp[] = []
+  for (const frame of frames) {
+    const add = joined.get(frame.id)
+    const remove = left.get(frame.id)
+    if (add || remove) {
+      ops.push(op.frame(frame.id, { add, remove }))
+    }
+  }
+  return ops
+}
+
+function contains(outer: FrameMemberBox, inner: FrameMemberBox): boolean {
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.width <= outer.x + outer.width &&
+    inner.y + inner.height <= outer.y + outer.height
+  )
+}
+
+function overlaps(a: FrameMemberBox, b: FrameMemberBox): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
 }
 
 /** Keys belong to whatever is being typed into, not to the map behind it. */
