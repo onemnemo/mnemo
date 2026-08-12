@@ -831,7 +831,16 @@
     "StyleMap": "Stil på kart",
     "Group": "Grupper",
     "Ungroup": "Løs opp gruppe",
-    "Resize": "Endre størrelse"
+    "Resize": "Endre størrelse",
+    "EdgeColor": "Linjefarge",
+    "MatchBranch": "Følg grenen",
+    "DefaultColor": "Standardfarge",
+    "EdgeThickness": "Tykkelse",
+    "ThicknessHairline": "Hårfin",
+    "ThicknessNormal": "Normal",
+    "ThicknessBold": "Kraftig",
+    "ApplyBelow": "Og alt under den",
+    "StyleBranch": "Utform grenen"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

@@ -881,7 +881,16 @@
     "StyleMap": "Style map",
     "Group": "Group",
     "Ungroup": "Ungroup",
-    "Resize": "Resize"
+    "Resize": "Resize",
+    "EdgeColor": "Edge color",
+    "MatchBranch": "Match the branch",
+    "DefaultColor": "Default color",
+    "EdgeThickness": "Thickness",
+    "ThicknessHairline": "Hairline",
+    "ThicknessNormal": "Normal",
+    "ThicknessBold": "Bold",
+    "ApplyBelow": "And everything below it",
+    "StyleBranch": "Style branch"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

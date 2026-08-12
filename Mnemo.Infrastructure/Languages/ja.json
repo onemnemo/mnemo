@@ -831,7 +831,16 @@
     "StyleMap": "マップのスタイル",
     "Group": "グループ化",
     "Ungroup": "グループ解除",
-    "Resize": "サイズ変更"
+    "Resize": "サイズ変更",
+    "EdgeColor": "線の色",
+    "MatchBranch": "ブランチに合わせる",
+    "DefaultColor": "既定の色",
+    "EdgeThickness": "太さ",
+    "ThicknessHairline": "極細",
+    "ThicknessNormal": "標準",
+    "ThicknessBold": "太字",
+    "ApplyBelow": "配下すべてにも適用",
+    "StyleBranch": "ブランチのスタイル"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

@@ -825,7 +825,16 @@
     "StyleMap": "Karte gestalten",
     "Group": "Gruppieren",
     "Ungroup": "Gruppierung aufheben",
-    "Resize": "Größe ändern"
+    "Resize": "Größe ändern",
+    "EdgeColor": "Verbindungsfarbe",
+    "MatchBranch": "An den Zweig anpassen",
+    "DefaultColor": "Standardfarbe",
+    "EdgeThickness": "Stärke",
+    "ThicknessHairline": "Haarlinie",
+    "ThicknessNormal": "Normal",
+    "ThicknessBold": "Fett",
+    "ApplyBelow": "Und alles darunter",
+    "StyleBranch": "Zweig gestalten"
   },
   "GlobalSearch": {
     "ShortcutHint": "Strg/Cmd + K",

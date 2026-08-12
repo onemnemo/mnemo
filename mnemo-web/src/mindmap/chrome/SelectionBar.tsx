@@ -16,7 +16,8 @@ export interface SelectionBarProps {
   runtime: Held<CanvasRuntime>
   /** The pane the bar is kept inside. Its own size is what the clamping is against. */
   pane: Held<HTMLElement>
-  onEdgeStyle: (patch: EdgeStyle) => void
+  /** A null member takes a style away rather than setting it; `deep` sends it down the branch too. */
+  onEdgeStyle: (patch: EdgeStyle, deep: boolean) => void
   onNodeStyle: (patch: ElementStyle) => void
   onEdgeLabel: (edgeId: string) => void
   branch: BranchControl | null

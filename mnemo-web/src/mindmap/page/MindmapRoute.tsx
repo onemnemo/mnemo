@@ -15,6 +15,7 @@ import { ON_CANVAS, ON_NODE } from "../chrome/sectors"
 import { MindmapSelectionBar } from "../chrome/SelectionBar"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
 import { placeChild, type PlacedBox } from "../edit/placement"
+import { clearsAnything, restyledEdge } from "../edit/restyle"
 import type { MovedElement } from "../interaction/controller"
 import type { ResizeBox } from "../interaction/resize"
 import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } from "../interaction/selection"
@@ -22,6 +23,7 @@ import { isOneShot, TOOL_KEYS, type MindmapTool } from "../interaction/tool"
 import { MapStyleMenu } from "../chrome/MapStyleMenu"
 import { edgeDefaultsFor, materialOf } from "../chrome/material"
 import {
+  edgeKind,
   LAYOUT_ALGORITHMS,
   type EdgeStyle,
   type ElementStyle,
@@ -32,7 +34,7 @@ import {
 import { op, type FrameOp, type MindmapOp } from "../model/ops"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import { branchRootOf, branchSwatchOf } from "../scene/branch"
-import { analyzeHierarchy, childrenIds, descendantsOf } from "../scene/hierarchy"
+import { analyzeHierarchy, childrenIds, descendantsOf, hierarchyEdgesBelow } from "../scene/hierarchy"
 import { frameBox, projectScene, type FrameMemberBox } from "../scene/project"
 import { branchToken } from "../scene/tokens"
 
@@ -443,23 +445,48 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   }, [editor, selection, t])
 
   /**
-   * Restyles every selected edge in one step.
+   * Restyles every selected edge in one step, and everything below it when asked.
    *
    * One op per edge, since an edge style is written to one edge at a time, but one batch: pressing
-   * Dashed with four edges selected is one decision and has to be one undo.
+   * Dashed with four edges selected is one decision and has to be one undo, and so is pressing it
+   * with a branch of forty.
+   *
+   * Taking a style away is a different op from setting one. The protocol merges a patch member by
+   * member and reads a missing member as "leave it alone", so there is no value for "unset this";
+   * clearing means sending what the edge should keep with the cleared member left out.
    */
   const styleEdges = useCallback(
-    (patch: EdgeStyle) => {
-      const ids = [...selection.edges]
-      if (ids.length === 0) {
+    (patch: EdgeStyle, deep = false) => {
+      const ids = new Set(selection.edges)
+      if (ids.size === 0) {
         return
       }
+
+      const data = map.data
+      if (deep && data && hierarchy) {
+        for (const id of [...ids]) {
+          const edge = data.edges?.find((candidate) => candidate.id === id)
+          if (edge && edgeKind(edge) === "hierarchy") {
+            for (const below of hierarchyEdgesBelow(data, hierarchy, edge.toId)) {
+              ids.add(below)
+            }
+          }
+        }
+      }
+
+      const clearing = clearsAnything(patch)
       void editor.apply(
-        ids.map((id) => op.setEdge(id, { style: patch })),
-        { label: t("Mindmap", "StyleEdge") },
+        [...ids].map((id) => {
+          if (!clearing) {
+            return op.setEdge(id, { style: patch })
+          }
+          const own = data?.edges?.find((candidate) => candidate.id === id)?.style
+          return op.setEdge(id, { clear_style: true, style: restyledEdge(own, patch) })
+        }),
+        { label: t("Mindmap", deep ? "StyleBranch" : "StyleEdge") },
       )
     },
-    [editor, selection, t],
+    [editor, hierarchy, map.data, selection, t],
   )
 
   /** Restyles every selected node. The bulk form exists, so more than one is still a single op. */
