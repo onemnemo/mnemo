@@ -2,10 +2,11 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
-import { assetUrl, DEFAULT_PROFILE_PICTURE } from "../assets"
+import { DEFAULT_PROFILE_PICTURE } from "../assets"
 import { useDeveloperGateTap } from "../developerGate"
 import { UNTRANSLATED_CATEGORY_TITLES } from "../schema"
 import { useSettingValue } from "../store"
+import { useAvatarUrl } from "../useAvatarUrl"
 import type { SettingsCategory, SettingsSection } from "../types"
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
@@ -102,7 +103,7 @@ function NavItem({
 }) {
   const t = useT()
   const aiEnabled = useSettingValue("AI.EnableAssistant", false)
-  const avatar = useSettingValue("User.ProfilePicture", DEFAULT_PROFILE_PICTURE)
+  const avatar = useAvatarUrl(useSettingValue("User.ProfilePicture", DEFAULT_PROFILE_PICTURE))
 
   const title = UNTRANSLATED_CATEGORY_TITLES[category.id] ?? t("Settings", category.title)
   // The AI page is tagged when its master switch is off, so the state is visible without opening it.
@@ -122,7 +123,7 @@ function NavItem({
       {/* Profile wears the actual profile picture rather than a generic mark: it is the one
           category that is about a specific person, and the picture says so faster than any glyph. */}
       {category.id === "Profile" ? (
-        <img src={assetUrl(avatar) ?? undefined} alt="" className="size-4 shrink-0 rounded-full object-cover" />
+        <img src={avatar ?? undefined} alt="" className="size-4 shrink-0 rounded-full object-cover" />
       ) : (
         <AppIcon name={category.icon} size={16} strokeWidth={1.5} className={cn(!selected && "text-ink-icon")} />
       )}

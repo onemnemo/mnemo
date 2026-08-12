@@ -1,7 +1,8 @@
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
-import { assetUrl, DEFAULT_PROFILE_PICTURE } from "@/settings/assets"
+import { DEFAULT_PROFILE_PICTURE } from "@/settings/assets"
 import { useSettingValue } from "@/settings/store"
+import { useAvatarUrl } from "@/settings/useAvatarUrl"
 
 /**
  * The single home for identity.
@@ -16,7 +17,7 @@ export function ProfileRow({ collapsed }: { collapsed: boolean }) {
   const t = useT()
   const label = t("Topbar", "ProfileTooltip")
   const name = useSettingValue("User.DisplayName", "")
-  const picture = assetUrl(useSettingValue("User.ProfilePicture", DEFAULT_PROFILE_PICTURE))
+  const picture = useAvatarUrl(useSettingValue("User.ProfilePicture", DEFAULT_PROFILE_PICTURE))
 
   return (
     <a
