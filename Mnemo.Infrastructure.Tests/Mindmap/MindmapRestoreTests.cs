@@ -118,6 +118,43 @@ public sealed class MindmapRestoreTests
     }
 
     [Fact]
+    public async Task Undo_OfEdgeStyle_LeavesTheEdgesInTheirOriginalOrder()
+    {
+        await using var h = new MindmapTestHarness();
+        var map = (await h.Service.CreateAsync("M", new List<MindmapNodeSpec>
+        {
+            new()
+            {
+                Ref = "root", Text = "Root",
+                Children = new List<MindmapNodeSpec>
+                {
+                    new() { Ref = "a", Text = "Alpha" },
+                    new() { Ref = "b", Text = "Beta" },
+                },
+            },
+        })).Value!;
+
+        var before = await DocAsync(h, map.Id);
+        var order = before.Edges.Select(e => e.Id).ToList();
+        Assert.Equal(2, order.Count);
+
+        Assert.True((await h.Service.ApplyAsync(map.Id, before.Revision, new MindmapEditOp[]
+        {
+            new SetEdgeOp { EdgeId = order[0], Style = new EdgeStyle { Color = "palette.3" } },
+        })).Value!.Success);
+        var after = await DocAsync(h, map.Id);
+        Assert.Equal(order, after.Edges.Select(e => e.Id));
+
+        Assert.True((await h.Service.RestoreAsync(map.Id, after.Revision, MindmapRestoreDelta.Between(after, before))).IsSuccess);
+
+        // The array's order is the sibling order the branch colours and the layout are read from, so an
+        // undo that reshuffled it would recolour the map instead of putting it back.
+        var reverted = await DocAsync(h, map.Id);
+        Assert.Equal(order, reverted.Edges.Select(e => e.Id));
+        Assert.Null(reverted.Edges[0].Style);
+    }
+
+    [Fact]
     public async Task Undo_OfMove_RestoresPriorPositionAndPin()
     {
         await using var h = new MindmapTestHarness();
