@@ -208,6 +208,8 @@
     "ReviewSettingsDeleteConfirmMessage": "\"{0}\" löschen? Dies kann nicht rückgängig gemacht werden.",
     "ReviewSettingsDeleteBlockedTitle": "Profil kann nicht gelöscht werden",
     "ReviewSettingsDeleteBlockedMessage": "Dieses Profil wird noch von mindestens einem Stapel verwendet.",
+    "LibraryMoveErrorTitle": "Verschieben konnte nicht abgeschlossen werden",
+    "LibraryMoveErrorMessage": "Ein Teil der Verschiebung wurde möglicherweise nicht gespeichert. Die Bibliothek wurde neu geladen.",
     "ReviewSettingsLoadErrorTitle": "Lerneinstellungen konnten nicht geladen werden",
     "ReviewSettingsErrorTitle": "Etwas ist schiefgelaufen",
     "ReviewSettingsSaveErrorTitle": "Lerneinstellungen konnten nicht gespeichert werden",

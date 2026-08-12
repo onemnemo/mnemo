@@ -208,6 +208,8 @@
     "ReviewSettingsDeleteConfirmMessage": "Slette «{0}»? Dette kan ikke angres.",
     "ReviewSettingsDeleteBlockedTitle": "Kan ikke slette profilen",
     "ReviewSettingsDeleteBlockedMessage": "Denne profilen brukes fortsatt av én eller flere kortstokker.",
+    "LibraryMoveErrorTitle": "Kunne ikke fullføre flyttingen",
+    "LibraryMoveErrorMessage": "Deler av flyttingen ble kanskje ikke lagret. Biblioteket er lastet inn på nytt.",
     "ReviewSettingsLoadErrorTitle": "Kunne ikke laste repetisjonsinnstillinger",
     "ReviewSettingsErrorTitle": "Noe gikk galt",
     "ReviewSettingsSaveErrorTitle": "Kunne ikke lagre repetisjonsinnstillinger",
