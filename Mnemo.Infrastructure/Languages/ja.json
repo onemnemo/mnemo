@@ -301,6 +301,13 @@
     "SearchResultsSubtitleFormat": "「{1}」の一致：{0}件",
     "SearchNoResultsFormat": "「{0}」に一致する設定はありません",
     "Support": "サポート",
+    "LogFolder": "ログフォルダー",
+    "LogFolderDescription": "問題が起きたときにMnemoが書き出すファイルです。不具合の報告に役立ちます。",
+    "DataFolder": "データフォルダー",
+    "DataFolderDescription": "ノート、デッキ、設定がこの端末に保存される場所です。",
+    "OpenFolder": "開く",
+    "FolderMissing": "そのフォルダーはまだありません。",
+    "FolderOpenFailed": "そのフォルダーを開けませんでした。",
     "ReportProblem": "問題を報告",
     "ReportProblemDescription": "不具合、分かりにくい点、単なる誤りなど、GitHubでお知らせください。",
     "ReportProblemButton": "Issueを開く"

@@ -77,6 +77,15 @@ describe("the settings schema", () => {
       expect(row.href).toMatch(/^https:\/\//)
     }
   })
+
+  it("gives an action row a link or something to run, never both", () => {
+    // The renderer resolves one press handler per row and takes the link first, so a
+    // row carrying both would silently lose whichever the author meant.
+    for (const row of everyRow()) {
+      if (row.kind !== "action") continue
+      expect(row.href && row.action, `${row.id} carries both a link and an action`).toBeFalsy()
+    }
+  })
 })
 
 describe("isRowHidden", () => {

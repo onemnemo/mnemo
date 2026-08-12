@@ -1,9 +1,13 @@
+import type { ReactNode } from "react"
+
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 import type { TranslateFn } from "@/i18n/types"
 import { openExternally } from "@/lib/external"
+import { toast } from "@/stores/toast"
 
+import { openHostFolder, type HostFolder } from "../folders"
 import { optionLabel, optionValue, rowDescription, rowTitle } from "../labels"
 import { useSecretIsSet, useSettingsStore, useSettingValue } from "../store"
 import type {
@@ -137,16 +141,12 @@ function SliderSettingRow({ row, divider, t }: { row: StepSliderRow; divider: bo
 function ActionSettingRow({ row, divider, t }: { row: ActionRow; divider: boolean; t: TranslateFn }) {
   const label = row.buttonLabelText ?? (row.buttonLabel ? t("Settings", row.buttonLabel) : "")
   const variant = row.destructive ? "danger" : "outline"
+  const press = actionPress(row, t)
 
   return (
     <SettingRowShell title={rowTitle(row, t)} description={rowDescription(row, t)} divider={divider}>
-      {row.href ? (
-        <Button
-          variant={variant}
-          size="sm"
-          onClick={() => openExternally(row.href!)}
-          trailing={<AppIcon name="external-link" size={13} strokeWidth={1.7} className="text-ink-icon" />}
-        >
+      {press ? (
+        <Button variant={variant} size="sm" onClick={press.run} trailing={press.icon}>
           {label}
         </Button>
       ) : (
@@ -158,4 +158,37 @@ function ActionSettingRow({ row, divider, t }: { row: ActionRow; divider: boolea
       )}
     </SettingRowShell>
   )
+}
+
+/** What an action row's button does, or undefined when the row has nothing behind it. */
+function actionPress(row: ActionRow, t: TranslateFn): { run: () => void; icon: ReactNode } | undefined {
+  if (row.href) {
+    return { run: () => openExternally(row.href!), icon: <ActionIcon name="external-link" /> }
+  }
+
+  if (!row.action) return undefined
+
+  switch (row.action) {
+    case "open-log-folder":
+      return { run: () => revealFolder("logs", t), icon: <ActionIcon name="folder-open" /> }
+
+    case "open-data-folder":
+      return { run: () => revealFolder("data", t), icon: <ActionIcon name="folder-open" /> }
+  }
+
+  // Same guard the custom rows use: an unhandled name is a build failure rather than a
+  // button that renders fine and does nothing.
+  const unhandled: never = row.action
+  throw new Error(`[settings] no handler for action row "${String(unhandled)}"`)
+}
+
+function ActionIcon({ name }: { name: string }) {
+  return <AppIcon name={name} size={13} strokeWidth={1.7} className="text-ink-icon" />
+}
+
+function revealFolder(target: HostFolder, t: TranslateFn): void {
+  void openHostFolder(target).then((failure) => {
+    if (!failure) return
+    toast.warning(t("Settings", failure === "missing" ? "FolderMissing" : "FolderOpenFailed"))
+  })
 }

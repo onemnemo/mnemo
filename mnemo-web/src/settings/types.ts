@@ -111,7 +111,10 @@ export interface NoticeRow extends RowBase {
   id: string
 }
 
-/** A button row. The action itself is resolved by id in the renderer. */
+/** Everything an action row can do in the app instead of opening a link. */
+export type ActionRowAction = "open-log-folder" | "open-data-folder"
+
+/** A button row. What it does comes from {@link ActionRow.href} or {@link ActionRow.action}. */
 export interface ActionRow extends RowBase {
   kind: "action"
   id: string
@@ -121,10 +124,15 @@ export interface ActionRow extends RowBase {
   destructive?: boolean
   /**
    * An absolute URL to hand to the system browser. A row with one is a link and is
-   * always live; a row without one has nothing behind it and renders disabled, which
-   * is the honest reading of a button that does nothing.
+   * always live; a row with neither this nor {@link action} has nothing behind it and
+   * renders disabled, which is the honest reading of a button that does nothing.
    */
   href?: string
+  /**
+   * Runs in the app rather than opening a link, dispatched by name in the renderer.
+   * A row carries this or {@link href}, never both.
+   */
+  action?: ActionRowAction
 }
 
 /**

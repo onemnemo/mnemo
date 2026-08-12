@@ -1,20 +1,66 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Mnemo.Host.Contracts;
+using Mnemo.Infrastructure.Common;
 
 namespace Mnemo.Host.Lifecycle;
 
 /// <summary>
 /// The client's half of the shutdown handshake: the window told the SPA it was
-/// closing, and this is the SPA saying it has finished saving. Plus the one other
-/// thing only the host can do on the SPA's behalf: leave the window.
+/// closing, and this is the SPA saying it has finished saving. Plus the things only
+/// the host can do on the SPA's behalf: leave the window, and show a folder.
 /// </summary>
 public static class LifecycleEndpoints
 {
     /// <param name="Url">An absolute http or https URL. Anything else is refused.</param>
     public sealed record OpenExternalRequest(string Url);
+
+    /// <param name="Target">A directory name the host knows, never a path. See <see cref="ResolveFolder"/>.</param>
+    public sealed record OpenFolderRequest(string Target);
+
+    /// <summary>What a folder request resolved to.</summary>
+    public enum OpenFolderOutcome
+    {
+        /// <summary>A known target, and the directory is there.</summary>
+        Ready,
+        /// <summary>Not one of the names this host will open.</summary>
+        UnknownTarget,
+        /// <summary>A known target whose directory does not exist.</summary>
+        MissingDirectory,
+    }
+
+    /// <summary>
+    /// Turns a target name into one of the app's own directories.
+    /// </summary>
+    /// <remarks>
+    /// The security boundary of the open-folder endpoint. Its request carries a name and
+    /// nothing else, so the only strings that can ever reach the shell are the ones built
+    /// here out of the host's own locations. A name that is not on this list resolves to
+    /// nothing, and no path from a caller is ever consulted, sanitised or repaired.
+    /// </remarks>
+    public static OpenFolderOutcome ResolveFolder(string? target, out string path)
+    {
+        path = target switch
+        {
+            // Asked of the paths helper rather than rebuilt here, so the folder this
+            // opens is the one the logger writes into under any data root.
+            "logs" => MnemoAppPaths.GetLogsDirectory(),
+            "data" => MnemoAppPaths.GetLocalUserDataRoot(),
+            _ => string.Empty,
+        };
+
+        if (path.Length == 0)
+            return OpenFolderOutcome.UnknownTarget;
+
+        // Nothing creates the log directory until something is logged, and the data root
+        // can be moved out from under a running app. Launching the shell at a path that is
+        // not there answers with a file manager error instead of an explanation.
+        return Directory.Exists(path) ? OpenFolderOutcome.Ready : OpenFolderOutcome.MissingDirectory;
+    }
 
     public static void MapLifecycle(this IEndpointRouteBuilder endpoints)
     {
@@ -53,6 +99,39 @@ public static class LifecycleEndpoints
                 // No browser, or the shell refused. Nothing to recover, but the caller
                 // should hear about it rather than watch a button do nothing.
                 return Results.Problem("Could not open the link.", statusCode: StatusCodes.Status502BadGateway);
+            }
+
+            return Results.NoContent();
+        });
+
+        // Shows one of the app's own directories in the system file manager.
+        //
+        // Separate from open-external rather than a scheme added to it: that endpoint
+        // takes a caller's string and decides whether to trust it, and a `file:` URL
+        // would be exactly the string worth not trusting. Here the caller picks from a
+        // list of names and the host supplies the path.
+        endpoints.MapPost("/api/app/open-folder", (OpenFolderRequest body) =>
+        {
+            switch (ResolveFolder(body.Target, out var path))
+            {
+                case OpenFolderOutcome.UnknownTarget:
+                    return Results.BadRequest(new { error = "unknown_target" });
+                case OpenFolderOutcome.MissingDirectory:
+                    // Coded, because a host that predates this route answers the same 404
+                    // and the client would otherwise report a missing folder to someone
+                    // whose only problem is a stale binary.
+                    return Results.Json(
+                        new ErrorDto("missing_directory", "That folder does not exist yet."),
+                        statusCode: StatusCodes.Status404NotFound);
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            }
+            catch (Exception)
+            {
+                return Results.Problem("Could not open the folder.", statusCode: StatusCodes.Status502BadGateway);
             }
 
             return Results.NoContent();

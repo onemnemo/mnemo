@@ -557,7 +557,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
             title: "ThirdPartyLicences",
             description: "ThirdPartyLicencesDescription",
             buttonLabel: "View",
-            href: `${REPOSITORY_URL}/blob/main/NOTICE`,
+            href: `${REPOSITORY_URL}/blob/main/THIRD-PARTY-NOTICES`,
           },
         ],
       },
@@ -565,10 +565,22 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
         id: "Support",
         title: "Support",
         rows: [
-          // Log and data folder rows are not here yet: opening a local folder needs
-          // an Explorer-launching endpoint the host does not expose, and the one
-          // it does (open-external) is deliberately restricted to http/https by
-          // its own scheme allowlist. This row needs nothing beyond that endpoint.
+          {
+            kind: "action",
+            id: "log-folder",
+            title: "LogFolder",
+            description: "LogFolderDescription",
+            buttonLabel: "OpenFolder",
+            action: "open-log-folder",
+          },
+          {
+            kind: "action",
+            id: "data-folder",
+            title: "DataFolder",
+            description: "DataFolderDescription",
+            buttonLabel: "OpenFolder",
+            action: "open-data-folder",
+          },
           {
             kind: "action",
             id: "report-problem",

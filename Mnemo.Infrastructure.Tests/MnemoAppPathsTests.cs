@@ -4,6 +4,19 @@ using Mnemo.Infrastructure.Common;
 
 namespace Mnemo.Infrastructure.Tests;
 
+/// <summary>
+/// Collects every test that repoints the data root. The override is a process-wide
+/// environment variable and anything resolving <see cref="MnemoAppPaths"/> reads it
+/// live, so a class in here running beside an unrelated one would hand that one a
+/// temporary profile. Members run on their own.
+/// </summary>
+[CollectionDefinition(DataRootCollection.Name, DisableParallelization = true)]
+public sealed class DataRootCollection
+{
+    public const string Name = "mnemo data root";
+}
+
+[Collection(DataRootCollection.Name)]
 public sealed class MnemoAppPathsTests
 {
     [Fact]
@@ -16,6 +29,26 @@ public sealed class MnemoAppPathsTests
         Assert.Equal(expectedRoot, MnemoAppPaths.GetLocalUserDataRoot());
         Assert.Equal(Path.Combine(expectedRoot, "mnemo.db"), MnemoAppPaths.GetLocalUserDataFile("mnemo.db"));
         Assert.Equal(Path.Combine(expectedRoot, "images"), MnemoAppPaths.GetImagesDirectory());
+    }
+
+    [Fact]
+    public void GetLogsDirectory_FollowsTheOverride()
+    {
+        var overrideRoot = Path.Combine(Path.GetTempPath(), "mnemo-data-override");
+        using var scope = new DataDirOverrideScope(overrideRoot);
+
+        Assert.Equal(Path.Combine(Path.GetFullPath(overrideRoot), "logs"), MnemoAppPaths.GetLogsDirectory());
+    }
+
+    [Fact]
+    public void GetLogsDirectory_KeepsTheShippedLocation_WhenOverrideUnset()
+    {
+        using var scope = new DataDirOverrideScope(null);
+
+        // Spelled out rather than derived from the accessor: an installed app has no
+        // override, and its log files have to stay at this exact path.
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        Assert.Equal(Path.Combine(localAppData, "Mnemo", "logs"), MnemoAppPaths.GetLogsDirectory());
     }
 
     [Fact]

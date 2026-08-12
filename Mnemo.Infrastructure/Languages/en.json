@@ -345,6 +345,13 @@
     "ThirdPartyLicencesDescription": "Everything Mnemo is standing on.",
     "View": "View",
     "Support": "Support",
+    "LogFolder": "Log folder",
+    "LogFolderDescription": "The files Mnemo writes when something goes wrong. Useful in a bug report.",
+    "DataFolder": "Data folder",
+    "DataFolderDescription": "Where notes, decks and settings are stored on this machine.",
+    "OpenFolder": "Open",
+    "FolderMissing": "That folder does not exist yet.",
+    "FolderOpenFailed": "Could not open that folder.",
     "ReportProblem": "Report a problem",
     "ReportProblemDescription": "Something broken, confusing, or just wrong. Tell us on GitHub.",
     "ReportProblemButton": "Open an issue"
