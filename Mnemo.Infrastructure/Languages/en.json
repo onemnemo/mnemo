@@ -910,7 +910,9 @@
     "ApplyBelow": "And everything below it",
     "StyleBranch": "Style branch",
     "OpenRef": "Open reference",
-    "ToggleTask": "Toggle task"
+    "ToggleTask": "Toggle task",
+    "ChangeType": "Change type",
+    "LinkUrlRejected": "That address cannot be opened"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

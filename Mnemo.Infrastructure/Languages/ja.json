@@ -860,7 +860,9 @@
     "ApplyBelow": "配下すべてにも適用",
     "StyleBranch": "ブランチのスタイル",
     "OpenRef": "参照を開く",
-    "ToggleTask": "タスクを切り替え"
+    "ToggleTask": "タスクを切り替え",
+    "ChangeType": "種類を変更",
+    "LinkUrlRejected": "このアドレスは開けません"
   },
   "GlobalSearch": {
     "ShortcutHint": "Ctrl/Cmd + K",

@@ -5,6 +5,7 @@ import type { SceneIndex } from "../canvas/scene-index"
 import type { Selection } from "../interaction/selection"
 import type { EdgeStyle, ElementStyle } from "../model/document"
 import type { Point, Scene, SceneEdge } from "../model/scene"
+import type { NodeKind } from "../scene/content"
 import { boxesAnchor, edgeAnchor } from "./anchor"
 import { EdgeBar } from "./EdgeBar"
 import { NodeBar, type BranchControl } from "./NodeBar"
@@ -21,6 +22,8 @@ export interface SelectionBarProps {
   onNodeStyle: (patch: ElementStyle) => void
   onEdgeLabel: (edgeId: string) => void
   branch: BranchControl | null
+  /** Turn the selected node into another kind; null when the selection is not a single node. */
+  onKind: ((kind: NodeKind) => void) | null
   /** Save the selected branch's styling as a template; null when the selection is not one branch. */
   onSaveTemplate: (() => void) | null
 }
@@ -46,6 +49,7 @@ export function MindmapSelectionBar({
   onNodeStyle,
   onEdgeLabel,
   branch,
+  onKind,
   onSaveTemplate,
 }: SelectionBarProps) {
   if (selection.edges.size > 0 && selection.elements.size > 0) {
@@ -83,6 +87,7 @@ export function MindmapSelectionBar({
         count={ids.length}
         onStyle={onNodeStyle}
         branch={branch}
+        onKind={onKind}
         onSaveTemplate={onSaveTemplate}
       />
     </Anchored>
