@@ -3,6 +3,7 @@ import type { ReactNode, RefObject } from 'react';
 
 import { navigate } from '@/app/router';
 import { AppIcon } from '@/components/icon/AppIcon';
+import { Button } from '@/components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useT } from '@/i18n/useT';
@@ -88,6 +89,8 @@ export function NoteTreeSidebar({
   notes,
   folders,
   loading,
+  failed,
+  onRetry,
   selectedNoteId,
   search,
   onSearchChange,
@@ -99,6 +102,9 @@ export function NoteTreeSidebar({
   notes: NoteSummaryDto[];
   folders: NoteFolderDto[];
   loading: boolean;
+  /** The tree could not be read. Distinct from an empty tree, which means the user has no notes. */
+  failed: boolean;
+  onRetry: () => void;
   selectedNoteId?: string;
   search: string;
   onSearchChange: (value: string) => void;
@@ -218,7 +224,23 @@ export function NoteTreeSidebar({
       </div>
 
       <div ref={scrollRef} className="scroll-thin min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-        {loading ? (
+        {failed ? (
+          // Ahead of every other branch, and worded as a failure rather than as
+          // an empty tree: a read that did not answer looks exactly like a user
+          // with no notes, and telling someone their notes are gone when they
+          // are not is the worst thing this pane can do.
+          <div
+            data-testid="tree-load-failed"
+            className="flex flex-col items-center gap-2 px-2 py-6 text-center"
+          >
+            <AppIcon name="common/triangle-alert" size={18} className="text-text-faded" />
+            <p className="text-body-extra-small font-medium text-text-secondary">{nt('ListErrorTitle')}</p>
+            <p className="text-body-extra-small text-text-faded">{nt('ListErrorDescription')}</p>
+            <Button size="sm" variant="outline" className="mt-1" onClick={onRetry}>
+              {nt('Retry')}
+            </Button>
+          </div>
+        ) : loading ? (
           <div className="flex flex-col gap-1 px-1 pt-2">
             {Array.from({ length: 6 }, (_, i) => (
               <Skeleton key={i} className="h-[22px] w-full" />
