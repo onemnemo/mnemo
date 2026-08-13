@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mnemo.UI", "Mnemo.UI\Mnemo.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mnemo.Infrastructure.Tests", "Mnemo.Infrastructure.Tests\Mnemo.Infrastructure.Tests.csproj", "{21EBB4D8-A945-471F-92F2-5E7399025967}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mnemo.Host", "Mnemo.Host\Mnemo.Host.csproj", "{0FECB951-4D04-4C3A-B40D-8820A24014D5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +71,18 @@ Global
 		{21EBB4D8-A945-471F-92F2-5E7399025967}.Release|x64.Build.0 = Release|Any CPU
 		{21EBB4D8-A945-471F-92F2-5E7399025967}.Release|x86.ActiveCfg = Release|Any CPU
 		{21EBB4D8-A945-471F-92F2-5E7399025967}.Release|x86.Build.0 = Release|Any CPU
+		{0FECB951-4D04-4C3A-B40D-8820A24014D5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0FECB951-4D04-4C3A-B40D-8820A24014D5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0FECB951-4D04-4C3A-B40D-8820A24014D5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0FECB951-4D04-4C3A-B40D-8820A24014D5}.Debug|x64.Build.0 = Debug|Any CPU
+		{0FECB951-4D04-4C3A-B40D-8820A24014D5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0FECB951-4D04-4C3A-B40D-8820A24014D5}.Debug|x86.Build.0 = Debug|Any CPU
+		{0FECB951-4D04-4C3A-B40D-8820A24014D5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0FECB951-4D04-4C3A-B40D-8820A24014D5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0FECB951-4D04-4C3A-B40D-8820A24014D5}.Release|x64.ActiveCfg = Release|Any CPU
+		{0FECB951-4D04-4C3A-B40D-8820A24014D5}.Release|x64.Build.0 = Release|Any CPU
+		{0FECB951-4D04-4C3A-B40D-8820A24014D5}.Release|x86.ActiveCfg = Release|Any CPU
+		{0FECB951-4D04-4C3A-B40D-8820A24014D5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

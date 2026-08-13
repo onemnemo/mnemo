@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Console-visible during the parallel-UI phases; packaging decides WinExe at cutover. -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned; PhotinoX.Native comes in transitively - do not reference it directly. -->
+    <PackageReference Include="PhotinoX" Version="4.3.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Mnemo.Core\Mnemo.Core.csproj" />
+    <ProjectReference Include="..\Mnemo.Infrastructure\Mnemo.Infrastructure.csproj" />
+    <!-- Referenced only for IModule discovery and backend-side module registrations
+         while both UIs coexist; severed at cutover. -->
+    <ProjectReference Include="..\Mnemo.UI\Mnemo.UI.csproj" />
+  </ItemGroup>
+</Project>

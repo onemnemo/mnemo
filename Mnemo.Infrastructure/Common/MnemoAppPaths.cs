@@ -7,11 +7,22 @@ public static class MnemoAppPaths
 {
     private const string ProductFolderName = "Mnemo";
 
+    /// <summary>
+    /// Environment variable that overrides the data root wholesale, so a second app
+    /// instance (e.g. a dev host) can run against its own profile instead of the
+    /// shared per-user directory. Unset means normal per-user resolution.
+    /// </summary>
+    public const string DataDirEnvironmentVariable = "MNEMO_DATA_DIR";
+
     // Local databases should live in OS-specific per-user directories.
     // Windows: %LOCALAPPDATA%\Mnemo\
     // Linux/macOS: resolved via .NET's LocalApplicationData implementation.
     public static string GetLocalUserDataRoot()
     {
+        var overrideRoot = Environment.GetEnvironmentVariable(DataDirEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(overrideRoot))
+            return Path.GetFullPath(overrideRoot);
+
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (string.IsNullOrWhiteSpace(localAppData))
             localAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
