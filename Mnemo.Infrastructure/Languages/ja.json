@@ -694,6 +694,7 @@
     "CalloutDescription": "内容を目立たせる",
     "CalloutWarning": "警告",
     "CalloutWarningDescription": "注意すべき点を示す",
+    "CalloutIcon": "コールアウトのアイコンを変更",
     "CodeDescription": "シントックスハイライトのコードブロック",
     "DividerDescription": "水平分割線",
     "TwoColumnDescription": "左右に並んだ列",

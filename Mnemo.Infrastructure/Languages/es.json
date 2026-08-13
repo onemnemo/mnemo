@@ -694,6 +694,7 @@
     "CalloutDescription": "Haz que algo resalte",
     "CalloutWarning": "Advertencia",
     "CalloutWarningDescription": "Señala algo que requiere precaución",
+    "CalloutIcon": "Cambiar icono de nota destacada",
     "CodeDescription": "Bloque de código con resaltado de sintaxis",
     "DividerDescription": "Línea divisoria horizontal",
     "TwoColumnDescription": "Columnas en paralelo",
