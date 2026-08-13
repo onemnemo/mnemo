@@ -224,7 +224,7 @@ function ActionRow({
           {...(rebindable ? { [RECORD_ATTR]: "" } : {})}
           onClick={rebindable ? onToggleRecord : undefined}
           disabled={busy || !rebindable}
-          title={rebindable ? t("Keybinds", "keybindManager.editShortcut") : t("Keybinds", "keybindManager.editorScopeLocked")}
+          title={rebindable ? t(NS, "keybindManager.editShortcut") : t(NS, "keybindManager.editorScopeLocked")}
           className={cn(
             "flex h-8 items-center rounded-lg px-1.5 transition-colors disabled:opacity-45",
             recording ? "bg-accent-wash" : "hover:bg-frame-hover",
@@ -234,7 +234,7 @@ function ActionRow({
         >
           {recording ? (
             <span className="px-1 text-[12.5px] font-medium text-accent-ink">
-              {t("Keybinds", "keybindManager.editorPressShortcut")}
+              {t(NS, "keybindManager.editorPressShortcut")}
             </span>
           ) : (
             <Keycap chord={chord} muted={!action.enabled} />
@@ -248,8 +248,8 @@ function ActionRow({
           type="button"
           onClick={onReset}
           disabled={busy || !action.isOverridden}
-          title={t("Keybinds", "keybindManager.editorRestoreDefault")}
-          aria-label={t("Keybinds", "keybindManager.editorRestoreDefault")}
+          title={t(NS, "keybindManager.editorRestoreDefault")}
+          aria-label={t(NS, "keybindManager.editorRestoreDefault")}
           className={cn(
             "flex size-7 items-center justify-center rounded-md text-ink-3 transition-opacity",
             "hover:bg-frame-hover hover:text-ink",
