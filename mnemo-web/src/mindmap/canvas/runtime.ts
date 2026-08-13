@@ -54,6 +54,12 @@ export interface CanvasRuntimeOptions {
    * `rebindEdges`; nothing is drawn on the new substrate until it does.
    */
   readonly onEdgeMode?: (next: EdgeMode) => void
+  /**
+   * Told on every camera change, as it happens. The minimap's box tracks this, so it cannot be an
+   * rAF poll that a throttled tab would freeze. Not fired for an element move that leaves the camera
+   * where it was; the debounced `onCameraSettled` is the one a resting readout wants instead.
+   */
+  readonly onCameraChange?: (viewport: Viewport) => void
   /** Told after the camera settles, for a zoom readout. Never per frame. */
   readonly onCameraSettled?: (viewport: Viewport) => void
 }
@@ -191,6 +197,12 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
       // wrap it itself, but a map panned far from the origin at high zoom hands it a number large
       // enough that the fractional part is gone, and the grid jitters against the elements on it.
       elements.background.style.backgroundPosition = `${wrap(-viewport.x * viewport.zoom, step)}px ${wrap(-viewport.y * viewport.zoom, step)}px`
+    }
+
+    // Ahead of the swap's early return below, so the minimap hears about the move even on the frame a
+    // substrate crossing happens.
+    if (notify) {
+      options.onCameraChange?.(viewport)
     }
 
     culler.update(viewport, elements.pane.clientWidth, elements.pane.clientHeight)

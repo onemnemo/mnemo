@@ -1,10 +1,10 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react"
 
 import { useT } from "@/i18n/useT"
 
 import type { CanvasRuntime } from "../canvas/runtime"
 import { createCssColorResolver } from "../canvas/css-color"
-import type { Scene } from "../model/scene"
+import type { Scene, Viewport } from "../model/scene"
 import {
   minimapToWorld,
   paintSwatches,
@@ -18,11 +18,20 @@ import type { Held } from "./useBarAnchor"
 const WIDTH = 150
 const HEIGHT = 98
 
+/** Where the canvas hangs a per-frame camera callback, for the minimap to fill and empty. */
+export type MinimapSink = { current: ((viewport: Viewport) => void) | null }
+
 export interface MindmapMinimapProps {
   scene: Scene
   runtime: Held<CanvasRuntime>
   /** The pane the camera fills. Its size is what the viewport rectangle is measured from. */
   pane: Held<HTMLElement>
+  /**
+   * The canvas calls this on every camera change; the minimap registers its repaint here. Driven by
+   * the event rather than an rAF poll, so the box keeps up even in a tab whose rAF is throttled to a
+   * halt, which is where the old poll silently stopped tracking.
+   */
+  sink: MinimapSink
 }
 
 /**
@@ -41,17 +50,54 @@ export interface MindmapMinimapProps {
  * is rebuilt when the drag is committed. On a panel this size a drag is worth a few pixels of swatch,
  * and following it would mean redrawing all five thousand of them per frame.
  */
-export function MindmapMinimap({ scene, runtime, pane }: MindmapMinimapProps) {
+export function MindmapMinimap({ scene, runtime, pane, sink }: MindmapMinimapProps) {
   const t = useT()
   const surface = useRef<HTMLCanvasElement>(null)
   const swatches = useRef<HTMLCanvasElement | null>(null)
   const projection = useRef<MinimapProjection | null>(null)
-  /** The camera the last composite was for, so a still map costs one comparison a frame. */
-  const painted = useRef("")
+  /** The camera the box was last drawn for, so a swatch rebuild can redraw it without a fresh move. */
+  const lastCamera = useRef<Viewport | null>(null)
   const dragging = useRef(false)
   const colors = useMemo(() => createCssColorResolver(), [])
   const theme = useThemeVariant()
 
+  // Draws the two layers over each other: the standing swatch bitmap, then the camera box on top.
+  // Reads everything it needs from refs, so it is stable and can be hung on the sink once.
+  const composite = useCallback(() => {
+    const node = surface.current
+    const context = node?.getContext("2d")
+    if (!node || !context) {
+      return
+    }
+
+    const ratio = window.devicePixelRatio || 1
+    const backing = Math.round(WIDTH * ratio)
+    if (node.width !== backing) {
+      node.width = backing
+      node.height = Math.round(HEIGHT * ratio)
+    }
+
+    context.setTransform(ratio, 0, 0, ratio, 0, 0)
+    context.clearRect(0, 0, WIDTH, HEIGHT)
+    if (swatches.current) {
+      context.drawImage(swatches.current, 0, 0, WIDTH, HEIGHT)
+    }
+
+    const host = pane.current
+    if (lastCamera.current && projection.current && host) {
+      paintViewport(
+        context,
+        lastCamera.current,
+        { width: host.clientWidth, height: host.clientHeight },
+        projection.current,
+        { width: WIDTH, height: HEIGHT },
+        (color) => colors.resolve(color),
+      )
+    }
+  }, [pane, colors])
+
+  // The swatches: rebuilt when the document or the theme changes, then composited once so the panel
+  // is never briefly an empty box.
   useLayoutEffect(() => {
     const bitmap = swatches.current ?? document.createElement("canvas")
     swatches.current = bitmap
@@ -72,59 +118,26 @@ export function MindmapMinimap({ scene, runtime, pane }: MindmapMinimapProps) {
       }
     }
 
-    // The bitmap under it is new, so the composite has to run again even if the camera has not moved.
-    painted.current = ""
-  }, [scene, theme, colors])
+    // The camera has not moved, but the bitmap under the box is new. Take the runtime's current
+    // camera so an edit redraws the box too, and fall back to whatever we were last told.
+    lastCamera.current = runtime.current?.viewport() ?? lastCamera.current
+    composite()
+  }, [scene, theme, colors, composite, runtime])
 
+  // The canvas drives the box: every camera change lands here and restrokes it over the standing
+  // swatches. The sink is a single slot rather than a subscription because only the minimap listens.
   useLayoutEffect(() => {
-    let frame = 0
-
-    const paint = () => {
-      frame = requestAnimationFrame(paint)
-
-      const node = surface.current
-      const camera = runtime.current
-      const host = pane.current
-      if (!node || !camera || !host) {
-        return
-      }
-
-      const viewport = camera.viewport()
-      const size = { width: host.clientWidth, height: host.clientHeight }
-      const key = `${viewport.x},${viewport.y},${viewport.zoom},${size.width},${size.height}`
-      if (key === painted.current) {
-        return
-      }
-      painted.current = key
-
-      const context = node.getContext("2d")
-      if (!context) {
-        return
-      }
-
-      const ratio = window.devicePixelRatio || 1
-      const backing = Math.round(WIDTH * ratio)
-      if (node.width !== backing) {
-        node.width = backing
-        node.height = Math.round(HEIGHT * ratio)
-      }
-
-      context.setTransform(ratio, 0, 0, ratio, 0, 0)
-      context.clearRect(0, 0, WIDTH, HEIGHT)
-      if (swatches.current) {
-        context.drawImage(swatches.current, 0, 0, WIDTH, HEIGHT)
-      }
-      if (projection.current) {
-        paintViewport(context, viewport, size, projection.current, { width: WIDTH, height: HEIGHT }, (color) =>
-          colors.resolve(color),
-        )
+    const onCamera = (viewport: Viewport) => {
+      lastCamera.current = viewport
+      composite()
+    }
+    sink.current = onCamera
+    return () => {
+      if (sink.current === onCamera) {
+        sink.current = null
       }
     }
-
-    // Once before the browser paints, or the panel is briefly an empty box when the map opens.
-    paint()
-    return () => cancelAnimationFrame(frame)
-  }, [pane, runtime, colors])
+  }, [sink, composite])
 
   const recenter = (event: PointerEvent<HTMLCanvasElement>) => {
     const camera = runtime.current

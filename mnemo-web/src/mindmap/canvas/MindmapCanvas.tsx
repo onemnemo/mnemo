@@ -55,6 +55,8 @@ export interface MindmapCanvasProps {
   onConnect?: (fromId: string, toId: string) => void
   /** A node's own chrome was pressed: a task's box, or a reference's mark. */
   onChrome?: (id: string, part: NodeChrome) => void
+  /** The camera moved, this frame. Drives the minimap; a zoom readout wants onCameraSettled. */
+  onCamera?: (viewport: Viewport) => void
   /** The camera stopped moving, for a zoom readout. Never per frame. */
   onCameraSettled?: (viewport: Viewport) => void
   className?: string
@@ -92,6 +94,7 @@ export function MindmapCanvas({
   onGroup,
   onConnect,
   onChrome,
+  onCamera,
   onCameraSettled,
   className,
 }: MindmapCanvasProps) {
@@ -121,6 +124,7 @@ export function MindmapCanvas({
     onGroup,
     onConnect,
     onChrome,
+    onCamera,
     onCameraSettled,
   })
   live.current = {
@@ -135,6 +139,7 @@ export function MindmapCanvas({
     onGroup,
     onConnect,
     onChrome,
+    onCamera,
     onCameraSettled,
   }
 
@@ -161,6 +166,7 @@ export function MindmapCanvas({
         overlayCamera,
       },
       onEdgeMode: setEdgeMode,
+      onCameraChange: (next) => live.current.onCamera?.(next),
       onCameraSettled: (next) => live.current.onCameraSettled?.(next),
     })
     runtime.current = created

@@ -44,8 +44,6 @@ function props(over: Partial<MindmapToolDockProps> = {}): MindmapToolDockProps {
     onFit: vi.fn(),
     shape: "rectangle",
     onShape: vi.fn(),
-    connectStyle: { line: "solid", routing: "curve", startCap: "none", endCap: "arrow" },
-    onConnectStyle: vi.fn(),
     onInsertImage: vi.fn(),
     ...over,
   }
@@ -104,26 +102,15 @@ describe("the tool dock", () => {
     expect(showing("ShapeHexagon")).toBe(false)
   })
 
-  it("keeps the connect tool's four values up, since one press does not finish setting them", () => {
-    const all = mount()
-    press("ToolConnect")
-
-    // A style cell is a picture of the value with its name only on the label, so it is asked for by
-    // that rather than by what it reads as.
-    press("EdgeDotted")
-
-    expect(all.onConnectStyle).toHaveBeenCalledWith({ line: "dotted" })
-    expect(showing("EdgeLine")).toBe(true)
-  })
-
-  it("shows one tool's choices at a time", () => {
+  it("puts the shapes away when a tool with no choices of its own is armed", () => {
+    // The connect tool draws with one fixed style and owns no panel, so arming it is one of the
+    // presses that should close whatever was open.
     mount()
 
     press("ToolShape")
     press("ToolConnect")
 
     expect(showing("ShapeHexagon")).toBe(false)
-    expect(showing("EdgeLine")).toBe(true)
   })
 
   it("clears the choices when a tool that has none is armed", () => {
@@ -138,8 +125,8 @@ describe("the tool dock", () => {
   it("says which tools have something behind them, and whether it is open", () => {
     mount()
 
-    // The four that plant one thing carry no mark and make no claim about a panel.
-    for (const label of ["ToolSelect", "ToolNode", "ToolText", "ToolFrame"]) {
+    // The five that plant one thing carry no mark and make no claim about a panel.
+    for (const label of ["ToolSelect", "ToolNode", "ToolText", "ToolConnect", "ToolFrame"]) {
       expect(slot(label).getAttribute("aria-haspopup"), label).toBeNull()
     }
 

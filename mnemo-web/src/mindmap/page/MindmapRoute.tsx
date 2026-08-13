@@ -18,9 +18,8 @@ import {
 import { IMAGE_ACCEPT, imageFilesOf, measureImageFile, uploadMindmapImage } from "../assets"
 import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
-import type { ConnectStyle } from "../chrome/ConnectFlyout"
 import { ExportMenu } from "../chrome/ExportMenu"
-import { MindmapMinimap } from "../chrome/Minimap"
+import { MindmapMinimap, type MinimapSink } from "../chrome/Minimap"
 import { MindmapToolDock } from "../chrome/MindmapToolDock"
 import type { ColorControl, NodeActions } from "../chrome/NodeBar"
 import { RadialMenu } from "../chrome/RadialMenu"
@@ -105,8 +104,16 @@ const NEW_NODE_SIZE = { width: 68, height: 30 }
  */
 const NEW_SHAPE_SIZE: [number, number] = [148, 86]
 
-/** What the connect tool draws with until the flyout says otherwise. */
-const DEFAULT_CONNECT: ConnectStyle = {
+/**
+ * The look a freshly drawn connector takes.
+ *
+ * One fixed style rather than a picker on the dock: the connect tool used to carry a flyout that
+ * preset these before drawing, which was the same four values the edge bar offers after a line is
+ * drawn and selected. Setting them up front saved nobody a step, since the line still has to be drawn
+ * either way, so the arming panel is gone and a new connector simply comes out solid and arrowed and
+ * is restyled from the edge bar like every other.
+ */
+const NEW_EDGE_STYLE: EdgeStyle = {
   line: "solid",
   routing: "curve",
   startCap: "none",
@@ -136,13 +143,15 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const [tool, setTool] = useState<MindmapTool>("select")
   const [zoom, setZoom] = useState(1)
   const [shape, setShape] = useState<ShapeType>("rectangle")
-  const [connectStyle, setConnectStyle] = useState(DEFAULT_CONNECT)
   /** Where the ring is and which key is holding it open, while it is open. Null when it is not. */
   const [radial, setRadial] = useState<{ at: Point; key: string } | null>(null)
   // Tracked continuously rather than sampled when the key goes down, because a key event carries no
   // position of its own and the ring has to open where the hand already is.
   const pointer = useRef<Point>({ x: 0, y: 0 })
   const stage = useRef<HTMLDivElement>(null)
+  // The canvas writes the camera here on every frame and the minimap reads it, so a pan repaints the
+  // minimap without re-rendering the route. A ref rather than state for exactly that reason.
+  const minimapCamera = useRef<MinimapSink["current"]>(null)
   /** The picker behind the dock's image button. Hidden, since the button is what anyone presses. */
   const imageInput = useRef<HTMLInputElement>(null)
   /** The node this edit created. Abandoning the edit takes it away again. */
@@ -659,11 +668,11 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         void editor.apply([op.unlinkEdge(existing.id)], { label: t("Mindmap", "Disconnect") })
         return
       }
-      void editor.apply([op.link(fromId, toId, { style: connectStyle })], {
+      void editor.apply([op.link(fromId, toId, { style: NEW_EDGE_STYLE })], {
         label: t("Mindmap", "Connect"),
       })
     },
-    [connectStyle, editor, map.data, t],
+    [editor, map.data, t],
   )
 
   /**
@@ -1359,9 +1368,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         <h1 className="truncate text-[13.5px] font-medium text-ink">
           {map.data?.title || t("Mindmap", "UntitledMap")}
         </h1>
-        <span className="text-[11.5px] text-ink-3">
-          {t("Mindmap", "NodeCountFormat").replace("{0}", String(scene.elements.length))}
-        </span>
 
         <div className="ml-auto flex items-center gap-1">
           <MapStyleMenu
@@ -1455,6 +1461,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           onPlant={(armed, at) => void plant(armed, at)}
           onGroup={(ids) => void group(ids)}
           onConnect={connect}
+          onCamera={(viewport) => minimapCamera.current?.(viewport)}
           onCameraSettled={(viewport) => setZoom(viewport.zoom)}
         />
 
@@ -1487,12 +1494,12 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           onFit={() => runtime.current?.fit()}
           shape={shape}
           onShape={setShape}
-          connectStyle={connectStyle}
-          onConnectStyle={(patch) => setConnectStyle((current) => ({ ...current, ...patch }))}
           onInsertImage={insertImage}
         />
 
-        {minimap ? <MindmapMinimap scene={scene} runtime={runtime} pane={stage} /> : null}
+        {minimap ? (
+          <MindmapMinimap scene={scene} runtime={runtime} pane={stage} sink={minimapCamera} />
+        ) : null}
 
         {radial ? (
           <RadialMenu

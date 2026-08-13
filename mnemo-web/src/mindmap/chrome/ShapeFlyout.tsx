@@ -18,8 +18,8 @@ const SHAPES: readonly { shape: ShapeType; key: string }[] = [
 ]
 
 /** The glyph box each primitive is previewed in. Wider than tall, like the shapes it plants. */
-const GLYPH_WIDTH = 26
-const GLYPH_HEIGHT = 18
+const GLYPH_WIDTH = 30
+const GLYPH_HEIGHT = 20
 
 /**
  * The box the outline is actually built in, before being scaled down into the glyph.
@@ -53,51 +53,72 @@ export function ShapeFlyout({ shape, onShape, onClose }: ShapeFlyoutProps) {
   const t = useT()
 
   return (
-    <FlyoutPanel onClose={onClose} className="w-[268px]">
+    <FlyoutPanel onClose={onClose} className="w-[260px]">
       <div className="grid grid-cols-4 gap-1">
         {SHAPES.map((entry) => {
           const active = entry.shape === shape
+          const label = t("Mindmap", entry.key)
           return (
             <button
               key={entry.shape}
               type="button"
+              title={label}
+              aria-label={label}
               aria-pressed={active}
               onClick={() => {
                 onShape(entry.shape)
                 onClose()
               }}
-              className={cn(
-                "flex flex-col items-center gap-1 rounded-lg py-1.5 transition-colors duration-120",
-                active ? "bg-frame-active text-ink" : "text-ink-2 hover:bg-frame-hover hover:text-ink",
-              )}
+              // The group is the whole tile, so hovering the label lifts the preview's frame with it,
+              // and the two never disagree about whether the pointer is on this shape.
+              className="group flex cursor-pointer flex-col items-center gap-1.5 rounded-lg p-1 outline-none"
             >
-              <svg
-                width={GLYPH_WIDTH}
-                height={GLYPH_HEIGHT}
-                viewBox={`0 0 ${GLYPH_WIDTH * BUILD_SCALE} ${GLYPH_HEIGHT * BUILD_SCALE}`}
-                aria-hidden
+              {/* The preview sits in a framed chip rather than floating on the panel, so the eight
+                  outlines read as a set of samples and the picked one is a filled tile, not a shape
+                  that happens to be a shade darker. */}
+              <span
+                className={cn(
+                  "grid h-[38px] w-full place-items-center rounded-lg border transition-colors duration-120",
+                  active
+                    ? "border-accent bg-accent-wash text-accent-ink"
+                    : "border-line bg-canvas-sunken text-ink-2 group-hover:border-ink-3 group-hover:text-ink",
+                )}
               >
-                <path
-                  d={shapePath(
-                    entry.shape,
-                    (GLYPH_WIDTH - PAD * 2) * BUILD_SCALE,
-                    (GLYPH_HEIGHT - PAD * 2) * BUILD_SCALE,
-                  )}
-                  transform={`translate(${PAD * BUILD_SCALE}, ${PAD * BUILD_SCALE})`}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.4}
-                  strokeLinejoin="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
-              <span className="text-[10.5px] leading-none">{t("Mindmap", entry.key)}</span>
+                <svg
+                  width={GLYPH_WIDTH}
+                  height={GLYPH_HEIGHT}
+                  viewBox={`0 0 ${GLYPH_WIDTH * BUILD_SCALE} ${GLYPH_HEIGHT * BUILD_SCALE}`}
+                  aria-hidden
+                >
+                  <path
+                    d={shapePath(
+                      entry.shape,
+                      (GLYPH_WIDTH - PAD * 2) * BUILD_SCALE,
+                      (GLYPH_HEIGHT - PAD * 2) * BUILD_SCALE,
+                    )}
+                    transform={`translate(${PAD * BUILD_SCALE}, ${PAD * BUILD_SCALE})`}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
+              </span>
+              <span
+                className={cn(
+                  "text-[10.5px] leading-none transition-colors duration-120",
+                  active ? "text-accent-ink" : "text-ink-3 group-hover:text-ink",
+                )}
+              >
+                {label}
+              </span>
             </button>
           )
         })}
       </div>
 
-      <p className="mt-1 px-1.5 pb-0.5 text-[10.5px] text-ink-3">
+      <p className="mt-1.5 border-t border-line px-1.5 pt-2 pb-0.5 text-[10.5px] leading-snug text-ink-3">
         {t("Mindmap", "ShapesInlineTextHint")}
       </p>
     </FlyoutPanel>
