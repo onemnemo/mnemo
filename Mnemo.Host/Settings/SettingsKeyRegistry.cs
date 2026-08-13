@@ -94,10 +94,10 @@ public static class SettingsKeyRegistry
         // stored credential write-only over the API.
         new("AI.WebSearch.BraveApiKey", SettingValueKind.Text, WriteOnly: true),
 
-        new("Mindmap.GridType", SettingValueKind.Text),
-        new("Mindmap.GridSize", SettingValueKind.Text),
-        new("Mindmap.GridDotSize", SettingValueKind.Text),
-        new("Mindmap.GridOpacity", SettingValueKind.Text),
+        // Mindmap.GridType, Mindmap.GridSize, Mindmap.GridDotSize and Mindmap.GridOpacity
+        // are deliberately absent: the SPA no longer has controls for them (nothing in
+        // its schema reads or writes them), though the desktop app's own settings page
+        // still does through its own in-process ISettingsService, not this HTTP allowlist.
         new("Mindmap.MinimapVisibility", SettingValueKind.Text),
 
         new("Updates.AutoCheck", SettingValueKind.Boolean),

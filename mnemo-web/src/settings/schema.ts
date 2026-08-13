@@ -364,44 +364,6 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
     section: "modules",
     groups: [
       {
-        id: "GridBackground",
-        title: "GridBackground",
-        rows: [
-          {
-            kind: "dropdown",
-            key: "Mindmap.GridType",
-            title: "GridType",
-            description: "GridTypeDescription",
-            defaultValue: "Dotted",
-            options: ["None", "Dotted", "Lines"].map((v) => ({ value: v })),
-          },
-          {
-            kind: "dropdown",
-            key: "Mindmap.GridSize",
-            title: "GridSize",
-            description: "GridSizeDescription",
-            defaultValue: "40",
-            options: ["20", "40", "60", "80", "100"].map((v) => ({ value: v })),
-          },
-          {
-            kind: "dropdown",
-            key: "Mindmap.GridDotSize",
-            title: "GridDotSize",
-            description: "GridDotSizeDescription",
-            defaultValue: "1.5",
-            options: ["0.5", "1.0", "1.5", "2.0", "2.5", "3.0"].map((v) => ({ value: v })),
-          },
-          {
-            kind: "dropdown",
-            key: "Mindmap.GridOpacity",
-            title: "GridOpacity",
-            description: "GridOpacityDescription",
-            defaultValue: "0.2",
-            options: ["0.05", "0.1", "0.15", "0.2", "0.3", "0.5", "0.7", "1.0"].map((v) => ({ value: v })),
-          },
-        ],
-      },
-      {
         id: "Interaction",
         title: "Interaction",
         rows: [
