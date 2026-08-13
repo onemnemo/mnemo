@@ -7,7 +7,6 @@ import { useShortcutChord } from "@/keybinds/store"
 import type { ShapeType } from "../model/document"
 import { TOOL_ACTIONS, type MindmapTool } from "../interaction/tool"
 import { FloatBar, Sep, Slot } from "./bits"
-import { ConnectFlyout, type ConnectStyle } from "./ConnectFlyout"
 import { ShapeFlyout } from "./ShapeFlyout"
 
 interface ToolEntry {
@@ -23,7 +22,7 @@ const TOOLS: readonly ToolEntry[] = [
   { tool: "node", icon: "plus", key: "ToolNode" },
   { tool: "shape", icon: "square", key: "ToolShape", choices: true },
   { tool: "text", icon: "type", key: "ToolText" },
-  { tool: "connect", icon: "spline", key: "ToolConnect", choices: true },
+  { tool: "connect", icon: "spline", key: "ToolConnect" },
   { tool: "frame", icon: "frame", key: "ToolFrame" },
 ]
 
@@ -38,11 +37,9 @@ export interface MindmapToolDockProps {
   onZoomBy: (factor: number) => void
   onZoomReset: () => void
   onFit: () => void
-  /** What the shape tool plants, and what the connect tool draws with. */
+  /** What the shape tool plants. */
   shape: ShapeType
   onShape: (shape: ShapeType) => void
-  connectStyle: ConnectStyle
-  onConnectStyle: (patch: Partial<ConnectStyle>) => void
   /** Opens the file picker. An image is chosen before it is placed, so this arms nothing. */
   onInsertImage: () => void
 }
@@ -55,10 +52,10 @@ export interface MindmapToolDockProps {
  * pointer-events-none and only the bar itself takes presses, or the invisible full-width row it is
  * centred in would swallow every click along the bottom of the map.
  *
- * Two of the tools own a set of sub-choices, and arming one of those puts its choices on screen. The
- * choices used to be behind a hold, which is a gesture with nothing on screen to suggest it: pressing
- * the shape tool armed it and did nothing else, so eight shapes sat behind a press nobody had a
- * reason to try. The corner mark now says the panel is there and an ordinary press opens it.
+ * The shape tool owns a set of sub-choices, and arming it puts them on screen. The choices used to be
+ * behind a hold, which is a gesture with nothing on screen to suggest it: pressing the shape tool
+ * armed it and did nothing else, so eight shapes sat behind a press nobody had a reason to try. The
+ * corner mark now says the panel is there and an ordinary press opens it.
  *
  * That costs nothing to anyone who did not want it. The panel closes on the next press anywhere
  * outside it, and that press still reaches whatever it landed on, so a press on the map plants the
@@ -74,8 +71,6 @@ export function MindmapToolDock({
   onFit,
   shape,
   onShape,
-  connectStyle,
-  onConnectStyle,
   onInsertImage,
 }: MindmapToolDockProps) {
   const t = useT()
@@ -107,13 +102,6 @@ export function MindmapToolDock({
 
               {opened && entry.tool === "shape" ? (
                 <ShapeFlyout shape={shape} onShape={onShape} onClose={() => setOpen(null)} />
-              ) : null}
-              {opened && entry.tool === "connect" ? (
-                <ConnectFlyout
-                  style={connectStyle}
-                  onStyle={onConnectStyle}
-                  onClose={() => setOpen(null)}
-                />
               ) : null}
             </div>
           )

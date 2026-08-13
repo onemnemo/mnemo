@@ -24,7 +24,11 @@ const SWATCH_RADIUS = 1.5
 const VIEWPORT_RADIUS = 2
 const VIEWPORT_WEIGHT = 1.5
 
-const VIEWPORT_STROKE = "var(--ink-3)"
+// The viewport box is the same idea as a marquee, a region called out over the map, so it borrows the
+// lasso's own colours: a translucent accent wash inside, a stronger accent line around it. The old
+// muted-ink hairline was there but almost impossible to see against the swatches.
+const VIEWPORT_FILL = "var(--sel-lasso)"
+const VIEWPORT_STROKE = "var(--sel-lasso-line)"
 
 /** Only the parts of a 2D context the minimap touches. */
 export interface MinimapContext {
@@ -143,8 +147,6 @@ export function paintViewport(
   context.rect(inset, inset, box.width - inset * 2, box.height - inset * 2)
   context.clip()
 
-  context.strokeStyle = resolve(VIEWPORT_STROKE)
-  context.lineWidth = VIEWPORT_WEIGHT
   context.beginPath()
   context.roundRect(
     viewport.x * projection.scale + projection.offsetX,
@@ -153,6 +155,12 @@ export function paintViewport(
     (pane.height / viewport.zoom) * projection.scale,
     VIEWPORT_RADIUS,
   )
+  // Fill then stroke the one path: the wash says which part of the map the camera holds, the line
+  // draws its edge.
+  context.fillStyle = resolve(VIEWPORT_FILL)
+  context.fill()
+  context.strokeStyle = resolve(VIEWPORT_STROKE)
+  context.lineWidth = VIEWPORT_WEIGHT
   context.stroke()
   context.restore()
 }
