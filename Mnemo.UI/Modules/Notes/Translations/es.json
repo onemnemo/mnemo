@@ -152,6 +152,9 @@
     "editor.clipboard.paste.description": "Pega el portapapeles en la nota.",
     "editor.clipboard.pasteStagingImage": "Añadiendo imagen…",
     "editor.clipboard.pasteStagingImages": "Añadiendo imagen {0} de {1}…",
-    "editor.clipboard.pasteCancel": "Cancelar"
+    "editor.clipboard.pasteCancel": "Cancelar",
+    "category.file": "Archivo",
+    "editor.save": "Guardar nota",
+    "editor.save.description": "Guarda esta nota ahora, esté activado o no el guardado automático."
   }
 }

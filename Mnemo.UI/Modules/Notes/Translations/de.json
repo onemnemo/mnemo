@@ -152,6 +152,9 @@
     "editor.clipboard.paste.description": "Inhalt der Zwischenablage in die Notiz einfügen.",
     "editor.clipboard.pasteStagingImage": "Bild wird hinzugefügt…",
     "editor.clipboard.pasteStagingImages": "Bild {0} von {1} wird hinzugefügt…",
-    "editor.clipboard.pasteCancel": "Abbrechen"
+    "editor.clipboard.pasteCancel": "Abbrechen",
+    "category.file": "Datei",
+    "editor.save": "Notiz speichern",
+    "editor.save.description": "Diese Notiz jetzt speichern, unabhängig vom automatischen Speichern."
   }
 }

@@ -152,6 +152,9 @@
     "editor.clipboard.paste.description": "クリップボードをノートに貼り付けます。",
     "editor.clipboard.pasteStagingImage": "画像を追加中…",
     "editor.clipboard.pasteStagingImages": "{1} 枚中 {0} 枚目の画像を追加中…",
-    "editor.clipboard.pasteCancel": "キャンセル"
+    "editor.clipboard.pasteCancel": "キャンセル",
+    "category.file": "ファイル",
+    "editor.save": "ノートを保存",
+    "editor.save.description": "自動保存の設定にかかわらず、このノートをすぐに保存します。"
   }
 }

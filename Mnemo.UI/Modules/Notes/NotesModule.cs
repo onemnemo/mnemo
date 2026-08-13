@@ -77,5 +77,27 @@ public class NotesModule : IModule
                 }
             ]
         });
+
+        // The editor matches this chord directly as well, so a save stays reachable if the
+        // catalog is slow or fails to arrive. Registering it here is what puts it on the
+        // keyboard settings page and lets someone move it.
+        registry.Register(new KeybindActionDefinition
+        {
+            ActionId = "editor.save",
+            Namespace = "editor",
+            Scope = KeybindScope.Local,
+            Module = "editor",
+            DisplayLabelKey = "editor.save",
+            DisplayDescriptionKey = "editor.save.description",
+            DisplayCategoryKey = "category.file",
+            Bindings =
+            [
+                new KeybindBindingEntry
+                {
+                    Kind = KeybindBindingKind.Chord,
+                    Chord = CanonicalKeyGestureCodec.ParseChord("Primary+S")
+                }
+            ]
+        });
     }
 }

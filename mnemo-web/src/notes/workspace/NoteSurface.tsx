@@ -7,6 +7,7 @@ import type { EditorState } from 'prosemirror-state';
 import { useT } from '@/i18n/useT';
 import { cn } from '@/lib/utils';
 import { formatRelative } from '@/lib/relative-date';
+import { useSettingValue } from '@/settings/store';
 import type { NoteSummaryDto } from '@/api/types';
 
 import { useNoteContentCommitter, useUpdateNoteMetadata } from '../api';
@@ -26,6 +27,7 @@ import { CalloutIconPicker } from '../editor/chrome/CalloutIconPicker';
 import { EditorContextMenu } from '../editor/chrome/EditorContextMenu';
 import { FindReplaceOverlay } from '../find/FindReplaceOverlay';
 import { createPersist } from '../save/persist';
+import { useSaveShortcut } from '../save/useSaveShortcut';
 import { BlockSelectionAnnouncer } from '../selection/BlockSelectionAnnouncer';
 import { BlockSelectionOverlay } from '../selection/BlockSelectionOverlay';
 import { SelectionBands } from '../selection/SelectionBands';
@@ -83,7 +85,12 @@ export function NoteSurface({
     [noteId],
   );
 
-  const { ref, saveState, view } = useNoteSession({ noteId, sid, ver, state, registry, persist, services });
+  const { ref, saveState, view, save } = useNoteSession({ noteId, sid, ver, state, registry, persist, services });
+
+  // Read reactively, so turning autosave off mid-note starts reporting the save
+  // state on the change already sitting unsaved rather than on the next one.
+  const autosave = useSettingValue('Editor.AutoSave', true);
+  useSaveShortcut(save);
 
   // Recomputed off the live document each time a save settles (and on load),
   // which matches the desktop: cheap, canonical, and never per keystroke.
@@ -101,10 +108,11 @@ export function NoteSurface({
   return (
     <div className="group/pane relative flex h-full min-h-0 flex-col">
       {/* The note's chrome, pinned to the pane rather than a bar over it: the
-          breadcrumb now lives in the shared topbar. Save state sits beside the
-          actions and stays silent until a failure or conflict needs the reader. */}
+          breadcrumb now lives in the shared topbar. The row is anchored to the
+          right with the actions last, so the save label changing length moves
+          its own left edge into empty chrome and nothing else. */}
       <div className="absolute right-3 top-2.5 z-30 flex items-center gap-2">
-        <SaveStateIndicator state={saveState} onReload={onReload} />
+        <SaveStateIndicator state={saveState} autosave={autosave} onReload={onReload} onSave={save} />
         <PaneActions note={note} />
       </div>
       <div ref={scrollRef} className="scroll-thin relative min-h-0 flex-1 overflow-y-auto">

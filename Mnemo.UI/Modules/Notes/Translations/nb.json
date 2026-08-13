@@ -152,6 +152,9 @@
     "editor.clipboard.paste.description": "Lim inn fra utklippstavlen i notatet.",
     "editor.clipboard.pasteStagingImage": "Legger til bilde…",
     "editor.clipboard.pasteStagingImages": "Legger til bilde {0} av {1}…",
-    "editor.clipboard.pasteCancel": "Avbryt"
+    "editor.clipboard.pasteCancel": "Avbryt",
+    "category.file": "Fil",
+    "editor.save": "Lagre notat",
+    "editor.save.description": "Skriv dette notatet nå, uansett om autolagring er på."
   }
 }
