@@ -109,6 +109,35 @@ export function MindmapLibraryRoute() {
   const showEmpty = loaded && !hasAnything
   const showNoResults = loaded && hasAnything && nothingHere && searching
 
+  // A failed fetch and an empty library render the same list (nothing), so without this
+  // branch a backend outage reads as "you have no mindmaps" rather than as the fetch it
+  // actually was.
+  if (library.isError || foldersQuery.isError) {
+    return (
+      <div className="min-h-full bg-canvas-sunken">
+        <div className="mx-auto max-w-[1232px] px-8 pt-16">
+          <EmptyState
+            icon="triangle-alert"
+            title={mm("LibraryLoadFailedTitle")}
+            description={mm("LibraryLoadFailedHint")}
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void library.refetch()
+                  void foldersQuery.refetch()
+                }}
+              >
+                {mm("Retry")}
+              </Button>
+            }
+          />
+        </div>
+      </div>
+    )
+  }
+
   if (library.isLoading || foldersQuery.isLoading) {
     return <p className="py-20 text-center text-[13px] text-ink-3">{mm("Loading")}</p>
   }

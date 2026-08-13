@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { navigate } from '@/app/router';
+import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useT } from '@/i18n/useT';
 import { isMac } from '@/keybinds/chord';
@@ -39,6 +40,17 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
   const notes = notesQuery.data ?? [];
   const folders = foldersQuery.data ?? [];
   const loading = notesQuery.isPending || foldersQuery.isPending;
+  // Tracked separately from `loading`, because a failed read leaves both queries
+  // settled with no data and would otherwise paint as a library with nothing in
+  // it, which reads as every note being gone.
+  const loadFailed = notesQuery.isError || foldersQuery.isError;
+
+  // Only the reads that failed; a refetch of a query that succeeded would throw
+  // away a good list to ask for it again.
+  const retryLoad = useCallback(() => {
+    if (notesQuery.isError) void notesQuery.refetch();
+    if (foldersQuery.isError) void foldersQuery.refetch();
+  }, [notesQuery, foldersQuery]);
 
   // The note's place in the tree is published to the shared topbar breadcrumb,
   // the same slot every module fills, rather than a bar of its own over the editor.
@@ -142,6 +154,8 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
           notes={notes}
           folders={folders}
           loading={loading}
+          failed={loadFailed}
+          onRetry={retryLoad}
           selectedNoteId={noteId}
           search={search}
           onSearchChange={setSearch}
@@ -173,7 +187,27 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
               <SidebarExpandButton onExpand={() => setSidebarOpen(true)} className="absolute left-2 top-2 z-10" />
             ) : null}
             <div className="flex flex-1 items-center justify-center">
-              <EmptyState icon="common/file-text" title={nt('NoNoteSelectedTitle')} description={nt('NoNoteSelectedDescription')} />
+              {loadFailed ? (
+                // "Pick a note from the sidebar" is not advice that can be taken
+                // when the sidebar could not be read, so the pane carries the
+                // failure too rather than sending the user somewhere empty.
+                <EmptyState
+                  icon="common/triangle-alert"
+                  title={nt('ListErrorTitle')}
+                  description={nt('ListErrorDescription')}
+                  action={
+                    <Button size="sm" variant="outline" onClick={retryLoad}>
+                      {nt('Retry')}
+                    </Button>
+                  }
+                />
+              ) : (
+                <EmptyState
+                  icon="common/file-text"
+                  title={nt('NoNoteSelectedTitle')}
+                  description={nt('NoNoteSelectedDescription')}
+                />
+              )}
             </div>
           </div>
         )}
