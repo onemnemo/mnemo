@@ -16,6 +16,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { NoteSummaryDto } from '@/api/types';
+import { useSettingsStore } from '@/settings/store';
 import { buildNoteEditState, type NoteEditState } from '../edit/build-edit-state';
 import { block, span } from '../editor/mapper/fixtures';
 import { NoteSurface } from './NoteSurface';
@@ -67,6 +68,7 @@ beforeEach(() => {
   document.body.appendChild(container);
   root = createRoot(container);
   disposed = false;
+  useSettingsStore.setState({ values: {}, loaded: true });
 });
 
 function dispose(): void {
@@ -78,7 +80,32 @@ function dispose(): void {
 afterEach(() => {
   dispose();
   container.remove();
+  useSettingsStore.setState({ values: {}, loaded: false });
 });
+
+function autosave(on: boolean): void {
+  useSettingsStore.setState({ values: { 'Editor.AutoSave': on }, loaded: true });
+}
+
+/** The save chrome, or null when it has decided to stay quiet. */
+function saveState(): HTMLElement | null {
+  return container.querySelector('[data-testid="save-state"]');
+}
+
+/**
+ * One real edit, through the keymap on the mounted view.
+ *
+ * Enter rather than a character: text insertion in a browser arrives as a DOM
+ * mutation the view reads back, which jsdom does not produce, while a bound key
+ * runs the command and dispatches for real.
+ */
+function edit(): void {
+  act(() => {
+    proseMirror().dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, code: 'Enter', key: 'Enter' }),
+    );
+  });
+}
 
 function render(node: ReactNode): void {
   act(() => root.render(<StrictMode>{withClient(node)}</StrictMode>));
@@ -130,5 +157,82 @@ describe('NoteSurface', () => {
     // cover out as if the note had none, and the header lands on top of the banner.
     render(surfaceOf({ cover: 'asset:abcd.png' }, [block('Text', [span('x')])]));
     expect(headerPadding()).toBe('pt-0');
+  });
+});
+
+describe('the save chrome', () => {
+  it('says nothing about a note that has only been opened', () => {
+    autosave(false);
+    render(surface(block('Text', [span('x')])));
+    expect(saveState()).toBeNull();
+  });
+
+  it('calls an edited note unsaved when the user owns the saving', () => {
+    autosave(false);
+    render(surface(block('Text', [span('x')])));
+    edit();
+    expect(saveState()?.dataset.saveState).toBe('dirty');
+    expect(saveState()?.textContent).toContain('SaveStateUnsaved');
+  });
+
+  it('stays out of the way while autosave owns the saving', () => {
+    autosave(true);
+    render(surface(block('Text', [span('x')])));
+    edit();
+    expect(saveState()).toBeNull();
+  });
+
+  it('defaults to autosave on, so an unconfigured install is not narrated at', () => {
+    // No stored value: the schema default is on, and reading a missing setting as
+    // off would put the chrome on screen for everyone who never opened settings.
+    render(surface(block('Text', [span('x')])));
+    edit();
+    expect(saveState()).toBeNull();
+  });
+
+  it('says unsaved once, not once per keystroke', () => {
+    autosave(false);
+    render(surface(block('Text', [span('x')])));
+    edit();
+    const first = saveState();
+    edit();
+    edit();
+    // The same element, still saying the same thing: the state does not churn
+    // under typing, so there is nothing to flicker.
+    expect(saveState()).toBe(first);
+    expect(saveState()?.dataset.saveState).toBe('dirty');
+  });
+
+  it('speaks up as soon as autosave is switched off under a note already edited', () => {
+    // The change sitting unsaved when the switch flips is exactly the one at
+    // risk, so the chrome has to report on it rather than wait for the next edit.
+    autosave(true);
+    render(surface(block('Text', [span('x')])));
+    edit();
+    expect(saveState()).toBeNull();
+
+    act(() => autosave(false));
+    expect(saveState()?.dataset.saveState).toBe('dirty');
+  });
+
+  it('goes quiet again when autosave is switched back on', () => {
+    autosave(false);
+    render(surface(block('Text', [span('x')])));
+    edit();
+    expect(saveState()).not.toBeNull();
+
+    act(() => autosave(true));
+    expect(saveState()).toBeNull();
+  });
+
+  it('sits before the pane actions, which stay anchored as the wording changes length', () => {
+    autosave(false);
+    render(surface(block('Text', [span('x')])));
+    edit();
+    const row = saveState()?.parentElement;
+    expect(row?.className).toContain('right-3');
+    // Last in a right-anchored row means the actions keep their place and the
+    // label grows leftwards into empty chrome instead of pushing anything.
+    expect(row?.lastElementChild).not.toBe(saveState());
   });
 });
