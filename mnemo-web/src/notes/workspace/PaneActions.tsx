@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { navigate } from '@/app/router';
+import { EmojiPickerPopover } from '@/components/emoji/EmojiPickerPopover';
 import { AppIcon } from '@/components/icon/AppIcon';
 import {
   Menu,
@@ -22,8 +23,8 @@ import { useDeleteNote, useDuplicateNote, useUpdateNoteMetadata } from '../api';
 import { metadataUpdateOf } from '../note-metadata';
 import { useNotePdf } from '../pdf/store';
 import { useNoteTransfer } from '../transfer/store';
-import { coverCss } from './covers';
-import { CoverPicker, IconPicker } from './NoteHeaderChrome';
+import { hasCover } from './covers';
+import { CoverPicker } from './NoteHeaderChrome';
 import { EDITOR_WIDTH_KEY, useEditorMeasure, useEditorWidthOptions } from './useEditorMeasure';
 
 /**
@@ -71,7 +72,7 @@ export function PaneActions({ note }: { note: NoteSummaryDto }) {
   }, [menuOpen, pending]);
 
   const title = note.title.trim() || nt('Untitled');
-  const overCover = coverCss(note.cover) !== null;
+  const overCover = hasCover(note.cover);
   const toggleFavourite = () => void updateNote.mutateAsync(metadataUpdateOf(note, { isFavorite: !note.isFavorite }));
   const patch = (next: Partial<Pick<NoteSummaryDto, 'emoji' | 'cover'>>) =>
     void updateNote.mutateAsync(metadataUpdateOf(note, next));
@@ -175,14 +176,15 @@ export function PaneActions({ note }: { note: NoteSummaryDto }) {
 
       {/* Anchored to the same corner the menu came from, with a zero-size trigger:
           the pickers belong to the menu items, not to a control of their own. */}
-      <IconPicker
+      <EmojiPickerPopover
         value={note.emoji}
+        label={nt('AddIcon')}
         onChange={(emoji) => patch({ emoji })}
         open={picker === 'icon'}
         onOpenChange={(open) => setPicker(open ? 'icon' : null)}
       >
         <span aria-hidden className="block size-0" />
-      </IconPicker>
+      </EmojiPickerPopover>
       <CoverPicker
         token={note.cover}
         onChange={(cover) => patch({ cover })}

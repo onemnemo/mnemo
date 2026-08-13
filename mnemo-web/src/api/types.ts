@@ -538,7 +538,10 @@ export interface NoteSummaryDto {
   modifiedAt: string
   /** Optional page emoji shown over the title and in the tree; null for the neutral mark. */
   emoji: string | null
-  /** Optional cover token naming a preset banner; null for no cover. */
+  /**
+   * Optional cover token: a preset banner, or `asset:{assetId}` for an image the user
+   * uploaded. Null for no cover, and an unrecognised token reads as no cover too.
+   */
   cover: string | null
   /** Page tags, plain labels; the chip colour is derived from the label. */
   tags: string[]
@@ -599,6 +602,7 @@ export interface UpdateNoteMetadataDto {
   order: number
   isFavorite: boolean
   emoji: string | null
+  /** A preset token or `asset:{assetId}`; see NoteSummaryDto.cover. */
   cover: string | null
   tags: string[]
 }

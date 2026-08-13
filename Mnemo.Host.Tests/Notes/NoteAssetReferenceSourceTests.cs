@@ -29,6 +29,8 @@ public sealed class NoteAssetReferenceSourceTests
         _storage.Rows[NoteCommitStore.IndexKey] = index;
     }
 
+    private Note Stored(string id) => (Note)_storage.Rows[NoteCommitStore.NoteKey(id)]!;
+
     [Fact]
     public void ReadyFollowsTheMigrator()
     {
@@ -82,6 +84,29 @@ public sealed class NoteAssetReferenceSourceTests
         var ids = await Source().CollectReferencedIdsAsync();
 
         Assert.Empty(ids);
+    }
+
+    [Fact]
+    public async Task CollectsAnUploadedCover()
+    {
+        // The one reference a note can hold outside its blocks. Miss it and the sweep calls the
+        // cover an orphan, deleting it the first time it is past the grace window.
+        AddNote("n1");
+        Stored("n1").Cover = "asset:cover1.png";
+
+        var ids = await Source().CollectReferencedIdsAsync();
+
+        Assert.Contains("cover1.png", ids);
+        Assert.Single(ids);
+    }
+
+    [Fact]
+    public async Task IgnoresPresetCoversWhichNameNoFile()
+    {
+        AddNote("n1");
+        Stored("n1").Cover = "sunset";
+
+        Assert.Empty(await Source().CollectReferencedIdsAsync());
     }
 
     [Fact]

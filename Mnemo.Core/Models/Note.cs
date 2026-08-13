@@ -86,9 +86,15 @@ public class Note
     public string? Emoji { get; set; }
 
     /// <summary>
-    /// Optional cover token, naming one of the preset banners drawn above the title. Null for a
-    /// note with no cover. Stored as an opaque token so the preset set can change without
-    /// rewriting saved notes.
+    /// Optional cover token for the banner drawn above the title: one of the preset names, or
+    /// <c>asset:{assetId}</c> for an image the user uploaded. Null for a note with no cover.
+    /// Stored as an opaque token so the token set can change without rewriting saved notes, and
+    /// a reader that does not know a token draws no cover instead of a broken banner.
+    /// <para>
+    /// Any value here that names a file must also be collected by the asset sweep's reference
+    /// source (Mnemo.Host NoteAssetReferenceSource), or the file counts as an orphan and is
+    /// deleted out from under the note.
+    /// </para>
     /// </summary>
     public string? Cover { get; set; }
 

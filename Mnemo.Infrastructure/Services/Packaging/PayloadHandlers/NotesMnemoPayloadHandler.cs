@@ -256,6 +256,9 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
 
     private const string AttachmentPrefix = "attachment:";
 
+    /// <summary>Marks a cover that names an uploaded image rather than a preset banner.</summary>
+    private const string CoverAssetPrefix = "asset:";
+
     private const string NoteAssetsArchivePrefix = "assets/note-assets/";
 
     private const string LegacyImagesArchivePrefix = "assets/images/";
@@ -275,7 +278,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
     {
         var references = new HashSet<string>(StringComparer.Ordinal);
         foreach (var note in notes)
-            CollectImageReferences(note.Blocks, references);
+            CollectNoteReferences(note, references);
         if (references.Count == 0)
             return;
 
@@ -291,6 +294,27 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
             if (!files.ContainsKey(asset.ArchivePath))
                 files[asset.ArchivePath] = File.ReadAllBytes(asset.SourcePath);
         }
+    }
+
+    /// <summary>
+    /// Every field of a note that can name a stored image: its blocks, and a cover that names an
+    /// uploaded one. A field missed here exports as a live reference with no file behind it, so
+    /// the imported note points at an image the package never carried.
+    /// </summary>
+    private static void CollectNoteReferences(Note note, HashSet<string> into)
+    {
+        CollectImageReferences(note.Blocks, into);
+        if (CoverAssetId(note.Cover) is { } cover)
+            into.Add(cover);
+    }
+
+    /// <summary>The asset id an uploaded cover names, or null for a preset, which stores no file.</summary>
+    private static string? CoverAssetId(string? cover)
+    {
+        if (cover is null || !cover.StartsWith(CoverAssetPrefix, StringComparison.OrdinalIgnoreCase))
+            return null;
+        var id = cover[CoverAssetPrefix.Length..];
+        return string.IsNullOrWhiteSpace(id) ? null : id;
     }
 
     private static void CollectImageReferences(IReadOnlyList<Block>? blocks, HashSet<string> into)

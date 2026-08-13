@@ -38,7 +38,7 @@ const note: NoteSummaryDto = {
   emoji: null, cover: null, tags: [],
 };
 
-function surface(...blocks: Parameters<typeof buildNoteEditState>[0]): ReactNode {
+function surfaceOf(over: Partial<NoteSummaryDto>, blocks: Parameters<typeof buildNoteEditState>[0]): ReactNode {
   const built = editStateOf(...blocks);
   return (
     <NoteSurface
@@ -49,9 +49,13 @@ function surface(...blocks: Parameters<typeof buildNoteEditState>[0]): ReactNode
       registry={built.registry}
       mapper={built.mapper}
       onReload={() => undefined}
-      note={note}
+      note={{ ...note, ...over }}
     />
   );
+}
+
+function surface(...blocks: Parameters<typeof buildNoteEditState>[0]): ReactNode {
+  return surfaceOf({}, blocks);
 }
 
 let container: HTMLElement;
@@ -84,6 +88,12 @@ function proseMirror(): HTMLElement {
   return container.querySelector('.ProseMirror') as HTMLElement;
 }
 
+/** Which way the document column padded itself, which is the whole cover layout branch. */
+function headerPadding(): string {
+  const column = container.querySelector('div.pb-40') as HTMLElement;
+  return column.classList.contains('pt-0') ? 'pt-0' : 'pt-10';
+}
+
 describe('NoteSurface', () => {
   it('mounts exactly one editable view that renders the note', () => {
     render(surface(block('Text', [span('hello world')])));
@@ -103,5 +113,22 @@ describe('NoteSurface', () => {
     // topbar, and the exact word-count figure is covered by word-count.test.ts.
     expect(container.textContent).toContain('Note one');
     expect(container.textContent).toContain('body text');
+  });
+
+  it('pads the header down when the note has no cover', () => {
+    render(surface(block('Text', [span('x')])));
+    expect(headerPadding()).toBe('pt-10');
+  });
+
+  it('lifts the header under a preset cover', () => {
+    render(surfaceOf({ cover: 'sunset' }, [block('Text', [span('x')])]));
+    expect(headerPadding()).toBe('pt-0');
+  });
+
+  it('takes the same branch for an uploaded cover as for a preset', () => {
+    // A cover token is opaque: layout that only recognises the presets lays an uploaded
+    // cover out as if the note had none, and the header lands on top of the banner.
+    render(surfaceOf({ cover: 'asset:abcd.png' }, [block('Text', [span('x')])]));
+    expect(headerPadding()).toBe('pt-0');
   });
 });
