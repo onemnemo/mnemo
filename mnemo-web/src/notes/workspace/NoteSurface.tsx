@@ -11,7 +11,7 @@ import type { NoteSummaryDto } from '@/api/types';
 
 import { useNoteContentCommitter, useUpdateNoteMetadata } from '../api';
 import { metadataUpdateOf } from '../note-metadata';
-import { coverCss } from './covers';
+import { hasCover } from './covers';
 import { AddHeaderChrome, CoverBanner, NoteIcon } from './NoteHeaderChrome';
 import { NoteTags } from './NoteTags';
 import { PasteProgressOverlay } from '../clipboard/PasteProgressOverlay';
@@ -93,7 +93,7 @@ export function NoteSurface({
   );
 
   const title = note.title.trim() || nt('Untitled');
-  const hasCover = coverCss(note.cover) !== null;
+  const coverSet = hasCover(note.cover);
   const { maxWidth } = useEditorMeasure();
   const { spellCheck, lang } = useSpellcheck();
 
@@ -108,12 +108,12 @@ export function NoteSurface({
       </div>
       <div ref={scrollRef} className="scroll-thin relative min-h-0 flex-1 overflow-y-auto">
         <CoverBanner token={note.cover} />
-        <div className={cn('mx-auto w-full px-14 pb-40', hasCover ? 'pt-0' : 'pt-10')} style={{ maxWidth }}>
+        <div className={cn('mx-auto w-full px-14 pb-40', coverSet ? 'pt-0' : 'pt-10')} style={{ maxWidth }}>
           {note.emoji ? (
             // The icon is positioned so it lifts over the cover's lower edge, the
             // way a page icon reads on the surfaces this is modelled on. The cover
             // is a positioned element and would otherwise paint over it.
-            <div className={cn('relative z-10', hasCover ? '-mt-[46px]' : 'mt-2')}>
+            <div className={cn('relative z-10', coverSet ? '-mt-[46px]' : 'mt-2')}>
               <NoteIcon value={note.emoji} />
             </div>
           ) : null}

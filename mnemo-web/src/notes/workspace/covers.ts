@@ -6,6 +6,8 @@
  * Lightness and chroma are fixed per stop; only the hue turns, so every banner
  * carries the same weight and none of them fights the reading surface below it.
  */
+import { isCustomCover } from './cover-upload';
+
 export interface NoteCover {
   readonly token: string;
   readonly css: string;
@@ -24,4 +26,13 @@ export const NOTE_COVERS: readonly NoteCover[] = [
 export function coverCss(token: string | null | undefined): string | null {
   if (!token) return null;
   return NOTE_COVERS.find((cover) => cover.token === token)?.css ?? null;
+}
+
+/**
+ * Whether a token names a cover the header should make room for: a preset, or an image
+ * the user uploaded. Layout asks this rather than the gradient resolver, which only
+ * knows the presets and would lay an uploaded cover out as if the note had none.
+ */
+export function hasCover(token: string | null | undefined): boolean {
+  return coverCss(token) !== null || isCustomCover(token);
 }

@@ -12,6 +12,12 @@ namespace Mnemo.Host.Notes;
 /// </summary>
 /// <remarks>
 /// <para>
+/// A note names files from two places: its blocks, and its metadata. Both are read by
+/// <see cref="CollectFromNote"/>, which is the one list of fields the sweep knows about. A new
+/// metadata field that stores a file belongs in that list; a file this misses is unreferenced,
+/// and the sweeper deletes it once it is past the grace window.
+/// </para>
+/// <para>
 /// An image block's <c>path</c> is one of three things. New uploads store a managed asset id
 /// (<c>{guid}.png</c>). Old desktop-era data stores an absolute path, which lives outside the
 /// note-assets directory and is therefore not the sweeper's to collect. The oldest data
@@ -30,6 +36,9 @@ namespace Mnemo.Host.Notes;
 public sealed class NoteAssetReferenceSource : IAssetReferenceSource
 {
     private const string AttachmentPrefix = "attachment:";
+
+    /// <summary>Marks a cover that names an uploaded image rather than a preset banner.</summary>
+    private const string CoverAssetPrefix = "asset:";
 
     private readonly IStorageProvider _storage;
     private readonly INoteSidMigrator _migrator;
@@ -60,10 +69,27 @@ public sealed class NoteAssetReferenceSource : IAssetReferenceSource
             if (note.Value is null)
                 throw new InvalidOperationException($"Note '{noteId}' is indexed but missing; refusing to sweep until the corpus reads consistently.");
 
-            CollectFromBlocks(note.Value.Blocks, referenced);
+            CollectFromNote(note.Value, referenced);
         }
         return referenced;
     }
+
+    /// <summary>Every field of a note that can name a stored file.</summary>
+    private static void CollectFromNote(Note note, HashSet<string> into)
+    {
+        CollectFromBlocks(note.Blocks, into);
+        if (ParseReference(CoverAssetId(note.Cover)) is { } cover)
+            into.Add(cover);
+    }
+
+    /// <summary>
+    /// The asset id an uploaded cover names, or null for a preset, which stores no file. The
+    /// prefix comes off here because <see cref="ParseReference"/> rejects anything with a colon.
+    /// </summary>
+    private static string? CoverAssetId(string? cover) =>
+        cover is not null && cover.StartsWith(CoverAssetPrefix, StringComparison.OrdinalIgnoreCase)
+            ? cover[CoverAssetPrefix.Length..]
+            : null;
 
     private static void CollectFromBlocks(IReadOnlyList<Block>? blocks, HashSet<string> into)
     {
