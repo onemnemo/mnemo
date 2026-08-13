@@ -7,9 +7,9 @@
  * can say anything about pixels. The placement is therefore pinned as a pure
  * function, which is where the arithmetic lives, and the mounted half covers
  * what a layout-free DOM can still prove: which block the row is offered on,
- * how many buttons it draws there, and that it survives the two things that
- * used to take it away, the block's element being rebuilt under it and the
- * pointer leaving while one of its own layers is open.
+ * that every block gets the same row, and that it survives the two things that
+ * used to take it away, the block changing under it and the pointer leaving
+ * while its menu is open.
  */
 
 import { act } from 'react';
@@ -20,9 +20,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildNoteEditState } from '../../edit/build-edit-state';
 import { block, span } from '../mapper/fixtures';
 import type { BlockRegistry } from '../registry/build';
+import { resolveServices, toNodeViews } from '../view/nodeviews';
 import { BlockGutter } from './BlockGutter';
-import { chromeButtonCount, chromeRowGeometry } from './chrome-row';
+import { chromeRowGeometry } from './chrome-row';
 import { setCalloutEmoji } from './callout-icon';
+import { calloutIconRequest, closeCalloutIcon } from './callout-icon-request';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -43,39 +45,26 @@ globalThis.ResizeObserver ??= StubResizeObserver as unknown as typeof ResizeObse
 const MARGIN = 56;
 
 describe('chromeRowGeometry', () => {
-  it('sits the ordinary two-button row in the margin, clear of the text', () => {
-    const row = chromeRowGeometry({ blockLeft: 100, rootLeft: 100, buttons: 2 });
-    expect(row.left).toBe(54);
+  it('sits the row in the margin, clear of the text and inside the pane', () => {
+    const row = chromeRowGeometry({ blockLeft: 100, rootLeft: 100 });
     expect(row.left + row.width).toBeLessThan(100);
+    // Past this it would be drawn outside the pane, over the split divider or
+    // over the window edge, depending on which side of the split this pane is.
+    expect(row.left).toBeGreaterThanOrEqual(100 - MARGIN);
     // Nothing under it but the page's own margin, so it stays transparent.
     expect(row.overContent).toBe(false);
   });
 
-  it('holds a three-button row inside the margin instead of outside the pane', () => {
-    const row = chromeRowGeometry({ blockLeft: 100, rootLeft: 100, buttons: 3 });
-    // Right-aligned it would want to start at 32, twelve pixels past the pane's
-    // own left edge, which is where it used to be drawn: over the split divider
-    // or over the window edge, depending on which side of the split this pane is.
-    expect(row.left).toBe(100 - MARGIN);
-    expect(row.left).toBeGreaterThanOrEqual(100 - MARGIN);
-  });
-
-  it('goes opaque exactly when the row reaches into the document column', () => {
-    // The clamped callout row overlaps the block's own leading padding.
-    expect(chromeRowGeometry({ blockLeft: 100, rootLeft: 100, buttons: 3 }).overContent).toBe(true);
+  it('goes opaque when the row reaches into the document column', () => {
     // A block in the right-hand cell of a two-column row has no margin of its
     // own, so its row is drawn over the left cell's text.
-    expect(chromeRowGeometry({ blockLeft: 400, rootLeft: 100, buttons: 2 }).overContent).toBe(true);
+    expect(chromeRowGeometry({ blockLeft: 400, rootLeft: 100 }).overContent).toBe(true);
   });
 
-  it('keeps the plus and the grip at one distance from the block, whatever else is in the row', () => {
-    // Measured where there is room for either row, so the clamp is not what is
-    // being read: the extra button is added on the far left, not by pushing the
-    // other two in.
-    const two = chromeRowGeometry({ blockLeft: 400, rootLeft: 100, buttons: 2 });
-    const three = chromeRowGeometry({ blockLeft: 400, rootLeft: 100, buttons: 3 });
-    expect(two.left + two.width).toBe(three.left + three.width);
-    expect(three.left).toBeLessThan(two.left);
+  it('keeps the row at one distance from the block, wherever the block starts', () => {
+    const near = chromeRowGeometry({ blockLeft: 260, rootLeft: 100 });
+    const far = chromeRowGeometry({ blockLeft: 400, rootLeft: 100 });
+    expect(260 - (near.left + near.width)).toBe(400 - (far.left + far.width));
   });
 });
 
@@ -96,7 +85,13 @@ function mount(blocks: Blocks): Mounted {
   if (!built.ok) throw new Error('fixture did not build');
   const host = document.createElement('div');
   document.body.appendChild(host);
-  const view = new EditorView(host, { state: built.state });
+  // With the block views the editor really mounts: a block that draws its own
+  // chrome keeps its element across an attr write, which is the difference the
+  // chrome has to survive.
+  const view = new EditorView(host, {
+    state: built.state,
+    nodeViews: toNodeViews(built.registry, resolveServices()),
+  });
 
   const chrome = document.createElement('div');
   document.body.appendChild(chrome);
@@ -109,6 +104,7 @@ function mount(blocks: Blocks): Mounted {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  closeCalloutIcon();
 });
 
 afterEach(() => {
@@ -172,26 +168,17 @@ const calloutNote: Blocks = [
 ];
 
 describe('BlockGutter', () => {
-  it('offers the callout a third button for its glyph', () => {
+  it('offers a callout the same row as any other block', () => {
     mount(calloutNote);
     hover(blockElement(0));
-    expect(buttons()).toEqual(['CalloutIcon', 'InsertBlockBelow', 'BlockActionsFormat']);
-  });
-
-  it('offers a block that draws its own content only the two', () => {
-    mount(calloutNote);
+    // The glyph is pressed in the document, so the callout earns no button of
+    // its own here and the two the reader aims for never move.
+    expect(buttons()).toEqual(['InsertBlockBelow', 'BlockActionsFormat']);
     hover(blockElement(1));
     expect(buttons()).toEqual(['InsertBlockBelow', 'BlockActionsFormat']);
   });
 
-  it('drops the third button again when the pointer moves off the callout', () => {
-    mount(calloutNote);
-    hover(blockElement(0));
-    hover(blockElement(1));
-    expect(buttons()).toEqual(['InsertBlockBelow', 'BlockActionsFormat']);
-  });
-
-  it('stays on the callout when the glyph write rebuilds its element', () => {
+  it('stays on the callout across a glyph change', () => {
     const { view, registry } = mount(calloutNote);
     hover(blockElement(0));
     const before = blockElement(0);
@@ -199,13 +186,13 @@ describe('BlockGutter', () => {
     act(() => {
       setCalloutEmoji(view, registry, { pos: 0, sid: String(view.state.doc.child(0).attrs.sid) }, '🚀');
     });
-    // A callout has no view of its own, so an attrs change is a rebuild: the
-    // element the chrome was following is gone from the document, and following
-    // it is what used to end with the button vanishing under the pointer.
-    expect(before.isConnected).toBe(false);
+    // The callout's own view writes the glyph in place, so the element the
+    // chrome is following survives the write. A block rebuilt instead is what
+    // used to end with the row vanishing under the pointer.
+    expect(before.isConnected).toBe(true);
 
     remeasure();
-    expect(buttons()).toEqual(['CalloutIcon', 'InsertBlockBelow', 'BlockActionsFormat']);
+    expect(buttons()).toEqual(['InsertBlockBelow', 'BlockActionsFormat']);
   });
 
   it('lets go of the block when the pointer leaves', () => {
@@ -215,18 +202,7 @@ describe('BlockGutter', () => {
     expect(buttons()).toEqual([]);
   });
 
-  it('holds the chrome on its block while the glyph picker is open', () => {
-    mount(calloutNote);
-    hover(blockElement(0));
-    const picker = mounted?.chrome.querySelector('[aria-label="CalloutIcon"]');
-    if (!picker) throw new Error('no picker button');
-    click(picker);
-
-    leave();
-    expect(buttons()).toEqual(['CalloutIcon', 'InsertBlockBelow', 'BlockActionsFormat']);
-  });
-
-  it('holds the chrome on its block while the block menu is open, the same flag', () => {
+  it('holds the chrome on its block while the block menu is open', () => {
     mount(calloutNote);
     hover(blockElement(1));
     const grip = [...(mounted?.chrome.querySelectorAll('button') ?? [])].at(-1);
@@ -238,35 +214,40 @@ describe('BlockGutter', () => {
     expect(buttons()).toEqual(['InsertBlockBelow', 'BlockActionsFormat']);
   });
 
-  it("unsticks the chrome when the open picker's block goes out from under it", () => {
+  it('hands the glyph row on to the picker, and leaves the focus to it', () => {
     const { view } = mount(calloutNote);
     hover(blockElement(0));
-    const picker = mounted?.chrome.querySelector('[aria-label="CalloutIcon"]');
-    if (!picker) throw new Error('no picker button');
-    click(picker);
-    expect(document.querySelector('[role="dialog"][aria-label="CalloutIcon"]')).not.toBeNull();
+    const grip = [...(mounted?.chrome.querySelectorAll('button') ?? [])].at(-1);
+    if (!grip) throw new Error('no grip');
+    click(grip);
 
-    // The block is deleted from somewhere else entirely, so the popover is torn
-    // down with the chrome and never fires a close of its own.
+    const row = [...document.querySelectorAll('[role="menuitem"]')].find(
+      (item) => item.textContent === 'CalloutIcon',
+    );
+    if (!row) throw new Error('no glyph row');
+    click(row);
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+
+    expect(calloutIconRequest()).toEqual({ pos: 0, sid: String(view.state.doc.child(0).attrs.sid) });
+    // The grip normally takes the focus back when its menu closes, which would
+    // dismiss the picker the row just asked for.
+    expect(document.activeElement).not.toBe(grip);
+  });
+
+  it('lets go of a block that is deleted from under it', () => {
+    const { view } = mount(calloutNote);
+    hover(blockElement(0));
+
     act(() => {
       view.dispatch(view.state.tr.delete(0, view.state.doc.child(0).nodeSize));
     });
     remeasure();
     expect(buttons()).toEqual([]);
-    expect(document.querySelector('[role="dialog"][aria-label="CalloutIcon"]')).toBeNull();
 
-    // Left believing a picker is still open, the chrome would stay pinned to the
-    // block that no longer exists and never offer itself on another one again.
+    // Left holding the dead block the chrome would never offer itself again.
     hover(blockElement(0));
     expect(buttons()).toEqual(['InsertBlockBelow', 'BlockActionsFormat']);
-  });
-});
-
-describe('chromeButtonCount', () => {
-  it('counts three for a callout and two for anything else', () => {
-    const built = buildNoteEditState(calloutNote);
-    if (!built.ok) throw new Error('fixture did not build');
-    expect(chromeButtonCount(built.state.doc.child(0))).toBe(3);
-    expect(chromeButtonCount(built.state.doc.child(1))).toBe(2);
   });
 });

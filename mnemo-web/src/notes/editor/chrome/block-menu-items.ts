@@ -31,6 +31,8 @@ import {
   TURN_INTO_OPTIONS,
   type BlockLocation,
 } from './block-commands';
+import { isCalloutNode } from './callout-icon';
+import { openCalloutIcon } from './callout-icon-request';
 
 /** Block node names to their NotesEditor key, the same names the slash menu uses. */
 const BLOCK_LABEL_KEYS: Record<string, string> = {
@@ -74,8 +76,22 @@ export interface BlockMenuVerb {
   readonly build: (state: EditorState, loc: BlockLocation) => Transaction | null;
 }
 
+/**
+ * A row that raises a layer rather than dispatching a transaction. The menu is
+ * gone by the time the layer opens, so the row cannot own it; naming the ask is
+ * all an entry can do, and the surface hands it on.
+ */
+export interface BlockMenuRequest {
+  readonly kind: 'request';
+  readonly id: string;
+  readonly label: string;
+  readonly icon?: IconName;
+  readonly request: 'calloutIcon';
+}
+
 export type BlockMenuEntry =
   | BlockMenuVerb
+  | BlockMenuRequest
   | {
       readonly kind: 'submenu';
       readonly id: string;
@@ -146,6 +162,19 @@ export function blockMenuItems({
       build: (s, loc) => duplicateBlock(s, loc),
     },
   );
+
+  // The glyph itself is the pointer affordance; this is the same verb for a
+  // reader who is not holding a pointer, and the only way back to a glyph on a
+  // callout that has none.
+  if (isCalloutNode(node)) {
+    entries.push({
+      kind: 'request',
+      id: 'callout-icon',
+      label: ne('CalloutIcon'),
+      icon: 'notes/emoji',
+      request: 'calloutIcon',
+    });
+  }
 
   if (canTurnInto(node)) {
     entries.push({
@@ -220,4 +249,19 @@ export function runBlockVerb(
   view.dispatch(tr);
   view.focus();
   return true;
+}
+
+/**
+ * Raise what a request row names, on the block it was built for.
+ *
+ * Nothing is re-located here and nothing is dispatched: the layer that opens
+ * resolves the block itself, and it opens after this returns, once the menu that
+ * held the row has finished closing.
+ */
+export function runBlockRequest(target: { pos: number; sid: string }, entry: BlockMenuRequest): void {
+  switch (entry.request) {
+    case 'calloutIcon':
+      openCalloutIcon(target);
+      return;
+  }
 }

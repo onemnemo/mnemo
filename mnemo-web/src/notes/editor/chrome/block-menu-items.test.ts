@@ -139,6 +139,23 @@ describe('blockMenuItems', () => {
     expect(row.announce).toBeNull();
   });
 
+  it('offers the glyph row on a callout and on nothing else', () => {
+    const { state, registry } = mount([
+      block('Callout', [span('remember')], { kind: 'callout', emoji: '💡', tone: 'note' }),
+      block('Text', [span('after')]),
+    ]);
+    const row = items(state, registry, 0).find((entry) => entry.kind === 'request');
+    expect(row?.label).toBe('CalloutIcon');
+    expect(items(state, registry, 1).some((entry) => entry.kind === 'request')).toBe(false);
+  });
+
+  it('offers the glyph row on a callout that has no glyph, the only way back to one', () => {
+    const { state, registry } = mount([
+      block('Callout', [span('plain')], { kind: 'callout', emoji: '', tone: 'note' }),
+    ]);
+    expect(items(state, registry, 0).some((entry) => entry.kind === 'request')).toBe(true);
+  });
+
   it('builds a transaction for every enabled verb', () => {
     const { state, registry } = three();
     for (const entry of items(state, registry, 1)) {

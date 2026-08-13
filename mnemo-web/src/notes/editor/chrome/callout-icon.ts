@@ -1,10 +1,10 @@
 /**
  * Changing a callout's glyph after it has been inserted.
  *
- * The glyph is a CSS pseudo-element on the block, so there is no node in the
- * document for a click to land on and the affordance lives in the gutter chrome
- * instead. This is the verb behind it, kept out of the React so the button owns a
- * picker and nothing else, the same split the block menu's verbs use.
+ * Three surfaces raise the same picker, the glyph itself and the block menu's
+ * row in each of its two renderings. This is the verb behind all of them, kept
+ * out of the React so a surface owns a picker and nothing else, the same split
+ * the block menu's verbs use.
  */
 
 import type { Node as PMNode } from 'prosemirror-model';

@@ -16,7 +16,14 @@ import { getBlockSelection } from '../../selection/block-selection-plugin';
 import { deepestBlockAt } from '../pipeline/block-locate';
 import type { BlockRegistry } from '../registry/build';
 import { locateBlock } from './block-commands';
-import { blockMenuItems, runBlockVerb, type BlockMenuEntry, type BlockMenuVerb } from './block-menu-items';
+import {
+  blockMenuItems,
+  runBlockRequest,
+  runBlockVerb,
+  type BlockMenuEntry,
+  type BlockMenuRequest,
+  type BlockMenuVerb,
+} from './block-menu-items';
 import { Announcer } from './Announcer';
 import { useAnnouncer } from './useAnnouncer';
 import { hasClipboardSelection, runClipboardVerb } from './selection-clipboard';
@@ -100,6 +107,11 @@ export function EditorContextMenu({
     if (verb.announce !== null) announce(verb.announce);
   };
 
+  const raise = (entry: BlockMenuRequest) => {
+    if (!snapshot?.target) return;
+    runBlockRequest(snapshot.target, entry);
+  };
+
   const renderVerb = (verb: BlockMenuVerb) => (
     <ContextMenuItem
       key={verb.id}
@@ -139,9 +151,20 @@ export function EditorContextMenu({
                     {entry.items.map(renderVerb)}
                   </ContextMenuSubMenu>
                 );
+              case 'request':
+                return (
+                  <ContextMenuItem key={entry.id} icon={entry.icon} onSelect={() => raise(entry)}>
+                    {entry.label}
+                  </ContextMenuItem>
+                );
               case 'verb':
                 return renderVerb(entry);
             }
+            // A new entry kind with no case above would render as undefined, which
+            // React rejects with an error naming this component rather than the
+            // row. The annotation makes it a build failure instead.
+            const unhandled: never = entry;
+            throw new Error(`[notes] no renderer for block menu entry ${JSON.stringify(unhandled)}`);
           })}
         </ContextMenuContent>
       </ContextMenu>

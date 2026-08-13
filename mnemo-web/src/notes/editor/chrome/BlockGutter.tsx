@@ -4,7 +4,6 @@ import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorState, Transaction } from 'prosemirror-state';
 
-import { EmojiPickerPopover } from '@/components/emoji/EmojiPickerPopover';
 import { AppIcon } from '@/components/icon/AppIcon';
 import { cn } from '@/lib/utils';
 import {
@@ -24,9 +23,16 @@ import { getBlockSelection, setBlockSelection } from '../../selection/block-sele
 import { applyGrip, gripIntent } from '../../selection/grip-selection';
 import { useBlockDrag, type BlockDragHandle } from './useBlockDrag';
 import { insertBlockBelow, locateBlock, type BlockLocation } from './block-commands';
-import { blockLabel, blockMenuItems, runBlockVerb, type BlockMenuVerb } from './block-menu-items';
-import { isCalloutNode, setCalloutEmoji } from './callout-icon';
-import { chromeButtonCount, chromeMinLeft, chromeRowGeometry } from './chrome-row';
+import {
+  blockLabel,
+  blockMenuItems,
+  runBlockRequest,
+  runBlockVerb,
+  type BlockMenuRequest,
+  type BlockMenuVerb,
+} from './block-menu-items';
+import { calloutIconRequest } from './callout-icon-request';
+import { chromeMinLeft, chromeRowGeometry } from './chrome-row';
 import { Announcer } from './Announcer';
 import { useAnnouncer } from './useAnnouncer';
 
@@ -154,14 +160,12 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
 
   const [active, setActive] = useState<ActiveBlock | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [iconOpen, setIconOpen] = useState(false);
   const { message: announcement, announce } = useAnnouncer();
 
-  // A layer of ours is open on the block, so the chrome stays on it: both the
-  // menu and the emoji picker are portalled outside the hover band and take
-  // focus out of the editor, which hover and caret would otherwise read as the
-  // block having been left.
-  const pinned = menuOpen || iconOpen;
+  // The menu is open on the block, so the chrome stays on it: the menu is
+  // portalled outside the hover band and takes focus out of the editor, which
+  // hover and caret would otherwise read as the block having been left.
+  const pinned = menuOpen;
 
   const gripRef = useRef<HTMLButtonElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
@@ -313,13 +317,6 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     };
   }, [refresh]);
 
-  // The picker's block can go out from under it (a note switch, a block deleted
-  // elsewhere), which unmounts the popover without any close event. Without this
-  // the chrome would stay pinned to a block that no longer exists.
-  useEffect(() => {
-    if (iconOpen && active === null) setIconOpen(false);
-  }, [iconOpen, active]);
-
   const runCommand = useCallback(
     (build: (state: EditorState, loc: BlockLocation) => Transaction | null, message: string) => {
       const current = activeRef.current;
@@ -349,6 +346,12 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     },
     [view, registry, announce, refresh],
   );
+
+  const raise = useCallback((entry: BlockMenuRequest) => {
+    const current = activeRef.current;
+    if (!current) return;
+    runBlockRequest({ pos: current.pos, sid: String(current.node.attrs.sid ?? '') }, entry);
+  }, []);
 
   const handleBlock = active;
   const handle: BlockDragHandle | null = handleBlock
@@ -384,21 +387,11 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     </MenuItem>
   );
 
-  // The plus and the grip end at the same distance from the block on every
-  // block, so the two the reader aims for never move. What varies is what sits
-  // to their left: a callout's glyph is drawn by CSS and the block offers
-  // nothing to click, so its picker is a third button on the far left of the
-  // row. Three do not fit in the page's margin, so that row is clamped into the
-  // margin and overlaps the block's own leading padding, which is what the
-  // opaque backing is for - the same treatment a block in the right-hand cell of
-  // a two-column row gets, where the row is drawn over the left cell's text.
-  const showsIcon = handleBlock ? isCalloutNode(handleBlock.node) : false;
+  // The same two buttons beside every block, in the same place, whatever the
+  // block is. A block with its own affordance carries it in the document rather
+  // than in this row.
   const row = handleBlock
-    ? chromeRowGeometry({
-        blockLeft: handleBlock.rect.left,
-        rootLeft: handleBlock.rootLeft,
-        buttons: chromeButtonCount(handleBlock.node),
-      })
+    ? chromeRowGeometry({ blockLeft: handleBlock.rect.left, rootLeft: handleBlock.rootLeft })
     : null;
 
   const overlay = handleBlock && handle && row && !dragging ? (
@@ -416,22 +409,6 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
         overChromeRef.current = false;
       }}
     >
-      {showsIcon ? (
-        <EmojiPickerPopover
-          value={String(handleBlock.node.attrs.emoji ?? '') || null}
-          label={t('NotesEditor', 'CalloutIcon')}
-          open={iconOpen}
-          onOpenChange={setIconOpen}
-          onChange={(next) => {
-            setCalloutEmoji(view, registry, { pos: handleBlock.pos, sid: handle.sid }, next ?? '');
-            refresh();
-          }}
-        >
-          <button type="button" aria-label={t('NotesEditor', 'CalloutIcon')} className={CHROME_BUTTON}>
-            <AppIcon name="notes/emoji" size={14} />
-          </button>
-        </EmojiPickerPopover>
-      ) : null}
       <button
         type="button"
         aria-label={t('NotesEditor', 'InsertBlockBelow')}
@@ -486,7 +463,11 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
           setMenuOpen(open);
           if (!open) {
             refresh();
-            requestAnimationFrame(() => gripRef.current?.focus());
+            // A row that raised a layer has handed it the focus, and taking it
+            // back here would dismiss that layer in the frame it opens.
+            if (calloutIconRequest() === null) {
+              requestAnimationFrame(() => gripRef.current?.focus());
+            }
           }
         }}
       >
@@ -506,9 +487,20 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
                     {entry.items.map(renderVerb)}
                   </MenuSubMenu>
                 );
+              case 'request':
+                return (
+                  <MenuItem key={entry.id} icon={entry.icon} onSelect={() => raise(entry)}>
+                    {entry.label}
+                  </MenuItem>
+                );
               case 'verb':
                 return renderVerb(entry);
             }
+            // A new entry kind with no case above would render as undefined, which
+            // React rejects with an error naming this component rather than the
+            // row. The annotation makes it a build failure instead.
+            const unhandled: never = entry;
+            throw new Error(`[notes] no renderer for block menu entry ${JSON.stringify(unhandled)}`);
           })}
         </MenuContent>
       </Menu>

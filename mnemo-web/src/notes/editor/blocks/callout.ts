@@ -8,14 +8,15 @@
  * kept anyway, so a note that somehow arrives with a child renders instead of
  * quarantining the whole document.
  *
- * The glyph is drawn by CSS from `data-callout-emoji` rather than by a node
- * view. A pseudo-element is invisible to ProseMirror's MutationObserver, so
- * there is no chrome for the caret to fall into and nothing to teach the view
- * to ignore.
+ * The glyph is a button drawn by {@link calloutView}, which is what lets it be
+ * pressed to change it. `toDOM` still emits the bare aside with the glyph in an
+ * attr: the live DOM is the view's business, the serialized shape is the
+ * contract with every note already written and with the clipboard.
  */
 
 import type { AnyBlockModule } from '../registry/types';
 import type { BlockType } from '../../model/types';
+import { calloutView } from './callout-view';
 import { defineBlock, type BlockDeps } from './shared';
 import { convertHere } from './slash-insert';
 
@@ -67,6 +68,9 @@ export function calloutBlock(deps: BlockDeps): AnyBlockModule {
           tone: String(node.attrs.tone ?? defaultTone) || defaultTone,
         },
       }),
+      // A real pressable glyph in front of the text; the attr alone is a marker
+      // a press goes straight through.
+      realizedView: calloutView,
       // `> [!tone glyph]`, the shape the C# converter reads back. Continuation
       // lines carry their own `> ` because without it a multi-line callout
       // re-imports as a callout followed by loose paragraphs.
