@@ -22,6 +22,7 @@ import { documentWordCount } from '../editor/projection/word-count';
 import { useNoteSession } from '../edit/useNoteSession';
 import { useSpellcheck } from '../edit/useSpellcheck';
 import { BlockGutter } from '../editor/chrome/BlockGutter';
+import { CalloutIconPicker } from '../editor/chrome/CalloutIconPicker';
 import { EditorContextMenu } from '../editor/chrome/EditorContextMenu';
 import { FindReplaceOverlay } from '../find/FindReplaceOverlay';
 import { createPersist } from '../save/persist';
@@ -142,6 +143,7 @@ export function NoteSurface({
       {view ? <SelectionBands view={view} registry={registry} scrollRef={scrollRef} /> : null}
       {view ? <BlockSelectionAnnouncer view={view} /> : null}
       {view ? <BlockGutter view={view} registry={registry} /> : null}
+      {view ? <CalloutIconPicker view={view} registry={registry} /> : null}
       {view ? <FindReplaceOverlay view={view} registry={registry} /> : null}
       <PasteProgressOverlay />
     </div>
