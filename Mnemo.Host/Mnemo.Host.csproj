@@ -59,6 +59,54 @@
     </ItemGroup>
   </Target>
 
+  <!--
+    Redistribution terms have to travel with the binary. vpk packs the publish directory, so a
+    licence text that only exists in the repo is absent from every installed copy. Apache-2.0
+    section 4(a) covers the bundled Typst and mitex, the Geist fonts are OFL, and the German
+    Hunspell dictionary asks in its own header for the GPL texts to ship with every distribution.
+  -->
+  <Target Name="PublishLicenseTexts" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <_RepoLicenseText Include="$(MSBuildThisFileDirectory)../LICENSE;$(MSBuildThisFileDirectory)../NOTICE;$(MSBuildThisFileDirectory)../THIRD-PARTY-NOTICES" />
+      <ResolvedFileToPublish Include="@(_RepoLicenseText)">
+        <RelativePath>%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+
+      <_DependencyLicenseText Include="$(MSBuildThisFileDirectory)../LICENSES/**/*" />
+      <ResolvedFileToPublish Include="@(_DependencyLicenseText)">
+        <RelativePath>licenses/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+  <!--
+    SkiaSharp and HarfBuzz ship native symbol files worth about 100 MB, which nobody can act on
+    from an installed build.
+  -->
+  <Target Name="TrimPublishSymbols" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish
+        Remove="@(ResolvedFileToPublish)"
+        Condition="'%(Filename)%(Extension)' == 'libSkiaSharp.pdb'
+                Or '%(Filename)%(Extension)' == 'libHarfBuzzSharp.pdb'" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Mnemo.UI is referenced as a library but is a WinExe in its own right, so the publish lands its
+    apphost next to ours. Double-clicking it starts a second, broken copy of the app, which is
+    exactly what a person poking around an install folder does. It arrives as a copy-local asset
+    rather than through ResolvedFileToPublish, so the publish list cannot filter it and this runs
+    after the copy instead. The .dll stays: module discovery loads it.
+  -->
+  <Target Name="RemoveStrayAppHost" AfterTargets="Publish">
+    <Delete Files="$(PublishDir)Mnemo.UI.exe" ContinueOnError="true" />
+  </Target>
+
   <ItemGroup>
     <!-- Vendored mitex package: committed, platform-independent, always copied to output. -->
     <Content Include="TypstRuntime/typst-packages/**/*" CopyToOutputDirectory="PreserveNewest" />
