@@ -4,6 +4,7 @@ import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorState, Transaction } from 'prosemirror-state';
 
+import { EmojiPickerPopover } from '@/components/emoji/EmojiPickerPopover';
 import { AppIcon } from '@/components/icon/AppIcon';
 import { cn } from '@/lib/utils';
 import {
@@ -24,6 +25,8 @@ import { applyGrip, gripIntent } from '../../selection/grip-selection';
 import { useBlockDrag, type BlockDragHandle } from './useBlockDrag';
 import { insertBlockBelow, locateBlock, type BlockLocation } from './block-commands';
 import { blockLabel, blockMenuItems, runBlockVerb, type BlockMenuVerb } from './block-menu-items';
+import { isCalloutNode, setCalloutEmoji } from './callout-icon';
+import { chromeButtonCount, chromeMinLeft, chromeRowGeometry } from './chrome-row';
 import { Announcer } from './Announcer';
 import { useAnnouncer } from './useAnnouncer';
 
@@ -57,15 +60,12 @@ import { useAnnouncer } from './useAnnouncer';
  * The drag itself is {@link useBlockDrag}; this owns only the chrome and the menu.
  */
 
-/**
- * How far left of the document the hover band and the chrome reach. The band is
- * the wider of the two so the pointer enters it before the buttons appear under
- * it; both stay inside the page's own margin.
- */
-const LANE_WIDTH = 56;
-const CHROME_OFFSET = 46;
 /** Where in the text column a lane hover probes for the block on that row. */
 const PROBE_INSET = 8;
+
+/** Every button in the chrome row reads the same; only the grip adds a cursor. */
+const CHROME_BUTTON =
+  'grid h-5 w-5 place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary';
 
 interface ActiveBlock {
   /** Position just before the block node, any depth. */
@@ -154,7 +154,14 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
 
   const [active, setActive] = useState<ActiveBlock | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [iconOpen, setIconOpen] = useState(false);
   const { message: announcement, announce } = useAnnouncer();
+
+  // A layer of ours is open on the block, so the chrome stays on it: both the
+  // menu and the emoji picker are portalled outside the hover band and take
+  // focus out of the editor, which hover and caret would otherwise read as the
+  // block having been left.
+  const pinned = menuOpen || iconOpen;
 
   const gripRef = useRef<HTMLButtonElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
@@ -169,16 +176,19 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
 
   const refresh = useCallback(() => {
     if (dragging) return;
-    // While the menu is open the handle stays on its block; otherwise hover wins
-    // over the caret. Re-read the chosen block's rect so a scroll keeps the handle
-    // pinned to it, but keep pos/node without another lookup - unless the document
-    // changed under the snapshot (a menu command, an invariant repair): a position
-    // is only meaningful against the doc it was read from, so it is re-derived
-    // from the element, which ProseMirror keeps mapped to the current doc.
-    let chosen = menuOpen ? activeRef.current : (hoveredRef.current ?? caretRef.current);
-    if (chosen && chosen.dom.isConnected && chosen.doc !== view.state.doc) {
-      chosen = blockFromElement(view, registry, chosen.dom);
-      if (menuOpen) activeRef.current = chosen;
+    // While a layer of ours is open the handle stays on its block; otherwise hover
+    // wins over the caret. Re-read the chosen block's rect so a scroll keeps the
+    // handle pinned to it, but keep pos/node without another lookup - unless the
+    // document changed under the snapshot (a menu command, an attr write, an
+    // invariant repair). Then neither half of the snapshot can be trusted: a
+    // position is only meaningful against the doc it was read from, and a block
+    // with no view of its own has its element rebuilt outright when an attr
+    // changes, so the block is re-found by the one thing that survives, its sid.
+    let chosen = pinned ? activeRef.current : (hoveredRef.current ?? caretRef.current);
+    if (chosen && chosen.doc !== view.state.doc) {
+      const found = locateBlock(view.state, registry, chosen.pos, String(chosen.node.attrs.sid ?? ''));
+      chosen = found ? blockFromPos(view, registry, found.pos) : null;
+      if (pinned) activeRef.current = chosen;
       else if (hoveredRef.current) hoveredRef.current = chosen;
       else caretRef.current = chosen;
     }
@@ -194,7 +204,7 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     };
     activeRef.current = next;
     setActive(next);
-  }, [dragging, menuOpen, view, registry]);
+  }, [dragging, pinned, view, registry]);
 
   // Track the hovered block, the caret block, and hover over the chrome itself.
   useEffect(() => {
@@ -204,7 +214,7 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     const scheduleClear = () => {
       if (clearTimer.current) clearTimeout(clearTimer.current);
       clearTimer.current = setTimeout(() => {
-        if (!overChromeRef.current && hoveredRef.current === null && !menuOpen) {
+        if (!overChromeRef.current && hoveredRef.current === null && !pinned) {
           if (!view.hasFocus()) caretRef.current = null;
           refresh();
         }
@@ -220,7 +230,7 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
       const inBand =
         event.clientY >= bounds.top &&
         event.clientY <= bounds.bottom &&
-        event.clientX >= bounds.left - LANE_WIDTH &&
+        event.clientX >= chromeMinLeft(bounds.left) &&
         event.clientX <= bounds.right;
       if (!inBand) {
         hoveredElRef.current = null;
@@ -285,7 +295,7 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
       // this component is gone and set state on the unmounted tree.
       if (clearTimer.current) clearTimeout(clearTimer.current);
     };
-  }, [view, registry, dragging, menuOpen, refresh]);
+  }, [view, registry, dragging, pinned, refresh]);
 
   // Pin the ghost to the cursor the frame it appears, so it never paints at 0,0.
   useLayoutEffect(() => {
@@ -302,6 +312,13 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
       window.removeEventListener('resize', onGeometry);
     };
   }, [refresh]);
+
+  // The picker's block can go out from under it (a note switch, a block deleted
+  // elsewhere), which unmounts the popover without any close event. Without this
+  // the chrome would stay pinned to a block that no longer exists.
+  useEffect(() => {
+    if (iconOpen && active === null) setIconOpen(false);
+  }, [iconOpen, active]);
 
   const runCommand = useCallback(
     (build: (state: EditorState, loc: BlockLocation) => Transaction | null, message: string) => {
@@ -367,21 +384,31 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     </MenuItem>
   );
 
-  // Every block gets both buttons, at the same offset, so the chrome is one
-  // shape wherever it appears. A block in the right-hand cell of a two-column
-  // row has no margin of its own to put them in, so there they are drawn on the
-  // page: opaque, since the left cell's text is what they cover.
-  const chromeLeft = handleBlock ? handleBlock.rect.left - CHROME_OFFSET : 0;
-  const overContent = handleBlock ? chromeLeft < handleBlock.rootLeft : false;
+  // The plus and the grip end at the same distance from the block on every
+  // block, so the two the reader aims for never move. What varies is what sits
+  // to their left: a callout's glyph is drawn by CSS and the block offers
+  // nothing to click, so its picker is a third button on the far left of the
+  // row. Three do not fit in the page's margin, so that row is clamped into the
+  // margin and overlaps the block's own leading padding, which is what the
+  // opaque backing is for - the same treatment a block in the right-hand cell of
+  // a two-column row gets, where the row is drawn over the left cell's text.
+  const showsIcon = handleBlock ? isCalloutNode(handleBlock.node) : false;
+  const row = handleBlock
+    ? chromeRowGeometry({
+        blockLeft: handleBlock.rect.left,
+        rootLeft: handleBlock.rootLeft,
+        buttons: chromeButtonCount(handleBlock.node),
+      })
+    : null;
 
-  const overlay = handleBlock && handle && !dragging ? (
+  const overlay = handleBlock && handle && row && !dragging ? (
     <div
       ref={overlayRef}
       className={cn(
         'fixed z-40 flex h-7 items-center gap-0.5 rounded',
-        overContent && 'bg-canvas shadow-elevation-1',
+        row.overContent && 'bg-canvas shadow-elevation-1',
       )}
-      style={{ left: chromeLeft, top: handleBlock.rect.top }}
+      style={{ left: row.left, top: handleBlock.rect.top }}
       onPointerEnter={() => {
         overChromeRef.current = true;
       }}
@@ -389,10 +416,26 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
         overChromeRef.current = false;
       }}
     >
+      {showsIcon ? (
+        <EmojiPickerPopover
+          value={String(handleBlock.node.attrs.emoji ?? '') || null}
+          label={t('NotesEditor', 'CalloutIcon')}
+          open={iconOpen}
+          onOpenChange={setIconOpen}
+          onChange={(next) => {
+            setCalloutEmoji(view, registry, { pos: handleBlock.pos, sid: handle.sid }, next ?? '');
+            refresh();
+          }}
+        >
+          <button type="button" aria-label={t('NotesEditor', 'CalloutIcon')} className={CHROME_BUTTON}>
+            <AppIcon name="notes/emoji" size={14} />
+          </button>
+        </EmojiPickerPopover>
+      ) : null}
       <button
         type="button"
         aria-label={t('NotesEditor', 'InsertBlockBelow')}
-        className="grid h-5 w-5 place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary"
+        className={CHROME_BUTTON}
         onClick={() =>
           runCommand((state, loc) => insertBlockBelow(state, loc), t('NotesEditor', 'BlockInserted'))
         }
@@ -405,7 +448,7 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
         aria-label={t('NotesEditor', 'BlockActionsFormat', { 0: handle.label })}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
-        className="grid h-5 w-5 cursor-grab place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary active:cursor-grabbing"
+        className={cn(CHROME_BUTTON, 'cursor-grab active:cursor-grabbing')}
         onPointerDown={(event) => drag.press(event, handle)}
         onClick={(event) => {
           // Swallow the click that tails a drag; a real click acts.

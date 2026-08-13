@@ -694,6 +694,7 @@
     "CalloutDescription": "Make something stand out",
     "CalloutWarning": "Warning",
     "CalloutWarningDescription": "Flag something to be careful about",
+    "CalloutIcon": "Change callout icon",
     "CodeDescription": "Code block with syntax highlighting",
     "DividerDescription": "Horizontal divider line",
     "TwoColumnDescription": "Side-by-side columns",

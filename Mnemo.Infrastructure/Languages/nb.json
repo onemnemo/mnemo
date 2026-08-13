@@ -694,6 +694,7 @@
     "CalloutDescription": "Fremhev noe",
     "CalloutWarning": "Advarsel",
     "CalloutWarningDescription": "Marker noe man må være forsiktig med",
+    "CalloutIcon": "Endre merknadsikon",
     "CodeDescription": "Kodeblokk med syntaksutheving",
     "DividerDescription": "Horisontal skillelinje",
     "TwoColumnDescription": "Kolonner ved siden av hverandre",

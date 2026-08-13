@@ -136,6 +136,14 @@ export function structuralFixtures(): readonly Fixture[] {
           emoji: '📌',
           tone: 'custom-tone',
         }),
+        // Any glyph the picker offers is storable, not only the two the slash menu
+        // inserts, and a multi-codepoint one is the case a naive char-at-a-time
+        // read of the markdown head would split.
+        block('Callout', [span('picked after the fact')], {
+          kind: 'callout',
+          emoji: '🧑‍🚀',
+          tone: 'note',
+        }),
         // Written before the payload existed, so it carries the wire format's
         // "no payload" sentinel and must still open.
         block('Callout', [span('a legacy callout')]),

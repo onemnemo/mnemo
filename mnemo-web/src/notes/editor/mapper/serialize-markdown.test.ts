@@ -83,6 +83,11 @@ describe('createMarkdownSerializer', () => {
     expect(md.document(doc(block('callout', { emoji: '💡', tone: 'note' }, text('heads up'))))).toBe(
       '> [!note 💡] heads up',
     );
+    // The glyph is whatever the picker wrote, not one of the two the slash menu
+    // inserts, so a multi-codepoint sequence has to survive the head intact.
+    expect(md.document(doc(block('callout', { emoji: '🧑‍🚀', tone: 'note' }, text('picked'))))).toBe(
+      '> [!note 🧑‍🚀] picked',
+    );
     // A glyph-less callout still names its tone, otherwise it reads back as a quote.
     expect(md.document(doc(block('callout', { emoji: '', tone: 'warn' }, text('careful'))))).toBe(
       '> [!warn] careful',

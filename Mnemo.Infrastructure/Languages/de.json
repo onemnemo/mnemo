@@ -694,6 +694,7 @@
     "CalloutDescription": "Etwas hervorheben",
     "CalloutWarning": "Warnung",
     "CalloutWarningDescription": "Auf etwas hinweisen, das Vorsicht erfordert",
+    "CalloutIcon": "Hinweissymbol ändern",
     "CodeDescription": "Codeblock mit Syntax-Hervorhebung",
     "DividerDescription": "Horizontale Trennlinie",
     "TwoColumnDescription": "Spalten nebeneinander",
