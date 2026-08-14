@@ -107,6 +107,23 @@
     <Delete Files="$(PublishDir)Mnemo.UI.exe" ContinueOnError="true" />
   </Target>
 
+  <!--
+    The Hunspell dictionaries back ISpellcheckService, which only the Avalonia rich text editor
+    ever resolves; nothing in the packaged Photino app calls it, so shipping them bought nothing
+    and carried a real cost, en, es and nb are of unverified license, and de is GPL-licensed with
+    no GPL text bundled to satisfy it. The packaged app relies on the WebView2 profile's own
+    spell checking instead. The files and the service registration stay in the tree for the
+    in-house implementation planned to replace both.
+  -->
+  <Target Name="TrimPublishDictionaries" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish
+        Remove="@(ResolvedFileToPublish)"
+        Condition="$([System.String]::new('%(RelativePath)').Contains('Dictionaries/Spellcheck'))
+                Or $([System.String]::new('%(RelativePath)').Contains('Dictionaries\Spellcheck'))" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <!-- Vendored mitex package: committed, platform-independent, always copied to output. -->
     <Content Include="TypstRuntime/typst-packages/**/*" CopyToOutputDirectory="PreserveNewest" />
