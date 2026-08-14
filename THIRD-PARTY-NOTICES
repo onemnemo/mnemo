@@ -73,28 +73,19 @@ vendors the mitex Typst package, used together to render Notes documents to PDF.
 
 SPELLCHECK DICTIONARIES
 
-Mnemo.Infrastructure/Dictionaries/Spellcheck/ bundles Hunspell dictionary files
+Mnemo.Infrastructure/Dictionaries/Spellcheck/ holds Hunspell dictionary files
 (.aff/.dic pairs) for en, de, es, and nb, used by the WeCantSpell.Hunspell package
-(see below). Their licenses are not uniform:
+(see below) through ISpellcheckService. That service backs the Avalonia rich text
+editor only; the packaged app relies on the operating system's own web view for
+spell checking instead, and its publish step excludes the dictionary folder, so
+none of these files are redistributed in a built copy of Mnemo.
 
-  de (German)
-    The bundled de.aff states its own header: "Copyright (C) 1998-2015 Bjoern Jacke
-    <bjoern@j3e.de>", derived from the igerman98 dictionary, "License: GPLv2, GPLv3".
-    This is a copyleft license, unlike everything else in this file. A copy of the
-    GPL was not found bundled with the dictionary files in this repository as of this
-    writing; that needs fixing separately from this notice file.
-
-  en, es, nb
-    These files carry no license header of their own. The en dictionary's affix file
-    credits wordlist.aspell.net; published guidance for that project describes its
-    English word lists as covering a mix of LGPL and BSD-style terms, but that could
-    not be confirmed from the files as shipped in this repository. The provenance and
-    license of the es and nb dictionaries could not be established from the files
-    themselves. Treat these three as unverified rather than as confirmed-permissive.
-
-This section is a known gap, not a completed clearance. It is called out here rather
-than left silent because the German dictionary's GPL terms are a real redistribution
-obligation that nothing else in the repository currently documents.
+They remain in the repository for a planned in-house spellchecker. Before that
+ships with its own bundled dictionaries, their licenses need clearing: de.aff
+states its own header, "Copyright (C) 1998-2015 Bjoern Jacke <bjoern@j3e.de>",
+derived from the igerman98 dictionary, "License: GPLv2, GPLv3", while en, es, and
+nb carry no license header of their own and their provenance could not be
+established from the files themselves.
 
 
 FRONTEND (mnemo-web) NPM DEPENDENCIES
