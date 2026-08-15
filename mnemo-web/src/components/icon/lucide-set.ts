@@ -71,6 +71,7 @@ import {
   Pencil,
   Play,
   Plus,
+  Printer,
   RefreshCw,
   RotateCcw,
   Repeat2,
@@ -173,6 +174,8 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   // Content
   file: File,
   "file-text": FileText,
+  // "Export as PDF", which is page setup and a print preview rather than a file transfer.
+  printer: Printer,
   // The add-an-image slot in the card editor's attachment strip.
   "image-plus": ImagePlus,
   folder: Folder,
