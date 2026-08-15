@@ -18,6 +18,21 @@ const PX_PER_PT = 96 / 72
 /** How far outside the pane a sheet starts drawing, so scrolling lands on a rendered page. */
 const PRERENDER_MARGIN = "600px"
 
+/**
+ * How many device pixels a sheet is drawn to per CSS pixel.
+ *
+ * The floor is the point of it. A whole A4 page inside this dialog lands around 400 px wide,
+ * barely half its natural size, so 11 pt body text is about seven pixels tall. Rasterized at
+ * one device pixel each it is a grey smear, and no display density fixes that because the
+ * problem is the page being minified, not the screen. Drawing to twice the CSS size and
+ * letting the browser filter it back down is what makes small type resolve.
+ *
+ * The ceiling keeps a full-size sheet on a high-density display from allocating far more
+ * canvas than it can show.
+ */
+const MIN_DENSITY = 2
+const MAX_DENSITY = 3
+
 /** Lets the pager drive the scroll without the pane's ref leaving this file. */
 export interface PdfPreviewHandle {
   goTo: (index: number) => void
@@ -222,11 +237,11 @@ function Sheet({
         const context = canvas?.getContext("2d")
         if (cancelled || !canvas || !context) return
 
-        // Drawn at the device's pixel density and scaled back down by CSS, so type stays crisp on a
-        // high-DPI screen. Capped at 2: past that the sharpening is invisible and the memory is not.
-        const dpr = Math.min(window.devicePixelRatio || 1, 2)
+        // Drawn above the display's own density and scaled back down by CSS, because a sheet in
+        // this dialog is nearly always shown smaller than the page really is.
+        const density = Math.min(Math.max(window.devicePixelRatio || 1, MIN_DENSITY), MAX_DENSITY)
         const unscaled = page.getViewport({ scale: 1 })
-        const viewport = page.getViewport({ scale: (width / unscaled.width) * dpr })
+        const viewport = page.getViewport({ scale: (width / unscaled.width) * density })
         canvas.width = Math.floor(viewport.width)
         canvas.height = Math.floor(viewport.height)
 
