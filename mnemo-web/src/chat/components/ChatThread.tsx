@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
+import { cn } from "@/lib/utils"
 
 import type { ChatMessageView } from "../types"
 import { ChatMessage } from "./ChatMessage"
@@ -12,11 +13,16 @@ interface ChatThreadProps {
   onSuggestion: (text: string) => void
   onRegenerate: () => void
   onEdit: (index: number, text: string) => void
+  /** The dock's variant: the pane is already narrow, so it sets its own measure. */
+  compact?: boolean
 }
 
 const BOTTOM_THRESHOLD = 24
 
-export function ChatThread({ messages, onRetry, onSuggestion, onRegenerate, onEdit }: ChatThreadProps) {
+/** The reading measure for a conversation. Wider than this and the eye loses the line. */
+export const THREAD_MEASURE = 720
+
+export function ChatThread({ messages, onRetry, onSuggestion, onRegenerate, onEdit, compact }: ChatThreadProps) {
   const t = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
@@ -49,8 +55,11 @@ export function ChatThread({ messages, onRetry, onSuggestion, onRegenerate, onEd
 
   return (
     <div className="relative min-h-0 flex-1">
-      <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto">
-        <div className="mx-auto flex max-w-[700px] flex-col gap-6 px-6 py-8">
+      <div ref={scrollRef} onScroll={handleScroll} className="scroll-thin h-full overflow-y-auto">
+        <div
+          className={cn("mx-auto flex flex-col gap-6", compact ? "px-3 py-4" : "px-6 py-8")}
+          style={compact ? undefined : { maxWidth: THREAD_MEASURE }}
+        >
           {messages.map((message, i) => (
             <ChatMessage
               key={i}
@@ -66,15 +75,18 @@ export function ChatThread({ messages, onRetry, onSuggestion, onRegenerate, onEd
         </div>
       </div>
 
+      {/* A labelled pill rather than a bare arrow. It only appears when you have scrolled
+          away from a conversation that is still moving, and at that moment the useful word
+          is what it takes you back to. */}
       {showFab ? (
         <button
           type="button"
           onClick={scrollToBottom}
           aria-label={t("Chat", "ScrollToBottom")}
-          title={t("Chat", "ScrollToBottom")}
-          className="absolute bottom-4 left-1/2 grid size-9 -translate-x-1/2 place-items-center rounded-full border border-line bg-popover text-text-secondary shadow-[var(--elevation-2)] transition-colors hover:text-foreground"
+          className="animate-rise absolute bottom-3 left-1/2 flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-full bg-canvas px-3 text-[12.5px] text-ink-2 shadow-pop transition-colors hover:text-ink"
         >
-          <AppIcon name="common/arrow-down" size={16} />
+          {t("Chat", "Latest")}
+          <AppIcon name="common/arrow-down" size={13} />
         </button>
       ) : null}
     </div>

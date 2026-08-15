@@ -17,16 +17,20 @@ export const PopoverClose = RadixPopover.Close
 export function PopoverContent({
   children,
   align = "start",
+  side = "bottom",
   className,
 }: {
   children: ReactNode
   align?: "start" | "center" | "end"
+  /** Which way the panel opens. Set it when the trigger sits at the edge it would open into. */
+  side?: "top" | "right" | "bottom" | "left"
   className?: string
 }) {
   return (
     <RadixPopover.Portal>
       <RadixPopover.Content
         align={align}
+        side={side}
         sideOffset={4}
         // Collision handling is Radix's, which is the entire reason for using it: a panel opened from
         // a control near the window edge has to flip and shift, and hand-rolling that is how every

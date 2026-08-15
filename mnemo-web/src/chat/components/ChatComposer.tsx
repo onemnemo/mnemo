@@ -1,12 +1,14 @@
 import { useEffect, useRef } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
+import { Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@/components/ui/menu"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import { useChatStore } from "../store"
 import { ASSISTANT_MODES, type AssistantMode } from "../types"
 import { PendingAttachments } from "./Attachment"
+import { ToolsFlyout } from "./ToolsFlyout"
 
 interface ChatComposerProps {
   value: string
@@ -16,14 +18,27 @@ interface ChatComposerProps {
   isBusy: boolean
   mode: AssistantMode
   onModeChange: (mode: AssistantMode) => void
-  webSearch: boolean
-  onWebSearchChange: (enabled: boolean) => void
   placeholder?: string
   autoFocus?: boolean
+  /** The dock's variant: no room for the response-length picker beside everything else. */
+  compact?: boolean
 }
 
-const MAX_HEIGHT = 180
+const MAX_HEIGHT = 200
 
+const MODE_LABEL_KEYS: Record<AssistantMode, string> = {
+  Short: "AssistantModeShort",
+  Normal: "AssistantModeNormal",
+  Detailed: "AssistantModeDetailed",
+}
+
+/**
+ * The one place a message is written, on every Soma surface.
+ *
+ * Drawn as a single field rather than a bordered box with a toolbar under it: the
+ * controls belong to the message being written, so they sit inside its outline and the
+ * whole thing lights up together on focus.
+ */
 export function ChatComposer({
   value,
   onChange,
@@ -32,10 +47,9 @@ export function ChatComposer({
   isBusy,
   mode,
   onModeChange,
-  webSearch,
-  onWebSearchChange,
   placeholder,
   autoFocus,
+  compact,
 }: ChatComposerProps) {
   const t = useT()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -89,7 +103,7 @@ export function ChatComposer({
   }
 
   return (
-    <div className="rounded-xl border border-input bg-[var(--text-control-background)] p-2 transition-colors focus-within:border-[var(--text-control-border-focused)]">
+    <div className="rounded-2xl bg-canvas p-2 shadow-[0_0_0_1px_var(--line)] transition-shadow focus-within:shadow-[0_0_0_1.5px_var(--line)]">
       <PendingAttachments attachments={pendingAttachments} onRemove={removeAttachment} />
 
       <input ref={fileInputRef} type="file" multiple onChange={onFilesPicked} className="hidden" />
@@ -102,36 +116,33 @@ export function ChatComposer({
         onKeyDown={handleKeyDown}
         rows={1}
         placeholder={placeholder ?? t("Chat", "LandingPlaceholder")}
-        className="block max-h-[180px] w-full resize-none bg-transparent px-2 py-1.5 text-body-medium text-foreground placeholder:text-text-faded focus:outline-none"
+        style={{ maxHeight: MAX_HEIGHT }}
+        className="block w-full resize-none bg-transparent px-2 py-1.5 text-[14px] leading-[1.6] text-ink placeholder:text-ink-3 focus:outline-none"
       />
 
-      <div className="mt-1 flex items-center gap-2">
+      <div className="mt-1 flex items-center gap-1">
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           title={t("Chat", "Attach")}
           aria-label={t("Chat", "Attach")}
-          className="grid size-8 place-items-center rounded-lg text-text-tertiary transition-colors hover:bg-surface-subtle hover:text-text-secondary"
+          className="grid size-8 place-items-center rounded-lg text-ink-3 transition-colors hover:bg-frame-hover hover:text-ink"
         >
           <AppIcon name="common/paperclip" size={16} />
         </button>
 
-        <ToolbarToggle
-          icon="common/globe"
-          label={t("Chat", "WebSearch")}
-          active={webSearch}
-          onClick={() => onWebSearchChange(!webSearch)}
-        />
+        <ToolsFlyout />
 
-        <div className="ml-auto flex items-center gap-2">
-          <ModeSegments mode={mode} onModeChange={onModeChange} />
+        {compact ? null : <ModePicker mode={mode} onModeChange={onModeChange} />}
+
+        <div className="ml-auto">
           {isBusy ? (
             <button
               type="button"
               onClick={onStop}
               title={t("Chat", "Stop")}
               aria-label={t("Chat", "Stop")}
-              className="grid size-8 place-items-center rounded-full bg-brand text-primary-foreground transition-opacity hover:opacity-90"
+              className="grid size-8 place-items-center rounded-full bg-solid text-solid-fg transition-colors hover:bg-solid-hover"
             >
               <AppIcon name="common/stop" size={14} />
             </button>
@@ -142,7 +153,10 @@ export function ChatComposer({
               disabled={!canSend}
               title={t("Chat", "SendEnter")}
               aria-label={t("Chat", "SendEnter")}
-              className="grid size-8 place-items-center rounded-full bg-brand text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+              className={cn(
+                "grid size-8 place-items-center rounded-full transition-colors",
+                canSend ? "bg-solid text-solid-fg hover:bg-solid-hover" : "bg-frame-active text-ink-3",
+              )}
             >
               <AppIcon name="common/arrow-up" size={16} />
             </button>
@@ -153,60 +167,34 @@ export function ChatComposer({
   )
 }
 
-function ToolbarToggle({
-  icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: string
-  label: string
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      title={label}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-body-small transition-colors",
-        active
-          ? "bg-brand-subtle text-brand"
-          : "text-text-tertiary hover:bg-surface-subtle hover:text-text-secondary",
-      )}
-    >
-      <AppIcon name={icon} size={15} />
-      <span className="hidden sm:inline">{label}</span>
-    </button>
-  )
-}
-
-function ModeSegments({ mode, onModeChange }: { mode: AssistantMode; onModeChange: (mode: AssistantMode) => void }) {
+/**
+ * How long an answer should be. A menu rather than a segmented control: it is set once
+ * and then left alone, so it does not deserve three permanent buttons in a row that is
+ * already carrying the things you touch every message.
+ */
+function ModePicker({ mode, onModeChange }: { mode: AssistantMode; onModeChange: (mode: AssistantMode) => void }) {
   const t = useT()
-  const labelKey: Record<AssistantMode, string> = {
-    Short: "AssistantModeShort",
-    Normal: "AssistantModeNormal",
-    Detailed: "AssistantModeDetailed",
-  }
   return (
-    <div className="flex items-center rounded-lg bg-surface-subtle p-0.5" role="radiogroup" aria-label={t("Chat", "AssistantMode")}>
-      {ASSISTANT_MODES.map((m) => (
+    <Menu>
+      <MenuTrigger asChild>
         <button
-          key={m}
           type="button"
-          role="radio"
-          aria-checked={mode === m}
-          onClick={() => onModeChange(m)}
-          className={cn(
-            "rounded-md px-2 py-1 text-body-extra-small font-medium transition-colors",
-            mode === m ? "bg-surface text-foreground shadow-[var(--elevation-1)]" : "text-text-tertiary hover:text-text-secondary",
-          )}
+          title={t("Chat", "AssistantMode")}
+          className="flex h-8 items-center gap-1 rounded-lg px-2 text-[12.5px] text-ink-2 transition-colors hover:bg-frame-hover data-[state=open]:bg-frame-active"
         >
-          {t("Chat", labelKey[m])}
+          {t("Chat", MODE_LABEL_KEYS[mode])}
+          <AppIcon name="chevron-down" size={13} className="text-ink-3" />
         </button>
-      ))}
-    </div>
+      </MenuTrigger>
+      <MenuContent align="start">
+        <MenuRadioGroup value={mode} onValueChange={(v) => onModeChange(v as AssistantMode)}>
+          {ASSISTANT_MODES.map((m) => (
+            <MenuRadioItem key={m} value={m}>
+              {t("Chat", MODE_LABEL_KEYS[m])}
+            </MenuRadioItem>
+          ))}
+        </MenuRadioGroup>
+      </MenuContent>
+    </Menu>
   )
 }

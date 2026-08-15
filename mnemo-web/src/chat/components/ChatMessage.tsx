@@ -11,6 +11,7 @@ import { MessageAttachments } from "./Attachment"
 import { ChatTracePanel } from "./ChatTracePanel"
 import { FailureNotice } from "./FailureNotice"
 import { Markdown } from "./Markdown"
+import { SomaMark } from "./SomaMark"
 
 interface ChatMessageProps {
   index: number
@@ -60,11 +61,12 @@ function UserMessage({
     setEditing(false)
     onEdit?.(index, text)
   }
+  const copy = () => copyToClipboard(message.content, t("Common", "Copied"))
 
   if (editing) {
     return (
       <div className="flex justify-end">
-        <div className="w-full max-w-[560px] rounded-xl border border-input bg-[var(--text-control-background)] p-2 focus-within:border-[var(--text-control-border-focused)]">
+        <div className="w-full max-w-[560px] rounded-2xl bg-canvas p-2 shadow-[0_0_0_1.5px_var(--solid)]">
           <textarea
             autoFocus
             value={draft}
@@ -79,13 +81,16 @@ function UserMessage({
               }
             }}
             rows={Math.min(8, draft.split("\n").length)}
-            className="block w-full resize-none bg-transparent px-2 py-1.5 text-body-medium text-foreground focus:outline-none"
+            className="block w-full resize-none bg-transparent px-2 py-1.5 text-[14px] leading-[1.6] text-ink focus:outline-none"
           />
-          <div className="mt-1 flex justify-end gap-1.5">
+          {/* Editing is not a correction here, it is a re-ask, and the reply that is
+              already on screen disappears. Saying so costs one line. */}
+          <div className="mt-1 flex items-center gap-2 px-2">
+            <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-3">{t("Chat", "EditSendNote")}</span>
             <button
               type="button"
               onClick={() => setEditing(false)}
-              className="rounded-lg px-3 py-1 text-body-small text-text-tertiary transition-colors hover:text-text-secondary"
+              className="h-7 rounded-lg px-2.5 text-[12.5px] text-ink-2 transition-colors hover:bg-frame-hover"
             >
               {t("Common", "Cancel")}
             </button>
@@ -93,9 +98,9 @@ function UserMessage({
               type="button"
               onClick={submit}
               disabled={!draft.trim()}
-              className="rounded-lg bg-brand px-3 py-1 text-body-small text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+              className="h-7 rounded-lg bg-solid px-2.5 text-[12.5px] text-solid-fg transition-colors hover:bg-solid-hover disabled:opacity-40"
             >
-              {t("Common", "Save")}
+              {t("Chat", "SaveAndSubmit")}
             </button>
           </div>
         </div>
@@ -104,26 +109,21 @@ function UserMessage({
   }
 
   return (
-    <div className="group flex flex-col items-end gap-1">
+    <div className="group/user flex flex-col items-end gap-1">
       {message.attachments && message.attachments.length > 0 ? (
         <MessageAttachments attachments={message.attachments} />
       ) : null}
       {message.content ? (
-        <div className="max-w-[560px] rounded-xl bg-card px-4 py-2.5 text-body-medium whitespace-pre-wrap text-foreground">
+        <div className="max-w-[560px] rounded-2xl bg-canvas-sunken px-3.5 py-2.5 text-[14px] leading-[1.6] whitespace-pre-wrap text-ink">
           {message.content}
         </div>
       ) : null}
-      {onEdit && !isBusy ? (
-        <button
-          type="button"
-          onClick={begin}
-          title={t("Chat", "EditMessage")}
-          aria-label={t("Chat", "EditMessage")}
-          className="grid size-7 place-items-center rounded-md text-text-tertiary opacity-0 transition hover:bg-surface-subtle hover:text-text-primary group-hover:opacity-100"
-        >
-          <AppIcon name="common/pencil" size={13} />
-        </button>
-      ) : null}
+      <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/user:opacity-100 focus-within:opacity-100">
+        <MessageAction icon="common/copy" label={t("Chat", "CopyMessage")} onClick={copy} />
+        {onEdit && !isBusy ? (
+          <MessageAction icon="common/pencil" label={t("Chat", "EditMessage")} onClick={begin} />
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -135,29 +135,35 @@ function AssistantMessage({ index, isLast, message, onRetry, onSuggestion, onReg
   const showActions = !streaming && !message.notice
 
   return (
-    <div className="min-w-0">
-      <ChatTracePanel message={message} />
+    <div className="group/assistant flex gap-3">
+      {/* A gutter mark rather than a bubble: the reply is the page's prose, and boxing it
+          would make every answer look like a quotation of itself. */}
+      <SomaMark size={22} className="mt-0.5" />
 
-      {awaitingFirstToken ? <AnswerSkeleton /> : null}
+      <div className="min-w-0 flex-1">
+        <ChatTracePanel message={message} />
 
-      {message.notice ? <FailureNotice notice={message.notice} onRetry={onRetry} /> : null}
+        {awaitingFirstToken ? <AnswerSkeleton /> : null}
 
-      {showBody ? <Markdown content={message.content} streaming={streaming} /> : null}
+        {message.notice ? <FailureNotice notice={message.notice} onRetry={onRetry} /> : null}
 
-      {message.sources && message.sources.length > 0 ? <SourceChips sources={message.sources} /> : null}
+        {showBody ? <Markdown content={message.content} streaming={streaming} /> : null}
 
-      {message.suggestions && message.suggestions.length > 0 ? (
-        <Suggestions suggestions={message.suggestions} onSuggestion={onSuggestion} />
-      ) : null}
+        {message.sources && message.sources.length > 0 ? <Sources sources={message.sources} /> : null}
 
-      {showActions ? (
-        <ActionBar
-          index={index}
-          content={message.content}
-          feedback={message.feedback}
-          onRegenerate={isLast ? onRegenerate : undefined}
-        />
-      ) : null}
+        {message.suggestions && message.suggestions.length > 0 ? (
+          <Suggestions suggestions={message.suggestions} onSuggestion={onSuggestion} />
+        ) : null}
+
+        {showActions ? (
+          <ActionBar
+            index={index}
+            content={message.content}
+            feedback={message.feedback}
+            onRegenerate={isLast ? onRegenerate : undefined}
+          />
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -165,27 +171,31 @@ function AssistantMessage({ index, isLast, message, onRetry, onSuggestion, onReg
 function AnswerSkeleton() {
   return (
     <div className="flex flex-col gap-2 py-1">
-      <div className="h-3 w-2/5 animate-pulse rounded bg-surface-subtle" />
-      <div className="h-3 w-4/5 animate-pulse rounded bg-surface-subtle" />
-      <div className="h-3 w-3/5 animate-pulse rounded bg-surface-subtle" />
+      <div className="h-3 w-2/5 animate-pulse rounded bg-frame-active" />
+      <div className="h-3 w-4/5 animate-pulse rounded bg-frame-active" />
+      <div className="h-3 w-3/5 animate-pulse rounded bg-frame-active" />
     </div>
   )
 }
 
-function SourceChips({ sources }: { sources: string[] }) {
+function Sources({ sources }: { sources: string[] }) {
   const t = useT()
   return (
-    <div className="mt-3">
-      <div className="mb-1 text-body-extra-small font-medium text-text-tertiary">{t("Chat", "SourcesLabel")}</div>
-      <div className="flex flex-wrap gap-1.5">
+    <div className="mt-4">
+      <div className="mb-1.5 text-[11px] font-semibold tracking-[0.04em] text-ink-3 uppercase">
+        {t("Chat", "SourcesLabel")}
+      </div>
+      {/* Cards, not chips: a source is a thing you might open, and a row of pills reads as
+          a set of filters. */}
+      <div className="grid gap-1.5 sm:grid-cols-2">
         {sources.map((source, i) => (
-          <span
+          <div
             key={i}
-            className="inline-flex items-center gap-1 rounded-full border border-line bg-surface-subtle px-2 py-0.5 text-body-extra-small text-text-secondary"
+            className="flex min-w-0 items-center gap-2 rounded-lg bg-canvas-sunken px-2.5 py-2 text-[12.5px] text-ink-2"
           >
-            <AppIcon name="common/globe" size={12} className="text-text-faded" />
-            {source}
-          </span>
+            <AppIcon name="common/globe" size={13} className="shrink-0 text-ink-3" />
+            <span className="truncate">{source}</span>
+          </div>
         ))}
       </div>
     </div>
@@ -200,7 +210,7 @@ function Suggestions({ suggestions, onSuggestion }: { suggestions: string[]; onS
           key={i}
           type="button"
           onClick={() => onSuggestion?.(suggestion)}
-          className="rounded-full border border-line px-3 py-1 text-body-small text-text-secondary transition-colors hover:bg-surface-subtle hover:text-foreground"
+          className="h-8 rounded-lg px-2.5 text-[12.5px] text-ink-2 shadow-[0_0_0_1px_var(--line-soft)] transition-colors hover:bg-frame-hover hover:text-ink"
         >
           {suggestion}
         </button>
@@ -222,38 +232,44 @@ function ActionBar({
 }) {
   const t = useT()
   const setFeedback = useChatStore((s) => s.setFeedback)
-  const copy = () => {
-    void navigator.clipboard?.writeText(content).then(
-      () => toast.success(t("Common", "Copied")),
-      () => {},
-    )
-  }
   // Clicking the active vote clears it (toggle); otherwise it replaces the other.
   const vote = (value: number) => setFeedback(index, feedback === value ? 0 : value)
 
   return (
-    <div className="mt-2 flex items-center gap-1">
-      <ActionButton icon="common/copy" label={t("Chat", "CopyMessage")} onClick={copy} />
-      <ActionButton
+    <div className="mt-2 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/assistant:opacity-100 focus-within:opacity-100">
+      <MessageAction
         icon="common/thumbs-up"
         label={t("Chat", "GoodResponse")}
         active={feedback === 1}
         onClick={() => vote(1)}
       />
-      <ActionButton
+      <MessageAction
         icon="common/thumbs-down"
         label={t("Chat", "BadResponse")}
         active={feedback === 2}
         onClick={() => vote(2)}
       />
+      <span aria-hidden className="mx-1 h-4 w-px bg-line-soft" />
+      <MessageAction
+        icon="common/copy"
+        label={t("Chat", "CopyMessage")}
+        onClick={() => copyToClipboard(content, t("Common", "Copied"))}
+      />
       {onRegenerate ? (
-        <ActionButton icon="common/refresh" label={t("Chat", "Regenerate")} onClick={onRegenerate} />
+        <MessageAction icon="common/refresh" label={t("Chat", "Regenerate")} onClick={onRegenerate} />
       ) : null}
     </div>
   )
 }
 
-function ActionButton({
+function copyToClipboard(text: string, confirmation: string) {
+  void navigator.clipboard?.writeText(text).then(
+    () => toast.success(confirmation),
+    () => {},
+  )
+}
+
+function MessageAction({
   icon,
   label,
   active,
@@ -272,8 +288,8 @@ function ActionButton({
       aria-label={label}
       aria-pressed={active}
       className={cn(
-        "grid size-7 place-items-center rounded-md transition-colors hover:bg-surface-subtle",
-        active ? "text-brand" : "text-text-tertiary hover:text-text-primary",
+        "grid size-7 place-items-center rounded-md transition-colors hover:bg-frame-hover",
+        active ? "text-accent-ink" : "text-ink-3 hover:text-ink",
       )}
     >
       <AppIcon name={icon} size={14} />
