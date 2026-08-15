@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
 using Mnemo.Infrastructure.Common;
 
@@ -21,6 +23,18 @@ public static class LifecycleEndpoints
 
     /// <param name="Target">A directory name the host knows, never a path. See <see cref="ResolveFolder"/>.</param>
     public sealed record OpenFolderRequest(string Target);
+
+    /// <param name="Title">The dialog's title. Supplied by the caller because the SPA holds the
+    /// translations and this process has no idea what language the window is running in.</param>
+    /// <param name="StartPath">Where the chooser should open. Ignored if it is not a directory.</param>
+    public sealed record PickFolderRequest(string? Title, string? StartPath);
+
+    /// <param name="Available">False when there is no window to raise a native dialog on.</param>
+    /// <param name="Folders">Where exports have gone, most recent first. Never empty.</param>
+    public sealed record ExportFoldersDto(bool Available, IReadOnlyList<string> Folders);
+
+    /// <param name="Path">The chosen folder, or null if the chooser was dismissed.</param>
+    public sealed record PickedFolderDto(string? Path);
 
     /// <summary>What a folder request resolved to.</summary>
     public enum OpenFolderOutcome
@@ -135,6 +149,28 @@ public static class LifecycleEndpoints
             }
 
             return Results.NoContent();
+        });
+
+        // Where a "save to a folder" control should point before the user has said otherwise, and
+        // whether that control can offer to browse at all.
+        endpoints.MapGet("/api/app/export-folders", async (ISettingsService settings, NativeFolderPicker picker) =>
+            new ExportFoldersDto(picker.IsAvailable, await ExportFolders.ListAsync(settings).ConfigureAwait(false)));
+
+        // Raises the system folder chooser. Only the host can: a web page cannot open one, and the
+        // directory handle the File System Access API would hand back is not a path anything else
+        // here could write to.
+        endpoints.MapPost("/api/app/export-folders/pick", async (PickFolderRequest? body, NativeFolderPicker picker) =>
+        {
+            if (!picker.IsAvailable)
+                return Results.Json(
+                    new ErrorDto("no_window", "This build has no window to open a folder chooser on."),
+                    statusCode: StatusCodes.Status501NotImplemented);
+
+            var title = string.IsNullOrWhiteSpace(body?.Title) ? "Choose a folder" : body!.Title!.Trim();
+            var chosen = await picker.PickAsync(title, body?.StartPath).ConfigureAwait(false);
+            // Dismissed is an outcome, not a failure, so it answers 200 with nothing chosen rather
+            // than a status the caller has to tell apart from a real error.
+            return Results.Ok(new PickedFolderDto(chosen));
         });
     }
 }
