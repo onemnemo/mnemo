@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
@@ -7,12 +7,13 @@ import { Segmented } from "@/components/ui/segmented"
 import { Switch } from "@/components/ui/switch"
 import { useT } from "@/i18n/useT"
 import { isMac } from "@/keybinds/chord"
+import { fetchExportFolders, pickExportFolder, shortPath } from "@/lib/export-folders"
 import { cn } from "@/lib/utils"
 import { formatFileSize } from "@/notes/transfer/transfer"
 import { SelectControl } from "@/settings/components/controls/SelectControl"
 import { toast } from "@/stores/toast"
 
-import { exportNotePdf, fetchNotePdfPreview } from "./api"
+import { exportNotePdf, fetchNotePdfPreview, saveNotePdf } from "./api"
 import { PdfPreview, type PdfPreviewHandle } from "./components/PdfPreview"
 import {
   DEFAULT_PDF_OPTIONS,
@@ -59,6 +60,14 @@ function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onClose: ()
   const [busy, setBusy] = useState(false)
   const previewHandle = useRef<PdfPreviewHandle | null>(null)
 
+  // Empty until the host answers, and it stays empty where there is no window to raise a chooser
+  // on. That case is a browser tab against the dev server, where nothing on this page gets to
+  // decide where a file lands, so the destination row is hidden rather than shown broken.
+  const [folder, setFolder] = useState("")
+  const [recentFolders, setRecentFolders] = useState<string[]>([])
+  const [canChooseFolder, setCanChooseFolder] = useState(false)
+  const recentsId = useId()
+
   const set = <K extends keyof PdfOptions>(key: K, value: PdfOptions[K]) =>
     setOptions((current) => ({ ...current, [key]: value }))
 
@@ -98,17 +107,47 @@ function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onClose: ()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [optionsKey, target.noteId])
 
+  useEffect(() => {
+    let live = true
+    fetchExportFolders()
+      .then(({ available, folders }) => {
+        if (!live) return
+        setCanChooseFolder(available)
+        setRecentFolders(folders)
+        setFolder(folders[0] ?? "")
+      })
+      // A destination nobody can read is one nobody can offer, so the dialog falls back to the
+      // download it did before rather than putting an error where a path should be.
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [])
+
   // Fewer pages than a moment ago: widened margins, or images turned off.
   useEffect(() => {
     if (view > pageCount - 1) setView(Math.max(0, pageCount - 1))
   }, [pageCount, view])
 
+  const destination = canChooseFolder ? folder.trim() : ""
+  // Minus the one already in the field, or the suggestion list opens on a single row offering
+  // what the field says.
+  const otherFolders = recentFolders.filter((path) => path.toLowerCase() !== destination.toLowerCase())
+  const ready = stem.trim().length > 0 && (!canChooseFolder || destination.length > 0)
+
   const doExport = async () => {
-    if (busy || !stem.trim()) return
+    if (busy || !ready) return
     setBusy(true)
     try {
-      await exportNotePdf(target.noteId, options, documentText, fileName)
-      toast.success(nt("PdfExportCompleteTitle"), { description: nt("PdfExportCompleteMessage") })
+      if (destination) {
+        // The host writes the file, so the toast can name where it actually went instead of
+        // asserting that something was saved somewhere.
+        const path = await saveNotePdf(target.noteId, options, documentText, destination, fileName)
+        toast.success(nt("PdfExportCompleteTitle"), { description: path })
+      } else {
+        await exportNotePdf(target.noteId, options, documentText, fileName)
+        toast.success(nt("PdfExportCompleteTitle"), { description: nt("PdfExportCompleteMessage") })
+      }
       onClose()
     } catch (error) {
       toast.warning(nt("PdfExportFailedTitle"), {
@@ -116,6 +155,18 @@ function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onClose: ()
       })
     } finally {
       setBusy(false)
+    }
+  }
+
+  const browse = async () => {
+    try {
+      const chosen = await pickExportFolder(nt("PdfChooseFolderTitle"), destination || undefined)
+      // Null is the chooser being dismissed, which means keep what was there.
+      if (chosen) setFolder(chosen)
+    } catch (error) {
+      toast.warning(nt("PdfExportFailedTitle"), {
+        description: error instanceof Error ? error.message : undefined,
+      })
     }
   }
 
@@ -138,6 +189,10 @@ function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onClose: ()
       open
       onClose={() => !busy && onClose()}
       width={960}
+      // Taller than the app's other dialogs on purpose. The preview shows a whole page, so the
+      // height left over after the header and the footer is what decides how big that page is
+      // drawn, and at the usual ceiling an A4 sheet lands at roughly a third of its real size.
+      maxHeight="min(820px, 92vh)"
       title={nt("PdfExportTitle")}
       subtitle={target.title}
       closeLabel={common("Close")}
@@ -155,19 +210,50 @@ function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onClose: ()
       // that is about page setup.
       footer={
         <>
-          <label className="flex h-9 w-[224px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 shadow-[0_0_0_1px_var(--line)] focus-within:shadow-[0_0_0_1.5px_var(--accent)]">
-            <AppIcon name="common/file-text" size={14} className="shrink-0 text-ink-icon" />
-            <input
-              value={stem}
-              onChange={(event) => setStem(sanitizeFileStem(event.target.value))}
-              aria-label={nt("PdfFileName")}
-              spellCheck={false}
-              placeholder={fallbackStem}
-              className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3"
-            />
-            {/* Shown, never typed, or the first file anyone makes is `Note.pdf.pdf`. */}
-            <span className="shrink-0 font-mono text-[12px] text-ink-3">.pdf</span>
-          </label>
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <label className="flex h-9 w-[224px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 shadow-[0_0_0_1px_var(--line)] focus-within:shadow-[0_0_0_1.5px_var(--accent)]">
+              <AppIcon name="common/file-text" size={14} className="shrink-0 text-ink-icon" />
+              <input
+                value={stem}
+                onChange={(event) => setStem(sanitizeFileStem(event.target.value))}
+                aria-label={nt("PdfFileName")}
+                spellCheck={false}
+                placeholder={fallbackStem}
+                className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3"
+              />
+              {/* Shown, never typed, or the first file anyone makes is `Note.pdf.pdf`. */}
+              <span className="shrink-0 font-mono text-[12px] text-ink-3">.pdf</span>
+            </label>
+
+            {canChooseFolder && (
+              <>
+                <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 shadow-[0_0_0_1px_var(--line)] focus-within:shadow-[0_0_0_1.5px_var(--accent)]">
+                  <AppIcon name="common/folder" size={14} className="shrink-0 text-ink-icon" />
+                  <input
+                    value={folder}
+                    onChange={(event) => setFolder(event.target.value)}
+                    aria-label={nt("PdfDestinationFolder")}
+                    spellCheck={false}
+                    list={otherFolders.length > 0 ? recentsId : undefined}
+                    className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none"
+                  />
+                  {/* The folders used before became this list rather than a row of chips: three
+                      buttons that are only ever right once are three buttons in the way the rest
+                      of the time. */}
+                  {otherFolders.length > 0 && (
+                    <datalist id={recentsId}>
+                      {otherFolders.map((path) => (
+                        <option key={path} value={path} label={shortPath(path)} />
+                      ))}
+                    </datalist>
+                  )}
+                </label>
+                <Button variant="outline" className="h-9 shrink-0" disabled={busy} onClick={() => void browse()}>
+                  {nt("PdfBrowse")}
+                </Button>
+              </>
+            )}
+          </div>
 
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="ghost" disabled={busy} onClick={onClose}>
@@ -175,7 +261,7 @@ function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onClose: ()
             </Button>
             <Button
               variant="solid"
-              disabled={busy || !stem.trim()}
+              disabled={busy || !ready}
               onClick={() => void doExport()}
               trailing={<span className="ml-1 text-[11.5px] font-normal opacity-55">{SHORTCUT_HINT}</span>}
             >

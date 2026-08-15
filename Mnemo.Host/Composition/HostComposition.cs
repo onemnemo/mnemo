@@ -251,6 +251,10 @@ public static class HostComposition
         // The window's closing handler and the SPA's reply endpoint meet here.
         services.AddSingleton<ShutdownGate>();
 
+        // Likewise for the native folder chooser: registered whether or not a window ever
+        // attaches, so the endpoint can answer "not here" instead of failing to resolve.
+        services.AddSingleton<NativeFolderPicker>();
+
         // App.LaunchAtStartup is a stored value on its own; this is what makes the OS act on it.
         services.AddSingleton<Startup.LaunchAtStartupService>();
 

@@ -1,4 +1,4 @@
-import { ApiError, apiToken } from "@/api/client"
+import { ApiError, apiFetch, apiToken } from "@/api/client"
 import { saveBlob } from "@/api/download"
 
 import { toRequestBody, type PdfDocumentText, type PdfOptions } from "./options"
@@ -63,4 +63,26 @@ export async function exportNotePdf(
 ): Promise<void> {
   const response = await post(noteId, "export", options, text)
   saveBlob(await response.blob(), fileName)
+}
+
+/**
+ * Writes the note into a folder on this machine and answers with the path it wrote, which is what
+ * lets the toast name the file and offer to show it.
+ *
+ * The download above is still the right call without a native window, where the app has no say in
+ * where anything lands and the browser's own folder is the only answer.
+ */
+export async function saveNotePdf(
+  noteId: string,
+  options: PdfOptions,
+  text: PdfDocumentText,
+  directory: string,
+  fileName: string,
+): Promise<string> {
+  const saved = await apiFetch<{ path: string }>(`/notes/${encodeURIComponent(noteId)}/pdf/save`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ options: toRequestBody(options, text), directory, fileName }),
+  })
+  return saved.path
 }

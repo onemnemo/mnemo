@@ -21,3 +21,17 @@ public sealed record NotePdfExportOptionsDto(
     bool? RenderImages = null,
     bool? RenderSubpageLinks = null,
     string? MissingSubpageTitle = null);
+
+/// <summary>
+/// Writing a rendered note into a folder on this machine, which is a different job from handing the
+/// bytes back over HTTP and so carries its own body rather than more optional fields on the options.
+/// </summary>
+/// <param name="Directory">An absolute path, normally one the native chooser returned.</param>
+/// <param name="FileName">A bare file name. Anything that looks like a path is refused.</param>
+public sealed record NotePdfSaveRequestDto(
+    NotePdfExportOptionsDto? Options,
+    string Directory,
+    string FileName);
+
+/// <param name="Path">Where the file was written, for the toast to name and to open.</param>
+public sealed record NotePdfSavedDto(string Path);

@@ -263,6 +263,7 @@ public static class Program
 
         WindowChrome.Configure(window, logger);
         AttachShutdownGate(window, server.App.Services);
+        server.App.Services.GetRequiredService<NativeFolderPicker>().Attach(window);
 
         logger.Info(CrashLog.Category, $"Load({url})");
         window.Load(url);
