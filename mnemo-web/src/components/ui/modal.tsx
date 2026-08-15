@@ -18,6 +18,12 @@ interface ModalProps {
   closeLabel: string
   width?: number
   /**
+   * Overrides the default ceiling. For a dialog whose content has a fixed aspect (a page
+   * preview), height is what decides how big that content gets drawn, and the default is
+   * tuned for dialogs that merely scroll.
+   */
+  maxHeight?: string
+  /**
    * Handlers for the dialog as a whole rather than its body. Drag and drop is the case that
    * needs it: a drop target that stops at the edge of the scrolling area is one you can miss
    * by aiming at the title.
@@ -49,6 +55,7 @@ export function Modal({
   footer,
   closeLabel,
   width = 720,
+  maxHeight = "min(680px, 88vh)",
   surface,
   children,
   className,
@@ -79,7 +86,7 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         data-state="open"
-        style={{ width, maxHeight: "min(680px, 88vh)" }}
+        style={{ width, maxHeight }}
         {...surface}
         className={cn(
           "animate-pop-in relative flex max-w-full flex-col overflow-hidden rounded-2xl bg-canvas shadow-pop",
