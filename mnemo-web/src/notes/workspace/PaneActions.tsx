@@ -164,7 +164,11 @@ export function PaneActions({ note }: { note: NoteSummaryDto }) {
           >
             {nt('Export')}
           </MenuItem>
-          <MenuItem icon="common/download" onSelect={() => openPdf({ noteId: note.id, title })}>
+          {/* Its own row rather than a format inside the export dialog: a PDF is a layout
+              decision, and the dialog behind this one is a page-setup panel with a preview,
+              not the three-field form the other formats share. A printer, not a download
+              arrow, for the same reason. */}
+          <MenuItem icon="printer" onSelect={() => openPdf({ noteId: note.id, title })}>
             {nt('ToolbarExportPdf')}
           </MenuItem>
           <MenuSeparator />
