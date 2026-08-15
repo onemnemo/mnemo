@@ -135,13 +135,163 @@ public sealed class NoteTypstDocumentComposerTests
     }
 
     [Fact]
-    public void PageBlock_IsSkipped()
+    public void PageBlock_PrintsResolvedTitle_NotItsOwnSpans()
     {
+        var options = new NotePdfExportOptions
+        {
+            SubpageTitlesById = new Dictionary<string, string> { ["ref"] = "Chapter two" }
+        };
         var typ = Compose(NoteWith(
-            Leaf(BlockType.Page, "sub-note", new PagePayload("ref")),
-            Leaf(BlockType.Text, "after")));
+            Leaf(BlockType.Page, "stale label", new PagePayload("ref")),
+            Leaf(BlockType.Text, "after")), options);
+        Assert.Contains("Chapter two", typ);
         Assert.Contains("after", typ);
-        Assert.DoesNotContain("sub-note", typ);
+        // The block's own spans are a cache of the title; the looked-up one wins.
+        Assert.DoesNotContain("stale label", typ);
+    }
+
+    [Fact]
+    public void PageBlock_UnresolvedReference_PrintsTheStandIn()
+    {
+        var options = new NotePdfExportOptions { MissingSubpageTitle = "Uten tittel" };
+        var typ = Compose(NoteWith(Leaf(BlockType.Page, "x", new PagePayload("gone"))), options);
+        Assert.Contains("Uten tittel", typ);
+    }
+
+    [Fact]
+    public void RenderSubpageLinksFalse_DropsThePageRow()
+    {
+        var options = new NotePdfExportOptions
+        {
+            RenderSubpageLinks = false,
+            SubpageTitlesById = new Dictionary<string, string> { ["ref"] = "Chapter two" }
+        };
+        var typ = Compose(NoteWith(
+            Leaf(BlockType.Page, "x", new PagePayload("ref")),
+            Leaf(BlockType.Text, "after")), options);
+        Assert.DoesNotContain("Chapter two", typ);
+        Assert.Contains("after", typ);
+    }
+
+    // === Page setup ===
+
+    [Fact]
+    public void Paper_MapsEveryKindToItsTypstName()
+    {
+        Assert.Contains("paper: \"a4\"", Compose(NoteWith(), new NotePdfExportOptions { Paper = NotePdfPaperKind.A4 }));
+        Assert.Contains("paper: \"us-letter\"", Compose(NoteWith(), new NotePdfExportOptions { Paper = NotePdfPaperKind.Letter }));
+        Assert.Contains("paper: \"us-legal\"", Compose(NoteWith(), new NotePdfExportOptions { Paper = NotePdfPaperKind.Legal }));
+        Assert.Contains("paper: \"a5\"", Compose(NoteWith(), new NotePdfExportOptions { Paper = NotePdfPaperKind.A5 }));
+    }
+
+    [Fact]
+    public void Landscape_FlipsTheSheetOnly()
+    {
+        Assert.Contains("flipped: true", Compose(NoteWith(), new NotePdfExportOptions { Landscape = true }));
+        Assert.DoesNotContain("flipped:", Compose(NoteWith(), new NotePdfExportOptions { Landscape = false }));
+    }
+
+    [Fact]
+    public void Margins_MatchThePresetsTheDialogAdvertises()
+    {
+        Assert.Contains("margin: 2cm", Compose(NoteWith(), new NotePdfExportOptions { Margin = NotePdfMarginPreset.Normal }));
+        Assert.Contains("margin: 1.27cm", Compose(NoteWith(), new NotePdfExportOptions { Margin = NotePdfMarginPreset.Narrow }));
+        Assert.Contains("margin: 3.18cm", Compose(NoteWith(), new NotePdfExportOptions { Margin = NotePdfMarginPreset.Wide }));
+    }
+
+    [Fact]
+    public void PageNumbers_Off_EmitsNoNumbering()
+    {
+        var typ = Compose(NoteWith(), new NotePdfExportOptions { PageNumberAlignment = NotePdfPageNumberAlignment.None });
+        Assert.DoesNotContain("numbering:", typ);
+        Assert.DoesNotContain("number-align:", typ);
+    }
+
+    [Fact]
+    public void PageNumbers_CountingFormsArePatterns()
+    {
+        var one = Compose(NoteWith(), new NotePdfExportOptions
+        {
+            PageNumberFormat = NotePdfPageNumberFormat.CurrentPage,
+            PageNumberAlignment = NotePdfPageNumberAlignment.Left
+        });
+        Assert.Contains("numbering: \"1\", number-align: left", one);
+
+        var both = Compose(NoteWith(), new NotePdfExportOptions
+        {
+            PageNumberFormat = NotePdfPageNumberFormat.CurrentAndTotalPages,
+            PageNumberAlignment = NotePdfPageNumberAlignment.Right
+        });
+        Assert.Contains("numbering: \"1 / 1\", number-align: right", both);
+    }
+
+    [Fact]
+    public void PageNumbers_WordedFormIsAFunction_SoLettersStayLetters()
+    {
+        var typ = Compose(NoteWith(), new NotePdfExportOptions
+        {
+            PageNumberFormat = NotePdfPageNumberFormat.PageOfTotal,
+            PageNumberWordedFormat = "Side {0} av {1}"
+        });
+        // A pattern would count the "a" in "av" and print "Side 1 bv 2".
+        Assert.Contains("numbering: (..n) => [Side #n.pos().at(0) av #n.pos().at(1)], number-align: center", typ);
+    }
+
+    [Fact]
+    public void PageNumbers_WordedFormWithoutBothSlots_FallsBackToTheDefaultWording()
+    {
+        var typ = Compose(NoteWith(), new NotePdfExportOptions
+        {
+            PageNumberFormat = NotePdfPageNumberFormat.PageOfTotal,
+            PageNumberWordedFormat = "page {0}"
+        });
+        Assert.Contains("(..n) => [Page #n.pos().at(0) of #n.pos().at(1)]", typ);
+    }
+
+    // === Masthead ===
+
+    [Fact]
+    public void Tags_RenderAsPillsTintedByLabel()
+    {
+        var note = new Note { Title = "T", Tags = ["physics", "physics"] };
+        var typ = Compose(note);
+        // Same label, same hue: the tint is derived, not assigned in order.
+        var hue = typ.Split("oklch(93%, 0.055, ")[1].Split("deg")[0];
+        Assert.Equal(2, typ.Split($"oklch(93%, 0.055, {hue}deg)").Length - 1);
+        Assert.Contains("radius: 999pt", typ);
+    }
+
+    [Fact]
+    public void Tags_GoGreyWhenColoursAreOff()
+    {
+        var note = new Note { Title = "T", Tags = ["physics"] };
+        var typ = Compose(note, new NotePdfExportOptions { RenderColors = false });
+        Assert.DoesNotContain("oklch(", typ);
+        Assert.Contains("#box(fill: rgb(\"#f2f2f3\")", typ);
+    }
+
+    [Fact]
+    public void Tags_AreOmittedWhenExcludedOrBlank()
+    {
+        var note = new Note { Title = "T", Tags = ["physics"] };
+        Assert.DoesNotContain("radius: 999pt", Compose(note, new NotePdfExportOptions { IncludeTags = false }));
+
+        var blank = new Note { Title = "T", Tags = ["   "] };
+        Assert.DoesNotContain("radius: 999pt", Compose(blank));
+    }
+
+    [Fact]
+    public void MastheadRule_OnlyAppearsWhenThereIsAMasthead()
+    {
+        const string Rule = "#line(length: 100%";
+        var titled = new Note { Title = "T", Blocks = [Leaf(BlockType.Text, "body")] };
+        Assert.Contains(Rule, Compose(titled));
+
+        var tagsOnly = new Note { Title = "T", Tags = ["physics"], Blocks = [Leaf(BlockType.Text, "body")] };
+        Assert.Contains(Rule, Compose(tagsOnly, new NotePdfExportOptions { IncludeNoteTitle = false }));
+
+        var bare = new Note { Title = "T", Blocks = [Leaf(BlockType.Text, "body")] };
+        Assert.DoesNotContain(Rule, Compose(bare, new NotePdfExportOptions { IncludeNoteTitle = false }));
     }
 
     [Fact]
@@ -225,6 +375,32 @@ public sealed class NoteTypstDocumentComposerTests
             typ,
             new Dictionary<string, byte[]> { ["img.png"] = OnePixelPng });
 
+        Assert.True(exit == 0, $"typst compile failed (exit {exit}):\n{stderr}\n\n--- source ---\n{typ}");
+    }
+
+    [Fact]
+    public void NewPageSetup_CompilesWithVendoredTypst()
+    {
+        if (!NoteTypstToolchain.Available)
+            return; // Typst binary not restored (run scripts/restore-typst); nothing to compile against.
+
+        var note = new Note
+        {
+            Title = "Landscape legal",
+            Tags = ["physics", "term 2"],
+            Blocks = [Leaf(BlockType.Text, "body"), Leaf(BlockType.Page, "x", new PagePayload("ref"))]
+        };
+        var typ = Compose(note, new NotePdfExportOptions
+        {
+            Paper = NotePdfPaperKind.Legal,
+            Landscape = true,
+            Margin = NotePdfMarginPreset.Wide,
+            PageNumberFormat = NotePdfPageNumberFormat.PageOfTotal,
+            PageNumberWordedFormat = "Side {0} av {1}",
+            SubpageTitlesById = new Dictionary<string, string> { ["ref"] = "Chapter two" }
+        });
+
+        var (exit, stderr) = NoteTypstToolchain.Compile(typ);
         Assert.True(exit == 0, $"typst compile failed (exit {exit}):\n{stderr}\n\n--- source ---\n{typ}");
     }
 

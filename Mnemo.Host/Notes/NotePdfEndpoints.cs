@@ -39,7 +39,8 @@ public static class NotePdfEndpoints
             if (note is null)
                 return Results.NotFound(new ErrorDto("unknown_note", $"No note '{id}'."));
 
-            return await RenderAsync(note, BuildOptions(body), pdf, logger, downloadName: null, cancellationToken)
+            var options = await BuildOptionsAsync(body, note, notes).ConfigureAwait(false);
+            return await RenderAsync(note, options, pdf, logger, downloadName: null, cancellationToken)
                 .ConfigureAwait(false);
         }).RequireNotesMigrated();
 
@@ -55,7 +56,8 @@ public static class NotePdfEndpoints
             if (note is null)
                 return Results.NotFound(new ErrorDto("unknown_note", $"No note '{id}'."));
 
-            return await RenderAsync(note, BuildOptions(body), pdf, logger, DownloadName(note.Title), cancellationToken)
+            var options = await BuildOptionsAsync(body, note, notes).ConfigureAwait(false);
+            return await RenderAsync(note, options, pdf, logger, DownloadName(note.Title), cancellationToken)
                 .ConfigureAwait(false);
         }).RequireNotesMigrated();
     }
@@ -95,29 +97,67 @@ public static class NotePdfEndpoints
         // not a server error, and the framework unwinds it without writing a response.
     }
 
-    private static NotePdfExportOptions BuildOptions(NotePdfExportOptionsDto? dto)
+    private static async Task<NotePdfExportOptions> BuildOptionsAsync(
+        NotePdfExportOptionsDto? dto,
+        Note note,
+        INoteService notes)
     {
         var defaults = new NotePdfExportOptions();
+        var renderSubpages = dto?.RenderSubpageLinks ?? defaults.RenderSubpageLinks;
         return new NotePdfExportOptions
         {
             Paper = ParsePaper(dto?.Paper, defaults.Paper),
+            Landscape = dto?.Landscape ?? defaults.Landscape,
             Margin = ParseMargin(dto?.Margin, defaults.Margin),
             IncludeNoteTitle = dto?.IncludeNoteTitle ?? defaults.IncludeNoteTitle,
+            IncludeTags = dto?.IncludeTags ?? defaults.IncludeTags,
             BaseFontSizePt = dto?.BaseFontSizePt is { } pt && pt is >= 6f and <= 32f ? pt : defaults.BaseFontSizePt,
             PageNumberAlignment = ParseAlignment(dto?.PageNumberAlignment, defaults.PageNumberAlignment),
             PageNumberFormat = ParseFormat(dto?.PageNumberFormat, defaults.PageNumberFormat),
+            PageNumberWordedFormat = Text(dto?.PageNumberWordedFormat, defaults.PageNumberWordedFormat),
             RenderColors = dto?.RenderColors ?? defaults.RenderColors,
             RenderImages = dto?.RenderImages ?? defaults.RenderImages,
+            RenderSubpageLinks = renderSubpages,
+            SubpageTitlesById = renderSubpages
+                ? await ResolveSubpageTitlesAsync(note, notes).ConfigureAwait(false)
+                : null,
+            MissingSubpageTitle = Text(dto?.MissingSubpageTitle, defaults.MissingSubpageTitle),
             // The web host resolves inline color tokens against Dawn directly; no theme is involved.
             BackgroundSwatchHexByName = NotePdfDawnSwatches.Background,
             ForegroundSwatchHexByName = NotePdfDawnSwatches.Foreground,
         };
     }
 
+    /// <summary>
+    /// Titles for the notes this one links to as sub-pages. One read per distinct reference, and only
+    /// when the sub-page rows are actually being printed; a note that links to nothing costs nothing.
+    /// A reference that no longer resolves is left out, and the composer prints the stand-in.
+    /// </summary>
+    private static async Task<IReadOnlyDictionary<string, string>?> ResolveSubpageTitlesAsync(Note note, INoteService notes)
+    {
+        var ids = NotePdfSubpages.CollectReferencedNoteIds(note);
+        if (ids.Count == 0)
+            return null;
+
+        var titles = new Dictionary<string, string>(ids.Count, StringComparer.Ordinal);
+        foreach (var id in ids)
+        {
+            var referenced = await notes.GetNoteAsync(id).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(referenced?.Title))
+                titles[id] = referenced!.Title.Trim();
+        }
+        return titles;
+    }
+
+    private static string Text(string? value, string fallback) =>
+        string.IsNullOrWhiteSpace(value) ? fallback : value!.Trim();
+
     private static NotePdfPaperKind ParsePaper(string? value, NotePdfPaperKind fallback) => value?.Trim().ToLowerInvariant() switch
     {
         "a4" => NotePdfPaperKind.A4,
         "letter" or "us-letter" or "usletter" => NotePdfPaperKind.Letter,
+        "legal" or "us-legal" or "uslegal" => NotePdfPaperKind.Legal,
+        "a5" => NotePdfPaperKind.A5,
         _ => fallback,
     };
 
@@ -125,6 +165,7 @@ public static class NotePdfEndpoints
     {
         "normal" => NotePdfMarginPreset.Normal,
         "narrow" => NotePdfMarginPreset.Narrow,
+        "wide" => NotePdfMarginPreset.Wide,
         _ => fallback,
     };
 
@@ -141,6 +182,7 @@ public static class NotePdfEndpoints
     {
         "current" => NotePdfPageNumberFormat.CurrentPage,
         "currentandtotal" or "current-and-total" or "currenttotal" => NotePdfPageNumberFormat.CurrentAndTotalPages,
+        "worded" or "pageoftotal" or "page-of-total" => NotePdfPageNumberFormat.PageOfTotal,
         _ => fallback,
     };
 
