@@ -33,13 +33,20 @@ internal static class NoteTypstDocumentComposer
 
         EmitPreamble(sb, note, options);
 
-        if (options.IncludeNoteTitle && !string.IsNullOrWhiteSpace(note.Title))
+        var titled = options.IncludeNoteTitle && !string.IsNullOrWhiteSpace(note.Title);
+        if (titled)
         {
             sb.Append("#text(weight: 600, size: ")
               .Append(Pt(options.BaseFontSizePt + 8f))
               .Append(")[").Append(EscapeMarkup(note.Title.Trim())).Append("]\n\n");
-            sb.Append("#line(length: 100%, stroke: 0.5pt + rgb(\"#d0d0d0\"))\n\n");
         }
+
+        var tagged = EmitTags(sb, note, options);
+
+        // The rule closes off whatever masthead there was. Without a title or tags there is nothing
+        // above it, and a line across the top of the first page is just a line.
+        if (titled || tagged)
+            sb.Append("#line(length: 100%, stroke: 0.5pt + rgb(\"#d0d0d0\"))\n\n");
 
         foreach (var block in blocks)
             EmitBlock(sb, block, options, assets);
@@ -54,20 +61,32 @@ internal static class NoteTypstDocumentComposer
         if (!string.IsNullOrWhiteSpace(note.Title))
             sb.Append("#set document(title: \"").Append(EscapeString(note.Title.Trim())).Append("\")\n");
 
-        var paper = options.Paper == NotePdfPaperKind.Letter ? "us-letter" : "a4";
-        var marginCm = options.Margin == NotePdfMarginPreset.Narrow ? "1.2cm" : "2cm";
+        var paper = options.Paper switch
+        {
+            NotePdfPaperKind.Letter => "us-letter",
+            NotePdfPaperKind.Legal => "us-legal",
+            NotePdfPaperKind.A5 => "a5",
+            _ => "a4"
+        };
+        var marginCm = options.Margin switch
+        {
+            NotePdfMarginPreset.Narrow => "1.27cm",
+            NotePdfMarginPreset.Wide => "3.18cm",
+            _ => "2cm"
+        };
         sb.Append("#set page(paper: \"").Append(paper).Append("\", margin: ").Append(marginCm);
+        if (options.Landscape)
+            sb.Append(", flipped: true");
 
         if (options.PageNumberAlignment != NotePdfPageNumberAlignment.None)
         {
-            var pattern = options.PageNumberFormat == NotePdfPageNumberFormat.CurrentAndTotalPages ? "1 / 1" : "1";
             var align = options.PageNumberAlignment switch
             {
                 NotePdfPageNumberAlignment.Left => "left",
                 NotePdfPageNumberAlignment.Right => "right",
                 _ => "center"
             };
-            sb.Append(", numbering: \"").Append(pattern).Append("\", number-align: ").Append(align);
+            sb.Append(", numbering: ").Append(PageNumberPattern(options)).Append(", number-align: ").Append(align);
         }
 
         sb.Append(")\n");
@@ -80,9 +99,90 @@ internal static class NoteTypstDocumentComposer
         sb.Append("#set block(spacing: 10pt)\n\n");
     }
 
+    /// <summary>
+    /// What Typst puts in the page footer.
+    /// </summary>
+    /// <remarks>
+    /// The first two are patterns, where a digit is a counter and everything else is literal. The
+    /// worded form cannot be: a pattern reads <c>a</c>, <c>i</c> and friends as counters too, so
+    /// "Page 1 of 1" prints as "Pbge 7". Words go through a function instead, where the literal parts
+    /// are ordinary content and only the two accessors count anything.
+    /// </remarks>
+    private static string PageNumberPattern(NotePdfExportOptions options)
+    {
+        if (options.PageNumberFormat == NotePdfPageNumberFormat.CurrentPage)
+            return "\"1\"";
+        if (options.PageNumberFormat == NotePdfPageNumberFormat.CurrentAndTotalPages)
+            return "\"1 / 1\"";
+
+        var format = options.PageNumberWordedFormat;
+        if (!format.Contains("{0}", StringComparison.Ordinal) || !format.Contains("{1}", StringComparison.Ordinal))
+            format = new NotePdfExportOptions().PageNumberWordedFormat;
+
+        var body = new StringBuilder();
+        foreach (var part in Regex.Split(format, @"(\{[01]\})"))
+        {
+            if (part.Length == 0)
+                continue;
+            body.Append(part switch
+            {
+                "{0}" => "#n.pos().at(0)",
+                "{1}" => "#n.pos().at(1)",
+                _ => EscapeMarkup(part)
+            });
+        }
+
+        // Variadic because a page numbering function is handed the page and the total together.
+        return "(..n) => [" + body + "]";
+    }
+
+    /// <summary>The note's tags as tinted pills under its title. Returns whether anything was drawn.</summary>
+    private static bool EmitTags(StringBuilder sb, Note note, NotePdfExportOptions options)
+    {
+        if (!options.IncludeTags || note.Tags is not { Count: > 0 })
+            return false;
+
+        var tags = note.Tags
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t.Trim())
+            .ToList();
+        if (tags.Count == 0)
+            return false;
+
+        var size = Pt(Math.Max(7.5f, options.BaseFontSizePt - 2f));
+        sb.Append("#block(below: 8pt)[");
+        for (var i = 0; i < tags.Count; i++)
+        {
+            // A plain space between the pills, not #h: a run of tags has to be allowed to wrap.
+            if (i > 0)
+                sb.Append(' ');
+
+            // The same hue-per-label the editor's chips use, at the lightness a white page wants.
+            var hue = HueOf(tags[i]).ToString(CultureInfo.InvariantCulture);
+            var fill = options.RenderColors ? $"oklch(93%, 0.055, {hue}deg)" : "rgb(\"#f2f2f3\")";
+            var ink = options.RenderColors ? $"oklch(42%, 0.11, {hue}deg)" : "rgb(\"#5f5f5f\")";
+
+            sb.Append("#box(fill: ").Append(fill)
+              .Append(", inset: (x: 5pt, y: 2.5pt), outset: (y: 1.5pt), radius: 999pt)")
+              .Append("[#text(size: ").Append(size).Append(", fill: ").Append(ink).Append(")[")
+              .Append(EscapeMarkup(tags[i])).Append("]]");
+        }
+        sb.Append("]\n\n");
+        return true;
+    }
+
+    // Mirrors the editor's tag chips so a tag keeps its colour from screen to paper.
+    private static int HueOf(string label)
+    {
+        var hash = 0;
+        foreach (var c in label)
+            hash = (hash * 31 + c) % 360;
+        return hash;
+    }
+
     // Prefer structured blocks, fall back to the markdown content string, then to a single text
     // block, so a note from any era still renders.
-    private static List<Block> GetOrderedBlocksForExport(Note note)
+    internal static List<Block> GetOrderedBlocksForExport(Note note)
     {
         if (note.Blocks is { Count: > 0 })
         {
@@ -117,6 +217,8 @@ internal static class NoteTypstDocumentComposer
         switch (block.Type)
         {
             case BlockType.Page:
+                if (options.RenderSubpageLinks)
+                    EmitSubpage(sb, block, options);
                 return;
             case BlockType.ColumnGroup:
                 if (block.Children is { Count: > 0 })
@@ -248,6 +350,36 @@ internal static class NoteTypstDocumentComposer
                 }
                 break;
         }
+    }
+
+    /// <summary>
+    /// A sub-page row. On paper it cannot be followed, so it prints as what it is by then: the name
+    /// of something that lives elsewhere. The leading glyph is drawn rather than typeset, for the same
+    /// reason the list bullet is, and the underline is a rule under a name rather than link blue.
+    /// </summary>
+    private static void EmitSubpage(StringBuilder sb, Block block, NotePdfExportOptions options)
+    {
+        var reference = MatchedPayload<PagePayload>(block)?.ReferenceNoteId;
+        var title = ResolveSubpageTitle(reference, options);
+
+        sb.Append("#block[")
+          .Append("#box(baseline: 0.08em, rect(width: 0.58em, height: 0.76em, radius: 1pt, stroke: 0.6pt + rgb(\"#9e9e9e\")))")
+          .Append("#h(0.45em)")
+          .Append("#underline(stroke: 0.5pt + rgb(\"#cfcfcf\"), offset: 2.5pt)[#text(fill: rgb(\"#3f3f3f\"))[")
+          .Append(EscapeMarkup(title))
+          .Append("]]]\n\n");
+    }
+
+    private static string ResolveSubpageTitle(string? referenceNoteId, NotePdfExportOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(referenceNoteId)
+            && options.SubpageTitlesById is { } titles
+            && titles.TryGetValue(referenceNoteId, out var title)
+            && !string.IsNullOrWhiteSpace(title))
+        {
+            return title.Trim();
+        }
+        return options.MissingSubpageTitle;
     }
 
     private static void EmitHeading(StringBuilder sb, Block block, NotePdfExportOptions options, float sizePt)
