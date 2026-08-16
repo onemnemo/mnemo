@@ -1414,9 +1414,11 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         </div>
       </header>
 
-      {/* The dock and the ring float inside this, not under it, so the map keeps the whole pane. */}
+      {/* The dock and the ring float inside this, not under it, so the map keeps the whole pane. The
+          mark is what a flyout measures itself against before deciding which way to open. */}
       <div
         ref={stage}
+        data-mm-pane
         className="relative min-h-0 flex-1"
         onPointerMove={(event) => {
           const bounds = stage.current?.getBoundingClientRect()

@@ -27,9 +27,40 @@ export const BAR_GAP = 8
  */
 export const BAR_DOCK_CLEARANCE = 64
 
+/** Air between a control and the panel it opens. Matches the offset the panel renders with. */
+export const FLYOUT_GAP = 7
+
+/** How near the edge of its bounds a panel may come before that side counts as too small. */
+export const FLYOUT_EDGE = 8
+
 export interface Size {
   readonly width: number
   readonly height: number
+}
+
+/** Just the two edges a flip is decided by, so callers can pass a DOMRect or a plain object. */
+export interface Span {
+  readonly top: number
+  readonly bottom: number
+}
+
+/**
+ * Which side of its control a flyout opens on.
+ *
+ * Above by preference. Every one of these hangs off a floating bar, and a bar sits over the thing it
+ * is about, so a panel below it covers exactly what the panel is for. Above stops being available
+ * near the top of the pane, where the bar is already clamped against the edge and a panel over it
+ * would be behind the header rather than on screen.
+ *
+ * Neither side fitting is a short window, not a bug, and then the roomier side wins so the panel
+ * loses as little of itself as it can.
+ */
+export function flyoutSide(control: Span, bounds: Span, panelHeight: number): "above" | "below" {
+  const above = control.top - bounds.top
+  if (above >= panelHeight + FLYOUT_GAP + FLYOUT_EDGE) {
+    return "above"
+  }
+  return bounds.bottom - control.bottom > above ? "below" : "above"
 }
 
 /**
