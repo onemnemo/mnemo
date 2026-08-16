@@ -5,9 +5,9 @@ import { create } from 'zustand';
  *
  * A store rather than workspace state because opening a note in a new tab is an
  * action offered from the tree's row menu and the note's own menu, neither of
- * which sits under the component that renders the bar. Kept in memory only, like
- * the tree's expansion, so a reload starts from just the open note rather than
- * restoring a session's worth of tabs nobody asked to keep.
+ * which sits under the component that renders the bar. Kept in memory only, so a
+ * relaunch starts from just the note that was open rather than restoring a
+ * session's worth of tabs nobody asked to keep.
  */
 interface TabsState {
   ids: string[];

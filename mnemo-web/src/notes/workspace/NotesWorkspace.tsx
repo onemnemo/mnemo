@@ -8,21 +8,28 @@ import { isMac } from '@/keybinds/chord';
 import { usePublishTrail } from '@/nav/trail';
 import type { NoteSummaryDto } from '@/api/types';
 
-import { useCreateNote, useNoteFoldersQuery, useNotesQuery } from '../api';
+import { useCreateNote, useNoteFoldersQuery, useNoteQuery, useNotesQuery } from '../api';
 import { NotePdfExportOverlay } from '../pdf/NotePdfExportOverlay';
 import { NoteTransferOverlay } from '../transfer/NoteTransferOverlay';
 import { NoteTreeSidebar, SIDEBAR_WIDTH } from '../tree/NoteTreeSidebar';
 import { NotePane } from './NotePane';
 import { NoteTabs, type NoteTab } from './NoteTabs';
+import {
+  pruneCollapsedFolders,
+  readCollapsedFolders,
+  readLastNoteId,
+  rememberCollapsedFolders,
+  rememberLastNoteId,
+} from './session';
 import { useNoteTabs } from './tabs';
 import { SidebarExpandButton } from './SidebarExpandButton';
 import { notesTrailCrumbs } from './trail';
 
 /**
  * The notes workspace: the tree sidebar beside the editor, one surface rather
- * than a list that navigates away to a note. The sidebar's open state, the
- * collapsed folders and the search live here, in memory, never read from disk,
- * so a reload starts from a clean, predictable tree.
+ * than a list that navigates away to a note. Which note is open and which
+ * folders are shut are remembered across visits, as on the desktop; the
+ * sidebar's own open state and the search are this visit's, in memory.
  */
 export function NotesWorkspace({ noteId }: { noteId?: string }) {
   const t = useT();
@@ -33,7 +40,7 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
   const createNote = useCreateNote();
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(readCollapsedFolders);
   const [search, setSearch] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -71,6 +78,51 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
     if (noteId) openTab(noteId);
   }, [noteId, openTab]);
 
+  // The open note is remembered so the next visit lands back on it, whether that
+  // visit is a relaunch or a trip through another module.
+  useEffect(() => {
+    if (noteId) rememberLastNoteId(noteId);
+  }, [noteId]);
+
+  // Shares the cache entry the pane reads, so this costs no extra request. Only
+  // a 404 counts as gone: a read that failed for any other reason keeps the
+  // pane's retry, rather than treating a dropped connection as a deletion.
+  const openNote = useNoteQuery(noteId);
+  const noteGone = Boolean(noteId) && openNote.error?.status === 404;
+
+  useEffect(() => {
+    if (!noteGone || !noteId) return;
+    rememberLastNoteId(null);
+    dropTab(noteId);
+    navigate('notes');
+  }, [noteGone, noteId, dropTab]);
+
+  // Reopening the remembered note, once per visit: closing the last tab lands
+  // back here on purpose, and a second restore would undo it.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    // A note in the address bar already answers the question this is asking.
+    if (noteId) {
+      restored.current = true;
+      return;
+    }
+    if (notesQuery.isPending || notesQuery.isError) return;
+    restored.current = true;
+
+    const remembered = readLastNoteId();
+    if (!remembered) return;
+    // Checked against the list rather than opened hopefully: a note that has
+    // been deleted since should leave the empty state up, not flash a pane that
+    // can only fail.
+    if (!notes.some((note) => note.id === remembered)) {
+      rememberLastNoteId(null);
+      return;
+    }
+    navigate('notes', remembered);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteId, notes, notesQuery.isPending, notesQuery.isError]);
+
   // Rendered tabs: the open ids that still name a real note, titled and iconed
   // from the summaries, so a deleted note drops out rather than showing a stub.
   const tabs = useMemo<NoteTab[]>(
@@ -92,8 +144,14 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
       // Closing the note you are on falls through to a neighbour rather than
       // leaving the pane empty with tabs still open beside it.
       const fallback = ids[index + 1] ?? ids[index - 1] ?? null;
-      if (fallback) navigate('notes', fallback);
-      else navigate('notes');
+      if (fallback) {
+        navigate('notes', fallback);
+      } else {
+        // Closing the last one is a decision to be on no note, so the next visit
+        // should not undo it by reopening what was just closed.
+        rememberLastNoteId(null);
+        navigate('notes');
+      }
     },
     [tabs, noteId, dropTab],
   );
@@ -106,6 +164,19 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    rememberCollapsedFolders(collapsed);
+  }, [collapsed]);
+
+  // A folder that has been deleted keeps no place in the stored set, which would
+  // otherwise grow for the life of the install and could collapse an unrelated
+  // row if an id were ever reused.
+  useEffect(() => {
+    const loaded = foldersQuery.data;
+    if (!loaded) return;
+    setCollapsed((prev) => pruneCollapsedFolders(prev, loaded.map((folder) => folder.id)));
+  }, [foldersQuery.data]);
 
   const newNote = useCallback(async () => {
     const created = await createNote.mutateAsync({});
@@ -177,7 +248,7 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
             onExpandSidebar={sidebarOpen ? undefined : () => setSidebarOpen(true)}
           />
         ) : null}
-        {noteId ? (
+        {noteId && !noteGone ? (
           <div className="min-h-0 flex-1">
             <NotePane noteId={noteId} />
           </div>
