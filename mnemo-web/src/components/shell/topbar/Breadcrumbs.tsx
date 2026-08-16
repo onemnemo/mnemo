@@ -1,3 +1,4 @@
+import { RouteLink } from "@/app/RouteLink"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { cn } from "@/lib/utils"
 import type { Crumb } from "@/nav/trail"
@@ -53,9 +54,9 @@ export function Breadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
           <div key={`${crumb.label}-${index}`} className="flex min-w-0 shrink items-center gap-0.5">
             {index > 0 && <Separator />}
             {crumb.href && !last ? (
-              <a href={crumb.href} title={crumb.label} className={className} style={{ transitionDuration: "var(--duration-fast)" }}>
+              <RouteLink to={crumb.href} title={crumb.label} className={className} style={{ transitionDuration: "var(--duration-fast)" }}>
                 {content}
-              </a>
+              </RouteLink>
             ) : (
               <span title={crumb.label} className={className}>
                 {content}

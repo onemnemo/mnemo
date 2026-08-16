@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { DropdownMenu, Popover } from "radix-ui"
 
+import { RouteLink } from "@/app/RouteLink"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { agoLabel, bucketOf, NOTIFICATION_MARK, type Bucket } from "@/components/shell/topbar/notification-model"
 import { useT } from "@/i18n/useT"
@@ -180,8 +181,8 @@ function Row({ entry, now, onNavigate }: { entry: NotificationEntry; now: number
             </p>
             {entry.description && <p className="mt-0.5 pr-6 text-[12px] leading-[16px] text-ink-3">{entry.description}</p>}
             {entry.action && (
-              <a
-                href={entry.action.href}
+              <RouteLink
+                to={entry.action.href}
                 onClick={(event) => {
                   event.stopPropagation()
                   useToastStore.getState().markRead(entry.id)
@@ -191,7 +192,7 @@ function Row({ entry, now, onNavigate }: { entry: NotificationEntry; now: number
                 style={{ transitionDuration: "var(--duration-fast)" }}
               >
                 {entry.action.label}
-              </a>
+              </RouteLink>
             )}
           </div>
 

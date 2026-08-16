@@ -1,3 +1,4 @@
+import { RouteLink } from "@/app/RouteLink"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 
@@ -21,12 +22,12 @@ export function FailureNotice({ notice, onRetry }: FailureNoticeProps) {
         <p className="text-body-small text-text-secondary">{notice.text}</p>
         <div className="mt-2">
           {isMissingKey ? (
-            <a
-              href="#/settings"
+            <RouteLink
+              to="#/settings"
               className="inline-flex items-center rounded-md bg-brand px-2.5 py-1 text-body-extra-small font-medium text-primary-foreground transition-opacity hover:opacity-90"
             >
               {t("Chat", "OpenSettings")}
-            </a>
+            </RouteLink>
           ) : onRetry ? (
             <button
               type="button"

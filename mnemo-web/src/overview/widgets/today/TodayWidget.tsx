@@ -1,3 +1,4 @@
+import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
@@ -56,11 +57,12 @@ export function TodayWidget({ instance, manifest, renderColumns }: WidgetProps) 
   ]
 
   const study = (
-    <Button asChild className="shrink-0">
-      <a href="#/flashcards">
-        <AppIcon name="play" size={14} strokeWidth={0} className="fill-current" />
-        {t(NS, "Study")}
-      </a>
+    <Button
+      className="shrink-0"
+      icon={<AppIcon name="play" size={14} strokeWidth={0} className="fill-current" />}
+      onClick={() => navigate("flashcards")}
+    >
+      {t(NS, "Study")}
     </Button>
   )
 
