@@ -928,10 +928,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   /**
    * The align controls, or null when this selection is not something to line up.
    *
-   * Free elements only, and two or more of them. A node's position is the layout's to decide, and
-   * moving one writes a pin, so lining a branch up against a shape would quietly take that branch out
-   * of the arrangement it was in. A selection mixing the two gets no bar rather than a bar that only
-   * moves half of what is highlighted.
+   * Free elements only, and two or more of them. A node's position is the layout's to decide, so a
+   * branch lined up against a shape would come apart at the next arrange and the control would read
+   * as broken. A selection mixing the two gets no bar rather than a bar that only moves half of what
+   * is highlighted.
    */
   const align = useMemo((): AlignControl | null => {
     if (!scene || selection.elements.size < ALIGN_MIN) {
