@@ -5,9 +5,12 @@ import {
   BAR_DOCK_CLEARANCE,
   BAR_GAP,
   BAR_LIFT,
+  FLYOUT_EDGE,
+  FLYOUT_GAP,
   boxesAnchor,
   clampBar,
   edgeAnchor,
+  flyoutSide,
   nextPlacement,
 } from "./anchor"
 
@@ -108,6 +111,46 @@ describe("nextPlacement", () => {
 
     expect(first!.at).toEqual(second!.at)
     expect(second!.anchor).not.toEqual(first!.anchor)
+  })
+})
+
+describe("flyoutSide", () => {
+  // The pane, offset the way a real one is: the map starts below the app's header.
+  const PANE_SPAN = { top: 120, bottom: 820 }
+
+  it("opens above a control with room over it", () => {
+    expect(flyoutSide({ top: 500, bottom: 540 }, PANE_SPAN, 200)).toBe("above")
+  })
+
+  it("keeps a panel that fits above exactly, above", () => {
+    const control = { top: PANE_SPAN.top + 200 + FLYOUT_GAP + FLYOUT_EDGE, bottom: 900 }
+
+    expect(flyoutSide(control, PANE_SPAN, 200)).toBe("above")
+  })
+
+  it("flips below a bar clamped against the top of the pane", () => {
+    // Where the old panel went behind the header: a node near the top of the map has its bar pushed
+    // down to the pane's edge, and there is nothing above it to open into.
+    const control = { top: PANE_SPAN.top + BAR_GAP, bottom: PANE_SPAN.top + BAR_GAP + 40 }
+
+    expect(flyoutSide(control, PANE_SPAN, 200)).toBe("below")
+  })
+
+  it("takes the roomier side when the pane is too short for either", () => {
+    // A window dragged short has no side that fits. Losing the bottom of a panel beats losing its top.
+    const short = { top: 0, bottom: 300 }
+
+    expect(flyoutSide({ top: 80, bottom: 120 }, short, 400)).toBe("below")
+    expect(flyoutSide({ top: 200, bottom: 240 }, short, 400)).toBe("above")
+  })
+
+  it("measures against the pane rather than the window", () => {
+    // The same control, judged twice. Against the window it has 300 pixels over it and stays above;
+    // against the pane it has 60 and has to flip, because the rest of that space is the header.
+    const control = { top: 300, bottom: 340 }
+
+    expect(flyoutSide(control, { top: 0, bottom: 900 }, 220)).toBe("above")
+    expect(flyoutSide(control, { top: 240, bottom: 900 }, 220)).toBe("below")
   })
 })
 
