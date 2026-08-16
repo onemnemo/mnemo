@@ -55,6 +55,8 @@ public sealed class UpdateStatusWireTests
             AvailableVersion: "0.9.0",
             ReleaseNotesMarkdown: null,
             DownloadProgress: 40,
+            ShouldPrompt: true,
+            Skipped: false,
             Error: null);
 
         var wire = JsonSerializer.Serialize(status, WireJson);
@@ -63,6 +65,8 @@ public sealed class UpdateStatusWireTests
         // Hand-mirrored in mnemo-web/src/updates/types.ts, which reads these exact names.
         Assert.Contains("\"supportsInAppApply\":true", wire);
         Assert.Contains("\"awaitingChannelCatchUp\":false", wire);
+        Assert.Contains("\"shouldPrompt\":true", wire);
+        Assert.Contains("\"skipped\":false", wire);
         Assert.Contains("\"availableVersion\":\"0.9.0\"", wire);
         Assert.Contains("\"downloadProgress\":40", wire);
         Assert.Contains("\"lastCheckedUtc\":", wire);

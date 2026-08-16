@@ -41,6 +41,20 @@ export interface UpdateStatus {
   releaseNotesMarkdown: string | null
   /** 0 to 100, meaningful while the stage is Downloading. */
   downloadProgress: number
+  /**
+   * Whether the app may raise a toast about `availableVersion` on its own. False once the
+   * user has answered "Later" or skipped it. The host decides, because the answer is
+   * stored and outlives this window.
+   */
+  shouldPrompt: boolean
+  /** The available version is skipped: it is still installable, it just stops asking. */
+  skipped: boolean
   /** A code, not a sentence: the UI holds the wording. Null unless the stage is Failed. */
   error: string | null
+}
+
+/** The one-shot answer to "did this launch come out of an update?". */
+export interface UpdateLaunchNotice {
+  /** The version this build was updated into, on the first launch after it and only then. */
+  updatedToVersion: string | null
 }

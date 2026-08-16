@@ -247,7 +247,7 @@ public sealed class UpdateCoordinatorTests
         await world.ReachReady();
         Assert.True(world.Coordinator.CanApply);
 
-        world.Coordinator.Apply();
+        await world.Coordinator.ApplyAsync();
         Assert.Equal(1, world.Updates.Applies);
     }
 
@@ -267,6 +267,169 @@ public sealed class UpdateCoordinatorTests
         Assert.Equal("0.9.0", world.Events.Statuses[^1].AvailableVersion);
     }
 
+    [Fact]
+    public async Task AFoundUpdateIsWorthPromptingAboutUntilSomeoneSaysOtherwise()
+    {
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+
+        var status = await world.Coordinator.CheckAsync(automatic: true);
+
+        Assert.True(status.ShouldPrompt);
+        Assert.False(status.Skipped);
+    }
+
+    [Fact]
+    public async Task NothingFoundIsNothingToPromptAbout()
+    {
+        var world = new World();
+
+        var status = await world.Coordinator.CheckAsync(automatic: true);
+
+        Assert.False(status.ShouldPrompt);
+        Assert.False(status.Skipped);
+    }
+
+    [Fact]
+    public async Task LaterHoldsThePromptOffWithoutHidingTheUpdate()
+    {
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: true);
+
+        var status = await world.Coordinator.SnoozeAsync();
+
+        Assert.False(status.ShouldPrompt);
+        // The row keeps offering it. "Not now" is not "never".
+        Assert.Equal(UpdateStage.Available, status.Stage);
+        Assert.Equal("0.9.0", status.AvailableVersion);
+    }
+
+    [Fact]
+    public async Task ASnoozeSurvivesTheNextCheck()
+    {
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: true);
+        await world.Coordinator.SnoozeAsync();
+
+        // The gate is re-read on every check, so a snooze that only lived in memory
+        // would be spent by the next one rather than by the day it asked for.
+        var status = await world.Coordinator.CheckAsync(automatic: false);
+
+        Assert.False(status.ShouldPrompt);
+    }
+
+    [Fact]
+    public async Task ASnoozeEndsAfterTwoLaunches()
+    {
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: true);
+        await world.Coordinator.SnoozeAsync();
+
+        // One launch per process, which is why each takes its own coordinator over the
+        // same settings.
+        Assert.Equal(UpdateCoordinator.SnoozeLaunches, await world.Settings.GetAsync<int?>(UpdateSettingsKeys.SnoozeLaunchesRemaining));
+        await world.NextLaunch().BeginLaunchAsync();
+        await world.NextLaunch().BeginLaunchAsync();
+
+        var status = await world.Coordinator.CheckAsync(automatic: false);
+        Assert.True(status.ShouldPrompt);
+    }
+
+    [Fact]
+    public async Task ALaunchSpendsOneSnoozeNoMatterHowOftenItIsReported()
+    {
+        var world = new World();
+        await world.Settings.SetAsync(UpdateSettingsKeys.SnoozeLaunchesRemaining, 2);
+
+        await world.Coordinator.BeginLaunchAsync();
+        // A reload is not a launch: the window comes back, the process does not.
+        await world.Coordinator.BeginLaunchAsync();
+
+        Assert.Equal(1, await world.Settings.GetAsync<int?>(UpdateSettingsKeys.SnoozeLaunchesRemaining));
+    }
+
+    [Fact]
+    public async Task SkippingStopsThePromptAndNotTheUpdate()
+    {
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: true);
+
+        var status = await world.Coordinator.SkipAvailableVersionAsync();
+
+        Assert.True(status.Skipped);
+        Assert.False(status.ShouldPrompt);
+        Assert.Equal(UpdateStage.Available, status.Stage);
+        Assert.Equal("0.9.0", await world.Settings.GetAsync<string?>(UpdateSettingsKeys.SkippedVersion));
+    }
+
+    [Fact]
+    public async Task ASkipCoversOnlyTheVersionItWasAskedFor()
+    {
+        var world = new World();
+        await world.Settings.SetAsync(UpdateSettingsKeys.SkippedVersion, "0.9.0");
+
+        // Manual checks, because the second automatic one inside six hours would be
+        // declined by the cooldown and answer with the first one's status.
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        Assert.False((await world.Coordinator.CheckAsync(automatic: false)).ShouldPrompt);
+
+        world.Updates.Available = new AppUpdateInfo("0.9.1", null, null, false);
+        var status = await world.Coordinator.CheckAsync(automatic: false);
+
+        // Skipping one release is not opting out of the next one.
+        Assert.True(status.ShouldPrompt);
+        Assert.False(status.Skipped);
+    }
+
+    [Fact]
+    public async Task SkippingWithNothingFoundChangesNothing()
+    {
+        var world = new World();
+
+        var status = await world.Coordinator.SkipAvailableVersionAsync();
+
+        Assert.False(status.Skipped);
+        Assert.Null(await world.Settings.GetAsync<string?>(UpdateSettingsKeys.SkippedVersion));
+    }
+
+    [Fact]
+    public async Task TheVersionIsWrittenDownBeforeTheProcessIsReplaced()
+    {
+        var world = new World();
+        await world.ReachReady();
+
+        await world.Coordinator.ApplyAsync();
+
+        // The only process that knows an update was applied is the one about to stop
+        // existing, so the next build reads this rather than working it out.
+        Assert.Equal("0.9.0", await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingPostUpdateToastVersion));
+    }
+
+    [Fact]
+    public async Task TheLaunchAfterAnUpdateSaysSoOnce()
+    {
+        var world = new World();
+        await world.ReachReady();
+        await world.Coordinator.ApplyAsync();
+
+        var next = world.NextLaunch();
+        Assert.Equal("0.9.0", await next.BeginLaunchAsync());
+        // Cleared as it is read: a marker left on disk would say it again every launch.
+        Assert.Null(await world.NextLaunch().BeginLaunchAsync());
+    }
+
+    [Fact]
+    public async Task ALaunchThatDidNotComeOutOfAnUpdateSaysNothing()
+    {
+        var world = new World();
+
+        Assert.Null(await world.Coordinator.BeginLaunchAsync());
+    }
+
     /// <summary>The coordinator and the four things it talks to.</summary>
     private sealed class World
     {
@@ -276,6 +439,13 @@ public sealed class UpdateCoordinatorTests
         public UpdateCoordinator Coordinator { get; }
 
         public World() => Coordinator = new UpdateCoordinator(Updates, Settings, Events, new SilentLogger());
+
+        /// <summary>
+        /// A second coordinator over the same settings, standing in for the next run of the
+        /// app. Launch bookkeeping happens once per process, so restarting is the only way
+        /// to reach it twice.
+        /// </summary>
+        public UpdateCoordinator NextLaunch() => new(Updates, Settings, Events, new SilentLogger());
 
         /// <summary>Finds an update, downloads it and waits for the staged state.</summary>
         public async Task ReachReady()
