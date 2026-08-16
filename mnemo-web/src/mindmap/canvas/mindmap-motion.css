@@ -1,0 +1,15 @@
+/*
+ * The compositing hint, as CSS.
+ *
+ * One attribute on the world, written by `motion.ts` while the map is moving and taken off shortly
+ * after it stops, in the same shape as the level of detail bands next door: promoting a mapful of
+ * elements is one DOM write rather than one per element.
+ *
+ * Off, the world and its elements raster at the zoom the camera settled at, which is the whole
+ * point (see `motion.ts` for what leaving the hint on does to a map that has been zoomed into). On,
+ * they are layers a gesture moves without repainting them.
+ */
+.mm-world[data-mm-motion],
+[data-mm-motion] .mm-node {
+  will-change: transform;
+}

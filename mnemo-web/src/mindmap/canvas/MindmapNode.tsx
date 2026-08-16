@@ -60,7 +60,7 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
 
   return (
     <div
-      className="mm-node group absolute left-0 top-0 select-none will-change-transform"
+      className="mm-node group absolute left-0 top-0 select-none"
       data-mm-id={element.id}
       style={{
         transform: `translate(${element.x}px, ${element.y}px)`,
@@ -539,7 +539,7 @@ function FrameBody({ element, editing, onEditEnd }: MindmapNodeProps) {
 
   return (
     <div
-      className="mm-node mm-frame group pointer-events-none absolute left-0 top-0 select-none will-change-transform"
+      className="mm-node mm-frame group pointer-events-none absolute left-0 top-0 select-none"
       data-mm-id={element.id}
       style={{
         transform: `translate(${element.x}px, ${element.y}px)`,

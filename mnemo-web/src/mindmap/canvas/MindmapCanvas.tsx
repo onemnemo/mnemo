@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "re
 import { cn } from "@/lib/utils"
 
 import "./mindmap-lod.css"
+import "./mindmap-motion.css"
 
 import { initialHybridMode } from "./edge-strategy"
 import type { EdgeMode } from "./edge-style"
@@ -291,7 +292,7 @@ export function MindmapCanvas({
 
       <MindmapSelectionLayer scene={scene} edgeIds={selection.edges} cameraRef={overlayCamera} />
 
-      <div ref={world} className="absolute left-0 top-0 origin-top-left will-change-transform">
+      <div ref={world} className="mm-world absolute left-0 top-0 origin-top-left">
         {scene.elements.map((element) => (
           <MindmapNode
             key={element.id}
