@@ -94,7 +94,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          # Has to track the major the lockfile is written on. npm 10 and npm 11 record
+          # optional platform-specific packages differently, and npm ci refuses a lockfile
+          # it would not have written itself, so a mismatch fails the build before it starts.
+          node-version: "24"
           cache: npm
           cache-dependency-path: mnemo-web/package-lock.json
 
