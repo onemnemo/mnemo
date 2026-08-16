@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 
+import { installExitConfirm } from "@/app/exit-confirm"
 import { useRouteNormalization } from "@/app/router"
 import { AppShell } from "@/components/shell/AppShell"
 import { DialogHost } from "@/components/shell/DialogHost"
@@ -26,6 +27,8 @@ function App() {
   useRouteNormalization()
 
   useEffect(() => installContextMenuGuard(), [])
+
+  useEffect(() => installExitConfirm(), [])
 
   // global.assistant toggles the dock rather than navigating: the point of Soma is
   // that it comes to the work, and a shortcut that throws away the page you were

@@ -58,6 +58,15 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
             description: "LaunchAtStartupDescription",
             defaultValue: false,
           },
+          // Grouped with startup rather than given a group of its own: this and the
+          // row above are the two ends of a session, and neither fills a section.
+          {
+            kind: "toggle",
+            key: "App.ConfirmExit",
+            title: "ConfirmExit",
+            description: "ConfirmExitDescription",
+            defaultValue: true,
+          },
           {
             kind: "dropdown",
             key: "App.OpenTo",

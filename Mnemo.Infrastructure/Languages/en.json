@@ -148,6 +148,8 @@
     "DisplayNameDescription": "Used where the app greets you, and on anything you export.",
     "LaunchAtStartup": "Launch at startup",
     "LaunchAtStartupDescription": "Start Mnemo when you sign in.",
+    "ConfirmExit": "Ask before closing",
+    "ConfirmExitDescription": "Show a confirmation when you close the window.",
     "ClearCache": "Clear Cache",
     "ClearCacheDescription": "Delete cached data to free disk space.",
     "ClearNow": "Clear Now",

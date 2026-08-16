@@ -149,6 +149,8 @@
     "DisplayNameDescription": "共有したノートで他のユーザーに表示される名前です。",
     "LaunchAtStartup": "起動時に自動開始",
     "LaunchAtStartupDescription": "ログイン時にMnemoを自動的に起動させます。",
+    "ConfirmExit": "終了前に確認する",
+    "ConfirmExitDescription": "ウィンドウを閉じるときに確認画面を表示します。",
     "ClearCache": "キャッシュクリア",
     "ClearCacheDescription": "一時ファイルを削除してスペースを開放します。",
     "ClearNow": "現在クリア",

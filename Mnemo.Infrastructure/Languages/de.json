@@ -149,6 +149,8 @@
     "DisplayNameDescription": "Ihre Name wird anderen Nutzern sichtbar, wenn Sie Notizen teilen.",
     "LaunchAtStartup": "Start bei Systemstart",
     "LaunchAtStartupDescription": "Automatisch starten Mnemo beim Anmelden.",
+    "ConfirmExit": "Vor dem Schließen fragen",
+    "ConfirmExitDescription": "Zeigt eine Bestätigung an, wenn du das Fenster schließt.",
     "ClearCache": "Cache löschen",
     "ClearCacheDescription": "Lösche alle temporären Dateien, um Platz freizugeben.",
     "ClearNow": "Jetzt löschen",

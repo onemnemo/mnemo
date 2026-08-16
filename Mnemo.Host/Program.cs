@@ -319,9 +319,20 @@ public static class Program
 
             _ = Task.Run(async () =>
             {
-                var ready = await gate.WaitForReadyAsync(ShutdownGrace).ConfigureAwait(false);
-                if (!ready)
-                    logger.Warning(CrashLog.Category, "No client reported ready before the shutdown grace expired; closing anyway.");
+                var verdict = await gate.WaitForVerdictAsync(ShutdownGrace).ConfigureAwait(false);
+
+                if (verdict == ShutdownVerdict.Cancelled)
+                {
+                    // Re-armed rather than left claimed: the window is still open, and a
+                    // drain that stays spent would let the next close through with no
+                    // save and no prompt.
+                    gate.Reset();
+                    return;
+                }
+
+                if (verdict == ShutdownVerdict.TimedOut)
+                    logger.Warning(CrashLog.Category, "No client answered before the shutdown grace expired; closing anyway.");
+
                 window.Invoke(window.Close);
             });
         });
