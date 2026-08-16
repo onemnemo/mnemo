@@ -286,6 +286,13 @@ jobs:
       # One feed root per RID, with every channel inside it. The app asks the same root
       # for releases.{channel}.json, which is how someone switches track without
       # reinstalling.
+      #
+      # This is the whole site: deploy-pages replaces what is published rather than
+      # merging into it. The six 0.6.x paths under updates/stable are therefore retired
+      # by their absence here, on purpose. They served a different Velopack app id, so no
+      # 0.6.x install could ever have reached 0.8.0 through them, 0.6.5 was the last
+      # release they had left to hand out, and carrying them cost roughly 750 MB of the
+      # 1 GB this site is allowed. Anyone still on 0.6.x installs 0.8.0 by hand.
       - name: Build update feed site payload
         shell: bash
         run: |
@@ -299,40 +306,6 @@ jobs:
             mkdir -p "feed/updates/$rid"
             find "$src" -maxdepth 1 -type f \( -name '*.nupkg' -o -name 'RELEASES-*' -o -name 'releases.*.json' -o -name 'assets.*.json' \) -exec cp -t "feed/updates/$rid/" {} +
           done
-
-      # The 0.6.x installs are a different Velopack app id and can never be updated from
-      # the feed above, so this copies their last release forward untouched rather than
-      # publishing anything new to it. Deploying without it would leave those installs
-      # checking a path that has stopped existing.
-      - name: Preserve the retired 0.6.x feed
-        shell: bash
-        env:
-          RETIRED: https://onemnemo.github.io/mnemo/updates/stable
-        run: |
-          set -euo pipefail
-          mkdir -p retired
-          code="$(curl -sS -o retired/releases.stable.json -w '%{http_code}' "$RETIRED/releases.stable.json")"
-          if [ "$code" = "404" ]; then
-            echo "note: nothing left to preserve"
-            exit 0
-          fi
-          if [ "$code" != "200" ]; then
-            echo "::error::$RETIRED/releases.stable.json answered $code"
-            exit 1
-          fi
-
-          for f in assets.stable.json RELEASES-stable; do
-            curl -fsS -o "retired/$f" "$RETIRED/$f"
-          done
-          jq -r '.Assets[].FileName' retired/releases.stable.json | while read -r name; do
-            curl -fsS -o "retired/$name" "$RETIRED/$name"
-          done
-
-          # Both paths are live: 0.6.1 and 0.6.2 read the root, 0.6.3 and later read the
-          # RID folder under it.
-          mkdir -p feed/updates/stable/win-x64
-          cp retired/* feed/updates/stable/
-          cp retired/* feed/updates/stable/win-x64/
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
