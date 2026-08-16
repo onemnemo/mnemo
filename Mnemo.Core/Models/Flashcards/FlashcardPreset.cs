@@ -24,7 +24,7 @@ public sealed record FlashcardPreset(
     /// <summary>Id of the seeded default preset that every legacy deck is attached to on migration.</summary>
     public const string StandardPresetId = "preset-standard";
 
-    /// <summary>Builds the default "Standard" preset with FSRS-5 defaults.</summary>
+    /// <summary>Builds the default "Standard" preset with FSRS-6 defaults.</summary>
     public static FlashcardPreset CreateStandard(DateTimeOffset now) => new(
         Id: StandardPresetId,
         Name: "Standard",

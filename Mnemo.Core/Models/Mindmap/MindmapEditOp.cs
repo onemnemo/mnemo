@@ -30,6 +30,13 @@ public sealed record MindmapNodeSpec
 
     /// <summary>Optional explicit Y; see <see cref="X"/>.</summary>
     public double? Y { get; init; }
+
+    /// <summary>
+    /// Overrides what a position implies about pinning. False places the node at <see cref="X"/>/<see cref="Y"/>
+    /// without pinning it: the coordinate is the app's guess at somewhere reasonable rather than a spot the
+    /// author chose, so the next arrange is free to flow it into the tree.
+    /// </summary>
+    public bool? Pin { get; init; }
 }
 
 /// <summary>Insert a nested subtree. No <see cref="Under"/> = a new floating cluster. Returns an id map.</summary>
@@ -72,7 +79,10 @@ public sealed record SetOp : MindmapEditOp
     public double? Height { get; init; }
 }
 
-/// <summary>Reparent a node (cycle-checked) or reposition an element. Repositioning implies pinning.</summary>
+/// <summary>
+/// Reparent a node (cycle-checked) or reposition an element. Repositioning implies pinning unless
+/// <see cref="Pin"/> says otherwise.
+/// </summary>
 public sealed record MoveOp : MindmapEditOp
 {
     public required string Id { get; init; }
@@ -88,6 +98,12 @@ public sealed record MoveOp : MindmapEditOp
 
     /// <summary>New Y (set together with <see cref="X"/> to reposition).</summary>
     public double? Y { get; init; }
+
+    /// <summary>
+    /// Overrides what a reposition implies about pinning. False moves the element without pinning it,
+    /// which is how a layout pass says "this is where it landed" rather than "the author wants it here".
+    /// </summary>
+    public bool? Pin { get; init; }
 }
 
 /// <summary>Delete elements, cascading through hierarchy subtrees. Deleting a frame orphans its members.</summary>
@@ -156,6 +172,18 @@ public sealed record LayoutOp : MindmapEditOp
     public string? TemplateId { get; init; }
 
     public LayoutOptions? Options { get; init; }
+
+    /// <summary>
+    /// Document-wide edge defaults, merged onto whatever the canvas already carries. Only meaningful
+    /// with no <see cref="Root"/>: an edge default is a property of the map, not of one cluster.
+    /// </summary>
+    public EdgeStyle? EdgeDefaults { get; init; }
+
+    /// <summary>
+    /// What the map sits on. Document-wide for the same reason the edge defaults are: a surface is a
+    /// property of the map rather than of one tree on it.
+    /// </summary>
+    public CanvasBackground? Background { get; init; }
 }
 
 /// <summary>Create a free (non-node) element: shape, free text, canvas image or frame.</summary>

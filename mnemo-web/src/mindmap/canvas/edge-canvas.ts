@@ -1,0 +1,463 @@
+/**
+ * Edge strokes on a single 2D canvas.
+ *
+ * The SVG edge layer costs a fixed frame per gesture that has nothing to do with how many edges
+ * are on screen: switching edges off entirely moved three scenarios from 30fps to a clean 60,
+ * and culling the paths down to the viewport shrank the cost without removing that fixed frame.
+ * Chromium's invalidation for an SVG child is far coarser than the child, so the paths are not
+ * really what is being paid for. A canvas has no retained children to invalidate: a redraw costs
+ * what it draws, which is the property this module exists to price.
+ *
+ * Labels are NOT drawn here. They stay DOM divs in the existing label layer, because canvas text
+ * goes through a different layout and rasterisation path than DOM text and would not match it.
+ * Moving the labels too would change what is on screen and leave the two modes incomparable on
+ * the one thing being measured.
+ */
+
+import type { ArrowCap, SceneEdge } from '../model/scene'
+import type { Viewport } from '../model/scene'
+import {
+  anchorsFor,
+  branchShape,
+  capsOf,
+  edgeShape,
+  railsFor,
+  type EdgeStroke,
+  type ElementBox,
+} from './edge-paths'
+import { strokeStyleFor, type EdgeStrokeStyle } from './edge-style'
+
+/**
+ * Only the parts of a 2D context this renderer touches.
+ *
+ * Structural rather than `CanvasRenderingContext2D` so the tests can drive it with a recording
+ * fake: jsdom ships no 2D context at all, and a renderer that can only be exercised in a real
+ * browser is a renderer whose geometry is checked by looking at it.
+ */
+export interface EdgeCanvasContext {
+  /** Widened to the real context's type so a live `CanvasRenderingContext2D` still satisfies it. */
+  strokeStyle: string | CanvasGradient | CanvasPattern
+  fillStyle: string | CanvasGradient | CanvasPattern
+  lineWidth: number
+  setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void
+  clearRect(x: number, y: number, width: number, height: number): void
+  setLineDash(segments: number[]): void
+  beginPath(): void
+  moveTo(x: number, y: number): void
+  lineTo(x: number, y: number): void
+  bezierCurveTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): void
+  closePath(): void
+  stroke(): void
+  fill(): void
+}
+
+/** The backing store, which is all the renderer needs of the element itself. */
+export interface EdgeCanvasSurface {
+  width: number
+  height: number
+}
+
+export interface EdgeCanvasDeps {
+  readonly canvas: EdgeCanvasSurface
+  readonly context: EdgeCanvasContext
+  readonly edges: readonly SceneEdge[]
+  /** Live boxes, so a redraw mid-drag follows the elements rather than the fixture. */
+  boxOf(elementId: string): ElementBox | undefined
+  /**
+   * Turns a scene colour into one a canvas can paint with.
+   *
+   * The scene stores theme variables, which a 2D context ignores without complaint. Injected rather
+   * than resolved here so this module stays free of the DOM and its tests keep driving it with a
+   * recording fake.
+   */
+  resolveColor?(color: string): string
+}
+
+export interface EdgeCanvasRenderer {
+  /** CSS size and device pixel ratio. A no-op when nothing changed; see below. */
+  resize(width: number, height: number, dpr: number): void
+  /**
+   * Drops the cached geometry for these edges, because an endpoint moved.
+   *
+   * Everything else keeps its cache. A pan moves the camera, not the elements, so a whole pan
+   * runs without recomputing a single curve; only a drag or a relayout dirties anything.
+   */
+  invalidate(edgeIds: Iterable<string>): void
+  /** Drops every cached curve, for a relayout that moved the whole document. */
+  invalidateAll(): void
+  /**
+   * Drops the resolved colours, for a theme change.
+   *
+   * Separate from the geometry: a theme flip does not move a single control point, and rebuilding
+   * every curve to repaint them would be the most expensive way to change a colour.
+   */
+  invalidateStyles(): void
+  /**
+   * Strokes exactly these edges, in this camera. Everything else is simply not drawn.
+   *
+   * Returns how many were actually traced, which is not the same as how many were asked for: an
+   * id with no edge behind it, or an edge with a missing endpoint, is skipped. The caller uses it
+   * to tell "drew nothing because nothing was visible" apart from "drew nothing because the draw
+   * path is broken", and those two look identical in a frame histogram.
+   */
+  draw(viewport: Viewport, visibleEdgeIds: Iterable<string>): number
+  dispose(): void
+}
+
+const NO_DASH: number[] = []
+const NO_NUMBERS: readonly number[] = []
+
+/**
+ * A curve flattened to plain numbers, cached per edge.
+ *
+ * Rebuilding geometry every frame was the mistake this replaces, and it was not a small one:
+ * canvas mode beat SVG where almost nothing was on screen and lost badly where a lot was, which
+ * is the signature of per-frame work proportional to visible edges. A pan does not move any
+ * element, so recomputing anchors and control points on every frame of one is pure waste.
+ *
+ * Numbers rather than the EdgeShape objects because this is read on every frame of every gesture:
+ * the object form allocates an anchors record, a stroke record and, for polylines, a point per
+ * vertex, all of it garbage within the frame.
+ */
+interface CachedStroke {
+  /**
+   * `cubic` is 6 numbers after the initial move; `polyline` is a flat tail of x,y pairs; `ribbon`
+   * is 6 for the outbound curve, 2 for the cap across the far end, then 6 for the return. `rails`
+   * leaves all three empty and carries its points in `runs` instead, one flat x,y run per rail.
+   */
+  readonly kind: 'cubic' | 'polyline' | 'ribbon' | 'rails'
+  readonly sx: number
+  readonly sy: number
+  readonly rest: readonly number[]
+  /** Only for `rails`: one flat x,y run per rail, each traced as its own subpath. */
+  readonly runs?: readonly (readonly number[])[]
+  /** Where an arrowhead or dot goes, when this edge asked for one. Cached with the curve it sits on. */
+  readonly caps: readonly CapDraw[]
+}
+
+interface CapDraw {
+  readonly kind: ArrowCap
+  readonly x: number
+  readonly y: number
+  readonly angle: number
+}
+
+/**
+ * The shape an edge draws as.
+ *
+ * A hierarchy edge that carries two different end weights is a tapering ribbon; everything else is
+ * an ordinary stroke. The widths come from the projector rather than being derived here, so the two
+ * substrates and the thumbnail all widen the same edge by the same amount.
+ */
+export function strokeFor(edge: SceneEdge, anchors: ReturnType<typeof anchorsFor>): EdgeStroke {
+  const routing = edge.routing ?? 'curve'
+  const stroke =
+    edge.fromWidth !== undefined && edge.toWidth !== undefined
+      ? branchShape(routing, anchors, edge.fromWidth, edge.toWidth).stroke
+      : edgeShape(routing, anchors).stroke
+
+  // A double line is geometry rather than a dash pattern, so it is decided here with the rest of the
+  // shape and every consumer downstream just draws what it is handed.
+  if (edge.lineStyle === 'double') {
+    return railsFor(stroke, doubleSeparation(strokeStyleFor(edge).width))
+  }
+  return stroke
+}
+
+/**
+ * How far apart the two lines of a double line sit, centre to centre.
+ *
+ * Two strokes with a gap the same weight as themselves, which is what makes it read as one doubled
+ * line rather than as two lines that happen to be near each other. Scaled by the edge's own weight so
+ * a thick double and a thin one look like the same idea.
+ */
+function doubleSeparation(width: number): number {
+  return width * 2
+}
+
+function cacheStroke(stroke: EdgeStroke, edge: SceneEdge): CachedStroke {
+  const caps = capsFor(stroke, edge)
+
+  if (stroke.kind === 'cubic') {
+    return {
+      kind: 'cubic',
+      sx: stroke.sx,
+      sy: stroke.sy,
+      rest: [stroke.c1x, stroke.c1y, stroke.c2x, stroke.c2y, stroke.tx, stroke.ty],
+      caps,
+    }
+  }
+
+  if (stroke.kind === 'rails') {
+    const runs = stroke.rails.map((rail) => {
+      const flat: number[] = []
+      for (const point of rail) flat.push(point.x, point.y)
+      return flat
+    })
+    return { kind: 'rails', sx: 0, sy: 0, rest: NO_NUMBERS, runs, caps }
+  }
+
+  if (stroke.kind === 'ribbon') {
+    const [o0, o1, o2, o3] = stroke.outbound
+    const [i0, i1, i2, i3] = stroke.inbound
+    return {
+      kind: 'ribbon',
+      sx: o0.x,
+      sy: o0.y,
+      rest: [o1.x, o1.y, o2.x, o2.y, o3.x, o3.y, i0.x, i0.y, i1.x, i1.y, i2.x, i2.y, i3.x, i3.y],
+      caps,
+    }
+  }
+
+  const points = stroke.points
+  const rest: number[] = []
+  for (let i = 1; i < points.length; i++) rest.push(points[i].x, points[i].y)
+  return { kind: 'polyline', sx: points[0].x, sy: points[0].y, rest, caps }
+}
+
+const NO_CAPS: readonly CapDraw[] = []
+
+function capsFor(stroke: EdgeStroke, edge: SceneEdge): readonly CapDraw[] {
+  const wantsStart = edge.startCap !== undefined && edge.startCap !== 'none'
+  const wantsEnd = edge.endCap !== undefined && edge.endCap !== 'none'
+  if (!wantsStart && !wantsEnd) return NO_CAPS
+
+  const ends = capsOf(stroke)
+  if (!ends) return NO_CAPS
+
+  const caps: CapDraw[] = []
+  if (wantsStart) caps.push({ kind: edge.startCap!, ...ends.start })
+  if (wantsEnd) caps.push({ kind: edge.endCap!, ...ends.end })
+  return caps
+}
+
+/** Arrow length and half-width, and the dot's radius, all in multiples of the line's own weight. */
+const ARROW_LENGTH = 5
+const ARROW_HALF_WIDTH = 2
+const DOT_RADIUS = 2
+
+function traceCap(context: EdgeCanvasContext, cap: CapDraw, width: number): void {
+  if (cap.kind === 'dot') {
+    // No arc() in the context this renderer is written against, and a four-segment bezier circle is
+    // indistinguishable from one at the sizes a cap is drawn at.
+    const r = DOT_RADIUS * width
+    const k = r * 0.5523
+    context.moveTo(cap.x + r, cap.y)
+    context.bezierCurveTo(cap.x + r, cap.y + k, cap.x + k, cap.y + r, cap.x, cap.y + r)
+    context.bezierCurveTo(cap.x - k, cap.y + r, cap.x - r, cap.y + k, cap.x - r, cap.y)
+    context.bezierCurveTo(cap.x - r, cap.y - k, cap.x - k, cap.y - r, cap.x, cap.y - r)
+    context.bezierCurveTo(cap.x + k, cap.y - r, cap.x + r, cap.y - k, cap.x + r, cap.y)
+    context.closePath()
+    return
+  }
+
+  const cos = Math.cos(cap.angle)
+  const sin = Math.sin(cap.angle)
+  const length = ARROW_LENGTH * width
+  const half = ARROW_HALF_WIDTH * width
+  const bx = cap.x - cos * length
+  const by = cap.y - sin * length
+  context.moveTo(cap.x, cap.y)
+  context.lineTo(bx - sin * half, by + cos * half)
+  context.lineTo(bx + sin * half, by - cos * half)
+  context.closePath()
+}
+
+function traceCached(context: EdgeCanvasContext, cached: CachedStroke): void {
+  // Each rail is its own subpath, so they are two lines rather than one line that doubles back.
+  if (cached.kind === 'rails') {
+    for (const run of cached.runs ?? []) {
+      if (run.length < 4) continue
+      context.moveTo(run[0], run[1])
+      for (let i = 2; i < run.length; i += 2) context.lineTo(run[i], run[i + 1])
+    }
+    return
+  }
+
+  context.moveTo(cached.sx, cached.sy)
+  const rest = cached.rest
+
+  if (cached.kind === 'cubic') {
+    context.bezierCurveTo(rest[0], rest[1], rest[2], rest[3], rest[4], rest[5])
+    return
+  }
+
+  if (cached.kind === 'ribbon') {
+    context.bezierCurveTo(rest[0], rest[1], rest[2], rest[3], rest[4], rest[5])
+    context.lineTo(rest[6], rest[7])
+    context.bezierCurveTo(rest[8], rest[9], rest[10], rest[11], rest[12], rest[13])
+    // Closed rather than left open: an unclosed fill would run a straight line back across the
+    // ribbon's mouth and paint a wedge over the parent node.
+    context.closePath()
+    return
+  }
+
+  for (let i = 0; i < rest.length; i += 2) context.lineTo(rest[i], rest[i + 1])
+}
+
+export function createEdgeCanvasRenderer(deps: EdgeCanvasDeps): EdgeCanvasRenderer {
+  const { canvas, context, boxOf } = deps
+  const paint = deps.resolveColor ?? ((color: string) => color)
+
+  const byId = new Map<string, SceneEdge>()
+  for (const edge of deps.edges) byId.set(edge.id, edge)
+
+  let cssWidth = 0
+  let cssHeight = 0
+  let ratio = 1
+
+  /** Geometry cache, keyed by edge id. Survives a pan; dropped when an endpoint moves. */
+  const strokes = new Map<string, CachedStroke>()
+  /** Style cache, for the same reason: strokeStyleFor allocates a record per call. */
+  const styles = new Map<string, EdgeStrokeStyle>()
+  /** Reused across frames rather than allocated per frame; only its length is reset. */
+  const pendingCaps: Array<{ cap: CapDraw; style: EdgeStrokeStyle }> = []
+
+  return {
+    resize(width, height, dpr) {
+      // Guarded because assigning to width or height resets the backing store, and the camera
+      // path below calls this on every committed viewport. An unguarded resize would clear and
+      // reallocate the surface on every frame of a pan.
+      if (width === cssWidth && height === cssHeight && dpr === ratio) return
+      cssWidth = width
+      cssHeight = height
+      ratio = dpr
+      canvas.width = Math.max(1, Math.round(width * dpr))
+      canvas.height = Math.max(1, Math.round(height * dpr))
+    },
+
+    invalidate(edgeIds) {
+      for (const id of edgeIds) strokes.delete(id)
+    },
+
+    invalidateAll() {
+      strokes.clear()
+    },
+
+    invalidateStyles() {
+      styles.clear()
+    },
+
+    draw(viewport, visibleEdgeIds) {
+      // The device-pixel ratio is folded into the camera rather than applied once at resize, the
+      // way a static canvas does it. There is no "once" available here: every frame installs a
+      // new camera, setTransform replaces the whole matrix, and a separate scale would have to be
+      // reapplied on top of it anyway.
+      context.setTransform(1, 0, 0, 1, 0, 0)
+      context.clearRect(0, 0, canvas.width, canvas.height)
+
+      const scale = viewport.zoom * ratio
+      context.setTransform(scale, 0, 0, scale, -viewport.x * scale, -viewport.y * scale)
+
+      // Drawing in canvas coordinates under that matrix scales line widths and dash lengths with
+      // zoom, which is exactly what the SVG mode gets from having its paths inside a scaled
+      // group. Transforming the points in JavaScript instead would draw hairlines at 0.1 zoom
+      // where the other mode draws none, and the modes would no longer be comparable.
+      let applied: EdgeStrokeStyle | null = null
+      // A ribbon is filled, so it cannot share a path with stroked edges: one `stroke()` would
+      // outline it and one `fill()` would close every open curve in the batch into a lens. The
+      // batch therefore carries which operation ends it, and changing operation flushes.
+      let open: 'stroke' | 'fill' | null = null
+      const flush = (): void => {
+        if (open === 'stroke') context.stroke()
+        else if (open === 'fill') context.fill()
+        open = null
+      }
+
+      pendingCaps.length = 0
+      const drawCaps = (): void => {
+        if (pendingCaps.length === 0) return
+        let color: string | null = null
+        let started = false
+        for (const { cap, style } of pendingCaps) {
+          if (color !== style.color) {
+            if (started) context.fill()
+            context.fillStyle = style.color
+            context.beginPath()
+            color = style.color
+            started = true
+          }
+          traceCap(context, cap, style.width)
+        }
+        if (started) context.fill()
+        // The next frame's first stroke must not inherit a fill's state.
+        applied = null
+      }
+
+      let drawn = 0
+      for (const edgeId of visibleEdgeIds) {
+        const edge = byId.get(edgeId)
+        if (!edge) continue
+
+        // The endpoint boxes are only read on a cache miss. Reading them unconditionally is what
+        // the first version did, and it charged every frame of a pan for two object allocations
+        // per visible edge to answer a question whose answer had not changed.
+        let cached = strokes.get(edgeId)
+        if (cached === undefined) {
+          const from = boxOf(edge.fromId)
+          const to = boxOf(edge.toId)
+          if (!from || !to) continue
+          cached = cacheStroke(strokeFor(edge, anchorsFor(from, to)), edge)
+          strokes.set(edgeId, cached)
+        }
+        drawn += 1
+
+        // Edges sharing a style accumulate into one path and one stroke call. Hierarchy edges are
+        // the bulk of the document and all share a single style object, so this collapses most of
+        // a frame's state changes without changing a pixel: the dash phase restarts per subpath
+        // either way.
+        let style = styles.get(edgeId)
+        if (style === undefined) {
+          const resolved = strokeStyleFor(edge)
+          const color = paint(resolved.color)
+          // Only rebuilt when the colour actually needed resolving, so the shared hierarchy style
+          // stays one object across the whole document and the batching below keeps collapsing on it.
+          style = color === resolved.color ? resolved : { ...resolved, color }
+          styles.set(edgeId, style)
+        }
+        const wants = cached.kind === 'ribbon' ? 'fill' : 'stroke'
+        if (
+          applied === null ||
+          open !== wants ||
+          style.color !== applied.color ||
+          style.width !== applied.width ||
+          style.dash !== applied.dash
+        ) {
+          flush()
+          if (wants === 'fill') {
+            context.fillStyle = style.color
+          } else {
+            context.strokeStyle = style.color
+            context.lineWidth = style.width
+            context.setLineDash(style.dash ?? NO_DASH)
+          }
+          applied = style
+        }
+
+        if (open === null) {
+          context.beginPath()
+          open = wants
+        }
+        traceCached(context, cached)
+
+        // Caps are filled while most edges are stroked, so batching them alongside would flush the
+        // whole run twice per capped edge. Held back and drawn once at the end instead, which on a
+        // map where cross-links are the only capped edges is a single extra path for the frame.
+        if (cached.caps.length > 0) {
+          for (const cap of cached.caps) pendingCaps.push({ cap, style })
+        }
+      }
+
+      flush()
+      drawCaps()
+      return drawn
+    },
+
+    dispose() {
+      strokes.clear()
+      styles.clear()
+      context.setTransform(1, 0, 0, 1, 0, 0)
+      context.clearRect(0, 0, canvas.width, canvas.height)
+    },
+  }
+}

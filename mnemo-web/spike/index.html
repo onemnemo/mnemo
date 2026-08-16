@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mnemo mindmap canvas substrate spike</title>
+    <style>
+      /* The measured surface must be exactly the viewport, with no app chrome and no
+         scrollbars stealing pixels: two engines that realize different viewport sizes
+         put different element counts on screen and nothing is comparable after that. */
+      html,
+      body,
+      #root {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0f1115;
+        color: #e6e8ee;
+        font-family: system-ui, sans-serif;
+      }
+
+      #result {
+        position: fixed;
+        inset: auto 0 0 0;
+        max-height: 40vh;
+        overflow: auto;
+        margin: 0;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.85);
+        font: 11px/1.4 ui-monospace, monospace;
+        white-space: pre-wrap;
+        z-index: 2147483647;
+      }
+
+      #result:empty {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <pre id="result"></pre>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

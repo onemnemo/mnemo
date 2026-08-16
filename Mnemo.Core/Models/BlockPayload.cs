@@ -26,3 +26,8 @@ public sealed record PagePayload(string ReferenceNoteId) : BlockPayload;
 public sealed record SketchPayload(
     double Width = 0,
     string Align = "left") : BlockPayload;
+
+/// <summary>Leading glyph and tone for <see cref="BlockType.Callout"/>; the body is inline content in the block's spans.</summary>
+public sealed record CalloutPayload(
+    string Emoji = "",
+    string Tone = "note") : BlockPayload;

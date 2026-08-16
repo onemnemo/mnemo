@@ -1,0 +1,398 @@
+/*
+ * Mnemo design tokens.
+ *
+ * Hand-authored, and the source of truth for the app's appearance. This replaces the
+ * generated port of the Avalonia themes: colour is now expressed in the roles the UI
+ * actually has (frame, canvas, ink, line, accent) rather than in the names Avalonia
+ * happened to give its brushes, and there are two themes instead of four.
+ *
+ * Two ideas carry most of the design:
+ *   1. The frame is one continuous surface. No seam between sidebar and topbar.
+ *   2. The canvas sits on top of it. Depth comes from shadow, not borders.
+ *
+ * Colours are oklch so that a lightness step means the same thing at every hue, which
+ * is what keeps the ink ramp and the branch palette even. Older token names still used
+ * by unported modules live in legacy-tokens.css and resolve to the values below.
+ */
+
+/* ---- Fonts (self-hosted; the webview is offline, no CDN) ---- */
+
+/* Inter, variable weight. Latin covers the shipped UI languages; Greek is here because
+   study notes are full of it. Cyrillic, Vietnamese and the extended Greek block are not
+   shipped yet, they fall back to a system face until a language needs them. */
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("/fonts/inter-latin-normal.woff2") format("woff2-variations"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "Inter"; font-style: italic; font-weight: 100 900; font-display: swap; src: url("/fonts/inter-latin-italic.woff2") format("woff2-variations"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("/fonts/inter-latin-ext-normal.woff2") format("woff2-variations"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Inter"; font-style: italic; font-weight: 100 900; font-display: swap; src: url("/fonts/inter-latin-ext-italic.woff2") format("woff2-variations"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("/fonts/inter-greek-normal.woff2") format("woff2-variations"); unicode-range: U+0370-0377,U+037A-037F,U+0384-038A,U+038C,U+038E-03A1,U+03A3-03FF; }
+@font-face { font-family: "Inter"; font-style: italic; font-weight: 100 900; font-display: swap; src: url("/fonts/inter-greek-italic.woff2") format("woff2-variations"); unicode-range: U+0370-0377,U+037A-037F,U+0384-038A,U+038C,U+038E-03A1,U+03A3-03FF; }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("/fonts/inter-cyrillic-normal.woff2") format("woff2-variations"); unicode-range: U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116; }
+@font-face { font-family: "Inter"; font-style: italic; font-weight: 100 900; font-display: swap; src: url("/fonts/inter-cyrillic-italic.woff2") format("woff2-variations"); unicode-range: U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116; }
+
+/* Inter has no monospace, so the mono face stays Geist Mono. Math stays STIX. */
+@font-face { font-family: "Geist Mono"; font-weight: 400; font-style: normal; font-display: swap; src: url("/fonts/GeistMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "STIX Two Math"; font-weight: 400; font-style: normal; font-display: swap; src: url("/fonts/STIXTwoMath-Regular.ttf") format("truetype"); }
+
+/* ---- Theme-independent scale + layout ---- */
+:root {
+  --font-sans: "Inter", "Segoe UI", Arial, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "Cascadia Mono", monospace;
+  --font-math: "STIX Two Math", "Cambria Math", serif;
+
+  /* Corner radius scale. These are Tailwind's own steps rather than a custom
+     set, because the design is authored in rounded-* class names: a scale of
+     our own silently renders every one of them a notch rounder than drawn. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
+
+  /* Font sizes */
+  --font-size-heading-1: 32px;
+  --font-size-heading-2: 28px;
+  --font-size-heading-3: 24px;
+  --font-size-heading-4: 20px;
+  --font-size-heading-5: 18px;
+  --font-size-heading-6: 16px;
+  --font-size-body-large: 18px;
+  --font-size-body-medium: 16px;
+  --font-size-body-small: 14px;
+  --font-size-body-extra-small: 12px;
+  --font-size-stat-hero: 36px;
+  --font-size-caption: 11px;
+  --font-size-body-caption: 11px;
+  --font-size-caption-button: 10px;
+  --font-size-tooltip: 12px;
+  --font-size-micro: 9px;
+
+  /* Spacing scale (4px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  /* Icon sizes */
+  --icon-size-sm: 16px;
+  --icon-size-md: 20px;
+  --icon-size-lg: 24px;
+  --icon-size-xl: 32px;
+
+  /* Standard insets */
+  --page-padding: 24px 40px;
+  --pane-padding: 20px;
+  --card-padding: 16px;
+  --list-row-padding: 10px 12px;
+
+  /* Frame metrics. The brand row matches the topbar so the two share a baseline.
+     Anything draggable has to stay inside --topbar-h: on Linux the window drag region
+     is a rectangle of that height, not a set of elements (see SetLinuxChromelessDragRegion). */
+  --topbar-h: 48px;
+  --sidebar-w: 240px;
+  --sidebar-w-collapsed: 56px;
+
+  /* Neutral temperature. 40 is warm and matches the brand orange, 250 is cool,
+     260 at very low chroma is the near-neutral grey the design settled on. */
+  --neutral-hue: 260;
+  --neutral-chroma: 0.0015;
+}
+
+/* ---- Motion ----
+ *
+ * Durations are variables rather than literals so that reducing motion is a change to
+ * two numbers instead of an edit to every transition in the app. `--motion-scale` is
+ * the switch: 1 is normal, 0 collapses every duration to nothing.
+ *
+ * The toggle is binary today. Graded tiers would slot in here by giving the scale
+ * intermediate values, and by splitting decorative from functional motion, which is
+ * why travel distance is a token too and not a hard-coded transform.
+ */
+:root {
+  --motion-scale: 1;
+
+  --duration-instant: calc(80ms * var(--motion-scale));
+  --duration-fast: calc(120ms * var(--motion-scale));
+  --duration-normal: calc(180ms * var(--motion-scale));
+  --duration-slow: calc(200ms * var(--motion-scale));
+
+  /* Decelerating. Things arrive quickly and settle, rather than easing in both ends,
+     which at these durations just reads as sluggish. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* How far a thing travels when it enters. A toast moves further than a menu because
+     it arrives unasked and the movement is what makes you look at it. */
+  --travel-pop: 6px;
+  --travel-toast: 14px;
+}
+
+/* Zero duration rather than `animation: none`, so animationend still fires and nothing
+   waiting on one hangs. */
+:root[data-motion="reduced"] {
+  --motion-scale: 0;
+  --travel-pop: 0px;
+  --travel-toast: 0px;
+}
+
+/* The OS preference is the default, not an override: it applies until the user says
+   otherwise, and `data-motion="full"` is them saying otherwise. A plain
+   prefers-reduced-motion block would win over their explicit choice and make the
+   setting look broken on a machine configured to reduce motion. */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) {
+    --motion-scale: 0;
+    --travel-pop: 0px;
+    --travel-toast: 0px;
+  }
+}
+
+/* ---- Light ---- */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* The sidebar rail. A whisper off white: the same material as the canvas, set back a step. */
+  --frame: oklch(0.988 var(--neutral-chroma) var(--neutral-hue));
+  --frame-hover: oklch(0.958 calc(var(--neutral-chroma) * 1.6) var(--neutral-hue));
+  --frame-active: oklch(0.937 calc(var(--neutral-chroma) * 2) var(--neutral-hue));
+
+  /* The canvas. Topbar and module area both sit on this. */
+  --canvas: oklch(1 0 0);
+  --canvas-sunken: oklch(0.975 var(--neutral-chroma) var(--neutral-hue));
+
+  /* Neutral-primary. Buttons that matter are near-black, not accent: the accent
+     belongs to the brand and nothing else. */
+  --solid: oklch(0.23 0.008 var(--neutral-hue));
+  --solid-hover: oklch(0.32 0.009 var(--neutral-hue));
+  --solid-fg: oklch(0.99 0 0);
+
+  /* Borders are a last resort, not a layout tool. */
+  --line: oklch(0.9 calc(var(--neutral-chroma) * 1.5) var(--neutral-hue));
+  --line-soft: oklch(0.943 var(--neutral-chroma) var(--neutral-hue));
+
+  --ink: oklch(0.26 0.008 var(--neutral-hue));
+  --ink-2: oklch(0.47 0.007 var(--neutral-hue));
+  --ink-3: oklch(0.615 0.006 var(--neutral-hue));
+  /* Icons sit a step lighter than the label they accompany, so they read as support
+     rather than as a second row of text. */
+  --ink-icon: oklch(0.7 0.005 var(--neutral-hue));
+
+  /* One accent, spent sparingly. Taken from the mnemo wordmark. */
+  --accent: oklch(0.63 0.185 40);
+  --accent-hover: oklch(0.58 0.19 40);
+  --accent-ink: oklch(0.52 0.17 40);
+  --accent-wash: oklch(0.955 0.028 40);
+  --accent-fg: oklch(0.99 0.01 40);
+
+  /* Selection, at three strengths of the one accent: text inside a block, whole
+     blocks across blocks, and the lasso that picks the blocks. Sharing a colour
+     is what makes the handover between them read as one gesture rather than as
+     two features. All alpha over whatever is underneath, so a highlight, inline
+     code, a callout and a figure keep their own surface instead of being blanked
+     out by an opaque fill. */
+  --sel-text: color-mix(in srgb, var(--accent) 20%, transparent);
+  --sel-block: color-mix(in srgb, var(--accent) 10%, transparent);
+  --sel-lasso: color-mix(in srgb, var(--accent) 7%, transparent);
+  --sel-lasso-line: color-mix(in srgb, var(--accent) 42%, transparent);
+
+  /* Distinct from the brand orange on purpose: if "delete" and "mnemo" are the same
+     colour, neither means anything. */
+  --danger: oklch(0.54 0.2 25);
+  --danger-wash: oklch(0.955 0.03 25);
+
+  /* Correct/"got it" green, used only by the test screen. A third semantic beside the brand
+     orange and the danger red, so a right answer never borrows a colour that means something
+     else. fg reads on the filled button; ink reads on the canvas; wash backs the best chip. */
+  --ok: oklch(0.6 0.13 150);
+  --ok-hover: oklch(0.55 0.13 150);
+  --ok-fg: oklch(0.99 0.02 150);
+  --ok-ink: oklch(0.5 0.12 150);
+  --ok-wash: oklch(0.95 0.035 150);
+
+  /* Editorial colour. Highlights and tag chips derive from a hue plus these lightness
+     and chroma values, so one set of numbers per theme keeps every tint readable.
+     Hard-coding the light values inline is what breaks them in dark mode. */
+  --hl-l: 0.925;
+  --hl-c: 0.085;
+  --hl-fg: var(--ink);
+
+  --tag-bg-l: 0.945;
+  --tag-bg-c: 0.04;
+  --tag-fg-l: 0.44;
+  --tag-fg-c: 0.11;
+
+  --figure-l: 0.88;
+  --figure-c: 0.07;
+
+  /* Card states. The one place three hues earn their keep: new / learning / due is
+     vocabulary a student already knows, so the colour carries information rather than
+     decorating. Kept low-chroma so a deck list does not turn into a pie chart, and
+     `due` borrows the brand hue because the sidebar's due badge already speaks it. */
+  --state-new: oklch(0.56 0.12 250);
+  --state-learn: oklch(0.6 0.11 75);
+  --state-due: oklch(0.55 0.17 40);
+  --state-new-wash: oklch(0.94 0.03 250);
+  --state-learn-wash: oklch(0.94 0.04 75);
+  --state-due-wash: oklch(0.94 0.035 40);
+
+  /* Branch colour. The application spends one accent and nothing else; a mindmap
+     cannot, because colour is how you say "these six things belong together". So on
+     the canvas it is content, not chrome, and the rule that survives is narrower:
+     colour only appears inside a thing the user themselves grouped.
+
+     Eight hues walked around the wheel, pulled to a similar lightness so no branch
+     shouts louder than its siblings, and kept off the brand hue at both ends so a red
+     branch never reads as a Mnemo button. */
+  --branch-1: oklch(0.55 0.15 22);
+  --branch-2: oklch(0.61 0.115 72);
+  --branch-3: oklch(0.53 0.105 148);
+  --branch-4: oklch(0.55 0.08 205);
+  --branch-5: oklch(0.52 0.115 258);
+  --branch-6: oklch(0.5 0.125 305);
+  --branch-7: oklch(0.52 0.115 350);
+  --branch-8: oklch(0.5 0.018 60);
+
+  /* Fills sit far enough back that node text stays ink, not white: a pill per branch
+     in full chroma turns a map into a bag of sweets. */
+  --branch-1-wash: oklch(0.955 0.028 22);
+  --branch-2-wash: oklch(0.958 0.032 72);
+  --branch-3-wash: oklch(0.955 0.03 148);
+  --branch-4-wash: oklch(0.957 0.025 205);
+  --branch-5-wash: oklch(0.955 0.028 258);
+  --branch-6-wash: oklch(0.953 0.03 305);
+  --branch-7-wash: oklch(0.955 0.028 350);
+  --branch-8-wash: oklch(0.955 0.006 60);
+
+  /* Green and red here are not decoration and not brand: added and removed is the one
+     convention nobody should have to learn. */
+  --diff-add-bg: oklch(0.955 0.04 152);
+  --diff-add-fg: oklch(0.42 0.1 152);
+  --diff-del-bg: oklch(0.958 0.03 25);
+  --diff-del-fg: oklch(0.5 0.12 25);
+
+  /* Tooltips. The one surface that is deliberately not part of the light/dark pair:
+     a hint is an annotation over the UI, not another panel in it, so it stays dark in
+     both themes and never competes with the popovers it floats above. The key caps are
+     alpha over that surface rather than their own colour, so one value covers both. */
+  --tooltip-surface: oklch(0.235 0.008 var(--neutral-hue));
+  --tooltip-ink: oklch(0.985 0 0);
+  --tooltip-key: oklch(1 0 0 / 0.12);
+  --tooltip-key-ink: oklch(1 0 0 / 0.72);
+
+  /* Elevation. The canvas sits at e-canvas; popovers go higher. */
+  --e-canvas:
+    0 0 0 1px oklch(0.7 0.01 var(--neutral-hue) / 0.06),
+    0 1px 2px oklch(0.4 0.02 var(--neutral-hue) / 0.05),
+    0 6px 16px -4px oklch(0.4 0.02 var(--neutral-hue) / 0.08);
+  --e-pop:
+    0 0 0 1px oklch(0.7 0.01 var(--neutral-hue) / 0.07),
+    0 8px 24px -6px oklch(0.4 0.02 var(--neutral-hue) / 0.14),
+    0 16px 48px -12px oklch(0.4 0.02 var(--neutral-hue) / 0.12);
+}
+
+/* ---- Dark ---- */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --frame: oklch(0.203 0.005 var(--neutral-hue));
+  --frame-hover: oklch(0.253 0.007 var(--neutral-hue));
+  --frame-active: oklch(0.288 0.009 var(--neutral-hue));
+
+  --canvas: oklch(0.218 0.006 var(--neutral-hue));
+  --canvas-sunken: oklch(0.192 0.005 var(--neutral-hue));
+
+  --solid: oklch(0.96 0.003 var(--neutral-hue));
+  --solid-hover: oklch(0.88 0.004 var(--neutral-hue));
+  --solid-fg: oklch(0.2 0.008 var(--neutral-hue));
+
+  --line: oklch(0.31 0.008 var(--neutral-hue));
+  --line-soft: oklch(0.265 0.006 var(--neutral-hue));
+
+  --ink: oklch(0.955 0.003 var(--neutral-hue));
+  --ink-2: oklch(0.755 0.008 var(--neutral-hue));
+  --ink-3: oklch(0.6 0.009 var(--neutral-hue));
+  --ink-icon: oklch(0.545 0.009 var(--neutral-hue));
+
+  --accent: oklch(0.7 0.17 40);
+  --accent-hover: oklch(0.75 0.17 40);
+  --accent-ink: oklch(0.78 0.15 40);
+  --accent-wash: oklch(0.32 0.075 40);
+  --accent-fg: oklch(0.18 0.03 40);
+
+  /* Stronger than in light: the same alpha over a dark canvas barely registers. */
+  --sel-text: color-mix(in srgb, var(--accent) 28%, transparent);
+  --sel-block: color-mix(in srgb, var(--accent) 17%, transparent);
+  --sel-lasso: color-mix(in srgb, var(--accent) 10%, transparent);
+  --sel-lasso-line: color-mix(in srgb, var(--accent) 50%, transparent);
+
+  --danger: oklch(0.68 0.18 25);
+  --danger-wash: oklch(0.3 0.07 25);
+
+  --ok: oklch(0.7 0.14 150);
+  --ok-hover: oklch(0.74 0.14 150);
+  --ok-fg: oklch(0.18 0.03 150);
+  --ok-ink: oklch(0.76 0.12 150);
+  --ok-wash: oklch(0.3 0.06 150);
+
+  /* Dark highlights have to stay dark enough to keep white text legible on top; the
+     light values would blow out. */
+  --hl-l: 0.42;
+  --hl-c: 0.09;
+  --hl-fg: oklch(0.97 0.01 var(--neutral-hue));
+
+  --tag-bg-l: 0.315;
+  --tag-bg-c: 0.06;
+  --tag-fg-l: 0.85;
+  --tag-fg-c: 0.1;
+
+  --figure-l: 0.42;
+  --figure-c: 0.08;
+
+  --state-new: oklch(0.72 0.12 250);
+  --state-learn: oklch(0.78 0.11 75);
+  --state-due: oklch(0.74 0.16 40);
+  --state-new-wash: oklch(0.32 0.06 250);
+  --state-learn-wash: oklch(0.33 0.06 75);
+  --state-due-wash: oklch(0.32 0.07 40);
+
+  /* Lifted, not inverted. A branch has to stay legible as a 2px ribbon against a
+     near-black canvas, which the light values are far too dark to manage. */
+  --branch-1: oklch(0.7 0.145 22);
+  --branch-2: oklch(0.77 0.115 72);
+  --branch-3: oklch(0.72 0.11 148);
+  --branch-4: oklch(0.73 0.085 205);
+  --branch-5: oklch(0.7 0.115 258);
+  --branch-6: oklch(0.7 0.125 305);
+  --branch-7: oklch(0.71 0.115 350);
+  --branch-8: oklch(0.68 0.02 60);
+
+  --branch-1-wash: oklch(0.33 0.06 22);
+  --branch-2-wash: oklch(0.34 0.055 72);
+  --branch-3-wash: oklch(0.32 0.05 148);
+  --branch-4-wash: oklch(0.32 0.045 205);
+  --branch-5-wash: oklch(0.32 0.055 258);
+  --branch-6-wash: oklch(0.32 0.06 305);
+  --branch-7-wash: oklch(0.32 0.055 350);
+  --branch-8-wash: oklch(0.31 0.012 60);
+
+  --diff-add-bg: oklch(0.3 0.055 152);
+  --diff-add-fg: oklch(0.86 0.1 152);
+  --diff-del-bg: oklch(0.31 0.055 25);
+  --diff-del-fg: oklch(0.85 0.1 25);
+
+  /* Lifted off the dark canvas rather than inverted. The light value is darker than
+     the surfaces it would sit on here, which reads as a hole instead of a hint. */
+  --tooltip-surface: oklch(0.305 0.008 var(--neutral-hue));
+
+  --e-canvas:
+    0 0 0 1px oklch(1 0 0 / 0.055),
+    0 1px 2px oklch(0 0 0 / 0.3),
+    0 6px 16px -4px oklch(0 0 0 / 0.35);
+  --e-pop:
+    0 0 0 1px oklch(1 0 0 / 0.07),
+    0 8px 24px -6px oklch(0 0 0 / 0.45),
+    0 16px 48px -12px oklch(0 0 0 / 0.4);
+}

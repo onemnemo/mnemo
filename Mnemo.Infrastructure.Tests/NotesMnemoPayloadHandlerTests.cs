@@ -3,10 +3,16 @@ using Microsoft.Data.Sqlite;
 using Mnemo.Core.Enums;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Common;
 using Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 
 namespace Mnemo.Infrastructure.Tests;
 
+/// <summary>
+/// The export half reads the real note assets directory, so this joins the collection that
+/// owns the data-root override rather than resolving a live profile under test.
+/// </summary>
+[Collection(DataRootCollection.Name)]
 public sealed class NotesMnemoPayloadHandlerTests
 {
     [Fact]
@@ -60,6 +66,89 @@ public sealed class NotesMnemoPayloadHandlerTests
         Assert.Equal("Incoming", replaced?.Title);
         var all = await noteService.GetAllNotesAsync().ConfigureAwait(false);
         Assert.Single(all);
+    }
+
+    [Fact]
+    public async Task ExportAsync_BundlesTheImageAnUploadedCoverNames()
+    {
+        // A cover is the only asset reference a note can carry outside its blocks, so an export
+        // that only walked blocks would ship a live token with no file behind it.
+        using var profile = new TempDataRoot();
+        var bytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x42 };
+        profile.WriteNoteAsset("cover-abc.png", bytes);
+        var handler = CreateHandler(new Note { NoteId = "n1", Title = "Covered", Cover = "asset:cover-abc.png" });
+
+        var data = await handler.ExportAsync(ExportContext()).ConfigureAwait(false);
+
+        Assert.True(data.Files.ContainsKey("assets/note-assets/cover-abc.png"));
+        Assert.Equal(bytes, data.Files["assets/note-assets/cover-abc.png"]);
+    }
+
+    [Fact]
+    public async Task ExportAsync_CarriesNoAsset_ForAPresetCover()
+    {
+        using var profile = new TempDataRoot();
+        profile.WriteNoteAsset("sunset", [1, 2, 3]);
+        var handler = CreateHandler(new Note { NoteId = "n1", Title = "Preset", Cover = "sunset" });
+
+        var data = await handler.ExportAsync(ExportContext()).ConfigureAwait(false);
+
+        // A preset names a gradient, not a file. The file planted under the preset's own name
+        // is the trap: an export that read any cover as an asset id would bundle it.
+        Assert.Equal(new[] { "notes.db" }, data.Files.Keys.Order(StringComparer.Ordinal).ToArray());
+    }
+
+    [Fact]
+    public async Task ExportAsync_CarriesNoAsset_WhenTheCoverFileIsGone()
+    {
+        using var profile = new TempDataRoot();
+        var handler = CreateHandler(new Note { NoteId = "n1", Title = "Dangling", Cover = "asset:missing.png" });
+
+        var data = await handler.ExportAsync(ExportContext()).ConfigureAwait(false);
+
+        Assert.Equal(new[] { "notes.db" }, data.Files.Keys.Order(StringComparer.Ordinal).ToArray());
+    }
+
+    private static NotesMnemoPayloadHandler CreateHandler(params Note[] notes)
+    {
+        var noteService = new InMemoryNoteService();
+        foreach (var note in notes)
+            noteService.SaveNoteAsync(note).GetAwaiter().GetResult();
+        return new NotesMnemoPayloadHandler(noteService, new InMemoryFolderService());
+    }
+
+    private static MnemoPayloadExportContext ExportContext() => new() { Options = new MnemoPackageExportOptions() };
+
+    /// <summary>
+    /// A throwaway data root for the duration of a test, so an export that reads the note
+    /// assets directory never touches the real profile. Restores the override and removes
+    /// the directory on dispose.
+    /// </summary>
+    private sealed class TempDataRoot : IDisposable
+    {
+        private readonly string? _previous;
+        private readonly string _root;
+
+        public TempDataRoot()
+        {
+            _root = Path.Combine(Path.GetTempPath(), $"mnemo-export-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(_root);
+            _previous = Environment.GetEnvironmentVariable(MnemoAppPaths.DataDirEnvironmentVariable);
+            Environment.SetEnvironmentVariable(MnemoAppPaths.DataDirEnvironmentVariable, _root);
+        }
+
+        public void WriteNoteAsset(string fileName, byte[] bytes)
+        {
+            var dir = MnemoAppPaths.GetNoteAssetsDirectory();
+            Directory.CreateDirectory(dir);
+            File.WriteAllBytes(Path.Combine(dir, fileName), bytes);
+        }
+
+        public void Dispose()
+        {
+            Environment.SetEnvironmentVariable(MnemoAppPaths.DataDirEnvironmentVariable, _previous);
+            try { Directory.Delete(_root, recursive: true); } catch (IOException) { }
+        }
     }
 
     private static async Task<(NotesMnemoPayloadHandler Handler, INoteService NoteService, INoteFolderService FolderService)> CreateHandlerWithExistingItemsAsync()

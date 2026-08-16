@@ -1,0 +1,99 @@
+// Targeting at the widest breakpoint: 4 columns of 244px, so a column pitch of 260px and a row
+// pitch of 136px. The cell a tile lands in is the one its top-left corner is *nearest*, so the
+// boundaries below fall at the half-way marks rather than at the cell edges.
+
+import { describe, expect, it } from "vitest"
+import { computeLayout } from "../layout/compute"
+import { columnCountForWidth, FALLBACK_WIDTH } from "../layout/metrics"
+
+import { getTargetCell, resolveCellWidth } from "./targeting"
+
+const CELL_WIDTH = 244
+const COLUMNS = 4
+
+describe("getTargetCell", () => {
+  it("maps a position to the cell that contains it", () => {
+    expect(getTargetCell({ x: 0, y: 0 }, CELL_WIDTH, COLUMNS, 2)).toEqual({ column: 0, row: 0 })
+    expect(getTargetCell({ x: 300, y: 200 }, CELL_WIDTH, COLUMNS, 2)).toEqual({ column: 1, row: 1 })
+  })
+
+  it("snaps at the half-way mark, so a tile lands where it looks like it will", () => {
+    // A tile whose corner is 129px into a 260px pitch is still mostly covering column 0; at 130 it
+    // is mostly covering column 1. Flooring instead would keep saying column 0 until 260, by which
+    // point the tile has looked like it belongs in the next column for half the drag.
+    expect(getTargetCell({ x: 129, y: 0 }, CELL_WIDTH, COLUMNS, 3).column).toBe(0)
+    expect(getTargetCell({ x: 130, y: 0 }, CELL_WIDTH, COLUMNS, 3).column).toBe(1)
+    expect(getTargetCell({ x: 0, y: 67 }, CELL_WIDTH, COLUMNS, 3).row).toBe(0)
+    expect(getTargetCell({ x: 0, y: 68 }, CELL_WIDTH, COLUMNS, 3).row).toBe(1)
+  })
+
+  it("keeps a wide tile inside the grid rather than hanging it off the right edge", () => {
+    // A 2-wide tile can start in column 2 at the furthest, not column 3.
+    expect(getTargetCell({ x: 5000, y: 0 }, CELL_WIDTH, COLUMNS, 2, 2).column).toBe(2)
+    expect(getTargetCell({ x: 5000, y: 0 }, CELL_WIDTH, COLUMNS, 2, 4).column).toBe(0)
+  })
+
+  it("clamps columns to the grid in both directions", () => {
+    expect(getTargetCell({ x: 5000, y: 0 }, CELL_WIDTH, COLUMNS, 2).column).toBe(3)
+    expect(getTargetCell({ x: -1, y: 0 }, CELL_WIDTH, COLUMNS, 2).column).toBe(0)
+    expect(getTargetCell({ x: -900, y: 0 }, CELL_WIDTH, COLUMNS, 2).column).toBe(0)
+  })
+
+  it("allows exactly one row past the content and no further", () => {
+    // rowExtent 2 means rows 0 and 1 hold tiles, so row 2 is the reachable growth row.
+    expect(getTargetCell({ x: 0, y: 272 }, CELL_WIDTH, COLUMNS, 2).row).toBe(2)
+    expect(getTargetCell({ x: 0, y: 408 }, CELL_WIDTH, COLUMNS, 2).row).toBe(2)
+    expect(getTargetCell({ x: 0, y: 9000 }, CELL_WIDTH, COLUMNS, 2).row).toBe(2)
+  })
+
+  it("keeps an empty board droppable on row 0", () => {
+    expect(getTargetCell({ x: 0, y: 500 }, CELL_WIDTH, COLUMNS, 0).row).toBe(0)
+    expect(getTargetCell({ x: 0, y: -50 }, CELL_WIDTH, COLUMNS, 0).row).toBe(0)
+  })
+
+  it("tracks the narrow breakpoint's wider cells", () => {
+    // 2 columns of 392px: a 408px pitch, so the half-way mark is 204.
+    expect(getTargetCell({ x: 203, y: 0 }, 392, 2, 1).column).toBe(0)
+    expect(getTargetCell({ x: 204, y: 0 }, 392, 2, 1).column).toBe(1)
+  })
+})
+
+describe("resolveCellWidth", () => {
+  it("uses the measured width once there is one", () => {
+    expect(resolveCellWidth(244, 4)).toBe(244)
+  })
+
+  it("falls back to the same cell width the layout pass would use", () => {
+    // DELIBERATE DIVERGENCE from WidgetBoardPanel.GetTargetCell, which uses
+    // `FallbackWidth / columnCount` and forgets the gaps its own layout pass subtracts. On four
+    // columns that is 300 against the layout's 288, so a drag started before the first measure
+    // aimed at a grid 12px per column wider than the one on screen and every column past the
+    // first landed short. Reproducing that faithfully would mean shipping a known targeting bug.
+    expect(resolveCellWidth(0, 4)).toBe(288)
+    expect(resolveCellWidth(0, 2)).toBe(592)
+    expect(resolveCellWidth(0, 1)).toBe(1200)
+  })
+
+  it("treats a negative measurement as no measurement", () => {
+    expect(resolveCellWidth(-5, 4)).toBe(288)
+  })
+
+  it("agrees with the layout pass on an unmeasured board", () => {
+    // The invariant the divergence above exists to establish, and the one worth guarding: the grid
+    // a drag targets and the grid that gets drawn are the same grid. If these two ever disagree
+    // again, a drag lands on the wrong column and nothing else in the suite would notice.
+    for (const columnCount of [1, 2, 3, 4]) {
+      const drawn = computeLayout(FALLBACK_WIDTH, [], -1, false)
+      if (columnCountForWidth(FALLBACK_WIDTH) !== columnCount) continue
+      expect(resolveCellWidth(0, columnCount)).toBe(drawn.cellWidth)
+    }
+  })
+
+  it("targets sensibly against the fallback width", () => {
+    const cellWidth = resolveCellWidth(0, COLUMNS)
+
+    // 288 + 16 = 304 per column, so the half-way mark is 152.
+    expect(getTargetCell({ x: 151, y: 0 }, cellWidth, COLUMNS, 1).column).toBe(0)
+    expect(getTargetCell({ x: 152, y: 0 }, cellWidth, COLUMNS, 1).column).toBe(1)
+  })
+})

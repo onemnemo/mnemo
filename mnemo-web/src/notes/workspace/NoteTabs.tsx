@@ -1,0 +1,143 @@
+import { useRef } from 'react';
+
+import { AppIcon } from '@/components/icon/AppIcon';
+import { useT } from '@/i18n/useT';
+import { usePointerDrag } from '@/lib/dnd/usePointerDrag';
+import { cn } from '@/lib/utils';
+
+import { SidebarExpandButton } from './SidebarExpandButton';
+
+export interface NoteTab {
+  readonly id: string;
+  readonly title: string;
+  readonly emoji: string | null;
+}
+
+/** A tab being dragged, by identity rather than index, so a refetch cannot stale it. */
+interface TabHandle {
+  readonly id: string;
+}
+
+/** Where a drop would land: the slot index, and where to paint the insertion line. */
+interface TabTarget {
+  readonly index: number;
+  readonly x: number;
+}
+
+/**
+ * Tabs for the editor pane. The tree stays put, so switching a tab changes the
+ * one document region rather than the whole screen. The active tab lifts onto
+ * the canvas colour and the rest sit back into the bar, so the state reads from
+ * shape and elevation instead of a border.
+ *
+ * Tabs are draggable into any order. The bar is the drop surface and slots are
+ * measured live off the rendered tabs, so a reorder mid-scroll still lands where
+ * the insertion line says it will.
+ */
+export function NoteTabs({
+  tabs,
+  activeId,
+  onSelect,
+  onClose,
+  onReorder,
+  onExpandSidebar,
+}: {
+  tabs: readonly NoteTab[];
+  activeId?: string;
+  onSelect: (id: string) => void;
+  onClose: (id: string) => void;
+  onReorder: (id: string, toIndex: number) => void;
+  /** Present only while the tree is collapsed: the bar hosts the reopen control. */
+  onExpandSidebar?: () => void;
+}) {
+  const t = useT();
+  const nt = (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
+  const barRef = useRef<HTMLDivElement>(null);
+
+  const drag = usePointerDrag<TabHandle, TabTarget, { id: string; index: number }>({
+    getKey: (handle) => handle.id,
+    // Slots are read from the DOM each call: the bar scrolls, so the rects a
+    // press started with are not the rects the pointer is over a moment later.
+    resolve: (pointer) => {
+      const bar = barRef.current;
+      if (!bar) return null;
+      const rects = [...bar.querySelectorAll('[data-tab-id]')].map((el) => el.getBoundingClientRect());
+      if (rects.length === 0) return null;
+      const barLeft = bar.getBoundingClientRect().left;
+      const index = rects.findIndex((rect) => pointer.x < rect.left + rect.width / 2);
+      const slot = index === -1 ? rects.length : index;
+      const edge = slot === rects.length ? rects[rects.length - 1].right : rects[slot].left;
+      return { index: slot, x: edge - barLeft + bar.scrollLeft };
+    },
+    plan: (handle, target) => {
+      const from = tabs.findIndex((tab) => tab.id === handle.id);
+      if (from === -1) return null;
+      // A drop either side of the tab's own slot is where it already is.
+      if (target.index === from || target.index === from + 1) return null;
+      return { id: handle.id, index: target.index > from ? target.index - 1 : target.index };
+    },
+    onDrop: (plan) => onReorder(plan.id, plan.index),
+    sameTarget: (a, b) => a?.index === b?.index,
+    // The close button owns its own press; dragging from it would be a misfire.
+    ignorePressWithin: 'button',
+  });
+
+  return (
+    <div
+      ref={barRef}
+      className="scroll-thin relative flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-divider-subtle bg-surface px-1.5"
+    >
+      {onExpandSidebar ? <SidebarExpandButton onExpand={onExpandSidebar} className="mr-0.5" /> : null}
+
+      {drag.target ? (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute top-1.5 z-10 h-7 w-0.5 rounded-full bg-[var(--accent)]"
+          style={{ left: drag.target.x }}
+        />
+      ) : null}
+
+      {tabs.map((tab) => {
+        const active = tab.id === activeId;
+        return (
+          <div
+            key={tab.id}
+            data-tab-id={tab.id}
+            role="tab"
+            aria-selected={active}
+            onPointerDown={(event) => drag.press(event, { id: tab.id })}
+            onClick={() => !drag.suppressClick(tab.id) && onSelect(tab.id)}
+            style={{ opacity: drag.sourceKey === tab.id ? 0.35 : undefined }}
+            className={cn(
+              'group/tab flex h-7 min-w-0 max-w-[210px] shrink-0 cursor-pointer items-center gap-1.5 rounded-lg pl-2.5 pr-1 transition-colors',
+              active
+                ? 'bg-canvas text-text-primary shadow-[0_1px_2px_rgb(0_0_0/0.06),0_0_0_1px_var(--line-soft)]'
+                : 'text-text-secondary hover:bg-frame-hover hover:text-text-primary',
+            )}
+          >
+            {tab.emoji ? (
+              <span aria-hidden className="shrink-0 text-[12px] leading-none">{tab.emoji}</span>
+            ) : (
+              <AppIcon name="common/file-text" size={12} className="shrink-0 text-text-faded" preserveColors={false} />
+            )}
+            <span className={cn('truncate text-[12.5px]', active ? 'font-medium' : 'font-normal')}>{tab.title}</span>
+            <button
+              type="button"
+              aria-label={nt('CloseTabFormat', { 0: tab.title })}
+              onClick={(event) => {
+                event.stopPropagation();
+                onClose(tab.id);
+              }}
+              className={cn(
+                'flex size-5 shrink-0 items-center justify-center rounded-md text-text-faded hover:bg-frame-active hover:text-text-primary',
+                active ? 'opacity-100' : 'opacity-0 group-hover/tab:opacity-100',
+              )}
+            >
+              <AppIcon name="common/x" size={12} />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

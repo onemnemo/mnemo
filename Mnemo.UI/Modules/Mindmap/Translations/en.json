@@ -7,7 +7,9 @@
     "mindmap.redo": "Redo",
     "mindmap.clear-selection": "Clear selection",
     "mindmap.delete-selection": "Delete selection",
+    "mindmap.select-all": "Select all",
     "mindmap.copy": "Copy",
+    "mindmap.cut": "Cut",
     "mindmap.paste": "Paste",
     "mindmap.duplicate": "Duplicate",
     "mindmap.add-child": "Add child node",
@@ -20,6 +22,7 @@
     "mindmap.new-text": "New text",
     "mindmap.new-frame": "New frame",
     "mindmap.shape-picker": "New shape",
+    "mindmap.new-image": "Add image",
     "mindmap.radial": "Radial toolkit"
   },
   "Mindmap": {
@@ -39,6 +42,7 @@
     "ToolConnect": "Connect",
     "ToolImage": "Add image",
     "Recenter": "Recenter view",
+    "Minimap": "Minimap",
     "SavedChip": "Saved",
     "UndoTip": "Undo",
     "RedoTip": "Redo",
@@ -84,6 +88,7 @@
     "ShapeParallelogram": "Parallelogram",
     "ShapeLine": "Line",
     "ShapeArrow": "Arrow",
+    "ShapeBlob": "Blob",
     "LayoutBalanced": "Balanced",
     "LayoutTreeRight": "Tree · right",
     "LayoutTreeDown": "Tree · down",
@@ -98,6 +103,15 @@
     "ShapePlain": "Plain",
     "ToggleCollapse": "Collapse / expand",
     "TogglePin": "Pin / unpin",
+    "Pin": "Pin",
+    "Unpin": "Unpin",
+    "CollapseBranch": "Collapse branch",
+    "ExpandBranch": "Expand branch",
+    "More": "More",
+    "ApplyToSubtree": "And everything under it",
+    "EdgeLine": "Line",
+    "Routing": "Routing",
+    "Ends": "Ends",
     "StyleSubtree": "Style subtree",
     "ClearStyle": "Clear style",
     "SaveAsTemplate": "Save style as template",
@@ -137,6 +151,8 @@
     "AlignMiddleV": "Align middles vertically",
     "AlignBottom": "Align bottom",
     "DistributeH": "Distribute horizontally",
-    "DistributeV": "Distribute vertically"
+    "DistributeV": "Distribute vertically",
+    "Align": "Align",
+    "Distribute": "Distribute"
   }
 }

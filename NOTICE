@@ -12,4 +12,4 @@ Unless otherwise stated:
 
 The Mnemo name, logo, icons, visual identity, website branding, and other project marks are not licensed for unrestricted use by the Apache License. See BRAND.md.
 
-Third-party dependencies, assets, fonts, models, tools, or generated files may be subject to their own licenses. These should be documented here or in a separate third-party notices file as the project grows.
+Third-party dependencies, assets, fonts, models, tools, or generated files are subject to their own licenses. See THIRD-PARTY-NOTICES for the list.

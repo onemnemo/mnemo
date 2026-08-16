@@ -1,0 +1,151 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- No console window behind the app. Everything the host used to print now goes
+         through ILoggerService, whose file sink survives having no console at all. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- One icon for both shells while they coexist, rather than a second copy to keep in sync. -->
+    <ApplicationIcon>..\Mnemo.UI\Assets\AppIcons\AppIconDawn.ico</ApplicationIcon>
+
+    <!-- Explorer reads these off the exe; the version fields come from Directory.Build.props.
+         The five the SDK maps into the Win32 version resource, AssemblyTitle as its
+         FileDescription. AssemblyDescription, AssemblyCompany, AssemblyProduct and
+         AssemblyCopyright are not SDK properties and stamp nothing into the exe. -->
+    <AssemblyTitle>Mnemo</AssemblyTitle>
+    <Description>Local-first AI-powered learning environment.</Description>
+    <Company>Mnemo</Company>
+    <Product>Mnemo</Product>
+    <Copyright>Copyright (c) Mnemo 2026</Copyright>
+
+    <!-- RID whose Typst binary to copy: the publish RID when set, else the SDK host RID so
+         plain `dotnet run` during dev picks up the locally restored binary. -->
+    <TypstRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</TypstRid>
+    <TypstRid Condition="'$(TypstRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</TypstRid>
+
+    <!-- Where `npm run build` in mnemo-web leaves the SPA. Overridable so a packaging job can
+         point at a dist built elsewhere. -->
+    <SpaDistDir Condition="'$(SpaDistDir)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '..', 'mnemo-web', 'dist'))</SpaDistDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned; PhotinoX.Native comes in transitively - do not reference it directly.
+         5.0 preview is deliberate: BeginWindowDrag/BeginWindowResize and the Linux drag region
+         are what the chromeless titlebar is built on, and they exist in no 4.x release. -->
+    <PackageReference Include="PhotinoX" Version="5.0.0-preview.9" />
+    <!-- Main() calls VelopackApp directly; kept in step with Mnemo.Infrastructure's version. -->
+    <PackageReference Include="Velopack" Version="0.0.1298" />
+  </ItemGroup>
+
+  <!--
+    The published app serves the SPA from a wwwroot beside the executable (Program.ResolveSpaRoot),
+    and nothing else puts one there, so without this every packaged build dies on launch.
+    Publish-only: a plain `dotnet build` (and therefore the test run) must never need a web build,
+    so a missing dist is a warning and not an error.
+  -->
+  <Target Name="PublishSpaToWwwroot" AfterTargets="ComputeFilesToPublish">
+    <Warning Condition="!Exists('$(SpaDistDir)')"
+             Text="No SPA build found at $(SpaDistDir). The published app will have no wwwroot to serve; run `npm run build` in mnemo-web first." />
+    <ItemGroup Condition="Exists('$(SpaDistDir)')">
+      <_SpaDistFile Include="$(SpaDistDir)**\*" />
+      <ResolvedFileToPublish Include="@(_SpaDistFile)">
+        <RelativePath>wwwroot/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Redistribution terms have to travel with the binary. vpk packs the publish directory, so a
+    licence text that only exists in the repo is absent from every installed copy. Apache-2.0
+    section 4(a) covers the bundled Typst and mitex, the Geist fonts are OFL, and the German
+    Hunspell dictionary asks in its own header for the GPL texts to ship with every distribution.
+  -->
+  <Target Name="PublishLicenseTexts" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <_RepoLicenseText Include="$(MSBuildThisFileDirectory)../LICENSE;$(MSBuildThisFileDirectory)../NOTICE;$(MSBuildThisFileDirectory)../THIRD-PARTY-NOTICES" />
+      <ResolvedFileToPublish Include="@(_RepoLicenseText)">
+        <RelativePath>%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+
+      <_DependencyLicenseText Include="$(MSBuildThisFileDirectory)../LICENSES/**/*" />
+      <ResolvedFileToPublish Include="@(_DependencyLicenseText)">
+        <RelativePath>licenses/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+  <!--
+    SkiaSharp and HarfBuzz ship native symbol files worth about 100 MB, which nobody can act on
+    from an installed build.
+  -->
+  <Target Name="TrimPublishSymbols" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish
+        Remove="@(ResolvedFileToPublish)"
+        Condition="'%(Filename)%(Extension)' == 'libSkiaSharp.pdb'
+                Or '%(Filename)%(Extension)' == 'libHarfBuzzSharp.pdb'" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Mnemo.UI is referenced as a library but is a WinExe in its own right, so the publish lands its
+    apphost next to ours. Double-clicking it starts a second, broken copy of the app, which is
+    exactly what a person poking around an install folder does. It arrives as a copy-local asset
+    rather than through ResolvedFileToPublish, so the publish list cannot filter it and this runs
+    after the copy instead. The .dll stays: module discovery loads it.
+  -->
+  <Target Name="RemoveStrayAppHost" AfterTargets="Publish">
+    <Delete Files="$(PublishDir)Mnemo.UI.exe" ContinueOnError="true" />
+  </Target>
+
+  <!--
+    The Hunspell dictionaries back ISpellcheckService, which only the Avalonia rich text editor
+    ever resolves; nothing in the packaged Photino app calls it, so shipping them bought nothing
+    and carried a real cost, en, es and nb are of unverified license, and de is GPL-licensed with
+    no GPL text bundled to satisfy it. The packaged app relies on the WebView2 profile's own
+    spell checking instead. The files and the service registration stay in the tree for the
+    in-house implementation planned to replace both.
+  -->
+  <Target Name="TrimPublishDictionaries" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish
+        Remove="@(ResolvedFileToPublish)"
+        Condition="$([System.String]::new('%(RelativePath)').Contains('Dictionaries/Spellcheck'))
+                Or $([System.String]::new('%(RelativePath)').Contains('Dictionaries\Spellcheck'))" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <!-- Vendored mitex package: committed, platform-independent, always copied to output. -->
+    <Content Include="TypstRuntime/typst-packages/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Bundled Geist fonts so PDF output matches the app's type: committed, always copied. -->
+    <Content Include="TypstRuntime/fonts/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Typst binary: restored per-RID by scripts/restore-typst, not committed. Only the
+         matching RID is copied; Exists() keeps the build green before a dev has restored it
+         (the runtime then reports a clear "run restore-typst" error). -->
+    <Content Include="TypstRuntime/binaries/$(TypstRid)/**/*"
+             Condition="'$(TypstRid)' != '' And Exists('$(MSBuildProjectDirectory)/TypstRuntime/binaries/$(TypstRid)')"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Mnemo.Core\Mnemo.Core.csproj" />
+    <ProjectReference Include="..\Mnemo.Infrastructure\Mnemo.Infrastructure.csproj" />
+    <!-- Referenced only for IModule discovery and backend-side module registrations
+         while both UIs coexist; severed at cutover. -->
+    <ProjectReference Include="..\Mnemo.UI\Mnemo.UI.csproj" />
+  </ItemGroup>
+</Project>

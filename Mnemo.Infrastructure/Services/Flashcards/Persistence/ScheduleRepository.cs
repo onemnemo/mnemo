@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -17,6 +19,17 @@ public interface IScheduleRepository
     /// any daily-cap logic (which the study service applies). New cards are counted regardless of due date.
     /// </summary>
     Task<FlashcardDueCounts> GetRawDueCountsAsync(SqliteConnection conn, string deckId, DateTimeOffset now, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// How many scheduled cards fall on each UTC day in <c>[from, to)</c>, across every deck. Days
+    /// with nothing scheduled are absent from the result rather than present as zero.
+    /// </summary>
+    /// <remarks>
+    /// New cards are excluded: their due date is an artefact of when the row was created, not a
+    /// plan to show them, so counting them would put a spike on whichever day a deck was imported.
+    /// </remarks>
+    Task<IReadOnlyDictionary<DateOnly, int>> GetScheduledCountsByUtcDayAsync(
+        SqliteConnection conn, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
 }
 
 /// <inheritdoc />
@@ -79,6 +92,34 @@ public sealed class ScheduleRepository : IScheduleRepository
         var learning = reader.IsDBNull(1) ? 0 : reader.GetInt32(1);
         var due = reader.IsDBNull(2) ? 0 : reader.GetInt32(2);
         return new FlashcardDueCounts(newCount, learning, due);
+    }
+
+    public async Task<IReadOnlyDictionary<DateOnly, int>> GetScheduledCountsByUtcDayAsync(
+        SqliteConnection conn, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    {
+        await using var cmd = conn.CreateCommand();
+        // substr rather than SQLite's date(): timestamps are written by FlashcardSqlMap.Ts, which is
+        // always round-trip UTC, so the first ten characters are exactly the UTC calendar day. date()
+        // would have to reparse a seven-digit fractional second it does not document support for.
+        // The range predicate still runs against the whole column, so IX_Sched_Due is usable.
+        cmd.CommandText = """
+            SELECT substr(s.DueDate, 1, 10) AS Day, COUNT(*)
+            FROM FlashcardScheduling s
+            JOIN FlashcardCards c ON c.Id = s.CardId
+            WHERE c.State = 0 AND s.FsrsState <> 0 AND s.DueDate >= $from AND s.DueDate < $to
+            GROUP BY Day;
+            """;
+        cmd.Parameters.AddWithValue("$from", FlashcardSqlMap.Ts(from));
+        cmd.Parameters.AddWithValue("$to", FlashcardSqlMap.Ts(to));
+
+        var counts = new Dictionary<DateOnly, int>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (DateOnly.TryParse(reader.GetString(0), CultureInfo.InvariantCulture, DateTimeStyles.None, out var day))
+                counts[day] = reader.GetInt32(1);
+        }
+        return counts;
     }
 
     private static FlashcardSchedule Read(SqliteDataReader reader) => new(

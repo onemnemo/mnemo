@@ -66,7 +66,7 @@ public partial class MainWindow : Window
             () => KeybindManagerUi.TryOpen(overlayService, keyMap));
         router.RegisterHandler("global.assistant", () =>
         {
-            navigation.NavigateTo("chat");
+            navigation.NavigateTo("soma");
             return true;
         });
         router.RegisterHandler("editor.bold", () => editorDispatch.Apply(InlineFormatKind.Bold));

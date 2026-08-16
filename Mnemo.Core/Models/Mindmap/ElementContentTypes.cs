@@ -16,6 +16,9 @@ public enum ShapeType
     Parallelogram,
     Line,
     Arrow,
+    // A soft closed curve. The one member that isn't flowchart vocabulary: a hexagon claims a map is
+    // a process whether or not it is, while a blob only says "this is a region".
+    Blob,
 }
 
 /// <summary>A geometric shape with optional inline text (<see cref="ElementKind.Shape"/>).</summary>

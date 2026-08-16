@@ -34,7 +34,16 @@ public sealed record FlashcardCardQuery(
     FlashcardCardSort Sort = FlashcardCardSort.Due,
     bool SortDescending = false,
     int Offset = 0,
-    int Limit = 50);
+    int Limit = 50,
+    /// <summary>Restricts to one card type; null leaves every type in.</summary>
+    FlashcardType? Type = null,
+    /// <summary>
+    /// Inclusive bounds on how many times a card has been forgotten after being learned.
+    /// The pair covers both directions the deck view offers: "forgotten at least n times",
+    /// which finds the cards worth rewriting, and "never forgotten", which is Max 0.
+    /// </summary>
+    int? MinLapses = null,
+    int? MaxLapses = null);
 
 /// <summary>One page of cards (content + schedule) plus the total row count for the query.</summary>
 public sealed record FlashcardCardPage(

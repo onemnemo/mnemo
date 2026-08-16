@@ -23,13 +23,23 @@ public enum BlockType
     TwoColumn,
     Equation,
     Page,
-    Sketch
+    Sketch,
+    Callout
 }
 
 [JsonConverter(typeof(BlockJsonConverter))]
 public class Block
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>
+    /// Short identifier, unique within the owning note. This is the block id that crosses the model
+    /// and tool boundary; <see cref="Id"/> stays internal. Empty until the sid migration has run
+    /// over the owning note — a block minted in memory has no scope to be unique against yet, so
+    /// whoever attaches it to a note assigns the sid.
+    /// </summary>
+    public string Sid { get; set; } = string.Empty;
+
     public BlockType Type { get; set; }
 
     /// <summary>Structured inline content (rich text blocks). Equation/code/image blocks may use <see cref="Payload"/> as primary.</summary>

@@ -1,0 +1,215 @@
+/*
+ * Legacy token shim. TEMPORARY, and meant to shrink to nothing.
+ *
+ * The app was built against the token names ported from the Avalonia themes. The design
+ * rehaul replaced that vocabulary (see tokens.css), but ~640 files still name the old
+ * tokens, so every name still in use is redefined here in terms of the new model.
+ *
+ * The rule when porting a module: delete its old token references, use the new names,
+ * then delete whatever entries here that leaves unreferenced. Nothing new may be added.
+ * To find what is still live:
+ *
+ *   grep -rhoE "var\(--[a-z0-9-]+" src --include=*.tsx --include=*.ts --include=*.css
+ *
+ * Most entries are aliases. The exceptions are content colours (editorial swatches,
+ * flashcard states, toast accents, floating chrome) which are not chrome and get
+ * redesigned with the module that owns them, so they keep literal values for now.
+ */
+
+:root,
+[data-theme="light"] {
+  /* Surfaces */
+  --workspace-background: var(--canvas);
+  --surface: var(--canvas);
+  --surface-subtle: var(--canvas-sunken);
+  --overlay-background: var(--canvas);
+  --popover: var(--canvas);
+  --card-background-secondary: var(--canvas-sunken);
+  --sidebar-background: var(--frame);
+  --sidebar-border: var(--line-soft);
+  --notes-pane-background: var(--frame);
+  --topbar-background: transparent;
+  --topbar-border: var(--line-soft);
+  --widget-background: var(--canvas);
+  --widget-background-primary: var(--canvas);
+  --widget-background-hover: var(--frame-hover);
+
+  /* Text ramp */
+  --foreground: var(--ink);
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-2);
+  --text-tertiary: var(--ink-3);
+  --text-faded: var(--ink-icon);
+  --text-disabled: var(--ink-icon);
+  --version-text: var(--ink-3);
+  --links: var(--accent-ink);
+
+  /* Lines. The old palette had one line weight; the new one distinguishes a real
+     border from a hairline between panels, and the old name was almost always the
+     hairline. */
+  --border: var(--line-soft);
+  --line-color: var(--line);
+  --divider-subtle: var(--line-soft);
+
+  /* Accent */
+  --accent-button-text: var(--accent-fg);
+  --accent-subtle-background: var(--accent-wash);
+  --accent-border-subtle: var(--accent-wash);
+
+  /* Buttons */
+  --secondary: var(--frame-active);
+  --secondary-button-background: var(--frame-active);
+  --secondary-button-text-color: var(--ink);
+  --button-background-pointer-over: var(--frame-hover);
+  --button-background-pressed: var(--frame-active);
+  --destructive-button-color: var(--danger);
+
+  /* Rows and nav */
+  --nav-button-hover: var(--frame-hover);
+  --list-item-hover-background: var(--frame-hover);
+  --notification-flyout-hover: var(--frame-hover);
+  --navigation-button-background-hover: var(--frame-hover);
+  --navigation-button-background-selected: var(--frame-active);
+  --navigation-button-foreground: var(--ink-2);
+  --navigation-button-foreground-hover: var(--ink);
+  --navigation-button-foreground-selected: var(--ink);
+  --navigation-button-icon: var(--ink-icon);
+  --navigation-button-icon-selected: var(--ink-2);
+  --sidebar-logo: var(--accent);
+
+  /* Text inputs */
+  --text-control-background: var(--canvas);
+  --text-control-border: var(--line);
+  --text-control-border-pointer-over: var(--line);
+  --text-control-border-focused: var(--accent);
+  --text-control-placeholder-foreground: var(--ink-3);
+
+  /* Topbar search */
+  --search-bar-background: var(--canvas);
+  --search-bar-border: var(--line);
+  --search-bar-hover: var(--frame-hover);
+  --search-bar-text: var(--ink-3);
+  --search-bar-shortcut-background: var(--canvas-sunken);
+
+  /* Misc chrome */
+  --card-icon-background: var(--canvas-sunken);
+  --swatch-cell-color: var(--line);
+  --elevation-1: var(--e-canvas);
+  --elevation-2: var(--e-canvas);
+  --elevation-3: var(--e-pop);
+  --elevation-4: var(--e-pop);
+
+  /* Layout. Superseded by --sidebar-w / --sidebar-w-collapsed / --topbar-h. */
+  --sidebar-width: var(--sidebar-w);
+  --sidebar-collapsed-width: var(--sidebar-w-collapsed);
+  --sidebar-inset: 10px 14px 12px 14px;
+  --topbar-height: var(--topbar-h);
+  --topbar-inset: 0 14px 0 20px;
+  --topbar-search-width: 230px;
+  --overview-cell: 120px;
+  --notes-split: 248px;
+
+  /* Flashcard state colours, onto the new three-state palette. */
+  --flashcard-state-new: var(--state-new);
+  --flashcard-state-learning: var(--state-learn);
+  --flashcard-retention-high: oklch(0.6 0.11 152);
+  --flashcard-retention-high-hover: oklch(0.55 0.12 152);
+
+  /* Floating chrome: the dark surface transient UI sits on (formatting toolbar, slash
+     menu, flyouts). Kept literal because the rehaul replaces this surface outright when
+     Notes is ported, and reshading it now would mean doing it twice. */
+  --floating-chrome-background: #232220;
+  --floating-chrome-foreground: #e8e6e3;
+  --floating-chrome-foreground-strong: #ffffff;
+  --floating-chrome-foreground-muted: #8f8b88;
+  --floating-chrome-row-text: #cdcac4;
+  --floating-chrome-accent: #ed8a76;
+  --floating-chrome-hover: #ffffff14;
+  --floating-chrome-active: #ffffff1f;
+  --floating-chrome-pressed: #ffffff29;
+  --floating-chrome-divider: #ffffff1a;
+  --floating-chrome-danger: #d9694a;
+  --floating-chrome-danger-hover: #e07a5c;
+
+  /* Toasts. Five kinds, each looked up as var(--toast-accent-{kind}), so all five have
+     to exist even where nothing renders them yet. */
+  --toast-background-primary: var(--canvas);
+  --toast-title-color: var(--ink);
+  --toast-description-color: var(--ink-2);
+  --toast-dismiss-button-background: var(--frame-hover);
+  --toast-dismiss-button-foreground: var(--ink-2);
+  --toast-timer-track: var(--line-soft);
+  --toast-timer-fill: var(--accent);
+  --toast-accent-info: oklch(0.6 0.13 245);
+  --toast-accent-success: oklch(0.6 0.12 152);
+  --toast-accent-warning: oklch(0.72 0.13 80);
+  --toast-accent-action: var(--accent);
+  --toast-accent-task: oklch(0.58 0.15 295);
+  --toast-icon-badge-info: oklch(0.94 0.03 245);
+  --toast-icon-badge-success: oklch(0.94 0.03 152);
+  --toast-icon-badge-warning: oklch(0.94 0.04 80);
+  --toast-icon-badge-action: var(--accent-wash);
+  --toast-icon-badge-task: oklch(0.94 0.035 295);
+
+  /* Editorial swatches for the notes text/highlight palette. Content colour, redesigned
+     with the Notes port onto the --hl-* / --tag-* derivation. */
+  --inline-highlight-color: #fef3c7;
+  --text-color-swatch-1: #1d1c1a;
+  --text-color-swatch-2: #7c3aed;
+  --text-color-swatch-3: #2563eb;
+  --text-color-swatch-4: #a21caf;
+  --text-color-swatch-5: #e11d48;
+  --text-color-swatch-6: #16a34a;
+  --text-color-swatch-7: #ca8a04;
+  --text-color-swatch-8: #ea580c;
+  --text-color-swatch-9: #0284c7;
+  --text-color-swatch-10: #0d9488;
+  --color-swatch-1: #efeeec;
+  --color-swatch-2: #ede9fe;
+  --color-swatch-3: #dbeafe;
+  --color-swatch-4: #fae8ff;
+  --color-swatch-5: #ffe4e6;
+  --color-swatch-6: #dcfce7;
+  --color-swatch-7: #fef9c3;
+  --color-swatch-8: #ffedd5;
+  --color-swatch-9: #e0f2fe;
+  --color-swatch-10: #ccfbf1;
+}
+
+[data-theme="dark"] {
+  --flashcard-retention-high: oklch(0.74 0.11 152);
+  --flashcard-retention-high-hover: oklch(0.79 0.11 152);
+
+  --floating-chrome-background: #292827;
+
+  --toast-accent-info: oklch(0.72 0.13 245);
+  --toast-accent-success: oklch(0.74 0.12 152);
+  --toast-accent-warning: oklch(0.82 0.13 80);
+  --toast-accent-task: oklch(0.72 0.14 295);
+  --toast-icon-badge-info: oklch(0.32 0.06 245);
+  --toast-icon-badge-success: oklch(0.32 0.06 152);
+  --toast-icon-badge-warning: oklch(0.33 0.06 80);
+  --toast-icon-badge-task: oklch(0.32 0.06 295);
+
+  --inline-highlight-color: #4e4a66;
+  --text-color-swatch-1: #cfcccb;
+  --text-color-swatch-2: #c4b5fd;
+  --text-color-swatch-3: #93c5fd;
+  --text-color-swatch-4: #d8b4fe;
+  --text-color-swatch-5: #fda4af;
+  --text-color-swatch-6: #86efac;
+  --text-color-swatch-7: #fde047;
+  --text-color-swatch-8: #fdba74;
+  --text-color-swatch-9: #7dd3fc;
+  --text-color-swatch-10: #5eead4;
+  --color-swatch-1: #3a3a3d;
+  --color-swatch-2: #40304d;
+  --color-swatch-3: #293645;
+  --color-swatch-4: #422659;
+  --color-swatch-5: #542025;
+  --color-swatch-6: #25452c;
+  --color-swatch-7: #52451a;
+  --color-swatch-8: #593617;
+  --color-swatch-9: #1e3a5f;
+  --color-swatch-10: #1b4235;
+}

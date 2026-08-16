@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
@@ -56,26 +57,61 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
         }, cancellationToken);
 
     public Task<FlashcardDueCounts> GetAggregateDueCountsAsync(CancellationToken cancellationToken = default) =>
-        _store.ReadAsync(async (conn, ct) =>
-        {
-            var headers = await _decks.ListHeadersAsync(conn, ct).ConfigureAwait(false);
-            var presets = await _presets.ListAsync(conn, ct).ConfigureAwait(false);
-            var byId = new Dictionary<string, FlashcardPreset>(StringComparer.Ordinal);
-            foreach (var p in presets)
-                byId[p.Id] = p;
+        _store.ReadAsync(AggregateDueCountsAsync, cancellationToken);
 
-            var now = DateTimeOffset.UtcNow;
-            var today = FlashcardLocalDay.Today();
-            var total = FlashcardDueCounts.Empty;
-            foreach (var header in headers)
+    public Task<IReadOnlyList<FlashcardForecastDay>> GetReviewForecastAsync(int days, CancellationToken cancellationToken = default) =>
+        _store.ReadAsync<IReadOnlyList<FlashcardForecastDay>>(async (conn, ct) =>
+        {
+            // Ninety days is the ceiling because past it the projection stops describing a schedule
+            // and starts describing FSRS's own interval growth.
+            var span = Math.Clamp(days, 1, 90);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            // Today comes off the same cap-aware aggregate the due-today banner uses rather than off
+            // the day query below, so the first column of the chart and the number beside it are one
+            // fact instead of two that can disagree. It also folds in everything overdue, which the
+            // day query cannot see: an overdue card's due date is in a day that is already past.
+            var todayCounts = await AggregateDueCountsAsync(conn, ct).ConfigureAwait(false);
+
+            var forecast = new List<FlashcardForecastDay>(span)
             {
-                var raw = await _schedules.GetRawDueCountsAsync(conn, header.Id, now, ct).ConfigureAwait(false);
-                var preset = byId.TryGetValue(header.PresetId, out var p) ? p : FlashcardPreset.CreateStandard(now);
-                var stat = await _dailyStats.GetAsync(conn, header.Id, today, ct).ConfigureAwait(false);
-                total = total.Add(FlashcardDueCalculator.Cap(raw, preset, stat));
+                new(today, todayCounts.Learning + todayCounts.Due, todayCounts.New),
+            };
+            if (span == 1)
+                return forecast;
+
+            var from = new DateTimeOffset(today.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            var to = new DateTimeOffset(today.AddDays(span).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            var byDay = await _schedules.GetScheduledCountsByUtcDayAsync(conn, from, to, ct).ConfigureAwait(false);
+
+            for (var offset = 1; offset < span; offset++)
+            {
+                var day = today.AddDays(offset);
+                forecast.Add(new FlashcardForecastDay(day, byDay.TryGetValue(day, out var due) ? due : 0, 0));
             }
-            return total;
+            return forecast;
         }, cancellationToken);
+
+    private async Task<FlashcardDueCounts> AggregateDueCountsAsync(SqliteConnection conn, CancellationToken ct)
+    {
+        var headers = await _decks.ListHeadersAsync(conn, ct).ConfigureAwait(false);
+        var presets = await _presets.ListAsync(conn, ct).ConfigureAwait(false);
+        var byId = new Dictionary<string, FlashcardPreset>(StringComparer.Ordinal);
+        foreach (var p in presets)
+            byId[p.Id] = p;
+
+        var now = DateTimeOffset.UtcNow;
+        var today = FlashcardLocalDay.Today();
+        var total = FlashcardDueCounts.Empty;
+        foreach (var header in headers)
+        {
+            var raw = await _schedules.GetRawDueCountsAsync(conn, header.Id, now, ct).ConfigureAwait(false);
+            var preset = byId.TryGetValue(header.PresetId, out var p) ? p : FlashcardPreset.CreateStandard(now);
+            var stat = await _dailyStats.GetAsync(conn, header.Id, today, ct).ConfigureAwait(false);
+            total = total.Add(FlashcardDueCalculator.Cap(raw, preset, stat));
+        }
+        return total;
+    }
 
     public async Task<IFlashcardSession> StartSessionAsync(FlashcardSessionRequest request, CancellationToken cancellationToken = default)
     {

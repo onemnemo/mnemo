@@ -36,4 +36,14 @@ public sealed class KeybindActionDefinition
 
     /// <summary>Localization key under <c>Keybinds</c> for the category line (e.g. <c>category.formatting</c>).</summary>
     public string? DisplayCategoryKey { get; init; }
+
+    /// <summary>
+    /// True when a user override is standing in for the manifest's own bindings.
+    /// </summary>
+    /// <remarks>
+    /// Set only by the merge; a manifest definition is never overridden by definition.
+    /// It is what lets a shortcuts UI offer "reset" on the rows that have somewhere to
+    /// reset to, rather than on every row whether or not it has moved.
+    /// </remarks>
+    public bool IsOverridden { get; init; }
 }

@@ -6,12 +6,17 @@ using Mnemo.Core.Models.Mindmap;
 namespace Mnemo.Infrastructure.Services.Mindmap.Tools;
 
 /// <summary>
-/// Translates the compact wire ops of an <c>edit_mindmap</c> batch into strongly-typed
-/// <see cref="MindmapEditOp"/> records, catching malformed shapes (unknown op, missing field, bad array)
-/// before the service is touched. Separated from the tool service so the wire grammar is unit-testable on
-/// its own. Content and style objects reuse the storage <c>$type</c>/token encoding, parsed case-insensitively.
+/// Translates the compact wire ops of an edit batch into strongly-typed <see cref="MindmapEditOp"/>
+/// records, catching malformed shapes (unknown op, missing field, bad array) before the service is
+/// touched. Separated from the tool service so the wire grammar is unit-testable on its own. Content
+/// and style objects reuse the storage <c>$type</c>/token encoding, parsed case-insensitively.
+/// <para>
+/// Public because this is the one op grammar for the whole app: the AI's <c>edit_mindmap</c> tool and
+/// the SPA's ops endpoint parse through here. Two parsers for one vocabulary is how the agent surface
+/// and the editor surface drift apart, and only one of them would have the tests.
+/// </para>
 /// </summary>
-internal static class MindmapToolOpParser
+public static class MindmapToolOpParser
 {
     // Same converters and discriminators as storage, but tolerant of property-name casing — a small model
     // is inconsistent about it, and there is no reason to reject "Fill" when "fill" is meant.
@@ -161,7 +166,7 @@ internal static class MindmapToolOpParser
         {
             if (!TryPair(el, "xy", out var x, out var y, out error))
                 return false;
-            op = new MoveOp { Id = id!, X = x, Y = y };
+            op = new MoveOp { Id = id!, X = x, Y = y, Pin = OptBool(el, "pin") };
             return true;
         }
 
@@ -305,12 +310,29 @@ internal static class MindmapToolOpParser
                 return false;
         }
 
+        if (!TryOptStyle<EdgeStyle>(el, "edge_defaults", out var edgeDefaults, out error))
+            return false;
+
+        CanvasBackground? background = null;
+        var backgroundName = OptString(el, "background");
+        if (backgroundName is not null)
+        {
+            if (!Enum.TryParse(backgroundName, ignoreCase: true, out CanvasBackground parsed))
+            {
+                error = $"layout \"background\" must be one of dots, grid or plain, not \"{backgroundName}\".";
+                return false;
+            }
+            background = parsed;
+        }
+
         op = new LayoutOp
         {
             Root = OptString(el, "root"),
             Algorithm = OptString(el, "algo"),
             TemplateId = OptString(el, "template"),
             Options = options,
+            EdgeDefaults = edgeDefaults,
+            Background = background,
         };
         error = string.Empty;
         return true;
@@ -447,7 +469,16 @@ internal static class MindmapToolOpParser
             return false;
         }
 
-        spec = new MindmapNodeSpec { Ref = OptString(n, "ref"), Text = text, Content = content, Children = children, X = x, Y = y };
+        spec = new MindmapNodeSpec
+        {
+            Ref = OptString(n, "ref"),
+            Text = text,
+            Content = content,
+            Children = children,
+            X = x,
+            Y = y,
+            Pin = OptBool(n, "pin"),
+        };
         return true;
     }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -124,7 +124,7 @@ internal sealed class FlashcardPresetDraft
         CreatedAt: CreatedAt == default ? now : CreatedAt,
         UpdatedAt: now);
 
-    /// <summary>Resets scheduling values (not id/name) back to FSRS-5 defaults, e.g. "Restore defaults".</summary>
+    /// <summary>Resets scheduling values (not id/name) back to FSRS-6 defaults, e.g. "Restore defaults".</summary>
     public void ResetValuesToStandard(DateTimeOffset now)
     {
         var standard = FlashcardPreset.CreateStandard(now);
@@ -220,11 +220,11 @@ public partial class FlashcardReviewSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private int _maxReviewsPerDay;
 
-    /// <summary>Only "FSRS-5" is offered today; kept as a single-item list so the row matches other ModernComboBox rows.</summary>
-    public IReadOnlyList<string> AlgorithmOptions { get; } = new[] { "FSRS-5" };
+    /// <summary>Only "FSRS-6" is offered today; kept as a single-item list so the row matches other ModernComboBox rows.</summary>
+    public IReadOnlyList<string> AlgorithmOptions { get; } = new[] { "FSRS-6" };
 
     [ObservableProperty]
-    private string _selectedAlgorithmOption = "FSRS-5";
+    private string _selectedAlgorithmOption = "FSRS-6";
 
     /// <summary>Integer percent 80-97 bound to the slider; persisted as DesiredRetention/100.</summary>
     [ObservableProperty]
@@ -378,7 +378,7 @@ public partial class FlashcardReviewSettingsViewModel : ViewModelBase
     {
         NewPerDay = draft.NewPerDay;
         MaxReviewsPerDay = draft.MaxReviewsPerDay;
-        SelectedAlgorithmOption = "FSRS-5";
+        SelectedAlgorithmOption = "FSRS-6";
         DesiredRetentionPercent = (int)Math.Round(draft.DesiredRetention * 100, MidpointRounding.AwayFromZero);
         LearningStepsText = FormatSteps(draft.LearningSteps);
         HasLearningStepsError = false;

@@ -146,11 +146,30 @@ public sealed class FlashcardStore : IFlashcardStore, IAsyncDisposable
         if (version >= FlashcardStoreSchema.TargetVersion)
             return;
 
+        foreach (var (table, column, definition) in FlashcardStoreSchema.AddedColumns)
+        {
+            if (await ColumnExistsAsync(writer, table, column, cancellationToken).ConfigureAwait(false))
+                continue;
+
+            await using var alter = writer.CreateCommand();
+            // Names come from a constant in this assembly, never from a caller.
+            alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
+            await alter.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         await using var insert = writer.CreateCommand();
         insert.CommandText = "INSERT OR IGNORE INTO FlashcardSchemaVersion (Version, AppliedAt) VALUES ($v, $at);";
         insert.Parameters.AddWithValue("$v", FlashcardStoreSchema.TargetVersion);
         insert.Parameters.AddWithValue("$at", DateTimeOffset.UtcNow.ToString("O"));
         await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<bool> ColumnExistsAsync(SqliteConnection writer, string table, string column, CancellationToken cancellationToken)
+    {
+        await using var cmd = writer.CreateCommand();
+        cmd.CommandText = $"SELECT 1 FROM pragma_table_info('{table}') WHERE name = $column LIMIT 1;";
+        cmd.Parameters.AddWithValue("$column", column);
+        return await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not null;
     }
 
     /// <inheritdoc />

@@ -244,6 +244,24 @@ public class AIOrchestratorTests
     }
 
     [Fact]
+    public async Task AgentMode_default_with_nothing_stored_sends_no_tools()
+    {
+        var client = new ScriptedChatModelClient().Enqueue(
+            new ChatStreamDelta.Content("hi"),
+            new ChatStreamDelta.Finish(ChatFinishReason.Stop));
+        var gateway = new FakeAiToolGateway(definitions: new[] { Def("some_tool") });
+        // No Set("AI.AgentMode", ...) call: proves the default itself withholds tools,
+        // not just an explicit "off" write.
+        var settings = new FakeSettingsService();
+        var orchestrator = NewOrchestrator(FakeModelRouter.Available(client), gateway, settings);
+
+        await CollectAsync(orchestrator.PromptStreamingWithHistoryAsync("sys", NoHistory, "hi"));
+
+        Assert.Null(client.Requests[0].Tools);
+        Assert.Equal(0, gateway.GetToolDefinitionsCallCount);
+    }
+
+    [Fact]
     public async Task Unavailable_route_yields_empty_stream_and_logs_warning()
     {
         var logger = new TestLogger();

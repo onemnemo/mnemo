@@ -121,6 +121,47 @@ public sealed class FlashcardEngineTests
     }
 
     [Fact]
+    public async Task Review_HonoursMaxReviewsPerDayCap()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var lib = new FlashcardLibraryService(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets);
+        var study = Study(h);
+
+        // NewPerDay 0 keeps new cards out, so only the review budget shapes the queue.
+        var preset = await presetSvc.SavePresetAsync(FlashcardPreset.CreateStandard(DateTimeOffset.UtcNow)
+            with { Id = "p3", Name = "Cap3", NewPerDay = 0, MaxReviewsPerDay = 3 });
+        var deck = await lib.CreateDeckAsync("Caps", null, preset.Id);
+        for (var i = 0; i < 6; i++)
+            await AddReviewCardAsync(h, deck.Id, $"r{i}");
+
+        var session = await study.StartSessionAsync(new FlashcardSessionRequest(deck.Id, FlashcardSessionMode.Review));
+
+        Assert.Equal(3, session.Progress.Total); // 3 of 6 due cards, not all 6
+    }
+
+    [Fact]
+    public async Task Review_QueueLeadsWithLearningCards()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var deckId = await h.SeedDeckAsync();
+        var study = Study(h);
+        var now = DateTimeOffset.UtcNow;
+
+        await AddReviewCardAsync(h, deckId, "due");
+        // A learning card due sooner than the review card; learning is drawn first regardless.
+        await h.AddCardAsync(
+            FlashcardStoreHarness.Card("learn", deckId, "Front learn", "Back learn"),
+            new FlashcardSchedule("learn", now.AddMinutes(-1), 2d, 5d, 1, 0,
+                FlashcardFsrsState.Learning, 0, now.AddMinutes(-11)));
+
+        var session = await study.StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+
+        Assert.Equal(2, session.Progress.Total);
+        Assert.Equal("learn", session.Current!.Card.Id);
+    }
+
+    [Fact]
     public async Task Cram_PersistsNothing()
     {
         await using var h = new FlashcardStoreHarness();

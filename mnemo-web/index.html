@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mnemo-web</title>
+    <script>
+      // First-paint hints only: apply the last-known theme and motion preference before
+      // React hydrates settings from the backend, to avoid a flash of the wrong theme or
+      // an animation the user asked not to see. The backend is the source of truth; these
+      // caches are written by src/stores/theme.ts and src/stores/motion.ts.
+      //
+      // The cached theme is the user's *preference*, so "system" has to be resolved here
+      // as well. The retired four-theme ids are still in localStorage on upgrading
+      // installs, so they are folded here too. Keep this in lockstep with
+      // resolveThemePreference/themeFor in src/lib/themes.ts, it is the same mapping
+      // written twice because this has to run before any module loads.
+      (function () {
+        var root = document.documentElement;
+        try {
+          var t = localStorage.getItem("mnemo.theme");
+          if (t === "system") t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          var dark = t === "dark" || t === "dusk" || t === "ember";
+          var light = t === "light" || t === "dawn" || t === "noon";
+          if (dark || light) root.setAttribute("data-theme", dark ? "dark" : "light");
+        } catch (e) {}
+        try {
+          var m = localStorage.getItem("mnemo.motion");
+          if (m === "reduced" || m === "full") root.setAttribute("data-motion", m);
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

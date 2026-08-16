@@ -1,9 +1,9 @@
-using Mnemo.Core.Models.Flashcards;
+﻿using Mnemo.Core.Models.Flashcards;
 
 namespace Mnemo.Core.Services;
 
 /// <summary>
-/// FSRS-5 scheduler operating on the split <see cref="FlashcardSchedule"/> with per-preset retention
+/// FSRS-6 scheduler operating on the split <see cref="FlashcardSchedule"/> with per-preset retention
 /// and learning steps. This is the single scheduling seam (the algorithm resolver is gone).
 /// </summary>
 public interface IFsrsScheduler

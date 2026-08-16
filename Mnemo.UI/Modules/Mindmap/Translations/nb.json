@@ -7,7 +7,9 @@
     "mindmap.redo": "Gjør om",
     "mindmap.clear-selection": "Fjern utvalg",
     "mindmap.delete-selection": "Slett utvalg",
+    "mindmap.select-all": "Merk alt",
     "mindmap.copy": "Kopier",
+    "mindmap.cut": "Klipp ut",
     "mindmap.paste": "Lim inn",
     "mindmap.duplicate": "Dupliser",
     "mindmap.add-child": "Legg til barnenode",
@@ -20,6 +22,7 @@
     "mindmap.new-text": "Ny tekst",
     "mindmap.new-frame": "Ny ramme",
     "mindmap.shape-picker": "Ny form",
+    "mindmap.new-image": "Legg til bilde",
     "mindmap.radial": "Radialverktøy"
   },
   "Mindmap": {
@@ -39,6 +42,7 @@
     "ToolConnect": "Koble",
     "ToolImage": "Legg til bilde",
     "Recenter": "Sentrer visning",
+    "Minimap": "Minikart",
     "SavedChip": "Lagret",
     "UndoTip": "Angre",
     "RedoTip": "Gjør om",
@@ -84,6 +88,7 @@
     "ShapeParallelogram": "Parallellogram",
     "ShapeLine": "Linje",
     "ShapeArrow": "Pil",
+    "ShapeBlob": "Klatt",
     "LayoutBalanced": "Balansert",
     "LayoutTreeRight": "Tre · høyre",
     "LayoutTreeDown": "Tre · ned",
@@ -98,6 +103,15 @@
     "ShapePlain": "Enkel",
     "ToggleCollapse": "Slå sammen / utvid",
     "TogglePin": "Fest / løsne",
+    "Pin": "Fest",
+    "Unpin": "Løsne",
+    "CollapseBranch": "Slå sammen grenen",
+    "ExpandBranch": "Utvid grenen",
+    "More": "Mer",
+    "ApplyToSubtree": "Og alt under den",
+    "EdgeLine": "Linje",
+    "Routing": "Rute",
+    "Ends": "Ender",
     "StyleSubtree": "Stil på undertre",
     "ClearStyle": "Fjern stil",
     "SaveAsTemplate": "Lagre stil som mal",
@@ -137,6 +151,8 @@
     "AlignMiddleV": "Sentrer loddrett",
     "AlignBottom": "Bunnjuster",
     "DistributeH": "Fordel vannrett",
-    "DistributeV": "Fordel loddrett"
+    "DistributeV": "Fordel loddrett",
+    "Align": "Juster",
+    "Distribute": "Fordel"
   }
 }

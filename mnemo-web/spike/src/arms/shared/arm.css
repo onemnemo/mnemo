@@ -1,0 +1,223 @@
+/*
+ * Node and edge presentation for the React Flow arm.
+ *
+ * Every rule here exists to make the arm render what the product renders. An arm that
+ * draws less is not faster, it is incomplete, and a straw-man arm is the most likely way
+ * this spike produces a confident wrong answer.
+ *
+ * Level of detail is expressed entirely as CSS keyed off `[data-lod]` on the container, so
+ * a band crossing costs one attribute write and a style recalculation instead of 5,000
+ * React re-renders.
+ */
+
+.spike-node {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--node-stroke, #4c566a);
+  border-radius: 10px;
+  background: var(--node-fill, #262b36);
+  color: #e6e8ee;
+  font-size: 12px;
+  line-height: 1.25;
+  overflow: hidden;
+}
+
+.spike-node--pill {
+  border-radius: 999px;
+}
+
+.spike-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spike-label--center {
+  text-align: center;
+}
+
+/* Code nodes are monospace, left aligned and clipped rather than wrapped, matching the
+   desktop. Wrapping would change the node's height and, in React Flow, its measurement. */
+.spike-code {
+  flex: 1 1 auto;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.spike-chip {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
+
+.spike-checkbox {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border: 1px solid #8892a6;
+  border-radius: 3px;
+}
+
+.spike-checkbox--done {
+  background: #6ea8fe;
+  border-color: #6ea8fe;
+}
+
+.spike-label--done {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.spike-glyph {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: #8892a6;
+}
+
+.spike-label--missing {
+  font-style: italic;
+  opacity: 0.55;
+}
+
+/* The math host is absolutely positioned inside a fixed outer box so that whatever KaTeX
+   produces can never change the node's own size. That is what stops a measurement
+   feedback loop with React Flow's ResizeObserver. */
+.spike-math {
+  position: relative;
+  overflow: hidden;
+}
+
+.spike-math-host {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.spike-shape {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.spike-frame {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border: 1px dashed #6b7689;
+  border-radius: 10px;
+  background: rgba(110, 168, 254, 0.05);
+}
+
+.spike-frame-title {
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #aab3c5;
+}
+
+.spike-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
+/* ---- Level of detail ------------------------------------------------------------- */
+
+/* Below the chrome threshold: badges, checkboxes, chips, ref glyphs, code body text and
+   edge labels all stop painting, exactly as the desktop stops drawing them. */
+[data-lod='labels'] .spike-chip,
+[data-lod='labels'] .spike-checkbox,
+[data-lod='labels'] .spike-glyph,
+[data-lod='labels'] .spike-code,
+[data-lod='labels'] .spike-edge-label,
+[data-lod='bare'] .spike-chip,
+[data-lod='bare'] .spike-checkbox,
+[data-lod='bare'] .spike-glyph,
+[data-lod='bare'] .spike-code,
+[data-lod='bare'] .spike-edge-label {
+  display: none;
+}
+
+/* Below the label threshold nothing textual paints at all, leaving fills, strokes and
+   edges. Math is dropped here too: rendered KaTeX is text, and far more of it. */
+[data-lod='bare'] .spike-label,
+[data-lod='bare'] .spike-frame-title,
+[data-lod='bare'] .spike-math-host {
+  display: none;
+}
+
+/* At overview zoom the border radius and dashes cost more than they communicate, and the
+   desktop's equivalent draw path is a plain filled rect. */
+[data-lod='bare'] .spike-node {
+  border-radius: 0;
+}
+
+/*
+ * The marker ladder. See `shared/lod.ts` for why it exists and what each rung asks.
+ *
+ * Everything below applies ONLY in the `bare` band, so nothing here can touch a scenario that
+ * measures a readable zoom level. Rung 4 has no rules at all: it is today's `bare`, and it is
+ * the reconciliation control the other rungs are read against.
+ *
+ * The rules deliberately target the HOST element rather than restyling the inner box, because
+ * the point of rung 0 is that the inner box does not exist as far as the engine is concerned.
+ * `display: none` generates no box, so a rung-0 element is one positioned, painted box, which
+ * is the floor the DOM substrate can possibly reach while still drawing something per element.
+ */
+[data-lod='bare'][data-rung='0'] .a2-node > *,
+[data-lod='bare'][data-rung='1'] .a2-node > *,
+[data-lod='bare'][data-rung='2'] .a2-node > *,
+[data-lod='bare'][data-rung='3'] .a2-node > * {
+  display: none;
+}
+
+/* Rung 0: a positioned box and a fill. Nothing else. `--node-fill` is never assigned by the
+   fixture, so this is the same flat colour the inner box has always painted. */
+[data-lod='bare'][data-rung='0'] .a2-node,
+[data-lod='bare'][data-rung='1'] .a2-node,
+[data-lod='bare'][data-rung='2'] .a2-node,
+[data-lod='bare'][data-rung='3'] .a2-node {
+  background: var(--node-fill, #262b36);
+}
+
+/* Rung 1: a second paint op per box. */
+[data-lod='bare'][data-rung='1'] .a2-node,
+[data-lod='bare'][data-rung='2'] .a2-node,
+[data-lod='bare'][data-rung='3'] .a2-node {
+  box-sizing: border-box;
+  border: 1px solid var(--node-stroke, #4c566a);
+}
+
+/* Rung 2: a clip per box. */
+[data-lod='bare'][data-rung='2'] .a2-node,
+[data-lod='bare'][data-rung='3'] .a2-node {
+  overflow: hidden;
+}
+
+/* Rung 3: layout per box, on a box with no children left to lay out. */
+[data-lod='bare'][data-rung='3'] .a2-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+}

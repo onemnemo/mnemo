@@ -1,0 +1,75 @@
+import { useEffect, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
+
+import { useT } from '@/i18n/useT';
+import { pasteProgressSnapshot, subscribePasteProgress } from './paste-progress';
+
+/**
+ * The paste staging overlay: a small centred card shown while pasted images are
+ * being restaged, with a way to cancel.
+ *
+ * It is portalled to the document body, never into the editor's DOM, so
+ * ProseMirror's MutationObserver never sees it and never rebuilds a NodeView
+ * because of it. It reads the shared progress store the paste path writes, so it
+ * needs no props and can sit anywhere in the surface that has the i18n bundle.
+ */
+export function PasteProgressOverlay() {
+  const t = useT();
+  const snapshot = useSyncExternalStore(
+    subscribePasteProgress,
+    pasteProgressSnapshot,
+    pasteProgressSnapshot,
+  );
+
+  const onCancel = snapshot.onCancel;
+  useEffect(() => {
+    if (!onCancel) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onCancel]);
+
+  if (!snapshot.active) return null;
+
+  // The clipboard paste keys (editor.clipboard.*) live under the Keybinds namespace
+  // alongside the rest of the editor's shortcut labels, not under Notes, see
+  // Mnemo.UI/Modules/Notes/Translations/en.json.
+  const nt = (key: string, params?: Record<string, string | number>) => t('Keybinds', key, params);
+  const label =
+    snapshot.total > 1
+      ? nt('editor.clipboard.pasteStagingImages', { 0: snapshot.done, 1: snapshot.total })
+      : nt('editor.clipboard.pasteStagingImage');
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[1000] grid place-items-center bg-black/30"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex min-w-[240px] flex-col gap-3 rounded-lg border border-line-soft bg-canvas px-5 py-4 shadow-pop">
+        <div className="flex items-center gap-2.5 text-body-medium text-ink">
+          <span
+            className="size-4 shrink-0 animate-spin rounded-full border-2 border-ink-icon border-t-transparent"
+            aria-hidden
+          />
+          {label}
+        </div>
+        {onCancel ? (
+          <button
+            type="button"
+            onClick={() => onCancel()}
+            className="self-end rounded-md px-2 py-1 text-body-small text-ink-2 hover:bg-canvas-sunken hover:text-ink"
+          >
+            {nt('editor.clipboard.pasteCancel')}
+          </button>
+        ) : null}
+      </div>
+    </div>,
+    document.body,
+  );
+}

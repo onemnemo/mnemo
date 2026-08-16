@@ -447,8 +447,8 @@ public sealed class MindmapDocumentService : IMindmapService
 
             var working = new MindmapWorkingDocument(document, _idGenerator);
 
-            // Clear removed rows first, then restore verbatim: elements before edges so an edge's endpoints
-            // exist, and remove-then-add on an existing edge keeps document order duplicate-free.
+            // Clear removed rows first, then restore verbatim, elements before edges so an edge's
+            // endpoints exist.
             foreach (var edgeId in delta.RemoveEdgeIds)
                 working.RemoveEdge(edgeId);
             foreach (var elementId in delta.RemoveElementIds)
@@ -462,15 +462,25 @@ public sealed class MindmapDocumentService : IMindmapService
                     working.AddElement(element);
             }
 
+            // In place for an edge that is still there, the same way elements are. An edge's position in
+            // the array is the sibling order that the branch colours and the layout both read, so
+            // re-adding a restyled edge would send it to the end and recolour the map that the undo was
+            // supposed to be putting back.
             foreach (var edge in delta.Edges)
             {
                 if (working.TryGetEdge(edge.Id, out _))
-                    working.RemoveEdge(edge.Id);
-                working.AddEdge(edge, insertAfterEdgeId: null);
+                    working.ReplaceEdge(edge);
+                else
+                    working.AddEdge(edge, insertAfterEdgeId: null);
             }
 
             foreach (var cluster in delta.Clusters)
                 working.SetCluster(cluster.RootId, cluster);
+
+            // Whole rather than merged, unlike the layout op that produced it: a delta records the state
+            // being restored, and merging would leave behind whatever the edit being undone had added.
+            if (delta.Canvas is not null)
+                working.SetCanvas(delta.Canvas);
 
             var newRevision = document.Revision + 1;
             var updated = working.Materialize(newRevision, DateTime.UtcNow);
@@ -656,7 +666,7 @@ public sealed class MindmapDocumentService : IMindmapService
         if (!IsNodeContent(content))
             return Err(MindmapEditErrorCode.BadContentType, $"Content '{content.TypeDiscriminator}' is not valid for a node (use add_el for shapes/text/images/frames).");
 
-        var pinned = spec.X.HasValue && spec.Y.HasValue;
+        var pinned = spec.Pin ?? (spec.X.HasValue && spec.Y.HasValue);
         var id = working.NewId();
         working.AddElement(new MindmapElement
         {
@@ -737,18 +747,22 @@ public sealed class MindmapDocumentService : IMindmapService
             var dx = op.X.Value - element.X;
             var dy = op.Y.Value - element.Y;
 
+            // A move claims the coordinate for the author unless it says otherwise. Free kinds are
+            // pinned by definition and carry no flag, so the claim only ever lands on nodes.
+            var pin = op.Pin ?? true;
+
             working.ReplaceElement(element with
             {
                 X = op.X.Value,
                 Y = op.Y.Value,
-                Pinned = element.Kind == ElementKind.Node ? true : element.Pinned,
+                Pinned = (pin && element.Kind == ElementKind.Node) || element.Pinned,
             });
 
-            // Moving a frame translates its members by the same delta so the group moves together
-            // Member nodes pin, matching the "reposition implies pin" rule
-            // above — otherwise the next auto-layout would snap them back and split the group.
+            // Moving a frame translates its members by the same delta so the group moves together.
+            // Member nodes pin along with it, matching the "reposition implies pin" rule above,
+            // otherwise the next auto-layout would snap them back and split the group.
             if ((dx != 0 || dy != 0) && element.Content is FrameContent frame)
-                TranslateFrameMembers(working, frame, dx, dy);
+                TranslateFrameMembers(working, frame, dx, dy, pin);
 
             return null;
         }
@@ -924,10 +938,19 @@ public sealed class MindmapDocumentService : IMindmapService
         }
 
         if (op.Algorithm is not null)
-            return Err(MindmapEditErrorCode.InvalidOperation, "A document-level layout requires a root; only a default template applies document-wide.");
+            return Err(MindmapEditErrorCode.InvalidOperation, "A document-level layout requires a root; only defaults apply document-wide.");
 
         if (op.TemplateId is not null)
             working.SetCanvas(working.Canvas with { DefaultTemplateId = op.TemplateId });
+
+        if (op.Background is not null)
+            working.SetCanvas(working.Canvas with { Background = op.Background.Value });
+
+        // Merged rather than replaced, matching how Set and SetEdge treat a style: picking a branch
+        // material should not silently clear the edge colour chosen beside it.
+        if (op.EdgeDefaults is not null)
+            working.SetCanvas(working.Canvas with { EdgeDefaults = MergeEdgeStyle(working.Canvas.EdgeDefaults, op.EdgeDefaults) });
+
         return null;
     }
 
@@ -999,7 +1022,7 @@ public sealed class MindmapDocumentService : IMindmapService
 
     // ---- Helpers --------------------------------------------------------------------------------
 
-    private static void TranslateFrameMembers(MindmapWorkingDocument working, FrameContent frame, double dx, double dy)
+    private static void TranslateFrameMembers(MindmapWorkingDocument working, FrameContent frame, double dx, double dy, bool pin)
     {
         foreach (var childId in frame.ChildIds)
         {
@@ -1009,7 +1032,7 @@ public sealed class MindmapDocumentService : IMindmapService
             {
                 X = child.X + dx,
                 Y = child.Y + dy,
-                Pinned = child.Kind == ElementKind.Node ? true : child.Pinned,
+                Pinned = (pin && child.Kind == ElementKind.Node) || child.Pinned,
             });
         }
     }
@@ -1178,6 +1201,7 @@ public sealed class MindmapDocumentService : IMindmapService
         return new EdgeStyle
         {
             Line = incoming.Line ?? existing.Line,
+            WidthProfile = incoming.WidthProfile ?? existing.WidthProfile,
             Routing = incoming.Routing ?? existing.Routing,
             StartCap = incoming.StartCap ?? existing.StartCap,
             EndCap = incoming.EndCap ?? existing.EndCap,

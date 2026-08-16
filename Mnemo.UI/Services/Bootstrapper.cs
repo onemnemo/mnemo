@@ -17,6 +17,7 @@ using Mnemo.Infrastructure.Services.Mindmap;
 using Mnemo.Infrastructure.Services.Mindmap.Tools;
 using Mnemo.Infrastructure.Services.Notes;
 using Mnemo.Infrastructure.Services.Notes.Pdf;
+using Mnemo.Infrastructure.Services.Notes.Persistence;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Services.Statistics;
@@ -32,7 +33,6 @@ using Mnemo.Infrastructure.Services.Search;
 using Mnemo.Infrastructure.Services.Widgets;
 using Mnemo.Core.Services.Search;
 using Mnemo.Core.Services.Ai;
-using Mnemo.UI.Ai;
 using Mnemo.UI.Mcp;
 using Mnemo.UI.Modules.Notes.Services;
 
@@ -112,10 +112,19 @@ public static class Bootstrapper
         services.AddSingleton<IAITaskManager, AITaskManager>();
         services.AddSingleton<IAiSystemMonitor, StubAiSystemMonitor>();
 
+        services.AddSingleton<NoteCommitStore>();
+        services.AddSingleton<INoteCommitStore>(sp => sp.GetRequiredService<NoteCommitStore>());
+        services.AddSingleton<INoteSidMigrator, NoteSidMigrator>();
         services.AddSingleton<INoteService, NoteService>();
         services.AddSingleton<INoteFolderService, NoteFolderService>();
-        services.AddSingleton<INotePdfLatexImageRenderer, NotePdfLatexImageRenderer>();
-        services.AddSingleton<INotePdfExportService, NotePdfExportService>();
+        // PDF export/preview via Typst (real vector math through mitex), replacing the QuestPDF path
+        // and its Avalonia LaTeX rasterizer. Desktop image blocks store absolute paths, so the
+        // direct-path locator resolves them the way the old composer's File.Exists did.
+        services.AddSingleton(new TypstBinaryProvider());
+        services.AddSingleton(sp => new TypstCompiler(sp.GetRequiredService<TypstBinaryProvider>()));
+        services.AddSingleton<INotePdfExportService>(sp => new TypstNotePdfExportService(
+            sp.GetRequiredService<TypstCompiler>(),
+            DirectPathImageLocator.Instance));
 
         // Relational flashcard store (rehaul): owned store, repositories, and blob→relational migrator.
         services.AddSingleton<IFlashcardStore, FlashcardStore>();
@@ -248,6 +257,21 @@ public static class Bootstrapper
             catch (Exception ex)
             {
                 logger.Error("Bootstrapper", "Flashcard store migration failed during startup.", ex);
+            }
+        }
+
+        // Blocking, and before anything reads a note: the sid backfill has to finish before the notes
+        // module can assume every block is addressable. It is a fast no-op once complete.
+        using (perf.Measure("Startup", "NoteSidMigration"))
+        {
+            try
+            {
+                serviceProvider.GetRequiredService<INoteSidMigrator>()
+                    .MigrateAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                logger.Error("Bootstrapper", "Note sid migration failed during startup.", ex);
             }
         }
 
