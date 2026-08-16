@@ -9,7 +9,7 @@ import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
  * recursive counts are testable on their own. Two rules carry the persisted-data
  * contract: a folder or note whose parent no longer exists is drawn at the root
  * rather than stranded, and nothing here reads expansion or selection from disk,
- * those are the caller's in-memory state.
+ * those are handed in by the caller.
  *
  * Notes render as leaves in their folder. A note with a `parentNoteId` is a
  * child page embedded in another note, so it is left out of the sidebar

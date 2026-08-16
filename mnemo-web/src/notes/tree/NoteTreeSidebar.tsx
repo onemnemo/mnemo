@@ -81,9 +81,8 @@ function Section({
  * folder tree, and a "New note" footer. The tree is the one drag surface; the
  * favourites are a flat pinned list that does not take part in reordering.
  *
- * Selection and expansion are the caller's in-memory state, never read from
- * disk, so a reload starts from a clean, predictable tree rather than restoring
- * whatever was twirled open last session.
+ * Selection and expansion are the caller's state: this pane reads neither from
+ * disk and owns neither, it draws what it is handed and reports the clicks.
  */
 export function NoteTreeSidebar({
   notes,

@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
 /**
- * What the workspace shows when it could not read the library.
+ * What the workspace shows when it could not read the library, and which note it
+ * opens when it could.
  *
  * A list request that failed and a user with no notes leave the same thing in
  * hand, an empty array, and drawing them the same way tells someone their notes
- * are gone. This covers the branch that keeps those two apart, and the way back
- * from the failure.
+ * are gone. This covers the branch that keeps those two apart, the way back from
+ * the failure, and the memory that reopens the note the last visit was on.
  */
 
 import { StrictMode, act } from 'react';
@@ -15,7 +16,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { NoteSummaryDto } from '@/api/types';
+
 import { NotesWorkspace } from './NotesWorkspace';
+import { readLastNoteId, rememberLastNoteId } from './session';
 
 // The export overlay pulls in pdf.js, which reaches for canvas APIs jsdom does
 // not have, at import time. It renders nothing until it is opened and has no
@@ -31,8 +35,28 @@ let client: QueryClient;
 let fetchCalls: number;
 /** What the next `/notes` and `/note-folders` read does. */
 let reads: 'fail' | 'succeed';
+/** What a successful `/notes` read answers with. */
+let library: NoteSummaryDto[];
 
 const realFetch = globalThis.fetch;
+
+function note(id: string): NoteSummaryDto {
+  return {
+    id,
+    sid: id,
+    ver: 1,
+    title: id,
+    folderId: null,
+    parentNoteId: null,
+    order: 0,
+    isFavorite: false,
+    createdAt: '2026-01-01T00:00:00Z',
+    modifiedAt: '2026-01-01T00:00:00Z',
+    emoji: null,
+    cover: null,
+    tags: [],
+  };
+}
 
 function withClient(node: ReactNode): ReactNode {
   return <QueryClientProvider client={client}>{node}</QueryClientProvider>;
@@ -73,6 +97,9 @@ beforeEach(() => {
   mounted = false;
   fetchCalls = 0;
   reads = 'fail';
+  library = [];
+  localStorage.clear();
+  window.location.hash = '';
 
   client = new QueryClient({
     // A retrying query never reaches the error state inside a test, and the
@@ -80,12 +107,14 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
 
-  // Both reads answer with an empty list, which is the case that has to stay
-  // distinguishable from a read that did not answer at all.
-  globalThis.fetch = vi.fn(async () => {
+  // Both reads answer with an empty list by default, which is the case that has
+  // to stay distinguishable from a read that did not answer at all.
+  globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
     fetchCalls += 1;
     if (reads === 'fail') throw new Error('offline');
-    return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const url = String(input instanceof Request ? input.url : input);
+    const body = url.endsWith('/notes') ? JSON.stringify(library) : '[]';
+    return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
   }) as typeof fetch;
 });
 
@@ -94,6 +123,7 @@ afterEach(() => {
   container.remove();
   client.clear();
   globalThis.fetch = realFetch;
+  localStorage.clear();
 });
 
 describe('a library that could not be read', () => {
@@ -128,6 +158,42 @@ describe('a library that could not be read', () => {
     // With no note open the pane would otherwise say "pick one from the sidebar",
     // which is not advice anyone can act on while the sidebar is the error.
     expect(container.textContent).not.toContain('NoNoteSelectedTitle');
+  });
+});
+
+describe('the note the last visit was on', () => {
+  it('is opened again once the library confirms it is still there', async () => {
+    reads = 'succeed';
+    library = [note('note-1')];
+    rememberLastNoteId('note-1');
+
+    render();
+    await settle();
+
+    expect(window.location.hash).toBe('#/notes/note-1');
+  });
+
+  it('leaves the empty state up, and is forgotten, when it has been deleted', async () => {
+    reads = 'succeed';
+    library = [note('note-1')];
+    rememberLastNoteId('deleted');
+
+    render();
+    await settle();
+
+    expect(window.location.hash).toBe('');
+    expect(container.textContent).toContain('NoNoteSelectedTitle');
+    expect(readLastNoteId()).toBeNull();
+  });
+
+  it('is left alone while the library is unreadable, so a bad read never forgets it', async () => {
+    rememberLastNoteId('note-1');
+
+    render();
+    await settle();
+
+    expect(window.location.hash).toBe('');
+    expect(readLastNoteId()).toBe('note-1');
   });
 });
 
