@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 
+import { RouteLink } from "@/app/RouteLink"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
@@ -34,7 +35,7 @@ export function Body({
 }: {
   children: ReactNode
   className?: string
-  /** Makes the whole body one link. Widgets that are a single destination use this. */
+  /** Makes the whole body one destination. Widgets that are a single place to go use this. */
   href?: string
   title?: string
 }) {
@@ -42,9 +43,9 @@ export function Body({
 
   if (href) {
     return (
-      <a href={href} title={title} className={shared} style={{ transitionDuration: "var(--duration-fast)" }}>
+      <RouteLink to={href} title={title} className={shared} style={{ transitionDuration: "var(--duration-fast)" }}>
         {children}
-      </a>
+      </RouteLink>
     )
   }
   return (
@@ -265,7 +266,7 @@ export function Bars({
       {bars.map((bar, index) => (
         <div key={bar.key} className="flex min-w-0 flex-1 flex-col justify-end gap-1">
           <div
-            title={`${bar.label ?? ""} — ${totals[index]}`}
+            title={`${bar.label ?? ""}: ${totals[index]}`}
             className="flex w-full flex-col justify-end overflow-hidden rounded-[3px]"
             style={{ height: `${(totals[index] / max) * 100}%`, minHeight: totals[index] > 0 ? 2 : 0 }}
           >
@@ -315,9 +316,9 @@ export function ItemRow({
 
   if (href) {
     return (
-      <a href={href} title={title} className={className} style={{ transitionDuration: "var(--duration-fast)" }}>
+      <RouteLink to={href} title={title} className={className} style={{ transitionDuration: "var(--duration-fast)" }}>
         {content}
-      </a>
+      </RouteLink>
     )
   }
   return <div className={className}>{content}</div>

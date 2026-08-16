@@ -26,9 +26,14 @@ export function useHashRoute(): string {
   return useSyncExternalStore(subscribe, getHash, getHash)
 }
 
+/** Navigates to a route hash, the way the address bar holds it ("#/settings"). */
+export function navigateTo(hash: string): void {
+  window.location.hash = hash
+}
+
 /** Navigates to a route key, appending any path parameters ("flashcard-deck", id). */
 export function navigate(key: string, ...params: readonly string[]): void {
-  window.location.hash = ["#", key, ...params].join("/")
+  navigateTo(["#", key, ...params].join("/"))
 }
 
 /**
