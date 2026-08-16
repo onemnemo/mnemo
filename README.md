@@ -189,6 +189,8 @@ dotnet run --project Mnemo.Host -- --dev
 
 `--dev` points the host at the Vite dev server instead of a built copy of the frontend, and opens the window once both are ready.
 
+On Windows, `dev.bat` starts both of them for you, each in its own terminal, and installs the web dependencies on first run.
+
 PDF export needs the pinned Typst binary, which is not committed. Restore it once after cloning:
 
 ```bash
