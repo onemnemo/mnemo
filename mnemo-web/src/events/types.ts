@@ -25,6 +25,12 @@ export const EventType = {
    * which is also how it ignores the echo of its own edit.
    */
   MindmapChanged: "mindmap-changed",
+  /**
+   * The updater moved; payload is the whole status, see `@/updates/types`. Pushed
+   * rather than polled because a download reports progress for as long as it runs,
+   * and the window that started it may not be the one watching.
+   */
+  UpdateStatus: "update-status",
 } as const
 
 /** Payload of a `toast` event - mirrors Mnemo.Host/Contracts/ToastEventDto. */

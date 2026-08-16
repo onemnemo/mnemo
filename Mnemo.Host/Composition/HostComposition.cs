@@ -258,6 +258,11 @@ public static class HostComposition
         // App.LaunchAtStartup is a stored value on its own; this is what makes the OS act on it.
         services.AddSingleton<Startup.LaunchAtStartupService>();
 
+        // The update state machine. A singleton because the update a check resolves is what
+        // a later download and apply act on, and that lives in the instance rather than the
+        // database.
+        services.AddSingleton<Updates.UpdateCoordinator>();
+
         services.AddSingleton<IThemeService, HeadlessThemeService>();
         services.AddSingleton<IOverlayService, HeadlessOverlayService>();
         services.AddSingleton<IToastService, HeadlessToastService>();

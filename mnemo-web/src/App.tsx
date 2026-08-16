@@ -16,6 +16,7 @@ import { dialog } from "@/stores/dialog"
 import { usePaletteStore } from "@/stores/palette"
 import { useSomaStore } from "@/stores/soma"
 import { toast } from "@/stores/toast"
+import { startUpdateWatch } from "@/updates/store"
 
 // Dev-only console handles for exercising the toast/dialog systems by hand
 // (window.mnemo.toast.success("hi"), await window.mnemo.dialog.confirm({...})).
@@ -29,6 +30,11 @@ function App() {
   useEffect(() => installContextMenuGuard(), [])
 
   useEffect(() => installExitConfirm(), [])
+
+  // Here rather than in the settings page, because the launch check has to run whether
+  // or not anyone opens settings, and the download it may start has to keep reporting
+  // once they navigate away from it.
+  useEffect(() => startUpdateWatch(), [])
 
   // global.assistant toggles the dock rather than navigating: the point of Soma is
   // that it comes to the work, and a shortcut that throws away the page you were
