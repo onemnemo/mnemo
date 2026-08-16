@@ -78,11 +78,28 @@ public static class LifecycleEndpoints
 
     public static void MapLifecycle(this IEndpointRouteBuilder endpoints)
     {
-        // Unconditional: the gate only ever waits after it has asked, so an
-        // unsolicited call resolves a wait that is not running and does nothing.
+        // The three answers to the host's shutdown event. All unconditional: the gate
+        // only ever waits after it has asked, so an unsolicited call settles a wait
+        // that is not running and does nothing.
+
         endpoints.MapPost("/api/app/shutdown-ready", (ShutdownGate gate) =>
         {
             gate.SignalReady();
+            return Results.NoContent();
+        });
+
+        // "Something is being asked of the user, stop the clock." Separate from the
+        // verdict because it arrives long before one: the grace period was sized for
+        // an autosave flush, and a person reading a dialog will outlast it.
+        endpoints.MapPost("/api/app/shutdown-hold", (ShutdownGate gate) =>
+        {
+            gate.SignalHolding();
+            return Results.NoContent();
+        });
+
+        endpoints.MapPost("/api/app/shutdown-cancel", (ShutdownGate gate) =>
+        {
+            gate.SignalCancelled();
             return Results.NoContent();
         });
 

@@ -52,6 +52,7 @@ public static class SettingsKeyRegistry
         // window was closed. The SPA owns the route names, so this stores whatever it
         // sends and an unknown one falls back to the default page there.
         new("App.OpenTo", SettingValueKind.Text),
+        new("App.ConfirmExit", SettingValueKind.Boolean),
         new("App.EnableToasts", SettingValueKind.Boolean),
         new("App.EnableGamification", SettingValueKind.Boolean),
         new("App.Icon", SettingValueKind.Text),

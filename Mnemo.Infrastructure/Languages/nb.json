@@ -149,6 +149,8 @@
     "DisplayNameDescription": "Synlig for andre når du deler notater.",
     "LaunchAtStartup": "Start ved oppstart",
     "LaunchAtStartupDescription": "Start Mnemo automatisk når du logger inn.",
+    "ConfirmExit": "Spør før lukking",
+    "ConfirmExitDescription": "Vis en bekreftelse når du lukker vinduet.",
     "ClearCache": "Tøm hurtigbuffer",
     "ClearCacheDescription": "Slett bufret data for å frigjøre diskplass.",
     "ClearNow": "Tøm nå",

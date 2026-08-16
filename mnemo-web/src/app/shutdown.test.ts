@@ -8,7 +8,19 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { completeShutdown, onShutdown, resetShutdownForTests, runShutdown } from "./shutdown"
+import {
+  completeShutdown,
+  onShutdown,
+  onShutdownGuard,
+  resetShutdownForTests,
+  runShutdown,
+  runShutdownGuards,
+} from "./shutdown"
+
+/** The endpoint each POST went to, in order. */
+function paths(fetchMock: ReturnType<typeof vi.fn>): string[] {
+  return fetchMock.mock.calls.map((call) => call[0] as string)
+}
 
 function stubFetch(): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn(() => Promise.resolve(new Response(null, { status: 204 })))
@@ -96,6 +108,30 @@ describe("runShutdown", () => {
   })
 })
 
+describe("runShutdownGuards", () => {
+  it("stops at the first objection", async () => {
+    const later = vi.fn(() => Promise.resolve(true))
+    onShutdownGuard(() => Promise.resolve(false))
+    onShutdownGuard(later)
+
+    await expect(runShutdownGuards()).resolves.toBe(false)
+    // Otherwise a veto still leaves the rest of the prompts to dismiss.
+    expect(later).not.toHaveBeenCalled()
+  })
+
+  it("treats a broken guard as no objection", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined)
+    onShutdownGuard(() => Promise.reject(new Error("boom")))
+
+    // Failing closed here would be a window that cannot be closed.
+    await expect(runShutdownGuards()).resolves.toBe(true)
+  })
+
+  it("allows the exit when nothing is registered", async () => {
+    await expect(runShutdownGuards()).resolves.toBe(true)
+  })
+})
+
 describe("completeShutdown", () => {
   it("reports ready only after the participants have finished", async () => {
     const fetchMock = stubFetch()
@@ -133,6 +169,54 @@ describe("completeShutdown", () => {
     // Whatever went wrong, holding the window open for the full grace period
     // does not fix it and looks like a hang.
     expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it("holds the clock before asking, then saves and reports ready", async () => {
+    const fetchMock = stubFetch()
+    const participant = vi.fn(() => Promise.resolve())
+    onShutdown(participant)
+    onShutdownGuard(() => Promise.resolve(true))
+
+    await completeShutdown()
+
+    // Hold first or the host's grace expires while the prompt is still up.
+    expect(paths(fetchMock)).toEqual(["/api/app/shutdown-hold", "/api/app/shutdown-ready"])
+    expect(participant).toHaveBeenCalledOnce()
+  })
+
+  it("cancels without saving when a guard objects", async () => {
+    const fetchMock = stubFetch()
+    const participant = vi.fn(() => Promise.resolve())
+    onShutdown(participant)
+    onShutdownGuard(() => Promise.resolve(false))
+
+    await completeShutdown()
+
+    expect(paths(fetchMock)).toEqual(["/api/app/shutdown-hold", "/api/app/shutdown-cancel"])
+    // A cancelled exit is not a moment to flush: the app carries on as it was.
+    expect(participant).not.toHaveBeenCalled()
+  })
+
+  it("asks again on the close after a cancelled one", async () => {
+    const fetchMock = stubFetch()
+    const guard = vi.fn(() => Promise.resolve(false))
+    onShutdownGuard(guard)
+
+    await completeShutdown()
+    await completeShutdown()
+
+    // Memoizing the cancel would report ready instantly against a re-armed gate,
+    // closing the window with no prompt and no save.
+    expect(guard).toHaveBeenCalledTimes(2)
+    expect(paths(fetchMock).filter((p) => p.endsWith("shutdown-cancel"))).toHaveLength(2)
+  })
+
+  it("does not hold the clock when nothing can object", async () => {
+    const fetchMock = stubFetch()
+
+    await completeShutdown()
+
+    expect(paths(fetchMock)).toEqual(["/api/app/shutdown-ready"])
   })
 
   it("resolves even when the host cannot be reached", async () => {

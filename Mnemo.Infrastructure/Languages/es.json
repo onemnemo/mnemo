@@ -149,6 +149,8 @@
     "DisplayNameDescription": "Visible para otros cuando comparte notas.",
     "LaunchAtStartup": "Abrir al inicio",
     "LaunchAtStartupDescription": "Iniciar Mnemo automáticamente al iniciar sesión.",
+    "ConfirmExit": "Preguntar antes de cerrar",
+    "ConfirmExitDescription": "Muestra una confirmación al cerrar la ventana.",
     "ClearCache": "Borrar caché",
     "ClearCacheDescription": "Eliminar datos en caché para liberar espacio en disco.",
     "ClearNow": "Borrar ahora",
