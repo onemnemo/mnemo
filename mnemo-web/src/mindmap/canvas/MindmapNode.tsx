@@ -153,9 +153,9 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
         ) : null}
       </div>
 
-      {/* A dot in the corner, and pressing it lets go. A pin is easy to acquire without meaning to,
-          since dragging a node anywhere makes one, so the node that will sit out the next arrange has
-          to say so where it stands rather than only once you have selected it. */}
+      {/* A dot in the corner, and pressing it lets go. A node that will sit out the next arrange says
+          so where it stands rather than only once you have selected it, since the difference is
+          invisible until the arrange runs and then looks like the arrange missed one. */}
       {element.kind === "node" && element.pinned ? (
         <span
           data-mm-chrome="pin"

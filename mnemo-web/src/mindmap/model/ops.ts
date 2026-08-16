@@ -75,13 +75,15 @@ export interface SetOp {
   wh?: [number, number]
 }
 
-/** Reparent (`under`) or reposition (`xy`). Repositioning implies pinning. */
+/** Reparent (`under`) or reposition (`xy`). Repositioning implies pinning unless `pin` says otherwise. */
 export interface MoveOp {
   op: "move"
   id: string
   under?: string
   after?: string
   xy?: [number, number]
+  /** Whether the coordinate is the author's or the app's, as on a `NodeSpec`. */
+  pin?: boolean
 }
 
 export interface DeleteOp {
@@ -166,7 +168,16 @@ export const op = {
 
   set: (id: string, patch: Omit<SetOp, "op" | "id">): SetOp => prune({ op: "set", id, ...patch }),
 
-  moveTo: (id: string, x: number, y: number): MoveOp => ({ op: "move", id, xy: [x, y] }),
+  /**
+   * Put an element somewhere without claiming the author meant it to stay there.
+   *
+   * The server's default is to pin, which is right for an agent placing one node deliberately and
+   * wrong for every gesture on the canvas: a drag carries a whole subtree, a resize drags its
+   * anchor, and an align sweeps a row, so one hand movement would pin a dozen elements the author
+   * never touched and quietly take that branch out of the next arrange. Pinning stays a thing you
+   * ask for, from the pin toggle, and nothing else in the editor writes one.
+   */
+  moveTo: (id: string, x: number, y: number): MoveOp => ({ op: "move", id, xy: [x, y], pin: false }),
 
   reparent: (id: string, under: string, after?: string): MoveOp => prune({ op: "move", id, under, after }),
 
