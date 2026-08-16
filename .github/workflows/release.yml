@@ -94,9 +94,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # Tracks the major development runs on, so the gate exercises the toolchain the
-          # code is actually written against rather than one nobody uses.
-          node-version: "24"
+          # Exact, not a major, and it has to stay in step with the node development runs
+          # on. npm writes the lockfile's optional platform packages differently from one
+          # version to the next, and npm ci rejects a lockfile another npm wrote, so the
+          # release can only install what the machine that generated the lockfile produced.
+          # A floating major silently picks up a different npm and fails the build in four
+          # seconds with a package that looks missing but is not.
+          node-version: "24.11.1"
           cache: npm
           cache-dependency-path: mnemo-web/package-lock.json
 
