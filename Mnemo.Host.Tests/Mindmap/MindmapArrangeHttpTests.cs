@@ -139,6 +139,72 @@ public sealed class MindmapArrangeHttpTests
     }
 
     [Fact]
+    public async Task AFramedNodeSitsOutTheArrangeToo()
+    {
+        // A frame is drawn around whatever it holds rather than at a stored box, so an arrange that
+        // flowed its members away would not empty the frame, it would stretch it over everything they
+        // landed on. Note the move is explicitly unpinned: what holds this node is the frame.
+        await using var h = new MindmapHostHarness();
+        var map = await SeededMap(h);
+        var member = map.Elements.First(e => e.Id != Root(map).Id);
+
+        var framed = Parse<MindmapOpsResultDto>((await Execute(await MindmapEndpoints.ApplyOpsAsync(map.Id, Body($$"""
+            { "expectedRevision": {{map.Revision}}, "ops": [
+              { "op": "move", "id": "{{member.Id}}", "xy": [777, 555], "pin": false },
+              { "op": "add_el", "ref": "f", "kind": "frame", "xy": [757, 515], "wh": [200, 120],
+                "content": { "$type": "frame", "title": "G", "childIds": ["{{member.Id}}"] } }
+            ] }
+            """), h.Service))).Body);
+
+        await MindmapEndpoints.ArrangeAsync(
+            map.Id, Body($$"""{ "expectedRevision": {{framed.Revision}} }"""), h.Service, h.Layout);
+
+        var stored = (await h.Service.GetAsync(map.Id)).Value!;
+        var after = stored.Elements.Single(e => e.Id == member.Id);
+        Assert.Equal((777, 555), (after.X, after.Y));
+        // And the frame did it, not a pin: the badge still marks only what the toggle claimed.
+        Assert.False(after.Pinned);
+    }
+
+    [Fact]
+    public async Task AnArrangedTreeIsStackedPastAFrameRatherThanThroughIt()
+    {
+        // Clusters are stacked from the origin down, which is where a frame near the top of the map
+        // sits. Holding a frame's members is only half of holding the frame: a tidied tree drawn
+        // straight across one reads as the group having swallowed it.
+        await using var h = new MindmapHostHarness();
+        var map = await SeededMap(h);
+
+        var placed = Parse<MindmapOpsResultDto>((await Execute(await MindmapEndpoints.ApplyOpsAsync(map.Id, Body($$"""
+            { "expectedRevision": {{map.Revision}}, "ops": [
+              { "op": "add", "nodes": [ { "ref": "lone", "t": "Held" } ] }
+            ] }
+            """), h.Service))).Body);
+        var lone = placed.CreatedIds["lone"];
+
+        var framed = Parse<MindmapOpsResultDto>((await Execute(await MindmapEndpoints.ApplyOpsAsync(map.Id, Body($$"""
+            { "expectedRevision": {{placed.Revision}}, "ops": [
+              { "op": "move", "id": "{{lone}}", "xy": [0, 0], "pin": false },
+              { "op": "add_el", "ref": "f", "kind": "frame", "xy": [-20, -40], "wh": [200, 140],
+                "content": { "$type": "frame", "title": "G", "childIds": ["{{lone}}"] } }
+            ] }
+            """), h.Service))).Body);
+
+        await MindmapEndpoints.ArrangeAsync(
+            map.Id, Body($$"""{ "expectedRevision": {{framed.Revision}} }"""), h.Service, h.Layout);
+
+        var stored = (await h.Service.GetAsync(map.Id)).Value!;
+        var held = stored.Elements.Single(e => e.Id == lone);
+        Assert.Equal((0, 0), (held.X, held.Y));
+
+        // Nothing the arrange moved shares the held node's band. Its height is the fallback one, which
+        // is what an arrange with no measurements to go on uses for it as well.
+        var tree = stored.Elements.Where(e => e.Kind == ElementKind.Node && e.Id != lone).ToList();
+        Assert.NotEmpty(tree);
+        Assert.All(tree, node => Assert.True(node.Y >= held.Y + 32, $"{node.Id} landed at {node.Y}, on the frame"));
+    }
+
+    [Fact]
     public async Task AMapWideStyleChangeComesBackWithADeltaThatUndoesIt()
     {
         // The map's own settings hang off the document rather than off any element, so the delta the
