@@ -95,6 +95,8 @@ bld/
 [Ll]og/
 [Ll]ogs/
 publish/
+publish-test/
+vpk-test-out/
 
 ## Files built by Visual Studio
 *_i.c
