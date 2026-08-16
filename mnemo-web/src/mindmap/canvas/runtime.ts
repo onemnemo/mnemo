@@ -19,6 +19,7 @@ import { createEdgeCanvasRenderer, type EdgeCanvasRenderer } from "./edge-canvas
 import { createEdgeStrategySelector, type EdgeStrategy } from "./edge-strategy"
 import type { EdgeMode } from "./edge-style"
 import { LodController } from "./lod"
+import { MotionHint } from "./motion"
 import { createSceneIndex, edgeCullKey, nodeCullKey, type SceneIndex } from "./scene-index"
 import { boundsOf, fitZoom, type Point, type Scene, type Viewport } from "../model/scene"
 
@@ -149,6 +150,7 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
   const index = createSceneIndex(scene, elements.pane, mode)
   const culler = createCuller(index.cullTargets(), true)
   const lod = new LodController(elements.world)
+  const motion = new MotionHint(elements.world)
   const selector = createEdgeStrategySelector(strategy, viewport.zoom)
 
   const colors = createCssColorResolver()
@@ -178,6 +180,9 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
   let pendingFit = false
 
   const applyCamera = (notify = true): void => {
+    // Ahead of the transform write, so the frame that moves the map is already composited. Every
+    // path into here is something moving: the camera, or a drag asking for a redraw.
+    motion.moved()
     elements.world.style.transform = worldTransform(viewport)
     // Chrome drawn inside an element, which is scaled with everything else, has to be told what to
     // undo. Only the selection carries any, so this costs a property write per selected element.
@@ -405,6 +410,7 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
 
     dispose() {
       window.clearTimeout(settleTimer)
+      motion.dispose()
       observer.disconnect()
       themeWatcher.disconnect()
       elements.pane.removeEventListener("wheel", onWheel)
