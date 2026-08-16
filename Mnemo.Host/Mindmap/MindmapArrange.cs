@@ -38,6 +38,12 @@ internal static class MindmapArrange
     /// A pinned node keeps its coordinate: that is the whole meaning of the pin, and the layout honors it
     /// already, so an arrange emits no move for one. The moves this produces are themselves unpinned, so
     /// arranging a map twice does not quietly pin every node in it.
+    /// <para>
+    /// Frame membership holds a node the same way a pin does. A frame is drawn around whatever it holds
+    /// rather than at a stored box, so an arrange that flowed its members across the map would not empty
+    /// the frame, it would stretch it over everything they landed on. Being in one is a position someone
+    /// chose, so an arrange leaves it alone.
+    /// </para>
     /// </remarks>
     public static async Task<IReadOnlyList<MindmapEditOp>> ComputeAsync(
         MindmapDocument document,
@@ -51,6 +57,9 @@ internal static class MindmapArrange
             .ToDictionary(e => e.Id);
         if (nodeById.Count == 0)
             return Array.Empty<MindmapEditOp>();
+
+        var framed = FramedIds(document, nodeById);
+        var held = HeldBoxes(nodeById, framed, sizes);
 
         var childrenOf = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var parentOf = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -81,7 +90,7 @@ internal static class MindmapArrange
         // In document order, so arranging the same map twice lays the clusters out the same way round.
         foreach (var root in document.Elements.Where(e => e.Kind == ElementKind.Node && !parentOf.ContainsKey(e.Id)))
         {
-            var nodes = Collect(root.Id, nodeById, childrenOf, parentOf, orderOf, sizes);
+            var nodes = Collect(root.Id, nodeById, childrenOf, parentOf, orderOf, sizes, framed);
             var settings = clusterSettings.GetValueOrDefault(root.Id);
 
             // Asking for a named arrangement is also choosing it. Recorded in the same batch as the moves
@@ -103,7 +112,7 @@ internal static class MindmapArrange
             if (!computed.IsSuccess || computed.Value is null)
                 continue;
 
-            Merge(placed, computed.Value.Positions, nodes, root.Pinned, ref stackTop);
+            Merge(placed, computed.Value.Positions, nodes, root.Pinned || framed.Contains(root.Id), held, ref stackTop);
         }
 
         var moves = new List<MindmapEditOp>(chosen);
@@ -124,13 +133,60 @@ internal static class MindmapArrange
         return moves;
     }
 
+    /// <summary>Every node that is in a frame, which for an arrange means every node one holds.</summary>
+    private static HashSet<string> FramedIds(
+        MindmapDocument document,
+        IReadOnlyDictionary<string, MindmapElement> nodeById)
+    {
+        var framed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var element in document.Elements)
+        {
+            if (element.Kind != ElementKind.Frame || element.Content is not FrameContent frame)
+                continue;
+            foreach (var id in frame.ChildIds)
+            {
+                if (nodeById.ContainsKey(id))
+                    framed.Add(id);
+            }
+        }
+
+        return framed;
+    }
+
+    /// <summary>
+    /// The boxes an arrange is leaving where they are, so the clusters it does move can be stacked past
+    /// them. Read from the document rather than from the layout, because that is where these stay.
+    /// </summary>
+    private static List<HeldBox> HeldBoxes(
+        IReadOnlyDictionary<string, MindmapElement> nodeById,
+        IReadOnlySet<string> framed,
+        IReadOnlyDictionary<string, MindmapArrangeSize> sizes)
+    {
+        var held = new List<HeldBox>();
+        foreach (var (id, element) in nodeById)
+        {
+            if (!element.Pinned && !framed.Contains(id))
+                continue;
+            var size = sizes.GetValueOrDefault(id);
+            var width = size.Width > 0 ? size.Width : element.Width ?? DefaultWidth;
+            var height = size.Height > 0 ? size.Height : element.Height ?? DefaultHeight;
+            held.Add(new HeldBox(id, element.X, element.Y, element.X + width, element.Y + height));
+        }
+
+        // Ascending, so one forward pass over them only ever pushes a cluster further down and never
+        // back into something it has already cleared.
+        held.Sort((a, b) => a.MinY.CompareTo(b.MinY));
+        return held;
+    }
+
     private static List<LayoutNode> Collect(
         string rootId,
         IReadOnlyDictionary<string, MindmapElement> nodeById,
         IReadOnlyDictionary<string, List<string>> childrenOf,
         IReadOnlyDictionary<string, string> parentOf,
         IReadOnlyDictionary<string, int> orderOf,
-        IReadOnlyDictionary<string, MindmapArrangeSize> sizes)
+        IReadOnlyDictionary<string, MindmapArrangeSize> sizes,
+        IReadOnlySet<string> framed)
     {
         var nodes = new List<LayoutNode>();
         var stack = new Stack<string>();
@@ -150,7 +206,7 @@ internal static class MindmapArrange
                 Width = size.Width > 0 ? size.Width : element.Width ?? DefaultWidth,
                 Height = size.Height > 0 ? size.Height : element.Height ?? DefaultHeight,
                 Collapsed = element.Collapsed,
-                Pinned = element.Pinned,
+                Pinned = element.Pinned || framed.Contains(id),
                 X = element.X,
                 Y = element.Y,
             });
@@ -173,12 +229,17 @@ internal static class MindmapArrange
     /// node inside a cluster: it was put somewhere on purpose, often into a frame, and shifting it to
     /// tidy up the map is the one thing a pin is there to prevent.
     /// </para>
+    /// <para>
+    /// The stack also drops past the boxes that are staying put. A frame holds its members through an
+    /// arrange, and a tidied tree laid straight across one would be drawn over the group it is not in.
+    /// </para>
     /// </summary>
     private static void Merge(
         Dictionary<string, LayoutPosition> placed,
         IReadOnlyDictionary<string, LayoutPosition> cluster,
         IReadOnlyList<LayoutNode> nodes,
         bool rootPinned,
+        IReadOnlyList<HeldBox> held,
         ref double stackTop)
     {
         if (rootPinned || cluster.Count == 0)
@@ -189,18 +250,24 @@ internal static class MindmapArrange
         }
 
         var byId = nodes.ToDictionary(n => n.Id, StringComparer.Ordinal);
+        var minX = double.MaxValue;
+        var maxX = double.MinValue;
         var minY = double.MaxValue;
         var maxY = double.MinValue;
         foreach (var (id, position) in cluster)
         {
+            var width = DefaultWidth;
             var height = DefaultHeight;
             if (byId.TryGetValue(id, out var node))
             {
                 if (node.Pinned)
                     continue;
+                width = node.Width;
                 height = node.Height;
             }
 
+            minX = Math.Min(minX, position.X);
+            maxX = Math.Max(maxX, position.X + width);
             minY = Math.Min(minY, position.Y);
             maxY = Math.Max(maxY, position.Y + height);
         }
@@ -213,14 +280,47 @@ internal static class MindmapArrange
             return;
         }
 
-        var dy = stackTop - minY;
+        var dy = Clear(held, byId, minX, maxX, minY, maxY, stackTop - minY);
         foreach (var (id, position) in cluster)
             placed[id] = byId.TryGetValue(id, out var node) && node.Pinned
                 ? position
                 : new LayoutPosition(position.X, position.Y + dy);
         stackTop = maxY + dy + ClusterGap;
     }
+
+    /// <summary>
+    /// Pushes a cluster's shift further down until its box misses everything that is staying put.
+    /// <para>
+    /// A cluster's own held nodes are not obstacles to it: they are the reason it is being stretched
+    /// rather than moved, and dropping the tree below its own pinned member would only stretch it more.
+    /// </para>
+    /// </summary>
+    private static double Clear(
+        IReadOnlyList<HeldBox> held,
+        IReadOnlyDictionary<string, LayoutNode> byId,
+        double minX,
+        double maxX,
+        double minY,
+        double maxY,
+        double dy)
+    {
+        foreach (var box in held)
+        {
+            if (byId.ContainsKey(box.Id))
+                continue;
+            if (minX >= box.MaxX || maxX <= box.MinX)
+                continue;
+            if (minY + dy >= box.MaxY || maxY + dy <= box.MinY)
+                continue;
+            dy = box.MaxY + ClusterGap - minY;
+        }
+
+        return dy;
+    }
 }
+
+/// <summary>One node an arrange is not moving, as the rectangle the clusters it does move go around.</summary>
+internal readonly record struct HeldBox(string Id, double MinX, double MinY, double MaxX, double MaxY);
 
 /// <summary>
 /// One node's rendered size, as measured by the client that drew it.
