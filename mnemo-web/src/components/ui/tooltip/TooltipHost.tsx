@@ -32,16 +32,11 @@ const EDGE_PADDING = 8
 
 const SIDES: readonly TooltipSide[] = ["top", "bottom", "left", "right"]
 
-interface Hint {
+interface Shown {
+  readonly anchor: HTMLElement
   readonly label: string
   readonly chord: string | null
   readonly side: TooltipSide
-  /** Read off `title`, which then has to be taken away while ours is up. */
-  readonly native: boolean
-}
-
-interface Shown extends Hint {
-  readonly anchor: HTMLElement
 }
 
 function sideOf(value: string | null): TooltipSide {
@@ -61,7 +56,6 @@ function hintFor(target: EventTarget | null): Shown | null {
       label: own,
       chord: anchor.getAttribute("data-tooltip-chord"),
       side: sideOf(anchor.getAttribute("data-tooltip-side")),
-      native: false,
     }
   }
 
@@ -71,7 +65,7 @@ function hintFor(target: EventTarget | null): Shown | null {
   // is a document mutation as far as it is concerned. Editor controls opt in with
   // data-tooltip instead, which is read rather than moved.
   if (anchor.isContentEditable) return null
-  return { anchor, label: title, chord: null, side: "top", native: true }
+  return { anchor, label: title, chord: null, side: "top" }
 }
 
 export function TooltipHost() {
@@ -85,6 +79,45 @@ export function TooltipHost() {
     let lastHide = 0
     // A press means the pointer is doing something, not asking what a thing is.
     let pressed = false
+
+    /**
+     * The control the pointer is on, and the `title` taken off it while it is there.
+     *
+     * Chromium reads `title` on the move that lands on a control and then shows the OS tooltip from
+     * a timer of its own, which nothing on the page can see or call off. Taking the attribute away
+     * once ours is up is therefore too late: the OS one is already coming, which is how both ended
+     * up on screen at once and why a control sometimes showed only the OS one. So the attribute
+     * comes off the moment the pointer arrives, ahead of either timer, and goes back when it leaves.
+     */
+    let latched: { anchor: HTMLElement; title: string | null; named: boolean } | null = null
+
+    function latch(next: Shown): void {
+      const title = next.anchor.getAttribute("title")
+      if (title == null) {
+        latched = { anchor: next.anchor, title: null, named: false }
+        return
+      }
+      next.anchor.removeAttribute("title")
+      // `title` is the accessible name wherever a control has no words of its own, so lend the same
+      // words back for as long as the attribute is borrowed.
+      const named =
+        !next.anchor.hasAttribute("aria-label") &&
+        !next.anchor.hasAttribute("aria-labelledby") &&
+        !next.anchor.textContent?.trim()
+      if (named) next.anchor.setAttribute("aria-label", title)
+      latched = { anchor: next.anchor, title, named }
+    }
+
+    function release(): void {
+      if (!latched) return
+      const { anchor: held, title, named } = latched
+      latched = null
+      if (title == null) return
+      if (named) held.removeAttribute("aria-label")
+      // Put back rather than restored blindly: a re-render may have written its own title in the
+      // meantime, and that one is the current answer.
+      if (!held.hasAttribute("title")) held.setAttribute("title", title)
+    }
 
     function cancel(): void {
       if (timer) {
@@ -108,13 +141,17 @@ export function TooltipHost() {
     }
 
     function request(target: EventTarget | null, immediate: boolean): void {
+      // Still on the control that was read on the way in. Reading it again would restart the delay
+      // every time the pointer crossed an icon inside a button, and its title is not there to read.
+      if (latched && target instanceof Node && latched.anchor.contains(target)) return
+      release()
       const next = hintFor(target)
       if (!next) {
         hide()
         return
       }
-      if (next.anchor === anchor) return
       cancel()
+      latch(next)
       if (immediate || Date.now() - lastHide < WARM_WINDOW) {
         show(next)
         return
@@ -131,12 +168,32 @@ export function TooltipHost() {
     function onMove(): void {
       // A control can be unmounted from under a resting pointer, which produces no
       // boundary event at all and would otherwise leave its tooltip stranded.
-      if (anchor && !anchor.isConnected) hide()
+      if (latched && !latched.anchor.isConnected) {
+        // Gone, so there is nothing to hand the title back to.
+        latched = null
+        hide()
+      }
+    }
+
+    /** The pointer left the window. Whatever it was resting on gets its title back. */
+    function onLeave(): void {
+      hide()
+      release()
     }
 
     function onDown(): void {
       pressed = true
       hide()
+    }
+
+    /**
+     * Focus left. A control the pointer is not on gets its title straight back, which is the
+     * keyboard's path through a toolbar. One the pointer is resting on keeps it borrowed: the OS
+     * tooltip there is only a mouse move away, and that move is what our own hint is answering.
+     */
+    function onBlur(): void {
+      hide()
+      if (latched && !latched.anchor.matches(":hover")) release()
     }
 
     function onUp(): void {
@@ -152,12 +209,13 @@ export function TooltipHost() {
     }
 
     document.addEventListener("pointerover", onOver)
+    document.addEventListener("pointerleave", onLeave)
     document.addEventListener("pointermove", onMove)
     document.addEventListener("pointerdown", onDown, true)
     document.addEventListener("pointerup", onUp, true)
     document.addEventListener("pointercancel", onUp, true)
     document.addEventListener("focusin", onFocus)
-    document.addEventListener("focusout", hide)
+    document.addEventListener("focusout", onBlur)
     document.addEventListener("keydown", hide)
     // Capture, because the scroll that moves a control out from under its tooltip is
     // almost never the one on document itself.
@@ -166,31 +224,20 @@ export function TooltipHost() {
 
     return () => {
       cancel()
+      release()
       document.removeEventListener("pointerover", onOver)
+      document.removeEventListener("pointerleave", onLeave)
       document.removeEventListener("pointermove", onMove)
       document.removeEventListener("pointerdown", onDown, true)
       document.removeEventListener("pointerup", onUp, true)
       document.removeEventListener("pointercancel", onUp, true)
       document.removeEventListener("focusin", onFocus)
-      document.removeEventListener("focusout", hide)
+      document.removeEventListener("focusout", onBlur)
       document.removeEventListener("keydown", hide)
       document.removeEventListener("scroll", hide, true)
       window.removeEventListener("blur", hide)
     }
   }, [])
-
-  // Ours and the OS one must not both be up. The attribute goes back on the way out, so a
-  // control keeps its native tooltip if this host is ever removed mid-hover.
-  useEffect(() => {
-    if (!shown?.native) return
-    const { anchor } = shown
-    const title = anchor.getAttribute("title")
-    if (title == null) return
-    anchor.removeAttribute("title")
-    return () => {
-      if (!anchor.hasAttribute("title")) anchor.setAttribute("title", title)
-    }
-  }, [shown])
 
   // Measured then placed, in a layout effect so the two renders are one paint and the
   // tooltip is never seen at the origin.
