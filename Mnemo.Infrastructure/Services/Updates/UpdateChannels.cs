@@ -51,6 +51,20 @@ public static class UpdateChannels
         return Stable;
     }
 
+    /// <summary>
+    /// The name the update feed is published and read under, which is not the name the
+    /// user picked.
+    /// </summary>
+    /// <remarks>
+    /// Every platform's packages share one GitHub release, and the channel is the only
+    /// thing in an index asset's name, so without the runtime identifier a win-x64 build
+    /// and a linux-x64 build would both claim releases.stable.json in the same release.
+    /// The release workflow builds the same string; the two have to agree or the app
+    /// looks for an index nothing writes.
+    /// </remarks>
+    public static string FeedName(string runtimeIdentifier, string channel) =>
+        $"{runtimeIdentifier}-{Normalize(channel)}";
+
     /// <summary>How close to development a channel sits. Higher means less settled.</summary>
     public static int Rank(string channel) => Normalize(channel) switch
     {

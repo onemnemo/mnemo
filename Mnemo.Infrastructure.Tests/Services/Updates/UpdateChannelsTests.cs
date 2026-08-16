@@ -119,4 +119,30 @@ public class UpdateChannelsTests
     [InlineData("not a version")]
     public void ParseVersion_AnswersNothingRatherThanGuessing(string? informational) =>
         Assert.Null(VelopackUpdateService.ParseVersion(informational));
+
+    /// <summary>
+    /// The release workflow builds these same strings by hand, in bash, and publishes the
+    /// feed under them. Spelled out rather than derived, so changing the format here
+    /// fails until the workflow is changed with it: if the two ever disagree the app
+    /// looks for an index nothing writes, finds no update, and reports no error either.
+    /// </summary>
+    [Theory]
+    [InlineData("win-x64", UpdateChannels.Stable, "win-x64-stable")]
+    [InlineData("win-x64", UpdateChannels.Beta, "win-x64-beta")]
+    [InlineData("win-x64", UpdateChannels.Nightly, "win-x64-nightly")]
+    [InlineData("linux-x64", UpdateChannels.Stable, "linux-x64-stable")]
+    [InlineData("osx-arm64", UpdateChannels.Beta, "osx-arm64-beta")]
+    public void FeedName_IsTheNameTheReleaseWorkflowPublishesUnder(string rid, string channel, string expected) =>
+        Assert.Equal(expected, UpdateChannels.FeedName(rid, channel));
+
+    /// <summary>
+    /// A corrupted setting must not send the app looking for a feed that does not exist,
+    /// for the same reason Normalize exists at all.
+    /// </summary>
+    [Theory]
+    [InlineData("STABLE", "win-x64-stable")]
+    [InlineData("garbage", "win-x64-stable")]
+    [InlineData("Beta", "win-x64-beta")]
+    public void FeedName_NormalizesTheChannelFirst(string channel, string expected) =>
+        Assert.Equal(expected, UpdateChannels.FeedName("win-x64", channel));
 }
