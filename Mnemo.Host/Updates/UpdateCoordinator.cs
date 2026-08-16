@@ -41,6 +41,13 @@ public enum UpdateStage
 /// nothing to offer until it reaches this version. Distinct from <see cref="UpdateStage.UpToDate"/>,
 /// which would read as "you are on the newest Stable build" when the user is not.
 /// </param>
+/// <param name="ShouldPrompt">
+/// Whether an unsolicited toast about <paramref name="AvailableVersion"/> is warranted.
+/// False once the user has snoozed or skipped it. The host answers this rather than the
+/// SPA because the answer is stored, and a window that has just opened would otherwise
+/// have to read three settings before it could decide to stay quiet.
+/// </param>
+/// <param name="Skipped">The available version is on the skip list, so no prompt will name it again.</param>
 /// <param name="Error">A code the SPA translates, not a sentence. Null unless the stage is Failed.</param>
 public sealed record UpdateStatus(
     UpdateStage Stage,
@@ -52,6 +59,8 @@ public sealed record UpdateStatus(
     string? AvailableVersion,
     string? ReleaseNotesMarkdown,
     int DownloadProgress,
+    bool ShouldPrompt,
+    bool Skipped,
     string? Error);
 
 /// <summary>
@@ -76,6 +85,17 @@ public sealed class UpdateCoordinator
     /// <summary>How long an automatic check waits after the last one. Matches the desktop's gate.</summary>
     public static readonly TimeSpan AutoCheckCooldown = TimeSpan.FromHours(6);
 
+    /// <summary>How long "Later" holds the prompt off, if the app is not relaunched first.</summary>
+    public static readonly TimeSpan SnoozeDuration = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// How many launches "Later" holds it off for. The snooze ends at whichever of this and
+    /// <see cref="SnoozeDuration"/> arrives first: someone who has closed and reopened the
+    /// app twice since dismissing is between tasks, which is a better moment to ask again
+    /// than an arbitrary hour of the following day.
+    /// </summary>
+    public const int SnoozeLaunches = 2;
+
     private readonly IUpdateService _updates;
     private readonly ISettingsService _settings;
     private readonly IAppEventPublisher _events;
@@ -90,6 +110,13 @@ public sealed class UpdateCoordinator
     private int _progress;
     private string? _error;
     private string? _channel;
+    private bool _shouldPrompt;
+    private bool _skipped;
+
+    // The launch bookkeeping runs once per process, not once per page load: the SPA calls
+    // it on mount, and a reload during development would otherwise spend a snooze launch
+    // and eat the post-update toast before anyone saw it.
+    private int _launchHandled;
 
     public UpdateCoordinator(
         IUpdateService updates,
@@ -139,8 +166,96 @@ public sealed class UpdateCoordinator
         _available = null;
         _progress = 0;
         _error = null;
+        _shouldPrompt = false;
+        _skipped = false;
         _stage = UpdateStage.Idle;
         return channel;
+    }
+
+    /// <summary>
+    /// Decides whether the app may raise a toast about the pending update on its own.
+    /// </summary>
+    /// <remarks>
+    /// Read at the end of a check rather than when the status is built, because the answer
+    /// costs three settings reads and the status is built on every percent of a download.
+    /// Nothing between two checks can turn a "no" back into a "yes": snoozing and skipping
+    /// both write here and set the flags themselves.
+    /// </remarks>
+    private async Task RefreshPromptGateAsync()
+    {
+        if (_available is null)
+        {
+            _shouldPrompt = false;
+            _skipped = false;
+            return;
+        }
+
+        var skipped = await _settings.GetAsync<string?>(UpdateSettingsKeys.SkippedVersion).ConfigureAwait(false);
+        _skipped = UpdateGatePolicy.IsSkipped(skipped, _available.Version);
+
+        var remindAt = await _settings.GetAsync<DateTime?>(UpdateSettingsKeys.RemindAtUtc).ConfigureAwait(false);
+        var launches = await _settings.GetAsync<int?>(UpdateSettingsKeys.SnoozeLaunchesRemaining).ConfigureAwait(false);
+        _shouldPrompt = !_skipped && !UpdateGatePolicy.IsSnoozeActive(remindAt, launches);
+    }
+
+    /// <summary>
+    /// Once per process: spends a launch of any active snooze, and hands back the version
+    /// this launch was updated into, if it was.
+    /// </summary>
+    /// <remarks>
+    /// Both halves belong to the launch rather than to a check, which is why they are one
+    /// call. The post-update version is cleared as it is read: it exists to be said once,
+    /// and a marker left on disk would say it again at every launch after.
+    /// </remarks>
+    public async Task<string?> BeginLaunchAsync(CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.Exchange(ref _launchHandled, 1) == 1)
+            return null;
+
+        var launches = await _settings.GetAsync<int?>(UpdateSettingsKeys.SnoozeLaunchesRemaining).ConfigureAwait(false);
+        if (launches is > 0)
+            await _settings.SetAsync(UpdateSettingsKeys.SnoozeLaunchesRemaining, launches.Value - 1).ConfigureAwait(false);
+
+        var updatedTo = await _settings.GetAsync<string?>(UpdateSettingsKeys.PendingPostUpdateToastVersion).ConfigureAwait(false);
+        if (!string.IsNullOrEmpty(updatedTo))
+            await _settings.SetAsync<string?>(UpdateSettingsKeys.PendingPostUpdateToastVersion, null).ConfigureAwait(false);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return string.IsNullOrEmpty(updatedTo) ? null : updatedTo;
+    }
+
+    /// <summary>Holds the prompt off for a day or two launches, whichever comes first.</summary>
+    public async Task<UpdateStatus> SnoozeAsync(CancellationToken cancellationToken = default)
+    {
+        var channel = await ReadChannelAsync(cancellationToken).ConfigureAwait(false);
+
+        await _settings.SetAsync(UpdateSettingsKeys.RemindAtUtc, DateTime.UtcNow + SnoozeDuration).ConfigureAwait(false);
+        await _settings.SetAsync(UpdateSettingsKeys.SnoozeLaunchesRemaining, SnoozeLaunches).ConfigureAwait(false);
+        _shouldPrompt = false;
+
+        return BuildStatus(channel, await ReadLastCheckedAsync().ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// Stops the app raising the pending version again on its own.
+    /// </summary>
+    /// <remarks>
+    /// Only the prompt is skipped. The updater keeps offering the same version in Settings,
+    /// because "stop telling me about this" and "never install this" are different requests
+    /// and only the first one was made.
+    /// </remarks>
+    public async Task<UpdateStatus> SkipAvailableVersionAsync(CancellationToken cancellationToken = default)
+    {
+        var channel = await ReadChannelAsync(cancellationToken).ConfigureAwait(false);
+
+        if (_available is not null)
+        {
+            await _settings.SetAsync(UpdateSettingsKeys.SkippedVersion, _available.Version).ConfigureAwait(false);
+            _skipped = true;
+            _shouldPrompt = false;
+        }
+
+        return BuildStatus(channel, await ReadLastCheckedAsync().ConfigureAwait(false));
     }
 
     /// <summary>
@@ -186,12 +301,14 @@ public sealed class UpdateCoordinator
                 _logger.Warning("Updates", $"Update check failed: {result.ErrorMessage}");
                 _available = null;
                 _error = "check_failed";
+                await RefreshPromptGateAsync().ConfigureAwait(false);
                 SetStage(UpdateStage.Failed, channel, lastChecked);
                 return BuildStatus(channel, lastChecked);
             }
 
             _error = null;
             _available = result.Value;
+            await RefreshPromptGateAsync().ConfigureAwait(false);
             SetStage(_available is null ? UpdateStage.UpToDate : UpdateStage.Available, channel, lastChecked);
             return BuildStatus(channel, lastChecked);
         }
@@ -277,7 +394,22 @@ public sealed class UpdateCoordinator
     /// <summary>
     /// Restarts into the staged update. Does not return: the process is replaced.
     /// </summary>
-    public void Apply() => _updates.ApplyUpdatesAndRestart();
+    /// <remarks>
+    /// The version is written down first, because the only process that knows an update
+    /// was applied is the one about to stop existing. The build that comes up next reads
+    /// it back through <see cref="BeginLaunchAsync"/> and says so once.
+    /// </remarks>
+    public async Task ApplyAsync()
+    {
+        if (_available is not null)
+        {
+            await _settings
+                .SetAsync(UpdateSettingsKeys.PendingPostUpdateToastVersion, _available.Version)
+                .ConfigureAwait(false);
+        }
+
+        _updates.ApplyUpdatesAndRestart();
+    }
 
     private void SetStage(UpdateStage stage, string channel, DateTime? lastChecked)
     {
@@ -300,6 +432,8 @@ public sealed class UpdateCoordinator
             _available?.Version,
             _available?.ReleaseNotesMarkdown,
             _progress,
+            _shouldPrompt,
+            _skipped,
             _error);
     }
 

@@ -1,5 +1,6 @@
 import { create } from "zustand"
 
+import { navigateTo } from "@/app/router"
 import { runShutdown } from "@/app/shutdown"
 import { onAppEvent } from "@/events/subscribers"
 import { EventType } from "@/events/types"
@@ -7,7 +8,15 @@ import { useI18nStore } from "@/i18n/store"
 import { createTranslate } from "@/i18n/translate"
 import { toast } from "@/stores/toast"
 
-import { fetchUpdateStatus, requestUpdateApply, requestUpdateCheck, requestUpdateDownload } from "./api"
+import {
+  fetchUpdateStatus,
+  reportUpdateLaunch,
+  requestUpdateApply,
+  requestUpdateCheck,
+  requestUpdateDownload,
+  requestUpdateSkip,
+  requestUpdateSnooze,
+} from "./api"
 import type { UpdateStatus } from "./types"
 
 /** Where the update settings live, for the toast's link into them. */
@@ -23,6 +32,10 @@ interface UpdateState {
   check: (automatic: boolean) => Promise<void>
   download: () => Promise<void>
   apply: () => Promise<void>
+  /** "Later": holds the prompt off for a day or two launches, whichever comes first. */
+  snooze: () => Promise<void>
+  /** "Skip this version": stops the prompt naming it again. It stays installable. */
+  skip: () => Promise<void>
   /** Applied to every status the host sends, whether asked for or pushed. */
   receive: (status: UpdateStatus) => void
 }
@@ -78,6 +91,26 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
     }
   },
 
+  // Neither of these takes the `busy` flag. They are settings writes rather than updater
+  // work, and the toast that raises them can be answered while a check is still running.
+  snooze: async () => {
+    try {
+      set({ status: await requestUpdateSnooze() })
+    } catch {
+      // The prompt has already gone from the screen either way, and the next launch will
+      // ask again rather than never asking.
+    }
+  },
+
+  skip: async () => {
+    try {
+      set({ status: await requestUpdateSkip() })
+    } catch {
+      // Same: nothing on screen depends on it having landed except the disabled state of
+      // the button that sent it, which a later status will settle.
+    }
+  },
+
   apply: async () => {
     if (get().busy) return
     set({ busy: true })
@@ -100,34 +133,75 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
  *
  * Only for the automatic check. A manual one is being watched by whoever pressed the
  * button, and a toast repeating what the row already says is noise.
+ *
+ * It waits rather than fading, because it asks a question: an update notice that
+ * disappears after five seconds has nagged without giving anyone the chance to answer.
+ * Closing it counts as "Later", since ignoring a prompt is how most people say that, and
+ * an app that reads a dismissal as "ask me again in an hour" has not listened.
  */
 function announce(status: UpdateStatus): void {
-  if (status.stage !== "Available" || !status.availableVersion) return
+  if (status.stage !== "Available" || !status.availableVersion || !status.shouldPrompt) return
 
   const t = createTranslate(useI18nStore.getState().bundle)
+  const later = () => void useUpdateStore.getState().snooze()
+
   toast.info(t("Settings", "UpdateAvailableTitle"), {
     description: t("Settings", "UpdateAvailableVersionFormat", { 0: status.availableVersion }),
+    durationMs: 0,
     notificationAction: { label: t("Settings", "UpdatesCategoryTitle"), href: UPDATES_SETTINGS_ROUTE },
+    primary: { label: t("Settings", "UpdateNow"), onClick: () => openUpdate(status) },
+    secondary: { label: t("Settings", "UpdateToastLater"), onClick: later },
+    onDismissed: later,
+  })
+}
+
+/**
+ * What "Update now" does: opens the row that owns the rest of the flow, and starts the
+ * download on the way there.
+ *
+ * Both halves are needed. Starting the download alone would leave the progress and the
+ * restart button on a page nobody is looking at, and opening the page alone would ask
+ * for a second press to do the thing that was just pressed.
+ */
+function openUpdate(status: UpdateStatus): void {
+  navigateTo(UPDATES_SETTINGS_ROUTE)
+  // A portable build has nothing to download into; its row offers the releases page instead.
+  if (status.supportsInAppApply) void useUpdateStore.getState().download()
+}
+
+/** Says once that the app came up as a newer version than it went down as. */
+function announceInstalled(version: string): void {
+  const t = createTranslate(useI18nStore.getState().bundle)
+  toast.success(t("Settings", "PostUpdateToastTitle"), {
+    description: t("Settings", "PostUpdateToastDescriptionFormat", { 0: version }),
   })
 }
 
 /**
  * Starts mirroring the host's updater state, and runs the launch check.
  *
- * The status is read before the check because the two answer different questions. The
- * read touches nothing but this machine, so the version and whether this build can
- * update itself are known even with no network; the check is the automatic kind, and
- * the host decides whether it happens at all, since the auto-check setting and the
- * cooldown both live where the last check time is stored.
+ * The order is the order the user should read it in. The launch notice goes first
+ * because it is about the update that already happened, and arriving after a prompt
+ * about the next one would be backwards. The status is read before the check because
+ * the two answer different questions: the read touches nothing but this machine, so the
+ * version and whether this build can update itself are known even with no network. The
+ * check is the automatic kind, and the host decides whether it happens at all, since
+ * the auto-check setting and the cooldown both live where the last check time is stored.
  */
 export function startUpdateWatch(): () => void {
   const stop = onAppEvent(EventType.UpdateStatus, (event) => {
     useUpdateStore.getState().receive(event.data as UpdateStatus)
   })
 
-  void useUpdateStore
-    .getState()
-    .refresh()
+  void reportUpdateLaunch()
+    .then((notice) => {
+      if (notice.updatedToVersion) announceInstalled(notice.updatedToVersion)
+    })
+    .catch(() => {
+      // Nothing here is worth reporting: the worst case is a version the user already
+      // sees in Settings going unmentioned.
+    })
+    .then(() => useUpdateStore.getState().refresh())
     .then(() => useUpdateStore.getState().check(true))
 
   return stop

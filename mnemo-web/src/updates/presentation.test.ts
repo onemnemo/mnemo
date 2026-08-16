@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest"
 
-import { isUpdateWorking, nextUpdateAction, updateNote } from "./presentation"
+import { isUpdateWorking, nextUpdateAction, offersSkip, updateNote } from "./presentation"
 import type { UpdateStatus } from "./types"
 
 function status(patch: Partial<UpdateStatus> = {}): UpdateStatus {
@@ -21,6 +21,8 @@ function status(patch: Partial<UpdateStatus> = {}): UpdateStatus {
     availableVersion: null,
     releaseNotesMarkdown: null,
     downloadProgress: 0,
+    shouldPrompt: false,
+    skipped: false,
     error: null,
     ...patch,
   }
@@ -120,5 +122,32 @@ describe("isUpdateWorking", () => {
 
   it("is false before anything is known, so the first check is pressable", () => {
     expect(isUpdateWorking(null, false)).toBe(false)
+  })
+})
+
+describe("offersSkip", () => {
+  it("offers to skip a found version", () => {
+    expect(offersSkip(status({ stage: "Available", availableVersion: "0.9.0" }))).toBe(true)
+  })
+
+  it("keeps offering once it has been skipped, so the choice reads back", () => {
+    // The button goes disabled rather than away: gone would be indistinguishable from
+    // never offered.
+    expect(offersSkip(status({ stage: "Available", availableVersion: "0.9.0", skipped: true }))).toBe(true)
+  })
+
+  it.each(["Idle", "Checking", "UpToDate", "Downloading", "Ready", "Failed"] as const)(
+    "offers nothing to skip while %s",
+    (stage) => {
+      expect(offersSkip(status({ stage, availableVersion: "0.9.0" }))).toBe(false)
+    },
+  )
+
+  it("offers nothing to skip when the stage says available but no version came with it", () => {
+    expect(offersSkip(status({ stage: "Available" }))).toBe(false)
+  })
+
+  it("offers nothing before anything is known", () => {
+    expect(offersSkip(null)).toBe(false)
   })
 })

@@ -26,10 +26,29 @@ public static class UpdateEndpoints
     /// </param>
     public sealed record CheckRequest(bool Automatic);
 
+    /// <param name="UpdatedToVersion">
+    /// Set on the first launch after an update was applied, and only that one. Null every
+    /// other time, including on a second call within the same run.
+    /// </param>
+    public sealed record LaunchNotice(string? UpdatedToVersion);
+
     public static void MapUpdates(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/api/updates/state", async (UpdateCoordinator coordinator, CancellationToken ct) =>
             await coordinator.GetStatusAsync(ct).ConfigureAwait(false));
+
+        // A POST because it spends things: a launch of any active snooze, and the one-shot
+        // marker left behind by the update that produced this build.
+        endpoints.MapPost("/api/updates/launch", async (UpdateCoordinator coordinator, CancellationToken ct) =>
+            new LaunchNotice(await coordinator.BeginLaunchAsync(ct).ConfigureAwait(false)));
+
+        endpoints.MapPost("/api/updates/snooze", async (UpdateCoordinator coordinator, CancellationToken ct) =>
+            await coordinator.SnoozeAsync(ct).ConfigureAwait(false));
+
+        // No 409 when there is nothing to skip. Unlike a download, this asks the app to stop
+        // saying something, and it has already stopped.
+        endpoints.MapPost("/api/updates/skip", async (UpdateCoordinator coordinator, CancellationToken ct) =>
+            await coordinator.SkipAvailableVersionAsync(ct).ConfigureAwait(false));
 
         endpoints.MapPost("/api/updates/check", async (CheckRequest? body, UpdateCoordinator coordinator, CancellationToken ct) =>
             await coordinator.CheckAsync(body?.Automatic ?? false, ct).ConfigureAwait(false));
@@ -70,7 +89,7 @@ public static class UpdateEndpoints
             _ = Task.Run(async () =>
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(500)).ConfigureAwait(false);
-                coordinator.Apply();
+                await coordinator.ApplyAsync().ConfigureAwait(false);
             });
 
             return Results.Accepted();

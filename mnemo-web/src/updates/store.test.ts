@@ -16,14 +16,20 @@ import type { UpdateStatus } from "./types"
 
 const api = vi.hoisted(() => ({
   fetchUpdateStatus: vi.fn(),
+  reportUpdateLaunch: vi.fn(),
   requestUpdateCheck: vi.fn(),
   requestUpdateDownload: vi.fn(),
   requestUpdateApply: vi.fn(),
+  requestUpdateSnooze: vi.fn(),
+  requestUpdateSkip: vi.fn(),
 }))
 vi.mock("./api", () => api)
 
 const shutdown = vi.hoisted(() => ({ runShutdown: vi.fn(() => Promise.resolve()) }))
 vi.mock("@/app/shutdown", () => shutdown)
+
+const router = vi.hoisted(() => ({ navigateTo: vi.fn() }))
+vi.mock("@/app/router", () => router)
 
 const { startUpdateWatch, useUpdateStore } = await import("./store")
 
@@ -39,12 +45,14 @@ function status(patch: Partial<UpdateStatus> = {}): UpdateStatus {
     availableVersion: null,
     releaseNotesMarkdown: null,
     downloadProgress: 0,
+    shouldPrompt: false,
+    skipped: false,
     error: null,
     ...patch,
   }
 }
 
-const available = status({ stage: "Available", availableVersion: "0.9.0" })
+const available = status({ stage: "Available", availableVersion: "0.9.0", shouldPrompt: true })
 
 /** A promise the test decides when to settle. */
 function gate<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (error: Error) => void } {
@@ -63,9 +71,12 @@ beforeEach(() => {
   useI18nStore.setState({ bundle: {} })
   resetSubscribersForTests()
   api.fetchUpdateStatus.mockResolvedValue(status())
+  api.reportUpdateLaunch.mockResolvedValue({ updatedToVersion: null })
   api.requestUpdateCheck.mockResolvedValue(status({ stage: "UpToDate" }))
   api.requestUpdateDownload.mockResolvedValue(status({ stage: "Downloading" }))
   api.requestUpdateApply.mockResolvedValue(undefined)
+  api.requestUpdateSnooze.mockResolvedValue(status({ ...available, shouldPrompt: false }))
+  api.requestUpdateSkip.mockResolvedValue(status({ ...available, shouldPrompt: false, skipped: true }))
 })
 
 afterEach(() => {
@@ -147,6 +158,62 @@ describe("check", () => {
     expect(useToastStore.getState().toasts).toHaveLength(0)
   })
 
+  it("stays quiet about a version the host says not to prompt for", async () => {
+    // Snoozed or skipped. The finding is real and the row still shows it; what was
+    // asked for is to stop being interrupted about it.
+    api.requestUpdateCheck.mockResolvedValue(status({ ...available, shouldPrompt: false }))
+
+    await useUpdateStore.getState().check(true)
+    expect(useToastStore.getState().toasts).toHaveLength(0)
+  })
+
+  it("waits for an answer rather than fading", async () => {
+    api.requestUpdateCheck.mockResolvedValue(available)
+
+    await useUpdateStore.getState().check(true)
+    // A prompt that asks a question and leaves after five seconds has nagged without
+    // giving anyone the chance to answer it.
+    expect(useToastStore.getState().toasts[0].durationMs).toBe(0)
+  })
+
+  it("opens the row and starts the download when the prompt is accepted", async () => {
+    api.requestUpdateCheck.mockResolvedValue(available)
+    await useUpdateStore.getState().check(true)
+
+    useToastStore.getState().toasts[0].primary?.onClick()
+    await vi.waitFor(() => expect(api.requestUpdateDownload).toHaveBeenCalledOnce())
+    expect(router.navigateTo).toHaveBeenCalledWith("/settings/Updates")
+  })
+
+  it("only opens the row for a build that cannot download into itself", async () => {
+    api.requestUpdateCheck.mockResolvedValue(status({ ...available, supportsInAppApply: false }))
+    await useUpdateStore.getState().check(true)
+
+    useToastStore.getState().toasts[0].primary?.onClick()
+    expect(router.navigateTo).toHaveBeenCalledWith("/settings/Updates")
+    // The row sends it to the releases page instead; starting a download here would
+    // begin something that cannot finish.
+    expect(api.requestUpdateDownload).not.toHaveBeenCalled()
+  })
+
+  it("snoozes when the prompt is answered with Later", async () => {
+    api.requestUpdateCheck.mockResolvedValue(available)
+    await useUpdateStore.getState().check(true)
+
+    useToastStore.getState().toasts[0].secondary?.onClick()
+    await vi.waitFor(() => expect(api.requestUpdateSnooze).toHaveBeenCalledOnce())
+  })
+
+  it("reads closing the prompt as Later", async () => {
+    api.requestUpdateCheck.mockResolvedValue(available)
+    await useUpdateStore.getState().check(true)
+
+    useToastStore.getState().toasts[0].onDismissed?.()
+    // Ignoring a prompt is how most people say "not now", and asking again an hour
+    // later would not be listening.
+    await vi.waitFor(() => expect(api.requestUpdateSnooze).toHaveBeenCalledOnce())
+  })
+
   it("stays quiet when the host declines the automatic check", async () => {
     // Declined by the auto-check setting or the cooldown: the status comes back
     // unchanged, which must not be mistaken for a fresh finding.
@@ -212,7 +279,86 @@ describe("apply", () => {
   })
 })
 
+describe("snooze and skip", () => {
+  it("takes the status the host answers the snooze with", async () => {
+    await useUpdateStore.getState().snooze()
+    expect(useUpdateStore.getState().status?.shouldPrompt).toBe(false)
+  })
+
+  it("takes the status the host answers the skip with", async () => {
+    await useUpdateStore.getState().skip()
+    expect(useUpdateStore.getState().status?.skipped).toBe(true)
+  })
+
+  it("answers a prompt that arrived during a check", async () => {
+    // Both are settings writes rather than updater work, so neither waits on `busy`;
+    // a toast raised by a check the user can already see must stay answerable.
+    useUpdateStore.setState({ busy: true })
+
+    await useUpdateStore.getState().snooze()
+    await useUpdateStore.getState().skip()
+    expect(api.requestUpdateSnooze).toHaveBeenCalledOnce()
+    expect(api.requestUpdateSkip).toHaveBeenCalledOnce()
+  })
+
+  it("leaves the status alone when the write fails", async () => {
+    useUpdateStore.setState({ status: available })
+    api.requestUpdateSnooze.mockRejectedValue(new Error("offline"))
+
+    await useUpdateStore.getState().snooze()
+    // The next launch asks again, which is the safe direction to fail in.
+    expect(useUpdateStore.getState().status).toEqual(available)
+  })
+})
+
 describe("startUpdateWatch", () => {
+  it("says once that the app came up as a newer version", async () => {
+    useI18nStore.setState({
+      bundle: { Settings: { PostUpdateToastTitle: "Update installed", PostUpdateToastDescriptionFormat: "Updated to version {0}." } },
+    })
+    api.reportUpdateLaunch.mockResolvedValue({ updatedToVersion: "0.9.0" })
+
+    const stop = startUpdateWatch()
+    await vi.waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1))
+    const [toast] = useToastStore.getState().toasts
+    expect(toast.title).toBe("Update installed")
+    expect(toast.description).toBe("Updated to version 0.9.0.")
+    stop()
+  })
+
+  it("says nothing about a launch that did not come out of an update", async () => {
+    const stop = startUpdateWatch()
+    await vi.waitFor(() => expect(api.requestUpdateCheck).toHaveBeenCalled())
+    expect(useToastStore.getState().toasts).toHaveLength(0)
+    stop()
+  })
+
+  it("reports the launch before the update it is about to look for", async () => {
+    const order: string[] = []
+    api.reportUpdateLaunch.mockImplementation(async () => {
+      order.push("launch")
+      return { updatedToVersion: null }
+    })
+    api.fetchUpdateStatus.mockImplementation(async () => {
+      order.push("state")
+      return status()
+    })
+
+    const stop = startUpdateWatch()
+    // The launch notice is about the update that already happened. Arriving after a
+    // prompt about the next one would read backwards.
+    await vi.waitFor(() => expect(order).toEqual(["launch", "state"]))
+    stop()
+  })
+
+  it("still runs the check when the launch report fails", async () => {
+    api.reportUpdateLaunch.mockRejectedValue(new Error("offline"))
+
+    const stop = startUpdateWatch()
+    await vi.waitFor(() => expect(api.requestUpdateCheck).toHaveBeenCalledOnce())
+    stop()
+  })
+
   it("reads the local state before running the launch check", async () => {
     const order: string[] = []
     api.fetchUpdateStatus.mockImplementation(async () => {

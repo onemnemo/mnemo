@@ -47,6 +47,18 @@ export function nextUpdateAction(status: UpdateStatus | null): UpdateAction {
   return check
 }
 
+/**
+ * Whether the row offers to stop the app raising this version by itself.
+ *
+ * Only alongside a found update, because skipping is about one version and there is
+ * nothing to name otherwise. It stays on screen once pressed, disabled, so the choice
+ * reads back: a control that vanishes leaves no way to tell "already skipped" from
+ * "never offered".
+ */
+export function offersSkip(status: UpdateStatus | null): boolean {
+  return status?.stage === "Available" && Boolean(status.availableVersion)
+}
+
 /** The line under the version, or nothing when there is nothing to add to it. */
 export function updateNote(status: UpdateStatus | null): UpdateNote | null {
   if (!status) return null
