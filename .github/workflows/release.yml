@@ -1,6 +1,12 @@
-# Builds the Velopack installer.
-# GitHub Release assets remain user-facing only (installer/portable binaries).
-# Update-feed files are published as a separate workflow artifact.
+# Builds and publishes a release from a tag.
+#
+# The tag decides everything: v0.8.0 is a stable release, v0.8.0-beta.1 and v0.8.0-rc.1
+# are beta, v0.8.0-alpha.1 and v0.8.0-nightly.* are nightly. Nothing is packed until the
+# tests pass, so a tag on a broken commit fails here rather than on someone's machine.
+#
+# The release itself is the update feed: Velopack publishes releases.{channel}.json
+# alongside the packages, and the app reads it from there. The feed is also kept as a
+# workflow artifact so a bad publish can be inspected without downloading a release.
 name: Release packages
 
 on:
@@ -10,11 +16,60 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
+  # Read once, here, so the build and the two publish jobs cannot disagree about what
+  # this tag means.
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      semver: ${{ steps.tag.outputs.semver }}
+      prefix: ${{ steps.tag.outputs.prefix }}
+      channel: ${{ steps.tag.outputs.channel }}
+      channels: ${{ steps.tag.outputs.channels }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      # Tags are v1.2.3; NuGet / MSBuild Version must be semver without the leading v.
+      # AssemblyVersion and FileVersion cannot carry a prerelease suffix, so the numeric
+      # part is resolved separately and passed as VersionPrefix.
+      #
+      # The channel mapping mirrors UpdateChannels.ForVersion: a version says how mature
+      # a build is, a channel says how close to development the user chose to sit, and
+      # more than one version state can share a track. A finished release publishes to
+      # Beta as well as Stable, otherwise Beta users sit on the last prerelease of a
+      # version that has already shipped.
+      - name: Resolve the version and channel from the tag
+        id: tag
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          SEMVER="${TAG#v}"
+          PREFIX="${SEMVER%%-*}"
+          PREFIX="${PREFIX%%+*}"
+
+          SUFFIX="${SEMVER#"$PREFIX"}"
+          LABEL="${SUFFIX#-}"
+          LABEL="${LABEL%%.*}"
+          LABEL="${LABEL%%+*}"
+          LABEL="$(printf '%s' "$LABEL" | tr '[:upper:]' '[:lower:]')"
+
+          case "$LABEL" in
+            "")                      CHANNEL=stable;  CHANNELS="stable beta"; PRERELEASE=false ;;
+            nightly*|alpha*|dev*)    CHANNEL=nightly; CHANNELS="nightly";     PRERELEASE=true  ;;
+            *)                       CHANNEL=beta;    CHANNELS="beta";        PRERELEASE=true  ;;
+          esac
+
+          echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
+          echo "prefix=$PREFIX" >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "channels=$CHANNELS" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "$TAG is a $CHANNEL release, published to: $CHANNELS"
+
   build:
+    needs: meta
     # Windows only. The shipped shell is a PhotinoX window over a local ASP.NET Core host,
     # and only its Windows path has been built and tested; publishing Linux and macOS
     # packages nobody has run would put broken downloads on the release page.
@@ -28,6 +83,8 @@ jobs:
             mainexe: Mnemo.Host.exe
             packIcon: Mnemo.UI/Assets/AppIcons/AppIconDawn.ico
     runs-on: ${{ matrix.os }}
+    env:
+      PACK_ID: Mnemo.Desktop.V2
     steps:
       - uses: actions/checkout@v4
 
@@ -37,28 +94,35 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          # Tracks the major development runs on, so the gate exercises the toolchain the
+          # code is actually written against rather than one nobody uses.
+          node-version: "24"
           cache: npm
           cache-dependency-path: mnemo-web/package-lock.json
 
       - name: Restore vpk tool
         run: dotnet tool restore
 
-      # Tags are v1.2.3; NuGet / MSBuild Version must be semver without the leading v.
-      # AssemblyVersion and FileVersion cannot carry a prerelease suffix, so the numeric
-      # part is resolved separately and passed as VersionPrefix.
-      - name: Resolve semver from tag
-        id: version
-        shell: bash
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          SEMVER="${TAG#v}"
-          PREFIX="${SEMVER%%-*}"
-          PREFIX="${PREFIX%%+*}"
-          echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
-          echo "prefix=$PREFIX" >> "$GITHUB_OUTPUT"
+      - name: Install web dependencies
+        working-directory: mnemo-web
+        run: npm ci
+
+      # Everything below this line up to the publish is the gate. It runs before anything
+      # is packed, so a tag on a commit that does not pass cannot reach the release page.
+      - name: Lint the web UI
+        working-directory: mnemo-web
+        run: npm run lint
+
+      - name: Typecheck the web UI
+        working-directory: mnemo-web
+        run: npx tsc -b
+
+      - name: Test the web UI
+        working-directory: mnemo-web
+        run: npm test
+
+      - name: Test the solution
+        run: dotnet test MnemoApp.sln -c Release
 
       # The Typst binary is not committed, and the csproj only copies it when it is already
       # on disk, so without this the released app has no PDF export at all.
@@ -70,17 +134,13 @@ jobs:
       # that copies it in. No dist means an app that starts and shows nothing.
       - name: Build the web UI
         working-directory: mnemo-web
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm ci
-          npm run build
+        run: npm run build
 
       - name: Publish
         run: >
           dotnet publish Mnemo.Host/Mnemo.Host.csproj -c Release -r ${{ matrix.rid }} --self-contained true
-          -p:Version=${{ steps.version.outputs.semver }}
-          -p:VersionPrefix=${{ steps.version.outputs.prefix }}
+          -p:Version=${{ needs.meta.outputs.semver }}
+          -p:VersionPrefix=${{ needs.meta.outputs.prefix }}
           -o publish
 
       # A publish that quietly shipped no UI is worse than a failed build, and the csproj
@@ -92,31 +152,63 @@ jobs:
             throw "publish/wwwroot/index.html is missing; the SPA did not reach the published output."
           }
 
-      - name: Pack (Velopack)
-        run: >
-          dotnet vpk pack
-          --packId Mnemo.Desktop
-          --packTitle Mnemo
-          --packAuthors Mnemo
-          --packVersion ${{ steps.version.outputs.semver }}
-          --runtime ${{ matrix.rid }}
-          --packDir publish
-          --mainExe ${{ matrix.mainexe }}
-          --icon ${{ matrix.packIcon }}
-          -o vpk-out
-          --channel stable
-
-      # Velopack uses the same installer filename for every RID; suffix with RID so the
-      # GitHub Release still names what a download is for once more RIDs come back.
-      - name: Rename release assets per RID
+      # Pack writes an index listing everything it finds beside it, and the upload refuses
+      # to merge an index with one already published, so whatever is in this directory at
+      # pack time is the entire published history from here on. Pulling the current
+      # packages down first is what stops a release from unpublishing every earlier one.
+      # It also gives pack something to build delta packages against.
+      #
+      # The channel carries the RID because every platform's packages share one release
+      # and the channel is the only thing in an index asset's name. This has to match
+      # UpdateChannels.FeedName exactly or the app looks for an index nothing writes.
+      - name: Fetch the published packages
         shell: bash
+        env:
+          CHANNELS: ${{ needs.meta.outputs.channels }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          RID="${{ matrix.rid }}"
-          shopt -s nullglob
-          cd vpk-out
-          for f in *Setup.exe; do
-            mv "$f" "Mnemo.Desktop-stable-${RID}-Setup.exe"
+          mkdir -p vpk-out
+          for ch in $CHANNELS; do
+            feed="releases.${{ matrix.rid }}-$ch.json"
+            pre=""
+            [ "$ch" = stable ] || pre="--pre"
+            dotnet vpk download github --repoUrl "$REPO_URL" --channel "${{ matrix.rid }}-$ch" -o vpk-out --token "$GH_TOKEN" $pre
+
+            # download exits 0 whether the channel is empty or unreadable, and the two
+            # cases are a republished history apart. If any recent release carries this
+            # channel's index, the download had to bring something back.
+            published="$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+              "${{ github.api_url }}/repos/${{ github.repository }}/releases?per_page=10" \
+              | jq --arg f "$feed" '[.[] | select(.assets[]?.name == $f)] | length')"
+            if [ "$published" -gt 0 ] && ! ls vpk-out/*-"${{ matrix.rid }}-$ch"-*.nupkg >/dev/null 2>&1; then
+              echo "::error::$feed is published but nothing came back for ${{ matrix.rid }}-$ch"
+              exit 1
+            fi
+          done
+
+      # One pack per channel, all into the same directory: Velopack puts the channel in
+      # every file name it writes, so the tracks sit side by side without colliding.
+      - name: Pack (Velopack)
+        shell: bash
+        env:
+          CHANNELS: ${{ needs.meta.outputs.channels }}
+          SEMVER: ${{ needs.meta.outputs.semver }}
+        run: |
+          set -euo pipefail
+          for ch in $CHANNELS; do
+            dotnet vpk pack \
+              --packId "$PACK_ID" \
+              --packTitle Mnemo \
+              --packAuthors Mnemo \
+              --packVersion "$SEMVER" \
+              --runtime ${{ matrix.rid }} \
+              --packDir publish \
+              --mainExe ${{ matrix.mainexe }} \
+              --icon ${{ matrix.packIcon }} \
+              -o vpk-out \
+              --channel "${{ matrix.rid }}-$ch"
           done
 
       - name: Portable zip (Windows)
@@ -129,8 +221,105 @@ jobs:
           name: vpk-${{ matrix.rid }}
           path: vpk-out/**
 
+  # This is the publish. Everything the app needs to find and install an update lands
+  # here: the packages, and the releases.{rid}-{channel}.json index that lists them.
+  publish-update-feed:
+    needs: [meta, build]
+    runs-on: ubuntu-latest
+    env:
+      PACK_ID: Mnemo.Desktop.V2
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore vpk tool
+        run: dotnet tool restore
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: vpk-*
+          merge-multiple: false
+
+      # One upload per RID and channel, in sequence. The first creates the release and
+      # the rest attach to it, which is what --merge permits; running them in parallel
+      # would have several of them racing to create the same tag.
+      - name: Upload the packages and the feed
+        shell: bash
+        env:
+          CHANNELS: ${{ needs.meta.outputs.channels }}
+          PRERELEASE: ${{ needs.meta.outputs.prerelease }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # An if rather than "test && assign": under set -e a false test would end the
+          # whole list nonzero and take the step down with it on every stable release.
+          pre=""
+          if [ "$PRERELEASE" = true ]; then
+            pre="--pre"
+          fi
+          for rid in win-x64; do
+            src="artifacts/vpk-$rid"
+            if [ ! -d "$src" ]; then
+              echo "::error::missing artifact dir $src"
+              exit 1
+            fi
+            for ch in $CHANNELS; do
+              dotnet vpk upload github \
+                -o "$src" \
+                --channel "$rid-$ch" \
+                --repoUrl "$REPO_URL" \
+                --token "$GH_TOKEN" \
+                --tag "${{ github.ref_name }}" \
+                --releaseName "${{ github.ref_name }}" \
+                --targetCommitish "${{ github.sha }}" \
+                --merge \
+                --publish $pre
+            done
+          done
+
+      # Velopack bakes the channel into the installer it builds, so the beta-named
+      # Setup.exe a stable release also produces would put whoever ran it on the beta
+      # track without saying so. The upload has to carry it, because it is in that
+      # channel's asset manifest, so it comes off the release page here instead.
+      #
+      # Velopack's own portable zip goes too. It is the same content as the one this
+      # workflow builds, under a name that says a channel a portable build does not
+      # follow, and two portable downloads is one too many.
+      - name: Take the wrong-channel downloads off the release page
+        shell: bash
+        env:
+          CHANNEL: ${{ needs.meta.outputs.channel }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          api="${{ github.api_url }}/repos/${{ github.repository }}"
+          keep=""
+          for rid in win-x64; do
+            keep="$keep $PACK_ID-$rid-$CHANNEL-Setup.exe"
+          done
+
+          curl -sS -H "Authorization: Bearer $GH_TOKEN" "$api/releases/tags/${{ github.ref_name }}" \
+            | jq -r --arg keep "$keep" '
+                ($keep | split(" ") | map(select(length > 0))) as $keep
+                | .assets[]
+                | select((.name | endswith("-Setup.exe")) or (.name | endswith("-Portable.zip")))
+                | select(.name as $n | ($keep | index($n)) | not)
+                | "\(.id) \(.name)"' \
+            | while read -r id name; do
+                echo "removing $name"
+                curl -sS -X DELETE -H "Authorization: Bearer $GH_TOKEN" "$api/releases/assets/$id"
+              done
+
+  # After the feed, so the release already exists and this only adds to it. The installer
+  # named here is the tag's own channel, spelled out rather than globbed, so this cannot
+  # put back a download the step above just removed.
   upload-to-release:
-    needs: build
+    needs: [meta, publish-update-feed]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -143,14 +332,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
+          prerelease: ${{ needs.meta.outputs.prerelease }}
           files: |
             artifacts/**/Mnemo-Portable-*.zip
-            artifacts/**/*Setup.exe
+            artifacts/**/*-${{ needs.meta.outputs.channel }}-Setup.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   upload-update-feed-artifact:
-    needs: build
+    needs: [meta, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -162,55 +352,10 @@ jobs:
       - name: Upload update feed files
         uses: actions/upload-artifact@v4
         with:
-          name: update-feed-stable-${{ github.ref_name }}
+          name: update-feed-${{ needs.meta.outputs.channel }}-${{ github.ref_name }}
           path: |
             artifacts/**/*.nupkg
             artifacts/**/RELEASES-*
             artifacts/**/releases.*.json
             artifacts/**/assets.*.json
           if-no-files-found: error
-
-  publish-update-feed-pages:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: vpk-*
-          merge-multiple: false
-
-      - name: Build update feed site payload
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p feed/updates/stable
-          for rid in win-x64; do
-            src="artifacts/vpk-$rid"
-            if [ ! -d "$src" ]; then
-              echo "warning: missing artifact dir $src" >&2
-              continue
-            fi
-            mkdir -p "feed/updates/stable/$rid"
-            find "$src" -maxdepth 1 -type f \( -name '*.nupkg' -o -name 'RELEASES-*' -o -name 'releases.*.json' -o -name 'assets.*.json' \) -exec cp -t "feed/updates/stable/$rid/" {} +
-          done
-          # Older app builds use .../updates/stable/ without a RID segment; keep Windows payload there.
-          if [ -d feed/updates/stable/win-x64 ]; then
-            find feed/updates/stable/win-x64 -maxdepth 1 -type f -exec cp -t feed/updates/stable/ {} +
-          fi
-          ls -laR feed/updates/stable
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: feed
-
-      - name: Deploy to GitHub Pages
-        id: deploy
-        uses: actions/deploy-pages@v4

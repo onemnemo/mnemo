@@ -11,6 +11,7 @@ import { ImageGalleryRow } from "./custom/ImageGalleryRow"
 import { LanguageRow } from "./custom/LanguageRow"
 import { ModelPickerRow } from "./custom/ModelPickerRow"
 import { ReduceMotionRow } from "./custom/ReduceMotionRow"
+import { ReleaseChannelRow } from "./custom/ReleaseChannelRow"
 import { TestConnectionRow } from "./custom/TestConnectionRow"
 import { ThemeGalleryRow } from "./custom/ThemeGalleryRow"
 
@@ -64,6 +65,9 @@ export function CustomRow({ row, divider }: { row: CustomRowSchema; divider: boo
 
     case "check-for-updates":
       return <CheckForUpdatesRow title={title} divider={divider} />
+
+    case "release-channel":
+      return <ReleaseChannelRow {...shared} />
 
     case "about-identity":
       return <AboutIdentityRow />

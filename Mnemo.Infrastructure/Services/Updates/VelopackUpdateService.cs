@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Net.Http;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -17,44 +16,86 @@ namespace Mnemo.Infrastructure.Services.Updates;
 
 public sealed class VelopackUpdateService : IUpdateService, IDisposable
 {
-    private const string GithubRepoUrl = "https://github.com/onemnemo/mnemo";
+    /// <summary>
+    /// Releases are the feed. Velopack reads <c>releases.{channel}.json</c> from the
+    /// assets of recent releases here, so publishing a release publishes the feed with
+    /// it, and switching channels stays a client-side choice rather than a reinstall.
+    /// </summary>
+    /// <remarks>
+    /// This used to be a static site. Update feeds only grow, every full package is
+    /// north of a hundred megabytes, and GitHub Pages allows a gigabyte for the whole
+    /// site, so that arrangement had a release count it could not survive. Release
+    /// assets have no such ceiling.
+    /// </remarks>
+    private const string RepoUrl = "https://github.com/onemnemo/mnemo";
 
-    /// <summary>Velopack feed root per RID (GitHub Pages). Legacy builds still use .../stable/ without RID (Windows-only copy in CI).</summary>
-    private static readonly string StableFeedUrl =
-        $"https://onemnemo.github.io/mnemo/updates/stable/{RuntimeInformation.RuntimeIdentifier}/";
+    /// <summary>Newest first, prereleases included; the channel filter is applied here rather than by the API.</summary>
+    private static readonly Uri ReleasesApi = new("https://api.github.com/repos/onemnemo/mnemo/releases?per_page=30");
 
     /// <summary>
     /// Velopack in-process download/apply: Windows portable (unzipped) builds are excluded; Linux/macOS AppImage/.app use the feed when installed.
     /// </summary>
     private static bool CanUseVelopackOnlineUpdate(UpdateManager um) =>
         um.IsInstalled && (!OperatingSystem.IsWindows() || !um.IsPortable);
-    private static readonly Uri ReleasesLatestApi = new("https://api.github.com/repos/onemnemo/mnemo/releases/latest");
 
     private readonly ILoggerService _logger;
+    private readonly ISettingsService _settings;
     private readonly HttpClient _httpClient;
     private UpdateManager? _updateManager;
+    private string? _updateManagerChannel;
     private Velopack.UpdateInfo? _pendingVelopackUpdate;
-    private AppUpdateInfo? _pendingPortableUpdate;
 
-    public VelopackUpdateService(ILoggerService logger)
+    public VelopackUpdateService(ILoggerService logger, ISettingsService settings)
     {
         _logger = logger;
+        _settings = settings;
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("MnemoDesktop/1.0 (update-check)");
     }
 
     public void Dispose() => _httpClient.Dispose();
 
-    private UpdateManager GetOrCreateUpdateManager()
+    public async Task<string> GetChannelAsync(CancellationToken cancellationToken = default)
     {
-        if (_updateManager != null)
+        _ = cancellationToken;
+        var stored = await _settings.GetAsync<string?>(UpdateSettingsKeys.Channel).ConfigureAwait(false);
+        return UpdateChannels.Normalize(stored);
+    }
+
+    /// <summary>
+    /// The manager for a channel, rebuilt when the channel changes.
+    /// </summary>
+    /// <remarks>
+    /// The channel is baked into the manager's options rather than passed per call, so a
+    /// switch has to replace it. Any update discovered under the previous channel is
+    /// dropped at the same time: it was resolved against a feed the user is no longer
+    /// following, and applying it would install from a track they just left.
+    /// </remarks>
+    private UpdateManager GetOrCreateUpdateManager(string channel)
+    {
+        if (_updateManager != null && string.Equals(_updateManagerChannel, channel, StringComparison.Ordinal))
             return _updateManager;
 
-        // Feed payload (RELEASES + nupkg) is published to GitHub Pages by CI.
-        var source = new SimpleWebSource(StableFeedUrl);
-        _updateManager = new UpdateManager(source, new UpdateOptions(), locator: null);
+        _pendingVelopackUpdate = null;
+        _updateManagerChannel = channel;
+
+        // Velopack reads the ten most recent releases and skips any without an index for
+        // this channel. Stable asks for finished releases only, so a run of prereleases
+        // can never crowd its packages out of that window.
+        var seesPrereleases = !string.Equals(channel, UpdateChannels.Stable, StringComparison.Ordinal);
+        _updateManager = new UpdateManager(
+            new GithubSource(RepoUrl, accessToken: null, prerelease: seesPrereleases),
+            new UpdateOptions
+            {
+                ExplicitChannel = UpdateChannels.FeedName(RuntimeInformation.RuntimeIdentifier, channel),
+            },
+            locator: null);
         return _updateManager;
     }
+
+    /// <summary>For the two synchronous members, which describe the local install and do not depend on the feed.</summary>
+    private UpdateManager GetLocalUpdateManager() =>
+        GetOrCreateUpdateManager(_updateManagerChannel ?? UpdateChannels.Stable);
 
     public bool SupportsInAppApply
     {
@@ -62,8 +103,7 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
         {
             try
             {
-                var um = GetOrCreateUpdateManager();
-                return CanUseVelopackOnlineUpdate(um);
+                return CanUseVelopackOnlineUpdate(GetLocalUpdateManager());
             }
             catch (Exception ex)
             {
@@ -79,7 +119,7 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
         {
             try
             {
-                var um = GetOrCreateUpdateManager();
+                var um = GetLocalUpdateManager();
                 if (um.CurrentVersion != null)
                     return um.CurrentVersion.ToString();
             }
@@ -95,11 +135,11 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
     public async Task<Result<AppUpdateInfo?>> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
     {
         _pendingVelopackUpdate = null;
-        _pendingPortableUpdate = null;
 
         try
         {
-            var um = GetOrCreateUpdateManager();
+            var channel = await GetChannelAsync(cancellationToken).ConfigureAwait(false);
+            var um = GetOrCreateUpdateManager(channel);
             if (CanUseVelopackOnlineUpdate(um))
             {
                 try
@@ -123,7 +163,7 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
                 }
             }
 
-            return await CheckPortableViaGithubAsync(um, cancellationToken).ConfigureAwait(false);
+            return await CheckPortableViaGithubAsync(um, channel, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -132,9 +172,22 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
         }
     }
 
-    private async Task<Result<AppUpdateInfo?>> CheckPortableViaGithubAsync(UpdateManager um, CancellationToken cancellationToken)
+    /// <summary>
+    /// The unpackaged and portable path: no Velopack feed to read, so the release list
+    /// stands in for one.
+    /// </summary>
+    /// <remarks>
+    /// The whole list rather than <c>/releases/latest</c>, because that endpoint skips
+    /// prereleases entirely (so Beta and Nightly would never see anything) and, when it
+    /// does answer, answers with the newest release regardless of track. The channel
+    /// filter has to be applied on this side either way.
+    /// </remarks>
+    private async Task<Result<AppUpdateInfo?>> CheckPortableViaGithubAsync(
+        UpdateManager um,
+        string channel,
+        CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, ReleasesLatestApi);
+        using var request = new HttpRequestMessage(HttpMethod.Get, ReleasesApi);
         using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
@@ -144,44 +197,70 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
-        var root = doc.RootElement;
-        if (!root.TryGetProperty("tag_name", out var tagEl))
-            return Result<AppUpdateInfo?>.Failure("GitHub release has no tag_name.");
-
-        var tag = tagEl.GetString() ?? string.Empty;
-        var versionString = tag.TrimStart('v', 'V');
-        if (!SemanticVersion.TryParse(versionString, out var remoteVersion))
-            return Result<AppUpdateInfo?>.Failure($"Could not parse release tag as semantic version: {tag}");
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            return Result<AppUpdateInfo?>.Failure("GitHub returned no release list.");
 
         var current = ResolveSemanticCurrentVersion(um);
-        if (current != null && remoteVersion <= current)
-            return Result<AppUpdateInfo?>.Success(null);
+        SemanticVersion? bestVersion = null;
+        JsonElement best = default;
 
-        var bodyMd = root.TryGetProperty("body", out var bodyEl) ? bodyEl.GetString() : null;
-        DateTime? published = null;
-        if (root.TryGetProperty("published_at", out var pubEl))
+        foreach (var release in doc.RootElement.EnumerateArray())
         {
-            var s = pubEl.GetString();
-            if (!string.IsNullOrEmpty(s) && DateTime.TryParse(s, out var dt))
-                published = dt;
+            if (release.TryGetProperty("draft", out var draft) && draft.ValueKind == JsonValueKind.True)
+                continue;
+
+            if (!release.TryGetProperty("tag_name", out var tagEl))
+                continue;
+
+            var tag = (tagEl.GetString() ?? string.Empty).TrimStart('v', 'V');
+            if (!SemanticVersion.TryParse(tag, out var version))
+                continue;
+
+            if (!UpdateChannels.Offers(channel, UpdateChannels.ForVersion(version)))
+                continue;
+
+            if (bestVersion == null || version > bestVersion)
+            {
+                bestVersion = version;
+                best = release;
+            }
         }
 
-        var info = new AppUpdateInfo(remoteVersion.ToString(), bodyMd, published, isMandatory: false);
-        _pendingPortableUpdate = info;
-        return Result<AppUpdateInfo?>.Success(info);
+        if (bestVersion == null || (current != null && bestVersion <= current))
+            return Result<AppUpdateInfo?>.Success(null);
+
+        var notes = best.TryGetProperty("body", out var bodyEl) ? bodyEl.GetString() : null;
+        DateTime? published = null;
+        if (best.TryGetProperty("published_at", out var pubEl)
+            && pubEl.GetString() is { Length: > 0 } publishedText
+            && DateTime.TryParse(publishedText, out var parsedDate))
+        {
+            published = parsedDate;
+        }
+
+        return Result<AppUpdateInfo?>.Success(
+            new AppUpdateInfo(bestVersion.ToString(), notes, published, isMandatory: false));
     }
 
-    private SemanticVersion? ResolveSemanticCurrentVersion(UpdateManager um)
+    private static SemanticVersion? ResolveSemanticCurrentVersion(UpdateManager um)
     {
         if (um.CurrentVersion != null && SemanticVersion.TryParse(um.CurrentVersion.ToString(), out var vp))
             return vp;
 
-        var s = ReadInformationalVersionFromEntryAssembly();
-        if (SemanticVersion.TryParse(s, out var parsed))
+        return ParseVersion(ReadInformationalVersionFromEntryAssembly());
+    }
+
+    /// <summary>Parses an informational version, tolerating the build metadata a CI build appends.</summary>
+    public static SemanticVersion? ParseVersion(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+            return null;
+
+        if (SemanticVersion.TryParse(version, out var parsed))
             return parsed;
 
-        var plus = s.IndexOf('+', StringComparison.Ordinal);
-        if (plus > 0 && SemanticVersion.TryParse(s[..plus], out var noMeta))
+        var plus = version.IndexOf('+', StringComparison.Ordinal);
+        if (plus > 0 && SemanticVersion.TryParse(version[..plus], out var noMeta))
             return noMeta;
 
         return null;
@@ -208,7 +287,10 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
 
         try
         {
-            var um = GetOrCreateUpdateManager();
+            // The manager that produced the pending update, never a fresh one: rebuilding
+            // it is how a channel switch invalidates the offer, so reaching for it again
+            // here would download an asset the current channel does not publish.
+            var um = GetLocalUpdateManager();
             void OnProgress(int p) => progress?.Report(p);
             await um.DownloadUpdatesAsync(_pendingVelopackUpdate, OnProgress, cancellationToken).ConfigureAwait(false);
             return Result.Success();
@@ -230,7 +312,7 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
 
         try
         {
-            var um = GetOrCreateUpdateManager();
+            var um = GetLocalUpdateManager();
             um.ApplyUpdatesAndRestart(_pendingVelopackUpdate.TargetFullRelease, restartArgs: Array.Empty<string>());
         }
         catch (Exception ex)

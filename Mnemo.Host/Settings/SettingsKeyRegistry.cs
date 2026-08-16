@@ -102,6 +102,10 @@ public static class SettingsKeyRegistry
         new("Mindmap.MinimapVisibility", SettingValueKind.Text),
 
         new("Updates.AutoCheck", SettingValueKind.Boolean),
+        // The update track, as one of UpdateChannels' names. Written through the generic
+        // endpoint like any dropdown: the update service reads the setting on each check
+        // rather than caching it, so the switch needs no side effect of its own.
+        new("Updates.Channel", SettingValueKind.Text),
 
         new("Onboarding.Completed", SettingValueKind.Boolean),
     ];
