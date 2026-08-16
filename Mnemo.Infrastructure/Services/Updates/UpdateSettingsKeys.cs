@@ -3,6 +3,9 @@ namespace Mnemo.Infrastructure.Services.Updates;
 public static class UpdateSettingsKeys
 {
     public const string AutoCheck = "Updates.AutoCheck";
+
+    /// <summary>Which track this install follows. One of <see cref="UpdateChannels"/>; absent means Stable.</summary>
+    public const string Channel = "Updates.Channel";
     public const string RemindAtUtc = "Updates.RemindAtUtc";
     public const string SnoozeLaunchesRemaining = "Updates.SnoozeLaunchesRemaining";
     public const string SkippedVersion = "Updates.SkippedVersion";
