@@ -441,7 +441,7 @@ public partial class SettingsViewModel : ViewModelBase
             ModelRouter.DefaultModelId));
 
         aiGroup.Items.Add(new SettingsSubheaderViewModel(T("Intelligence")));
-        aiGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.AgentMode", T("AgentMode"), T("AgentModeDescription"), true));
+        aiGroup.Items.Add(new ToggleSettingViewModel(_settingsService, "AI.AgentMode", T("AgentMode"), T("AgentModeDescription"), false));
         aiGroup.Items.Add(new DropdownSettingViewModel(
             _settingsService,
             "Chat.StreamingReveal",

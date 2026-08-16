@@ -7,7 +7,20 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 internal static class FlashcardStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 1;
+    public const int TargetVersion = 2;
+
+    /// <summary>
+    /// Columns added after v1, for databases that already exist.
+    /// </summary>
+    /// <remarks>
+    /// CREATE TABLE IF NOT EXISTS builds a fresh database correctly and does nothing at all
+    /// to one that is already there, so a new column has to be added a second way. Applied
+    /// only where absent, which keeps both paths on the same statement.
+    /// </remarks>
+    public static readonly (string Table, string Column, string Definition)[] AddedColumns =
+    [
+        ("FlashcardDecks", "Icon", "TEXT NULL"),
+    ];
 
     /// <summary>Every table, index, FTS virtual table and trigger, created if absent.</summary>
     public const string CreateSql = """
@@ -51,6 +64,7 @@ internal static class FlashcardStoreSchema
             TagsJson    TEXT NOT NULL DEFAULT '[]',
             SortOrder   INTEGER NOT NULL DEFAULT 0,
             LastStudied TEXT NULL,
+            Icon        TEXT NULL,
             CreatedAt   TEXT NOT NULL,
             UpdatedAt   TEXT NOT NULL
         );

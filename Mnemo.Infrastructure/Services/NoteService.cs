@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -9,11 +10,13 @@ namespace Mnemo.Infrastructure.Services;
 public class NoteService : INoteService
 {
     private readonly IStorageProvider _storage;
+    private readonly INoteCommitStore _commits;
     private const string IndexKey = "notes_index";
 
-    public NoteService(IStorageProvider storage)
+    public NoteService(IStorageProvider storage, INoteCommitStore commits)
     {
         _storage = storage;
+        _commits = commits;
     }
 
     public async Task<IEnumerable<Note>> GetAllNotesAsync()
@@ -39,36 +42,32 @@ public class NoteService : INoteService
         return result.IsSuccess ? result.Value : null;
     }
 
+    // Both writes go through the commit store rather than the key/value provider, so the note and
+    // the index it appears in land in one transaction. Written separately, a crash in between left
+    // a note that existed but could not be listed, or an index entry pointing at nothing.
     public async Task<Result> SaveNoteAsync(Note note)
     {
-        note.ModifiedAt = System.DateTime.UtcNow;
-        if (note.CreatedAt == default)
-            note.CreatedAt = note.ModifiedAt;
-
-        var saveResult = await _storage.SaveAsync($"note_{note.NoteId}", note);
-        if (!saveResult.IsSuccess) return saveResult;
-
-        var indexResult = await _storage.LoadAsync<List<string>>(IndexKey);
-        var index = indexResult.Value ?? new List<string>();
-
-        if (!index.Contains(note.NoteId))
+        try
         {
-            index.Add(note.NoteId);
-            await _storage.SaveAsync(IndexKey, index);
+            await _commits.PutAsync(note);
+            return Result.Success();
         }
-
-        return Result.Success();
+        catch (Exception ex)
+        {
+            return Result.Failure($"Failed to save note {note.NoteId}.", ex);
+        }
     }
 
     public async Task<Result> DeleteNoteAsync(string noteId)
     {
-        var deleteResult = await _storage.DeleteAsync($"note_{noteId}");
-        if (!deleteResult.IsSuccess) return deleteResult;
-
-        var indexResult = await _storage.LoadAsync<List<string>>(IndexKey);
-        if (indexResult.IsSuccess && indexResult.Value != null && indexResult.Value.Remove(noteId))
-            await _storage.SaveAsync(IndexKey, indexResult.Value);
-
-        return Result.Success();
+        try
+        {
+            await _commits.DeleteAsync(noteId);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure($"Failed to delete note {noteId}.", ex);
+        }
     }
 }

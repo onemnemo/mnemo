@@ -1,0 +1,216 @@
+// The lucide glyphs this build ships.
+//
+// Explicit, not `import { icons } from "lucide-react"`. That barrel references all ~1500
+// components, which no bundler can shake: it measured at +510 kB raw (+131 kB gzipped)
+// over the whole app for icons nothing rendered. Naming them costs one line each and
+// keeps the shipped set honest.
+//
+// To use a new lucide glyph: add it here, kebab-cased under the name lucide documents it
+// by, and it becomes available as <AppIcon name="that-name" />. Nothing else changes.
+
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Bell,
+  BellOff,
+  Bold,
+  BookOpen,
+  Braces,
+  CalendarClock,
+  CalendarDays,
+  Check,
+  CheckCheck,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronsLeft,
+  CircleAlert,
+  CircleUser,
+  CircleCheck,
+  CircleHelp,
+  Clock,
+  Copy,
+  CornerDownLeft,
+  Download,
+  Ellipsis,
+  ExternalLink,
+  File,
+  FileText,
+  Flame,
+  Folder,
+  FolderOpen,
+  Frame,
+  Code,
+  Highlighter,
+  House,
+  ImagePlus,
+  Info,
+  Italic,
+  Keyboard,
+  Layers,
+  LayoutGrid,
+  Library,
+  List,
+  ListFilter,
+  Sigma,
+  Underline,
+  LoaderCircle,
+  Maximize,
+  Minus,
+  Monitor,
+  Moon,
+  MousePointer2,
+  Network,
+  NotebookText,
+  Orbit,
+  Palette,
+  PanelLeft,
+  Pencil,
+  Play,
+  Plus,
+  Printer,
+  RefreshCw,
+  RotateCcw,
+  Repeat2,
+  Scissors,
+  Search,
+  Settings,
+  Settings2,
+  Sparkles,
+  Spline,
+  Square,
+  SquareStack,
+  Star,
+  Store,
+  Tag,
+  Target,
+  Terminal,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+  TriangleAlert,
+  Type,
+  User,
+  X,
+  type LucideIcon,
+} from "lucide-react"
+
+export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
+  // Sidebar. Icon set B: what you do in a module, rather than what it contains.
+  house: House,
+  orbit: Orbit,
+  "notebook-text": NotebookText,
+  "square-stack": SquareStack,
+  network: Network,
+  library: Library,
+  settings: Settings,
+  "settings-2": Settings2,
+
+  // Frame chrome
+  "panel-left": PanelLeft,
+  "chevrons-left": ChevronsLeft,
+  "corner-down-left": CornerDownLeft,
+  search: Search,
+  bell: Bell,
+  "bell-off": BellOff,
+  ellipsis: Ellipsis,
+
+  // Direction
+  "chevron-up": ChevronUp,
+  "chevron-down": ChevronDown,
+  "chevron-left": ChevronLeft,
+  "chevron-right": ChevronRight,
+  "arrow-up": ArrowUp,
+  "arrow-down": ArrowDown,
+  "arrow-left": ArrowLeft,
+  "arrow-right": ArrowRight,
+
+  // Actions
+  plus: Plus,
+  // The other half of a zoom control. There is no project glyph for it, and a hyphen in a button is
+  // not an icon.
+  minus: Minus,
+  x: X,
+  check: Check,
+  "check-check": CheckCheck,
+  copy: Copy,
+  scissors: Scissors,
+  pencil: Pencil,
+  "trash-2": Trash2,
+  star: Star,
+  "rotate-ccw": RotateCcw,
+  "refresh-cw": RefreshCw,
+  palette: Palette,
+  terminal: Terminal,
+  "list-filter": ListFilter,
+  "external-link": ExternalLink,
+
+  // The mindmap's tool dock. Drawing-tool glyphs, and the project has no art of its own for them.
+  "mouse-pointer-2": MousePointer2,
+  spline: Spline,
+  maximize: Maximize,
+  square: Square,
+  frame: Frame,
+
+  // The card editor's formatting bar.
+  bold: Bold,
+  italic: Italic,
+  underline: Underline,
+  code: Code,
+  highlighter: Highlighter,
+  sigma: Sigma,
+  // The library's two ways of showing the same decks.
+  list: List,
+  "layout-grid": LayoutGrid,
+
+  // The dimensions a card list filters on.
+  tag: Tag,
+  type: Type,
+  "repeat-2": Repeat2,
+
+  // Content
+  file: File,
+  "file-text": FileText,
+  // "Export as PDF", which is page setup and a print preview rather than a file transfer.
+  printer: Printer,
+  // The add-an-image slot in the card editor's attachment strip.
+  "image-plus": ImagePlus,
+  folder: Folder,
+  "folder-open": FolderOpen,
+  "book-open": BookOpen,
+  // The cloze marker on a card row: a deletion is written {{c1::like this}}.
+  braces: Braces,
+  layers: Layers,
+  sparkles: Sparkles,
+  moon: Moon,
+
+  // The overview's widgets, and the categories the library groups them under.
+  play: Play,
+  clock: Clock,
+  flame: Flame,
+  "calendar-days": CalendarDays,
+  "calendar-clock": CalendarClock,
+  target: Target,
+  "trending-up": TrendingUp,
+  "trending-down": TrendingDown,
+  store: Store,
+
+  // The settings rail, one page each.
+  user: User,
+  keyboard: Keyboard,
+  download: Download,
+  // The theme picker's "match system" card.
+  monitor: Monitor,
+
+  // Status
+  info: Info,
+  "circle-alert": CircleAlert,
+  "circle-check": CircleCheck,
+  "circle-help": CircleHelp,
+  "circle-user": CircleUser,
+  "triangle-alert": TriangleAlert,
+  "loader-circle": LoaderCircle,
+}

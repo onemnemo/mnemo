@@ -7,7 +7,9 @@
     "mindmap.redo": "やり直し",
     "mindmap.clear-selection": "選択を解除",
     "mindmap.delete-selection": "選択を削除",
+    "mindmap.select-all": "すべて選択",
     "mindmap.copy": "コピー",
+    "mindmap.cut": "切り取り",
     "mindmap.paste": "貼り付け",
     "mindmap.duplicate": "複製",
     "mindmap.add-child": "子ノードを追加",
@@ -20,6 +22,7 @@
     "mindmap.new-text": "新しいテキスト",
     "mindmap.new-frame": "新しいフレーム",
     "mindmap.shape-picker": "新しいシェイプ",
+    "mindmap.new-image": "画像を追加",
     "mindmap.radial": "放射状ツール"
   },
   "Mindmap": {
@@ -39,6 +42,7 @@
     "ToolConnect": "接続",
     "ToolImage": "画像を追加",
     "Recenter": "表示を中央に",
+    "Minimap": "ミニマップ",
     "SavedChip": "保存済み",
     "UndoTip": "元に戻す",
     "RedoTip": "やり直し",
@@ -84,6 +88,7 @@
     "ShapeParallelogram": "平行四辺形",
     "ShapeLine": "線",
     "ShapeArrow": "矢印",
+    "ShapeBlob": "アメーバ",
     "LayoutBalanced": "バランス",
     "LayoutTreeRight": "ツリー・右",
     "LayoutTreeDown": "ツリー・下",
@@ -98,6 +103,15 @@
     "ShapePlain": "プレーン",
     "ToggleCollapse": "折りたたむ / 展開",
     "TogglePin": "固定 / 解除",
+    "Pin": "固定",
+    "Unpin": "固定を解除",
+    "CollapseBranch": "枝を折りたたむ",
+    "ExpandBranch": "枝を展開",
+    "More": "その他",
+    "ApplyToSubtree": "配下すべてにも適用",
+    "EdgeLine": "線",
+    "Routing": "経路",
+    "Ends": "端",
     "StyleSubtree": "サブツリーに適用",
     "ClearStyle": "スタイルをクリア",
     "SaveAsTemplate": "スタイルをテンプレートとして保存",
@@ -137,6 +151,8 @@
     "AlignMiddleV": "上下中央揃え",
     "AlignBottom": "下揃え",
     "DistributeH": "左右に分布",
-    "DistributeV": "上下に分布"
+    "DistributeV": "上下に分布",
+    "Align": "整列",
+    "Distribute": "分布"
   }
 }

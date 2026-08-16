@@ -35,7 +35,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         }
         var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         files["notes.db"] = BuildNotesSqlite(notes, folders);
-        AddImageAssets(files);
+        AddImageAssets(files, notes);
 
         return new MnemoPayloadExportData
         {
@@ -254,32 +254,202 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         }
     }
 
-    private static void AddImageAssets(IDictionary<string, byte[]> files)
+    private const string AttachmentPrefix = "attachment:";
+
+    /// <summary>Marks a cover that names an uploaded image rather than a preset banner.</summary>
+    private const string CoverAssetPrefix = "asset:";
+
+    private const string NoteAssetsArchivePrefix = "assets/note-assets/";
+
+    private const string LegacyImagesArchivePrefix = "assets/images/";
+
+    /// <summary>
+    /// Bundles only the images the exported notes actually reference, from both the web host's
+    /// note-owned <c>note-assets/</c> store and the legacy shared <c>images/</c> directory.
+    /// <para>
+    /// The old behaviour dumped every file in <c>images/</c> regardless of selection, which both
+    /// leaked unrelated flashcard and mindmap images into a notes package and missed the newer
+    /// managed store entirely, so any web-uploaded note image was silently lost on the round trip.
+    /// Walking references fixes both: nothing unrelated is carried, and every era of reference is
+    /// resolved to its real file.
+    /// </para>
+    /// </summary>
+    private static void AddImageAssets(IDictionary<string, byte[]> files, IReadOnlyList<Note> notes)
     {
-        var imageDir = MnemoAppPaths.GetImagesDirectory();
-        if (!Directory.Exists(imageDir))
+        var references = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var note in notes)
+            CollectNoteReferences(note, references);
+        if (references.Count == 0)
             return;
 
-        foreach (var filePath in Directory.EnumerateFiles(imageDir, "*", SearchOption.TopDirectoryOnly))
+        var noteAssetsDir = MnemoAppPaths.GetNoteAssetsDirectory();
+        var imagesDir = MnemoAppPaths.GetImagesDirectory();
+
+        foreach (var reference in references)
         {
-            var fileName = Path.GetFileName(filePath);
-            files[$"assets/images/{fileName}"] = File.ReadAllBytes(filePath);
+            if (ResolveAssetFile(reference, noteAssetsDir, imagesDir) is not { } asset)
+                continue;
+            // Two references can resolve to one file (a managed id and an attachment: form of the
+            // same guid); the first write wins and the rest are the same bytes anyway.
+            if (!files.ContainsKey(asset.ArchivePath))
+                files[asset.ArchivePath] = File.ReadAllBytes(asset.SourcePath);
         }
+    }
+
+    /// <summary>
+    /// Every field of a note that can name a stored image: its blocks, and a cover that names an
+    /// uploaded one. A field missed here exports as a live reference with no file behind it, so
+    /// the imported note points at an image the package never carried.
+    /// </summary>
+    private static void CollectNoteReferences(Note note, HashSet<string> into)
+    {
+        CollectImageReferences(note.Blocks, into);
+        if (CoverAssetId(note.Cover) is { } cover)
+            into.Add(cover);
+    }
+
+    /// <summary>The asset id an uploaded cover names, or null for a preset, which stores no file.</summary>
+    private static string? CoverAssetId(string? cover)
+    {
+        if (cover is null || !cover.StartsWith(CoverAssetPrefix, StringComparison.OrdinalIgnoreCase))
+            return null;
+        var id = cover[CoverAssetPrefix.Length..];
+        return string.IsNullOrWhiteSpace(id) ? null : id;
+    }
+
+    private static void CollectImageReferences(IReadOnlyList<Block>? blocks, HashSet<string> into)
+    {
+        if (blocks is null)
+            return;
+
+        foreach (var block in blocks)
+        {
+            if (block.Payload is ImagePayload image && !string.IsNullOrWhiteSpace(image.Path))
+                into.Add(image.Path!);
+            CollectImageReferences(block.Children, into);
+        }
+    }
+
+    /// <summary>
+    /// The real file a stored image path points at, tagged with the archive entry it should be
+    /// bundled under so import can send it back to the directory it came from. Null when the
+    /// reference points at no managed file (a remote URL, or a file that is no longer on disk).
+    /// </summary>
+    private static ResolvedAsset? ResolveAssetFile(string reference, string noteAssetsDir, string imagesDir)
+    {
+        var path = reference.Trim();
+        if (path.Length == 0)
+            return null;
+
+        // attachment:{guid}:{name} is the oldest shape, resolved by its filename or bare guid.
+        if (path.StartsWith(AttachmentPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var rest = path[AttachmentPrefix.Length..];
+            var end = rest.IndexOf(':');
+            var guid = end >= 0 ? rest[..end] : rest;
+            var name = end >= 0 ? rest[(end + 1)..] : string.Empty;
+            return FindByFileName(name, noteAssetsDir, imagesDir)
+                ?? FindByGuidStem(guid, noteAssetsDir, imagesDir);
+        }
+
+        // A desktop-era absolute path, bundled only when it lands inside a managed directory.
+        if (Path.IsPathRooted(path))
+        {
+            if (MnemoAppPaths.IsPathUnderNoteAssetsDirectory(path) && File.Exists(path))
+                return new ResolvedAsset(path, NoteAssetsArchivePrefix + Path.GetFileName(path));
+            if (MnemoAppPaths.IsPathUnderImagesDirectory(path) && File.Exists(path))
+                return new ResolvedAsset(path, LegacyImagesArchivePrefix + Path.GetFileName(path));
+            return null;
+        }
+
+        // A URL or any other multi-segment or scheme-bearing reference is not a managed file.
+        if (path.Contains('/') || path.Contains('\\') || path.Contains(':'))
+            return null;
+
+        // A bare managed asset id, in the note store first, then the legacy shared directory.
+        return FindByFileName(path, noteAssetsDir, imagesDir);
+    }
+
+    private static ResolvedAsset? FindByFileName(string? name, string noteAssetsDir, string imagesDir)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return null;
+
+        var fileName = Path.GetFileName(name);
+        if (string.IsNullOrWhiteSpace(fileName))
+            return null;
+
+        var managed = Path.Combine(noteAssetsDir, fileName);
+        if (File.Exists(managed))
+            return new ResolvedAsset(managed, NoteAssetsArchivePrefix + fileName);
+
+        var legacy = Path.Combine(imagesDir, fileName);
+        if (File.Exists(legacy))
+            return new ResolvedAsset(legacy, LegacyImagesArchivePrefix + fileName);
+
+        return null;
+    }
+
+    private static ResolvedAsset? FindByGuidStem(string guid, string noteAssetsDir, string imagesDir)
+    {
+        if (string.IsNullOrWhiteSpace(guid))
+            return null;
+
+        var managed = FindFileByStem(noteAssetsDir, guid);
+        if (managed != null)
+            return new ResolvedAsset(managed, NoteAssetsArchivePrefix + Path.GetFileName(managed));
+
+        var legacy = FindFileByStem(imagesDir, guid);
+        if (legacy != null)
+            return new ResolvedAsset(legacy, LegacyImagesArchivePrefix + Path.GetFileName(legacy));
+
+        return null;
+    }
+
+    /// <summary>The first file in <paramref name="dir"/> whose name (with or without extension) is the guid.</summary>
+    private static string? FindFileByStem(string dir, string guid)
+    {
+        if (!Directory.Exists(dir))
+            return null;
+
+        foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.TopDirectoryOnly))
+        {
+            var name = Path.GetFileName(file);
+            if (string.Equals(name, guid, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(Path.GetFileNameWithoutExtension(file), guid, StringComparison.OrdinalIgnoreCase))
+            {
+                return file;
+            }
+        }
+
+        return null;
     }
 
     private static void RestoreImageAssets(IReadOnlyDictionary<string, byte[]> files)
     {
-        var imageDir = MnemoAppPaths.GetImagesDirectory();
-        Directory.CreateDirectory(imageDir);
-        foreach (var pair in files.Where(p => p.Key.StartsWith("assets/images/", StringComparison.OrdinalIgnoreCase)))
+        // Each set goes back to the directory it was collected from. Legacy packages only ever
+        // carry the images/ prefix, so nothing new is required to keep reading them.
+        RestoreArchivePrefix(files, NoteAssetsArchivePrefix, MnemoAppPaths.GetNoteAssetsDirectory());
+        RestoreArchivePrefix(files, LegacyImagesArchivePrefix, MnemoAppPaths.GetImagesDirectory());
+    }
+
+    private static void RestoreArchivePrefix(IReadOnlyDictionary<string, byte[]> files, string prefix, string targetDir)
+    {
+        var matches = files.Where(p => p.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (matches.Count == 0)
+            return;
+
+        Directory.CreateDirectory(targetDir);
+        foreach (var pair in matches)
         {
             var fileName = Path.GetFileName(pair.Key.Replace('\\', '/'));
             if (string.IsNullOrWhiteSpace(fileName))
                 continue;
-            var destination = Path.Combine(imageDir, fileName);
-            File.WriteAllBytes(destination, pair.Value);
+            File.WriteAllBytes(Path.Combine(targetDir, fileName), pair.Value);
         }
     }
+
+    private readonly record struct ResolvedAsset(string SourcePath, string ArchivePath);
 
     private sealed class NoteSnapshot
     {

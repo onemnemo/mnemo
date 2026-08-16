@@ -7,16 +7,29 @@ using Mnemo.Core.Services;
 namespace Mnemo.Infrastructure.Services.Flashcards;
 
 /// <summary>
-/// FSRS-5 implementation. The stability/difficulty math is the standard FSRS-5 model; New/Learning/
+/// FSRS-6 implementation. The stability/difficulty math is the standard FSRS-6 model; New/Learning/
 /// Relearning cards additionally walk the preset's minute-based learning steps before graduating to
 /// Review. Again resets to step 0, Good advances a step (graduating past the last step), Hard repeats
 /// the current step, Easy graduates immediately.
 /// </summary>
 public sealed class FsrsScheduler : IFsrsScheduler
 {
-    private const double MinStability = 0.1d;
+    private const int WeightCount = 21;
+    private const int Fsrs5WeightCount = 19;
+    private const double MinStability = 0.001d;
+    private const double MaxStability = 36500d;
+    private const double MaxInterval = 36500d;
     private const double MinRetention = 0.70d;
     private const double MaxRetention = 0.99d;
+
+    // FSRS-5 pinned the forgetting curve's decay at -0.5. Padding a 19-slot vector with these two
+    // reproduces that exactly under FSRS-6's decay = -w20 parameterisation.
+    private const double Fsrs5ShortTermDamping = 0.0d;
+    private const double Fsrs5Decay = 0.5d;
+
+    // The range FSRS-6's own parameter clipper holds w20 to.
+    private const double MinDecay = 0.1d;
+    private const double MaxDecay = 0.8d;
 
     public FlashcardSchedule ApplyGrade(FlashcardSchedule current, FlashcardReviewGrade grade, DateTimeOffset reviewedAt, FlashcardPreset preset)
     {
@@ -83,10 +96,18 @@ public sealed class FsrsScheduler : IFsrsScheduler
                 var r = Forgetting(elapsed, baseStability, weights);
                 difficulty = NextDifficulty(baseDifficulty, grade, weights);
 
+                // A re-review on the same day is the short-term regime whatever state the card is
+                // in, so this mirrors the Learning/Relearning branch above. Only the state and due
+                // date differ by grade.
+                stability = elapsed < 1d
+                    ? ShortTermStability(baseStability, grade, weights)
+                    : grade == FlashcardReviewGrade.Again
+                        ? ForgetStability(baseDifficulty, baseStability, r, weights)
+                        : RecallStability(baseDifficulty, baseStability, r, grade, weights);
+
                 if (grade == FlashcardReviewGrade.Again)
                 {
                     lapseIncrement = 1;
-                    stability = ForgetStability(baseDifficulty, baseStability, r, weights);
                     var relearn = Steps(preset.RelearnSteps);
                     nextState = FlashcardFsrsState.Relearning;
                     stepIndex = 0;
@@ -94,7 +115,6 @@ public sealed class FsrsScheduler : IFsrsScheduler
                 }
                 else
                 {
-                    stability = RecallStability(baseDifficulty, baseStability, r, grade, weights);
                     nextState = FlashcardFsrsState.Review;
                     stepIndex = 0;
                     due = reviewedAt.AddDays(NextInterval(stability, retention, weights));
@@ -106,7 +126,7 @@ public sealed class FsrsScheduler : IFsrsScheduler
         return current with
         {
             DueDate = due,
-            Stability = Math.Max(MinStability, stability),
+            Stability = Clamp(stability, MinStability, MaxStability),
             Difficulty = Clamp(difficulty, 1d, 10d),
             Reps = current.Reps + 1,
             Lapses = current.Lapses + lapseIncrement,
@@ -155,11 +175,43 @@ public sealed class FsrsScheduler : IFsrsScheduler
         }
     }
 
+    /// <summary>
+    /// Accepts Mnemo's 21-slot FSRS-6 vector, or the 19-slot vector the FSRS-5 optimizer emits.
+    /// Padding the latter is exact rather than approximate: no short-term damping and a decay of 0.5
+    /// are precisely what FSRS-5 pinned. Any other length is a mistake — a truncated paste, or a
+    /// vector from a different algorithm — and quietly scheduling every future review on substituted
+    /// weights would bury it, so it throws instead.
+    /// </summary>
     private static double[] ResolveWeights(FlashcardPreset preset)
     {
-        if (preset.Weights is { Count: 21 } w)
-            return w.ToArray();
-        return FlashcardFsrsParameters.Default.Weights;
+        if (preset.Weights is not { } w)
+            return FlashcardFsrsParameters.Default.Weights;
+
+        double[] resolved;
+        switch (w.Count)
+        {
+            case WeightCount:
+                resolved = w.ToArray();
+                break;
+
+            case Fsrs5WeightCount:
+                resolved = new double[WeightCount];
+                for (var i = 0; i < Fsrs5WeightCount; i++)
+                    resolved[i] = w[i];
+                resolved[19] = Fsrs5ShortTermDamping;
+                resolved[20] = Fsrs5Decay;
+                break;
+
+            default:
+                throw new ArgumentException(
+                    $"FSRS weights must hold {Fsrs5WeightCount} or {WeightCount} values, but the preset has {w.Count}.",
+                    nameof(preset));
+        }
+
+        // Decay is a divisor, so a zero here takes the whole forgetting curve to infinity. The trainer
+        // is held to this same range, which makes anything outside it a bad paste rather than a taste.
+        resolved[20] = Clamp(resolved[20], MinDecay, MaxDecay);
+        return resolved;
     }
 
     private static int[] Steps(IReadOnlyList<int> steps) =>
@@ -168,44 +220,63 @@ public sealed class FsrsScheduler : IFsrsScheduler
     private static double ElapsedDays(FlashcardSchedule current, DateTimeOffset now) =>
         Math.Max(0d, (now - (current.LastReviewedAt ?? current.DueDate)).TotalDays);
 
-    // --- FSRS-5 core (ported from the retired Core FlashcardScheduling) ---
+    // --- FSRS-6 core ---
+
+    /// <summary>FSRS-6 fits the forgetting curve's decay rather than pinning it; it is -w20.</summary>
+    private static double Decay(double[] weights) => -weights[20];
+
+    /// <summary>FACTOR = 0.9^(1/DECAY) - 1, the constant that puts R = 0.9 exactly at t = S.</summary>
+    private static double Factor(double[] weights) => Math.Pow(0.9d, 1d / Decay(weights)) - 1d;
 
     private static int NextInterval(double stability, double desiredRetention, double[] weights)
     {
-        var decay = -(weights[20] + 0.5d);
-        var factor = Math.Pow(0.9d, 1d / decay) - 1d;
-        var interval = stability / factor * (Math.Pow(desiredRetention, 1d / decay) - 1d);
-        return Math.Max(1, (int)Math.Round(interval, MidpointRounding.AwayFromZero));
+        var interval = stability / Factor(weights) * (Math.Pow(desiredRetention, 1d / Decay(weights)) - 1d);
+
+        // Clamped before the cast, not after: at a low retention target the raw interval can run far
+        // past int range, where the conversion is undefined rather than merely large.
+        return (int)Clamp(Math.Round(interval, MidpointRounding.AwayFromZero), 1d, MaxInterval);
     }
 
-    private static double Forgetting(double elapsedDays, double stability, double[] weights)
-    {
-        var decay = -(weights[20] + 0.5d);
-        var factor = Math.Pow(0.9d, 1d / decay) - 1d;
-        return Math.Pow(1d + factor * elapsedDays / Math.Max(MinStability, stability), decay);
-    }
+    private static double Forgetting(double elapsedDays, double stability, double[] weights) =>
+        Math.Pow(1d + Factor(weights) * elapsedDays / Math.Max(MinStability, stability), Decay(weights));
 
     private static double InitialStability(FlashcardReviewGrade grade, double[] weights) =>
         Math.Max(weights[(int)grade - 1], MinStability);
 
-    private static double InitialDifficulty(FlashcardReviewGrade grade, double[] weights)
-    {
-        var d = weights[4] - Math.Exp(weights[5] * ((int)grade - 1)) + 1d;
-        return Clamp(d, 1d, 10d);
-    }
+    /// <summary>D_0(G) = w4 - e^(w5 * (G-1)) + 1. Clamped for a card's starting difficulty.</summary>
+    private static double InitialDifficulty(FlashcardReviewGrade grade, double[] weights) =>
+        Clamp(RawInitialDifficulty(grade, weights), 1d, 10d);
+
+    /// <summary>
+    /// The same curve without the clamp. Mean reversion pulls toward the unclamped D_0(Easy), which
+    /// under the FSRS-6 defaults is negative — clamping it here would move the target by nearly six
+    /// difficulty points and flatten the spread the model is trying to produce.
+    /// </summary>
+    private static double RawInitialDifficulty(FlashcardReviewGrade grade, double[] weights) =>
+        weights[4] - Math.Exp(weights[5] * ((int)grade - 1)) + 1d;
 
     private static double NextDifficulty(double difficulty, FlashcardReviewGrade grade, double[] weights)
     {
         var delta = -weights[6] * ((int)grade - 3);
-        var raw = difficulty + delta * (10d - difficulty) / 9d;
-        raw = weights[7] * InitialDifficulty(FlashcardReviewGrade.Easy, weights) + (1d - weights[7]) * raw;
-        return Clamp(raw, 1d, 10d);
+        var damped = difficulty + delta * (10d - difficulty) / 9d;
+        var reverted = weights[7] * RawInitialDifficulty(FlashcardReviewGrade.Easy, weights)
+                       + (1d - weights[7]) * damped;
+        return Clamp(reverted, 1d, 10d);
     }
 
     private static double ShortTermStability(double stability, FlashcardReviewGrade grade, double[] weights)
     {
-        var updated = stability * Math.Exp(weights[17] * ((int)grade - 3 + weights[18]));
-        return Math.Max(updated, MinStability);
+        var increase = Math.Exp(weights[17] * ((int)grade - 3 + weights[18]))
+                       * Math.Pow(stability, -weights[19]);
+
+        // A same-day answer that was recalled at all must not shrink stability; only Again may.
+        // The reference implementations split here: py-fsrs floors Good and Easy only, while
+        // ts-fsrs, go-fsrs and the fsrs-rs engine Anki ships all floor from Hard up. Following the
+        // latter, both because it is the majority and because Hard is a pass, not a lapse.
+        if (grade != FlashcardReviewGrade.Again)
+            increase = Math.Max(increase, 1d);
+
+        return Math.Max(stability * increase, MinStability);
     }
 
     private static double RecallStability(double difficulty, double stability, double retrievability, FlashcardReviewGrade grade, double[] weights)
@@ -227,7 +298,12 @@ public sealed class FsrsScheduler : IFsrsScheduler
             * Math.Pow(difficulty, -weights[12])
             * (Math.Pow(stability + 1d, weights[13]) - 1d)
             * Math.Exp(weights[14] * (1d - retrievability));
-        return Math.Max(updated, MinStability);
+
+        // Without this ceiling the term above overtakes the stability the card already had, so a
+        // card forgotten after a long absence comes back scheduled further out than if it had never
+        // lapsed. It bites hardest on weak cards: at a stability of one day, a month away is enough.
+        var cap = stability / Math.Exp(weights[17] * weights[18]);
+        return Math.Max(Math.Min(updated, cap), MinStability);
     }
 
     private static double Clamp(double value, double min, double max) => Math.Min(max, Math.Max(min, value));

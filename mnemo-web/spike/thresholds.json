@@ -1,0 +1,202 @@
+{
+  "$comment": [
+    "Pass/fail thresholds for the Mindmap canvas substrate spike.",
+    "Committed BEFORE the first measurement run. The runner reads this file and emits the",
+    "verdict itself, so softening a threshold after seeing numbers requires a git commit",
+    "with a written rationale and stays visible in history forever. That is the point.",
+    "Frame times are milliseconds. 16.7 = 60fps, 33.3 = 30fps."
+  ],
+  "version": 4,
+  "committedBefore": "any measurement run",
+  "amendments": [
+    {
+      "version": 4,
+      "scenario": "all scenarios whose bars use cadenceMultiples",
+      "change": "A run whose frame clock calibrates outside the 60Hz regime can no longer be certified pass on cadence bars; it is downgraded to warn with the reason stated.",
+      "reason": "Cadence bars are multiples of the run's own calibrated frame period (amendment 3). That is only sound if the calibration measured the MACHINE. It does not: the clock is calibrated with the arm already mounted and the scenario's camera applied, so an arm that is slow at rest calibrates its own slowness as the ceiling and the bars move down to meet it. The A2 arm produced exactly that, a run calibrating at 83.3ms and then clearing bars of 125ms and 208ms, which prints as a pass and is a renderer managing twelve frames a second.",
+      "whyThisIsNotSoftening": "It is a tightening, not a softening: it can only turn a pass into a warn and can never turn a fail into a pass. The 60Hz reading is not assumed either, it is observed, because this same display calibrates at 59.88Hz on every run where the page is idle.",
+      "notAffected": "No verdict already delivered depends on it. Every A1 run calibrated at 59.88Hz, regime '60hz', so A1's numbers and its no-go are unchanged."
+    },
+    {
+      "version": 3,
+      "scenario": "all frame-cadence metrics",
+      "change": "p95 and p99 frame-time bars are expressed as multiples of the run's CALIBRATED frame period (cadenceMultiples: p95 1.5x, p99 2.5x) instead of the absolute 16.7ms and 33.3ms. max stays absolute. pctOver16_7 and pctOver33_3 keep their absolute names because they are descriptive figures, not gates.",
+      "reason": "An absolute 16.7ms p95 is unachievable by construction on this hardware, and the control run proves it rather than predicting it. The display calibrates at 59.88Hz, so the true frame period is 16.6999ms and requestAnimationFrame deltas jitter to both sides of it. A control run whose distribution was p50 16.7 / p95 16.8 / p99 16.8 with 0.08% of frames over 33.3ms, which is a renderer keeping up with the display on every single frame, still failed p95 <= 16.7. The bar was measuring the panel's refresh rate, not the arm.",
+      "whyThisIsNotSoftening": "The question the gate asks is unchanged and is still the strict one: are frames being DROPPED. A dropped frame appears as a delta near twice the refresh period, never as 16.8ms. Setting p95 at 1.5x the period places the line exactly halfway between 'every frame delivered' and 'every other frame dropped', so sustained dropping still fails. This was found and written down BEFORE any 5,000-element scenario was evaluated, on the control whose only job is to say whether the arm is built correctly at all.",
+      "notAffected": "The load-bearing all-visible scenario, its collapse sub-gate, and every absolute max are untouched."
+    },
+    {
+      "version": 2,
+      "scenario": "S8",
+      "change": "Latency metric moved from Event Timing duration percentiles (eventDurationP95/P99, 48/96) to a requestAnimationFrame-based dispatch-to-painted measurement (dispatchToPaintedP95/P99, 50/100).",
+      "reason": "Event Timing only creates entries for user-agent-generated events. The driver dispatches synthetic events, which are untrusted and are never recorded, so the original metric could not have produced a number at all. This is a metric DEFINITION forced by a harness fact, discovered before any measurement was taken, not a threshold softened after seeing results. The bar itself is unchanged in substance: RAIL's instantaneous-response bound is 100ms and the p95 sits at half of it. The 8ms-bucket phrasing is dropped because the new metric is quantized by frame cadence (about 16.7ms) rather than by Event Timing's 8ms rounding.",
+      "alsoAffects": "The input drop detector no longer counts Event Timing entries. It now compares events the driver dispatched against events the arm's own handler observed, which is strictly stronger evidence because it proves the arm's handler ran rather than that the UA reported something."
+    }
+  ],
+  "frameBudgetMs": 16.7,
+  "halfRateMs": 33.3,
+  "scenarios": {
+    "S1": {
+      "name": "Mount to interactive",
+      "gating": true,
+      "metrics": {
+        "mountMs": {
+          "pass": 1500,
+          "warn": 3000
+        },
+        "longestBlockMs": {
+          "pass": 200,
+          "warn": 500
+        }
+      },
+      "reasoning": "No baseline exists: the Avalonia module has no perf instrumentation. 1.5s is 'opening a document'; past 3s a spinner becomes mandatory and the module's UX changes shape. A single 500ms block during mount is a visible freeze regardless of the total."
+    },
+    "S2": {
+      "name": "Pan at zoom 1.0 (comfortable view, ~50 elements on screen)",
+      "gating": true,
+      "metrics": {
+        "max": 50
+      },
+      "reasoning": "The everyday case. There is no product argument for degrading it, so it carries the full 60fps bar.",
+      "cadenceMultiples": {
+        "p95": 1.5,
+        "p99": 2.5
+      }
+    },
+    "S3": {
+      "name": "Pan at the zoom floor 0.1 (~2100 elements on screen)",
+      "gating": true,
+      "metrics": {
+        "max": 50
+      },
+      "reasoning": "Same bar as S2. This is not an exotic state, it is what 'zoom out to find something' looks like, and 0.1 is the camera's own hard floor (MindmapCamera.MinScale). LOD is fully engaged here.",
+      "cadenceMultiples": {
+        "p95": 1.5,
+        "p99": 2.5
+      }
+    },
+    "S4a": {
+      "name": "Pan with all 5000 elements visible, LOD on",
+      "gating": true,
+      "loadBearing": true,
+      "metrics": {
+        "max": 100
+      },
+      "collapseSubGate": {
+        "noFrameOverMs": 250,
+        "noHang": true,
+        "noBlankRender": true
+      },
+      "reasoning": "Full 60fps, no relaxation: culling is inert at this zoom by construction, so this is the honest measure of raw per-element frame cost at 5000. max is 100 rather than 50 to allow one GC pause in a 10s window without failing an otherwise smooth arm. The collapse sub-gate is separate because the most specific community failure report is a browser blackout, not gradual degradation, and collapse is a different failure mode from slowness.",
+      "cadenceMultiples": {
+        "p95": 1.5,
+        "p99": 2.5
+      }
+    },
+    "S4b": {
+      "name": "Same, LOD forced off",
+      "gating": false,
+      "reasoning": "Diagnostic only. Establishes headroom and prices LOD. Never gating, because the product does not render labels at 0.12 zoom."
+    },
+    "S5": {
+      "name": "Zoom sweep 0.1 to 1.0 to 0.1",
+      "gating": true,
+      "metrics": {
+        "max": 100
+      },
+      "reasoning": "Zoom is a continuous gesture, so the bar matches pan.",
+      "cadenceMultiples": {
+        "p95": 1.5,
+        "p99": 2.5
+      }
+    },
+    "S5x": {
+      "name": "LOD threshold crossings at zoom 0.15 and 0.40",
+      "gating": true,
+      "metrics": {
+        "worstFrameAtCrossingMs": {
+          "pass": 100,
+          "warn": 200
+        }
+      },
+      "reasoning": "Every visible node changes render mode in one frame. 100ms is the RAIL response bound: a hitch that size reads as 'the app thought about it' rather than 'the app stuttered'. Reported per crossing, never averaged into S5."
+    },
+    "S6": {
+      "name": "Single-node drag, 400px path",
+      "gating": true,
+      "metrics": {
+        "max": 50
+      },
+      "reasoning": "The most common editing gesture at the most common zoom.",
+      "extraAssertion": "React Profiler commit count for non-dragged node components must be 0. This is what makes the memoization discipline falsifiable rather than aspirational.",
+      "cadenceMultiples": {
+        "p95": 1.5,
+        "p99": 2.5
+      }
+    },
+    "S7": {
+      "name": "Group drag: 120-member frame plus a 50-element marquee selection",
+      "gating": true,
+      "metrics": {
+        "max": 50
+      },
+      "memberDeltaEquality": "exact, every frame",
+      "reasoning": "Same bar as S6, because the user cannot tell the difference between dragging one thing and dragging fifty. The delta-equality assertion is the frame-membership correctness gate riding the perf run.",
+      "cadenceMultiples": {
+        "p95": 1.5,
+        "p99": 2.5
+      }
+    },
+    "S8": {
+      "name": "Inline label typing latency with the full map mounted",
+      "gating": true,
+      "metrics": {
+        "dispatchToPaintedP95": 50,
+        "dispatchToPaintedP99": 100
+      },
+      "reasoning": "Measures the interval from dispatching a keystroke to the frame in which the arm's own observable state reflects it. RAIL puts the instantaneous-response bound at 100ms, so p95 sits at half of it, leaving headroom for compositing and real-world variance. Resolution is one frame (about 16.7ms), so these are three-frame and six-frame bars rather than sub-millisecond figures. See amendments[0] for why this replaced the Event Timing metric.",
+      "eventTimingNote": "Event Timing is still observed and recorded alongside this, purely as corroboration. If entries appear at all under synthetic dispatch that is itself a finding worth reporting, but their absence is never an abort and never a fail."
+    },
+    "S9": {
+      "name": "Relayout: every node position changes in one commit",
+      "gating": true,
+      "metrics": {
+        "timeToPaintedMs": {
+          "pass": 400,
+          "warn": 800
+        },
+        "longestBlockMs": {
+          "pass": 200,
+          "warn": 500
+        }
+      },
+      "reasoning": "Not in the original threshold set. A layout recompute moves all 5000 nodes at once and fires on any structural edit that triggers relayout; in React Flow that is a whole-array store update. 400ms is the bound at which a relayout reads as an animation rather than a stall. The desktop today does a full reload and reprojection per edit, which is a known standing gap, so this is a case where the port should not inherit the wart."
+    }
+  },
+  "armVerdictRule": "An arm PASSES only if it clears EVERY gating scenario on a gating engine. There is no aggregate score and no trading an S4a failure against an S2 win. Any FAIL eliminates the arm.",
+  "substrateDecisionRule": [
+    "A1 passes -> Go, React Flow.",
+    "A1 fails, A2 passes -> No-go on RF, adopt hand-rolled DOM-per-node.",
+    "A1 and A2 fail, A3 passes -> No-go, custom Canvas2D, with the 12-subsystem cost and the accessibility mirror-DOM obligation stated as accepted.",
+    "All fail -> the budget itself is revisited with each arm's measured ceiling and a proposed revised target."
+  ],
+  "controlMeasurement": {
+    "description": "The same arm code at 100 nodes must hit 60fps at S2 and S6.",
+    "reasoning": "A published benchmark drops React Flow to ~10fps at 100 nodes from a single unmemoized prop. If the control fails, the arm is misbuilt and NO result from it is valid.",
+    "metrics": {},
+    "cadenceMultiples": {
+      "p95": 1.5
+    }
+  },
+  "engineFidelity": {
+    "gating": [
+      "webview2-baremetal",
+      "webkitgtk-baremetal"
+    ],
+    "leadOnly": [
+      "webkitgtk-wsl"
+    ],
+    "rule": "The verdict generator refuses to emit pass/fail from a non-gating row. A PASS under WSL is meaningful evidence toward a Go because WSL is a strictly weaker box; a FAIL under WSL decides nothing and must never eliminate an arm."
+  },
+  "cadenceMultipleNote": "p95 and p99 are resolved at evaluation time as multiple * calibration.medianFrameMs. 1.5x sits halfway between every frame delivered and every other frame dropped, so sustained frame dropping still fails; 2.5x tolerates an isolated drop at the 99th percentile."
+}

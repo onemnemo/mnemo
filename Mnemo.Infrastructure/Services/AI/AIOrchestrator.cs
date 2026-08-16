@@ -269,7 +269,7 @@ public sealed class AIOrchestrator : IAIOrchestrator
     /// </summary>
     private async Task<IReadOnlyList<ChatToolDefinition>?> ResolveToolsAsync(CancellationToken ct)
     {
-        var agentMode = await _settings.GetAsync("AI.AgentMode", true).ConfigureAwait(false);
+        var agentMode = await _settings.GetAsync("AI.AgentMode", false).ConfigureAwait(false);
         if (!agentMode)
         {
             return null;

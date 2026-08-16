@@ -1,0 +1,57 @@
+/*
+ * Level of detail, as CSS.
+ *
+ * The band lives in one data attribute on the world (see `lod.ts`), so crossing a threshold costs
+ * one DOM write and one style recalculation instead of five thousand React re-renders. Everything
+ * here is keyed off that attribute and nothing else, which is why none of it needs a subscription.
+ *
+ * These rules are not decoration, and the `bare` band in particular is load-bearing. An element
+ * that still generates its inner boxes below the label threshold costs 50ms a frame on a map that
+ * fits entirely on screen; collapsed to a single painted box it costs one frame. Anything added
+ * here that reintroduces a second box or a border per element puts that case back into failure.
+ */
+
+/*
+ * Chrome goes below the readable threshold, for painting and for hit-testing alike. This is
+ * product behaviour rather than an optimization: a checkbox two pixels across is a smudge, and one
+ * you cannot see is worse to be able to press than to be missing.
+ */
+[data-lod="labels"] .mm-chrome,
+[data-lod="bare"] .mm-chrome {
+  display: none;
+}
+
+/*
+ * The overview marker. `display: none` generates no box at all, so an element below the label
+ * threshold is one positioned box painting one colour, which is the floor this substrate can reach
+ * while still drawing something per element.
+ */
+[data-lod="bare"] .mm-node:not(.mm-frame) > * {
+  display: none;
+}
+
+[data-lod="bare"] .mm-node:not(.mm-frame) {
+  /* The host paints nothing at readable zoom, where the body box carries the fill. Here it is the
+     only box left, so it stands in for whatever that body would have drawn. */
+  background: var(--mm-marker, var(--line));
+  /* A radius on a mark a few pixels across costs more than it says. */
+  border-radius: 0;
+}
+
+/*
+ * Selection has to survive the collapse, or a sweep at overview zoom selects invisibly. Said with
+ * the one box that is already there rather than with the halo, which would be the second box the
+ * band exists to avoid.
+ */
+[data-lod="bare"] .mm-node[data-selected]:not(.mm-frame) {
+  background: var(--accent);
+}
+
+/*
+ * A frame is a region, not a mark: emptying one would leave a labelled area with no area, and
+ * there are never many of them. Only its title goes, because that is text like any other.
+ */
+[data-lod="bare"] .mm-frame .mm-label,
+[data-lod="bare"] [data-mm-edge-label] {
+  display: none;
+}

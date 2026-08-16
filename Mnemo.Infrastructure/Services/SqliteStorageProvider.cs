@@ -16,10 +16,11 @@ public class SqliteStorageProvider : IStorageProvider
     private readonly ILoggerService _logger;
     private readonly Lazy<Task> _initTask;
 
-    public SqliteStorageProvider(ILoggerService logger)
+    /// <param name="databasePath">Optional absolute DB path (tests). Defaults to app user data <c>mnemo.db</c>.</param>
+    public SqliteStorageProvider(ILoggerService logger, string? databasePath = null)
     {
         _logger = logger;
-        var dbPath = MnemoAppPaths.GetLocalUserDataFile("mnemo.db");
+        var dbPath = databasePath ?? MnemoAppPaths.GetLocalUserDataFile("mnemo.db");
         var dbDir = Path.GetDirectoryName(dbPath);
         if (!string.IsNullOrWhiteSpace(dbDir))
         {

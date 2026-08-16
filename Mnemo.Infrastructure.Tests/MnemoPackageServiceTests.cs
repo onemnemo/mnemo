@@ -88,6 +88,87 @@ public sealed class MnemoPackageServiceTests
         }
     }
 
+    [Fact]
+    public async Task ImportAsync_RejectsMoreEntriesThanTheCap()
+    {
+        var file = await WritePackageAsync(new MnemoPackageManifest(),
+            ("payloads/notes/a", [1]),
+            ("payloads/notes/b", [2]));
+        try
+        {
+            var service = new MnemoPackageService([], new NullLogger(),
+                new MnemoPackageService.PackageReadLimits(MaxEntryCount: 1, MaxEntryBytes: 1024, MaxTotalBytes: 1024, MaxPathDepth: 32));
+
+            var result = await service.ImportAsync(file, new MnemoPackageImportOptions());
+
+            Assert.False(result.IsSuccess);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public async Task ImportAsync_RejectsAnEntryOverTheByteCap()
+    {
+        var file = await WritePackageAsync(new MnemoPackageManifest(),
+            ("payloads/notes/big", new byte[64]));
+        try
+        {
+            var service = new MnemoPackageService([], new NullLogger(),
+                new MnemoPackageService.PackageReadLimits(MaxEntryCount: 100, MaxEntryBytes: 16, MaxTotalBytes: 1024, MaxPathDepth: 32));
+
+            var result = await service.ImportAsync(file, new MnemoPackageImportOptions());
+
+            Assert.False(result.IsSuccess);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public async Task ImportAsync_RejectsAnEntryNestedTooDeeply()
+    {
+        var file = await WritePackageAsync(new MnemoPackageManifest(),
+            ("payloads/notes/deep/deeper/file", [1]));
+        try
+        {
+            var service = new MnemoPackageService([], new NullLogger(),
+                new MnemoPackageService.PackageReadLimits(MaxEntryCount: 100, MaxEntryBytes: 1024, MaxTotalBytes: 1024, MaxPathDepth: 2));
+
+            var result = await service.ImportAsync(file, new MnemoPackageImportOptions());
+
+            Assert.False(result.IsSuccess);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    private static async Task<string> WritePackageAsync(MnemoPackageManifest manifest, params (string Path, byte[] Bytes)[] entries)
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"mnemo-test-{Guid.NewGuid():N}.mnemo");
+        await using var file = File.Create(tempFile);
+        using var zip = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: false);
+
+        var manifestEntry = zip.CreateEntry("manifest.json");
+        await using (var stream = manifestEntry.Open())
+            await JsonSerializer.SerializeAsync(stream, manifest);
+
+        foreach (var (path, bytes) in entries)
+        {
+            var entry = zip.CreateEntry(path);
+            await using var entryStream = entry.Open();
+            await entryStream.WriteAsync(bytes);
+        }
+
+        return tempFile;
+    }
+
     private sealed class StaticPayloadHandler : IMnemoPayloadHandler
     {
         private readonly int _count;

@@ -52,16 +52,22 @@ public static class NoteBlockMarkdownConverter
             BlockType.NumberedList => $"{listNum}. {body}",
             BlockType.Checklist => isChecked ? $"- [x] {body}" : $"- [ ] {body}",
             BlockType.Quote => "> " + body.Replace("\n", "\n> ", StringComparison.Ordinal),
+            BlockType.Callout => SerializeCallout(block, body),
             BlockType.Code => SerializeCodeFence(block),
             BlockType.Sketch => SerializeSketchFence(block),
             BlockType.Divider => "---",
             BlockType.Equation => "$$\n" + GetEquationLatex(block) + "\n$$",
-            BlockType.TwoColumn => block.Children is { Count: >= 2 }
-                ? SerializeBlock(block.Children[0]) + "\n\n---\n\n" + SerializeBlock(block.Children[1])
-                : string.Empty,
+            BlockType.TwoColumn => SerializeColumns(block),
+            BlockType.ColumnGroup => SerializeColumnGroup(block),
             _ => body
         };
     }
+
+    /// <summary>The "&gt; [!tone glyph]" head that distinguishes a callout from a plain quote.</summary>
+    private static readonly Regex CalloutHeadPattern = new(@"^>\s*\[!([A-Za-z]+)(?:\s+([^\]]+))?\]\s?(.*)$");
+
+    /// <summary>True when the line opens a new callout, which ends whatever quoted run precedes it.</summary>
+    private static bool StartsCallout(string trimmed) => CalloutHeadPattern.IsMatch(trimmed);
 
     public static List<Block> Deserialize(string markdown)
     {
@@ -241,6 +247,44 @@ public static class NoteBlockMarkdownConverter
                 continue;
             }
 
+            // Probed ahead of the quote branch: a callout is a quote line whose first token is the
+            // "[!tone emoji]" head, so quote would otherwise swallow it.
+            var calloutHead = CalloutHeadPattern.Match(trimmed);
+            if (calloutHead.Success)
+            {
+                var calloutLines = new List<string> { calloutHead.Groups[3].Value.Trim() };
+                i++;
+                while (i < lines.Length)
+                {
+                    var nextTrimmed = lines[i].TrimStart();
+                    // A second head starts its own callout; without this the run below
+                    // absorbs it and two callouts come back as one.
+                    if (StartsCallout(nextTrimmed))
+                        break;
+                    if (nextTrimmed.StartsWith("> ", StringComparison.Ordinal))
+                    {
+                        calloutLines.Add(nextTrimmed["> ".Length..].Trim());
+                        i++;
+                    }
+                    else if (nextTrimmed == ">")
+                    {
+                        calloutLines.Add(string.Empty);
+                        i++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                var callout = CreateRichBlock(BlockType.Callout, string.Join("\n", calloutLines), order++);
+                callout.Payload = new CalloutPayload(
+                    calloutHead.Groups[2].Value.Trim(),
+                    calloutHead.Groups[1].Value.Trim().ToLowerInvariant());
+                result.Add(callout);
+                continue;
+            }
+
             if (trimmed.StartsWith("> ", StringComparison.Ordinal) || trimmed == ">")
             {
                 var firstLine = trimmed == ">" ? string.Empty : trimmed["> ".Length..].Trim();
@@ -249,6 +293,10 @@ public static class NoteBlockMarkdownConverter
                 while (i < lines.Length)
                 {
                     var nextTrimmed = lines[i].TrimStart();
+                    // Same reason as above: a callout head following a quote is a new
+                    // block, not another line of the quotation.
+                    if (StartsCallout(nextTrimmed))
+                        break;
                     if (nextTrimmed.StartsWith("> ", StringComparison.Ordinal))
                     {
                         quoteLines.Add(nextTrimmed["> ".Length..].Trim());
@@ -275,7 +323,11 @@ public static class NoteBlockMarkdownConverter
                 var m = Regex.Match(trimmed, @"^(\d+)\.\s");
                 var n = m.Success && int.TryParse(m.Groups[1].Value, out var num) ? num : 1;
                 var nb = CreateRichBlock(BlockType.NumberedList, content, order++);
-                nb.Meta["listNumber"] = n;
+                // Written under the canonical key the editor and PDF composer read. The legacy
+                // "listNumber" key nothing else looks at is never emitted again, so a numbered
+                // list imported from markdown keeps its start value instead of silently
+                // renumbering from 1 the moment it opens.
+                nb.Meta["listNumberIndex"] = n;
                 result.Add(nb);
                 i++;
                 continue;
@@ -324,14 +376,22 @@ public static class NoteBlockMarkdownConverter
 
     private static int GetListNumber(Block block)
     {
-        if (!block.Meta.TryGetValue("listNumber", out var v))
-            return 1;
+        // listNumberIndex is the key the editor and PDF composer read; listNumber is the legacy
+        // key markdown used to write. Read either, preferring the canonical one, defaulting to 1.
+        return ReadMetaInt(block, "listNumberIndex") ?? ReadMetaInt(block, "listNumber") ?? 1;
+    }
+
+    private static int? ReadMetaInt(Block block, string key)
+    {
+        if (!block.Meta.TryGetValue(key, out var v) || v is null)
+            return null;
         return v switch
         {
             int i => i,
             long l => (int)l,
             JsonElement je when je.TryGetInt32(out var n) => n,
-            _ => 1
+            string s when int.TryParse(s, out var n) => n,
+            _ => null
         };
     }
 
@@ -368,6 +428,61 @@ public static class NoteBlockMarkdownConverter
         return string.IsNullOrEmpty(lang)
             ? "```\n" + source + "\n```"
             : "```" + lang + "\n" + source + "\n```";
+    }
+
+    /// <summary>
+    /// Flattens a two-column row to its cells' blocks in reading order (left column, then right).
+    /// Markdown has no column syntax, so this matches the editor's own markdown flattening. It
+    /// deliberately emits no "---" between the columns: that separator reads back as a
+    /// <see cref="BlockType.Divider"/>, which both corrupts the round trip and is beside the point,
+    /// since the old code serialized only the empty cell lines and lost every block inside them.
+    /// The <c>.mnemo</c> package is the format that preserves column structure.
+    /// </summary>
+    private static string SerializeColumns(Block twoColumn)
+    {
+        if (twoColumn.Children is not { Count: > 0 } columns)
+            return string.Empty;
+
+        var parts = new List<string>();
+        foreach (var column in columns)
+        {
+            var content = SerializeColumnGroup(column);
+            if (!string.IsNullOrEmpty(content))
+                parts.Add(content);
+        }
+
+        // One newline between cells, matching how the top-level serializer separates blocks: this
+        // converter is line-oriented, so a blank line would deserialize into a stray empty block.
+        return string.Join("\n", parts);
+    }
+
+    private static string SerializeColumnGroup(Block group)
+    {
+        // A cell is a ColumnGroup whose children are the real blocks. Older or malformed data may
+        // hold a block directly in the cell slot, so fall back to serializing that block.
+        var children = group.Type == BlockType.ColumnGroup ? group.Children : null;
+        if (children is not { Count: > 0 })
+            return group.Type == BlockType.ColumnGroup ? string.Empty : SerializeBlock(group);
+
+        var sb = new System.Text.StringBuilder();
+        var ordered = children.OrderBy(c => c.Order).ToList();
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            if (i > 0)
+                sb.Append('\n');
+            sb.Append(SerializeBlock(ordered[i]));
+        }
+
+        return sb.ToString();
+    }
+
+    private static string SerializeCallout(Block block, string body)
+    {
+        var payload = block.Payload as CalloutPayload;
+        var tone = string.IsNullOrWhiteSpace(payload?.Tone) ? "note" : payload!.Tone.Trim();
+        var emoji = (payload?.Emoji ?? string.Empty).Trim();
+        var head = "> [!" + tone + (emoji.Length == 0 ? "]" : " " + emoji + "]");
+        return body.Length == 0 ? head : head + " " + body.Replace("\n", "\n> ", StringComparison.Ordinal);
     }
 
     private static string SerializeSketchFence(Block block) =>

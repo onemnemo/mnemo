@@ -40,7 +40,7 @@ internal sealed class FlashcardStoreHarness : IAsyncDisposable
         {
             await Presets.UpsertAsync(conn, tx, FlashcardPreset.CreateStandard(now) with { Id = presetId }, ct);
             await Decks.UpsertAsync(conn, tx, new FlashcardDeckHeader(
-                deckId, null, presetId, "Deck", null, Array.Empty<string>(), 0, null, now, now), ct);
+                deckId, null, presetId, "Deck", null, Array.Empty<string>(), 0, null, null, now, now), ct);
         });
         return deckId;
     }

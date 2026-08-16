@@ -7,12 +7,18 @@ public sealed record FlashcardFsrsParameters(
     double DesiredRetention,
     double[] Weights)
 {
+    /// <summary>
+    /// The published FSRS-6 defaults, as retrained in June 2025. All twenty-one slots are live under
+    /// FSRS-6: w19 damps the same-day stability bump as stability grows, and w20 is the forgetting
+    /// curve's decay exponent, which FSRS-6 fits per collection instead of pinning it at FSRS-5's
+    /// -0.5. Replacing these wholesale changes scheduling for every card that has not stored its own.
+    /// </summary>
     public static FlashcardFsrsParameters Default { get; } = new(
         0.9d,
         new[]
         {
-            0.40255, 1.18385, 3.1262, 15.4722, 7.2102, 0.5316, 1.0651,
-            0.0589, 1.5330, 0.1544, 1.0071, 1.9395, 0.1100, 0.2900,
-            2.2700, 0.1500, 2.9898, 0.5100, 0.3400, 0.1300, 0.0
+            0.2120, 1.2931, 2.3065, 8.2956, 6.4133, 0.8334, 3.0194,
+            0.0010, 1.8722, 0.1666, 0.7960, 1.4835, 0.0614, 0.2629,
+            1.6483, 0.6014, 1.8729, 0.5425, 0.0912, 0.0658, 0.1542
         });
 }

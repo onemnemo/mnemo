@@ -5,20 +5,19 @@
     <!-- Matches CI matrix; does not set RuntimeIdentifier so local build/run stays RID-agnostic. Publish with -r picks one RID and drives post-publish trim. -->
     <RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <Nullable>enable</Nullable>
-    <Version>0.7.0</Version>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\AppIcons/AppIconDawn.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 
+    <!-- The five the SDK maps into the Win32 version resource, AssemblyTitle as its
+         FileDescription. AssemblyDescription, AssemblyCompany, AssemblyProduct and
+         AssemblyCopyright are not SDK properties and stamp nothing into the exe. -->
     <AssemblyTitle>Mnemo</AssemblyTitle>
-    <AssemblyDescription>Local-first AI-powered learning environment.</AssemblyDescription>
-    <AssemblyCompany>Mnemo</AssemblyCompany>
-    <AssemblyProduct>Mnemo</AssemblyProduct>
-    <AssemblyCopyright>Copyright © Mnemo 2026</AssemblyCopyright>
-    <AssemblyVersion>0.7.0</AssemblyVersion>
-    <AssemblyFileVersion>0.7.0</AssemblyFileVersion>
-    <AssemblyInformationalVersion>0.7.0-dev</AssemblyInformationalVersion>
+    <Description>Local-first AI-powered learning environment.</Description>
+    <Company>Mnemo</Company>
+    <Product>Mnemo</Product>
+    <Copyright>Copyright © Mnemo 2026</Copyright>
 
     <!--
       Performance tuning:

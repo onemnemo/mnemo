@@ -17,7 +17,7 @@ public static class RouteKeybindNamespaces
             "flashcards" => null,
             "flashcard-deck" => "editor",
             "settings" => "settings",
-            "chat" => "chat",
+            "soma" => "chat",
             _ => route
         };
     }

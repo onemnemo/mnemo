@@ -779,6 +779,9 @@ public sealed class MindmapCanvasControl : Control
             case ShapeType.Rectangle:
                 context.DrawRectangle(fill, border, rect, CornerRadius, CornerRadius);
                 break;
+            case ShapeType.Blob:
+                context.DrawGeometry(fill, border, BuildBlob(rect));
+                break;
             default:
                 context.DrawGeometry(fill, border, BuildPolygon(rect, shape));
                 break;
@@ -910,6 +913,45 @@ public sealed class MindmapCanvasControl : Control
             ctx.BeginFigure(points[0], isFilled: true);
             for (var i = 1; i < points.Length; i++)
                 ctx.LineTo(points[i]);
+            ctx.EndFigure(isClosed: true);
+        }
+        return geometry;
+    }
+
+    // Four cubics between four anchors sitting on the four edges, so the blob fills its box the way an
+    // ellipse does. Nudging each anchor off its midpoint, and swelling each quarter by a different
+    // amount, is the whole of what makes it a blob rather than an ellipse. Every control point lands on
+    // an edge, which keeps the curve inside the box: a cubic stays in the hull of its four points.
+    private static StreamGeometry BuildBlob(Rect r)
+    {
+        const double Top = 0.38, Right = 0.34, Bottom = 0.62, Left = 0.66;
+        const double TopRight = 0.86, RightBottom = 0.54, BottomLeft = 0.9, LeftTop = 0.62;
+
+        var tx = r.Left + r.Width * Top;
+        var ry = r.Top + r.Height * Right;
+        var bx = r.Left + r.Width * Bottom;
+        var ly = r.Top + r.Height * Left;
+
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(new Point(tx, r.Top), isFilled: true);
+            ctx.CubicBezierTo(
+                new Point(tx + TopRight * (r.Right - tx), r.Top),
+                new Point(r.Right, r.Top + (ry - r.Top) * (1 - TopRight)),
+                new Point(r.Right, ry));
+            ctx.CubicBezierTo(
+                new Point(r.Right, ry + RightBottom * (r.Bottom - ry)),
+                new Point(bx + RightBottom * (r.Right - bx), r.Bottom),
+                new Point(bx, r.Bottom));
+            ctx.CubicBezierTo(
+                new Point(r.Left + (bx - r.Left) * (1 - BottomLeft), r.Bottom),
+                new Point(r.Left, ly + BottomLeft * (r.Bottom - ly)),
+                new Point(r.Left, ly));
+            ctx.CubicBezierTo(
+                new Point(r.Left, r.Top + (ly - r.Top) * (1 - LeftTop)),
+                new Point(r.Left + (tx - r.Left) * (1 - LeftTop), r.Top),
+                new Point(tx, r.Top));
             ctx.EndFigure(isClosed: true);
         }
         return geometry;

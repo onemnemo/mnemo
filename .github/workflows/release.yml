@@ -1,4 +1,4 @@
-# Builds Velopack installers per RID.
+# Builds the Velopack installer.
 # GitHub Release assets remain user-facing only (installer/portable binaries).
 # Update-feed files are published as a separate workflow artifact.
 name: Release packages
@@ -15,31 +15,18 @@ permissions:
 
 jobs:
   build:
+    # Windows only. The shipped shell is a PhotinoX window over a local ASP.NET Core host,
+    # and only its Windows path has been built and tested; publishing Linux and macOS
+    # packages nobody has run would put broken downloads on the release page.
+    # The matrix stays so the artifact names and the update feed keep their RID segment.
     strategy:
       fail-fast: false
       matrix:
         include:
           - rid: win-x64
             os: windows-latest
-            mainexe: Mnemo.UI.exe
+            mainexe: Mnemo.Host.exe
             packIcon: Mnemo.UI/Assets/AppIcons/AppIconDawn.ico
-          - rid: linux-x64
-            os: ubuntu-latest
-            mainexe: Mnemo.UI
-            packIcon: Mnemo.UI/Assets/AppIcons/Icon.png
-          - rid: linux-arm64
-            os: ubuntu-latest
-            mainexe: Mnemo.UI
-            packIcon: Mnemo.UI/Assets/AppIcons/Icon.png
-          - rid: osx-x64
-            # macos-13 is largely retired on GHA; cross-publish osx-x64 from a current image.
-            os: macos-14
-            mainexe: Mnemo.UI
-            packIcon: Mnemo.UI/Assets/AppIcons/Icon.icns
-          - rid: osx-arm64
-            os: macos-14
-            mainexe: Mnemo.UI
-            packIcon: Mnemo.UI/Assets/AppIcons/Icon.icns
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -48,46 +35,62 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mnemo-web/package-lock.json
+
       - name: Restore vpk tool
         run: dotnet tool restore
 
       # Tags are v1.2.3; NuGet / MSBuild Version must be semver without the leading v.
+      # AssemblyVersion and FileVersion cannot carry a prerelease suffix, so the numeric
+      # part is resolved separately and passed as VersionPrefix.
       - name: Resolve semver from tag
         id: version
         shell: bash
         env:
           TAG: ${{ github.ref_name }}
-        run: echo "semver=${TAG#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          SEMVER="${TAG#v}"
+          PREFIX="${SEMVER%%-*}"
+          PREFIX="${PREFIX%%+*}"
+          echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
+          echo "prefix=$PREFIX" >> "$GITHUB_OUTPUT"
 
-      - name: Publish
-        run: >
-          dotnet publish Mnemo.UI/Mnemo.UI.csproj -c Release -r ${{ matrix.rid }} --self-contained true
-          -p:Version=${{ steps.version.outputs.semver }}
-          -p:AssemblyInformationalVersion=${{ github.ref_name }}
-          -o publish
+      # The Typst binary is not committed, and the csproj only copies it when it is already
+      # on disk, so without this the released app has no PDF export at all.
+      - name: Restore the Typst binary
+        shell: pwsh
+        run: ./scripts/restore-typst.ps1 -Rid ${{ matrix.rid }}
 
-      # Velopack requires .icns on macOS; generate from the canonical PNG before packing.
-      - name: Prepare macOS pack icon
-        if: startsWith(matrix.rid, 'osx-')
+      # The published host serves this from wwwroot, so it has to exist before the publish
+      # that copies it in. No dist means an app that starts and shows nothing.
+      - name: Build the web UI
+        working-directory: mnemo-web
         shell: bash
         run: |
           set -euo pipefail
-          SRC="Mnemo.UI/Assets/AppIcons/Icon.png"
-          ICONSET="Mnemo.UI/Assets/AppIcons/Icon.iconset"
-          OUT="Mnemo.UI/Assets/AppIcons/Icon.icns"
-          rm -rf "$ICONSET"
-          mkdir -p "$ICONSET"
-          sips -z 16 16 "$SRC" --out "$ICONSET/icon_16x16.png"
-          sips -z 32 32 "$SRC" --out "$ICONSET/icon_16x16@2x.png"
-          sips -z 32 32 "$SRC" --out "$ICONSET/icon_32x32.png"
-          sips -z 64 64 "$SRC" --out "$ICONSET/icon_32x32@2x.png"
-          sips -z 128 128 "$SRC" --out "$ICONSET/icon_128x128.png"
-          sips -z 256 256 "$SRC" --out "$ICONSET/icon_128x128@2x.png"
-          sips -z 256 256 "$SRC" --out "$ICONSET/icon_256x256.png"
-          sips -z 512 512 "$SRC" --out "$ICONSET/icon_256x256@2x.png"
-          sips -z 512 512 "$SRC" --out "$ICONSET/icon_512x512.png"
-          sips -z 1024 1024 "$SRC" --out "$ICONSET/icon_512x512@2x.png"
-          iconutil -c icns "$ICONSET" -o "$OUT"
+          npm ci
+          npm run build
+
+      - name: Publish
+        run: >
+          dotnet publish Mnemo.Host/Mnemo.Host.csproj -c Release -r ${{ matrix.rid }} --self-contained true
+          -p:Version=${{ steps.version.outputs.semver }}
+          -p:VersionPrefix=${{ steps.version.outputs.prefix }}
+          -o publish
+
+      # A publish that quietly shipped no UI is worse than a failed build, and the csproj
+      # only warns so that ordinary builds and tests never need a web build.
+      - name: Verify the SPA was published
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "publish/wwwroot/index.html")) {
+            throw "publish/wwwroot/index.html is missing; the SPA did not reach the published output."
+          }
 
       - name: Pack (Velopack)
         run: >
@@ -103,8 +106,8 @@ jobs:
           -o vpk-out
           --channel stable
 
-      # Velopack uses the same installer filenames for every RID; suffix with RID so
-      # upload-to-release keeps separate Linux/macOS arch packages on the GitHub Release.
+      # Velopack uses the same installer filename for every RID; suffix with RID so the
+      # GitHub Release still names what a download is for once more RIDs come back.
       - name: Rename release assets per RID
         shell: bash
         run: |
@@ -112,12 +115,6 @@ jobs:
           RID="${{ matrix.rid }}"
           shopt -s nullglob
           cd vpk-out
-          for f in *.AppImage; do
-            mv "$f" "Mnemo.Desktop-stable-${RID}.AppImage"
-          done
-          for f in *Setup.pkg; do
-            mv "$f" "Mnemo.Desktop-stable-${RID}-Setup.pkg"
-          done
           for f in *Setup.exe; do
             mv "$f" "Mnemo.Desktop-stable-${RID}-Setup.exe"
           done
@@ -148,9 +145,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: |
             artifacts/**/Mnemo-Portable-*.zip
-            artifacts/**/*.AppImage
             artifacts/**/*Setup.exe
-            artifacts/**/*Setup.pkg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -193,7 +188,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p feed/updates/stable
-          for rid in win-x64 linux-x64 linux-arm64 osx-x64 osx-arm64; do
+          for rid in win-x64; do
             src="artifacts/vpk-$rid"
             if [ ! -d "$src" ]; then
               echo "warning: missing artifact dir $src" >&2

@@ -1,6 +1,11 @@
 ## .NET Build Artifacts
 bin/
 obj/
+
+# Mnemo.Core carries a restore output folder under this literal name, which the
+# [Oo]bj/ pattern above does not match. It holds machine-specific NuGet paths and
+# must never be committed.
+obj_scratch/
 *.user
 *.suo
 *.cache
@@ -90,6 +95,8 @@ bld/
 [Ll]og/
 [Ll]ogs/
 publish/
+publish-test/
+vpk-test-out/
 
 ## Files built by Visual Studio
 *_i.c
@@ -162,3 +169,17 @@ logs/
 docs/
 lucid-icons/
 Claude.md
+# Improvement notes and deferred rework, not part of the shipped repo
+future-review/
+
+# Typst runtime: the per-RID typst binary is fetched by restore-typst (~52 MB each),
+# never committed. The vendored mitex package under typst-packages/ IS tracked (375 KB).
+Mnemo.Host/TypstRuntime/binaries/
+
+# Our restore-typst tooling lives in scripts/ as source, not generated output; the
+# stock VS [Ss]cripts/ rule above would otherwise ignore it.
+!scripts/
+
+# Local working notes, not shipped repo content. One rule so a new note never
+# needs a .gitignore change.
+plans/

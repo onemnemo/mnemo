@@ -43,7 +43,9 @@ public sealed class SettingsToolService
         ["Editor.SpellCheckLanguages"] = new("Editor", true, "en", v => v?.ToString() ?? "en"),
         ["Editor.Width"] = new("Editor", true, "Wide", v => v?.ToString() ?? "Wide"),
         ["AI.EnableAssistant"] = new("AI", true, false, CoerceBool),
-        ["AI.AgentMode"] = new("AI", true, true, CoerceBool),
+        // Not writable: a model must never be able to grant itself agent mode. Still
+        // readable, so it can report the current state back to the user.
+        ["AI.AgentMode"] = new("AI", false, false, CoerceBool),
         ["AI.WebSearch.Enabled"] = new("AI", true, true, CoerceBool),
         ["AI.WebSearch.Provider"] = new("AI", true, "DuckDuckGo", v => v?.ToString() ?? "DuckDuckGo"),
     };

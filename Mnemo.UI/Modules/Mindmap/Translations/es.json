@@ -7,7 +7,9 @@
     "mindmap.redo": "Rehacer",
     "mindmap.clear-selection": "Borrar selección",
     "mindmap.delete-selection": "Eliminar selección",
+    "mindmap.select-all": "Seleccionar todo",
     "mindmap.copy": "Copiar",
+    "mindmap.cut": "Cortar",
     "mindmap.paste": "Pegar",
     "mindmap.duplicate": "Duplicar",
     "mindmap.add-child": "Añadir nodo hijo",
@@ -20,6 +22,7 @@
     "mindmap.new-text": "Nuevo texto",
     "mindmap.new-frame": "Nuevo marco",
     "mindmap.shape-picker": "Nueva forma",
+    "mindmap.new-image": "Añadir imagen",
     "mindmap.radial": "Herramientas radiales"
   },
   "Mindmap": {
@@ -39,6 +42,7 @@
     "ToolConnect": "Conectar",
     "ToolImage": "Añadir imagen",
     "Recenter": "Recentrar vista",
+    "Minimap": "Minimapa",
     "SavedChip": "Guardado",
     "UndoTip": "Deshacer",
     "RedoTip": "Rehacer",
@@ -84,6 +88,7 @@
     "ShapeParallelogram": "Paralelogramo",
     "ShapeLine": "Línea",
     "ShapeArrow": "Flecha",
+    "ShapeBlob": "Mancha",
     "LayoutBalanced": "Equilibrado",
     "LayoutTreeRight": "Árbol · derecha",
     "LayoutTreeDown": "Árbol · abajo",
@@ -98,6 +103,15 @@
     "ShapePlain": "Simple",
     "ToggleCollapse": "Contraer / expandir",
     "TogglePin": "Fijar / soltar",
+    "Pin": "Fijar",
+    "Unpin": "Soltar",
+    "CollapseBranch": "Contraer la rama",
+    "ExpandBranch": "Expandir la rama",
+    "More": "Más",
+    "ApplyToSubtree": "Y todo lo que hay debajo",
+    "EdgeLine": "Línea",
+    "Routing": "Trazado",
+    "Ends": "Extremos",
     "StyleSubtree": "Aplicar al subárbol",
     "ClearStyle": "Borrar estilo",
     "SaveAsTemplate": "Guardar estilo como plantilla",
@@ -137,6 +151,8 @@
     "AlignMiddleV": "Centrar verticalmente",
     "AlignBottom": "Alinear abajo",
     "DistributeH": "Distribuir horizontalmente",
-    "DistributeV": "Distribuir verticalmente"
+    "DistributeV": "Distribuir verticalmente",
+    "Align": "Alinear",
+    "Distribute": "Distribuir"
   }
 }

@@ -410,6 +410,9 @@ public static class MindmapSvgExporter
             case ShapeType.Rectangle:
                 EmitRect(sb, node.X, node.Y, node.Width, node.Height, CornerRadius, node.FillColor, node.StrokeColor, 1.5);
                 break;
+            case ShapeType.Blob:
+                EmitBlob(sb, node);
+                break;
             default:
                 EmitPolygon(sb, node, shape);
                 break;
@@ -427,6 +430,31 @@ public static class MindmapSvgExporter
         var head = Math.Min(12, node.Width * 0.3);
         EmitLine(sb, endX, centerY, endX - head, centerY - head * 0.6, color, 1.5);
         EmitLine(sb, endX, centerY, endX - head, centerY + head * 0.6, color, 1.5);
+    }
+
+    // The same four cubics the canvas draws, so an exported map and the one on screen agree about what
+    // a blob is. Anchors on the four edges, controls on them too, which is what holds the curve inside
+    // the element box.
+    private static void EmitBlob(StringBuilder sb, MindmapSvgNode node)
+    {
+        const double Top = 0.38, Right = 0.34, Bottom = 0.62, Left = 0.66;
+        const double TopRight = 0.86, RightBottom = 0.54, BottomLeft = 0.9, LeftTop = 0.62;
+
+        double left = node.X, top = node.Y;
+        double right = left + node.Width, bottom = top + node.Height;
+        var tx = left + node.Width * Top;
+        var ry = top + node.Height * Right;
+        var bx = left + node.Width * Bottom;
+        var ly = top + node.Height * Left;
+
+        var d =
+            $"M{N(tx)},{N(top)} " +
+            $"C{N(tx + TopRight * (right - tx))},{N(top)} {N(right)},{N(top + (ry - top) * (1 - TopRight))} {N(right)},{N(ry)} " +
+            $"C{N(right)},{N(ry + RightBottom * (bottom - ry))} {N(bx + RightBottom * (right - bx))},{N(bottom)} {N(bx)},{N(bottom)} " +
+            $"C{N(left + (bx - left) * (1 - BottomLeft))},{N(bottom)} {N(left)},{N(ly + BottomLeft * (bottom - ly))} {N(left)},{N(ly)} " +
+            $"C{N(left)},{N(top + (ly - top) * (1 - LeftTop))} {N(left + (tx - left) * (1 - LeftTop))},{N(top)} {N(tx)},{N(top)} Z";
+
+        sb.Append($"<path d=\"{d}\" fill=\"{node.FillColor ?? "none"}\" stroke=\"{Color(node.StrokeColor)}\" stroke-width=\"1.5\"/>\n");
     }
 
     private static void EmitPolygon(StringBuilder sb, MindmapSvgNode node, ShapeType shape)

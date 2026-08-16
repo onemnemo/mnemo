@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using Mnemo.Core.Enums;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Common;
 
 namespace Mnemo.Infrastructure.Services;
 
@@ -12,17 +13,8 @@ public class LoggerService : ILoggerService
 
     public LoggerService()
     {
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (string.IsNullOrWhiteSpace(localAppData))
-        {
-            localAppData = AppContext.BaseDirectory;
-        }
-
-        var logDir = Path.Combine(localAppData, "Mnemo", "logs");
-        if (!Directory.Exists(logDir))
-        {
-            Directory.CreateDirectory(logDir);
-        }
+        var logDir = MnemoAppPaths.GetLogsDirectory();
+        Directory.CreateDirectory(logDir);
         _logFilePath = Path.Combine(logDir, $"log_{DateTime.Now:yyyyMMdd}.txt");
     }
 
