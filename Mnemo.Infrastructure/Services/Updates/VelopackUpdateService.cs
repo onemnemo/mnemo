@@ -17,12 +17,17 @@ namespace Mnemo.Infrastructure.Services.Updates;
 public sealed class VelopackUpdateService : IUpdateService, IDisposable
 {
     /// <summary>
-    /// Velopack feed root per RID (GitHub Pages). The channel is not part of the path:
-    /// Velopack asks the same root for <c>releases.{channel}.json</c>, which is what
-    /// lets a user switch tracks without reinstalling.
+    /// Releases are the feed. Velopack reads <c>releases.{channel}.json</c> from the
+    /// assets of recent releases here, so publishing a release publishes the feed with
+    /// it, and switching channels stays a client-side choice rather than a reinstall.
     /// </summary>
-    private static readonly string FeedUrl =
-        $"https://onemnemo.github.io/mnemo/updates/{RuntimeInformation.RuntimeIdentifier}/";
+    /// <remarks>
+    /// This used to be a static site. Update feeds only grow, every full package is
+    /// north of a hundred megabytes, and GitHub Pages allows a gigabyte for the whole
+    /// site, so that arrangement had a release count it could not survive. Release
+    /// assets have no such ceiling.
+    /// </remarks>
+    private const string RepoUrl = "https://github.com/onemnemo/mnemo";
 
     /// <summary>Newest first, prereleases included; the channel filter is applied here rather than by the API.</summary>
     private static readonly Uri ReleasesApi = new("https://api.github.com/repos/onemnemo/mnemo/releases?per_page=30");
@@ -73,9 +78,17 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
 
         _pendingVelopackUpdate = null;
         _updateManagerChannel = channel;
+
+        // Velopack reads the ten most recent releases and skips any without an index for
+        // this channel. Stable asks for finished releases only, so a run of prereleases
+        // can never crowd its packages out of that window.
+        var seesPrereleases = !string.Equals(channel, UpdateChannels.Stable, StringComparison.Ordinal);
         _updateManager = new UpdateManager(
-            new SimpleWebSource(FeedUrl),
-            new UpdateOptions { ExplicitChannel = channel },
+            new GithubSource(RepoUrl, accessToken: null, prerelease: seesPrereleases),
+            new UpdateOptions
+            {
+                ExplicitChannel = UpdateChannels.FeedName(RuntimeInformation.RuntimeIdentifier, channel),
+            },
             locator: null);
         return _updateManager;
     }
