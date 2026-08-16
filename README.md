@@ -1,27 +1,27 @@
 <p align="center">
-  <img width="600" alt="logo" src="https://github.com/user-attachments/assets/7e52d41a-f3d9-42fe-ada7-d44c6b3da574" />
+  <img width="600" alt="Mnemo" src="https://github.com/user-attachments/assets/7e52d41a-f3d9-42fe-ada7-d44c6b3da574" />
 </p>
 
 <div align="center">
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Status](https://img.shields.io/badge/status-Beta-blue.svg)](https://github.com/onemnemo/mnemo/releases)
-![Framework](https://img.shields.io/badge/framework-.NET%2010.0-purple.svg)
-![UI](https://img.shields.io/badge/UI-React%20%2B%20PhotinoX-orange.svg)
 
-<div align="center">Free. Open source. Local first. Built by learners, for learners.</div>
+**Free. Open source. Local first. Built by learners, for learners.**
+
+[Download](https://github.com/onemnemo/mnemo/releases/latest) · [Documentation](https://www.mnemo.one/docs) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
 ## What is Mnemo?
 
-Mnemo is a study application. Notes, flashcards, mindmaps and progress tracking live in one place, on your own machine, in a single window.
+Mnemo is a study app for **notes, flashcards, mindmaps and progress tracking**, built to keep everything in one place without giving up ownership of your work.
 
-The interface is a React and TypeScript app rendered in a native window by [PhotinoX](https://github.com/ivanvoyager/PhotinoX) and served by a local .NET 10 host, so it looks and behaves like a desktop app without shipping a bundled browser inside it.
+Your data lives on your own machine. There is no account requirement, no tracking, and nothing is sent over the network unless you explicitly enable a feature that needs it.
 
-> No subscriptions. No ads. No accounts. No tracking.
+> **No ads. No accounts. No tracking. Local by default.**
 
-Your work stays in a local database and a folder of files under your own user data directory. Nothing is sent anywhere unless you explicitly turn on a feature that needs the network.
+Mnemo combines a React and TypeScript interface with a local .NET backend and runs as a desktop application through PhotinoX.
 
 ## Screenshots
 
@@ -36,7 +36,7 @@ Your work stays in a local database and a folder of files under your own user da
 </td>
 <td width="50%">
 
-**Flashcards Module**
+**Flashcards**
 
 ![Flashcard review](https://www.mnemo.one/screenshots/flashcards.png)
 
@@ -53,182 +53,155 @@ Your work stays in a local database and a folder of files under your own user da
 </tr>
 </table>
 
-## What is inside
+## Built for studying, not just storing things
 
-**Notes.** A block editor built for documents that get long. Headings, lists, checklists, quotes, callouts, code, math, images, two column layouts, dividers and links to other pages, with inline formatting, highlights and colours. Multiple notes open as tabs, the tree in the sidebar can be reorganised by dragging, and there is find and replace. Notes export to Markdown, to a `.mnemo` package that keeps a whole folder intact, and to PDF through a bundled Typst compiler with a live preview and real typesetting options.
+Mnemo is meant to replace the pile of separate tools that tends to grow around studying.
 
-**Flashcards.** Decks and folders, classic and cloze cards, and scheduling by FSRS. Study sessions track state per card, and a separate self graded test mode exists for when you want to check yourself rather than schedule a review. Decks import and export as Anki packages, CSV, or `.mnemo`.
+**Notes** use a block editor built for long documents, with rich text, math, code, images, callouts, columns, page links, tabs, find and replace, and a draggable note tree. Notes export to Markdown, portable `.mnemo` packages, or PDF through a bundled Typst compiler with live preview.
 
-**Mindmaps.** An infinite canvas written from scratch for this app rather than assembled from a diagram library. Nodes, shapes, free text, images and frames, six layout algorithms, edge routing and styling, reusable style templates, a minimap, and a searchable library with folders. Maps export as PNG, SVG or a Markdown outline.
+**Flashcards** support classic and cloze cards, decks and folders, and review scheduling through FSRS. A separate self-graded test mode lets you test yourself without changing the review schedule. Decks can move through Anki packages, CSV and `.mnemo`.
 
-**Overview.** A dashboard you arrange yourself, with thirteen widgets covering today's queue, streaks, a year long activity heatmap, review forecasts, retention, leeches, goals, recent notes and more. Widgets can be dragged, resized and swapped out from a gallery.
+**Mindmaps** run on an infinite canvas built specifically for Mnemo. Maps support nodes, shapes, text, images, frames, multiple layout algorithms, custom edges, reusable styles and a minimap. Export to PNG, SVG or a Markdown outline.
 
-**Everything around it.** Light and dark themes, five interface languages (English, German, Spanish, Japanese, Norwegian Bokmål), remappable keyboard shortcuts, a command palette, toasts and a notification history, and a settings surface that covers all of it.
+**Overview** gives you a configurable study dashboard with widgets for reviews, streaks, activity, forecasts, retention, leeches, goals, recent notes and more.
+
+Across the app you also get light and dark themes, remappable shortcuts, a command palette, notification history, configurable behaviour and interface support for English, German, Spanish, Japanese and Norwegian Bokmål.
+
+## Your work stays portable
+
+Mnemo does not try to trap your material inside the application.
+
+* Notes export to Markdown and PDF
+* Flashcards import and export through Anki packages and CSV
+* Mindmaps export to PNG, SVG and Markdown
+* `.mnemo` packages preserve Mnemo content for moving or backing up complete collections
+
+The application database and files stay in your local application data directory.
 
 ## Project status
 
-Mnemo is at **0.8.0-beta**, and the first packaged release is close.
+Mnemo is currently **0.8.0-beta**.
 
-- **Windows** is the only platform with a tested installer today. It is built with Velopack and ships as a normal `.exe` installer plus a portable zip.
-- **macOS and Linux** compile, and the runtime identifiers are in place, but no package for either has been built and run end to end yet, so neither is published. Publishing downloads nobody has tested would be worse than publishing none.
-- Builds are **not code signed** yet, so Windows SmartScreen will warn on first run.
-- The app is stable in daily use, and it is still pre release software. Expect rough edges, and keep a backup of anything you would be upset to lose.
+**Windows** is the only platform with a tested packaged release today. It is available as a normal `.exe` installer or portable zip.
 
-Application data lives in `%LOCALAPPDATA%\Mnemo` on Windows, and under the local application data directory on other platforms. The log folder and the data folder can both be opened from Settings, under About.
+**macOS and Linux** compile, but neither has been packaged and tested end to end yet, so downloads are not published for them.
 
-## The assistant
+Windows builds are also **not code signed yet**, which means SmartScreen will warn when opening Mnemo for the first time. Releases are built from the tagged source through public GitHub Actions workflows and published with checksums, keeping the build process transparent and verifiable.
 
-Mnemo has an optional assistant called Soma. It is **off by default**, and while it is off nothing about it appears in the app: no sidebar entry, no dock, no widget.
-
-Turning it on requires your own [OpenRouter](https://openrouter.ai) key. Chat, model selection and streaming replies work today, along with an experimental agent mode that lets a model call Mnemo's own tools to read and edit notes, mindmaps and settings. Agent mode is off by default and has no permission prompt or undo receipt yet, so it is genuinely experimental rather than politely labelled as such.
-
-Running models **locally** is where this is meant to end up, and it does not work yet. The provider selector already shows a Local option, and it stays disabled until there is an implementation worth shipping. Until then the assistant is cloud only, and the request goes to OpenRouter and nowhere else.
-
-The rest of the AI work, having assistance available inside the editor and the study modules instead of in a separate chat window, with a real permission model behind it, is mostly still ahead. Mnemo is a study app that can use a model, not a chat app with study features attached, and the plan is to keep it that way.
-
-## Roadmap
-
-Direction rather than dates, roughly in the order it matters:
-
-- Local model support, so the assistant works offline and nothing leaves the machine
-- Assistance built into the modules, behind a permission model with previews and undo
-- Full text search across notes and cards, not just titles
-- A document reader for PDFs and slides, with highlights that turn into cards
-- Study games and interactive practice
-- Optional sync, self hosted or hosted, never required and never the default
-- An extension system, so modules, themes and languages can be installed rather than compiled in
-- macOS and Linux packages
-
-## Architecture
-
-Mnemo is a web frontend and a .NET backend that ship as one application.
-
-- **mnemo-web**: the user interface. A React, TypeScript and Tailwind CSS single page app built with Vite. Almost all feature and UI work happens here.
-- **Mnemo.Host**: the application host. A .NET 10 process that opens the native window with PhotinoX, runs a loopback only Kestrel server for the app's HTTP API, and serves the built frontend. This is the executable that ships.
-- **Mnemo.Core**: shared models, interfaces and contracts. No external dependencies, and the foundation everything else builds on.
-- **Mnemo.Infrastructure**: the implementations behind those contracts, including storage, notes, flashcards, mindmaps, import and export, and the AI stack.
-- **Mnemo.UI**: the previous Avalonia interface. It is no longer the app, and it is never launched by the shipped build, but the feature modules still live in that assembly and are loaded from it during startup, so it stays in the build until those modules are relocated.
-
-## Project structure
-
-```text
-MnemoApp/
-├── mnemo-web/                 # React + TypeScript single page app (the UI)
-│   ├── src/
-│   │   ├── api/                # Typed client for the Mnemo.Host HTTP API
-│   │   ├── components/         # Shared components, app shell and chrome
-│   │   ├── styles/             # Design tokens and global styles
-│   │   └── ...                 # One folder per feature area (notes, flashcards,
-│   │                             mindmap, overview, settings, chat, ...)
-│   └── public/                 # Static assets, including bundled fonts
-├── Mnemo.Host/                # .NET host: PhotinoX window + local API server
-│   ├── Composition/            # Dependency injection and startup wiring
-│   ├── Chrome/                 # Native window frame and chromeless titlebar
-│   ├── Startup/                # Kestrel, crash logging and dev server bootstrap
-│   ├── Web/                    # Static file and single page app serving
-│   ├── TypstRuntime/           # Bundled Typst compiler and fonts for PDF export
-│   └── ...                     # One folder per API area (Notes, Flashcards, Ai, ...)
-├── Mnemo.Core/                # Shared models, interfaces and contracts
-├── Mnemo.Infrastructure/      # Service implementations and language bundles
-├── Mnemo.UI/                  # Previous Avalonia UI, still hosting the feature modules
-├── scripts/                   # Typst binary restore, pinned by manifest
-└── *.Tests/                   # xUnit test projects
-```
-
-## Tech stack
-
-**Frontend**
-
-- **React 19** and **TypeScript**, built and served by **Vite**
-- **Tailwind CSS 4**, driven by a shared design token system
-- **Zustand** and **TanStack Query** for state and server data
-- **ProseMirror** for the notes editor, **KaTeX** for math, **pdf.js** for PDF preview
-- **Vitest** for tests and **oxlint** for linting
-
-**Backend**
-
-- **.NET 10** and **ASP.NET Core (Kestrel)**, bound to loopback with an ephemeral port and a bearer token
-- **[PhotinoX](https://github.com/ivanvoyager/PhotinoX)**, which opens the native window and renders the UI in the operating system's own web view
-- **SQLite** for local storage
-- **Typst** for PDF export, bundled and pinned
-- **Velopack** for installers and updates
-- **Markdig** and **PdfPig** for Markdown and PDF handling
-- **OpenRouter** for the optional assistant, using your own key
+Mnemo is stable in daily use, but it is still pre-release software. Keep backups of anything important while the project is in beta.
 
 ## Install
 
+### Windows
+
 1. [Download the latest release](https://github.com/onemnemo/mnemo/releases/latest).
-2. Run the Windows installer, or unpack the portable zip if you would rather not install anything.
-3. Windows will warn about an unrecognised app because the build is unsigned. Choose More info, then Run anyway.
+2. Run the installer, or unpack the portable zip.
+3. If Windows SmartScreen appears, choose **More info** and then **Run anyway**.
 
-macOS and Linux packages are not published yet. See [Project status](#project-status).
+For a full walkthrough, see the [installation documentation](https://www.mnemo.one/docs/students/installing).
 
-For a step by step guide, see the [installation documentation](https://www.mnemo.one/docs/students/installing).
+macOS and Linux packages are planned, but are not published yet.
+
+## Soma
+
+Mnemo includes an optional assistant called **Soma**.
+
+Soma is off by default and disappears from the interface while disabled. Today it supports chat through your own OpenRouter key, along with an experimental agent mode that can work with notes, mindmaps and settings.
+
+Local model support, deeper integration into the study modules, permissions, previews and reliable undo are still under development.
+
+**Mnemo is a study app that can use a model, not a chat app with study features attached. This is an important philosophy for the team to avoid becoming AI tangled slop.**
+
+## Roadmap
+
+Roughly what we want to work on next:
+
+* **Local models:** Get local models working properly
+* **Soma integration:** Bring Soma into the editor and study tools, with permissions, previews, and undo
+* **Search:** Full-text search across notes and flashcards
+* **Document reading:** PDF and slide reading, including turning highlights into cards
+* **Practice options:** More ways to practise, including study games
+* **Syncing:** Optional sync, both self-hosted and hosted
+* **Extensions:** Extensions for things like modules, themes, and languages
+* **Platform support:** Proper macOS and Linux releases
+
+Local use will remain the default. Online features are intended to stay optional.
+
+## Architecture
+
+Mnemo ships a web frontend and .NET backend together as one desktop application.
+
+* **`mnemo-web`** contains the React, TypeScript and Tailwind interface.
+* **`Mnemo.Host`** opens the PhotinoX window, runs the loopback-only local API and serves the frontend.
+* **`Mnemo.Core`** contains shared models, interfaces and contracts.
+* **`Mnemo.Infrastructure`** contains implementations for storage, notes, flashcards, mindmaps, import/export and the assistant stack.
+* **`Mnemo.UI`** is the previous Avalonia interface. It is no longer launched, but still contains some feature modules while they are relocated.
+
+The backend uses .NET 10, ASP.NET Core and SQLite. The frontend uses React 19, TypeScript and Vite, with ProseMirror for editing, KaTeX for math and Typst for PDF export.
 
 ## Build from source
 
-### Prerequisites
+You will need:
 
-- .NET 10 SDK
-- Node.js 22 or later, with npm
-- Windows, Linux or macOS (only Windows is regularly exercised today)
+* .NET 10 SDK
+* Node.js 22 or later
+* npm
 
-### Running in development
-
-The frontend and the host run separately during development, one per terminal.
+Install the frontend dependencies:
 
 ```bash
 cd mnemo-web
 npm install
-npm run dev
+cd ..
 ```
+
+Restore the bundled Typst binary:
+
+```powershell
+./scripts/restore-typst.ps1
+```
+
+On Linux or macOS:
+
+```bash
+./scripts/restore-typst.sh
+```
+
+For development, start the host first:
 
 ```bash
 dotnet run --project Mnemo.Host -- --dev
 ```
 
-`--dev` points the host at the Vite dev server instead of a built copy of the frontend, and opens the window once both are ready.
-
-On Windows, `dev.bat` starts both of them for you, each in its own terminal, and installs the web dependencies on first run.
-
-PDF export needs the pinned Typst binary, which is not committed. Restore it once after cloning:
-
-```bash
-./scripts/restore-typst.ps1
-```
-
-On Linux and macOS, use `./scripts/restore-typst.sh` instead.
-
-### Running a production build
-
-Without `--dev`, the host serves a built copy of the frontend and will refuse to start without one.
+Then start the frontend in another terminal:
 
 ```bash
 cd mnemo-web
-npm run build
+npm run dev
 ```
 
-```bash
-MNEMO_SPA_ROOT=mnemo-web/dist dotnet run --project Mnemo.Host
-```
+The host and Vite communicate through a per-launch development handshake, so the host needs to start first.
 
-On Windows PowerShell, set the variable first with `$env:MNEMO_SPA_ROOT = "mnemo-web/dist"`.
+On Windows, `dev.bat` starts both processes for you, each in its own terminal, and installs the web dependencies on first run.
 
-`dotnet publish` copies `mnemo-web/dist` into a `wwwroot` beside the executable, so a published build finds the frontend without any environment variable.
+For development workflow, testing and contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Contributing
 
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [coding-standard.md](coding-standard.md) before opening a pull request, and look for issues labelled `good first issue` if you are new here.
+Contributions are welcome.
 
-Documentation lives at [mnemo.one/docs](https://www.mnemo.one/docs/students).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [coding-standard.md](coding-standard.md) before opening a pull request. Issues labelled `good first issue` are a good place to start.
+
+Please also see:
+
+* [Code of Conduct](CODE_OF_CONDUCT.md)
+* [Security Policy](SECURITY.md)
+* [Documentation](https://www.mnemo.one/docs)
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE) for the full text, [NOTICE](NOTICE) for attribution, and [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES) for bundled dependencies.
+Mnemo is licensed under the **Apache License 2.0**.
+
+See [LICENSE](LICENSE) for the full license, [NOTICE](NOTICE) for attribution and [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES) for bundled dependencies.
 
 The Mnemo name, logo and visual identity are covered separately by [BRAND.md](BRAND.md).
-
----
-
-> "Education is not the learning of facts, but the training of the mind to think."
-> Albert Einstein
