@@ -465,6 +465,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
     icon: "download",
     title: "UpdatesCategoryTitle",
     subtitle: "UpdatesSubtitle",
+    keywords: ["version", "channel", "beta", "release", "upgrade"],
     section: "app",
     groups: [
       {
@@ -479,6 +480,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
             defaultValue: true,
           },
           { kind: "custom", id: "check-for-updates", title: "CheckForUpdatesNow" },
+          { kind: "custom", id: "release-channel", title: "ReleaseChannel" },
           {
             kind: "action",
             id: "release-notes",

@@ -14,6 +14,9 @@ public interface IUpdateService
     /// <summary>Current app version string for display and comparison (informational / semantic).</summary>
     string CurrentDisplayVersion { get; }
 
+    /// <summary>The update track this install follows, normalised. Stored as a setting, so it is read rather than held.</summary>
+    Task<string> GetChannelAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Returns null when no newer version is available.</summary>
     Task<Result<AppUpdateInfo?>> CheckForUpdatesAsync(CancellationToken cancellationToken = default);
 

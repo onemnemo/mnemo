@@ -157,6 +157,7 @@ export type CustomRowId =
   | "test-connection"
   | "clear-chat-history"
   | "check-for-updates"
+  | "release-channel"
   | "about-identity"
 
 export type SettingsRow =

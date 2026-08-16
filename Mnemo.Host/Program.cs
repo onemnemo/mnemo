@@ -27,6 +27,7 @@ using Mnemo.Host.Profile;
 using Mnemo.Host.Settings;
 using Mnemo.Host.Startup;
 using Mnemo.Host.Statistics;
+using Mnemo.Host.Updates;
 using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
 using Photino.NET;
@@ -180,6 +181,7 @@ public static class Program
         app.MapMindmapTransfer();
         app.MapOverview();
         app.MapStatistics();
+        app.MapUpdates();
 
         if (options.DevMode)
         {
