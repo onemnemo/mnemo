@@ -384,6 +384,221 @@
   color: var(--code-punc);
 }
 
+/* Table.
+ *
+ * Rows lay out as `display: contents`, so the cells are the grid's own items and
+ * a row is as tall as its tallest cell with nothing measuring anything. The
+ * column track list arrives as one custom property the NodeView writes to the
+ * frame, which is why no cell here carries a width: a column has one width by
+ * definition, and two places to store it is two places to disagree.
+ *
+ * The padded scroller with the matching negative margin is what lets the handles
+ * hang in the page margin without the scroll box cropping them, while the table
+ * itself still lines up with the prose. */
+.notes-doc .notes-table {
+  margin: 12px 0;
+}
+.notes-doc .notes-table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 21px 28px 22px 21px;
+  margin: -21px -28px -22px -21px;
+}
+.notes-doc .notes-table-frame {
+  position: relative;
+}
+.notes-doc .notes-table-grid {
+  display: grid;
+  grid-template-columns: var(--notes-table-cols);
+  border-right: 1px solid var(--line-color);
+  border-bottom: 1px solid var(--line-color);
+}
+/* The table's and each row's mandatory line hold nothing; they exist so the
+ * mapper has one answer for where a block's text lives. */
+.notes-doc .notes-table-grid > [data-line],
+.notes-doc [data-table-row] > [data-line] {
+  display: none;
+}
+.notes-doc [data-table-row] {
+  display: contents;
+}
+.notes-doc [data-table-cell] {
+  min-width: 0;
+  padding: 7px 10px;
+  border-top: 1px solid var(--line-color);
+  border-left: 1px solid var(--line-color);
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  outline: none;
+}
+.notes-doc [data-table-cell] > [data-line] {
+  min-height: 1.5em;
+}
+
+/* A header is structure, so it takes the neutral sunken surface rather than one
+ * of the eight hues. Declared before the fills, so a cell someone coloured on
+ * purpose still wins inside a header row. */
+.notes-doc .notes-table[data-header-row] [data-table-row]:nth-child(2) > [data-table-cell],
+.notes-doc .notes-table[data-header-col] [data-table-cell]:nth-child(2) {
+  background: var(--cell-head);
+  font-weight: 500;
+}
+
+.notes-doc [data-table-cell][data-fill="grey"] {
+  background: oklch(var(--cell-l) calc(var(--cell-c) * 0.12) 60);
+}
+.notes-doc [data-table-cell][data-fill="red"] {
+  background: oklch(var(--cell-l) var(--cell-c) 22);
+}
+.notes-doc [data-table-cell][data-fill="amber"] {
+  background: oklch(var(--cell-l) var(--cell-c) 72);
+}
+.notes-doc [data-table-cell][data-fill="green"] {
+  background: oklch(var(--cell-l) var(--cell-c) 148);
+}
+.notes-doc [data-table-cell][data-fill="teal"] {
+  background: oklch(var(--cell-l) var(--cell-c) 205);
+}
+.notes-doc [data-table-cell][data-fill="blue"] {
+  background: oklch(var(--cell-l) var(--cell-c) 258);
+}
+.notes-doc [data-table-cell][data-fill="violet"] {
+  background: oklch(var(--cell-l) var(--cell-c) 305);
+}
+.notes-doc [data-table-cell][data-fill="pink"] {
+  background: oklch(var(--cell-l) var(--cell-c) 350);
+}
+
+/* The chrome layer. It covers the table, so it passes pointer events through by
+ * default and each control takes them back. */
+.notes-doc .notes-table-chrome {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.notes-doc .notes-table-chrome > * {
+  pointer-events: auto;
+}
+.notes-doc .notes-table-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+/* Ink rather than accent. Every table in a note would otherwise put the brand
+ * colour on screen the moment someone clicked a cell, and an accent spent on
+ * "you are here" is not being spent on anything. */
+.notes-doc .notes-table-band {
+  position: absolute;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1.5px var(--ink-2);
+}
+.notes-doc .notes-table-drop {
+  position: absolute;
+  border-radius: 999px;
+  background: var(--solid);
+}
+
+.notes-doc .notes-table-handle-slot {
+  position: absolute;
+}
+.notes-doc .notes-table-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: grab;
+}
+.notes-doc .notes-table-handle > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--line-color);
+  transition:
+    width 150ms ease-out,
+    height 150ms ease-out,
+    background-color 150ms ease-out;
+}
+.notes-doc .notes-table-handle:hover > span {
+  background: var(--ink-3);
+}
+.notes-doc .notes-table-handle > span[data-axis="col"] {
+  width: 100%;
+  height: 3px;
+}
+.notes-doc .notes-table-handle > span[data-axis="row"] {
+  width: 3px;
+  height: 100%;
+}
+/* The app's neutral-primary, not the brand: a handle is the most ordinary control
+ * there is, and it turns up every time anyone touches a column. */
+.notes-doc .notes-table-handle > span[data-on] {
+  background: var(--solid);
+  color: var(--solid-fg);
+}
+.notes-doc .notes-table-handle > span[data-axis="col"][data-on] {
+  width: 26px;
+  height: 12px;
+}
+.notes-doc .notes-table-handle > span[data-axis="row"][data-on] {
+  width: 12px;
+  height: 26px;
+}
+.notes-doc .notes-table-dots {
+  display: grid;
+  gap: 2px;
+}
+.notes-doc .notes-table-dots > span {
+  width: 2px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.notes-doc .notes-table-rail {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: var(--canvas-sunken);
+  color: var(--ink-icon);
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+.notes-doc .notes-table-rail:hover {
+  background: var(--frame-hover);
+  color: var(--ink);
+}
+
+.notes-doc .notes-table-resize {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  width: 9px;
+}
+/* Ink, not accent: a column edge you are hovering is not an event worth the one
+ * colour the app is saving. */
+.notes-doc .notes-table-resize > span {
+  width: 2px;
+  height: 100%;
+  background: var(--ink-3);
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+.notes-doc .notes-table-resize:hover > span,
+.notes-doc .notes-table-resize > span[data-on] {
+  opacity: 1;
+}
+
 /* Divider. A section break, so it gets more room than a paragraph gap. */
 .notes-doc hr {
   border: none;

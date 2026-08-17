@@ -21,6 +21,7 @@ import type { NodeType } from 'prosemirror-model';
 import { TextSelection } from 'prosemirror-state';
 import { blockContext, convertBlockType } from '../commands/structure';
 import type { SlashContribution } from '../registry/types';
+import { createTable } from '../table/model';
 
 /**
  * The page row: create the nested note first, then put a card in front of it.
@@ -92,6 +93,46 @@ export const insertTwoColumn: SlashContribution['insert'] = (state, dispatch) =>
   const emptyLine = line.create().nodeSize;
   const caret = ctx.blockPos + 1 + emptyLine + 1 + emptyLine + 2;
   tr.setSelection(TextSelection.create(tr.doc, caret));
+  dispatch(tr.scrollIntoView());
+};
+
+/**
+ * The table row: replace the current block with a blank three by three and land
+ * the caret in the top left cell.
+ *
+ * Rebuilt in place like the two-column row, so the block keeps the id and sid the
+ * AI may already have quoted. Refused inside a table, because a table in a cell
+ * is a shape the chrome has no way to point at and nothing in the product creates
+ * one deliberately; imported data still renders, since the schema permits it.
+ */
+export const insertTable: SlashContribution['insert'] = (state, dispatch) => {
+  const ctx = blockContext(state);
+  if (!ctx) return;
+  const { $from } = state.selection;
+  for (let depth = $from.depth; depth >= 0; depth--) {
+    if ($from.node(depth).type.name === 'table') return;
+  }
+  if (!state.schema.nodes.table) return;
+
+  const fresh = createTable(state.schema);
+  const table = fresh.type.create(
+    {
+      ...fresh.attrs,
+      id: ctx.block.attrs.id,
+      sid: ctx.block.attrs.sid,
+      order: ctx.block.attrs.order,
+      meta: ctx.block.attrs.meta,
+    },
+    fresh.content,
+  );
+
+  const tr = state.tr.replaceWith(ctx.blockPos, ctx.blockPos + ctx.block.nodeSize, table);
+  // Into the first cell's line: past the table's boundary and its own line, past
+  // the row's boundary and its line, then past the cell's boundary and its line.
+  const emptyLine = state.schema.nodes.line.create().nodeSize;
+  tr.setSelection(
+    TextSelection.create(tr.doc, ctx.blockPos + 1 + emptyLine + 1 + emptyLine + 2),
+  );
   dispatch(tr.scrollIntoView());
 };
 

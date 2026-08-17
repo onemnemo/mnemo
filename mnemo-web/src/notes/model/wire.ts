@@ -43,6 +43,12 @@ function bool(value: unknown): boolean {
   return value === true;
 }
 
+/** A numeric array, dropping anything in it that is not a finite number. */
+function numbers(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is number => typeof item === 'number' && Number.isFinite(item));
+}
+
 function isJson(value: unknown): value is Json {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -175,6 +181,16 @@ function parsePayload(value: unknown): BlockPayload {
       return { kind: 'sketch', width: num(prop(value, 'width')), align: str(prop(value, 'align'), 'left') };
     case 'callout':
       return { kind: 'callout', emoji: str(prop(value, 'emoji')), tone: str(prop(value, 'tone'), 'note') };
+    case 'table':
+      return {
+        kind: 'table',
+        columnWidths: numbers(prop(value, 'columnWidths')),
+        headerRow: bool(prop(value, 'headerRow')),
+        headerCol: bool(prop(value, 'headerCol')),
+        fullWidth: bool(prop(value, 'fullWidth')),
+      };
+    case 'tablecell':
+      return { kind: 'tableCell', fill: str(prop(value, 'fill')) };
     default:
       // Unknown kinds included: an unrecognised payload must not lose the block.
       return { kind: 'empty' };

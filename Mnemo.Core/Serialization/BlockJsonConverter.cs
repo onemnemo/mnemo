@@ -139,6 +139,15 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
             "sketch" => new SketchPayload(
                 TryGetPropertyCaseInsensitive(el, "width", out var sw) && sw.TryGetDouble(out var swd) ? swd : 0,
                 TryGetPropertyCaseInsensitive(el, "align", out var sal) ? sal.GetString() ?? "left" : "left"),
+            "table" => new TablePayload(
+                ReadDoubleArray(el, "columnWidths"),
+                TryGetPropertyCaseInsensitive(el, "headerRow", out var thr) && thr.ValueKind == JsonValueKind.True,
+                TryGetPropertyCaseInsensitive(el, "headerCol", out var thc) && thc.ValueKind == JsonValueKind.True,
+                TryGetPropertyCaseInsensitive(el, "fullWidth", out var tfw) && tfw.ValueKind == JsonValueKind.True),
+            "tablecell" => new TableCellPayload(
+                TryGetPropertyCaseInsensitive(el, "fill", out var fill) && fill.ValueKind == JsonValueKind.String
+                    ? fill.GetString() ?? string.Empty
+                    : string.Empty),
             "callout" => new CalloutPayload(
                 TryGetPropertyCaseInsensitive(el, "emoji", out var em) ? em.GetString() ?? string.Empty : string.Empty,
                 TryGetPropertyCaseInsensitive(el, "tone", out var tn) ? tn.GetString() ?? "note" : "note"),
@@ -146,6 +155,21 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
             null or "" => new EmptyPayload(),
             _ => throw new JsonException($"Unknown block payload kind '{kind}'.")
         };
+    }
+
+    /// <summary>Reads a numeric array, skipping anything in it that is not a number.</summary>
+    private static List<double> ReadDoubleArray(JsonElement el, string propertyName)
+    {
+        var list = new List<double>();
+        if (!TryGetPropertyCaseInsensitive(el, propertyName, out var arr) || arr.ValueKind != JsonValueKind.Array)
+            return list;
+        foreach (var item in arr.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Number && item.TryGetDouble(out var value))
+                list.Add(value);
+        }
+
+        return list;
     }
 
     private static List<InlineSpan> ReadSpans(JsonElement arr)
@@ -296,6 +320,21 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
                 writer.WriteString("kind", "sketch");
                 writer.WriteNumber("width", sk.Width);
                 writer.WriteString("align", sk.Align);
+                break;
+            case TablePayload tbl:
+                writer.WriteString("kind", "table");
+                writer.WritePropertyName("columnWidths");
+                writer.WriteStartArray();
+                foreach (var width in tbl.ColumnWidths)
+                    writer.WriteNumberValue(width);
+                writer.WriteEndArray();
+                writer.WriteBoolean("headerRow", tbl.HeaderRow);
+                writer.WriteBoolean("headerCol", tbl.HeaderCol);
+                writer.WriteBoolean("fullWidth", tbl.FullWidth);
+                break;
+            case TableCellPayload cell:
+                writer.WriteString("kind", "tableCell");
+                writer.WriteString("fill", cell.Fill ?? string.Empty);
                 break;
             case CalloutPayload co:
                 writer.WriteString("kind", "callout");
