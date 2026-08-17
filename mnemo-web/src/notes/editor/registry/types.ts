@@ -26,6 +26,7 @@ import type { Command, EditorState, Transaction } from 'prosemirror-state';
 import type { EditorView, ViewMutationRecord } from 'prosemirror-view';
 import type { IconName } from '@/components/icon/icon-registry';
 import type { Block, BlockType, TextStyle } from '../../model/types';
+import type { PortalRegistry } from '../view/portal-registry';
 
 /** Dispatches a transaction. Mirrors ProseMirror's own command signature. */
 export type Dispatch = (tr: Transaction) => void;
@@ -207,6 +208,17 @@ export interface EditorServices {
    * orphan the host sweeps once no open session could redo it.
    */
   uploadAsset(file: File): Promise<string>;
+  /**
+   * Where a realized view mounts React chrome, when the host has a React tree to
+   * mount it into.
+   *
+   * Absent in a test harness and anywhere the editor is rendered without the
+   * portal layer beside it, so a view that wants React chrome must still render
+   * without it. What that costs is the interactive chrome, never the block: the
+   * code block's toolbar and the table's handles are things you reach for, and a
+   * surface that cannot host them is a surface nobody is reaching on.
+   */
+  readonly portals?: PortalRegistry;
 }
 
 /**

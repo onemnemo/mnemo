@@ -400,7 +400,18 @@ internal static class NoteTypstDocumentComposer
           .Append("\", block: true");
         if (!string.IsNullOrWhiteSpace(lang))
             sb.Append(", lang: \"").Append(EscapeString(lang.Trim())).Append('"');
-        sb.Append(")]\n\n");
+        sb.Append(")]\n");
+
+        // Same rank and colour as a figure's caption, because it is the same thing:
+        // the line that says what the reader is looking at.
+        var caption = payload?.Caption;
+        if (!string.IsNullOrWhiteSpace(caption))
+        {
+            sb.Append("#v(4pt)#text(size: ").Append(Pt(Math.Max(8f, options.BaseFontSizePt - 1f)))
+              .Append(", fill: rgb(\"#5f5f5f\"))[").Append(EscapeMarkup(caption.Trim())).Append("]\n");
+        }
+
+        sb.Append('\n');
     }
 
     private static void EmitImage(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets)

@@ -39,6 +39,7 @@ import { clipboardPlugin } from '../clipboard/clipboard-plugin';
 import { defaultPasteAssetSupport } from '../clipboard/stage-assets';
 import { nestedInputGuard } from '../editor/pipeline/nested-input';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
+import { codeHighlightPlugin } from '../editor/code/highlight';
 import { slashHintPlugin } from '../editor/pipeline/slash-hint';
 import { findPlugin } from '../find/find-plugin';
 import { blockSelectionPlugin } from '../selection/block-selection-plugin';
@@ -148,6 +149,9 @@ export function editorPlugins(
     // like them it appends rather than touching key dispatch.
     containerCaretGuard(),
     numberedListPlugin(),
+    // Another decoration-only neighbour: it colours source and nothing else, so
+    // it claims no key, appends no step and never dirties the note.
+    codeHighlightPlugin(),
     // Decoration only, like its neighbours: a placeholder on the focused empty
     // paragraph. It appends no step and claims no key, so it never dirties the
     // note or competes for input.

@@ -217,22 +217,171 @@
   min-width: 0;
 }
 
-/* Code block. Source, framed and monospaced; horizontal overflow scrolls inside
- * the block rather than widening the page. */
-.notes-doc pre {
-  background: var(--canvas-sunken);
-  border-radius: var(--radius-md, 8px);
-  padding: 12px 16px;
+/* Code block.
+ *
+ * Source, framed and monospaced; horizontal overflow scrolls inside the block
+ * rather than widening the page. The frame is the reading surface and everything
+ * on it (the toolbar, the fold, the numbers) is chrome that appears when reached
+ * for, so the rules below are mostly about what is *not* drawn until it is
+ * wanted.
+ *
+ * The type block is stated once, in a custom property, because the gutter and the
+ * source have to share a line box exactly: a tenth of a pixel of drift per line
+ * puts the twentieth number beside the wrong row. */
+.notes-doc .notes-code {
+  --notes-code-line-height: 1.7;
   margin: 10px 0;
-  overflow-x: auto;
-  font-family: var(--font-mono);
   font-size: 0.8125rem;
-  line-height: 1.7;
+}
+.notes-doc .notes-code-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md, 8px);
+  background: var(--canvas-sunken);
+}
+.notes-doc .notes-code-scroll {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+/* A fold is a max-height on the scroller, sized from the type block rather than
+ * from a measurement, so it holds before the block has ever been laid out. */
+.notes-doc .notes-code-frame[data-folded] .notes-code-scroll {
+  max-height: calc(24 * var(--notes-code-line-height) * 0.8125rem + 24px);
+}
+.notes-doc .notes-code-source {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  line-height: var(--notes-code-line-height);
   color: var(--text-secondary);
 }
-.notes-doc pre [data-code-line] {
+.notes-doc .notes-code-source [data-code-line] {
   min-height: 0;
   white-space: pre;
+}
+.notes-doc .notes-code[data-wrap] .notes-code-scroll {
+  overflow-x: hidden;
+}
+.notes-doc .notes-code[data-wrap] .notes-code-source [data-code-line] {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* Line numbers. Right-aligned and tabular so the column is a straight edge, and
+ * unselectable so copying the block copies code and not a list of integers. */
+.notes-doc .notes-code-gutter {
+  flex-shrink: 0;
+  padding: 12px 0 12px 16px;
+  font-family: var(--font-mono);
+  line-height: var(--notes-code-line-height);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  opacity: 0.7;
+  user-select: none;
+}
+.notes-doc .notes-code-gutter + .notes-code-source {
+  padding-left: 12px;
+}
+
+/* The toolbar. Absent until the pointer or the keyboard is on the block: a code
+ * block is something you read far more often than you configure. */
+.notes-doc .notes-code-chrome {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--canvas-sunken);
+  opacity: 0;
+  transition: opacity 100ms ease-out;
+}
+.notes-doc .notes-code:hover .notes-code-chrome,
+.notes-doc .notes-code-chrome:focus-within {
+  opacity: 1;
+}
+
+/* The fold's label sits on a gradient rather than a bar, so the code it covers
+ * fades out instead of being cut off mid-line. */
+.notes-doc .notes-code-fold {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 64px;
+  padding-bottom: 8px;
+  border: none;
+  background: linear-gradient(to bottom, transparent, var(--canvas-sunken) 62%);
+  font-size: 0.78125rem;
+  font-weight: 500;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.notes-doc .notes-code-fold:hover {
+  color: var(--ink);
+}
+.notes-doc .notes-code-less {
+  margin-top: 4px;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.78125rem;
+  font-weight: 500;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.notes-doc .notes-code-less:hover {
+  color: var(--ink);
+}
+
+/* Same rank as a figure's caption, because it is the same thing: the line that
+ * says what you are looking at. */
+.notes-doc .notes-code-caption {
+  margin-top: 8px;
+}
+.notes-doc .notes-code-caption input {
+  width: 100%;
+  border: none;
+  background: none;
+  outline: none;
+  font: inherit;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+.notes-doc .notes-code-caption input::placeholder {
+  color: var(--ink-3);
+  opacity: 0.7;
+}
+
+/* Syntax colour, painted by the highlight plugin's decorations. Plain runs get no
+ * class at all, so the block's own ink is the default and only the parts worth
+ * picking out cost a span. */
+.notes-doc .notes-tok-key {
+  color: var(--code-key);
+}
+.notes-doc .notes-tok-str {
+  color: var(--code-str);
+}
+.notes-doc .notes-tok-num {
+  color: var(--code-num);
+}
+.notes-doc .notes-tok-fn {
+  color: var(--code-fn);
+}
+.notes-doc .notes-tok-com {
+  color: var(--code-com);
+}
+.notes-doc .notes-tok-punc {
+  color: var(--code-punc);
 }
 
 /* Divider. A section break, so it gets more room than a paragraph gap. */

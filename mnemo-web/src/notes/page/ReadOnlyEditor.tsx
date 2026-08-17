@@ -3,9 +3,13 @@ import "./notes-editor.css"
 
 import type { EditorState } from "prosemirror-state"
 
+import { useMemo } from "react"
+
 import type { BlockRegistry } from "../editor/registry/build"
 import type { EditorServices } from "../editor/registry/types"
 import { useEditorView } from "../editor/view/useEditorView"
+import { NodeViewPortals } from "../editor/view/NodeViewPortal"
+import { createPortalRegistry } from "../editor/view/portal-registry"
 
 /**
  * Renders one note's document, read-only.
@@ -32,8 +36,20 @@ export function ReadOnlyEditor({
   /** Asset resolution for image blocks; a preview without one shows their placeholders. */
   services?: Partial<EditorServices>
 }) {
-  const { ref } = useEditorView({ key: noteId, state, registry, services, editable: false })
+  const portals = useMemo(() => createPortalRegistry(), [])
+  const { ref } = useEditorView({
+    key: noteId,
+    state,
+    registry,
+    services: { ...services, portals },
+    editable: false,
+  })
   // Read-only still means readable: opt the document out of the app-wide
   // user-select:none, which an editable mount gets for free via contenteditable.
-  return <div ref={ref} className="notes-doc" data-selectable />
+  return (
+    <>
+      <div ref={ref} className="notes-doc" data-selectable />
+      <NodeViewPortals registry={portals} />
+    </>
+  )
 }

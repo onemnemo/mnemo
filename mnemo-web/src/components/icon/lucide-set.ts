@@ -31,11 +31,15 @@ import {
   CircleUser,
   CircleCheck,
   CircleHelp,
+  Captions,
   Clock,
+  Columns3,
   Copy,
+  CopyPlus,
   CornerDownLeft,
   Download,
   Ellipsis,
+  Eraser,
   ExternalLink,
   File,
   FileText,
@@ -43,6 +47,7 @@ import {
   Folder,
   FolderOpen,
   Frame,
+  Hash,
   Code,
   Highlighter,
   House,
@@ -75,6 +80,7 @@ import {
   RefreshCw,
   RotateCcw,
   Repeat2,
+  Rows3,
   Scissors,
   Search,
   Settings,
@@ -85,6 +91,7 @@ import {
   SquareStack,
   Star,
   Store,
+  Table,
   Tag,
   Target,
   Terminal,
@@ -94,6 +101,7 @@ import {
   TriangleAlert,
   Type,
   User,
+  WrapText,
   X,
   type LucideIcon,
 } from "lucide-react"
@@ -145,6 +153,8 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   "refresh-cw": RefreshCw,
   palette: Palette,
   terminal: Terminal,
+  eraser: Eraser,
+  "copy-plus": CopyPlus,
   "list-filter": ListFilter,
   "external-link": ExternalLink,
 
@@ -204,6 +214,15 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   download: Download,
   // The theme picker's "match system" card.
   monitor: Monitor,
+
+  // The code and table blocks' own chrome. No project art exists for any of
+  // them, and each one names a display option rather than a Mnemo concept.
+  "wrap-text": WrapText,
+  hash: Hash,
+  captions: Captions,
+  table: Table,
+  "rows-3": Rows3,
+  "columns-3": Columns3,
 
   // Status
   info: Info,

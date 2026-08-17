@@ -108,7 +108,19 @@ export type BlockPayload =
   | { kind: 'empty' }
   | { kind: 'equation'; latex: string }
   | { kind: 'image'; path: string; alt: string; width: number; align: string }
-  | { kind: 'code'; language: string; source: string }
+  /**
+   * `wrap`, `numbers` and `caption` are the reader's display choices for this
+   * snippet. Optional because the writer omits them at their defaults, so every
+   * code block stored before they existed still round-trips to its own bytes.
+   */
+  | {
+      kind: 'code';
+      language: string;
+      source: string;
+      wrap?: boolean;
+      numbers?: boolean;
+      caption?: string;
+    }
   | { kind: 'checklist'; checked: boolean }
   /** Split ratio belongs to the container, not to the column cells. */
   | { kind: 'twoColumn'; splitRatio: number }

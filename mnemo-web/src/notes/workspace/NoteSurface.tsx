@@ -35,6 +35,8 @@ import { PaneActions } from './PaneActions';
 import { SaveStateIndicator } from './SaveStateIndicator';
 import { useEditorMeasure } from './useEditorMeasure';
 import { IndexChip } from './IndexChip';
+import { NodeViewPortals } from '../editor/view/NodeViewPortal';
+import { createPortalRegistry } from '../editor/view/portal-registry';
 
 /**
  * One note's whole editing surface: the breadcrumb over it, the document itself,
@@ -85,7 +87,20 @@ export function NoteSurface({
     [noteId],
   );
 
-  const { ref, saveState, view, save } = useNoteSession({ noteId, sid, ver, state, registry, persist, services });
+  // One registry per surface, so the React chrome a NodeView mounts reconciles
+  // inside this tree rather than in a second root nested in ProseMirror's DOM.
+  const portals = useMemo(() => createPortalRegistry(), []);
+  const viewServices = { ...services, portals };
+
+  const { ref, saveState, view, save } = useNoteSession({
+    noteId,
+    sid,
+    ver,
+    state,
+    registry,
+    persist,
+    services: viewServices,
+  });
 
   // Read reactively, so turning autosave off mid-note starts reporting the save
   // state on the change already sitting unsaved rather than on the next one.
@@ -153,6 +168,7 @@ export function NoteSurface({
       {view ? <BlockGutter view={view} registry={registry} /> : null}
       {view ? <CalloutIconPicker view={view} registry={registry} /> : null}
       {view ? <FindReplaceOverlay view={view} registry={registry} /> : null}
+      <NodeViewPortals registry={portals} />
       <PasteProgressOverlay />
     </div>
   );

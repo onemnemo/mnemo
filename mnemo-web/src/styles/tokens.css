@@ -227,6 +227,27 @@
   --figure-l: 0.88;
   --figure-c: 0.07;
 
+  /* A table cell's tint. A step quieter than a tag chip: a tag is one word you are
+     meant to notice, a tinted cell is a whole row you are meant to read through.
+     Same hue set as the mindmap branches, for the same reason: colour inside a
+     structure the user built themselves is content, not chrome. */
+  --cell-l: 0.968;
+  --cell-c: 0.03;
+  /* The header row and column. Not a tint: a header is structure, so it takes the
+     neutral sunken surface rather than one of the eight hues. */
+  --cell-head: oklch(0.972 var(--neutral-chroma) var(--neutral-hue));
+
+  /* Syntax. Four hues, deliberately none of them the brand's 40: a keyword lighting
+     up in the same orange as the primary button would make the accent mean two
+     things. Comments and punctuation take ink rather than a colour of their own,
+     because they are the parts you skim past. */
+  --code-key: oklch(0.5 0.125 305);
+  --code-str: oklch(0.47 0.1 148);
+  --code-num: oklch(0.5 0.1 72);
+  --code-fn: oklch(0.49 0.11 258);
+  --code-com: var(--ink-3);
+  --code-punc: var(--ink-3);
+
   /* Card states. The one place three hues earn their keep: new / learning / due is
      vocabulary a student already knows, so the colour carries information rather than
      decorating. Kept low-chroma so a deck list does not turn into a pie chart, and
@@ -350,6 +371,17 @@
 
   --figure-l: 0.42;
   --figure-c: 0.08;
+
+  /* A cell tint has to survive being read over, so it stays close to the canvas at
+     both ends of the theme: lifted here rather than inverted. */
+  --cell-l: 0.285;
+  --cell-c: 0.045;
+  --cell-head: oklch(0.243 0.006 var(--neutral-hue));
+
+  --code-key: oklch(0.79 0.12 305);
+  --code-str: oklch(0.8 0.1 148);
+  --code-num: oklch(0.83 0.095 72);
+  --code-fn: oklch(0.8 0.1 258);
 
   --state-new: oklch(0.72 0.12 250);
   --state-learn: oklch(0.78 0.11 75);

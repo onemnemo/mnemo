@@ -135,6 +135,48 @@ export function MenuRadioItem({ value, children }: { value: string; children: Re
   )
 }
 
+/**
+ * A row that reports a state as well as running a verb.
+ *
+ * The tick gets a column of its own ahead of the icon rather than taking the
+ * icon's slot: a menu of toggles still wants each row's glyph to say what the
+ * row is about, and a swatch that disappears when the colour is the chosen one
+ * is the worst moment to hide it.
+ */
+export function MenuCheckItem({
+  checked,
+  onSelect,
+  icon,
+  hint,
+  disabled,
+  children,
+}: {
+  checked: boolean
+  onSelect?: () => void
+  icon?: IconName
+  hint?: string
+  disabled?: boolean
+  children: ReactNode
+}) {
+  return (
+    <DropdownMenu.CheckboxItem
+      checked={checked}
+      disabled={disabled}
+      onSelect={onSelect}
+      className={itemClass()}
+    >
+      <span className="grid size-[14px] shrink-0 place-items-center">
+        <DropdownMenu.ItemIndicator>
+          <AppIcon name="common/check" size={13} className="text-text-secondary" />
+        </DropdownMenu.ItemIndicator>
+      </span>
+      <MenuItemBody icon={icon} hint={hint}>
+        {children}
+      </MenuItemBody>
+    </DropdownMenu.CheckboxItem>
+  )
+}
+
 export function MenuItemBody({
   children,
   icon,
