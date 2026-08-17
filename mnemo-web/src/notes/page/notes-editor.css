@@ -403,8 +403,11 @@
  * The padded scroller with the matching negative margin is what lets the handles
  * hang in the page margin without the scroll box cropping them, while the table
  * itself still lines up with the prose. */
+/* Extra room below for the add-row rail, which hangs about 19px under the grid.
+ * With the old even margin the rail sat on top of the block after the table; the
+ * bottom is the table's own affordance zone, so the space belongs to it. */
 .notes-doc .notes-table {
-  margin: 12px 0;
+  margin: 12px 0 28px;
 }
 /* Opted out of the skipping every other block gets.
  *
