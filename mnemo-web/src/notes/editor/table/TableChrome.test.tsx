@@ -223,6 +223,34 @@ describe('the table chrome', () => {
     movePointer(40, 20);
     expect(document.querySelectorAll('.notes-table-resize')).toHaveLength(2);
   });
+
+  /**
+   * The strips lie across the table on top of the cells, so one that is not being
+   * reached for has to be out of the way of the text under it. It shipped in the
+   * way: the strips said so with a utility class, and the chrome layer's own rules
+   * sit at a higher specificity, so every column boundary swallowed presses meant
+   * for the caret.
+   *
+   * Only the state is testable here. Whether the stylesheet then honours it is a
+   * question about paint, and jsdom does not paint; that half is checked by
+   * hit-testing the running app.
+   */
+  it('marks a resize strip live only when its boundary is being reached for', () => {
+    const strips = () => Array.from(document.querySelectorAll<HTMLElement>('.notes-table-resize'));
+    // Pointer in the first column: its own two boundaries answer, and only those.
+    movePointer(40, 20);
+    expect(strips().map((strip) => strip.hasAttribute('data-live'))).toEqual([true, false]);
+
+    // Pointer in the second column.
+    movePointer(CELL_W + 40, 20);
+    expect(strips().map((strip) => strip.hasAttribute('data-live'))).toEqual([true, true]);
+
+    // Pointer off the table entirely: nothing is in the way.
+    act(() => {
+      scrollBox().dispatchEvent(new PointerEvent('pointerleave', { bubbles: false, pointerId: 1, isPrimary: true }));
+    });
+    expect(strips().map((strip) => strip.hasAttribute('data-live'))).toEqual([false, false]);
+  });
 });
 
 /**
