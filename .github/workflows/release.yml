@@ -70,10 +70,15 @@ jobs:
 
   build:
     needs: meta
-    # Windows only. The shipped shell is a PhotinoX window over a local ASP.NET Core host,
-    # and only its Windows path has been built and tested; publishing Linux and macOS
-    # packages nobody has run would put broken downloads on the release page.
-    # The matrix stays so the artifact names and the update feed keep their RID segment.
+    # One leg per shipped platform, each packing on its own runner: vpk builds for the OS it
+    # is running on, so there is no cross-target flag to lean on here.
+    #
+    # macOS and Linux are new and neither has been through a real install yet, which is what
+    # the nightly channel is for. Do not put either in front of people on a stable tag until
+    # a nightly of the same commit has been installed and launched on that platform.
+    #
+    # fail-fast stays off so an untested platform breaking cannot take the Windows packages,
+    # which are the ones people actually have, down with it.
     strategy:
       fail-fast: false
       matrix:
@@ -82,6 +87,16 @@ jobs:
             os: windows-latest
             mainexe: Mnemo.Host.exe
             packIcon: Mnemo.UI/Assets/AppIcons/AppIconDawn.ico
+          - rid: osx-arm64
+            os: macos-latest
+            mainexe: Mnemo.Host
+            # Written by "Build the macOS icon" below, because vpk wants an icns and the
+            # repo has no way to produce one on a Windows machine.
+            packIcon: build/Mnemo.icns
+          - rid: linux-x64
+            os: ubuntu-latest
+            mainexe: Mnemo.Host
+            packIcon: mnemo-web/public/app-icons/AppIconDawn.png
     runs-on: ${{ matrix.os }}
     env:
       PACK_ID: Mnemo.Desktop.V2
@@ -139,6 +154,50 @@ jobs:
       - name: Build the web UI
         working-directory: mnemo-web
         run: npm run build
+
+      # vpk wants an icns on macOS, and nothing in the repo can produce one from Windows,
+      # so it is built here from the same source art the app itself uses. sips and iconutil
+      # are both part of macOS, so this needs nothing installed.
+      #
+      # The set stops at 256 rather than carrying the 512 and 1024 entries a complete one
+      # would: the source is 256px, and inventing the larger sizes by upscaling would only
+      # make Finder's largest icon view look soft in a more elaborate way.
+      # Velopack shows these in the update prompt, so an empty notes file is a version that
+      # tells the person nothing about what they are about to install. A prerelease usually
+      # has no curated section, hence the fallback rather than a failure.
+      - name: Collect the release notes
+        shell: bash
+        env:
+          SEMVER: ${{ needs.meta.outputs.semver }}
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          notes=build/release-notes.md
+          awk -v heading="## $SEMVER" '
+            $0 == heading { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > "$notes"
+          if [ ! -s "$notes" ]; then
+            printf 'Mnemo %s\n' "$SEMVER" > "$notes"
+          fi
+          cat "$notes"
+
+      - name: Build the macOS icon
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=mnemo-web/public/app-icons/AppIconDawn.png
+          iconset=build/Mnemo.iconset
+          mkdir -p "$iconset"
+          # Each entry is the name iconutil expects, then the pixel size to render it at.
+          for entry in icon_16x16=16 icon_16x16@2x=32 icon_32x32=32 icon_32x32@2x=64 \
+                       icon_128x128=128 icon_128x128@2x=256 icon_256x256=256; do
+            sips -z "${entry#*=}" "${entry#*=}" "$src" --out "$iconset/${entry%=*}.png" >/dev/null
+          done
+          iconutil -c icns "$iconset" -o build/Mnemo.icns
+          ls -l build/Mnemo.icns
 
       - name: Publish
         run: >
@@ -211,14 +270,30 @@ jobs:
               --packDir publish \
               --mainExe ${{ matrix.mainexe }} \
               --icon ${{ matrix.packIcon }} \
+              --releaseNotes build/release-notes.md \
               -o vpk-out \
               --channel "${{ matrix.rid }}-$ch"
           done
 
       - name: Portable zip (Windows)
-        if: matrix.rid == 'win-x64'
+        if: runner.os == 'Windows'
         shell: pwsh
         run: Compress-Archive -Path "publish/*" -DestinationPath "vpk-out/Mnemo-Portable-${{ matrix.rid }}.zip" -Force
+
+      # tar rather than zip, because the executable bit is the only thing that makes an
+      # unpacked copy runnable and a zip does not carry one.
+      - name: Portable tarball (macOS and Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: tar -czf "vpk-out/Mnemo-Portable-${{ matrix.rid }}.tar.gz" -C publish .
+
+      # The macOS and Linux packages have never been built by this workflow, and the publish
+      # job below finds their installers by glob. Listing the directory means the first run
+      # states outright what vpk produced, rather than leaving it to be inferred from
+      # whichever later step came up empty.
+      - name: List the packed artifacts
+        shell: bash
+        run: ls -l vpk-out
 
       - uses: actions/upload-artifact@v4
         with:
@@ -266,12 +341,22 @@ jobs:
           if [ "$PRERELEASE" = true ]; then
             pre="--pre"
           fi
-          for rid in win-x64; do
-            src="artifacts/vpk-$rid"
-            if [ ! -d "$src" ]; then
-              echo "::error::missing artifact dir $src"
-              exit 1
-            fi
+
+          # Whichever legs actually produced packages, rather than a second list of RIDs to
+          # keep in step with the build matrix. The build runs with fail-fast off precisely
+          # so a new platform breaking does not withhold the ones that worked, and hardcoding
+          # the RIDs here would undo that by failing the publish on the missing directory.
+          shopt -s nullglob
+          dirs=(artifacts/vpk-*)
+          if [ ${#dirs[@]} -eq 0 ]; then
+            echo "::error::no build artifacts arrived, so there is nothing to publish"
+            exit 1
+          fi
+
+          for src in "${dirs[@]}"; do
+            rid="$(basename "$src")"
+            rid="${rid#vpk-}"
+            echo "publishing $rid"
             for ch in $CHANNELS; do
               dotnet vpk upload github \
                 -o "$src" \
@@ -302,16 +387,23 @@ jobs:
         run: |
           set -euo pipefail
           api="${{ github.api_url }}/repos/${{ github.repository }}"
+
+          # Read off the packages that were built rather than spelled out, because the
+          # installer's extension is the platform's own: exe on Windows, and whatever vpk
+          # writes on macOS and Linux. Naming them here would be guessing at file names this
+          # workflow has never seen.
+          shopt -s nullglob
           keep=""
-          for rid in win-x64; do
-            keep="$keep $PACK_ID-$rid-$CHANNEL-Setup.exe"
+          for installer in artifacts/vpk-*/*-"$CHANNEL"-Setup.*; do
+            keep="$keep $(basename "$installer")"
           done
+          echo "keeping:$keep"
 
           curl -sS -H "Authorization: Bearer $GH_TOKEN" "$api/releases/tags/${{ github.ref_name }}" \
             | jq -r --arg keep "$keep" '
                 ($keep | split(" ") | map(select(length > 0))) as $keep
                 | .assets[]
-                | select((.name | endswith("-Setup.exe")) or (.name | endswith("-Portable.zip")))
+                | select((.name | test("-Setup\\.")) or (.name | test("-Portable\\.")))
                 | select(.name as $n | ($keep | index($n)) | not)
                 | "\(.id) \(.name)"' \
             | while read -r id name; do
@@ -337,9 +429,13 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           prerelease: ${{ needs.meta.outputs.prerelease }}
+          # The curated notes are what the in-app update prompt shows; the release page also
+          # gets the commit list appended, which is the part worth reading on a nightly.
+          generate_release_notes: true
           files: |
             artifacts/**/Mnemo-Portable-*.zip
-            artifacts/**/*-${{ needs.meta.outputs.channel }}-Setup.exe
+            artifacts/**/Mnemo-Portable-*.tar.gz
+            artifacts/**/*-${{ needs.meta.outputs.channel }}-Setup.*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

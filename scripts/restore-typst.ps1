@@ -87,6 +87,15 @@ try {
 
   New-Item -ItemType Directory -Path $destDir -Force | Out-Null
   Copy-Item -Path $found.FullName -Destination $destBinary -Force
+
+  # Copy-Item does not carry the archive's mode bits across, and release.yml runs this
+  # script through pwsh on the unix legs as well, so without this Typst is restored
+  # without its execute bit and PDF export fails at first use rather than at build time.
+  if (-not [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+    chmod +x $destBinary
+    if ($LASTEXITCODE -ne 0) { throw "Could not set the execute bit on $destBinary." }
+  }
+
   Write-Host "Installed Typst $($manifest.typstVersion) for $Rid -> $destBinary"
 }
 finally {
