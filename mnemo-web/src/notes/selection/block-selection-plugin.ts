@@ -35,6 +35,7 @@ import {
   type BlockSelection,
 } from './block-selection';
 import { buildDeleteSelected } from './delete-selected';
+import { selectAllStage, selectBlockContent } from './select-all';
 
 export interface BlockSelectionPluginState extends BlockSelection {
   readonly decorations: DecorationSet;
@@ -139,22 +140,6 @@ function isSelectAll(event: KeyboardEvent): boolean {
   return !event.shiftKey && !event.altKey;
 }
 
-/**
- * Whether the caret sits in a block whose own text should keep Ctrl+A - a code
- * block's source or an image's caption. There the block selection declines and
- * the default select-all runs (which selects the whole document's text, the
- * same as before this plugin existed), rather than selecting every block out
- * from under someone editing code or a caption.
- */
-function inVerbatimContext(state: EditorState): boolean {
-  const $head = state.selection.$head;
-  for (let depth = $head.depth; depth > 0; depth--) {
-    const name = $head.node(depth).type.name;
-    if (name === 'codeBlock' || name === 'image') return true;
-  }
-  return false;
-}
-
 export function blockSelectionPlugin(registry: BlockRegistry): Plugin<BlockSelectionPluginState> {
   return new Plugin<BlockSelectionPluginState>({
     key: blockSelectionKey,
@@ -204,7 +189,12 @@ export function blockSelectionPlugin(registry: BlockRegistry): Plugin<BlockSelec
           }
         }
 
-        if (isSelectAll(event) && !inVerbatimContext(view.state)) {
+        if (isSelectAll(event)) {
+          const stage = selectAllStage(view.state, selection.selected.size > 0);
+          if (stage.stage === 'block') {
+            view.dispatch(selectBlockContent(view.state, stage.range));
+            return true;
+          }
           const order = orderedSids(view.state.doc, registry);
           if (order.length > 0) {
             // The editor already holds focus (this handler only runs for its own
