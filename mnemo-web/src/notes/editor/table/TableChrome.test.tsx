@@ -24,6 +24,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { EditorView } from 'prosemirror-view';
+import { TextSelection } from 'prosemirror-state';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildNoteEditState } from '../../edit/build-edit-state';
@@ -32,6 +33,7 @@ import { plainSpan } from '../../model/spans';
 import { resolveServices, toNodeViews } from '../view/nodeviews';
 import { NodeViewPortals } from '../view/NodeViewPortal';
 import { createPortalRegistry, type PortalRegistry } from '../view/portal-registry';
+import { cellCaretPos } from './model';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -220,5 +222,50 @@ describe('the table chrome', () => {
   it('draws a resize strip per column boundary', () => {
     movePointer(40, 20);
     expect(document.querySelectorAll('.notes-table-resize')).toHaveLength(2);
+  });
+});
+
+/**
+ * The context-menu key is the only route a keyboard has to any of the cell or
+ * table verbs, and it cannot share the right-click's listener: a press bubbles up
+ * from a cell, while the key targets whatever holds focus, which is the editor's
+ * root and therefore an *ancestor* of the table. The two tests below are the two
+ * halves of getting that discrimination right.
+ */
+describe('the context-menu key', () => {
+  /** Puts the caret in a cell the way a keyboard would, then presses the key. */
+  function pressMenuKey(row: number, col: number, target?: Element): void {
+    const { view } = harness!;
+    const table = view.state.doc.firstChild!;
+    const at = cellCaretPos(table, 0, row, col)!;
+    act(() => {
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, at)));
+    });
+    act(() => {
+      (target ?? view.dom).dispatchEvent(
+        // No useful coordinates: that is what this key sends.
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 0, clientY: 0 }),
+      );
+    });
+  }
+
+  it('selects the caretic cell and anchors the menu under it', () => {
+    pressMenuKey(1, 1);
+    const band = document.querySelector<HTMLElement>('.notes-table-band');
+    expect(band).not.toBeNull();
+    // The cell the caret is in, not the coordinates on the event.
+    expect(band!.style.left).toBe(`${CELL_W}px`);
+    expect(band!.style.top).toBe(`${CELL_H}px`);
+  });
+
+  it('ignores the key when it belongs to something outside this table', () => {
+    // An element that neither contains the table nor sits inside it. A press in
+    // another block while the caret happens to be in a cell must not answer about
+    // the table.
+    const elsewhere = document.createElement('div');
+    document.body.appendChild(elsewhere);
+    pressMenuKey(0, 0, elsewhere);
+    expect(document.querySelector('.notes-table-band')).toBeNull();
+    elsewhere.remove();
   });
 });
