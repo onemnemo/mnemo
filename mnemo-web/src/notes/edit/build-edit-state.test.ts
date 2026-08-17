@@ -46,20 +46,23 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry, inline } = editorSchema();
     const plugins = editorPlugins(registry, inline);
-    expect(plugins).toHaveLength(21);
-    // Four positions carry meaning rather than tidiness. The nested-input guard
-    // has to be asked before the keymaps it stands down; the image and clipboard
-    // plugins claim paste/copy/cut before the slash menu, which itself has to be
-    // asked before the keymaps since it takes the arrow keys and Enter while it
-    // is open; and the history boundary has to close the undo group after the
-    // repair plugins have appended into it, so it is last among the plugins that
-    // ordering governs. The formatting toolbar trails everything: it has no
-    // keymap and no `appendTransaction`, only a `view()`, so its place is exempt
-    // from the precedence this test checks.
+    expect(plugins).toHaveLength(22);
+    // Five positions carry meaning rather than tidiness. The nested-input guard
+    // has to be asked before the keymaps it stands down; the trailing-click rule
+    // claims a press under the document before anything reads it as a press on
+    // the nearest block; the image and clipboard plugins claim paste/copy/cut
+    // before the slash menu, which itself has to be asked before the keymaps
+    // since it takes the arrow keys and Enter while it is open; and the history
+    // boundary has to close the undo group after the repair plugins have appended
+    // into it, so it is last among the plugins that ordering governs. The
+    // formatting toolbar trails everything: it has no keymap and no
+    // `appendTransaction`, only a `view()`, so its place is exempt from the
+    // precedence this test checks.
     expect(plugins[0].props.handleDOMEvents?.keydown).toBeTypeOf('function');
-    expect(plugins[1].props.handlePaste).toBeTypeOf('function');
-    expect(plugins[2].props.handleDOMEvents?.copy).toBeTypeOf('function');
-    expect(plugins[3].props.handleKeyDown).toBeTypeOf('function');
+    expect(plugins[1].props.handleDOMEvents?.mousedown).toBeTypeOf('function');
+    expect(plugins[2].props.handlePaste).toBeTypeOf('function');
+    expect(plugins[3].props.handleDOMEvents?.copy).toBeTypeOf('function');
+    expect(plugins[4].props.handleKeyDown).toBeTypeOf('function');
     expect(plugins.at(-1)?.spec.view).toBeTypeOf('function');
     expect(plugins.at(-2)?.spec.appendTransaction).toBeTypeOf('function');
   });

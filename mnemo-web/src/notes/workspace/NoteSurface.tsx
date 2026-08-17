@@ -132,7 +132,10 @@ export function NoteSurface({
       </div>
       <div ref={scrollRef} className="scroll-thin relative min-h-0 flex-1 overflow-y-auto">
         <CoverBanner token={note.cover} />
-        <div className={cn('mx-auto w-full px-14 pb-40', coverSet ? 'pt-0' : 'pt-10')} style={{ maxWidth }}>
+        {/* No bottom padding: the space under the document belongs to the
+            editable root now, so a press in it reaches the view and appends a
+            block instead of landing on the pane. */}
+        <div className={cn('mx-auto w-full px-14', coverSet ? 'pt-0' : 'pt-10')} style={{ maxWidth }}>
           {note.emoji ? (
             // The icon is positioned so it lifts over the cover's lower edge, the
             // way a page icon reads on the surfaces this is modelled on. The cover
