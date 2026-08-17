@@ -22,7 +22,7 @@ import {
   tableRows,
   type Rect,
 } from './model'
-import { tableTints, tintFill } from './tints'
+import { NO_TINT, tableTints, tintFill, type Tint } from './tints'
 
 /**
  * The table's verbs.
@@ -53,12 +53,31 @@ export interface TableMenuProps {
   clearSelection: () => void
 }
 
+/**
+ * A hairline across an empty square: the mark that means no fill.
+ *
+ * Written as a gradient rather than a border trick because the square is 14px and
+ * the diagonal has to land on its corners exactly. Inline rather than in the
+ * stylesheet: the menu is portalled out of the editor, so the note's own sheet
+ * does not reach it.
+ */
+const NO_FILL_MARK =
+  'linear-gradient(to top right, transparent calc(50% - 0.5px), var(--ink-3) calc(50% - 0.5px), var(--ink-3) calc(50% + 0.5px), transparent calc(50% + 0.5px))'
+
+/**
+ * The square in a colour row.
+ *
+ * The default gets the struck-through square rather than an empty one. Empty,
+ * beside eight filled squares, reads as a ninth colour whose paint failed to
+ * load, and the row that takes a colour off is the one that most needs to be
+ * recognisable at a glance.
+ */
 function Swatch({ id }: { id: string }) {
   const fill = tintFill(id)
   return (
     <span
       className="block size-[14px] shrink-0 rounded-[4px]"
-      style={{ background: fill ?? 'transparent', boxShadow: 'inset 0 0 0 1px var(--line)' }}
+      style={{ background: fill ?? NO_FILL_MARK, boxShadow: 'inset 0 0 0 1px var(--line)' }}
     />
   )
 }
@@ -68,24 +87,29 @@ function fillOf(node: PMNode, rect: Rect): string {
   const box = normalizeRect(rect)
   const cell = rowCells(tableRows(node)[box.r0] ?? node)[box.c0]
   const fill = cell ? String(cell.attrs.fill ?? '') : ''
-  return fill.length > 0 ? fill : 'none'
+  return fill.length > 0 ? fill : NO_TINT
 }
 
 function ColorSubMenu({ node, apply, rect }: TableMenuProps & { rect: Rect }) {
   const t = useT()
   const current = fillOf(node, rect)
+  const row = (tint: Tint) => (
+    <MenuCheckItem
+      key={tint.id}
+      checked={current === tint.id}
+      leading={<Swatch id={tint.id} />}
+      onSelect={() => apply(fillRect(node, rect, tint.id === NO_TINT ? '' : tint.id))}
+    >
+      {t('NotesEditor', tint.labelKey)}
+    </MenuCheckItem>
+  )
   return (
     <MenuSubMenu label={t('NotesEditor', 'TableColor')} icon="palette">
-      {tableTints.map((tint) => (
-        <MenuCheckItem
-          key={tint.id}
-          checked={current === tint.id}
-          leading={<Swatch id={tint.id} />}
-          onSelect={() => apply(fillRect(node, rect, tint.id === 'none' ? '' : tint.id))}
-        >
-          {t('NotesEditor', tint.labelKey)}
-        </MenuCheckItem>
-      ))}
+      {/* Taking the colour off is a different kind of thing from putting one on,
+          and listed among the hues it reads as a ninth of them. */}
+      {tableTints.filter((tint) => tint.id === NO_TINT).map(row)}
+      <MenuSeparator />
+      {tableTints.filter((tint) => tint.id !== NO_TINT).map(row)}
     </MenuSubMenu>
   )
 }

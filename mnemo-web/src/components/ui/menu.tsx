@@ -138,10 +138,12 @@ export function MenuRadioItem({ value, children }: { value: string; children: Re
 /**
  * A row that reports a state as well as running a verb.
  *
- * The tick gets a column of its own ahead of the icon rather than taking the
- * icon's slot: a menu of toggles still wants each row's glyph to say what the
- * row is about, and a swatch that disappears when the colour is the chosen one
- * is the worst moment to hide it.
+ * The tick sits after the label, not before it. The column in front belongs to
+ * the row's own glyph, which says what the row is *about*, and a colour swatch
+ * that vanished the moment its colour was the chosen one would be hiding the
+ * answer at the only moment it matters. Trailing also puts the tick in the same
+ * place a submenu puts its chevron, so a menu mixing toggles, submenus and plain
+ * verbs keeps one left edge and one right edge instead of four.
  */
 export function MenuCheckItem({
   checked,
@@ -168,12 +170,20 @@ export function MenuCheckItem({
       onSelect={onSelect}
       className={itemClass()}
     >
-      <span className="grid size-[14px] shrink-0 place-items-center">
-        <DropdownMenu.ItemIndicator>
-          <AppIcon name="common/check" size={13} className="text-text-secondary" />
-        </DropdownMenu.ItemIndicator>
-      </span>
-      <MenuItemBody icon={icon} leading={leading} hint={hint}>
+      <MenuItemBody
+        icon={icon}
+        leading={leading}
+        hint={hint}
+        // The slot is reserved whether or not it is ticked, so a row does not
+        // shift sideways as it is toggled.
+        trailing={
+          <span className="grid size-[14px] shrink-0 place-items-center">
+            <DropdownMenu.ItemIndicator>
+              <AppIcon name="common/check" size={13} className="text-text-secondary" />
+            </DropdownMenu.ItemIndicator>
+          </span>
+        }
+      >
         {children}
       </MenuItemBody>
     </DropdownMenu.CheckboxItem>

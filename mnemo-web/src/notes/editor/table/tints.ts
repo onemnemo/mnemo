@@ -20,8 +20,17 @@ export interface Tint {
   readonly chroma: number;
 }
 
+/**
+ * The tint that is the absence of one, and what a cell stores for it: nothing.
+ *
+ * Named because three places have to agree on it (the menu that offers it, the
+ * fill that reports it, and the paint that skips it), and a literal `'none'`
+ * repeated three times is three chances to disagree.
+ */
+export const NO_TINT = 'none';
+
 export const tableTints: readonly Tint[] = Object.freeze([
-  { id: 'none', labelKey: 'TableTintNone', hue: '', chroma: 0 },
+  { id: NO_TINT, labelKey: 'TableTintNone', hue: '', chroma: 0 },
   { id: 'grey', labelKey: 'TableTintGrey', hue: '60', chroma: 0.12 },
   { id: 'red', labelKey: 'TableTintRed', hue: '22', chroma: 1 },
   { id: 'amber', labelKey: 'TableTintAmber', hue: '72', chroma: 1 },
@@ -41,6 +50,6 @@ export const tableTints: readonly Tint[] = Object.freeze([
  */
 export function tintFill(id: string | undefined): string | null {
   const tint = tableTints.find((candidate) => candidate.id === id);
-  if (!tint || tint.id === 'none') return null;
+  if (!tint || tint.id === NO_TINT) return null;
   return `oklch(var(--cell-l) calc(var(--cell-c) * ${tint.chroma}) ${tint.hue})`;
 }
