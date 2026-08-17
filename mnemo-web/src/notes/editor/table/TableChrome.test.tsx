@@ -14,6 +14,11 @@
  * jsdom lays nothing out, so the cells' sizes are stubbed. That is enough: the
  * geometry itself is pinned separately as a pure function, and what is being
  * proved here is which element answers.
+ *
+ * The assertions read `data-shown` rather than a computed opacity. That attribute
+ * *is* the state ("this chrome is being reached for"); the fade is the
+ * stylesheet's, and asserting on paint jsdom never performs would only pin the
+ * test to the implementation that happened to set an inline style.
  */
 
 import { act } from 'react';
@@ -179,39 +184,37 @@ describe('the table chrome', () => {
     // means leaving the table's own box.
     movePointer(-11, 20);
     const [, row] = slots();
-    expect(row.style.opacity).toBe('1');
-    expect(row.style.pointerEvents).toBe('auto');
+    expect(row.hasAttribute('data-shown')).toBe(true);
   });
 
   it('offers the column handle while the pointer is out above the first row', () => {
     movePointer(40, -11);
     const [col] = slots();
-    expect(col.style.opacity).toBe('1');
-    expect(col.style.pointerEvents).toBe('auto');
+    expect(col.hasAttribute('data-shown')).toBe(true);
   });
 
   it('offers the add-row rail below the last row and keeps it while travelling to it', () => {
     const bottom = 2 * CELL_H;
     movePointer(40, bottom - 5);
     const railBefore = rails().find((rail) => rail.style.height === '14px')!;
-    expect(railBefore.style.opacity).toBe('1');
+    expect(railBefore.hasAttribute('data-shown')).toBe(true);
     // Past the table's own edge, in the padding the rail is drawn in.
     movePointer(40, bottom + 10);
-    expect(rails().find((rail) => rail.style.height === '14px')!.style.opacity).toBe('1');
+    expect(rails().find((rail) => rail.style.height === '14px')!.hasAttribute('data-shown')).toBe(true);
   });
 
   it('offers the add-column rail beside the last column', () => {
     movePointer(2 * CELL_W + 8, 20);
-    expect(rails().find((rail) => rail.style.width === '14px')!.style.opacity).toBe('1');
+    expect(rails().find((rail) => rail.style.width === '14px')!.hasAttribute('data-shown')).toBe(true);
   });
 
   it('takes the chrome away once the pointer leaves the padded box entirely', () => {
     movePointer(40, 20);
-    expect(slots()[0].style.opacity).toBe('1');
+    expect(slots()[0].hasAttribute('data-shown')).toBe(true);
     act(() => {
       scrollBox().dispatchEvent(new PointerEvent('pointerleave', { bubbles: false, pointerId: 1, isPrimary: true }));
     });
-    for (const slot of slots()) expect(slot.style.opacity).toBe('0');
+    for (const slot of slots()) expect(slot.hasAttribute('data-shown')).toBe(false);
   });
 
   it('draws a resize strip per column boundary', () => {

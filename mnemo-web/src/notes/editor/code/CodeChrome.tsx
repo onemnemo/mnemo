@@ -24,7 +24,7 @@ import { codeLanguages, codeLanguageLabel } from './languages'
  */
 
 const BUTTON =
-  'grid size-7 place-items-center rounded-md text-text-faded transition-colors hover:bg-surface-subtle hover:text-foreground aria-expanded:bg-surface-subtle aria-expanded:text-foreground'
+  'grid size-7 place-items-center rounded-md text-text-faded transition-colors duration-[var(--duration-fast)] hover:bg-surface-subtle hover:text-foreground aria-expanded:bg-surface-subtle aria-expanded:text-foreground'
 
 /** How long the tick stands in for the copy glyph. */
 const COPIED_MS = 1600
@@ -150,7 +150,7 @@ function LanguagePicker({ value, onChange }: { value: string; onChange: (next: s
           tabIndex={-1}
           aria-label={t('NotesEditor', 'CodeLanguage')}
           onMouseDown={(event) => event.preventDefault()}
-          className="flex h-7 items-center gap-1 rounded-md px-2 text-body-extra-small text-text-secondary transition-colors hover:bg-surface-subtle hover:text-foreground aria-expanded:bg-surface-subtle"
+          className="flex h-7 items-center gap-1 rounded-md px-2 text-body-extra-small text-text-secondary transition-colors duration-[var(--duration-fast)] hover:bg-surface-subtle hover:text-foreground aria-expanded:bg-surface-subtle"
         >
           <span className="max-w-[10rem] truncate">{codeLanguageLabel(value)}</span>
           <AppIcon name="chevron-down" size={12} />
