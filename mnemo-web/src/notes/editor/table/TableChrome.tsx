@@ -94,6 +94,15 @@ export interface TableChromeProps {
   node: PMNode
   /** The positioned element every overlay is measured and drawn against. */
   frame: HTMLElement
+  /**
+   * The padded box the chrome hangs in, and where the pointer is tracked.
+   *
+   * Not the frame: the handles and the rails sit *outside* the table's own box,
+   * and a `pointerleave` on the frame fires in the few pixels between the last
+   * cell and the handle you are reaching for. Tracking on the padded box means
+   * the whole band the chrome lives in counts as still being on the table.
+   */
+  scroll: HTMLElement
   editable: boolean
   replaceTable: (
     next: PMNode,
@@ -117,6 +126,7 @@ const selRect = (sel: Sel, node: PMNode): Rect =>
 export function TableChrome({
   node,
   frame,
+  scroll,
   editable,
   replaceTable,
   focusCell,
@@ -187,13 +197,14 @@ export function TableChrome({
     const onLeave = (): void => {
       if (!growing) setNear(null)
     }
-    frame.addEventListener('pointermove', onMove)
-    frame.addEventListener('pointerleave', onLeave)
+    // On the padded box, not the frame: see the note on the `scroll` prop.
+    scroll.addEventListener('pointermove', onMove)
+    scroll.addEventListener('pointerleave', onLeave)
     return () => {
-      frame.removeEventListener('pointermove', onMove)
-      frame.removeEventListener('pointerleave', onLeave)
+      scroll.removeEventListener('pointermove', onMove)
+      scroll.removeEventListener('pointerleave', onLeave)
     }
-  }, [frame, editable, growing, grid, width, height])
+  }, [frame, scroll, editable, growing, grid, width, height])
 
   /* -- cells: a range is a drag, not a modifier -------------------------- */
 
@@ -251,7 +262,7 @@ export function TableChrome({
     }
 
     const onContextMenu = (event: MouseEvent): void => {
-      if (!editable || !cellAt(event.target)) return
+      if (!editable) return
       event.preventDefault()
       // Stopped here so the editor's own menu does not also open: two menus for
       // one press, one of them about the wrong thing.
@@ -261,12 +272,14 @@ export function TableChrome({
     }
 
     frame.addEventListener('pointerdown', onDown)
-    frame.addEventListener('contextmenu', onContextMenu)
+    // The whole padded box, so a right-click on the table's own margin (with a row
+    // already held) still answers about that row rather than about nothing.
+    scroll.addEventListener('contextmenu', onContextMenu)
     return () => {
       frame.removeEventListener('pointerdown', onDown)
-      frame.removeEventListener('contextmenu', onContextMenu)
+      scroll.removeEventListener('contextmenu', onContextMenu)
     }
-  }, [frame, editable])
+  }, [frame, scroll, editable])
 
   /* -- keyboard ---------------------------------------------------------- */
 
@@ -427,8 +440,7 @@ export function TableChrome({
     // cannot read, scrolled away from the rail that made it, and the drag that got
     // you there felt like nothing was happening. Rows have no such problem: the
     // page is already the thing that scrolls.
-    const pane = frame.parentElement
-    const room = pane ? Math.floor((pane.clientWidth - width - REACH) / TABLE_COL_W) : 1
+    const room = Math.floor((scroll.clientWidth - width - REACH) / TABLE_COL_W)
     const cap = kind === 'row' ? MAX_ADD : Math.max(1, Math.min(MAX_ADD, room))
 
     /**
@@ -468,8 +480,13 @@ export function TableChrome({
     }
     const preview = (next: number): void => {
       if (next === count) return
+      const grew = next > count
       count = next
       replaceTable(shapeFor(count), { addToHistory: false })
+      // Keep the growing edge in view. A column added off the right of the pane is
+      // a column you have to go looking for to find out whether the drag did
+      // anything at all.
+      if (kind === 'col' && grew) scroll.scrollLeft = scroll.scrollWidth
     }
 
     setGrowing(kind)
@@ -702,7 +719,19 @@ export function TableChrome({
               />
             </MenuTrigger>
             <MenuContent align="start">
-              <CellMenuItems node={node} apply={apply} clearSelection={clearSelection} rect={rect} />
+              {/* A held row or column is what the press is about; anything else is
+                  about the cells under it. */}
+              {sel && sel.kind !== 'cells' ? (
+                <AxisMenuItems
+                  node={node}
+                  apply={apply}
+                  clearSelection={clearSelection}
+                  kind={sel.kind}
+                  at={sel.at}
+                />
+              ) : (
+                <CellMenuItems node={node} apply={apply} clearSelection={clearSelection} rect={rect} />
+              )}
             </MenuContent>
           </Menu>
         </>

@@ -124,6 +124,7 @@ export function tableView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     const element = createElement(TableChrome, {
       node,
       frame,
+      scroll,
       editable: view.editable,
       replaceTable,
       focusCell,
