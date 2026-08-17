@@ -76,15 +76,6 @@ const MAX_ADD = 20
  * towards it is worse than one that was never there.
  */
 const REACH = 28
-/**
- * Chrome timing. Leaving is slower than arriving on purpose: a control you are
- * travelling towards should be there already, and one you have just left should
- * not vanish out from under a change of mind. Both at 100ms read as flicker
- * rather than as motion.
- */
-const IN_MS = 140
-const OUT_MS = 220
-
 type Sel =
   | { kind: 'cells'; rect: Rect }
   | { kind: 'row'; at: number }
@@ -559,11 +550,15 @@ export function TableChrome({
   // it from.
   const washed = Boolean(rect) && !(sel?.kind === 'cells' && rect !== null && isSingleCell(rect))
 
-  const shown = (on: boolean): CSSProperties => ({
-    opacity: on ? 1 : 0,
-    pointerEvents: on ? 'auto' : 'none',
-    transition: `opacity ${on ? IN_MS : OUT_MS}ms ease-out`,
-  })
+  /**
+   * Whether a piece of chrome is being reached for.
+   *
+   * A data attribute rather than an inline transition. The timing is the app's
+   * (`--duration-reveal` / `--duration-conceal`), and the asymmetry falls out of
+   * which state the element is in, so the stylesheet owns it and reducing motion
+   * reaches it. Written as a number in JS it could not be overridden at all.
+   */
+  const shown = (on: boolean): { 'data-shown'?: '' } => (on ? { 'data-shown': '' } : {})
 
   /**
    * Hover beats selection while the pointer is inside: the handle says where you
@@ -606,15 +601,12 @@ export function TableChrome({
         <>
           <div
             className="notes-table-handle-slot"
+            {...shown(colAt >= 0)}
             style={{
               left: grid.x[colIdx],
               width: grid.x[colIdx + 1] - grid.x[colIdx],
               top: -(HANDLE + GAP),
               height: HANDLE,
-              ...shown(colAt >= 0),
-              transition: `left ${IN_MS}ms ease-out, width ${IN_MS}ms ease-out, opacity ${
-                colAt >= 0 ? IN_MS : OUT_MS
-              }ms ease-out`,
             }}
           >
             <AxisHandle
@@ -637,15 +629,12 @@ export function TableChrome({
 
           <div
             className="notes-table-handle-slot"
+            {...shown(rowAt >= 0)}
             style={{
               top: grid.y[rowIdx],
               height: grid.y[rowIdx + 1] - grid.y[rowIdx],
               left: -(HANDLE + GAP),
               width: HANDLE,
-              ...shown(rowAt >= 0),
-              transition: `top ${IN_MS}ms ease-out, height ${IN_MS}ms ease-out, opacity ${
-                rowAt >= 0 ? IN_MS : OUT_MS
-              }ms ease-out`,
             }}
           >
             <AxisHandle
@@ -686,25 +675,15 @@ export function TableChrome({
           <Rail
             kind="col"
             label={t('NotesEditor', 'TableAddColumn')}
-            style={{
-              left: width + GAP,
-              top: 0,
-              width: 14,
-              height,
-              ...shown(Boolean(near?.right) || growing === 'col'),
-            }}
+            shown={Boolean(near?.right) || growing === 'col'}
+            style={{ left: width + GAP, top: 0, width: 14, height }}
             onPointerDown={(event) => onRailDown(event, 'col')}
           />
           <Rail
             kind="row"
             label={t('NotesEditor', 'TableAddRow')}
-            style={{
-              left: 0,
-              top: height + GAP,
-              width: width || undefined,
-              height: 14,
-              ...shown(Boolean(near?.bottom) || growing === 'row'),
-            }}
+            shown={Boolean(near?.bottom) || growing === 'row'}
+            style={{ left: 0, top: height + GAP, width: width || undefined, height: 14 }}
             onPointerDown={(event) => onRailDown(event, 'row')}
           />
 
@@ -818,11 +797,14 @@ function Dots({ kind }: { kind: 'row' | 'col' }) {
 function Rail({
   kind,
   label,
+  shown,
   style,
   onPointerDown,
 }: {
   kind: 'row' | 'col'
   label: string
+  /** Whether the edge it belongs to is being reached for. */
+  shown: boolean
   style: CSSProperties
   onPointerDown: (event: ReactPointerEvent) => void
 }) {
@@ -831,6 +813,7 @@ function Rail({
       type="button"
       tabIndex={-1}
       aria-label={label}
+      data-shown={shown ? '' : undefined}
       onPointerDown={onPointerDown}
       style={style}
       className={cn('notes-table-rail', kind === 'row' ? 'cursor-s-resize' : 'cursor-e-resize')}

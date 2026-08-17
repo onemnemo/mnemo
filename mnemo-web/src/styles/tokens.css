@@ -119,6 +119,19 @@
   --duration-normal: calc(180ms * var(--motion-scale));
   --duration-slow: calc(200ms * var(--motion-scale));
 
+  /* Chrome that appears on approach, and the asymmetry it needs.
+   *
+   * A control you are travelling towards should be there already, so arriving is
+   * quick. One you have just left should not vanish out from under a change of
+   * mind, so leaving is slower. Running both at one duration is what reads as
+   * flicker rather than as motion: the eye catches the disappearance.
+   *
+   * The pair is a token rather than a per-component decision because it is the
+   * difference between the editor feeling settled and feeling twitchy, and that
+   * has to be one answer everywhere. */
+  --duration-reveal: var(--duration-fast);
+  --duration-conceal: calc(220ms * var(--motion-scale));
+
   /* Decelerating. Things arrive quickly and settle, rather than easing in both ends,
      which at these durations just reads as sluggish. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
