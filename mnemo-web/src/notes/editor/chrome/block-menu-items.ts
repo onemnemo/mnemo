@@ -49,6 +49,10 @@ const BLOCK_LABEL_KEYS: Record<string, string> = {
   columnGroup: 'TwoColumn',
   page: 'Page',
   sketch: 'Sketch',
+  callout: 'Callout',
+  table: 'Table',
+  // A row and a cell are scenery the gutter never offers a handle on, so they
+  // have no label of their own to name; they fall through to the generic one.
 };
 
 /** The block's type in words, for the drag ghost and the screen reader. */
