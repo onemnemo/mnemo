@@ -43,6 +43,14 @@ public partial class BlockViewModel : INotifyPropertyChanged
     /// <summary>Fenced code language; canonical with <see cref="CodePayload"/> on persist. Not stored in <see cref="Meta"/>.</summary>
     private string _codeLanguage = "csharp";
 
+    /// <summary>
+    /// Code display state this editor has no control for. Carried through from load to persist so
+    /// opening a note here does not silently clear choices made elsewhere.
+    /// </summary>
+    private bool _codeWrap;
+    private bool _codeNumbers;
+    private string _codeCaption = string.Empty;
+
     /// <summary>Standalone equation LaTeX; canonical with <see cref="EquationPayload"/> on persist. Not stored in <see cref="Meta"/>.</summary>
     private string _equationLatex = string.Empty;
 

@@ -158,6 +158,9 @@ function parsePayload(value: unknown): BlockPayload {
         kind: 'code',
         language: str(prop(value, 'language'), 'csharp'),
         source: str(prop(value, 'source')),
+        wrap: bool(prop(value, 'wrap')),
+        numbers: bool(prop(value, 'numbers')),
+        caption: str(prop(value, 'caption')),
       };
     case 'checklist':
       return { kind: 'checklist', checked: bool(prop(value, 'checked')) };
@@ -194,6 +197,8 @@ function payloadFromLegacyMeta(type: BlockType, meta: Json, legacyContent: strin
     case 'Equation':
       return { kind: 'equation', latex: str(prop(meta, 'equationLatex')) };
     case 'Code':
+      // The display fields are left absent rather than defaulted: they postdate
+      // this shape entirely, so a note this old has no opinion to record.
       return { kind: 'code', language: str(prop(meta, 'language')), source: legacyContent ?? '' };
     case 'Image':
       return {

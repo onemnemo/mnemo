@@ -371,11 +371,19 @@ public sealed class NotesToolService
                 block.Payload = new EquationPayload((op.Latex ?? op.Markdown ?? string.Empty).Trim());
                 break;
             case BlockType.Code:
+                var existing = block.Payload as CodePayload;
                 var lang = !string.IsNullOrWhiteSpace(op.Language)
                     ? op.Language!.Trim()
-                    : (block.Payload is CodePayload existing ? existing.Language : "csharp");
+                    : (existing?.Language ?? "csharp");
                 var src = op.Markdown ?? string.Empty;
-                block.Payload = new CodePayload(lang, src);
+                // Rewriting the source is not a reason to undo the reader's wrap,
+                // line-number and caption choices for this block.
+                block.Payload = new CodePayload(
+                    lang,
+                    src,
+                    existing?.Wrap ?? false,
+                    existing?.Numbers ?? false,
+                    existing?.Caption ?? string.Empty);
                 block.Spans = new List<InlineSpan> { InlineSpan.Plain(src) };
                 break;
             default:

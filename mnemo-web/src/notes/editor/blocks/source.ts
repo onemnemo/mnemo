@@ -12,6 +12,7 @@ import type { Block, BlockType, InlineSpan } from '../../model/types';
 import { plainSpan } from '../../model/spans';
 import { defineBlock, lineText, metrics, type BlockDeps } from './shared';
 import { convertHere } from './slash-insert';
+import { codeBlockView, CODE_FOLD_AT } from '../code/code-block-view';
 
 /**
  * A code block stores its source in both `spans[0].text` and `payload.source`.
@@ -28,12 +29,19 @@ function sourceSpans(source: string, spans: readonly InlineSpan[]): readonly Inl
 }
 
 export function codeBlock(deps: BlockDeps): AnyBlockModule {
-  return defineBlock<{ language: string }>(
+  return defineBlock<{ language: string; wrap: boolean; numbers: boolean; caption: string }>(
     {
       nodeName: 'codeBlock',
       wireTypes: ['Code'],
       lineKind: 'codeLine',
-      attrs: { language: { default: 'csharp' } },
+      attrs: {
+        language: { default: 'csharp' },
+        // Display choices, not content. They ride the node so undo restores them
+        // with the rest of the block and the autosave carries them out.
+        wrap: { default: false },
+        numbers: { default: false },
+        caption: { default: '' },
+      },
       nodeOptions: {
         // `defining` keeps the block itself alive when its content is replaced,
         // so pasting into a code block does not silently turn it into a
@@ -52,6 +60,9 @@ export function codeBlock(deps: BlockDeps): AnyBlockModule {
       },
       attrsFrom: (block) => ({
         language: block.payload.kind === 'code' ? block.payload.language : 'csharp',
+        wrap: block.payload.kind === 'code' && block.payload.wrap === true,
+        numbers: block.payload.kind === 'code' && block.payload.numbers === true,
+        caption: block.payload.kind === 'code' ? (block.payload.caption ?? '') : '',
       }),
       spansFor: (block: Block) =>
         sourceSpans(block.payload.kind === 'code' ? block.payload.source : '', block.spans),
@@ -61,17 +72,25 @@ export function codeBlock(deps: BlockDeps): AnyBlockModule {
           kind: 'code' as const,
           language: String(node.attrs.language ?? 'csharp'),
           source: lineText(node),
+          wrap: node.attrs.wrap === true,
+          numbers: node.attrs.numbers === true,
+          caption: String(node.attrs.caption ?? ''),
         },
       }),
       toMarkdown: (node) =>
         `\`\`\`${String(node.attrs.language ?? '')}\n${lineText(node)}\n\`\`\`\n`,
       segmentsFor: (_node, text): readonly AiSegment[] =>
         text.length > 0 ? [{ kind: 'code', text, offset: 0 }] : [],
+      realizedView: codeBlockView,
       estimate: (_node, _ctx, text) => {
-        // Source does not wrap in the editor; it scrolls. Line count is the
-        // whole story, and available width does not enter into it.
+        // Source does not wrap in the editor unless it is asked to; it scrolls.
+        // Line count is then the whole story, and available width does not enter
+        // into it. A wrapped block is guessed at rather than measured, because
+        // the estimate exists precisely for blocks nothing has measured.
         const lines = text.length === 0 ? 1 : text.split('\n').length;
-        return lines * metrics.bodyLineHeight + metrics.blockPaddingY * 2;
+        // A folded block draws a screen of code and a button, however long it is.
+        const shown = Math.min(lines, CODE_FOLD_AT + 1);
+        return shown * metrics.bodyLineHeight + metrics.blockPaddingY * 2;
       },
       slash: [
         {

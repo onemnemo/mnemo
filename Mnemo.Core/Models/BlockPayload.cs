@@ -12,7 +12,17 @@ public sealed record ImagePayload(
     double Width = 0,
     string Align = "left") : BlockPayload;
 
-public sealed record CodePayload(string Language, string Source) : BlockPayload;
+/// <summary>
+/// Source for <see cref="BlockType.Code"/>, plus how it is displayed. Wrap, line numbers and the
+/// caption are choices the reader made about this snippet, so they belong to the block and a note
+/// reopens looking the way it was left.
+/// </summary>
+public sealed record CodePayload(
+    string Language,
+    string Source,
+    bool Wrap = false,
+    bool Numbers = false,
+    string Caption = "") : BlockPayload;
 
 public sealed record ChecklistPayload(bool Checked) : BlockPayload;
 

@@ -125,7 +125,12 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
                 TryGetPropertyCaseInsensitive(el, "align", out var al) ? al.GetString() ?? "left" : "left"),
             "code" => new CodePayload(
                 TryGetPropertyCaseInsensitive(el, "language", out var lang) ? lang.GetString() ?? "csharp" : "csharp",
-                TryGetPropertyCaseInsensitive(el, "source", out var src) ? src.GetString() ?? string.Empty : string.Empty),
+                TryGetPropertyCaseInsensitive(el, "source", out var src) ? src.GetString() ?? string.Empty : string.Empty,
+                TryGetPropertyCaseInsensitive(el, "wrap", out var wrp) && wrp.ValueKind == JsonValueKind.True,
+                TryGetPropertyCaseInsensitive(el, "numbers", out var nums) && nums.ValueKind == JsonValueKind.True,
+                TryGetPropertyCaseInsensitive(el, "caption", out var cap) && cap.ValueKind == JsonValueKind.String
+                    ? cap.GetString() ?? string.Empty
+                    : string.Empty),
             "checklist" => new ChecklistPayload(
                 TryGetPropertyCaseInsensitive(el, "checked", out var ch) && ch.ValueKind == JsonValueKind.True),
             "twocolumn" => new TwoColumnPayload(
@@ -266,6 +271,14 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
                 writer.WriteString("kind", "code");
                 writer.WriteString("language", code.Language);
                 writer.WriteString("source", code.Source);
+                // Written only when set, so every code block stored before these
+                // existed still round-trips to the exact bytes it was saved as.
+                if (code.Wrap)
+                    writer.WriteBoolean("wrap", true);
+                if (code.Numbers)
+                    writer.WriteBoolean("numbers", true);
+                if (!string.IsNullOrEmpty(code.Caption))
+                    writer.WriteString("caption", code.Caption);
                 break;
             case ChecklistPayload cl:
                 writer.WriteString("kind", "checklist");

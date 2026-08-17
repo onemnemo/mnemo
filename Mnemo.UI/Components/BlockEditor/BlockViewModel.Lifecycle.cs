@@ -156,7 +156,12 @@ public partial class BlockViewModel
     private void InitCodeLanguageFromBlock(Block block)
     {
         if (block.Payload is CodePayload cp)
+        {
             _codeLanguage = string.IsNullOrWhiteSpace(cp.Language) ? "csharp" : cp.Language.Trim();
+            _codeWrap = cp.Wrap;
+            _codeNumbers = cp.Numbers;
+            _codeCaption = cp.Caption ?? string.Empty;
+        }
         else
             _codeLanguage = string.IsNullOrWhiteSpace(ReadMetaString(_meta, "language")) ? "csharp" : ReadMetaString(_meta, "language");
         if (_meta.Remove("language"))
@@ -260,7 +265,7 @@ public partial class BlockViewModel
         {
             BlockType.Equation => new EquationPayload(_equationLatex),
             BlockType.Checklist => new ChecklistPayload(_checklistChecked),
-            BlockType.Code => new CodePayload(_codeLanguage, InlineSpanText.FlattenDisplay(_spans)),
+            BlockType.Code => new CodePayload(_codeLanguage, InlineSpanText.FlattenDisplay(_spans), _codeWrap, _codeNumbers, _codeCaption),
             BlockType.Image => new ImagePayload(
                 _imagePath,
                 InlineSpanText.FlattenDisplay(_spans),
@@ -372,6 +377,9 @@ public partial class BlockViewModel
                 break;
             case CodePayload cp when _type == BlockType.Code:
                 CodeLanguage = cp.Language;
+                _codeWrap = cp.Wrap;
+                _codeNumbers = cp.Numbers;
+                _codeCaption = cp.Caption ?? string.Empty;
                 break;
             case ChecklistPayload chk when _type == BlockType.Checklist:
                 IsChecked = chk.Checked;
