@@ -703,7 +703,11 @@ export function TableChrome({
               <div
                 key={`w${index}`}
                 onPointerDown={(event) => onResizeDown(event, index)}
-                className={cn('notes-table-resize', live ? 'cursor-col-resize' : 'pointer-events-none')}
+                className="notes-table-resize"
+                // The state, not a utility class. The chrome layer's own rules sit
+                // at a higher specificity than a utility, so a strip told to stand
+                // down with one stayed in front of the text regardless.
+                data-live={live ? '' : undefined}
                 style={{ left: grid.x[index + 1] - 4, top: 0, height }}
               >
                 <span data-on={resizing === index ? 'true' : undefined} />

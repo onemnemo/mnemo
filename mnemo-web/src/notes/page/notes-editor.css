@@ -398,6 +398,22 @@
 .notes-doc .notes-table {
   margin: 12px 0;
 }
+/* Opted out of the skipping every other block gets.
+ *
+ * `content-visibility: auto` carries paint containment, which clips a block's
+ * descendants to the block's own box. Every other block draws inside itself so
+ * nothing notices; this one deliberately hangs its handles and its rails in the
+ * page margin, and the containment cut all of them off. The chrome was laid out
+ * in the right place and simply never painted, which is a failure no measurement
+ * of position or opacity can see.
+ *
+ * The cost is that a table is always laid out rather than skipped when off
+ * screen. That is the right trade at the sizes a note holds: a table is a handful
+ * of rows, where the blocks this optimization exists for are the thousands of
+ * paragraphs around it. */
+.notes-doc .ProseMirror > .notes-table {
+  content-visibility: visible;
+}
 .notes-doc .notes-table-scroll {
   overflow-x: auto;
   overflow-y: hidden;
@@ -472,15 +488,19 @@
   background: oklch(var(--cell-l) var(--cell-c) 350);
 }
 
-/* The chrome layer. It covers the table, so it passes pointer events through by
- * default and each control takes them back. */
+/* The chrome layer. It covers the table, so it passes pointer events through and
+ * each control takes them back for itself.
+ *
+ * Deliberately *not* a blanket `> *` rule. That beat the utility class the resize
+ * strips use to stand down, so a nine pixel band at every column boundary
+ * swallowed presses meant for the text underneath it: clicking near a cell edge
+ * started a column resize instead of placing the caret. A control that is not
+ * being offered must not be in the way, so each one says when it is live and the
+ * default is out of the way. */
 .notes-doc .notes-table-chrome {
   position: absolute;
   inset: 0;
   pointer-events: none;
-}
-.notes-doc .notes-table-chrome > * {
-  pointer-events: auto;
 }
 .notes-doc .notes-table-overlay {
   position: absolute;
@@ -606,12 +626,19 @@
   color: var(--ink);
 }
 
+/* Only the boundaries of the column being reached for are in the way; the rest
+ * are drawn but inert, so the text under them stays clickable. */
 .notes-doc .notes-table-resize {
   position: absolute;
   z-index: 2;
   display: flex;
   justify-content: center;
   width: 9px;
+  pointer-events: none;
+}
+.notes-doc .notes-table-resize[data-live] {
+  pointer-events: auto;
+  cursor: col-resize;
 }
 /* Ink, not accent: a column edge you are hovering is not an event worth the one
  * colour the app is saving. */
