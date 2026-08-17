@@ -152,7 +152,15 @@ export interface BlockDefinition<TAttrs extends Record<string, unknown>> {
  * mandatory lines hold no user content, are hidden by the CSS, and are kept
  * unreachable by the caret guard.
  */
-export const containerBlockNames: ReadonlySet<string> = new Set(['twoColumn', 'columnGroup']);
+export const containerBlockNames: ReadonlySet<string> = new Set([
+  'twoColumn',
+  'columnGroup',
+  // A table and a row are scenery for the same reason a two-column is: their
+  // lines hold nothing and the content is a level down. A *cell* is not one, its
+  // line is where the caret belongs and where the text lives.
+  'table',
+  'tableRow',
+]);
 
 /** The line is always the first child; block children always follow it. */
 export function lineOf(node: PMNode): PMNode | null {

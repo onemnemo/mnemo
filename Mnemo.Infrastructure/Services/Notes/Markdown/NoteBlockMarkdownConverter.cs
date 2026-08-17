@@ -59,8 +59,57 @@ public static class NoteBlockMarkdownConverter
             BlockType.Equation => "$$\n" + GetEquationLatex(block) + "\n$$",
             BlockType.TwoColumn => SerializeColumns(block),
             BlockType.ColumnGroup => SerializeColumnGroup(block),
+            BlockType.Table => SerializeTable(block),
             _ => body
         };
+    }
+
+    /// <summary>
+    /// A table as a GitHub-flavoured pipe table.
+    /// </summary>
+    /// <remarks>
+    /// The format has one header row and nothing else, so a table with no header row still gets the
+    /// delimiter under its first row: the alternative is markdown no reader will parse as a table at
+    /// all, which loses the structure rather than a display flag. Cell fills, widths and the header
+    /// column have no representation here and do not survive the trip.
+    /// </remarks>
+    private static string SerializeTable(Block table)
+    {
+        if (table.Children is not { Count: > 0 } rows)
+            return string.Empty;
+
+        var ordered = rows.OrderBy(r => r.Order).ToList();
+        var width = ordered.Max(r => r.Children?.Count ?? 0);
+        if (width == 0)
+            return string.Empty;
+
+        var sb = new System.Text.StringBuilder();
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            sb.Append(SerializeTableRow(ordered[i], width));
+            sb.Append('\n');
+            if (i == 0)
+                sb.Append("| ").Append(string.Join(" | ", Enumerable.Repeat("---", width))).Append(" |\n");
+        }
+
+        return sb.ToString().TrimEnd('\n');
+    }
+
+    private static string SerializeTableRow(Block row, int width)
+    {
+        var cells = (row.Children ?? []).OrderBy(c => c.Order).ToList();
+        var texts = new List<string>(width);
+        for (var i = 0; i < width; i++)
+        {
+            var cell = i < cells.Count ? cells[i] : null;
+            var text = cell == null ? string.Empty : InlineMarkdownSerializer.SerializeSpans(cell.Spans);
+            // A pipe would end the cell, and a newline would end the table.
+            texts.Add(text.Replace("|", "\\|", StringComparison.Ordinal)
+                          .Replace("\n", " ", StringComparison.Ordinal)
+                          .Trim());
+        }
+
+        return "| " + string.Join(" | ", texts) + " |";
     }
 
     /// <summary>The "&gt; [!tone glyph]" head that distinguishes a callout from a plain quote.</summary>

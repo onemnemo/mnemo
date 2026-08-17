@@ -24,7 +24,12 @@ public enum BlockType
     Equation,
     Page,
     Sketch,
-    Callout
+    Callout,
+    // Appended, never inserted: readers fall back to the ordinal when a type
+    // arrives as a number, so the declaration order is part of the format.
+    Table,
+    TableRow,
+    TableCell
 }
 
 [JsonConverter(typeof(BlockJsonConverter))]

@@ -341,6 +341,9 @@ internal static class NoteTypstDocumentComposer
                 if (options.RenderImages)
                     EmitSketch(sb, block, options);
                 break;
+            case BlockType.Table:
+                EmitTable(sb, block, options);
+                break;
             case BlockType.Text:
             default:
                 if (!string.IsNullOrWhiteSpace(block.Content))
@@ -412,6 +415,64 @@ internal static class NoteTypstDocumentComposer
         }
 
         sb.Append('\n');
+    }
+
+    /// <summary>
+    /// A table, as Typst's own.
+    /// </summary>
+    /// <remarks>
+    /// Column widths are emitted as fractions of the measure rather than in points: the editor's
+    /// pixels mean nothing on A5 in landscape, but the proportions the user set are exactly what they
+    /// were choosing. A header row and header column are drawn as the editor draws them, on the
+    /// sunken surface, so the printed table reads the same way as the one on screen. Per-cell tints
+    /// are not carried: the palette is a screen palette, and eight pastel fills is what turns a page
+    /// into a printer test.
+    /// </remarks>
+    private static void EmitTable(StringBuilder sb, Block block, NotePdfExportOptions options)
+    {
+        var rows = (block.Children ?? []).OrderBy(r => r.Order).ToList();
+        if (rows.Count == 0)
+            return;
+
+        var columns = rows.Max(r => r.Children?.Count ?? 0);
+        if (columns == 0)
+            return;
+
+        var payload = MatchedPayload<TablePayload>(block);
+        var widths = payload?.ColumnWidths ?? [];
+        var total = 0d;
+        for (var i = 0; i < columns; i++)
+            total += i < widths.Count && widths[i] > 0 ? widths[i] : 1;
+
+        sb.Append("#table(\n  columns: (");
+        for (var i = 0; i < columns; i++)
+        {
+            var width = i < widths.Count && widths[i] > 0 ? widths[i] : 1;
+            if (i > 0)
+                sb.Append(", ");
+            sb.Append(Num(width / total * 100)).Append('%');
+        }
+
+        sb.Append("),\n  inset: 6pt,\n  stroke: 0.5pt + rgb(\"#d4d4d4\"),\n");
+        sb.Append("  fill: (column, row) => if row == 0 and ")
+          .Append(payload?.HeaderRow == true ? "true" : "false")
+          .Append(" { rgb(\"#f2f2f2\") } else if column == 0 and ")
+          .Append(payload?.HeaderCol == true ? "true" : "false")
+          .Append(" { rgb(\"#f2f2f2\") } else { none },\n");
+
+        foreach (var row in rows)
+        {
+            var cells = (row.Children ?? []).OrderBy(c => c.Order).ToList();
+            for (var i = 0; i < columns; i++)
+            {
+                sb.Append("  [");
+                if (i < cells.Count)
+                    EmitInline(sb, cells[i].Spans, options);
+                sb.Append("],\n");
+            }
+        }
+
+        sb.Append(")\n\n");
     }
 
     private static void EmitImage(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets)

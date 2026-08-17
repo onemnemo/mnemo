@@ -37,6 +37,23 @@ public sealed record SketchPayload(
     double Width = 0,
     string Align = "left") : BlockPayload;
 
+/// <summary>
+/// What belongs to a <see cref="BlockType.Table"/> as a whole. The cells are the rows' children and
+/// carry their own text, so the only structure here is the part no single cell owns.
+///
+/// Column widths live on the table rather than on each cell because a column has one width by
+/// definition: storing it per cell makes a table whose rows disagree about it representable, and
+/// then every reader has to decide which row wins.
+/// </summary>
+public sealed record TablePayload(
+    IReadOnlyList<double> ColumnWidths,
+    bool HeaderRow = false,
+    bool HeaderCol = false,
+    bool FullWidth = false) : BlockPayload;
+
+/// <summary>Fill for <see cref="BlockType.TableCell"/>: one of the named tints, or empty for none.</summary>
+public sealed record TableCellPayload(string Fill = "") : BlockPayload;
+
 /// <summary>Leading glyph and tone for <see cref="BlockType.Callout"/>; the body is inline content in the block's spans.</summary>
 public sealed record CalloutPayload(
     string Emoji = "",

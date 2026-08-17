@@ -24,7 +24,10 @@ export type BlockType =
   | 'Equation'
   | 'Page'
   | 'Sketch'
-  | 'Callout';
+  | 'Callout'
+  | 'Table'
+  | 'TableRow'
+  | 'TableCell';
 
 /**
  * Every block type, in the C# enum's declaration order, the ordinal fallback
@@ -39,6 +42,7 @@ const blockTypeMembers = {
   BulletList: true, NumberedList: true, Checklist: true, Quote: true,
   Code: true, Divider: true, Image: true, ColumnGroup: true, TwoColumn: true,
   Equation: true, Page: true, Sketch: true, Callout: true,
+  Table: true, TableRow: true, TableCell: true,
 } satisfies Record<BlockType, true>;
 
 export const allBlockTypes = Object.keys(blockTypeMembers) as readonly BlockType[];
@@ -128,7 +132,22 @@ export type BlockPayload =
   | { kind: 'page'; referenceNoteId: string }
   | { kind: 'sketch'; width: number; align: string }
   /** Leading glyph and tone for a callout; its body is inline content in `spans`. */
-  | { kind: 'callout'; emoji: string; tone: string };
+  | { kind: 'callout'; emoji: string; tone: string }
+  /**
+   * What belongs to a table as a whole. Cells are the rows' children and carry
+   * their own text, so the only structure here is the part no single cell owns.
+   * A column has one width by definition, which is why the widths sit here and
+   * not on the cells.
+   */
+  | {
+      kind: 'table';
+      columnWidths: number[];
+      headerRow: boolean;
+      headerCol: boolean;
+      fullWidth: boolean;
+    }
+  /** One of the named tints, or empty for no fill. */
+  | { kind: 'tableCell'; fill: string };
 
 export interface Block {
   id: string;

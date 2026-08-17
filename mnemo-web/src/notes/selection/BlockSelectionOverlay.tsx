@@ -350,6 +350,10 @@ export function BlockSelectionOverlay({
       if (!(target instanceof HTMLElement)) return;
       // A press on interactive chrome belongs to that control.
       if (target.closest('button, a, input, textarea, [role="menuitem"], .notes-column-splitter')) return;
+      // A drag inside a table is about cells. Two selection systems answering one
+      // gesture is exactly what this bail exists to prevent, and the table's own
+      // rectangle drag is the more specific of the two.
+      if (target.closest('.notes-table')) return;
 
       const inText = target.closest('.ProseMirror') !== null;
       const listen = () => {

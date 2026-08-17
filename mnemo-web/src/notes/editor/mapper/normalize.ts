@@ -42,6 +42,9 @@ const payloadKindFor = {
   Page: 'page',
   Sketch: 'sketch',
   Callout: 'callout',
+  Table: 'table',
+  TableRow: 'empty',
+  TableCell: 'tableCell',
 } satisfies Record<BlockType, BlockPayload['kind']>;
 
 export interface NormalizeIssue {
@@ -130,6 +133,47 @@ function normalizeBlock(
     // line. This is the two-line case that reconciles them, and it is the one
     // canonical empty shape, a sole empty, default-styled text span.
     spans: block.spans.length > 0 ? block.spans : [plainSpan('')],
+    children: seedTableChildren(block.type, children) ?? children ?? null,
+  };
+}
+
+/**
+ * A table with no rows, or a row with no cells, is seeded rather than reported.
+ *
+ * Unlike a two-column's arity, nothing on either side of the wire indexes a table
+ * positionally, so an empty one is not a shape that crashes anything. The schema
+ * still refuses to build it (`line tableRow+`), and quarantining the whole note
+ * over one table that lost its rows would take a document the user can still read
+ * and make it unreadable. An empty row is the smallest honest thing to put back,
+ * and it is visibly empty, so nothing is silently invented.
+ */
+function seedTableChildren(type: BlockType, children: Block[] | undefined): Block[] | null {
+  if (type === 'Table' && (children === undefined || children.length === 0)) {
+    return [emptyWireBlock('TableRow', [emptyWireBlock('TableCell')])];
+  }
+  if (type === 'TableRow' && (children === undefined || children.length === 0)) {
+    return [emptyWireBlock('TableCell')];
+  }
+  return null;
+}
+
+/**
+ * A repair block, with no sid.
+ *
+ * Deliberately unminted: the server owns sid assignment, and a repair inventing
+ * one locally is how two blocks end up permanently ambiguous to every tool that
+ * addresses them. It gets a real sid on the first commit, like any other block
+ * created in the editor.
+ */
+function emptyWireBlock(type: BlockType, children?: Block[]): Block {
+  return {
+    id: crypto.randomUUID(),
+    sid: '',
+    type,
+    spans: [plainSpan('')],
+    payload: type === 'TableCell' ? { kind: 'tableCell', fill: '' } : { kind: 'empty' },
+    meta: {},
+    order: 0,
     children: children ?? null,
   };
 }

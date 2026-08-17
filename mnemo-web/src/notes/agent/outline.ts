@@ -44,6 +44,9 @@ export const typeCodes = {
   Page: 'pg',
   Sketch: 'sk',
   Callout: 'co',
+  Table: 'tb',
+  TableRow: 'tr',
+  TableCell: 'tc',
 } satisfies Record<BlockType, string>;
 
 /** Inverse of `typeCodes`, for parsing a `type` op's target. */

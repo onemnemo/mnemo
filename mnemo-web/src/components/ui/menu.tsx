@@ -147,6 +147,7 @@ export function MenuCheckItem({
   checked,
   onSelect,
   icon,
+  leading,
   hint,
   disabled,
   children,
@@ -154,6 +155,8 @@ export function MenuCheckItem({
   checked: boolean
   onSelect?: () => void
   icon?: IconName
+  /** Drawn in the icon column instead of a glyph, e.g. a colour swatch. */
+  leading?: ReactNode
   hint?: string
   disabled?: boolean
   children: ReactNode
@@ -170,7 +173,7 @@ export function MenuCheckItem({
           <AppIcon name="common/check" size={13} className="text-text-secondary" />
         </DropdownMenu.ItemIndicator>
       </span>
-      <MenuItemBody icon={icon} hint={hint}>
+      <MenuItemBody icon={icon} leading={leading} hint={hint}>
         {children}
       </MenuItemBody>
     </DropdownMenu.CheckboxItem>
@@ -180,17 +183,20 @@ export function MenuCheckItem({
 export function MenuItemBody({
   children,
   icon,
+  leading,
   hint,
   trailing,
 }: {
   children: ReactNode
   icon?: IconName
+  /** Takes the icon column when the row's mark is not a glyph. */
+  leading?: ReactNode
   hint?: string
   trailing?: ReactNode
 }) {
   return (
     <>
-      {icon ? <AppIcon name={icon} size={14} className="text-text-faded" /> : null}
+      {leading ?? (icon ? <AppIcon name={icon} size={14} className="text-text-faded" /> : null)}
       <span className="flex-1 truncate">{children}</span>
       {hint ? <span className="text-caption text-text-faded tabular-nums">{hint}</span> : null}
       {trailing}
