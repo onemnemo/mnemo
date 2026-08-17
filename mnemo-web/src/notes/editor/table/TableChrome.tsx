@@ -491,23 +491,35 @@ export function TableChrome({
   /* -- the pointer, when it lands somewhere else ------------------------- */
 
   /**
-   * A press outside this table drops whatever it had selected.
+   * A press into another block drops whatever this table had selected.
    *
    * The keyboard gate above does this too, but only on the next keystroke, and a
    * black cell left standing in a table you clicked away from reads as though it
    * were still the thing being talked about. Capture, so it is decided before the
    * press reaches whatever it landed on.
+   *
+   * "Into another block" is the exact scope, and getting it wrong is what broke
+   * every menu. A press has to be *inside the editor's own content* to count: the
+   * table's menus are portalled onto the body, so a press on a menu item is not
+   * in the editable root at all, and clearing the selection there swapped the cell
+   * menu to its table-settings fallback out from under the pointer, so the item
+   * released on nothing. So a press that is not in the editable root, or is in
+   * this table's own box, is left alone; only one that landed in another block
+   * clears the paint.
    */
   useEffect(() => {
     if (!editable) return
+    const root = frame.closest('.ProseMirror')
     const onPointerDown = (event: PointerEvent): void => {
       const target = event.target
-      if (target instanceof Node && scroll.contains(target)) return
+      if (!(target instanceof Node)) return
+      if (scroll.contains(target)) return
+      if (!root || !root.contains(target)) return
       setSel((prev) => (prev === null ? prev : null))
     }
     document.addEventListener('pointerdown', onPointerDown, true)
     return () => document.removeEventListener('pointerdown', onPointerDown, true)
-  }, [scroll, editable])
+  }, [frame, scroll, editable])
 
   /* -- the handle: one control, three outcomes --------------------------- */
 

@@ -410,6 +410,45 @@ describe('the table keymap', () => {
     expect(view.state.doc.textBetween(0, view.state.doc.content.size, ' ')).toContain('1:0');
   });
 
+  /** Selects a row through its grip, the way a user reaches the row menu. */
+  function selectRowViaGrip(): void {
+    const rowHandle = slots()[1].querySelector<HTMLElement>('.notes-table-handle')!;
+    act(() => {
+      rowHandle.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, pointerId: 1, isPrimary: true }),
+      );
+      window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1, isPrimary: true }));
+    });
+  }
+
+  /**
+   * The menu-breaking regression, pinned. The table's menus are portalled to the
+   * body, so a press on a menu item is not inside the editor root. Dropping the
+   * selection on such a press swapped the cell menu to its table-settings fallback
+   * between pointerdown and click, and every item released on the wrong row.
+   */
+  it('keeps its selection when a press lands outside the editor, the way a menu does', () => {
+    selectRowViaGrip();
+    expect(outlinedCell()).not.toBeNull();
+    act(() => {
+      document.body.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 1, isPrimary: true }),
+      );
+    });
+    expect(outlinedCell()).not.toBeNull();
+  });
+
+  it('drops its selection when a press lands elsewhere in the document', () => {
+    selectRowViaGrip();
+    expect(outlinedCell()).not.toBeNull();
+    act(() => {
+      harness!.view.dom.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 1, isPrimary: true }),
+      );
+    });
+    expect(outlinedCell()).toBeNull();
+  });
+
   it('walks the cells on Tab and back on Shift+Tab', () => {
     putCaret(0, 0);
     expect(press('Tab')).toBe(true);
