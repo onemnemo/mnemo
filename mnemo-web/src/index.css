@@ -159,7 +159,19 @@
     --shadow-pop: var(--e-pop);
 
     /* Transition/animation utilities resolve through the motion tokens, so the
-       reduce-motion switch reaches anything written with them. */
+       reduce-motion switch reaches anything written with them.
+
+       The default duration is the important one. `transition-colors` and friends
+       carry no duration of their own, so without this they fall back to Tailwind's
+       own 150ms, which is outside `--motion-scale` and therefore outside the
+       reduce-motion switch: 140-odd call sites across the app kept animating with
+       motion turned off. A utility that names a duration still wins over this.
+
+       Only the duration, not the easing. Tailwind's default curve is applied to
+       far more than chrome reveals, and swapping it app-wide is a change to how
+       everything feels rather than a fix for a setting that does not work. */
+    --default-transition-duration: var(--duration-fast);
+
     --animate-pop-in: pop-in var(--duration-fast) var(--ease-out);
     --animate-fade-in: fade-in var(--duration-fast) ease-out;
     --animate-rise: rise var(--duration-normal) var(--ease-out);

@@ -84,7 +84,11 @@ export function WidgetBoard({ widgets, isEditMode, onRemove, onResize, onConfigu
               // the board making room rather than as everything teleporting. The dragged tile is
               // excluded: it has to be where the pointer is this frame, not on its way there.
               // Only the coordinates animate; a span change is instant, as on the desktop.
-              !isDragging && "transition-[left,top] duration-200 ease-[cubic-bezier(0.215,0.61,0.355,1)]",
+              // The duration is the app's own 200ms rather than a literal, so that
+              // reducing motion reaches the one animation on this board that would
+              // otherwise keep sliding tiles around for someone who asked it not to.
+              !isDragging &&
+                "transition-[left,top] duration-[var(--duration-slow)] ease-[cubic-bezier(0.215,0.61,0.355,1)]",
             )}
             style={{
               left: floating
