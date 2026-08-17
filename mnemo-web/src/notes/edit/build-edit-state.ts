@@ -38,6 +38,7 @@ import { imageClipboardPlugin } from '../editor/pipeline/image-clipboard';
 import { clipboardPlugin } from '../clipboard/clipboard-plugin';
 import { defaultPasteAssetSupport } from '../clipboard/stage-assets';
 import { nestedInputGuard } from '../editor/pipeline/nested-input';
+import { trailingClickPlugin } from '../editor/pipeline/trailing-click';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
 import { codeHighlightPlugin } from '../editor/code/highlight';
 import { slashHintPlugin } from '../editor/pipeline/slash-hint';
@@ -79,13 +80,19 @@ export type NoteEditState =
  *  - `nestedInputGuard` is first because its whole job is to answer before the
  *    others: an event from a text input inside the editor belongs to that input,
  *    and every plugin below would otherwise treat it as a document edit.
+ *  - `trailingClickPlugin` claims a press in the space under the last block and
+ *    nothing else. It is high up so no plugin below reads that press as one on
+ *    the block it happened to land nearest, which for a table is a cell.
  *  - `slashMenuPlugin` takes the arrow keys and Enter while its menu is open,
  *    so it has to precede every keymap. It declines every key when the menu is
  *    closed, which is almost always.
  *  - `blockSelectionPlugin` claims Backspace/Delete and Escape only while a
- *    block selection is live, and Ctrl+A for select-all; it must precede the
- *    structural keymap so those win over the per-character handlers, and it
- *    declines everything else, so it is invisible until a selection exists.
+ *    block selection is live, and Ctrl+A always; it must precede the structural
+ *    keymap so those win over the per-character handlers, and it declines
+ *    everything else, so it is invisible until a selection exists. Ctrl+A is
+ *    claimed unconditionally because both of its stages are its own, the block's
+ *    content first and every block second, and `baseKeymap`'s select-all (which
+ *    takes the whole document in one press) must never be reached.
  *  - `inputTriggerPlugin` runs on text input, not on a key chord, so it sits
  *    before the keymaps without competing with them.
  *  - `structureKeymap` must precede `baseKeymap`: both bind Enter and Backspace,
@@ -121,6 +128,10 @@ export function editorPlugins(
 ): Plugin[] {
   return [
     nestedInputGuard(),
+    // Claims one press and only one: the left button, in the space under the last
+    // block. Ahead of everything else so no other plugin reads it as a press on
+    // the block it landed nearest.
+    trailingClickPlugin(),
     // Before anything that could read a paste as text input; it claims only pastes and
     // drops carrying image files and declines everything else.
     imageClipboardPlugin(resolveServices(services)),
@@ -134,11 +145,11 @@ export function editorPlugins(
     slashMenuPlugin(registry, { services: resolveServices(services) }),
     // Before the structural keymap so that, while a block selection is live, it
     // claims Backspace/Delete (delete the selection) and Escape (clear it)
-    // before the per-character handlers see them, and claims Ctrl+A to select
-    // every block. It declines every key when nothing is selected and the chord
-    // is not select-all, so the editor behaves exactly as before until a block
-    // selection exists. Its highlight is a decoration and it appends no step, so
-    // it never dirties the note.
+    // before the per-character handlers see them, and so that it owns both
+    // stages of Ctrl+A. It declines every key when nothing is selected and the
+    // chord is not select-all, so the editor behaves exactly as before until a
+    // block selection exists. Its highlight is a decoration and it appends no
+    // step, so it never dirties the note.
     blockSelectionPlugin(registry),
     inputTriggerPlugin(registry),
     structureKeymap(),

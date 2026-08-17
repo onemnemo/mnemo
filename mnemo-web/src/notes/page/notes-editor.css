@@ -39,6 +39,14 @@
 .notes-doc .ProseMirror[contenteditable="false"] {
   caret-color: transparent;
 }
+/* Room under the last block, and the reason it is padding on the editable root
+ * rather than on the pane around it: a press down here has to reach the view, so
+ * that the rule appending a block can claim it. On the pane it looked the same
+ * and the press landed on nothing. Read-only mounts get no such space, since
+ * there is nothing to append and it would only be a gap at the end. */
+.notes-doc .ProseMirror[contenteditable="true"] {
+  padding-bottom: 10rem;
+}
 
 /* Block rhythm. A single owner of vertical spacing between top-level blocks.
  * Paragraphs sit close together and the headings below buy their own space, so

@@ -117,7 +117,7 @@ function proseMirror(): HTMLElement {
 
 /** Which way the document column padded itself, which is the whole cover layout branch. */
 function headerPadding(): string {
-  const column = container.querySelector('div.pb-40') as HTMLElement;
+  const column = container.querySelector('div.px-14') as HTMLElement;
   return column.classList.contains('pt-0') ? 'pt-0' : 'pt-10';
 }
 
