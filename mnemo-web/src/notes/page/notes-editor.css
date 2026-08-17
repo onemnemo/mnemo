@@ -422,11 +422,14 @@
 .notes-doc [data-table-row] {
   display: contents;
 }
+/* A notch below the prose it sits among: a table is read across as well as down,
+ * so its rows are denser than a paragraph's lines. */
 .notes-doc [data-table-cell] {
   min-width: 0;
   padding: 7px 10px;
   border-top: 1px solid var(--line-color);
   border-left: 1px solid var(--line-color);
+  font-size: 0.9375rem;
   line-height: 1.5;
   overflow-wrap: break-word;
   outline: none;
