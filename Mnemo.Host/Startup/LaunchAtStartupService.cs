@@ -1,4 +1,6 @@
 using System.Runtime.Versioning;
+using System.Security;
+
 using Mnemo.Core.Services;
 
 namespace Mnemo.Host.Startup;
@@ -22,6 +24,15 @@ public sealed class LaunchAtStartupService : IDisposable
     /// <summary>The Run value name. Renaming it strands whatever the old name registered.</summary>
     private const string EntryName = "Mnemo";
 
+    /// <summary>
+    /// The launchd label, and the plist is named for it. Strands the old entry if renamed,
+    /// exactly as <see cref="EntryName"/> does.
+    /// </summary>
+    private const string MacLaunchAgentLabel = "com.mnemo.app";
+
+    /// <summary>The autostart entry's file name. Renaming it strands the old file.</summary>
+    private const string LinuxAutostartFileName = "mnemo.desktop";
+
     private readonly ISettingsService _settings;
     private readonly ILoggerService _logger;
 
@@ -43,6 +54,10 @@ public sealed class LaunchAtStartupService : IDisposable
 
             if (OperatingSystem.IsWindows())
                 ApplyOnWindows(enabled);
+            else if (OperatingSystem.IsMacOS())
+                ApplyToFile(enabled, MacLaunchAgentPath(), ComposeMacLaunchAgent);
+            else if (OperatingSystem.IsLinux())
+                ApplyToFile(enabled, LinuxAutostartPath(), ComposeLinuxAutostart);
         }
         catch (Exception ex)
         {
@@ -90,6 +105,100 @@ public sealed class LaunchAtStartupService : IDisposable
         WindowsRunKey.Write(EntryName, command);
         _logger.Info(Category, $"Registered {command} to launch at startup.");
     }
+
+    /// <summary>
+    /// Writes or removes the autostart file that stands in for the Windows Run key.
+    /// </summary>
+    /// <remarks>
+    /// macOS and the XDG desktops both read their autostart directory at login, so the file
+    /// being on disk is the entire registration: nothing to load, nothing to reload, and
+    /// deleting it deregisters cleanly.
+    /// </remarks>
+    private void ApplyToFile(bool enabled, string path, Func<string, string> compose)
+    {
+        if (!enabled)
+        {
+            if (!File.Exists(path))
+                return;
+
+            File.Delete(path);
+            _logger.Info(Category, "Removed the launch at startup entry.");
+            return;
+        }
+
+        var executable = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executable))
+        {
+            _logger.Warning(Category, "Launch at startup is on, but this process has no resolvable executable path to register.");
+            return;
+        }
+
+        var desired = compose(executable);
+
+        // Reconcile runs on every boot, and rewriting a file that already says the right
+        // thing would churn its timestamp each time for no change.
+        if (File.Exists(path) && string.Equals(File.ReadAllText(path), desired, StringComparison.Ordinal))
+            return;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, desired);
+        _logger.Info(Category, $"Registered {executable} to launch at startup.");
+    }
+
+    private static string MacLaunchAgentPath() =>
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Library",
+            "LaunchAgents",
+            $"{MacLaunchAgentLabel}.plist");
+
+    /// <remarks>
+    /// RunAtLoad and not KeepAlive: this starts the app once at login, and someone who then
+    /// quits it has quit it.
+    /// </remarks>
+    private static string ComposeMacLaunchAgent(string executable) =>
+        $"""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key>
+            <string>{MacLaunchAgentLabel}</string>
+            <key>ProgramArguments</key>
+            <array>
+                <string>{SecurityElement.Escape(executable)}</string>
+            </array>
+            <key>RunAtLoad</key>
+            <true/>
+        </dict>
+        </plist>
+
+        """;
+
+    private static string LinuxAutostartPath()
+    {
+        // The spec's own variable, falling back to the default the spec names for it.
+        var configHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        if (string.IsNullOrWhiteSpace(configHome))
+            configHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config");
+
+        return Path.Combine(configHome, "autostart", LinuxAutostartFileName);
+    }
+
+    /// <remarks>
+    /// Exec is quoted for the same reason the Windows command is: install paths contain
+    /// spaces, and the desktop entry spec reads an unquoted one as an argument separator.
+    /// </remarks>
+    private static string ComposeLinuxAutostart(string executable) =>
+        $"""
+        [Desktop Entry]
+        Type=Application
+        Name=Mnemo
+        Exec="{executable}"
+        Terminal=false
+        X-GNOME-Autostart-enabled=true
+
+        """;
 
     /// <summary>
     /// The command line Windows runs at sign-in, quoted because install paths contain
