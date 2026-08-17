@@ -272,6 +272,45 @@ export function TableChrome({
     }
   }, [frame, scroll, editable])
 
+  /* -- the context-menu key ---------------------------------------------- */
+
+  /**
+   * The keyboard's own way of asking for a menu, which is the only route a
+   * keyboard has to any of the cell or table verbs.
+   *
+   * It cannot be handled beside the right-click, because the two arrive from
+   * opposite directions. A press lands on a cell and bubbles *up* to the padded
+   * box; the context-menu key targets whatever holds focus, which is the editor's
+   * own root, an *ancestor* of the box. So that event never passes the listener
+   * above at all, and the test for owning it is the mirror image: the target
+   * contains this table rather than being contained by it, and the caret is in one
+   * of its cells. Anything else is another block's business.
+   *
+   * The menu opens under the caret's own cell rather than at the coordinates on
+   * the event, which for this key are meaningless.
+   */
+  useEffect(() => {
+    if (!editable) return
+    const onKeyboardMenu = (event: MouseEvent): void => {
+      const target = event.target
+      if (!(target instanceof Node) || !target.contains(frame)) return
+      const here = caretCell()
+      if (!here) return
+      event.preventDefault()
+      event.stopPropagation()
+      // Keep a range that already holds the caret's cell, for the same reason a
+      // right-click does: the menu must be about what the paint says it is about.
+      setSel((prev) =>
+        rectHolds(prev ? selRect(prev, latest.current) : null, here.row, here.col)
+          ? prev
+          : { kind: 'cells', rect: { r0: here.row, c0: here.col, r1: here.row, c1: here.col } },
+      )
+      setMenuAt({ x: grid.x[here.col], y: grid.y[here.row + 1] })
+    }
+    document.addEventListener('contextmenu', onKeyboardMenu)
+    return () => document.removeEventListener('contextmenu', onKeyboardMenu)
+  }, [frame, editable, caretCell, grid])
+
   /* -- keyboard ---------------------------------------------------------- */
 
   useEffect(() => {
