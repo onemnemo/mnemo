@@ -394,11 +394,25 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     ? chromeRowGeometry({ blockLeft: handleBlock.rect.left, rootLeft: handleBlock.rootLeft })
     : null;
 
+  /**
+   * Fades in, and then moves without animating.
+   *
+   * Two deliberate halves. The row arriving is a new thing on screen, and a thing
+   * that appears instantly reads as a flicker, so it fades. The row moving from one
+   * block to the next is the *same* control pointing somewhere else, and animating
+   * that would put a widget gliding down the page after the pointer for the whole
+   * length of a document, which is the kind of motion that makes an editor feel
+   * busy rather than smooth. Repositioning instantly reads as "it was already
+   * there", which is what a quiet gutter should read as.
+   *
+   * The animation runs on mount only, and moving between blocks does not remount,
+   * so the two halves need no coordination.
+   */
   const overlay = handleBlock && handle && row && !dragging ? (
     <div
       ref={overlayRef}
       className={cn(
-        'fixed z-40 flex h-7 items-center gap-0.5 rounded',
+        'animate-fade-in fixed z-40 flex h-7 items-center gap-0.5 rounded',
         row.overContent && 'bg-canvas shadow-elevation-1',
       )}
       style={{ left: row.left, top: handleBlock.rect.top }}
