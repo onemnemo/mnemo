@@ -162,6 +162,21 @@ export const containerBlockNames: ReadonlySet<string> = new Set([
   'tableRow',
 ]);
 
+/**
+ * Blocks the chrome must treat as a single object, whatever they contain.
+ *
+ * A two-column is a container the user is meant to see *through*: each block in
+ * a cell gets its own grip, because each one is a block they put there. A table
+ * is the opposite. Its rows and cells are its own structure, not blocks anybody
+ * assembled, and it carries its own handles for them. Offering the block gutter
+ * on a cell gives every cell a drag grip and an add button for something that
+ * cannot be dragged or added to on those terms, which is what it did.
+ *
+ * So the rule is about the *interior* rather than the node: crossing one of these
+ * on the way down ends the walk, and the block named is this one.
+ */
+export const opaqueBlockNames: ReadonlySet<string> = new Set(['table']);
+
 /** The line is always the first child; block children always follow it. */
 export function lineOf(node: PMNode): PMNode | null {
   const first = node.firstChild;

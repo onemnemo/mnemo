@@ -19,7 +19,7 @@
 import type { Node as PMNode } from 'prosemirror-model';
 
 import type { BlockRegistry } from '../registry/build';
-import { containerBlockNames } from '../blocks/shared';
+import { containerBlockNames, opaqueBlockNames } from '../blocks/shared';
 
 export interface LocatedDeepBlock {
   /** Position just before the block node. */
@@ -50,6 +50,12 @@ export function deepestBlockAt(doc: PMNode, registry: BlockRegistry, pos: number
   for (let depth = 1; depth <= $pos.depth; depth++) {
     const node = $pos.node(depth);
     if (!registry.byNodeName.has(node.type.name)) continue;
+    // A block whose interior is its own business ends the walk: what the chrome
+    // is pointing at is this block, never a row or a cell inside it.
+    if (opaqueBlockNames.has(node.type.name)) {
+      found = { pos: $pos.before(depth), node, depth };
+      break;
+    }
     if (containerBlockNames.has(node.type.name)) continue;
     found = { pos: $pos.before(depth), node, depth };
   }

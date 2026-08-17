@@ -33,7 +33,7 @@ import { plainSpan } from '../../model/spans';
 import { resolveServices, toNodeViews } from '../view/nodeviews';
 import { NodeViewPortals } from '../view/NodeViewPortal';
 import { createPortalRegistry, type PortalRegistry } from '../view/portal-registry';
-import { cellCaretPos } from './model';
+import { cellAtPos, cellCaretPos } from './model';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -250,6 +250,88 @@ describe('the table chrome', () => {
       scrollBox().dispatchEvent(new PointerEvent('pointerleave', { bubbles: false, pointerId: 1, isPrimary: true }));
     });
     expect(strips().map((strip) => strip.hasAttribute('data-live'))).toEqual([false, false]);
+  });
+});
+
+/**
+ * Every key the table owns, dispatched where the browser dispatches it.
+ *
+ * The caret lives in ProseMirror's contentEditable root, so a keystroke fires
+ * there and the table's frame, being a descendant, never sees it. Bound to the
+ * frame, the whole table keymap was dead in the running editor and ProseMirror's
+ * fallback walked the cells in document order, so the up arrow moved one cell
+ * left and the down arrow one cell right.
+ *
+ * These dispatch on `view.dom` on purpose. Dispatching on the frame is what made
+ * the original tests pass against code that did not work.
+ */
+describe('the table keymap', () => {
+  /** Where the caret is, as a cell index, or null if it left the table. */
+  function caretCellIndex(): { row: number; col: number } | null {
+    const { view } = harness!;
+    const table = view.state.doc.firstChild!;
+    return cellAtPos(table, 0, view.state.selection.from);
+  }
+
+  function putCaret(row: number, col: number): void {
+    const { view } = harness!;
+    const at = cellCaretPos(view.state.doc.firstChild!, 0, row, col)!;
+    act(() => {
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, at)));
+    });
+  }
+
+  /** A keystroke as the browser delivers it: on the element holding the caret. */
+  function press(key: string, init: KeyboardEventInit = {}): boolean {
+    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key, ...init });
+    act(() => {
+      harness!.view.dom.dispatchEvent(event);
+    });
+    return event.defaultPrevented;
+  }
+
+  it('moves the caret down a column, not along the row', () => {
+    putCaret(0, 1);
+    expect(press('ArrowDown')).toBe(true);
+    expect(caretCellIndex()).toEqual({ row: 1, col: 1 });
+  });
+
+  it('moves the caret up a column, not along the row', () => {
+    putCaret(1, 1);
+    expect(press('ArrowUp')).toBe(true);
+    expect(caretCellIndex()).toEqual({ row: 0, col: 1 });
+  });
+
+  it('leaves the arrows alone at the edges, so the caret can get out of the table', () => {
+    putCaret(0, 0);
+    expect(press('ArrowUp')).toBe(false);
+  });
+
+  it('walks the cells on Tab and back on Shift+Tab', () => {
+    putCaret(0, 0);
+    expect(press('Tab')).toBe(true);
+    expect(caretCellIndex()).toEqual({ row: 0, col: 1 });
+    expect(press('Tab', { shiftKey: true })).toBe(true);
+    expect(caretCellIndex()).toEqual({ row: 0, col: 0 });
+  });
+
+  it('wraps Tab onto the next row', () => {
+    putCaret(0, 1);
+    expect(press('Tab')).toBe(true);
+    expect(caretCellIndex()).toEqual({ row: 1, col: 0 });
+  });
+
+  it('ignores keys belonging to another editor', () => {
+    putCaret(0, 0);
+    const elsewhere = document.createElement('div');
+    document.body.appendChild(elsewhere);
+    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Tab' });
+    act(() => {
+      elsewhere.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(false);
+    expect(caretCellIndex()).toEqual({ row: 0, col: 0 });
+    elsewhere.remove();
   });
 });
 

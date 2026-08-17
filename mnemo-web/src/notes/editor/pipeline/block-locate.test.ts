@@ -89,3 +89,48 @@ describe('deepestBlockAt', () => {
     expect(deepestBlockAt(empty, registry, 0)).toBeNull();
   });
 });
+
+/**
+ * A table is one block, however deep the position is inside it.
+ *
+ * It shipped the other way. A cell is a registered, non-container block, so the
+ * walk kept descending and named the cell, which gave every cell in the table its
+ * own drag grip and add button in the gutter. A row and a cell are the table's own
+ * structure, and the table carries its own handles for them.
+ */
+describe('deepestBlockAt inside a table', () => {
+  const cell = (text: string, sid: string) =>
+    schema.nodes.tableCell.create({ sid, id: sid }, line(text));
+  const row = (sid: string, ...cells: PMNode[]) =>
+    schema.nodes.tableRow.create({ sid, id: sid }, [line(), ...cells]);
+
+  /** [p1] [table: [a1 a2] [b1 b2]] */
+  function tableDoc(): PMNode {
+    const table = schema.nodes.table.create({ sid: 'tbl', id: 'tbl', columnWidths: [180, 180] }, [
+      line(),
+      row('r1', cell('a1', 'ca1'), cell('a2', 'ca2')),
+      row('r2', cell('b1', 'cb1'), cell('b2', 'cb2')),
+    ]);
+    return schema.nodes.doc.create(null, [para('one', 's1'), table]);
+  }
+
+  it('names the table for a position in a cell, not the cell', () => {
+    const doc = tableDoc();
+    const located = deepestBlockAt(doc, registry, posOf(doc, 'cb2') + 2);
+    expect(located?.node.type.name).toBe('table');
+    expect(String(located?.node.attrs.sid)).toBe('tbl');
+  });
+
+  it('names the table from every cell, so the gutter never moves inside it', () => {
+    const doc = tableDoc();
+    for (const sid of ['ca1', 'ca2', 'cb1', 'cb2']) {
+      const located = deepestBlockAt(doc, registry, posOf(doc, sid) + 2);
+      expect(String(located?.node.attrs.sid), `from ${sid}`).toBe('tbl');
+    }
+  });
+
+  it('still names a paragraph outside the table', () => {
+    const doc = tableDoc();
+    expect(deepestBlockAt(doc, registry, posOf(doc, 's1') + 2)?.node.type.name).toBe('paragraph');
+  });
+});

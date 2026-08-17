@@ -313,6 +313,20 @@ export function TableChrome({
 
   /* -- keyboard ---------------------------------------------------------- */
 
+  /**
+   * Bound on the document, in the capture phase, and not on the table.
+   *
+   * The caret lives in ProseMirror's own contentEditable root, so that is where a
+   * keystroke fires; the table's frame is a *descendant* of it and never sees the
+   * event at all. Bound there, every key below was dead in the running editor and
+   * ProseMirror's fallback took the arrows, which walks the cells in document
+   * order: up landed one cell to the left and down one cell to the right.
+   *
+   * Capture rather than bubble, because ProseMirror's own handler sits on a
+   * deeper element and would otherwise act first. That makes the gate strict on
+   * purpose: this editor's subtree, this table's caret, and only the keys the
+   * table actually owns. Everything else falls through untouched.
+   */
   useEffect(() => {
     if (!editable) return
 
@@ -331,10 +345,16 @@ export function TableChrome({
     }
 
     const onKeyDown = (event: KeyboardEvent): void => {
+      // This editor's subtree: the root the caret is in contains the table.
+      const target = event.target
+      if (!(target instanceof Node) || !target.contains(frame)) return
+
       const table = latest.current
       const rowCount = tableRows(table).length
       const colCount = columnCount(table)
       const here = caretCell()
+      // Nothing to say unless the caret is in this table or it holds a selection.
+      if (!here && !sel) return
 
       if (event.key === 'Escape') {
         // Escape steps out one level at a time: text, then cells, then the block,
@@ -394,8 +414,8 @@ export function TableChrome({
         goTo(row, here.col)
       }
     }
-    frame.addEventListener('keydown', onKeyDown)
-    return () => frame.removeEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
   }, [frame, editable, sel, apply, replaceTable, focusCell, caretCell])
 
   /* -- the handle: one control, three outcomes --------------------------- */
