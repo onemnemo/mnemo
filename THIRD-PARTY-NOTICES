@@ -130,7 +130,7 @@ enumerated individually here; see "What this does not cover" below.
     Avalonia, Avalonia.Controls.ItemsRepeater, Avalonia.Desktop, Avalonia.Fonts.Inter,
     CommunityToolkit.Mvvm, Microsoft.Data.Sqlite, Microsoft.Extensions.DependencyInjection,
     Microsoft.Extensions.Http, Microsoft.ML.OnnxRuntime, Microsoft.ML.OnnxRuntime.Managed,
-    SkiaSharp, SkiaSharp.NativeAssets.Linux, Svg.Skia, System.Management,
+    SkiaSharp, SkiaSharp.NativeAssets.Linux, Svg.Skia,
     TextMateSharp, TextMateSharp.Grammars, Tmds.DBus.Protocol, Velopack,
     DocumentFormat.OpenXml
 

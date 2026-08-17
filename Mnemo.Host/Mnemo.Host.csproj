@@ -102,9 +102,13 @@
     exactly what a person poking around an install folder does. It arrives as a copy-local asset
     rather than through ResolvedFileToPublish, so the publish list cannot filter it and this runs
     after the copy instead. The .dll stays: module discovery loads it.
+
+    Both spellings are listed because the apphost is named for the target, not the build machine:
+    a linux or osx publish writes an extensionless Mnemo.UI beside Mnemo.Host. Deleting a path
+    that was never created is a no-op, so each leg only removes the one it actually produced.
   -->
   <Target Name="RemoveStrayAppHost" AfterTargets="Publish">
-    <Delete Files="$(PublishDir)Mnemo.UI.exe" ContinueOnError="true" />
+    <Delete Files="$(PublishDir)Mnemo.UI.exe;$(PublishDir)Mnemo.UI" ContinueOnError="true" />
   </Target>
 
   <!--
