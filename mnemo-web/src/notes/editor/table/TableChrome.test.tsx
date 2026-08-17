@@ -273,12 +273,22 @@ describe('the table keymap', () => {
     return cellAtPos(table, 0, view.state.selection.from);
   }
 
-  function putCaret(row: number, col: number): void {
+  function putCaret(row: number, col: number, edge: 'start' | 'end' = 'start'): void {
     const { view } = harness!;
-    const at = cellCaretPos(view.state.doc.firstChild!, 0, row, col)!;
+    const at = cellCaretPos(view.state.doc.firstChild!, 0, row, col, edge)!;
     act(() => {
       view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, at)));
     });
+  }
+
+  /** The cell the black outline is drawn over, from the band's own geometry. */
+  function outlinedCell(): { row: number; col: number } | null {
+    const band = document.querySelector<HTMLElement>('.notes-table-band');
+    if (!band) return null;
+    return {
+      row: Math.round(parseFloat(band.style.top) / CELL_H),
+      col: Math.round(parseFloat(band.style.left) / CELL_W),
+    };
   }
 
   /** A keystroke as the browser delivers it: on the element holding the caret. */
@@ -305,6 +315,99 @@ describe('the table keymap', () => {
   it('leaves the arrows alone at the edges, so the caret can get out of the table', () => {
     putCaret(0, 0);
     expect(press('ArrowUp')).toBe(false);
+    expect(press('ArrowLeft')).toBe(false);
+    putCaret(1, 1, 'end');
+    expect(press('ArrowRight')).toBe(false);
+  });
+
+  /**
+   * The sideways pair shipped unhandled, so ProseMirror moved the caret across the
+   * cell boundary on its own and the black cell stayed where it was. Both halves
+   * are asserted: where the caret went, and where the outline went.
+   */
+  it('moves the caret and the outline along the row on the right arrow', () => {
+    putCaret(0, 0, 'end');
+    expect(press('ArrowRight')).toBe(true);
+    expect(caretCellIndex()).toEqual({ row: 0, col: 1 });
+    expect(outlinedCell()).toEqual({ row: 0, col: 1 });
+  });
+
+  it('moves the caret and the outline back along the row on the left arrow', () => {
+    putCaret(0, 1);
+    expect(press('ArrowLeft')).toBe(true);
+    expect(caretCellIndex()).toEqual({ row: 0, col: 0 });
+    expect(outlinedCell()).toEqual({ row: 0, col: 0 });
+  });
+
+  /**
+   * Entering from the right has to land on the right. Landing at the start would
+   * mean the next left arrow left the table, skipping the text it was walking
+   * towards.
+   */
+  it('lands on the far side of the cell it entered', () => {
+    putCaret(1, 1);
+    press('ArrowLeft');
+    const { view } = harness!;
+    const cell = cellCaretPos(view.state.doc.firstChild!, 0, 1, 0, 'end');
+    expect(view.state.selection.from).toBe(cell);
+  });
+
+  it('wraps the sideways arrows onto the next row and the previous one', () => {
+    putCaret(0, 1, 'end');
+    expect(press('ArrowRight')).toBe(true);
+    expect(caretCellIndex()).toEqual({ row: 1, col: 0 });
+    expect(press('ArrowLeft')).toBe(true);
+    expect(caretCellIndex()).toEqual({ row: 0, col: 1 });
+  });
+
+  /**
+   * Every table in the note is asked about every keystroke, because the only gate
+   * a document-level listener can apply is "the event came from an editor holding
+   * this table". A row left selected therefore went on owning Backspace after the
+   * caret had moved to another block: pressing it there wiped the row instead of
+   * deleting a character, and Escape was swallowed the same way.
+   */
+  it('gives up its keys, and its paint, once the caret is in another block', () => {
+    const { view } = harness!;
+    // A row selected the way the grip selects one, then the caret moved out.
+    const rowHandle = slots()[1].querySelector<HTMLElement>('.notes-table-handle')!;
+    act(() => {
+      rowHandle.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, pointerId: 1, isPrimary: true }),
+      );
+      window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1, isPrimary: true }));
+    });
+    expect(outlinedCell()).not.toBeNull();
+
+    const before = view.state.doc.toString();
+    act(() => {
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 0)));
+    });
+    expect(press('Backspace')).toBe(false);
+    expect(view.state.doc.toString()).toBe(before);
+    expect(outlinedCell()).toBeNull();
+  });
+
+  /**
+   * The other half of that: a run selected from cold still has to answer, so
+   * pressing the grip puts the document's caret in the run as well as painting it.
+   */
+  it('clears the selected row on Backspace when the grip is the only thing that selected it', () => {
+    const { view } = harness!;
+    act(() => {
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 0)));
+    });
+    const rowHandle = slots()[1].querySelector<HTMLElement>('.notes-table-handle')!;
+    act(() => {
+      rowHandle.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, pointerId: 1, isPrimary: true }),
+      );
+      window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1, isPrimary: true }));
+    });
+    expect(press('Backspace')).toBe(true);
+    expect(view.state.doc.textBetween(0, view.state.doc.content.size, ' ')).not.toContain('0:0');
+    // The row below it is untouched.
+    expect(view.state.doc.textBetween(0, view.state.doc.content.size, ' ')).toContain('1:0');
   });
 
   it('walks the cells on Tab and back on Shift+Tab', () => {
