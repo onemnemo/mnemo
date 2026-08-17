@@ -76,10 +76,33 @@ const MAX_ADD = 20
  * towards it is worse than one that was never there.
  */
 const REACH = 28
+/**
+ * The four arrows as one step each, plus which end of the cell's text they leave
+ * from. Written once so the two axes cannot drift: the sideways pair shipped
+ * unhandled, and the outline stayed behind every time the caret crossed a cell
+ * boundary left or right.
+ */
+const ARROWS: Readonly<Record<string, { row: number; col: number; back: boolean }>> = {
+  ArrowUp: { row: -1, col: 0, back: true },
+  ArrowDown: { row: 1, col: 0, back: false },
+  ArrowLeft: { row: 0, col: -1, back: true },
+  ArrowRight: { row: 0, col: 1, back: false },
+}
+
 type Sel =
   | { kind: 'cells'; rect: Rect }
   | { kind: 'row'; at: number }
   | { kind: 'col'; at: number }
+
+/** Where the caret is inside a table: which cell, and whether it is at either end of its text. */
+export interface TableCaret {
+  readonly row: number
+  readonly col: number
+  /** At the very start of the cell's own text, so a backward arrow leaves the cell. */
+  readonly atStart: boolean
+  /** ...and the same at the other end. */
+  readonly atEnd: boolean
+}
 
 export interface TableChromeProps {
   node: PMNode
@@ -99,9 +122,9 @@ export interface TableChromeProps {
     next: PMNode,
     options?: { caret?: { row: number; col: number }; addToHistory?: boolean },
   ) => void
-  focusCell: (row: number, col: number) => void
-  /** The cell the caret is in, read from the document rather than from the DOM. */
-  caretCell: () => { row: number; col: number } | null
+  focusCell: (row: number, col: number, options?: { edge?: 'start' | 'end'; focus?: boolean }) => void
+  /** Where the caret is in this table, read from the document rather than from the DOM. */
+  caretCell: () => TableCaret | null
 }
 
 /** Which band a coordinate lands in, or -1 outside the run. */
@@ -330,7 +353,15 @@ export function TableChrome({
   useEffect(() => {
     if (!editable) return
 
-    /** Whether the caret sits at the very start or end of the text it is in. */
+    /**
+     * Whether the caret sits at the top or bottom of the text it is in.
+     *
+     * Asked of the layout rather than of the document, and only for the vertical
+     * pair: a cell wraps, so "the top of the text" is a visual fact, and a caret
+     * on the second of three lines is at neither end however the offsets read.
+     * Where nothing has been laid out there is nothing to be between, and the
+     * answer is yes.
+     */
     const atEdge = (end: boolean): boolean => {
       const selection = window.getSelection()
       const node = selection?.anchorNode
@@ -339,8 +370,8 @@ export function TableChrome({
       return end ? offset === (node.textContent?.length ?? 0) : offset === 0
     }
 
-    const goTo = (row: number, col: number): void => {
-      focusCell(row, col)
+    const goTo = (row: number, col: number, edge: 'start' | 'end' = 'start'): void => {
+      focusCell(row, col, { edge })
       setSel({ kind: 'cells', rect: { r0: row, c0: col, r1: row, c1: col } })
     }
 
@@ -353,8 +384,23 @@ export function TableChrome({
       const rowCount = tableRows(table).length
       const colCount = columnCount(table)
       const here = caretCell()
-      // Nothing to say unless the caret is in this table or it holds a selection.
-      if (!here && !sel) return
+
+      /**
+       * The caret is this table's licence to answer a key, and every table in the
+       * note is asked about every keystroke, because the gate above can only test
+       * that the event came from *an* editor containing this one.
+       *
+       * Without this, a row left selected went on owning Backspace after the caret
+       * had moved to another block entirely: pressing it in a code block wiped a
+       * row of a table further up the page instead of deleting a character. Escape
+       * was swallowed the same way. So a caret that is not in this table takes the
+       * paint with it, and the key falls through untouched to whatever the caret
+       * is actually in.
+       */
+      if (!here) {
+        if (sel) setSel(null)
+        return
+      }
 
       if (event.key === 'Escape') {
         // Escape steps out one level at a time: text, then cells, then the block,
@@ -377,7 +423,7 @@ export function TableChrome({
         return
       }
 
-      if (event.key === 'Tab' && here) {
+      if (event.key === 'Tab') {
         event.preventDefault()
         event.stopPropagation()
         let row = here.row
@@ -402,21 +448,66 @@ export function TableChrome({
         return
       }
 
-      if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && here) {
-        // Only from the ends of the text, so a wrapped cell walks its own lines
-        // before it hands the key to the grid.
-        const up = event.key === 'ArrowUp'
-        if (!atEdge(!up)) return
-        const row = here.row + (up ? -1 : 1)
+      const arrow = ARROWS[event.key]
+      if (arrow) {
+        // Only from the ends of the cell's own text, so the cell is walked before
+        // the grid is. The two axes ask different things because they *are*
+        // different questions: up and down ask the layout, since a wrapped cell
+        // has lines the document knows nothing about; left and right ask the
+        // document, which is exact, where the DOM would answer about the text node
+        // the caret is in and jump a column out of the middle of a sentence with a
+        // bold word in it.
+        const leaving =
+          arrow.col === 0 ? atEdge(!arrow.back) : arrow.back ? here.atStart : here.atEnd
+        if (!leaving) return
+
+        let row = here.row + arrow.row
+        let col = here.col + arrow.col
+        // Sideways off one end continues on the next row along, which is where the
+        // caret was going anyway. Taking the key is only so the outline goes too:
+        // left it to ProseMirror, the caret moved and the black cell stayed put,
+        // which is the one thing the outline exists not to do.
+        if (col < 0) {
+          col = colCount - 1
+          row -= 1
+        } else if (col >= colCount) {
+          col = 0
+          row += 1
+        }
+        // Off the grid entirely: the caret is leaving the table, and getting out
+        // is ProseMirror's business.
         if (row < 0 || row >= rowCount) return
         event.preventDefault()
         event.stopPropagation()
-        goTo(row, here.col)
+        // Arriving from the right lands on the right, so the next press walks the
+        // text of the cell just entered rather than leaving it again.
+        goTo(row, col, arrow.back && arrow.col !== 0 ? 'end' : 'start')
       }
     }
     document.addEventListener('keydown', onKeyDown, true)
     return () => document.removeEventListener('keydown', onKeyDown, true)
   }, [frame, editable, sel, apply, replaceTable, focusCell, caretCell])
+
+  /* -- the pointer, when it lands somewhere else ------------------------- */
+
+  /**
+   * A press outside this table drops whatever it had selected.
+   *
+   * The keyboard gate above does this too, but only on the next keystroke, and a
+   * black cell left standing in a table you clicked away from reads as though it
+   * were still the thing being talked about. Capture, so it is decided before the
+   * press reaches whatever it landed on.
+   */
+  useEffect(() => {
+    if (!editable) return
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target
+      if (target instanceof Node && scroll.contains(target)) return
+      setSel((prev) => (prev === null ? prev : null))
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => document.removeEventListener('pointerdown', onPointerDown, true)
+  }, [scroll, editable])
 
   /* -- the handle: one control, three outcomes --------------------------- */
 
@@ -432,6 +523,11 @@ export function TableChrome({
   const onHandleDown = (event: ReactPointerEvent, kind: 'row' | 'col', at: number): void => {
     if (event.button !== 0) return
     setSel(kind === 'row' ? { kind: 'row', at } : { kind: 'col', at })
+    // The document's caret goes into the run as well, without focus, because the
+    // caret is what says which table the keyboard is talking to. A row grabbed
+    // from cold used to leave it in whatever block it was last in, and the verbs
+    // the selection exists for then answered about that block instead.
+    focusCell(kind === 'row' ? at : 0, kind === 'row' ? 0 : at, { focus: false })
     ;(document.activeElement as HTMLElement | null)?.blur()
 
     const start = kind === 'col' ? event.clientX : event.clientY

@@ -110,8 +110,19 @@ export const colRect = (table: PMNode, col: number): Rect => ({
  * text, so the only way to the next row's start is past everything before it.
  * Returns null when the cell does not exist, which is what a caller asking for a
  * cell in a table that just shrank should get.
+ *
+ * `edge` is which end of the cell's text to land on. Arriving from the right has
+ * to land on the right: a left arrow that put the caret at the *start* of the
+ * cell it just entered would leave the table on the next press, skipping the
+ * text it was walking towards.
  */
-export function cellCaretPos(table: PMNode, tablePos: number, row: number, col: number): number | null {
+export function cellCaretPos(
+  table: PMNode,
+  tablePos: number,
+  row: number,
+  col: number,
+  edge: 'start' | 'end' = 'start',
+): number | null {
   const rows = tableRows(table);
   const target = rows[row];
   if (!target) return null;
@@ -121,13 +132,15 @@ export function cellCaretPos(table: PMNode, tablePos: number, row: number, col: 
   for (let r = 0; r < row; r++) at += rows[r].nodeSize;
 
   const cells = rowCells(target);
-  if (!cells[col]) return null;
+  const cell = cells[col];
+  if (!cell) return null;
   // Past the row's boundary and its own line.
   let cellAt = at + 1 + (target.firstChild?.nodeSize ?? 2);
   for (let c = 0; c < col; c++) cellAt += cells[c].nodeSize;
 
   // Past the cell's boundary and into its line's content.
-  return cellAt + 2;
+  const start = cellAt + 2;
+  return edge === 'start' ? start : start + (cell.firstChild?.content.size ?? 0);
 }
 
 /**

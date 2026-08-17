@@ -36,7 +36,7 @@ import type { RealizedBlockView, RealizedBlockViewArgs } from '../registry/types
 import { asOwnUndoStep } from '../history';
 import { mountPortalNodeView, type PortalNodeView } from '../view/portal-registry';
 import { cellAtPos, cellCaretPos, columnWidths } from './model';
-import { TableChrome } from './TableChrome';
+import { TableChrome, type TableCaret } from './TableChrome';
 
 const ROOT = 'notes-table';
 
@@ -96,27 +96,53 @@ export function tableView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     view.dispatch(options.addToHistory === false ? tr.setMeta('addToHistory', false) : asOwnUndoStep(tr));
   }
 
-  /** Puts the caret in a cell of the table as it stands. */
-  function focusCell(row: number, col: number): void {
+  /**
+   * Puts the caret in a cell of the table as it stands.
+   *
+   * `focus` is off for a gesture that selects with the pointer. Such a gesture
+   * still has to move the *document's* caret, because that is what says which
+   * table the keyboard is talking to; what it must not do is put a blinking text
+   * caret inside a row that is painted as a whole.
+   */
+  function focusCell(
+    row: number,
+    col: number,
+    options: { edge?: 'start' | 'end'; focus?: boolean } = {},
+  ): void {
     const live = liveNode();
     if (!live) return;
-    const at = cellCaretPos(live.node, live.pos, row, col);
+    const at = cellCaretPos(live.node, live.pos, row, col, options.edge ?? 'start');
     if (at === null) return;
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, at)));
-    view.focus();
+    if (options.focus !== false) view.focus();
   }
 
   /**
-   * The cell the caret is in, if it is in one at all.
+   * Where the caret is inside this table, or null when it is not in it at all.
    *
    * The chrome cannot read this off the DOM: ProseMirror's caret lives in the
    * editor's own contentEditable, so `document.activeElement` is the editor and
    * not the cell. The position is the only thing that knows.
+   *
+   * The two edge flags come from the document for the same reason. Asking the DOM
+   * selection whether it sits at offset zero answers about the *text node* it is
+   * in, so a caret between a bold run and a plain one reads as being at the start
+   * of the cell and an arrow key jumps a row out of the middle of a sentence.
    */
-  function caretCell(): { row: number; col: number } | null {
+  function caretCell(): TableCaret | null {
     const live = liveNode();
     if (!live) return null;
-    return cellAtPos(live.node, live.pos, view.state.selection.from);
+    const { selection } = view.state;
+    const cell = cellAtPos(live.node, live.pos, selection.from);
+    if (!cell) return null;
+    const { $from } = selection;
+    return {
+      ...cell,
+      // A range is not at an edge in the sense the arrows care about: it is being
+      // extended, and moving it to another cell would drop it.
+      atStart: selection.empty && $from.parentOffset === 0,
+      atEnd: selection.empty && $from.parentOffset === $from.parent.content.size,
+    };
   }
 
   function renderChrome(node: PMNode): void {
