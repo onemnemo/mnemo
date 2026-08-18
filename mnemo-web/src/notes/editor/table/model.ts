@@ -89,6 +89,30 @@ export function columnWidths(table: PMNode): number[] {
   return out;
 }
 
+/** A stored flag array, padded and trimmed to `count`; anything not exactly `true` is false. */
+function alignFlags(stored: unknown, count: number): boolean[] {
+  const arr = Array.isArray(stored) ? stored : [];
+  const out: boolean[] = [];
+  for (let i = 0; i < count; i++) out.push(arr[i] === true);
+  return out;
+}
+
+/**
+ * Which rows are headers, padded and trimmed to the row count.
+ *
+ * The same reconciling {@link columnWidths} does, and for the same reason: the
+ * stored flags and the table's real shape are two facts a paste, an older note or
+ * an undo caught mid-way can leave disagreeing, and every reader wants one answer.
+ */
+export function headerRowsOf(table: PMNode): boolean[] {
+  return alignFlags(table.attrs.headerRows, tableRows(table).length);
+}
+
+/** Which columns are headers, padded and trimmed to the column count. */
+export function headerColumnsOf(table: PMNode): boolean[] {
+  return alignFlags(table.attrs.headerColumns, columnCount(table));
+}
+
 export const rowRect = (table: PMNode, row: number): Rect => ({
   r0: row,
   r1: row,
@@ -226,27 +250,33 @@ export function insertRows(table: PMNode, at: number, count = 1): PMNode {
   const schema = table.type.schema;
   const cols = columnCount(table);
   const rows = tableRows(table);
+  const flags = headerRowsOf(table);
   const made = Array.from({ length: count }, () =>
     buildRow(
       schema,
       Array.from({ length: cols }, () => emptyCell(schema)),
     ),
   );
-  rows.splice(Math.max(0, Math.min(at, rows.length)), 0, ...made);
-  return rebuild(table, rows);
+  const index = Math.max(0, Math.min(at, rows.length));
+  rows.splice(index, 0, ...made);
+  // New rows are not headers, and the flags stay lined up with the rows they name.
+  flags.splice(index, 0, ...Array.from({ length: count }, () => false));
+  return rebuild(table, rows, { headerRows: flags });
 }
 
 export function insertCols(table: PMNode, at: number, count = 1): PMNode {
   const schema = table.type.schema;
   const widths = columnWidths(table);
+  const flags = headerColumnsOf(table);
   const index = Math.max(0, Math.min(at, widths.length));
   widths.splice(index, 0, ...Array.from({ length: count }, () => TABLE_COL_W));
+  flags.splice(index, 0, ...Array.from({ length: count }, () => false));
   const rows = tableRows(table).map((row) => {
     const cells = rowCells(row);
     cells.splice(index, 0, ...Array.from({ length: count }, () => emptyCell(schema)));
     return withCells(row, cells);
   });
-  return rebuild(table, rows, { columnWidths: widths });
+  return rebuild(table, rows, { columnWidths: widths, headerColumns: flags });
 }
 
 /**
@@ -271,20 +301,25 @@ export function duplicateRow(table: PMNode, at: number): PMNode {
     rowCells(source).map((cell) => withoutIdentity(cell)),
   );
   rows.splice(at + 1, 0, copy);
-  return rebuild(table, rows);
+  // A duplicate of a header row is a header row.
+  const flags = headerRowsOf(table);
+  flags.splice(at + 1, 0, flags[at] === true);
+  return rebuild(table, rows, { headerRows: flags });
 }
 
 export function duplicateCol(table: PMNode, at: number): PMNode {
   const widths = columnWidths(table);
   if (at < 0 || at >= widths.length) return table;
   widths.splice(at + 1, 0, widths[at]);
+  const flags = headerColumnsOf(table);
+  flags.splice(at + 1, 0, flags[at] === true);
   const rows = tableRows(table).map((row) => {
     const cells = rowCells(row);
     const source = cells[at];
     cells.splice(at + 1, 0, source ? withoutIdentity(source) : emptyCell(table.type.schema));
     return withCells(row, cells);
   });
-  return rebuild(table, rows, { columnWidths: widths });
+  return rebuild(table, rows, { columnWidths: widths, headerColumns: flags });
 }
 
 /**
@@ -300,6 +335,7 @@ export function removeRow(table: PMNode, at: number): PMNode {
   return rebuild(
     table,
     rows.filter((_row, index) => index !== at),
+    { headerRows: headerRowsOf(table).filter((_flag, index) => index !== at) },
   );
 }
 
@@ -314,7 +350,10 @@ export function removeCol(table: PMNode, at: number): PMNode {
         rowCells(row).filter((_cell, index) => index !== at),
       ),
     ),
-    { columnWidths: widths.filter((_width, index) => index !== at) },
+    {
+      columnWidths: widths.filter((_width, index) => index !== at),
+      headerColumns: headerColumnsOf(table).filter((_flag, index) => index !== at),
+    },
   );
 }
 
@@ -326,7 +365,8 @@ export function removeCol(table: PMNode, at: number): PMNode {
  */
 export function trimRows(table: PMNode, count: number): PMNode {
   const rows = tableRows(table);
-  return rebuild(table, rows.slice(0, Math.max(1, rows.length - count)));
+  const keep = Math.max(1, rows.length - count);
+  return rebuild(table, rows.slice(0, keep), { headerRows: headerRowsOf(table).slice(0, keep) });
 }
 
 export function trimCols(table: PMNode, count: number): PMNode {
@@ -335,7 +375,7 @@ export function trimCols(table: PMNode, count: number): PMNode {
   return rebuild(
     table,
     tableRows(table).map((row) => withCells(row, rowCells(row).slice(0, keep))),
-    { columnWidths: widths.slice(0, keep) },
+    { columnWidths: widths.slice(0, keep), headerColumns: headerColumnsOf(table).slice(0, keep) },
   );
 }
 
@@ -349,15 +389,37 @@ function shift<T>(list: T[], from: number, to: number): T[] {
 }
 
 export function moveRow(table: PMNode, from: number, to: number): PMNode {
-  return rebuild(table, shift(tableRows(table), from, to));
+  // The header flag rides its row, so it moves the same way the row does.
+  return rebuild(table, shift(tableRows(table), from, to), {
+    headerRows: shift(headerRowsOf(table), from, to),
+  });
 }
 
 export function moveCol(table: PMNode, from: number, to: number): PMNode {
   return rebuild(
     table,
     tableRows(table).map((row) => withCells(row, shift(rowCells(row), from, to))),
-    { columnWidths: shift(columnWidths(table), from, to) },
+    {
+      columnWidths: shift(columnWidths(table), from, to),
+      headerColumns: shift(headerColumnsOf(table), from, to),
+    },
   );
+}
+
+/** Flips whether row `at` is a header, leaving every other row alone. */
+export function toggleRowHeader(table: PMNode, at: number): PMNode {
+  const flags = headerRowsOf(table);
+  if (at < 0 || at >= flags.length) return table;
+  flags[at] = !flags[at];
+  return rebuild(table, tableRows(table), { headerRows: flags });
+}
+
+/** Flips whether column `at` is a header, leaving every other column alone. */
+export function toggleColumnHeader(table: PMNode, at: number): PMNode {
+  const flags = headerColumnsOf(table);
+  if (at < 0 || at >= flags.length) return table;
+  flags[at] = !flags[at];
+  return rebuild(table, tableRows(table), { headerColumns: flags });
 }
 
 /** Where a move lands a run, counted after the splice. */
@@ -438,6 +500,10 @@ export function squareUp(table: PMNode): PMNode | null {
   const widths = columnWidths(table);
   const stored = table.attrs.columnWidths;
   const widthsDiffer = !Array.isArray(stored) || stored.length !== widths.length;
+  // The header flags are not repaired here on purpose: every reader takes them
+  // through headerRowsOf / headerColumnsOf, which pad and trim to the real counts,
+  // so a short or empty stored array is already safe and squaring it up would
+  // rewrite every table on load for nothing.
   if (!changed && !widthsDiffer) return null;
   return rebuild(table, rows, { columnWidths: widths });
 }

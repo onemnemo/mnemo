@@ -138,12 +138,19 @@ export type BlockPayload =
    * their own text, so the only structure here is the part no single cell owns.
    * A column has one width by definition, which is why the widths sit here and
    * not on the cells.
+   *
+   * `headerRows` and `headerColumns` are aligned to the row and column counts:
+   * entry `i` says whether row (or column) `i` is a header. A per-axis flag, not
+   * a single "the first one is a header" toggle, because any row or column can be
+   * marked, and two of them can disagree. The two legacy booleans this replaces
+   * mapped onto the first row and the first column, and load reconciles them into
+   * position 0 of each array.
    */
   | {
       kind: 'table';
       columnWidths: number[];
-      headerRow: boolean;
-      headerCol: boolean;
+      headerRows: boolean[];
+      headerColumns: boolean[];
       fullWidth: boolean;
     }
   /** One of the named tints, or empty for no fill. */

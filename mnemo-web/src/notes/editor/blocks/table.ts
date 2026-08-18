@@ -25,7 +25,7 @@ import type { AnyBlockModule, InvariantContribution, MdContext } from '../regist
 import type { BlockType } from '../../model/types';
 import { blockChildrenOf, defineBlock, lineText, metrics, type BlockDeps } from './shared';
 import { insertTable } from './slash-insert';
-import { columnWidths, squareUp, TABLE_COL_W } from '../table/model';
+import { columnWidths, headerColumnsOf, headerRowsOf, squareUp, TABLE_COL_W } from '../table/model';
 import { tableView } from '../table/table-view';
 
 /** Roughly one line of prose plus the cell's padding. */
@@ -106,8 +106,8 @@ function tableMarkdown(node: PMNode, ctx: MdContext): string {
 export function tableBlock(deps: BlockDeps): AnyBlockModule {
   return defineBlock<{
     columnWidths: number[];
-    headerRow: boolean;
-    headerCol: boolean;
+    headerRows: boolean[];
+    headerColumns: boolean[];
     fullWidth: boolean;
   }>(
     {
@@ -116,10 +116,11 @@ export function tableBlock(deps: BlockDeps): AnyBlockModule {
       content: 'line tableRow+',
       attrs: {
         columnWidths: { default: [] as number[] },
-        /** First row reads as labels: sunken surface, medium weight. */
-        headerRow: { default: false },
-        /** Same for the first column, which is how a comparison table is usually built. */
-        headerCol: { default: false },
+        /** Per row: which rows read as labels (sunken surface, medium weight). Any
+         *  row can be one, so this is a flag per row rather than a single toggle. */
+        headerRows: { default: [] as boolean[] },
+        /** The same, per column, which is how a comparison table is usually built. */
+        headerColumns: { default: [] as boolean[] },
         /** Off, the table is capped at its own widths; on, it spans the pane. */
         fullWidth: { default: false },
       },
@@ -130,20 +131,21 @@ export function tableBlock(deps: BlockDeps): AnyBlockModule {
       },
       attrsFrom: (block) => ({
         columnWidths: block.payload.kind === 'table' ? block.payload.columnWidths : [],
-        headerRow: block.payload.kind === 'table' && block.payload.headerRow,
-        headerCol: block.payload.kind === 'table' && block.payload.headerCol,
+        headerRows: block.payload.kind === 'table' ? block.payload.headerRows : [],
+        headerColumns: block.payload.kind === 'table' ? block.payload.headerColumns : [],
         fullWidth: block.payload.kind === 'table' && block.payload.fullWidth,
       }),
       wireFrom: (node) => ({
         type: 'Table' as BlockType,
-        // Read through the reconciler rather than off the attr: the stored widths
-        // and the row shape are two facts that can disagree, and what gets written
-        // back has to be the one the view was drawn from.
+        // Read through the reconcilers rather than off the attrs: the stored
+        // widths and header flags and the table's actual shape are separate facts
+        // that can disagree, and what gets written back has to be the one the view
+        // was drawn from, padded and trimmed to the real row and column counts.
         payload: {
           kind: 'table' as const,
           columnWidths: columnWidths(node),
-          headerRow: node.attrs.headerRow === true,
-          headerCol: node.attrs.headerCol === true,
+          headerRows: headerRowsOf(node),
+          headerColumns: headerColumnsOf(node),
           fullWidth: node.attrs.fullWidth === true,
         },
       }),

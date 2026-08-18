@@ -49,6 +49,27 @@ function numbers(value: unknown): number[] {
   return value.filter((item): item is number => typeof item === 'number' && Number.isFinite(item));
 }
 
+/** A boolean array; any non-`true` entry reads as false, so the shape is total. */
+function bools(value: unknown): boolean[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => item === true);
+}
+
+/**
+ * The header arrays a table stored, reading the legacy pair when the arrays are
+ * absent. Older tables carried a single `headerRow` / `headerCol` boolean that
+ * meant "the first one is a header", so a true legacy flag becomes a header in
+ * position 0 and everything downstream sees only the array form.
+ */
+function tableHeaders(value: Json): { headerRows: boolean[]; headerColumns: boolean[] } {
+  const rows = prop(value, 'headerRows');
+  const cols = prop(value, 'headerColumns');
+  return {
+    headerRows: rows === undefined ? (bool(prop(value, 'headerRow')) ? [true] : []) : bools(rows),
+    headerColumns: cols === undefined ? (bool(prop(value, 'headerCol')) ? [true] : []) : bools(cols),
+  };
+}
+
 function isJson(value: unknown): value is Json {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -185,8 +206,7 @@ function parsePayload(value: unknown): BlockPayload {
       return {
         kind: 'table',
         columnWidths: numbers(prop(value, 'columnWidths')),
-        headerRow: bool(prop(value, 'headerRow')),
-        headerCol: bool(prop(value, 'headerCol')),
+        ...tableHeaders(value),
         fullWidth: bool(prop(value, 'fullWidth')),
       };
     case 'tablecell':

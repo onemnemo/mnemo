@@ -35,7 +35,11 @@ public class BlockJsonTableTests
         Id = "t1",
         Type = BlockType.Table,
         Spans = new List<InlineSpan> { InlineSpan.Plain(string.Empty) },
-        Payload = new TablePayload(new List<double> { 200, 160 }, HeaderRow: true, HeaderCol: false, FullWidth: true),
+        Payload = new TablePayload(
+            new List<double> { 200, 160 },
+            HeaderRows: new List<bool> { true, false },
+            HeaderColumns: new List<bool> { false, false },
+            FullWidth: true),
         Meta = new Dictionary<string, object>(),
         Children = new List<Block>
         {
@@ -55,8 +59,8 @@ public class BlockJsonTableTests
         Assert.Equal(BlockType.Table, back.Type);
         var payload = Assert.IsType<TablePayload>(back.Payload);
         Assert.Equal(new double[] { 200, 160 }, payload.ColumnWidths);
-        Assert.True(payload.HeaderRow);
-        Assert.False(payload.HeaderCol);
+        Assert.Equal(new[] { true, false }, payload.HeaderRows);
+        Assert.Equal(new[] { false, false }, payload.HeaderColumns);
         Assert.True(payload.FullWidth);
 
         Assert.NotNull(back.Children);
@@ -73,7 +77,7 @@ public class BlockJsonTableTests
     {
         var options = new JsonSerializerOptions();
         var json = """
-            {"id":"a","type":"Table","order":0,"payload":{"kind":"table","headerRow":true},"meta":{}}
+            {"id":"a","type":"Table","order":0,"payload":{"kind":"table","headerRows":[true,false]},"meta":{}}
             """;
 
         var back = JsonSerializer.Deserialize<Block>(json, options);
@@ -81,8 +85,27 @@ public class BlockJsonTableTests
         Assert.NotNull(back);
         var payload = Assert.IsType<TablePayload>(back.Payload);
         Assert.Empty(payload.ColumnWidths);
-        Assert.True(payload.HeaderRow);
+        Assert.Equal(new[] { true, false }, payload.HeaderRows);
         Assert.False(payload.FullWidth);
+    }
+
+    [Fact]
+    public void Deserialize_LegacyHeaderBooleans_BecomeTheFirstRowAndColumn()
+    {
+        // Older notes stored a single headerRow / headerCol that meant "the first
+        // one is a header". The reader lifts a true one into position 0 of the
+        // matching array, so the table still reads the same after the format change.
+        var options = new JsonSerializerOptions();
+        var json = """
+            {"id":"a","type":"Table","order":0,"payload":{"kind":"table","headerRow":true,"headerCol":false},"meta":{}}
+            """;
+
+        var back = JsonSerializer.Deserialize<Block>(json, options);
+
+        Assert.NotNull(back);
+        var payload = Assert.IsType<TablePayload>(back.Payload);
+        Assert.Equal(new[] { true }, payload.HeaderRows);
+        Assert.Empty(payload.HeaderColumns);
     }
 
     [Fact]

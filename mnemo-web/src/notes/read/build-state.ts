@@ -18,6 +18,7 @@ import { EditorState } from 'prosemirror-state';
 import { editorSchema } from '../editor/schema';
 import { createDocumentMapper, type QuarantineReason } from '../editor/mapper/document';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
+import { tableHeaderPlugin } from '../editor/table/header-decorations';
 import { codeHighlightPlugin } from '../editor/code/highlight';
 import { intrinsicSizePlugin } from '../editor/pipeline/intrinsic-size';
 import type { BlockRegistry } from '../editor/registry/build';
@@ -41,18 +42,24 @@ export function buildNoteReadState(blocks: readonly Block[]): NoteReadState {
   const mapper = createDocumentMapper(schema, registry);
   const result = mapper.toDoc(blocks);
   if (!result.ok) return { ok: false, reason: result.reason };
-  // All three decorations are needed even read-only. The numbered-list numbers
-  // are computed rather than stored, so without that plugin a list shows no
-  // sequence at all; syntax colour is likewise never stored, and unhighlighted
-  // code is exactly the thing a reader opened the note to read; and a long note
-  // is just as expensive to lay out when nobody can edit it, so the reserved
-  // heights that let the engine skip off-screen blocks belong here too.
+  // These decorations are all needed even read-only. The numbered-list numbers
+  // and the table header surfaces are computed rather than stored, so without
+  // their plugins a list shows no sequence and a header row no header; syntax
+  // colour is likewise never stored, and unhighlighted code is exactly the thing
+  // a reader opened the note to read; and a long note is just as expensive to lay
+  // out when nobody can edit it, so the reserved heights that let the engine skip
+  // off-screen blocks belong here too.
   return {
     ok: true,
     state: EditorState.create({
       schema,
       doc: result.doc,
-      plugins: [numberedListPlugin(), codeHighlightPlugin(), intrinsicSizePlugin(registry)],
+      plugins: [
+        numberedListPlugin(),
+        tableHeaderPlugin(),
+        codeHighlightPlugin(),
+        intrinsicSizePlugin(registry),
+      ],
     }),
     registry,
   };

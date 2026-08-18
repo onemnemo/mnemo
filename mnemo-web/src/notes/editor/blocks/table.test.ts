@@ -44,8 +44,10 @@ function wireTable(text: string[][], fills: Record<string, string> = {}): Block 
     payload: {
       kind: 'table',
       columnWidths: text[0].map((_unused, index) => 120 + index * 20),
-      headerRow: true,
-      headerCol: false,
+      // First row a header, no header columns: the flags round-trip as their
+      // arrays, one entry per row and per column.
+      headerRows: text.map((_row, index) => index === 0),
+      headerColumns: text[0].map(() => false),
       fullWidth: false,
     },
     children: text.map((row, r) =>
@@ -117,7 +119,7 @@ describe('loading damaged data', () => {
     // Nothing on either side of the wire indexes a table positionally, so an
     // empty one is not a crash; making the document unreadable over it would be.
     const empty = block('Table', '', {
-      payload: { kind: 'table', columnWidths: [], headerRow: false, headerCol: false, fullWidth: false },
+      payload: { kind: 'table', columnWidths: [], headerRows: [], headerColumns: [], fullWidth: false },
       children: [],
     });
     const result = mapper.toDoc([empty]);

@@ -45,10 +45,17 @@ public sealed record SketchPayload(
 /// definition: storing it per cell makes a table whose rows disagree about it representable, and
 /// then every reader has to decide which row wins.
 /// </summary>
+/// <summary>
+/// A table's own structure. <see cref="HeaderRows"/> and <see cref="HeaderColumns"/> are aligned
+/// to the row and column counts: entry <c>i</c> says whether row (or column) <c>i</c> is a header.
+/// A flag per row and per column, not one "the first is a header" toggle, because any row or column
+/// can be marked. The two booleans this replaced mapped onto the first row and column; a reader
+/// takes a legacy note's <c>headerRow</c> / <c>headerCol</c> into position 0 of each array.
+/// </summary>
 public sealed record TablePayload(
     IReadOnlyList<double> ColumnWidths,
-    bool HeaderRow = false,
-    bool HeaderCol = false,
+    IReadOnlyList<bool> HeaderRows,
+    IReadOnlyList<bool> HeaderColumns,
     bool FullWidth = false) : BlockPayload;
 
 /// <summary>Fill for <see cref="BlockType.TableCell"/>: one of the named tints, or empty for none.</summary>

@@ -466,10 +466,11 @@
 }
 
 /* A header is structure, so it takes the neutral sunken surface rather than one
- * of the eight hues. Declared before the fills, so a cell someone coloured on
- * purpose still wins inside a header row. */
-.notes-doc .notes-table[data-header-row] [data-table-row]:nth-child(2) > [data-table-cell],
-.notes-doc .notes-table[data-header-col] [data-table-cell]:nth-child(2) {
+ * of the eight hues. The class is a decoration the header plugin puts on every
+ * cell a header row or column covers, since which rows and columns are headers is
+ * a set that changes per table and CSS cannot select one. Declared before the
+ * fills, so a cell someone coloured on purpose still wins inside a header. */
+.notes-doc [data-table-cell].notes-cell-head {
   background: var(--cell-head);
   font-weight: 500;
 }

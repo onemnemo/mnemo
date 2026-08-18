@@ -104,7 +104,7 @@ describe('a press below the last block', () => {
    * after it.
    */
   const table = () =>
-    block('Table', [span('')], { kind: 'table', columnWidths: [180], headerRow: false, headerCol: false, fullWidth: false }, {
+    block('Table', [span('')], { kind: 'table', columnWidths: [180], headerRows: [], headerColumns: [], fullWidth: false }, {
       children: [
         block('TableRow', [span('')], { kind: 'empty' }, {
           children: [block('TableCell', [span('cell')], { kind: 'tableCell', fill: '' })],

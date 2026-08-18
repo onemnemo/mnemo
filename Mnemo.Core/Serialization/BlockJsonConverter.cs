@@ -141,8 +141,8 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
                 TryGetPropertyCaseInsensitive(el, "align", out var sal) ? sal.GetString() ?? "left" : "left"),
             "table" => new TablePayload(
                 ReadDoubleArray(el, "columnWidths"),
-                TryGetPropertyCaseInsensitive(el, "headerRow", out var thr) && thr.ValueKind == JsonValueKind.True,
-                TryGetPropertyCaseInsensitive(el, "headerCol", out var thc) && thc.ValueKind == JsonValueKind.True,
+                ReadHeaderFlags(el, "headerRows", "headerRow"),
+                ReadHeaderFlags(el, "headerColumns", "headerCol"),
                 TryGetPropertyCaseInsensitive(el, "fullWidth", out var tfw) && tfw.ValueKind == JsonValueKind.True),
             "tablecell" => new TableCellPayload(
                 TryGetPropertyCaseInsensitive(el, "fill", out var fill) && fill.ValueKind == JsonValueKind.String
@@ -170,6 +170,25 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
         }
 
         return list;
+    }
+
+    /// <summary>
+    /// The header flags for one axis, reading the modern array or, when it is absent, the legacy
+    /// single boolean that meant "the first one is a header" (which becomes a header in position 0).
+    /// </summary>
+    private static List<bool> ReadHeaderFlags(JsonElement el, string arrayName, string legacyName)
+    {
+        if (TryGetPropertyCaseInsensitive(el, arrayName, out var arr) && arr.ValueKind == JsonValueKind.Array)
+        {
+            var list = new List<bool>();
+            foreach (var item in arr.EnumerateArray())
+                list.Add(item.ValueKind == JsonValueKind.True);
+            return list;
+        }
+
+        return TryGetPropertyCaseInsensitive(el, legacyName, out var legacy) && legacy.ValueKind == JsonValueKind.True
+            ? new List<bool> { true }
+            : new List<bool>();
     }
 
     private static List<InlineSpan> ReadSpans(JsonElement arr)
@@ -272,6 +291,19 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
         writer.WriteEndObject();
     }
 
+    private static void WriteBoolArray(Utf8JsonWriter writer, string propertyName, IReadOnlyList<bool>? values)
+    {
+        writer.WritePropertyName(propertyName);
+        writer.WriteStartArray();
+        if (values is not null)
+        {
+            foreach (var value in values)
+                writer.WriteBooleanValue(value);
+        }
+
+        writer.WriteEndArray();
+    }
+
     private static void WritePayload(Utf8JsonWriter writer, BlockPayload payload)
     {
         writer.WriteStartObject();
@@ -328,8 +360,8 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
                 foreach (var width in tbl.ColumnWidths)
                     writer.WriteNumberValue(width);
                 writer.WriteEndArray();
-                writer.WriteBoolean("headerRow", tbl.HeaderRow);
-                writer.WriteBoolean("headerCol", tbl.HeaderCol);
+                WriteBoolArray(writer, "headerRows", tbl.HeaderRows);
+                WriteBoolArray(writer, "headerColumns", tbl.HeaderColumns);
                 writer.WriteBoolean("fullWidth", tbl.FullWidth);
                 break;
             case TableCellPayload cell:
