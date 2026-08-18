@@ -94,6 +94,16 @@ describe('wire round-trip', () => {
     expect(again.children?.[0].id).toBe('c1');
     expect(flattenDisplay(again.children![0].spans)).toBe('inner');
   });
+
+  it('keeps a table\'s per-row and per-column header flags', () => {
+    const parsed = parseBlock({
+      id: 't', type: 'Table', order: 0,
+      payload: { kind: 'table', columnWidths: [180, 180], headerRows: [false, true], headerColumns: [true, false], fullWidth: false },
+    });
+    expect(parsed.payload).toMatchObject({ headerRows: [false, true], headerColumns: [true, false] });
+    const again = parseBlock(serializeBlock(parsed));
+    expect(again.payload).toEqual(parsed.payload);
+  });
 });
 
 describe('legacy shapes still on disk', () => {
@@ -136,6 +146,16 @@ describe('legacy shapes still on disk', () => {
   it('recognises an equation span written without a kind', () => {
     const block = parseBlock({ id: 'x', type: 'Text', spans: [{ latex: 'x^2' }] });
     expect(block.spans[0].kind).toBe('equation');
+  });
+
+  it('lifts a legacy table header boolean into the first row or column', () => {
+    // Older notes stored a single headerRow / headerCol; a true one becomes a
+    // header in position 0 so the table reads the same after the format change.
+    const block = parseBlock({
+      id: 'x', type: 'Table', order: 0,
+      payload: { kind: 'table', columnWidths: [180], headerRow: true, headerCol: false, fullWidth: false },
+    });
+    expect(block.payload).toMatchObject({ kind: 'table', headerRows: [true], headerColumns: [] });
   });
 
   it('backfills code spans from the payload so the block is editable', () => {

@@ -24,6 +24,8 @@ import {
   duplicateCol,
   duplicateRow,
   fillRect,
+  headerColumnsOf,
+  headerRowsOf,
   insertCols,
   insertRows,
   landedAt,
@@ -37,6 +39,8 @@ import {
   setColumnWidth,
   squareUp,
   tableRows,
+  toggleColumnHeader,
+  toggleRowHeader,
   trimCols,
   trimRows,
 } from './model';
@@ -293,5 +297,80 @@ describe('positions', () => {
   it('answers null for a cell that is not there', () => {
     expect(cellCaretPos(sample(), 0, 9, 0)).toBeNull();
     expect(cellCaretPos(sample(), 0, 0, 9)).toBeNull();
+  });
+});
+
+/**
+ * The header flags are indexed by row and by column, exactly like the widths, so
+ * every shape operation has to keep them lined up with the rows and columns they
+ * name. Any single row or column can be a header, independent of the rest.
+ */
+describe('header flags', () => {
+  /** Force a stored header array onto a table, to stand in for a paste or an older note. */
+  const withStored = (table: PMNode, attrs: Record<string, unknown>): PMNode =>
+    table.type.create({ ...table.attrs, ...attrs }, table.content);
+
+  it('toggles one row and leaves the rest, and toggling again clears it', () => {
+    const on = toggleRowHeader(sample(), 1);
+    expect(headerRowsOf(on)).toEqual([false, true]);
+    expect(headerRowsOf(toggleRowHeader(on, 1))).toEqual([false, false]);
+  });
+
+  it('toggles one column and leaves the rest', () => {
+    expect(headerColumnsOf(toggleColumnHeader(sample(), 2))).toEqual([false, false, true]);
+  });
+
+  it('pads a short stored array and trims a long one to the real counts', () => {
+    expect(headerRowsOf(withStored(sample(), { headerRows: [true] }))).toEqual([true, false]);
+    expect(
+      headerColumnsOf(withStored(sample(), { headerColumns: [false, true, false, true, true] })),
+    ).toEqual([false, true, false]);
+  });
+
+  it('keeps a header row lined up when a row is inserted above it', () => {
+    const table = toggleRowHeader(sample(), 1);
+    expect(headerRowsOf(insertRows(table, 0, 1))).toEqual([false, false, true]);
+  });
+
+  it('drops the flag of a deleted row', () => {
+    expect(headerRowsOf(removeRow(toggleRowHeader(sample(), 0), 0))).toEqual([false]);
+  });
+
+  it('moves a header flag with its row', () => {
+    const moved = moveRow(toggleRowHeader(sample(), 0), 0, 2);
+    expect(grid(moved)).toEqual([
+      ['a2', 'b2', 'c2'],
+      ['a1', 'b1', 'c1'],
+    ]);
+    expect(headerRowsOf(moved)).toEqual([false, true]);
+  });
+
+  it('duplicates a header row as a header row', () => {
+    expect(headerRowsOf(duplicateRow(toggleRowHeader(sample(), 0), 0))).toEqual([true, true, false]);
+  });
+
+  it('keeps header columns lined up through every column edit', () => {
+    const table = toggleColumnHeader(sample(), 0);
+    expect(headerColumnsOf(insertCols(table, 0, 1))).toEqual([false, true, false, false]);
+    expect(headerColumnsOf(removeCol(table, 0))).toEqual([false, false]);
+    expect(headerColumnsOf(moveCol(table, 0, 3))).toEqual([false, false, true]);
+    expect(headerColumnsOf(duplicateCol(table, 0))).toEqual([true, true, false, false]);
+  });
+
+  it('slices the flags when the table is trimmed back', () => {
+    const rows = toggleRowHeader(insertRows(sample(), 2, 2), 1);
+    expect(headerRowsOf(trimRows(rows, 2))).toEqual([false, true]);
+    const cols = toggleColumnHeader(sample(), 2);
+    expect(headerColumnsOf(trimCols(cols, 1))).toEqual([false, false]);
+  });
+
+  it('reads a mismatched stored array back into shape without a repair pass', () => {
+    // Squaring up deliberately leaves the flags alone: the reconcilers pad and
+    // trim on read, so a stored array of any length is already safe and a table
+    // that only disagrees about them is not something to rewrite on load.
+    const messy = withStored(sample(), { headerRows: [true], headerColumns: [true, true, true, true] });
+    expect(squareUp(messy)).toBeNull();
+    expect(headerRowsOf(messy)).toEqual([true, false]);
+    expect(headerColumnsOf(messy)).toEqual([true, true, true]);
   });
 });

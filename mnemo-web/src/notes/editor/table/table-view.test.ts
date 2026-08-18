@@ -75,11 +75,9 @@ describe('table NodeView', () => {
     expect(realized.dom.hasAttribute('data-full-width')).toBe(true);
   });
 
-  it('flags the header row and column for the stylesheet', () => {
-    const { realized } = mount({ headerRow: true, headerCol: true });
-    expect(realized.dom.hasAttribute('data-header-row')).toBe(true);
-    expect(realized.dom.hasAttribute('data-header-col')).toBe(true);
-  });
+  // Which rows and columns are headers is painted by a decoration plugin, not by
+  // this view (see header-decorations.test.ts), so the view writes no header
+  // attribute of its own.
 
   it('renders with no portal registry, minus the chrome', () => {
     const { realized } = mount();

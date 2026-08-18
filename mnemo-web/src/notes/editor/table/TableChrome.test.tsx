@@ -84,8 +84,8 @@ const tableBlock = (): Block =>
     payload: {
       kind: 'table',
       columnWidths: [CELL_W, CELL_W],
-      headerRow: false,
-      headerCol: false,
+      headerRows: [],
+      headerColumns: [],
       fullWidth: false,
     },
     children: [0, 1].map((r) =>

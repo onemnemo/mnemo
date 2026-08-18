@@ -125,7 +125,7 @@ describe('Ctrl+A', () => {
 
   it('takes one cell of a table, not the table', () => {
     open([
-      block('Table', [span('')], { kind: 'table', columnWidths: [180, 180], headerRow: false, headerCol: false, fullWidth: false }, {
+      block('Table', [span('')], { kind: 'table', columnWidths: [180, 180], headerRows: [], headerColumns: [], fullWidth: false }, {
         children: [
           block('TableRow', [span('')], { kind: 'empty' }, {
             children: [

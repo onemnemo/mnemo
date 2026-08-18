@@ -11,6 +11,8 @@ import {
   duplicateCol,
   duplicateRow,
   fillRect,
+  headerColumnsOf,
+  headerRowsOf,
   insertCols,
   insertRows,
   isSingleCell,
@@ -20,6 +22,8 @@ import {
   rowCells,
   rowRect,
   tableRows,
+  toggleColumnHeader,
+  toggleRowHeader,
   type Rect,
 } from './model'
 import { NO_TINT, tableTints, tintFill, type Tint } from './tints'
@@ -114,35 +118,46 @@ function ColorSubMenu({ node, apply, rect }: TableMenuProps & { rect: Rect }) {
   )
 }
 
-/** The three settings that belong to the table rather than to any row or cell. */
-export function TableSettingsItems({ node, apply, labelled }: TableMenuProps & { labelled?: boolean }) {
+/**
+ * The settings reached from a cell: this cell's own row and column as headers,
+ * and the one setting that is genuinely the whole table's.
+ *
+ * The header toggles name the cell's row and column, not "the first row", so the
+ * cell menu says the same thing the row and column grips do: a header is whichever
+ * row or column you pointed at. `at` defaults to the top left so the section is
+ * still total when it is raised without a cell under it.
+ */
+export function TableSettingsItems({
+  node,
+  apply,
+  labelled,
+  at = { row: 0, col: 0 },
+}: TableMenuProps & { labelled?: boolean; at?: { row: number; col: number } }) {
   const t = useT()
   const nt = (key: string) => t('NotesEditor', key)
-  const set = (patch: Record<string, unknown>) =>
-    apply(node.type.create({ ...node.attrs, ...patch }, node.content))
+  const headerRows = headerRowsOf(node)
+  const headerColumns = headerColumnsOf(node)
+  const setFullWidth = () =>
+    apply(node.type.create({ ...node.attrs, fullWidth: node.attrs.fullWidth !== true }, node.content))
 
   return (
     <>
       {labelled ? <MenuSectionLabel>{nt('TableSectionTable')}</MenuSectionLabel> : null}
       <MenuCheckItem
-        checked={node.attrs.headerRow === true}
+        checked={headerRows[at.row] === true}
         icon="rows-3"
-        onSelect={() => set({ headerRow: node.attrs.headerRow !== true })}
+        onSelect={() => apply(toggleRowHeader(node, at.row))}
       >
         {nt('TableHeaderRow')}
       </MenuCheckItem>
       <MenuCheckItem
-        checked={node.attrs.headerCol === true}
+        checked={headerColumns[at.col] === true}
         icon="columns-3"
-        onSelect={() => set({ headerCol: node.attrs.headerCol !== true })}
+        onSelect={() => apply(toggleColumnHeader(node, at.col))}
       >
         {nt('TableHeaderColumn')}
       </MenuCheckItem>
-      <MenuCheckItem
-        checked={node.attrs.fullWidth === true}
-        icon="maximize"
-        onSelect={() => set({ fullWidth: node.attrs.fullWidth !== true })}
-      >
+      <MenuCheckItem checked={node.attrs.fullWidth === true} icon="maximize" onSelect={setFullWidth}>
         {nt('TableFitToWidth')}
       </MenuCheckItem>
     </>
@@ -165,17 +180,14 @@ export function AxisMenuItems({
   const isRow = kind === 'row'
   const rect = isRow ? rowRect(node, at) : colRect(node, at)
   const last = isRow ? tableRows(node).length <= 1 : columnCount(node) <= 1
-  const set = (patch: Record<string, unknown>) =>
-    apply(node.type.create({ ...node.attrs, ...patch }, node.content))
+  const isHeader = (isRow ? headerRowsOf(node) : headerColumnsOf(node))[at] === true
 
   return (
     <>
       <MenuCheckItem
-        checked={(isRow ? node.attrs.headerRow : node.attrs.headerCol) === true}
+        checked={isHeader}
         icon={isRow ? 'rows-3' : 'columns-3'}
-        onSelect={() =>
-          set(isRow ? { headerRow: node.attrs.headerRow !== true } : { headerCol: node.attrs.headerCol !== true })
-        }
+        onSelect={() => apply(isRow ? toggleRowHeader(node, at) : toggleColumnHeader(node, at))}
       >
         {nt(isRow ? 'TableHeaderRow' : 'TableHeaderColumn')}
       </MenuCheckItem>
@@ -281,7 +293,15 @@ export function CellMenuItems({
         {cols === 1 ? nt('TableDeleteColumn') : nt('TableDeleteColumns', { 0: cols })}
       </MenuItem>
       <MenuSeparator />
-      <TableSettingsItems node={node} apply={apply} clearSelection={clearSelection} labelled />
+      {/* The header toggles name this cell's own row and column, the top left of
+          the selection if it spans several. */}
+      <TableSettingsItems
+        node={node}
+        apply={apply}
+        clearSelection={clearSelection}
+        at={{ row: box.r0, col: box.c0 }}
+        labelled
+      />
     </>
   )
 }

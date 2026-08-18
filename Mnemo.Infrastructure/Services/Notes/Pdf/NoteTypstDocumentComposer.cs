@@ -454,10 +454,11 @@ internal static class NoteTypstDocumentComposer
         }
 
         sb.Append("),\n  inset: 6pt,\n  stroke: 0.5pt + rgb(\"#d4d4d4\"),\n");
-        sb.Append("  fill: (column, row) => if row == 0 and ")
-          .Append(payload?.HeaderRow == true ? "true" : "false")
-          .Append(" { rgb(\"#f2f2f2\") } else if column == 0 and ")
-          .Append(payload?.HeaderCol == true ? "true" : "false")
+        // Any row or column can be a header, so the shade is looked up from a flag
+        // per row and per column rather than pinned to the first of each.
+        sb.Append("  fill: (column, row) => if ")
+          .Append(TypstBoolArray(payload?.HeaderRows, rows.Count)).Append(".at(row) or ")
+          .Append(TypstBoolArray(payload?.HeaderColumns, columns)).Append(".at(column)")
           .Append(" { rgb(\"#f2f2f2\") } else { none },\n");
 
         foreach (var row in rows)
@@ -473,6 +474,27 @@ internal static class NoteTypstDocumentComposer
         }
 
         sb.Append(")\n\n");
+    }
+
+    /// <summary>
+    /// A Typst boolean array of exactly <paramref name="count"/> entries, so <c>fill</c> can index
+    /// it by row or column. A one-element array needs the trailing comma or Typst reads it as a
+    /// parenthesised boolean rather than an array.
+    /// </summary>
+    private static string TypstBoolArray(IReadOnlyList<bool>? flags, int count)
+    {
+        var sb = new StringBuilder("(");
+        for (var i = 0; i < count; i++)
+        {
+            if (i > 0)
+                sb.Append(", ");
+            sb.Append(flags is not null && i < flags.Count && flags[i] ? "true" : "false");
+        }
+
+        if (count == 1)
+            sb.Append(',');
+        sb.Append(')');
+        return sb.ToString();
     }
 
     private static void EmitImage(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets)

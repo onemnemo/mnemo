@@ -40,6 +40,7 @@ import { defaultPasteAssetSupport } from '../clipboard/stage-assets';
 import { nestedInputGuard } from '../editor/pipeline/nested-input';
 import { trailingClickPlugin } from '../editor/pipeline/trailing-click';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
+import { tableHeaderPlugin } from '../editor/table/header-decorations';
 import { codeHighlightPlugin } from '../editor/code/highlight';
 import { slashHintPlugin } from '../editor/pipeline/slash-hint';
 import { findPlugin } from '../find/find-plugin';
@@ -160,6 +161,10 @@ export function editorPlugins(
     // like them it appends rather than touching key dispatch.
     containerCaretGuard(),
     numberedListPlugin(),
+    // Decoration only, like its list-numbering neighbour: it paints the header
+    // surface on the cells a header row or column covers, computed from the
+    // table's own flags, so it claims no key and never dirties the note.
+    tableHeaderPlugin(),
     // Another decoration-only neighbour: it colours source and nothing else, so
     // it claims no key, appends no step and never dirties the note.
     codeHighlightPlugin(),

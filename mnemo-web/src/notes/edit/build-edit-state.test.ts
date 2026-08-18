@@ -46,7 +46,7 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry, inline } = editorSchema();
     const plugins = editorPlugins(registry, inline);
-    expect(plugins).toHaveLength(22);
+    expect(plugins).toHaveLength(23);
     // Five positions carry meaning rather than tidiness. The nested-input guard
     // has to be asked before the keymaps it stands down; the trailing-click rule
     // claims a press under the document before anything reads it as a press on

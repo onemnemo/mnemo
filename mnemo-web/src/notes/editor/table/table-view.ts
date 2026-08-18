@@ -176,8 +176,9 @@ export function tableView(args: RealizedBlockViewArgs<Record<string, unknown>>):
         : widths.map((width) => `${width}px`).join(' '),
     );
     frame.style.width = fullWidth ? '100%' : 'max-content';
-    dom.toggleAttribute('data-header-row', node.attrs.headerRow === true);
-    dom.toggleAttribute('data-header-col', node.attrs.headerCol === true);
+    // Header cells are painted by a decoration plugin, not from here: which rows
+    // and columns are headers is a per-table set CSS cannot select, so the flags
+    // never become an attribute on this element.
     dom.toggleAttribute('data-full-width', fullWidth);
     renderChrome(node);
   }
