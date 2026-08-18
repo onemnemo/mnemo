@@ -19,6 +19,7 @@ import {
   moveRow,
   movesAnything,
   normalizeRect,
+  readRectText,
   rectHolds,
   rowCells,
   rowRect,
@@ -30,6 +31,7 @@ import {
 } from './model'
 import { AxisMenuItems, CellMenuItems } from './TableMenus'
 import { useTableGrid } from './useTableGrid'
+import { writeGridToClipboard } from '../../clipboard/table-grid'
 
 /**
  * Everything on a table that is not the text in it.
@@ -400,6 +402,24 @@ export function TableChrome({
       if (!here) {
         if (sel) setSel(null)
         return
+      }
+
+      // Copy or cut a cell rectangle. The paint is chrome state, invisible to the
+      // editor's own clipboard, so the grid is written here as tab separated text
+      // and an HTML table, the two a spreadsheet reads. A single cell is left to
+      // the ordinary text copy; only a real rectangle is a grid.
+      if ((event.ctrlKey || event.metaKey) && !event.altKey) {
+        const key = event.key.toLowerCase()
+        if ((key === 'c' || key === 'x') && sel) {
+          const rect = selRect(sel, table)
+          if (!(sel.kind === 'cells' && isSingleCell(rect))) {
+            event.preventDefault()
+            event.stopPropagation()
+            void writeGridToClipboard(readRectText(table, rect))
+            if (key === 'x') apply(clearRect(table, rect))
+            return
+          }
+        }
       }
 
       if (event.key === 'Escape') {

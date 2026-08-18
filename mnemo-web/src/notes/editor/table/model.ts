@@ -507,3 +507,82 @@ export function squareUp(table: PMNode): PMNode | null {
   if (!changed && !widthsDiffer) return null;
   return rebuild(table, rows, { columnWidths: widths });
 }
+
+/* -------------------------------------------------------------------------- */
+/* Clipboard grids                                                            */
+/* -------------------------------------------------------------------------- */
+
+/** A line holding `text`, its newlines kept as the soft breaks a cell wraps on. */
+function cellLine(schema: Schema, text: string): PMNode {
+  return schema.nodes.line.create(null, text.length > 0 ? schema.text(text) : null);
+}
+
+/** The text of the cells in `rect`, row by row, for a copy to the clipboard. */
+export function readRectText(table: PMNode, rect: Rect): string[][] {
+  const box = normalizeRect(rect);
+  const rows = tableRows(table);
+  const out: string[][] = [];
+  for (let r = box.r0; r <= box.r1; r++) {
+    const cells = rows[r] ? rowCells(rows[r]) : [];
+    const line: string[] = [];
+    for (let c = box.c0; c <= box.c1; c++) line.push(cells[c]?.textContent ?? '');
+    out.push(line);
+  }
+  return out;
+}
+
+/**
+ * Writes `grid` into the table with its top left at (row, col), growing the table
+ * with empty rows and columns as needed to hold it.
+ *
+ * Cells outside the pasted block keep their content, and the pasted cells keep
+ * their own fill: a paste replaces the words, not the colour of the row they land
+ * in. A ragged grid row leaves the cells past its own end untouched rather than
+ * blanking them.
+ */
+export function writeCells(
+  table: PMNode,
+  at: { row: number; col: number },
+  grid: readonly (readonly string[])[],
+): PMNode {
+  const height = grid.length;
+  const width = grid.reduce((widest, row) => Math.max(widest, row.length), 0);
+  if (height === 0 || width === 0) return table;
+  const schema = table.type.schema;
+
+  let next = table;
+  const missingRows = at.row + height - tableRows(next).length;
+  if (missingRows > 0) next = insertRows(next, tableRows(next).length, missingRows);
+  const missingCols = at.col + width - columnCount(next);
+  if (missingCols > 0) next = insertCols(next, columnCount(next), missingCols);
+
+  const rows = tableRows(next).map((row, r) => {
+    if (r < at.row || r >= at.row + height) return row;
+    const values = grid[r - at.row];
+    const cells = rowCells(row).map((cell, c) => {
+      if (c < at.col || c >= at.col + width) return cell;
+      const value = values[c - at.col];
+      return value === undefined ? cell : cell.type.create(cell.attrs, cellLine(schema, value));
+    });
+    return withCells(row, cells);
+  });
+  return rebuild(next, rows);
+}
+
+/** A fresh table holding `grid`, padded to the width of its widest row. */
+export function gridToTable(schema: Schema, grid: readonly (readonly string[])[]): PMNode {
+  const width = grid.reduce((widest, row) => Math.max(widest, row.length), 0);
+  if (grid.length === 0 || width === 0) return createTable(schema, 1, 1);
+  const body = grid.map((values) =>
+    buildRow(
+      schema,
+      Array.from({ length: width }, (_unused, c) =>
+        schema.nodes.tableCell.create(null, cellLine(schema, values[c] ?? '')),
+      ),
+    ),
+  );
+  return schema.nodes.table.create(
+    { columnWidths: Array.from({ length: width }, () => TABLE_COL_W) },
+    [schema.nodes.line.create(), ...body],
+  );
+}
