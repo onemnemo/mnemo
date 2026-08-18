@@ -48,7 +48,11 @@ export function placeBlockRun(state: EditorState, slice: Slice): Transaction {
   if (spansBlocks) {
     return replaceSpanningSelection(state, nodes) ?? state.tr.replaceSelection(slice);
   }
-  if (containerBlockNames.has(ctx.block.type.name)) {
+  // A table cell is not a container, but the raw-position inserts below would put
+  // a block at the row level, which the row cannot hold, and the isolating table
+  // tears open around it. Fit the paste inside the cell instead, the way the
+  // external-HTML path already does; the isolating cell keeps the content in it.
+  if (containerBlockNames.has(ctx.block.type.name) || ctx.block.type.name === 'tableCell') {
     return state.tr.replaceSelection(slice);
   }
 
