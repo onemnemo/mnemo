@@ -295,6 +295,12 @@ export const splitBlock: Command = (state, dispatch) => {
   // the key rather than let the generic path treat the container as one.
   if (containerBlockNames.has(block.type.name)) return true;
 
+  // A table cell holds one run of prose, so Enter is a line break inside the cell,
+  // never a block split. The generic split would insert a sibling block at the
+  // row level, which the row cannot hold, and the isolating table tears open
+  // around the misfit. Tab is how the caret leaves a cell; Enter stays in it.
+  if (block.type.name === 'tableCell') return insertSoftBreak(state, dispatch);
+
   // Source blocks: plain Enter is a newline in the source, never a split.
   if (line.type.name === 'codeLine') return insertSoftBreak(state, dispatch);
 
@@ -435,6 +441,13 @@ export const backspaceStructural: Command = (state, dispatch) => {
   // Same guard as the split: a container is never the caret's block, and the
   // de-format branch below would otherwise try to convert it to Text.
   if (containerBlockNames.has(block.type.name)) return true;
+
+  // A table cell is not a formattable block: the de-format branch below would
+  // convert it to a paragraph, which is invalid inside its row and throws. At
+  // column 0 there is nothing to merge into either (the row's cells are
+  // isolating), so Backspace does nothing structural here; ordinary character
+  // deletion (offset > 0, handled before this command) is unaffected.
+  if (block.type.name === 'tableCell') return true;
 
   const isText = block.type.name === 'paragraph';
   const empty = isContentVisuallyEmpty(line.content);
