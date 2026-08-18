@@ -35,10 +35,26 @@ public static class CrashLog
     public static void InstallProcessHandlers()
     {
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-            Write("Unhandled exception on a background thread.", e.ExceptionObject as Exception);
+        {
+            var error = e.ExceptionObject as Exception;
+            Write("Unhandled exception on a background thread.", error);
+
+            // Only when the process is going down with it. The window is about to
+            // disappear out from under whatever the person was doing, and without
+            // this that is the entire report they can give: it vanished. The
+            // dialog blocks, which is the point, since the alternative is that the
+            // runtime tears the process down before anything is read.
+            if (e.IsTerminating && error is not null)
+                FatalDialog.ShowCrash(error);
+        };
 
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
+            // Deliberately no dialog. This fires from a finalizer for any task whose
+            // fault nobody awaited, which includes fire-and-forget work that failed
+            // harmlessly, and the app carries on running afterwards either way. A
+            // modal here would interrupt a working app to report something it has
+            // already recovered from, and could do it repeatedly.
             Write("Faulted task was never observed.", e.Exception);
             e.SetObserved();
         };

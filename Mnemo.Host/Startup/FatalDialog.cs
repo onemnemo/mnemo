@@ -19,8 +19,6 @@ namespace Mnemo.Host.Startup;
 /// </remarks>
 internal static class FatalDialog
 {
-    private const string Title = "Mnemo could not start";
-
     private const uint MessageBoxOk = 0x00000000;
     private const uint MessageBoxIconError = 0x00000010;
     private const uint MessageBoxSetForeground = 0x00010000;
@@ -29,12 +27,25 @@ internal static class FatalDialog
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
 
+    /// <summary>Reports a fault that stopped the app from starting at all.</summary>
+    public static void ShowStartupFailure(Exception error) => Show(error, "Mnemo could not start");
+
+    /// <summary>
+    /// Reports a fault that has brought the running app down.
+    /// </summary>
+    /// <remarks>
+    /// Worth telling apart from a startup failure, because the two send a person to
+    /// different places: one never opened, and the other was working a moment ago and
+    /// took whatever was on screen with it.
+    /// </remarks>
+    public static void ShowCrash(Exception error) => Show(error, "Mnemo has stopped");
+
     /// <summary>
     /// Shows the fault, if there is anyone there to see it. Never throws: this
     /// runs while the process is already failing, and a second fault raised by
     /// the code reporting the first would replace it.
     /// </summary>
-    public static void Show(Exception error)
+    private static void Show(Exception error, string title)
     {
         // A service or a CI run has no desktop to put a modal on and must not be
         // blocked by one. This is only ever false on Windows: .NET reports every
@@ -43,13 +54,13 @@ internal static class FatalDialog
         if (!Environment.UserInteractive)
             return;
 
-        var message = Compose(error);
+        var message = Compose(error, title);
 
         try
         {
             if (OperatingSystem.IsWindows())
             {
-                ShowOnWindows(message);
+                ShowOnWindows(message, title);
                 return;
             }
 
@@ -57,12 +68,12 @@ internal static class FatalDialog
             // started from one, and that is how the first run on a new platform
             // usually happens. Writing first means the text survives even when
             // every dialog helper below turns out to be missing.
-            Console.Error.WriteLine($"{Title}{Environment.NewLine}{message}");
+            Console.Error.WriteLine($"{title}{Environment.NewLine}{message}");
 
             if (OperatingSystem.IsMacOS())
-                ShowOnMacOS(message);
+                ShowOnMacOS(message, title);
             else if (OperatingSystem.IsLinux())
-                ShowOnLinux(message);
+                ShowOnLinux(message, title);
         }
         catch
         {
@@ -71,11 +82,11 @@ internal static class FatalDialog
     }
 
     [SupportedOSPlatform("windows")]
-    private static void ShowOnWindows(string message) =>
+    private static void ShowOnWindows(string message, string title) =>
         MessageBoxW(
             IntPtr.Zero,
             message,
-            Title,
+            title,
             MessageBoxOk | MessageBoxIconError | MessageBoxSetForeground | MessageBoxTopMost);
 
     /// <remarks>
@@ -84,10 +95,10 @@ internal static class FatalDialog
     /// pasted into the script text, so a fault message containing a quote cannot
     /// change what AppleScript ends up running.
     /// </remarks>
-    private static void ShowOnMacOS(string message) =>
+    private static void ShowOnMacOS(string message, string title) =>
         Run("/usr/bin/osascript",
             "-e", "on run argv",
-            "-e", $"display dialog (item 1 of argv) with title \"{Title}\" buttons {{\"OK\"}} default button \"OK\" with icon stop",
+            "-e", $"display dialog (item 1 of argv) with title \"{title}\" buttons {{\"OK\"}} default button \"OK\" with icon stop",
             "-e", "end run",
             message);
 
@@ -96,7 +107,7 @@ internal static class FatalDialog
     /// usual set and stops at the first one that runs: zenity ships with GNOME,
     /// kdialog with KDE, and xmessage with X itself.
     /// </remarks>
-    private static void ShowOnLinux(string message)
+    private static void ShowOnLinux(string message, string title)
     {
         // No session means nobody to show a dialog to, and a helper left waiting on a
         // display that is not there would hold a dying process open indefinitely.
@@ -104,10 +115,10 @@ internal static class FatalDialog
             && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")))
             return;
 
-        if (Run("zenity", "--error", "--title", Title, "--text", message))
+        if (Run("zenity", "--error", "--title", title, "--text", message))
             return;
 
-        if (Run("kdialog", "--title", Title, "--error", message))
+        if (Run("kdialog", "--title", title, "--error", message))
             return;
 
         Run("xmessage", "-center", message);
@@ -143,14 +154,14 @@ internal static class FatalDialog
         }
     }
 
-    private static string Compose(Exception error)
+    private static string Compose(Exception error, string title)
     {
         var detail = $"{error.GetType().Name}: {error.Message}";
         var logs = SafeLogsDirectory();
 
         return logs is null
-            ? $"Mnemo could not start.{Environment.NewLine}{Environment.NewLine}{detail}"
-            : $"Mnemo could not start.{Environment.NewLine}{Environment.NewLine}{detail}"
+            ? $"{title}.{Environment.NewLine}{Environment.NewLine}{detail}"
+            : $"{title}.{Environment.NewLine}{Environment.NewLine}{detail}"
               + $"{Environment.NewLine}{Environment.NewLine}The full details were written to:{Environment.NewLine}{logs}";
     }
 
