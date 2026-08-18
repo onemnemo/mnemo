@@ -36,8 +36,8 @@
  * payload degrades to the sanitised HTML or plain-text path; it never throws.
  */
 
-import { Fragment, Slice } from 'prosemirror-model';
-import type { EditorState, Transaction } from 'prosemirror-state';
+import { Fragment, Slice, type Node as PMNode } from 'prosemirror-model';
+import { TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 
 import type { BlockRegistry } from '../editor/registry/build';
@@ -60,6 +60,8 @@ import {
 } from './stage-assets';
 import { storePasteProgress, type PasteProgressReporter } from './paste-progress';
 import { readClipMeta } from './read-clipboard';
+import { isMultiCell, parseClipboardGrid } from './table-grid';
+import { cellAtPos, cellCaretPos, gridToTable, writeCells } from '../editor/table/model';
 
 /** A ceiling on the plain-text degrade path, so an over-large paste stays bounded there too. */
 const MAX_PLAIN_TEXT_LENGTH = 2_000_000;
@@ -107,6 +109,17 @@ export function handleInternalPaste(
     }
     // Our clip, but placement failed or there was nothing to place: fall through
     // to the HTML / plain-text path rather than crash or reparse.
+  }
+
+  // A cell grid (our own cell copy, Excel or Google Sheets) fills cells when the
+  // caret is in a table and becomes a fresh table when a real HTML table is pasted
+  // outside one. Only a grid of more than one cell, and never inside a source line
+  // where a tab is content, so an ordinary paste still folds in as text below.
+  if (!inSourceLine(view.state)) {
+    const parsed = parseClipboardGrid(data);
+    if (parsed && isMultiCell(parsed.grid) && pasteGrid(view, parsed.grid, parsed.fromHtml)) {
+      return true;
+    }
   }
 
   const html = data.getData('text/html');
@@ -309,6 +322,45 @@ async function runStagedPaste(
   } finally {
     progress.end();
   }
+}
+
+/**
+ * A cell grid dropped into the note.
+ *
+ * Inside a table it spreads across cells from the caret, growing the table to fit
+ * and landing the caret in the last cell it filled. Outside one, a grid that came
+ * from a real HTML table becomes a fresh table placed like any pasted block; a tab
+ * separated paste outside a table returns false so the text path keeps it as
+ * ordinary text, tabs and all, rather than a table nobody asked for.
+ */
+function pasteGrid(view: EditorView, grid: string[][], fromHtml: boolean): boolean {
+  const at = tableCellUnderCaret(view.state);
+  if (at) {
+    const next = writeCells(at.node, { row: at.row, col: at.col }, grid);
+    const tr = view.state.tr.replaceWith(at.tablePos, at.tablePos + at.node.nodeSize, next);
+    const width = grid.reduce((widest, row) => Math.max(widest, row.length), 0);
+    const caret = cellCaretPos(next, at.tablePos, at.row + grid.length - 1, at.col + width - 1, 'end');
+    if (caret !== null) tr.setSelection(TextSelection.create(tr.doc, caret));
+    return dispatchPaste(view, tr);
+  }
+  if (!fromHtml) return false;
+  const table = gridToTable(view.state.schema, grid);
+  return dispatchPaste(view, placeBlockRun(view.state, new Slice(Fragment.from(table), 0, 0)));
+}
+
+/** The table cell the caret sits in, with the enclosing table's position, or null. */
+function tableCellUnderCaret(
+  state: EditorState,
+): { tablePos: number; node: PMNode; row: number; col: number } | null {
+  const { $from } = state.selection;
+  for (let depth = $from.depth; depth > 0; depth--) {
+    const node = $from.node(depth);
+    if (node.type.name !== 'table') continue;
+    const tablePos = $from.before(depth);
+    const cell = cellAtPos(node, tablePos, state.selection.from);
+    return cell ? { tablePos, node, row: cell.row, col: cell.col } : null;
+  }
+  return null;
 }
 
 /** True when the caret sits in a code or sketch line, where content is literal. */
