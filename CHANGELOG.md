@@ -19,11 +19,14 @@ inside the app, so a heading that does not match the tag ships a release with no
   and silently did nothing.
 - Startup failures now report themselves on macOS and Linux instead of the window simply
   never appearing.
+- The app is served under a content security policy.
 
 ### Changed
 
 - The window is now sized against the display on macOS and Linux, so it can no longer open
   larger than the screen it is on.
+- Log files are capped in size, and files older than two weeks are removed at startup.
+  The logs folder previously grew for as long as the app was installed.
 
 ### Fixed
 
@@ -31,3 +34,11 @@ inside the app, so a heading that does not match the tag ships a release with no
   launching it started a broken instance.
 - The Typst binary is now marked executable when it is restored on macOS and Linux, so PDF
   export works in packages built there.
+- A setting that could not be saved now reports the failure. It previously looked saved for
+  the rest of the session and was gone at the next launch, which was most noticeable with
+  the AI API key.
+- A crash after startup now shows a message saying where the details were written, rather
+  than the window disappearing with nothing said.
+- Links in chat now open in the browser the same way links elsewhere in the app do.
+- Opening a library written by a newer version of Mnemo is now refused with an explanation,
+  instead of being read through older assumptions.
