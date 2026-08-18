@@ -145,6 +145,24 @@ export function tableView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     };
   }
 
+  /**
+   * Whether an up or down arrow would leave the caret's textblock. ProseMirror's
+   * own vertical-motion test, asked of the real layout, so a wrapped or multi-line
+   * cell is walked line by line before the arrow steps to the next cell.
+   *
+   * `endOfTextblock` needs client rects to measure, which a headless mount (a test)
+   * cannot give and throws without. There the caret is treated as at the edge so
+   * the arrow still steps to the next cell, which is all a layout-free environment
+   * can do and is how the key behaved before this asked the layout at all.
+   */
+  function atTextEdge(dir: 'up' | 'down'): boolean {
+    try {
+      return view.endOfTextblock(dir);
+    } catch {
+      return true;
+    }
+  }
+
   function renderChrome(node: PMNode): void {
     if (!services.portals) return;
     const element = createElement(TableChrome, {
@@ -155,6 +173,7 @@ export function tableView(args: RealizedBlockViewArgs<Record<string, unknown>>):
       replaceTable,
       focusCell,
       caretCell,
+      atTextEdge,
     });
     if (chrome) {
       chrome.update(element);

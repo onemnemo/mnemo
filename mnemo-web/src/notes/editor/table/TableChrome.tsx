@@ -127,6 +127,13 @@ export interface TableChromeProps {
   focusCell: (row: number, col: number, options?: { edge?: 'start' | 'end'; focus?: boolean }) => void
   /** Where the caret is in this table, read from the document rather than from the DOM. */
   caretCell: () => TableCaret | null
+  /**
+   * Whether an up or down arrow would leave the caret's textblock, asked of the
+   * layout. A cell wraps and now holds explicit line breaks, so "the top line" is
+   * a visual fact the document cannot answer; this is ProseMirror's own vertical
+   * motion test, the same one it uses to decide the key itself.
+   */
+  atTextEdge: (dir: 'up' | 'down') => boolean
 }
 
 /** Which band a coordinate lands in, or -1 outside the run. */
@@ -147,6 +154,7 @@ export function TableChrome({
   replaceTable,
   focusCell,
   caretCell,
+  atTextEdge,
 }: TableChromeProps) {
   const t = useT()
   const rows = tableRows(node).length
@@ -355,23 +363,6 @@ export function TableChrome({
   useEffect(() => {
     if (!editable) return
 
-    /**
-     * Whether the caret sits at the top or bottom of the text it is in.
-     *
-     * Asked of the layout rather than of the document, and only for the vertical
-     * pair: a cell wraps, so "the top of the text" is a visual fact, and a caret
-     * on the second of three lines is at neither end however the offsets read.
-     * Where nothing has been laid out there is nothing to be between, and the
-     * answer is yes.
-     */
-    const atEdge = (end: boolean): boolean => {
-      const selection = window.getSelection()
-      const node = selection?.anchorNode
-      if (!selection || !node) return true
-      const offset = selection.anchorOffset
-      return end ? offset === (node.textContent?.length ?? 0) : offset === 0
-    }
-
     const goTo = (row: number, col: number, edge: 'start' | 'end' = 'start'): void => {
       focusCell(row, col, { edge })
       setSel({ kind: 'cells', rect: { r0: row, c0: col, r1: row, c1: col } })
@@ -470,15 +461,22 @@ export function TableChrome({
 
       const arrow = ARROWS[event.key]
       if (arrow) {
+        // Shift extends a text selection, which is ProseMirror's to grow, and the
+        // cell's isolating walls already stop it at the cell's own edge.
+        if (event.shiftKey) return
         // Only from the ends of the cell's own text, so the cell is walked before
         // the grid is. The two axes ask different things because they *are*
-        // different questions: up and down ask the layout, since a wrapped cell
-        // has lines the document knows nothing about; left and right ask the
-        // document, which is exact, where the DOM would answer about the text node
-        // the caret is in and jump a column out of the middle of a sentence with a
-        // bold word in it.
+        // different questions: up and down ask the layout (endOfTextblock), since a
+        // wrapped or multi-line cell has lines the document knows nothing about;
+        // left and right ask the document, which is exact, where the DOM would
+        // answer about the text node the caret is in and jump a column out of the
+        // middle of a sentence with a bold word in it.
         const leaving =
-          arrow.col === 0 ? atEdge(!arrow.back) : arrow.back ? here.atStart : here.atEnd
+          arrow.col === 0
+            ? atTextEdge(arrow.row < 0 ? 'up' : 'down')
+            : arrow.back
+              ? here.atStart
+              : here.atEnd
         if (!leaving) return
 
         let row = here.row + arrow.row
@@ -506,7 +504,7 @@ export function TableChrome({
     }
     document.addEventListener('keydown', onKeyDown, true)
     return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [frame, editable, sel, apply, replaceTable, focusCell, caretCell])
+  }, [frame, editable, sel, apply, replaceTable, focusCell, caretCell, atTextEdge])
 
   /* -- the pointer, when it lands somewhere else ------------------------- */
 

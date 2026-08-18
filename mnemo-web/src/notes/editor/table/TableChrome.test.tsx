@@ -312,6 +312,14 @@ describe('the table keymap', () => {
     expect(caretCellIndex()).toEqual({ row: 0, col: 1 });
   });
 
+  it('leaves a shift arrow to ProseMirror, which extends the selection within the cell', () => {
+    putCaret(0, 1);
+    // The table never claims a shift arrow; the caret's cell is unchanged.
+    expect(press('ArrowDown', { shiftKey: true })).toBe(false);
+    expect(press('ArrowUp', { shiftKey: true })).toBe(false);
+    expect(caretCellIndex()).toEqual({ row: 0, col: 1 });
+  });
+
   it('leaves the arrows alone at the edges, so the caret can get out of the table', () => {
     putCaret(0, 0);
     expect(press('ArrowUp')).toBe(false);
