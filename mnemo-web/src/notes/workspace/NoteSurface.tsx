@@ -130,7 +130,9 @@ export function NoteSurface({
         <SaveStateIndicator state={saveState} autosave={autosave} onReload={onReload} onSave={save} />
         <PaneActions note={note} />
       </div>
-      <div ref={scrollRef} className="scroll-thin relative min-h-0 flex-1 overflow-y-auto">
+      {/* A stable gutter so the centered column does not jump left the first time
+          the note grows tall enough to want a scrollbar (and back when it shrinks). */}
+      <div ref={scrollRef} className="scroll-thin relative min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
         <CoverBanner token={note.cover} />
         {/* No bottom padding: the space under the document belongs to the
             editable root now, so a press in it reaches the view and appends a
