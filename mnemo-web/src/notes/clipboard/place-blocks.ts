@@ -24,11 +24,11 @@
  * The caret ends at the end of the last pasted block, where typing continues.
  */
 
-import type { Node as PMNode, Slice } from 'prosemirror-model';
+import { Fragment, Slice, type Node as PMNode, type Schema } from 'prosemirror-model';
 import { TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
 
 import type { BlockRegistry } from '../editor/registry/build';
-import { containerBlockNames } from '../editor/blocks/shared';
+import { containerBlockNames, lineOf } from '../editor/blocks/shared';
 import { blockContext, isContentVisuallyEmpty } from '../editor/commands/structure';
 import { coveredBlockRanges } from '../selection/delete-selected';
 
@@ -48,12 +48,16 @@ export function placeBlockRun(state: EditorState, slice: Slice): Transaction {
   if (spansBlocks) {
     return replaceSpanningSelection(state, nodes) ?? state.tr.replaceSelection(slice);
   }
-  // A table cell is not a container, but the raw-position inserts below would put
-  // a block at the row level, which the row cannot hold, and the isolating table
-  // tears open around it. Fit the paste inside the cell instead, the way the
-  // external-HTML path already does; the isolating cell keeps the content in it.
-  if (containerBlockNames.has(ctx.block.type.name) || ctx.block.type.name === 'tableCell') {
+  if (containerBlockNames.has(ctx.block.type.name)) {
     return state.tr.replaceSelection(slice);
+  }
+  // A table cell holds one run of prose, not a stack of blocks. A pasted run folds
+  // into the cell as inline text with its blocks joined by line breaks, so a paste
+  // never nests a paragraph in a cell (which the caret math and markdown export do
+  // not follow) and never, as the raw inserts below would, tears the isolating
+  // table open around a block the row cannot hold.
+  if (ctx.block.type.name === 'tableCell') {
+    return state.tr.replaceSelection(inlineRun(state.schema, nodes));
   }
 
   const { block, blockPos, line } = ctx;
@@ -96,6 +100,24 @@ export function placeBlockRun(state: EditorState, slice: Slice): Transaction {
     : [schema.nodes.paragraph.create(null, schema.nodes.line.create(null, after))];
   tr.insert(gap, [...nodes, ...trailing]);
   return caretAfterRun(tr, gap, nodes);
+}
+
+/**
+ * A run of blocks folded into one inline slice, their lines joined by breaks.
+ *
+ * A table cell is a single run of prose, so a pasted run belongs in its line
+ * rather than as nested blocks. Each block contributes its own line's inline
+ * content, marks and all, and a soft break stands where a block boundary was, so
+ * a multi-line paste reads as multiple lines in the one cell. A block with no
+ * line (a picture, a divider) contributes nothing but its separating break.
+ */
+function inlineRun(schema: Schema, nodes: readonly PMNode[]): Slice {
+  const inline: PMNode[] = [];
+  nodes.forEach((node, index) => {
+    if (index > 0) inline.push(schema.text('\n'));
+    lineOf(node)?.content.forEach((child) => inline.push(child));
+  });
+  return new Slice(Fragment.fromArray(inline), 0, 0);
 }
 
 /** Puts the caret at the end of the last node of a run inserted at `runStart`. */
