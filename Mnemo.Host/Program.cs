@@ -55,7 +55,7 @@ public static class Program
         catch (Exception ex)
         {
             CrashLog.Write("Mnemo.Host could not start.", ex);
-            FatalDialog.Show(ex);
+            FatalDialog.ShowStartupFailure(ex);
             return 1;
         }
     }
