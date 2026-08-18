@@ -29,6 +29,9 @@ function line(text?: string): PMNode {
 function para(text?: string): PMNode {
   return schema.nodes.paragraph.create(null, line(text));
 }
+function heading(level: number, text?: string): PMNode {
+  return schema.nodes.heading.create({ level }, line(text));
+}
 function cell(text?: string): PMNode {
   return schema.nodes.tableCell.create(null, line(text));
 }
@@ -136,7 +139,7 @@ describe('Backspace at the start of a table cell', () => {
 // --- Paste ------------------------------------------------------------------
 
 describe('Pasting a block run into a table cell', () => {
-  it('keeps the content inside the cell instead of tearing the table open', () => {
+  it('folds a multi-block run into the cell line, joined by breaks, without splitting the table', () => {
     const t = table(tableRow(cell('hello'), cell('world')), tableRow(cell('a'), cell('b')));
     const document = doc(t, para('tail'));
     const from = cellCaretPos(t, 0, 0, 0, 'end')!;
@@ -156,8 +159,30 @@ describe('Pasting a block run into a table cell', () => {
     expect(next.doc.child(1).textContent).toBe('tail');
     // The table still has its two rows, not split into two tables.
     expect(tableRows(next.doc.child(0)).length).toBe(2);
-    // The pasted text landed in the table, not outside it.
-    expect(next.doc.child(0).textContent).toContain('L1');
-    expect(next.doc.child(0).textContent).toContain('L2');
+    // The paste folded into the cell's single line as inline text, a break where
+    // the block boundary was, with no nested block.
+    const edited = cellAt(next.doc, 0, 0);
+    expect(edited.childCount).toBe(1);
+    expect(edited.firstChild?.type.name).toBe('line');
+    expect(edited.textContent).toBe('helloL1\nL2');
+  });
+
+  it('folds a single non-Text block into the cell as plain inline text', () => {
+    const t = table(tableRow(cell('x'), cell('y')));
+    const document = doc(t);
+    const from = cellCaretPos(t, 0, 0, 0, 'end')!;
+    const state = EditorState.create({
+      schema,
+      doc: document,
+      selection: TextSelection.create(document, from),
+    });
+    const slice = new Slice(Fragment.fromArray([heading(1, 'Title')]), 0, 0);
+    const next = state.apply(placeBlockRun(state, slice));
+
+    expect(next.doc.childCount).toBe(1);
+    const edited = cellAt(next.doc, 0, 0);
+    expect(edited.childCount).toBe(1);
+    expect(edited.firstChild?.type.name).toBe('line');
+    expect(edited.textContent).toBe('xTitle');
   });
 });
