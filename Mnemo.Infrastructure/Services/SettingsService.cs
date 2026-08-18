@@ -34,10 +34,32 @@ public class SettingsService : ISettingsService
         return result.Value;
     }
 
+    /// <summary>
+    /// Writes a setting, and throws if it did not reach storage.
+    /// </summary>
+    /// <remarks>
+    /// The cache is filled and the event raised only once the write has actually landed.
+    /// Doing either first reports a change that did not happen: the cache would answer
+    /// reads with a value no restart could produce, and listeners would act on it. The
+    /// API key row is the case that matters, where the difference is between being told
+    /// the key is saved and finding out at the next launch that it is not.
+    ///
+    /// A throw rather than a returned failure because a lost write is not an outcome any
+    /// caller has a sensible answer to, and it stops a request handler replying 200 to a
+    /// write that vanished.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The value could not be persisted.</exception>
     public async Task SetAsync<T>(string key, T value)
     {
+        var result = await _storage.SaveAsync(key, value).ConfigureAwait(false);
+        if (!result.IsSuccess)
+        {
+            throw new InvalidOperationException(
+                result.ErrorMessage ?? $"Could not save the setting '{key}'.",
+                result.Exception);
+        }
+
         _cache[key] = value;
-        await _storage.SaveAsync(key, value).ConfigureAwait(false);
         SettingChanged?.Invoke(this, key);
     }
 }
