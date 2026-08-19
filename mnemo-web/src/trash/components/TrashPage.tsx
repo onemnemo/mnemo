@@ -49,10 +49,15 @@ export function TrashPage() {
   const now = Date.now()
   const filtering = query.trim().length > 0 || kind !== null
 
-  /** Titles for entry ids the list happens to have loaded, so a block can name what is holding it. */
-  function titlesOf(ids: readonly string[]): string {
-    const named = ids.map((id) => entries.find((entry) => entry.id === id)?.title).filter(Boolean)
-    return named.length === ids.length ? named.join(", ") : ""
+  /**
+   * The title of the one entry holding this one back, when the list happens to have it loaded.
+   *
+   * Only ever one. A run of titles would have to be read into a sentence written for a single name,
+   * and past one the count is the more useful thing to say anyway.
+   */
+  function blockerTitle(ids: readonly string[]): string {
+    if (ids.length !== 1) return ""
+    return entries.find((entry) => entry.id === ids[0])?.title ?? ""
   }
 
   async function restoreEntry(entry: TrashEntryDto, destinationId?: string) {
@@ -84,7 +89,7 @@ export function TrashPage() {
     try {
       const result = await purge.mutateAsync(entry.id)
       if (result.purged) return
-      const holding = titlesOf(result.blockingEntryIds)
+      const holding = blockerTitle(result.blockingEntryIds)
       toast.warning(
         holding
           ? t("Trash", "PurgeBlockedByFormat", { 0: holding })

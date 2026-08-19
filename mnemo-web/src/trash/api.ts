@@ -21,8 +21,14 @@ export const trashKey = ["trash"] as const
 const countKey = [...trashKey, "count"] as const
 const listKey = [...trashKey, "list"] as const
 
-/** Every module list a restore can put content back into. */
-const OWNER_KEYS = [["flashcards", "library"], ["notes"], ["mindmap"]] as const
+/**
+ * Every module a restore can put content back into, at its root.
+ *
+ * The root and not the list: a restored card lands in the browse table and in its deck as well as
+ * in the library counts, and an undo that refreshed only the list would leave whichever of those
+ * the user is looking at showing content that is back but not on screen.
+ */
+const OWNER_KEYS = [["flashcards"], ["notes"], ["mindmap"]] as const
 
 function json(body: unknown): RequestInit {
   return {
