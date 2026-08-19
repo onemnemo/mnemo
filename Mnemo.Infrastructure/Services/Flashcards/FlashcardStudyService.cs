@@ -197,6 +197,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             var reviewId = await _reviews.AppendAsync(conn, tx, entry.Review, ct).ConfigureAwait(false);
             await _dailyStats.IncrementAsync(conn, tx, entry.Review.DeckId, entry.LocalDay,
                 entry.IntroducedNewCard ? 1 : 0, ChargesReviewCap(entry.Review.StateBefore) ? 1 : 0, ct).ConfigureAwait(false);
+            await _decks.SetLastStudiedAsync(conn, tx, entry.Review.DeckId, entry.Review.ReviewedAt, ct).ConfigureAwait(false);
             if (entry.LeechedCard is { } leeched)
                 await _cards.UpdateAsync(conn, tx, leeched, ct).ConfigureAwait(false);
             if (entry.BurySiblingsUntil is { } until)

@@ -100,7 +100,6 @@ internal sealed class FakeWidgetContext : IWidgetContext
             => Task.FromResult(new FlashcardDeckHeader(Guid.NewGuid().ToString("n"), folderId, presetId ?? string.Empty, name, null, [], 0, null));
         public Task SaveDeckAsync(FlashcardDeckHeader deck, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task MoveDeckAsync(string deckId, string? folderId, int sortOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task ReorderAsync(IReadOnlyList<FlashcardOrderEntry> entries, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<bool> DeleteDeckAsync(string deckId, CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task<bool> DeleteFolderAsync(string folderId, CancellationToken cancellationToken = default) => Task.FromResult(false);
     }

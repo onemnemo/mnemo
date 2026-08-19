@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Services;
 
 namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
@@ -24,6 +25,10 @@ public sealed class CardTypeRepository : ICardTypeRepository
 {
     private const string SelectColumns =
         "Id, Name, IsBuiltIn, FieldsJson, SortFieldId, LayoutsJson, Generator, GenerateFrom, CreatedAt, UpdatedAt";
+
+    private readonly ILoggerService? _logger;
+
+    public CardTypeRepository(ILoggerService? logger = null) => _logger = logger;
 
     public async Task<IReadOnlyList<FlashcardCardType>> ListAsync(SqliteConnection conn, CancellationToken cancellationToken)
     {
@@ -90,15 +95,19 @@ public sealed class CardTypeRepository : ICardTypeRepository
         return Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
     }
 
-    private static FlashcardCardType Read(SqliteDataReader reader) => new(
-        Id: reader.GetString(0),
-        Name: reader.GetString(1),
-        IsBuiltIn: reader.GetInt32(2) != 0,
-        Fields: FlashcardFactSqlMap.ReadFields(reader.GetString(3)),
-        SortFieldId: reader.GetString(4),
-        Layouts: FlashcardFactSqlMap.ReadLayouts(reader.GetString(5)),
-        Generator: FlashcardSqlMap.ReadStringN(reader, 6),
-        GenerateFrom: FlashcardSqlMap.ReadStringN(reader, 7),
-        CreatedAt: FlashcardSqlMap.ReadTs(reader, 8),
-        UpdatedAt: FlashcardSqlMap.ReadTs(reader, 9));
+    private FlashcardCardType Read(SqliteDataReader reader)
+    {
+        var id = reader.GetString(0);
+        return new FlashcardCardType(
+            Id: id,
+            Name: reader.GetString(1),
+            IsBuiltIn: reader.GetInt32(2) != 0,
+            Fields: FlashcardFactSqlMap.ReadFields(reader.GetString(3), _logger, $"card type {id}"),
+            SortFieldId: reader.GetString(4),
+            Layouts: FlashcardFactSqlMap.ReadLayouts(reader.GetString(5), _logger, $"card type {id}"),
+            Generator: FlashcardSqlMap.ReadStringN(reader, 6),
+            GenerateFrom: FlashcardSqlMap.ReadStringN(reader, 7),
+            CreatedAt: FlashcardSqlMap.ReadTs(reader, 8),
+            UpdatedAt: FlashcardSqlMap.ReadTs(reader, 9));
+    }
 }

@@ -158,6 +158,33 @@ public sealed class FlashcardServiceTests
     }
 
     [Fact]
+    public async Task RecordReview_StampsLastStudiedOnTheDeck()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var deckId = await h.SeedDeckAsync();
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+        var lib = NewLibrary(h);
+        var study = NewStudy(h);
+        var card = await cardSvc.CreateCardAsync(Draft(deckId, "Q", "A"));
+        var now = DateTimeOffset.UtcNow;
+
+        var before = await lib.GetDeckAsync(deckId);
+        Assert.Null(before!.Header.LastStudied);
+
+        var entry = new FlashcardReviewEntry(
+            new FlashcardSchedule(card.Id, now.AddDays(3), 6, 5, 1, 0, FlashcardFsrsState.Review, 0, now),
+            new FlashcardReviewLog(FlashcardReviewLog.Unassigned, card.Id, deckId, "s1",
+                FlashcardReviewGrade.Good, now, 0, 3, 6, 5, FlashcardFsrsState.Review, FlashcardFsrsState.Review),
+            IntroducedNewCard: true,
+            LocalDay: "2026-07-06");
+        await study.RecordReviewAsync(entry);
+
+        var after = await lib.GetDeckAsync(deckId);
+        Assert.NotNull(after!.Header.LastStudied);
+        Assert.Equal(now, after.Header.LastStudied!.Value, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
     public async Task RecordReview_IsAtomic_RollsBackWhenDailyStatFails()
     {
         await using var h = new FlashcardStoreHarness();
@@ -259,6 +286,33 @@ public sealed class FlashcardServiceTests
         Assert.Equal(25, summary.DeltaVsPrevious);
     }
 
+    /// <summary>
+    /// Reviews and test attempts carry no foreign key to their deck, so a deleted deck's rows
+    /// stay behind. A stats read for that deck id has to answer the same way it would for one
+    /// that never existed, not with the real numbers the gone deck left on disk.
+    /// </summary>
+    [Fact]
+    public async Task StatsReads_TreatAGoneDeckAsOneWithNoHistory_NotTheRowsItLeftBehind()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts, h.Decks, h.Presets, h.Clock);
+        var now = DateTimeOffset.UtcNow;
+        const string goneDeckId = "deck-gone";
+
+        await h.Store.WriteAsync((c, tx, ct) => h.Reviews.AppendAsync(c, tx, new FlashcardReviewLog(
+            FlashcardReviewLog.Unassigned, "c0", goneDeckId, "s1", FlashcardReviewGrade.Good, now, 0, 1, null, null,
+            FlashcardFsrsState.Review, FlashcardFsrsState.Review), ct));
+        await stats.RecordTestAttemptAsync(new FlashcardTestAttempt("t1", goneDeckId, now, now, 10, 9, 1, 0, 90));
+
+        Assert.Equal(0, await stats.GetTrueRetentionAsync(goneDeckId));
+        Assert.All(await stats.GetRetentionTrendAsync(goneDeckId, days: 3), point => Assert.Equal(0, point.ReviewsCount));
+
+        var summary = await stats.GetTestSummaryAsync(goneDeckId);
+        Assert.False(summary.HasAttempts);
+
+        Assert.Empty(await stats.GetTestTrendAsync(goneDeckId));
+    }
+
     // --- Library service ---
 
     [Fact]
@@ -284,7 +338,7 @@ public sealed class FlashcardServiceTests
         new(deckId, FlashcardType.Classic, front, back, Array.Empty<string>(), Array.Empty<FlashcardAttachment>());
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
-        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+        new(h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
     private static FlashcardStudyService NewStudy(FlashcardStoreHarness h) =>
         new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, h.Facts, new FsrsScheduler(h.Clock), h.Clock);

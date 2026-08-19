@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Services;
 
 namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
@@ -61,6 +62,10 @@ public sealed class CardRepository : ICardRepository
     private const string ScheduleColumns =
         "s.CardId, s.DueDate, s.Stability, s.Difficulty, s.Reps, s.Lapses, s.FsrsState, s.LearningStepIndex, " +
         "s.LastReviewedAt, s.BuriedUntil";
+
+    private readonly ILoggerService? _logger;
+
+    public CardRepository(ILoggerService? logger = null) => _logger = logger;
 
     public async Task<Flashcard?> GetAsync(SqliteConnection conn, string cardId, CancellationToken cancellationToken)
     {
@@ -393,8 +398,9 @@ public sealed class CardRepository : ICardRepository
         cmd.Parameters.AddWithValue("$key", (object?)card.LayoutKey ?? DBNull.Value);
     }
 
-    private static Flashcard ReadCard(SqliteDataReader reader, int offset)
+    private Flashcard ReadCard(SqliteDataReader reader, int offset)
     {
+        var id = reader.GetString(offset + 0);
         var sourceType = FlashcardSqlMap.ReadStringN(reader, offset + 9);
         var sourceId = FlashcardSqlMap.ReadStringN(reader, offset + 10);
         var sourceLabel = FlashcardSqlMap.ReadStringN(reader, offset + 11);
@@ -403,15 +409,15 @@ public sealed class CardRepository : ICardRepository
             : null;
 
         return new Flashcard(
-            Id: reader.GetString(offset + 0),
+            Id: id,
             DeckId: reader.GetString(offset + 1),
             Type: (FlashcardType)reader.GetInt32(offset + 2),
             Front: reader.GetString(offset + 3),
             Back: reader.GetString(offset + 4),
-            Tags: FlashcardSqlMap.ReadTags(reader.GetString(offset + 5)),
+            Tags: FlashcardSqlMap.ReadTags(reader.GetString(offset + 5), _logger, $"card {id}"),
             State: (FlashcardCardState)reader.GetInt32(offset + 6),
             IsFlagged: reader.GetInt32(offset + 7) != 0,
-            Attachments: FlashcardSqlMap.ReadAttachments(reader.GetString(offset + 8)),
+            Attachments: FlashcardSqlMap.ReadAttachments(reader.GetString(offset + 8), _logger, $"card {id}"),
             SourceInfo: source,
             FrontBlocks: null,
             BackBlocks: null,

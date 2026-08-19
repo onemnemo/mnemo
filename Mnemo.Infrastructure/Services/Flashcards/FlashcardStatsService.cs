@@ -39,7 +39,16 @@ public sealed class FlashcardStatsService : IFlashcardStatsService
     {
         windowDays = Math.Clamp(windowDays, 1, 365);
         var since = _clock.Now.AddDays(-windowDays);
-        var sample = await _store.ReadAsync((conn, ct) => _reviews.GetRetentionSampleAsync(conn, deckId, since, ct), cancellationToken).ConfigureAwait(false);
+        var sample = await _store.ReadAsync(async (conn, ct) =>
+        {
+            // Review rows carry no foreign key to the deck, so they outlive one that gets deleted.
+            // Reading them back for a deck that is gone would answer with real numbers for
+            // material nobody can open anymore; checked here so a dead deck reads exactly like one
+            // that never had any reviews.
+            if (await _decks.GetHeaderAsync(conn, deckId, ct).ConfigureAwait(false) is null)
+                return new FlashcardRetentionSample(0, 0);
+            return await _reviews.GetRetentionSampleAsync(conn, deckId, since, ct).ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
         return sample.Total == 0 ? 0 : (int)Math.Round(100.0 * sample.Passed / sample.Total, MidpointRounding.AwayFromZero);
     }
 
@@ -61,7 +70,13 @@ public sealed class FlashcardStatsService : IFlashcardStatsService
             var boundaries = new DateTimeOffset[span + 1];
             for (var i = 0; i <= span; i++)
                 boundaries[i] = _clock.StartOf(start.AddDays(i), hour);
-            var samples = await _reviews.GetRetentionByWindowAsync(conn, deckId, boundaries, ct).ConfigureAwait(false);
+
+            // A deck that is gone gets the same empty samples a live one with no reviews yet would,
+            // rather than the review rows it left behind, which carry no foreign key and so survive
+            // its delete.
+            var samples = header is null
+                ? new FlashcardRetentionSample[span]
+                : await _reviews.GetRetentionByWindowAsync(conn, deckId, boundaries, ct).ConfigureAwait(false);
 
             var points = new List<FlashcardRetentionTrendPoint>(span);
             for (var i = 0; i < span; i++)
@@ -82,7 +97,14 @@ public sealed class FlashcardStatsService : IFlashcardStatsService
 
     public async Task<FlashcardTestSummary> GetTestSummaryAsync(string deckId, CancellationToken cancellationToken = default)
     {
-        var recent = await _store.ReadAsync((conn, ct) => _tests.GetRecentAsync(conn, deckId, 200, ct), cancellationToken).ConfigureAwait(false);
+        var recent = await _store.ReadAsync(async (conn, ct) =>
+        {
+            // Same reasoning as the retention reads above: attempts carry no foreign key to the
+            // deck, so a deleted deck's history has to be checked for rather than trusted.
+            if (await _decks.GetHeaderAsync(conn, deckId, ct).ConfigureAwait(false) is null)
+                return Array.Empty<FlashcardTestAttempt>();
+            return await _tests.GetRecentAsync(conn, deckId, 200, ct).ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
         if (recent.Count == 0)
             return FlashcardTestSummary.None;
 
@@ -95,7 +117,12 @@ public sealed class FlashcardStatsService : IFlashcardStatsService
     public async Task<IReadOnlyList<FlashcardTestAttempt>> GetTestTrendAsync(string deckId, int lastN = 20, CancellationToken cancellationToken = default)
     {
         lastN = Math.Clamp(lastN, 1, 200);
-        var recent = await _store.ReadAsync((conn, ct) => _tests.GetRecentAsync(conn, deckId, lastN, ct), cancellationToken).ConfigureAwait(false);
+        var recent = await _store.ReadAsync(async (conn, ct) =>
+        {
+            if (await _decks.GetHeaderAsync(conn, deckId, ct).ConfigureAwait(false) is null)
+                return Array.Empty<FlashcardTestAttempt>();
+            return await _tests.GetRecentAsync(conn, deckId, lastN, ct).ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
         // Return chronological (oldest first) for sparkline rendering.
         return recent.Reverse().ToArray();
     }

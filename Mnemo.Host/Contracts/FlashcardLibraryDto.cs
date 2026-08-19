@@ -28,12 +28,6 @@ public sealed record UpdateDeckDto(string Name, string? Description, IReadOnlyLi
 /// <summary>Re-homes a deck into a folder (null = library root) at a given position.</summary>
 public sealed record MoveDeckDto(string? FolderId, int SortOrder);
 
-/// <summary>One entry of a bulk deck reorder.</summary>
-public sealed record DeckOrderEntryDto(string DeckId, string? FolderId, int SortOrder)
-{
-    public FlashcardOrderEntry ToModel() => new(DeckId, FolderId, SortOrder);
-}
-
 /// <summary>
 /// A day on the retention trend. <c>Day</c> is an ISO date (the domain models it as a
 /// <c>DateOnly</c>, which carries no time or zone and must not gain one on the wire).

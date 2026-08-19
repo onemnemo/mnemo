@@ -30,7 +30,11 @@ public static class LibraryEndpoints
 
         endpoints.MapPost("/api/deck-folders", async (SaveFolderDto body, IFlashcardLibraryService library, CancellationToken cancellationToken) =>
         {
-            var folder = new FlashcardFolder(Guid.NewGuid().ToString("N"), body.Name, body.ParentId, body.Order);
+            var name = body.Name?.Trim() ?? string.Empty;
+            if (FlashcardTextValidation.TooLong(name, FlashcardTextLimits.MaxNameLength, "invalid_name", "A folder name", out var error))
+                return error;
+
+            var folder = new FlashcardFolder(Guid.NewGuid().ToString("N"), name, body.ParentId, body.Order);
             await library.SaveFolderAsync(folder, cancellationToken).ConfigureAwait(false);
             return Results.Ok(FolderDto.FromModel(folder));
         });
@@ -41,42 +45,24 @@ public static class LibraryEndpoints
             if (!folders.Any(f => f.Id == id))
                 return Results.NotFound(new ErrorDto("unknown_folder", $"No folder '{id}'."));
 
-            await library.SaveFolderAsync(new FlashcardFolder(id, body.Name, body.ParentId, body.Order), cancellationToken)
+            var name = body.Name?.Trim() ?? string.Empty;
+            if (FlashcardTextValidation.TooLong(name, FlashcardTextLimits.MaxNameLength, "invalid_name", "A folder name", out var error))
+                return error;
+
+            await library.SaveFolderAsync(new FlashcardFolder(id, name, body.ParentId, body.Order), cancellationToken)
                 .ConfigureAwait(false);
             return Results.NoContent();
         });
 
-        // Deleting a folder lifts its contents to the root instead of cascading. The
-        // desktop app orchestrates that from its view model across several calls; here
-        // it is one request so a client that dies mid-delete cannot leave decks
-        // pointing at a folder that no longer exists.
+        // Deleting a folder lifts its contents to the root instead of cascading. The service
+        // does the reparenting and the delete in one transaction, so a failure partway through
+        // cannot leave decks pointing at a folder that no longer exists.
         endpoints.MapDelete("/api/deck-folders/{id}", async (string id, IFlashcardLibraryService library, CancellationToken cancellationToken) =>
         {
-            var folders = await library.ListFoldersAsync(cancellationToken).ConfigureAwait(false);
-            if (!folders.Any(f => f.Id == id))
-                return Results.NotFound(new ErrorDto("unknown_folder", $"No folder '{id}'."));
-
-            var nextRootOrder = folders.Where(f => f.ParentId is null).Select(f => f.Order).DefaultIfEmpty(-1).Max() + 1;
-            var orphanedFolders = folders
-                .Where(f => f.ParentId == id)
-                .OrderBy(f => f.Order)
-                .ThenBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase)
-                .ToList();
-
-            for (var i = 0; i < orphanedFolders.Count; i++)
-            {
-                await library.SaveFolderAsync(
-                        orphanedFolders[i] with { ParentId = null, Order = nextRootOrder + i },
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            var decks = await library.ListDecksAsync(cancellationToken).ConfigureAwait(false);
-            foreach (var deck in decks.Where(d => d.Header.FolderId == id))
-                await library.MoveDeckAsync(deck.Id, null, deck.Header.SortOrder, cancellationToken).ConfigureAwait(false);
-
-            await library.DeleteFolderAsync(id, cancellationToken).ConfigureAwait(false);
-            return Results.NoContent();
+            var deleted = await library.DeleteFolderAsync(id, cancellationToken).ConfigureAwait(false);
+            return deleted
+                ? Results.NoContent()
+                : Results.NotFound(new ErrorDto("unknown_folder", $"No folder '{id}'."));
         });
     }
 
@@ -97,6 +83,8 @@ public static class LibraryEndpoints
             var name = body.Name?.Trim();
             if (string.IsNullOrEmpty(name))
                 return Results.BadRequest(new ErrorDto("invalid_name", "A deck name is required."));
+            if (FlashcardTextValidation.TooLong(name, FlashcardTextLimits.MaxNameLength, "invalid_name", "A deck name", out var nameError))
+                return nameError;
 
             var presetId = body.PresetId;
             if (string.IsNullOrEmpty(presetId))
@@ -126,9 +114,22 @@ public static class LibraryEndpoints
             var name = body.Name?.Trim();
             if (string.IsNullOrEmpty(name))
                 return Results.BadRequest(new ErrorDto("invalid_name", "A deck name is required."));
+            if (FlashcardTextValidation.TooLong(name, FlashcardTextLimits.MaxNameLength, "invalid_name", "A deck name", out var nameError))
+                return nameError;
+
+            var description = body.Description;
+            if (description is not null
+                && FlashcardTextValidation.TooLong(description, FlashcardTextLimits.MaxDescriptionLength, "invalid_description", "A deck description", out var descriptionError))
+                return descriptionError;
 
             await library.SaveDeckAsync(
-                    deck.Header with { Name = name, Description = body.Description, Tags = body.Tags ?? [], Icon = Blank(body.Icon) },
+                    deck.Header with
+                    {
+                        Name = name,
+                        Description = description,
+                        Tags = FlashcardTextValidation.NormalizeTags(body.Tags),
+                        Icon = Blank(body.Icon),
+                    },
                     cancellationToken)
                 .ConfigureAwait(false);
             return Results.NoContent();
@@ -140,15 +141,6 @@ public static class LibraryEndpoints
             return deleted
                 ? Results.NoContent()
                 : Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{id}'."));
-        });
-
-        endpoints.MapPost("/api/decks/reorder", async (
-            IReadOnlyList<DeckOrderEntryDto> body,
-            IFlashcardLibraryService library,
-            CancellationToken cancellationToken) =>
-        {
-            await library.ReorderAsync(body.Select(e => e.ToModel()).ToList(), cancellationToken).ConfigureAwait(false);
-            return Results.NoContent();
         });
 
         endpoints.MapPost("/api/decks/{id}/move", async (string id, MoveDeckDto body, IFlashcardLibraryService library, CancellationToken cancellationToken) =>
@@ -164,12 +156,6 @@ public static class LibraryEndpoints
 
     private static void MapStudyCounts(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/api/decks/{id}/due", async (string id, IFlashcardStudyService study, CancellationToken cancellationToken) =>
-        {
-            var counts = await study.GetDueCountsAsync(id, cancellationToken).ConfigureAwait(false);
-            return DueCountsDto.FromModel(counts);
-        });
-
         // Backs the library banner, which counts every deck while the table below it
         // only totals the rows a search left visible.
         endpoints.MapGet("/api/study/due", async (IFlashcardStudyService study, CancellationToken cancellationToken) =>
