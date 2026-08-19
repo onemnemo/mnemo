@@ -268,13 +268,12 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
 
     private void AddImageAssets(IDictionary<string, byte[]> files, IReadOnlyList<MindmapLibraryEntry> chosen)
     {
-        var imagesDirectory = MnemoAppPaths.GetImagesDirectory();
         foreach (var entry in chosen)
         {
             foreach (var assetId in ReferencedAssetIds(entry.Document))
             {
-                var path = Path.IsPathRooted(assetId) ? assetId : Path.Combine(imagesDirectory, assetId);
-                var fileName = Path.GetFileName(path);
+                var path = LocateAsset(assetId);
+                var fileName = Path.GetFileName(path ?? assetId);
                 if (string.IsNullOrWhiteSpace(fileName))
                     continue;
 
@@ -282,7 +281,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
                 if (files.ContainsKey(key))
                     continue;
 
-                if (!File.Exists(path))
+                if (path is null)
                 {
                     // A gone asset must never fail the export; warn and continue.
                     _logger.Warning("Mindmap", $"Skipping missing image asset '{assetId}' while exporting map '{entry.Document.Id}'.");
@@ -292,6 +291,28 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
                 files[key] = File.ReadAllBytes(path);
             }
         }
+    }
+
+    /// <summary>
+    /// The file an asset reference names, or null when nothing on disk answers to it. The mindmap
+    /// directory first, then the shared one that holds every image uploaded before it existed.
+    /// </summary>
+    private static string? LocateAsset(string assetId)
+    {
+        if (Path.IsPathRooted(assetId))
+            return File.Exists(assetId) ? assetId : null;
+
+        // A managed id is one path segment. Anything else would let a hand-edited document name a
+        // file outside these directories and have the export pack it.
+        if (!string.Equals(assetId, Path.GetFileName(assetId), StringComparison.Ordinal))
+            return null;
+
+        var owned = Path.Combine(MnemoAppPaths.GetMindmapAssetsDirectory(), assetId);
+        if (File.Exists(owned))
+            return owned;
+
+        var legacy = Path.Combine(MnemoAppPaths.GetImagesDirectory(), assetId);
+        return File.Exists(legacy) ? legacy : null;
     }
 
     private static IEnumerable<string> ReferencedAssetIds(MindmapDocument document)
@@ -445,7 +466,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
 
     private void RestoreImageAssets(IReadOnlyDictionary<string, byte[]> files)
     {
-        string? imagesDirectory = null;
+        string? assetsDirectory = null;
         foreach (var pair in files)
         {
             if (!pair.Key.StartsWith(AssetPrefix, StringComparison.OrdinalIgnoreCase))
@@ -455,17 +476,19 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             if (string.IsNullOrWhiteSpace(fileName))
                 continue;
 
-            if (imagesDirectory is null)
+            // A file the user already has under this name is the same file: ids are guids, so two
+            // of them colliding means the package came from here. Restoring into the mindmap
+            // directory rather than the shared one puts it where the sweep can reclaim it later.
+            if (LocateAsset(fileName) is not null)
+                continue;
+
+            if (assetsDirectory is null)
             {
-                imagesDirectory = MnemoAppPaths.GetImagesDirectory();
-                Directory.CreateDirectory(imagesDirectory);
+                assetsDirectory = MnemoAppPaths.GetMindmapAssetsDirectory();
+                Directory.CreateDirectory(assetsDirectory);
             }
 
-            var destination = Path.Combine(imagesDirectory, fileName);
-            if (File.Exists(destination))
-                continue; // never clobber a local asset
-
-            File.WriteAllBytes(destination, pair.Value);
+            File.WriteAllBytes(Path.Combine(assetsDirectory, fileName), pair.Value);
         }
     }
 

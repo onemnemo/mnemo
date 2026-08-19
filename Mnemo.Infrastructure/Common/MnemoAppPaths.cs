@@ -68,6 +68,17 @@ public static class MnemoAppPaths
         => Path.Combine(GetLocalUserDataRoot(), "note-assets");
 
     /// <summary>
+    /// Returns the directory where mindmap canvas images uploaded through the web host are
+    /// stored: <c>%LocalAppData%\Mnemo\mindmap-assets\</c>. Separate from
+    /// <see cref="GetImagesDirectory"/> for the same reason
+    /// <see cref="GetNoteAssetsDirectory"/> is: a module that owns its directory can say which
+    /// files in it are unreferenced, and a module sharing one never can. Images a map carried
+    /// before this directory existed stay in the shared one and are still read from there.
+    /// </summary>
+    public static string GetMindmapAssetsDirectory()
+        => Path.Combine(GetLocalUserDataRoot(), "mindmap-assets");
+
+    /// <summary>
     /// True when <paramref name="absolutePath"/> resolves to a file under <see cref="GetImagesDirectory"/>.
     /// Used so we only delete managed copies, never arbitrary user-selected paths.
     /// </summary>
@@ -85,6 +96,12 @@ public static class MnemoAppPaths
     /// </summary>
     public static bool IsPathUnderNoteAssetsDirectory(string absolutePath)
         => IsPathUnderDirectory(absolutePath, GetNoteAssetsDirectory());
+
+    /// <summary>
+    /// True when <paramref name="absolutePath"/> resolves to a file under <see cref="GetMindmapAssetsDirectory"/>.
+    /// </summary>
+    public static bool IsPathUnderMindmapAssetsDirectory(string absolutePath)
+        => IsPathUnderDirectory(absolutePath, GetMindmapAssetsDirectory());
 
     /// <summary>
     /// True when <paramref name="absolutePath"/> resolves to a file strictly under
