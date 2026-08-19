@@ -13,11 +13,17 @@ namespace Mnemo.Infrastructure.Services.Mindmap;
 
 /// <summary>
 /// Schema v2 mindmap service (see <see cref="IMindmapService"/>). It is the single command layer:
-/// every mutation flows through <see cref="ApplyAsync"/>, which enforces the graph invariants
-/// (forest/cycle/cascade), assigns short ids, bumps the revision, maintains the FTS mirror incrementally,
-/// and records the change log used to rebase non-contending stale-revision batches. Reads prune
-/// dangling edges in memory so a deleted reference never breaks a document.
+/// structural mutation flows through <see cref="ApplyAsync"/>, which enforces the graph invariants
+/// (forest, cycles, cascade), assigns short ids, bumps the revision, maintains the FTS mirror
+/// incrementally, and records the change log used to rebase non-contending stale-revision batches. Reads
+/// prune dangling edges in memory so a deleted reference never breaks a document.
 /// </summary>
+/// <remarks>
+/// Every committing method holds <c>_mapGates[id]</c> across the whole read, modify and write, and every
+/// one of them computes its undo and redo deltas from the pre-image and post-image it holds inside that
+/// gate. Computing them anywhere else means diffing two reads that a concurrent commit can land between,
+/// which produces a delta describing a document that never existed.
+/// </remarks>
 public sealed class MindmapDocumentService : IMindmapService
 {
     private readonly IMindmapStore _store;
@@ -163,6 +169,11 @@ public sealed class MindmapDocumentService : IMindmapService
 
     public async Task<Result> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
+        // Under the gate like every other mutation. Without it a delete can land between an in-flight
+        // batch's read and its save, and the batch then rewrites the row it just removed, leaving a map
+        // whose search index holds only the elements that one batch happened to touch.
+        var gate = _mapGates.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         long? deletedRevision = null;
         try
         {
@@ -170,7 +181,6 @@ public sealed class MindmapDocumentService : IMindmapService
             var existing = await _store.LoadAsync(id, cancellationToken).ConfigureAwait(false);
             await _store.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
             _changeLog.Forget(id);
-            _mapGates.TryRemove(id, out _);
             if (existing is not null)
                 deletedRevision = existing.Revision;
             return Result.Success();
@@ -182,40 +192,95 @@ public sealed class MindmapDocumentService : IMindmapService
         }
         finally
         {
+            gate.Release();
+            // Dropped after the release rather than while holding it. A writer already waiting keeps the
+            // instance it is waiting on and finds the map gone; a writer arriving later mints a fresh gate
+            // and finds the same thing, so neither can resurrect the row.
+            _mapGates.TryRemove(id, out _);
             if (deletedRevision is { } rev)
                 RaiseChanged(id, rev, MindmapChangeKind.Deleted);
         }
     }
 
-    public async Task<Result<MindmapDocument>> RenameAsync(string id, string title, CancellationToken cancellationToken = default)
+    public async Task<Result<MindmapEditResult>> RenameAsync(string id, string title, CancellationToken cancellationToken = default)
     {
         var gate = _mapGates.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        long? committedRevision = null;
+        MindmapEditResult? committed = null;
         try
         {
             var document = await _store.LoadAsync(id, cancellationToken).ConfigureAwait(false);
             if (document is null)
-                return Result<MindmapDocument>.Failure($"Mindmap '{id}' was not found.");
+                return Ok(MindmapEditResult.Failure(Err(MindmapEditErrorCode.NotFound, $"Mindmap '{id}' was not found."), 0));
+
+            if (string.Equals(document.Title, title, StringComparison.Ordinal))
+                return Ok(Unchanged(document));
 
             var renamed = document with { Title = title, Revision = document.Revision + 1, ModifiedAt = DateTime.UtcNow };
             // No element text changed, so the FTS mirror needs no delta.
             await _store.SaveAsync(renamed, new MindmapSearchDelta(), cancellationToken).ConfigureAwait(false);
             _changeLog.Record(id, renamed.Revision, new HashSet<string>());
-            committedRevision = renamed.Revision;
-            return renamed;
+            committed = Committed(document, renamed);
+            return Ok(committed);
         }
         catch (Exception ex)
         {
             _logger.Error("Mindmap", $"Failed to rename mindmap '{id}'.", ex);
-            return Result<MindmapDocument>.Failure("Failed to rename mindmap.", ex);
+            return Result<MindmapEditResult>.Failure("Failed to rename mindmap.", ex);
         }
         finally
         {
             // Release before notifying so a slow handler can't hold the per-map write lock.
             gate.Release();
-            if (committedRevision is { } rev)
-                RaiseChanged(id, rev, MindmapChangeKind.Renamed);
+            if (committed is not null)
+                RaiseChanged(id, committed.Revision, MindmapChangeKind.Renamed, committed);
+        }
+    }
+
+    public async Task<Result<MindmapEditResult>> ReplaceAsync(MindmapDocument document, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        if (document.SchemaVersion != 2)
+            return Result<MindmapEditResult>.Failure($"Mindmap '{document.Id}' uses unsupported schema version {document.SchemaVersion}.");
+
+        var gate = _mapGates.GetOrAdd(document.Id, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        MindmapEditResult? committed = null;
+        var created = false;
+        try
+        {
+            var existing = await _store.LoadAsync(document.Id, cancellationToken).ConfigureAwait(false);
+            created = existing is null;
+            var before = existing is null
+                ? EmptyDocumentLike(document)
+                : PruneDanglingEdges(existing).Value!;
+
+            // Forward only. A package carries whatever revision the map had when it was exported, which is
+            // routinely behind the copy being replaced, and adopting it would make every write that follows
+            // look like it came from the future.
+            var nextRevision = Math.Max(before.Revision, document.Revision) + 1;
+            var replaced = document with { Revision = nextRevision, ModifiedAt = DateTime.UtcNow };
+
+            var invalid = Validate(replaced);
+            if (invalid is not null)
+                return Ok(MindmapEditResult.Failure(invalid, before.Revision));
+
+            await _store.SaveAsync(replaced, FullSearchDelta(replaced), cancellationToken).ConfigureAwait(false);
+            _changeLog.Record(document.Id, nextRevision, TouchedBy(before, replaced));
+            committed = Committed(before, replaced);
+            return Ok(committed);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", $"Failed to store imported mindmap '{document.Id}'.", ex);
+            return Result<MindmapEditResult>.Failure($"Failed to store imported mindmap '{document.Id}'.", ex);
+        }
+        finally
+        {
+            gate.Release();
+            if (committed is not null)
+                RaiseChanged(document.Id, committed.Revision, created ? MindmapChangeKind.Created : MindmapChangeKind.Edited, committed);
         }
     }
 
@@ -361,7 +426,7 @@ public sealed class MindmapDocumentService : IMindmapService
 
         var gate = _mapGates.GetOrAdd(mapId, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        long? committedRevision = null;
+        MindmapEditResult? committed = null;
         try
         {
             var document = await _store.LoadAsync(mapId, cancellationToken).ConfigureAwait(false);
@@ -391,15 +456,13 @@ public sealed class MindmapDocumentService : IMindmapService
             var updated = working.Materialize(newRevision, DateTime.UtcNow);
             await _store.SaveAsync(updated, working.BuildSearchDelta(fullReplace: false), cancellationToken).ConfigureAwait(false);
             _changeLog.Record(mapId, newRevision, working.ChangeTouchedIds);
-            committedRevision = newRevision;
 
-            return Ok(new MindmapEditResult
+            committed = Committed(document, updated) with
             {
-                Success = true,
-                Revision = newRevision,
                 CreatedIds = accumulator.CreatedIds,
                 DeletedCount = accumulator.DeletedCount,
-            });
+            };
+            return Ok(committed);
         }
         catch (Exception ex)
         {
@@ -409,14 +472,14 @@ public sealed class MindmapDocumentService : IMindmapService
         finally
         {
             // Release before notifying so a slow handler can't hold the per-map write lock. Only a real
-            // commit sets committedRevision, so failed/rebased-conflict batches raise nothing.
+            // commit sets this, so failed and refused batches raise nothing.
             gate.Release();
-            if (committedRevision is { } rev)
-                RaiseChanged(mapId, rev, MindmapChangeKind.Edited);
+            if (committed is not null)
+                RaiseChanged(mapId, committed.Revision, MindmapChangeKind.Edited, committed);
         }
     }
 
-    public async Task<Result<long>> RestoreAsync(
+    public async Task<Result<MindmapEditResult>> RestoreAsync(
         string mapId,
         long expectedRevision,
         MindmapRestoreDelta delta,
@@ -426,24 +489,26 @@ public sealed class MindmapDocumentService : IMindmapService
 
         var gate = _mapGates.GetOrAdd(mapId, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        long? committedRevision = null;
+        MindmapEditResult? committed = null;
         try
         {
             var document = await _store.LoadAsync(mapId, cancellationToken).ConfigureAwait(false);
             if (document is null)
-                return Result<long>.Failure($"Mindmap '{mapId}' was not found.");
+                return Ok(MindmapEditResult.Failure(Err(MindmapEditErrorCode.NotFound, $"Mindmap '{mapId}' was not found."), expectedRevision));
             if (document.SchemaVersion != 2)
-                return Result<long>.Failure($"Mindmap '{mapId}' uses unsupported schema version {document.SchemaVersion}.");
+                return Result<MindmapEditResult>.Failure($"Mindmap '{mapId}' uses unsupported schema version {document.SchemaVersion}.");
 
             document = PruneDanglingEdges(document).Value!;
 
             // Undo/redo restores the local editor's own prior state; a stale revision means someone else
             // wrote in between, so refuse rather than silently clobbering their change.
             if (expectedRevision != document.Revision)
-                return Result<long>.Failure($"Cannot restore: revision {expectedRevision} no longer matches the stored revision {document.Revision}.");
+                return Ok(MindmapEditResult.Failure(
+                    Err(MindmapEditErrorCode.RevConflict, $"Cannot restore: revision {expectedRevision} no longer matches the stored revision {document.Revision}."),
+                    document.Revision));
 
             if (delta.IsEmpty)
-                return Result<long>.Success(document.Revision);
+                return Ok(Unchanged(document));
 
             var working = new MindmapWorkingDocument(document, _idGenerator);
 
@@ -482,27 +547,205 @@ public sealed class MindmapDocumentService : IMindmapService
             if (delta.Canvas is not null)
                 working.SetCanvas(delta.Canvas);
 
+            if (delta.Title is not null)
+                working.SetTitle(delta.Title);
+
             var newRevision = document.Revision + 1;
             var updated = working.Materialize(newRevision, DateTime.UtcNow);
+
+            var invalid = ValidateTransition(document, updated);
+            if (invalid is not null)
+                return Ok(MindmapEditResult.Failure(invalid, document.Revision));
+
             await _store.SaveAsync(updated, working.BuildSearchDelta(fullReplace: false), cancellationToken).ConfigureAwait(false);
             _changeLog.Record(mapId, newRevision, working.ChangeTouchedIds);
-            committedRevision = newRevision;
-            return Result<long>.Success(newRevision);
+            committed = Committed(document, updated);
+            return Ok(committed);
         }
         catch (Exception ex)
         {
             _logger.Error("Mindmap", $"Failed to restore mindmap '{mapId}'.", ex);
-            return Result<long>.Failure($"Failed to restore mindmap '{mapId}'.", ex);
+            return Result<MindmapEditResult>.Failure($"Failed to restore mindmap '{mapId}'.", ex);
         }
         finally
         {
             gate.Release();
-            if (committedRevision is { } rev)
-                RaiseChanged(mapId, rev, MindmapChangeKind.Edited);
+            if (committed is not null)
+                RaiseChanged(mapId, committed.Revision, MindmapChangeKind.Edited, committed);
         }
     }
 
-    // ---- Concurrency ---------------------------------------------------------------------
+    // ---- Write results --------------------------------------------------------------------------
+
+    /// <summary>
+    /// The answer for a write that committed: the new revision, the revision it applied against, and the
+    /// delta pair plus order that let a holder of the pre-image reach the post-image without refetching.
+    /// Both images are the ones the caller held inside the write gate, which is the whole point.
+    /// </summary>
+    private static MindmapEditResult Committed(MindmapDocument before, MindmapDocument after) => new()
+    {
+        Success = true,
+        Revision = after.Revision,
+        BaseRevision = before.Revision,
+        Undo = MindmapRestoreDelta.Between(after, before),
+        Redo = MindmapRestoreDelta.Between(before, after),
+        Order = MindmapDocumentOrder.Of(after),
+    };
+
+    /// <summary>
+    /// The answer for a write that turned out to be a no-op (renaming a map to the title it already has,
+    /// restoring an empty delta). It succeeds at the revision it found, and carries no deltas: there is
+    /// nothing to undo, and a caller that pushed an empty entry onto its history would owe the user a
+    /// keystroke that does nothing.
+    /// </summary>
+    private static MindmapEditResult Unchanged(MindmapDocument document) => new()
+    {
+        Success = true,
+        Revision = document.Revision,
+        BaseRevision = document.Revision,
+        Order = MindmapDocumentOrder.Of(document),
+    };
+
+    /// <summary>The pre-image for a write that creates the map: same identity, no content, revision zero.</summary>
+    private static MindmapDocument EmptyDocumentLike(MindmapDocument document) => new()
+    {
+        Id = document.Id,
+        // Deliberately not the incoming title. This stands in for a document that did not exist, so the
+        // redo delta has to carry the title in; leaving it equal would diff to null and the replay would
+        // land a map with no name.
+        Title = string.Empty,
+        Revision = 0,
+        CreatedAt = document.CreatedAt,
+        ModifiedAt = document.CreatedAt,
+    };
+
+    /// <summary>Every element and edge id that differs between the two images, for the change log.</summary>
+    private static HashSet<string> TouchedBy(MindmapDocument before, MindmapDocument after)
+    {
+        var touched = new HashSet<string>(StringComparer.Ordinal);
+
+        var beforeElements = before.Elements.ToDictionary(e => e.Id, StringComparer.Ordinal);
+        foreach (var element in after.Elements)
+        {
+            if (!beforeElements.TryGetValue(element.Id, out var previous) || !previous.Equals(element))
+                touched.Add(element.Id);
+        }
+
+        var afterElementIds = after.Elements.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var id in beforeElements.Keys.Where(id => !afterElementIds.Contains(id)))
+            touched.Add(id);
+
+        var beforeEdges = before.Edges.ToDictionary(e => e.Id, StringComparer.Ordinal);
+        foreach (var edge in after.Edges)
+        {
+            if (!beforeEdges.TryGetValue(edge.Id, out var previous) || !previous.Equals(edge))
+                touched.Add(edge.Id);
+        }
+
+        var afterEdgeIds = after.Edges.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var id in beforeEdges.Keys.Where(id => !afterEdgeIds.Contains(id)))
+            touched.Add(id);
+
+        return touched;
+    }
+
+    /// <summary>Every element's searchable text, for a write that replaces the whole document.</summary>
+    private static MindmapSearchDelta FullSearchDelta(MindmapDocument document)
+    {
+        var upserts = new List<MindmapSearchEntry>();
+        foreach (var element in document.Elements)
+        {
+            var text = MindmapSearchText.Extract(element);
+            if (!string.IsNullOrEmpty(text))
+                upserts.Add(new MindmapSearchEntry(element.Id, text));
+        }
+
+        return new MindmapSearchDelta { Upserts = upserts, FullReplace = true };
+    }
+
+    /// <summary>
+    /// Refuses a write whose result breaks a structural invariant, but only when the state it replaced held
+    /// that invariant.
+    /// <para>
+    /// A verbatim delta is a rewrite of named rows rather than an intent, so nothing in applying one checks
+    /// the graph; a delta built against a different document can reintroduce a second parent or a cycle.
+    /// The pre-image is checked too because a map that is already broken, by an older build or a hand-edited
+    /// package, must stay editable and undoable: refusing every write on it would leave the user with a
+    /// document they cannot repair.
+    /// </para>
+    /// </summary>
+    private static MindmapEditError? ValidateTransition(MindmapDocument before, MindmapDocument after)
+    {
+        var error = Validate(after);
+        if (error is null)
+            return null;
+
+        return Validate(before) is null ? error : null;
+    }
+
+    private static MindmapEditError? Validate(MindmapDocument document)
+    {
+        var elements = new Dictionary<string, MindmapElement>(StringComparer.Ordinal);
+        foreach (var element in document.Elements)
+        {
+            if (!elements.TryAdd(element.Id, element))
+                return Err(MindmapEditErrorCode.InvalidOperation, $"Element '{element.Id}' appears more than once.");
+            if (!ContentMatchesKind(element.Kind, element.Content))
+                return Err(MindmapEditErrorCode.BadContentType, $"Content '{element.Content.TypeDiscriminator}' does not match element kind {element.Kind}.");
+        }
+
+        var edgeIds = new HashSet<string>(StringComparer.Ordinal);
+        var parentOf = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var edge in document.Edges)
+        {
+            if (!edgeIds.Add(edge.Id))
+                return Err(MindmapEditErrorCode.InvalidOperation, $"Edge '{edge.Id}' appears more than once.");
+            if (elements.ContainsKey(edge.Id))
+                return Err(MindmapEditErrorCode.InvalidOperation, $"Id '{edge.Id}' is used by both an element and an edge.");
+            if (!elements.ContainsKey(edge.FromId))
+                return Err(MindmapEditErrorCode.NotFound, $"Edge '{edge.Id}' starts at missing element '{edge.FromId}'.");
+            if (!elements.ContainsKey(edge.ToId))
+                return Err(MindmapEditErrorCode.NotFound, $"Edge '{edge.Id}' ends at missing element '{edge.ToId}'.");
+
+            if (edge.Kind != EdgeKind.Hierarchy)
+                continue;
+
+            if (!parentOf.TryAdd(edge.ToId, edge.FromId))
+                return Err(MindmapEditErrorCode.InvalidOperation, $"Element '{edge.ToId}' would have more than one hierarchy parent.");
+        }
+
+        foreach (var start in parentOf.Keys)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal) { start };
+            var current = start;
+            while (parentOf.TryGetValue(current, out var parent))
+            {
+                if (!seen.Add(parent))
+                    return Err(MindmapEditErrorCode.WouldCycle, $"The hierarchy containing '{start}' would form a cycle.");
+                current = parent;
+            }
+        }
+
+        foreach (var element in document.Elements)
+        {
+            if (element.Content is not FrameContent frame)
+                continue;
+
+            foreach (var childId in frame.ChildIds)
+            {
+                if (childId == element.Id)
+                    return Err(MindmapEditErrorCode.InvalidOperation, $"Frame '{element.Id}' would contain itself.");
+                if (!elements.TryGetValue(childId, out var child))
+                    return Err(MindmapEditErrorCode.NotFound, $"Frame '{element.Id}' refers to missing element '{childId}'.");
+                if (child.Kind == ElementKind.Frame)
+                    return Err(MindmapEditErrorCode.BadContentType, "Frames may not contain frames.");
+            }
+        }
+
+        return null;
+    }
+
+    // ---- Concurrency ----------------------------------------------------------------------------
 
     /// <summary>
     /// Returns null when the batch may proceed (matching revision, or a stale-but-non-contending revision
@@ -1127,7 +1370,7 @@ public sealed class MindmapDocumentService : IMindmapService
         return string.Join(" > ", ancestors);
     }
 
-    private void RaiseChanged(string mapId, long revision, MindmapChangeKind kind)
+    private void RaiseChanged(string mapId, long revision, MindmapChangeKind kind, MindmapEditResult? change = null)
     {
         var handler = Changed;
         if (handler is null)
@@ -1135,7 +1378,13 @@ public sealed class MindmapDocumentService : IMindmapService
 
         try
         {
-            handler(this, new MindmapChangedEventArgs { MapId = mapId, Revision = revision, Kind = kind });
+            handler(this, new MindmapChangedEventArgs
+            {
+                MapId = mapId,
+                Revision = revision,
+                Kind = kind,
+                Change = change,
+            });
         }
         catch (Exception ex)
         {

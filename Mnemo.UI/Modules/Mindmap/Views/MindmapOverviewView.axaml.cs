@@ -245,7 +245,7 @@ public partial class MindmapOverviewView : UserControl
         if (string.IsNullOrWhiteSpace(newName) || string.Equals(newName, item.Name, StringComparison.Ordinal))
             return;
         var saved = await mindmapService.RenameAsync(item.Id, newName).ConfigureAwait(true);
-        if (saved.IsSuccess)
+        if (saved.IsSuccess && saved.Value is { Success: true })
             await vm.RefreshAsync().ConfigureAwait(true);
     }
 

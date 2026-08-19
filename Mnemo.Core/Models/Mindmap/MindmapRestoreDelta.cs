@@ -7,14 +7,14 @@ namespace Mnemo.Core.Models.Mindmap;
 /// <summary>
 /// A verbatim sub-document delta: the elements, edges and clusters to upsert (restore exactly, by id) and
 /// the ids to remove, so that applying it to one document state produces another. It is the transport for
-/// command-based undo/redo: each edit batch records the delta that reverses it and the delta that
-/// replays it, both scoped to only what the batch touched — so history memory is proportional to the size
-/// of the change, not the document.
+/// command-based undo and redo: each write records the delta that reverses it and the delta that replays
+/// it, both scoped to only what the write touched, so history memory is proportional to the size of the
+/// change rather than to the document.
 /// </summary>
 /// <remarks>
 /// Cluster removal is intentionally absent: a deleted element drops its own cluster settings, and
 /// <c>Materialize</c> prunes clusters whose root no longer exists, so upsert-only is sufficient for the
-/// edit ops the editor emits today. Layout ops that strip a cluster while keeping its root (P3+) will need
+/// edit ops the editor emits today. A layout op that strips a cluster while keeping its root would need
 /// explicit cluster removal added here.
 /// </remarks>
 public sealed record MindmapRestoreDelta
@@ -40,9 +40,19 @@ public sealed record MindmapRestoreDelta
     /// </summary>
     public MindmapCanvasOptions? Canvas { get; init; }
 
+    /// <summary>
+    /// The document title, when the write changed it; null when it did not.
+    /// <para>
+    /// Carried for the same reason the canvas is: a title belongs to the document rather than to any
+    /// element, so a delta made only of touched rows comes back empty for a rename and undoing one would
+    /// restore nothing. It is what lets a rename be an ordinary write rather than a second kind.
+    /// </para>
+    /// </summary>
+    public string? Title { get; init; }
+
     public bool IsEmpty =>
         Elements.Count == 0 && Edges.Count == 0 && Clusters.Count == 0 &&
-        RemoveElementIds.Count == 0 && RemoveEdgeIds.Count == 0 && Canvas is null;
+        RemoveElementIds.Count == 0 && RemoveEdgeIds.Count == 0 && Canvas is null && Title is null;
 
     /// <summary>
     /// Builds the delta that, applied to <paramref name="from"/>, reproduces <paramref name="to"/>: every
@@ -83,6 +93,7 @@ public sealed record MindmapRestoreDelta
             RemoveElementIds = removeElementIds,
             RemoveEdgeIds = removeEdgeIds,
             Canvas = to.Canvas.Equals(from.Canvas) ? null : to.Canvas,
+            Title = string.Equals(to.Title, from.Title, StringComparison.Ordinal) ? null : to.Title,
         };
     }
 }
