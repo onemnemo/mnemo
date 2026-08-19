@@ -5,6 +5,7 @@ import type { CardSide, CardType } from "@/api/types"
 import { IconButton } from "@/components/ui/icon-button"
 import { useT } from "@/i18n/useT"
 import { SelectControl } from "@/settings/components/controls/SelectControl"
+import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
 
 import { useDecksQuery, useFoldersQuery } from "../api"
@@ -12,7 +13,7 @@ import { useCardQuery, useCreateCard, useUpdateCard } from "./api"
 import { uploadCardAsset } from "./assets"
 import { deckOptions } from "./deck-options"
 import { draftFromStored, draftFromUpload, toAttachmentInputs, type DraftAttachment } from "./draft"
-import { canSaveCard, MAX_ATTACHMENTS_PER_SIDE } from "./editor-state"
+import { canSaveCard, draftIsDirty, snapshotDraft, MAX_ATTACHMENTS_PER_SIDE } from "./editor-state"
 import { EditorFooter } from "./components/EditorFooter"
 import { SideField } from "./components/SideField"
 import { TagEditor } from "./components/TagEditor"
@@ -62,6 +63,9 @@ function CardEditor({ target, onClose }: { target: CardEditorTarget; onClose: ()
   // and a background refetch must not overwrite what the reader has typed since.
   const loaded = card.data
   const hydratedCardId = useRef<string | null>(null)
+  // The draft this card started from: an add form starts empty, an edit form starts at
+  // whatever hydrates in. Closing without moving away from this is not losing anything.
+  const baseline = useRef(snapshotDraft({ front: "", back: "", tags: [], attachments: [] }))
   useEffect(() => {
     if (!loaded || hydratedCardId.current === loaded.id) return
     hydratedCardId.current = loaded.id
@@ -70,7 +74,14 @@ function CardEditor({ target, onClose }: { target: CardEditorTarget; onClose: ()
     setFront(loaded.front)
     setBack(loaded.back)
     setTags(loaded.tags)
-    setAttachments(loaded.attachments.map(draftFromStored))
+    const hydratedAttachments = loaded.attachments.map(draftFromStored)
+    setAttachments(hydratedAttachments)
+    baseline.current = snapshotDraft({
+      front: loaded.front,
+      back: loaded.back,
+      tags: loaded.tags,
+      attachments: hydratedAttachments,
+    })
   }, [loaded])
 
   // A card that cannot be loaded has nothing to edit; the desktop says so and closes, and the
@@ -153,12 +164,31 @@ function CardEditor({ target, onClose }: { target: CardEditorTarget; onClose: ()
     setFront("")
     setBack("")
     setAttachments([])
+    baseline.current = snapshotDraft({ front: "", back: "", tags, attachments: [] })
     // Focus goes back to Front so a run of cards can be typed without reaching for the mouse.
     setFocusFront((signal) => signal + 1)
   }
 
+  // The single funnel every dismiss path goes through: Escape, a backdrop or outside click,
+  // the header close button, and the footer's Close button all end up here. Typed content that
+  // has not been saved is confirmed rather than silently dropped.
+  const requestClose = async () => {
+    const current = snapshotDraft({ front, back, tags, attachments })
+    if (draftIsDirty(baseline.current, current)) {
+      const discard = await dialog.confirm({
+        title: fc("CardEditorDiscardTitle"),
+        message: fc("CardEditorDiscardMessage"),
+        confirmLabel: fc("CardEditorDiscardConfirm"),
+        cancelLabel: t("Common", "Cancel"),
+        destructive: true,
+      })
+      if (!discard) return
+    }
+    onClose()
+  }
+
   return (
-    <Dialog.Root open onOpenChange={(next) => !next && onClose()}>
+    <Dialog.Root open onOpenChange={(next) => { if (!next) void requestClose() }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
         <Dialog.Content
@@ -237,7 +267,7 @@ function CardEditor({ target, onClose }: { target: CardEditorTarget; onClose: ()
             sessionAdded={sessionAdded}
             canSave={canSave}
             saving={saving}
-            onClose={onClose}
+            onClose={() => void requestClose()}
             onSave={() => void save()}
           />
         </Dialog.Content>

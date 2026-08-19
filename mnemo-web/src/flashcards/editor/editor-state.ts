@@ -115,3 +115,43 @@ export function attachmentSizeLabel(displayName: string, sizeBytes: number): str
   const kb = Math.max(1, Math.round(sizeBytes / 1024))
   return `${displayName} · ${kb} KB`
 }
+
+/**
+ * The part of the draft that matters for "would closing lose work". Deck and type are
+ * deliberately excluded: browsing deck options or flipping Classic/Cloze before typing
+ * anything is not something worth warning about.
+ */
+export interface CardDraftSnapshot {
+  front: string
+  back: string
+  tags: string[]
+  attachmentKeys: string[]
+}
+
+export function snapshotDraft(input: {
+  front: string
+  back: string
+  tags: string[]
+  attachments: { key: string }[]
+}): CardDraftSnapshot {
+  return {
+    front: input.front,
+    back: input.back,
+    tags: [...input.tags],
+    attachmentKeys: input.attachments.map((attachment) => attachment.key),
+  }
+}
+
+function sameStrings(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+/** Whether the draft has moved away from its baseline (last hydrate or last successful save). */
+export function draftIsDirty(baseline: CardDraftSnapshot, current: CardDraftSnapshot): boolean {
+  return (
+    baseline.front !== current.front ||
+    baseline.back !== current.back ||
+    !sameStrings(baseline.tags, current.tags) ||
+    !sameStrings(baseline.attachmentKeys, current.attachmentKeys)
+  )
+}
