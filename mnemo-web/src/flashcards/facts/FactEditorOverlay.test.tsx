@@ -1,25 +1,41 @@
 // @vitest-environment jsdom
 
 /**
- * The editor used to drop typed content on the floor the moment a reader hit Escape, clicked
- * the backdrop, or hit Close, with no warning. This mounts the real overlay and drives the
- * paths Radix funnels every dismiss through (onOpenChange, which Escape and the header close
- * button both resolve to) plus the footer's own Close button, and checks the guard only speaks
- * up once there is something to lose.
+ * The editor used to drop typed content on the floor the moment a reader hit Escape, clicked the
+ * backdrop, or hit Close, with no warning. This mounts the real overlay and drives the paths Radix
+ * funnels every dismiss through (onOpenChange, which Escape and the header close button both
+ * resolve to) plus the footer's own Close button, and checks the guard only speaks up once there is
+ * something to lose.
  */
 
 import { act, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { CardEditorOverlay } from "./CardEditorOverlay"
-import { useCardEditor } from "./store"
+import { useCardEditor } from "../editor/store"
+import { FactEditorOverlay } from "./FactEditorOverlay"
 
 const mocks = vi.hoisted(() => ({
   confirm: vi.fn(async () => false),
-  createCard: vi.fn(async () => ({})),
-  updateCard: vi.fn(async () => ({})),
+  saveFact: vi.fn(async () => ({})),
+  refresh: vi.fn(),
 }))
+
+const basicType = {
+  id: "basic",
+  name: "Basic",
+  isBuiltIn: true,
+  fields: [
+    { id: "front", name: "Front", hint: null },
+    { id: "back", name: "Back", hint: null },
+  ],
+  sortFieldId: "front",
+  layouts: [{ id: "recognition", name: "Recognition", front: "{{Front}}", back: "{{Back}}", requires: null }],
+  generator: null,
+  generateFrom: null,
+  createdAt: "2026-01-01T00:00:00+00:00",
+  updatedAt: "2026-01-01T00:00:00+00:00",
+}
 
 vi.mock("../api", () => ({
   useDecksQuery: () => ({ data: [{ id: "d1", name: "Deck 1", folderId: null }] }),
@@ -27,12 +43,13 @@ vi.mock("../api", () => ({
 }))
 
 vi.mock("./api", () => ({
-  useCardQuery: () => ({ data: undefined, isError: false }),
-  useCreateCard: () => ({ mutateAsync: mocks.createCard, isPending: false }),
-  useUpdateCard: () => ({ mutateAsync: mocks.updateCard, isPending: false }),
+  useCardTypesQuery: () => ({ data: [{ type: basicType, factCount: 0 }] }),
+  useFactForCardQuery: () => ({ data: undefined, isError: false }),
+  useRefreshAfterFactWrite: () => mocks.refresh,
+  saveFact: mocks.saveFact,
 }))
 
-vi.mock("./assets", () => ({
+vi.mock("../editor/assets", () => ({
   uploadCardAsset: vi.fn(),
 }))
 
@@ -92,12 +109,12 @@ async function settle(): Promise<void> {
 
 function openAddEditor(): void {
   act(() => useCardEditor.getState().openAdd("d1"))
-  mount(<CardEditorOverlay />)
+  mount(<FactEditorOverlay />)
 }
 
-function frontField(): HTMLTextAreaElement {
+function firstField(): HTMLTextAreaElement {
   const field = document.querySelector<HTMLTextAreaElement>("textarea[aria-label]")
-  expect(field, "the front field is not on screen").not.toBeNull()
+  expect(field, "the first field is not on screen").not.toBeNull()
   return field!
 }
 
@@ -121,7 +138,7 @@ function closeButton(): HTMLButtonElement {
   return button as HTMLButtonElement
 }
 
-describe("CardEditorOverlay discard guard", () => {
+describe("FactEditorOverlay discard guard", () => {
   it("closes immediately on Escape when nothing has been typed", async () => {
     openAddEditor()
     await settle()
@@ -133,16 +150,16 @@ describe("CardEditorOverlay discard guard", () => {
     expect(useCardEditor.getState().target).toBeNull()
   })
 
-  it("asks for confirmation on Escape once the front field has unsaved text", async () => {
+  it("asks for confirmation on Escape once a field has unsaved text", async () => {
     openAddEditor()
     await settle()
 
-    typeInto(frontField(), "What is the capital of France?")
+    typeInto(firstField(), "What is the capital of France?")
     pressEscape()
     await settle()
 
     expect(mocks.confirm).toHaveBeenCalledTimes(1)
-    // The mocked confirm resolves false (cancel), so the card is not dropped.
+    // The mocked confirm resolves false (cancel), so the material is not dropped.
     expect(useCardEditor.getState().target).not.toBeNull()
   })
 
@@ -151,7 +168,7 @@ describe("CardEditorOverlay discard guard", () => {
     openAddEditor()
     await settle()
 
-    typeInto(frontField(), "What is the capital of France?")
+    typeInto(firstField(), "What is the capital of France?")
     pressEscape()
     await settle()
 
@@ -163,7 +180,7 @@ describe("CardEditorOverlay discard guard", () => {
     openAddEditor()
     await settle()
 
-    typeInto(frontField(), "What is the capital of France?")
+    typeInto(firstField(), "What is the capital of France?")
     act(() => {
       closeButton().click()
     })
@@ -171,5 +188,50 @@ describe("CardEditorOverlay discard guard", () => {
 
     expect(mocks.confirm).toHaveBeenCalledTimes(1)
     expect(useCardEditor.getState().target).not.toBeNull()
+  })
+})
+
+function fields(): HTMLTextAreaElement[] {
+  return [...document.querySelectorAll("textarea")]
+}
+
+function saveButton(): HTMLButtonElement | undefined {
+  return [...document.querySelectorAll("button")].find((el) => el.textContent?.startsWith("AddCard"))
+}
+
+describe("FactEditorOverlay save rule", () => {
+  it("renders the fields of the chosen card type", async () => {
+    openAddEditor()
+    await settle()
+
+    expect(fields().map((el) => el.getAttribute("aria-label"))).toEqual(["Front", "Back"])
+  })
+
+  it("will not save an empty form", async () => {
+    openAddEditor()
+    await settle()
+
+    expect(saveButton()?.disabled).toBe(true)
+  })
+
+  it("will not save a card that would be blank on one side", async () => {
+    openAddEditor()
+    await settle()
+
+    typeInto(firstField(), "What is the capital of France?")
+    await settle()
+
+    expect(saveButton()?.disabled).toBe(true)
+  })
+
+  it("enables the save once both sides of a card have something", async () => {
+    openAddEditor()
+    await settle()
+
+    typeInto(fields()[0], "What is the capital of France?")
+    typeInto(fields()[1], "Paris")
+    await settle()
+
+    expect(saveButton()?.disabled).toBe(false)
   })
 })
