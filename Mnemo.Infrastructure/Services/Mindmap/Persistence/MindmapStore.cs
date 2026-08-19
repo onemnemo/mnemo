@@ -19,7 +19,7 @@ namespace Mnemo.Infrastructure.Services.Mindmap.Persistence;
 /// row and its FTS mirror rows; reads open short-lived pooled connections and run concurrently. Mirrors
 /// the flashcard store's connection design.
 /// </summary>
-public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
+public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
 {
     private const string DateFormat = "O";
 
@@ -64,6 +64,7 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
             }
 
             await EnsureSchemaVersionAsync(writer, cancellationToken).ConfigureAwait(false);
+            await ExecuteAsync(writer, MindmapStoreSchema.TrashIndexSql, cancellationToken).ConfigureAwait(false);
 
             _writer = writer;
             _initialized = true;
@@ -88,7 +89,7 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Doc FROM Mindmaps WHERE Id = $id;";
+        cmd.CommandText = "SELECT Doc FROM Mindmaps WHERE Id = $id AND TrashId IS NULL;";
         cmd.Parameters.AddWithValue("$id", id);
 
         var json = (string?)await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
@@ -107,7 +108,7 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Id, Title, Revision, ModifiedAt FROM Mindmaps ORDER BY ModifiedAt DESC;";
+        cmd.CommandText = "SELECT Id, Title, Revision, ModifiedAt FROM Mindmaps WHERE TrashId IS NULL ORDER BY ModifiedAt DESC;";
 
         var results = new List<MindmapDocumentSummary>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -132,9 +133,13 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
     public Task SaveAsync(MindmapDocument document, MindmapSearchDelta searchDelta, CancellationToken cancellationToken = default) =>
         WriteAsync(async (writer, tx) =>
         {
+            int applied;
             await using (var upsert = writer.CreateCommand())
             {
                 upsert.Transaction = tx;
+                // The guard on the update half is what stops an editor still open on a deleted map from
+                // writing through the trash. It answers zero rows rather than failing, and the caller
+                // has already been told the map is gone by the read that returned nothing.
                 upsert.CommandText = """
                     INSERT INTO Mindmaps (Id, Title, SchemaVersion, Revision, Doc, CreatedAt, ModifiedAt)
                     VALUES ($id, $title, $schema, $revision, $doc, $created, $modified)
@@ -143,7 +148,8 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
                         SchemaVersion = excluded.SchemaVersion,
                         Revision = excluded.Revision,
                         Doc = excluded.Doc,
-                        ModifiedAt = excluded.ModifiedAt;
+                        ModifiedAt = excluded.ModifiedAt
+                    WHERE Mindmaps.TrashId IS NULL;
                     """;
                 upsert.Parameters.AddWithValue("$id", document.Id);
                 upsert.Parameters.AddWithValue("$title", document.Title);
@@ -152,8 +158,13 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
                 upsert.Parameters.AddWithValue("$doc", MindmapDocumentSerializer.Serialize(document));
                 upsert.Parameters.AddWithValue("$created", document.CreatedAt.ToString(DateFormat, CultureInfo.InvariantCulture));
                 upsert.Parameters.AddWithValue("$modified", document.ModifiedAt.ToString(DateFormat, CultureInfo.InvariantCulture));
-                await upsert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                applied = await upsert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
+
+            // Nothing was written, so nothing is reindexed either: the mirror keeps the held map's rows
+            // as they stood when it was deleted, ready for a restore.
+            if (applied == 0)
+                return;
 
             await ApplySearchDeltaAsync(writer, tx, document.Id, searchDelta, cancellationToken).ConfigureAwait(false);
         }, cancellationToken);
@@ -163,9 +174,12 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         {
             await using var cmd = writer.CreateCommand();
             cmd.Transaction = tx;
+            // Live only, so a direct delete cannot destroy a map the trash is holding on someone's
+            // behalf. Permanent deletion of a held map goes through the trash instead.
             cmd.CommandText = """
-                DELETE FROM MindmapSearch WHERE MapId = $id;
-                DELETE FROM Mindmaps WHERE Id = $id;
+                DELETE FROM MindmapSearch WHERE MapId = $id
+                    AND EXISTS (SELECT 1 FROM Mindmaps WHERE Id = $id AND TrashId IS NULL);
+                DELETE FROM Mindmaps WHERE Id = $id AND TrashId IS NULL;
                 """;
             cmd.Parameters.AddWithValue("$id", id);
             await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -184,9 +198,12 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
 
         await using var cmd = connection.CreateCommand();
+        // The FTS mirror keeps a held map's rows so that restoring one does not have to rebuild the
+        // index, so search joins the document row to answer only for a map the library still shows.
         cmd.CommandText = """
-            SELECT ElementId, Text FROM MindmapSearch
-            WHERE MapId = $map AND Text MATCH $q
+            SELECT s.ElementId, s.Text FROM MindmapSearch s
+            JOIN Mindmaps m ON m.Id = s.MapId
+            WHERE s.MapId = $map AND s.Text MATCH $q AND m.TrashId IS NULL
             LIMIT $limit;
             """;
         cmd.Parameters.AddWithValue("$map", mapId);
@@ -212,7 +229,7 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Doc, FolderId, LinkedDecksJson, Id FROM Mindmaps;";
+        cmd.CommandText = "SELECT Doc, FolderId, LinkedDecksJson, Id FROM Mindmaps WHERE TrashId IS NULL;";
 
         var entries = new List<MindmapLibraryEntry>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -272,7 +289,7 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Id, Name, ParentId, SortOrder FROM MindmapFolders ORDER BY SortOrder;";
+        cmd.CommandText = "SELECT Id, Name, ParentId, SortOrder FROM MindmapFolders WHERE TrashId IS NULL ORDER BY SortOrder;";
 
         var folders = new List<MindmapFolder>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -299,7 +316,8 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
                 ON CONFLICT(Id) DO UPDATE SET
                     ParentId = excluded.ParentId,
                     Name = excluded.Name,
-                    SortOrder = excluded.SortOrder;
+                    SortOrder = excluded.SortOrder
+                WHERE MindmapFolders.TrashId IS NULL;
                 """;
             cmd.Parameters.AddWithValue("$id", folder.Id);
             cmd.Parameters.AddWithValue("$parent", (object?)folder.ParentId ?? DBNull.Value);
@@ -311,10 +329,14 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
     public Task DeleteFolderAsync(string id, CancellationToken cancellationToken = default) =>
         WriteAsync(async (writer, tx) =>
         {
+            // The cascade below reaches held rows as readily as live ones, so anything the trash is
+            // holding underneath moves out of its path first.
+            await LiftHeldDescendantsAsync(writer, tx, id, cancellationToken).ConfigureAwait(false);
+
             // Subfolders cascade (FK); maps keep their now-dangling FolderId and surface at the root.
             await using var cmd = writer.CreateCommand();
             cmd.Transaction = tx;
-            cmd.CommandText = "DELETE FROM MindmapFolders WHERE Id = $id;";
+            cmd.CommandText = "DELETE FROM MindmapFolders WHERE Id = $id AND TrashId IS NULL;";
             cmd.Parameters.AddWithValue("$id", id);
             await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }, cancellationToken);
@@ -324,7 +346,7 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         {
             await using var cmd = writer.CreateCommand();
             cmd.Transaction = tx;
-            cmd.CommandText = "UPDATE Mindmaps SET FolderId = $folder WHERE Id = $id;";
+            cmd.CommandText = "UPDATE Mindmaps SET FolderId = $folder WHERE Id = $id AND TrashId IS NULL;";
             cmd.Parameters.AddWithValue("$id", mapId);
             cmd.Parameters.AddWithValue("$folder", (object?)folderId ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -479,7 +501,22 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         }
     }
 
-    private async Task WriteAsync(Func<SqliteConnection, SqliteTransaction, Task> write, CancellationToken cancellationToken)
+    private Task WriteAsync(Func<SqliteConnection, SqliteTransaction, Task> write, CancellationToken cancellationToken) =>
+        WriteAsync<object?>(async (writer, tx) =>
+        {
+            await write(writer, tx).ConfigureAwait(false);
+            return null;
+        }, cancellationToken);
+
+    /// <summary>
+    /// Runs one unit of work inside the store's single write transaction, on the store's own writer
+    /// connection, and hands back what it produced.
+    /// </summary>
+    /// <remarks>
+    /// The trash goes through here rather than opening a second writer, so taking a map and the
+    /// content it carries is one commit that an ordinary save cannot interleave with.
+    /// </remarks>
+    private async Task<T> WriteAsync<T>(Func<SqliteConnection, SqliteTransaction, Task<T>> write, CancellationToken cancellationToken)
     {
         await InitializeAsync(cancellationToken).ConfigureAwait(false);
 
@@ -490,8 +527,9 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
             await using var tx = (SqliteTransaction)await writer.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await write(writer, tx).ConfigureAwait(false);
+                var result = await write(writer, tx).ConfigureAwait(false);
                 await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+                return result;
             }
             catch
             {
@@ -503,6 +541,17 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         {
             _writeGate.Release();
         }
+    }
+
+    /// <summary>Runs one read on a short lived pooled connection with the store's pragmas applied.</summary>
+    private async Task<T> ReadAsync<T>(Func<SqliteConnection, Task<T>> read, CancellationToken cancellationToken)
+    {
+        await InitializeAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
+        return await read(connection).ConfigureAwait(false);
     }
 
     private static async Task ApplyPragmasAsync(SqliteConnection connection, bool isWriter, CancellationToken cancellationToken)
@@ -530,6 +579,13 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
             await ExecuteAsync(writer, MindmapStoreSchema.AddFolderIdColumnSql, cancellationToken).ConfigureAwait(false);
         if (!await ColumnExistsAsync(writer, "Mindmaps", "LinkedDecksJson", cancellationToken).ConfigureAwait(false))
             await ExecuteAsync(writer, MindmapStoreSchema.AddLinkedDecksColumnSql, cancellationToken).ConfigureAwait(false);
+
+        // v3 → v4: the trash column on both tables. Existing rows get NULL, which is what live means,
+        // so an upgraded library reads exactly as it did before.
+        if (!await ColumnExistsAsync(writer, "Mindmaps", "TrashId", cancellationToken).ConfigureAwait(false))
+            await ExecuteAsync(writer, MindmapStoreSchema.AddMapTrashIdColumnSql, cancellationToken).ConfigureAwait(false);
+        if (!await ColumnExistsAsync(writer, "MindmapFolders", "TrashId", cancellationToken).ConfigureAwait(false))
+            await ExecuteAsync(writer, MindmapStoreSchema.AddFolderTrashIdColumnSql, cancellationToken).ConfigureAwait(false);
 
         await using var insert = writer.CreateCommand();
         insert.CommandText = "INSERT OR IGNORE INTO MindmapSchemaVersion (Version, AppliedAt) VALUES ($v, $at);";

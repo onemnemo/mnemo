@@ -115,6 +115,8 @@ public static class Bootstrapper
 
         services.AddSingleton<NoteCommitStore>();
         services.AddSingleton<INoteCommitStore>(sp => sp.GetRequiredService<NoteCommitStore>());
+        services.AddSingleton<INoteTrashStore>(sp => sp.GetRequiredService<NoteCommitStore>());
+        services.AddSingleton<INoteFolderStore>(sp => sp.GetRequiredService<NoteCommitStore>());
         services.AddSingleton<INoteSidMigrator, NoteSidMigrator>();
         services.AddSingleton<INoteService, NoteService>();
         services.AddSingleton<INoteFolderService, NoteFolderService>();

@@ -9,10 +9,13 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Core.Services.Search;
 using Mnemo.Host.Flashcards;
+using Mnemo.Host.Trash;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
+using Mnemo.Infrastructure.Services.Flashcards.Trash;
 using Mnemo.Infrastructure.Services.Search;
+using Mnemo.Infrastructure.Services.Trash;
 using LogLevel = Mnemo.Core.Enums.LogLevel;
 
 namespace Mnemo.Host.Tests.Flashcards;
@@ -29,6 +32,7 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
 {
     private readonly string _dbPath;
     private readonly WebApplication _app;
+    private readonly TrashDatabase _trashDatabase;
     private bool _started;
     private HttpClient? _client;
 
@@ -56,7 +60,12 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         var testAttempts = new TestAttemptRepository();
         var dailyStats = new DailyStatsRepository();
 
-        Store = new FlashcardStore(new SilentLogger(), _dbPath);
+        var logger = new SilentLogger();
+        Store = new FlashcardStore(logger, _dbPath);
+
+        // The trash tables live in the same file the collection does, as they do in the app, so a
+        // capture and the write it interrupts cannot end up in two different transactions.
+        _trashDatabase = new TrashDatabase(logger, _dbPath);
 
         var clock = new FlashcardClock(TimeProvider.System);
         var materializer = new FlashcardCardMaterializer(cards, schedules, facts);
@@ -78,6 +87,7 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         builder.Logging.ClearProviders();
 
         builder.Services.AddSingleton(clock);
+        builder.Services.AddSingleton<ILoggerService>(logger);
         builder.Services.AddSingleton<IFlashcardLibraryService>(libraryService);
         builder.Services.AddSingleton<IFlashcardCardService>(cardService);
         builder.Services.AddSingleton<IFlashcardFactService>(factService);
@@ -89,6 +99,26 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         builder.Services.AddSingleton<ISearchProvider>(searchProvider);
         builder.Services.AddSingleton<IGlobalSearchService, GlobalSearchService>();
 
+        // The real trash coordinator over the four flashcard sources, so a delete route runs the
+        // production path rather than a stand in: nothing here is destroyed, it is held.
+        builder.Services.AddSingleton(_trashDatabase);
+        builder.Services.AddSingleton<ITrashStore>(new TrashStore(_trashDatabase));
+        builder.Services.AddSingleton<IAssetCleanupStore>(new AssetCleanupStore(_trashDatabase));
+        builder.Services.AddSingleton(new TrashSourceRegistry([
+            new FlashcardDeckFolderTrashSource(Store, logger),
+            new FlashcardDeckTrashSource(Store, logger),
+            new FlashcardFactTrashSource(Store, logger),
+            new FlashcardCardTrashSource(Store, logger),
+        ]));
+        builder.Services.AddSingleton<TrashMaintenance>();
+        builder.Services.AddSingleton<ITrashMaintenance>(sp => sp.GetRequiredService<TrashMaintenance>());
+        builder.Services.AddSingleton<AssetCleanupWorker>();
+        builder.Services.AddSingleton<ITrashService>(sp => new TrashService(
+            sp.GetRequiredService<ITrashStore>(),
+            sp.GetRequiredService<TrashSourceRegistry>(),
+            sp.GetRequiredService<ILoggerService>(),
+            sp.GetRequiredService<ITrashMaintenance>()));
+
         _app = builder.Build();
         _app.MapFlashcardLibrary();
         _app.MapFlashcardFacts();
@@ -96,6 +126,7 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         _app.MapFlashcardAssets();
         _app.MapFlashcardPresets();
         _app.MapSearch();
+        _app.MapTrash();
     }
 
     public async Task StartAsync()
@@ -105,7 +136,23 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         await _app.StartAsync().ConfigureAwait(false);
         _started = true;
         _client = _app.GetTestClient();
+
+        // Every trash route, and so every delete route, stays closed until the first reconciliation
+        // pass finishes.
+        var maintenance = _app.Services.GetRequiredService<TrashMaintenance>();
+        maintenance.StartInBackground();
+
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!maintenance.IsReady)
+        {
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException("The trash never finished starting.");
+            await Task.Delay(10).ConfigureAwait(false);
+        }
     }
+
+    /// <summary>The trash coordinator the delete routes run through.</summary>
+    public ITrashService Trash => _app.Services.GetRequiredService<ITrashService>();
 
     public async ValueTask DisposeAsync()
     {
@@ -114,6 +161,7 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
             await _app.StopAsync().ConfigureAwait(false);
         await _app.DisposeAsync().ConfigureAwait(false);
         await Store.DisposeAsync().ConfigureAwait(false);
+        await _trashDatabase.DisposeAsync().ConfigureAwait(false);
 
         foreach (var suffix in new[] { "", "-wal", "-shm" })
         {

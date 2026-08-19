@@ -3,8 +3,11 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Identity;
 using Mnemo.Core.Models;
+using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.Trash;
+using Mnemo.Infrastructure.Services.Notes.Trash;
 
 namespace Mnemo.Host.Notes;
 
@@ -134,25 +137,21 @@ public static class NoteEndpoints
             };
         }).RequireNotesMigrated();
 
-        // Matches the desktop app: a hard delete of this note only. Child pages and
-        // page blocks pointing here are left alone and render as a missing note,
-        // rather than a delete of one note quietly taking a subtree with it.
-        endpoints.MapDelete("/api/notes/{id}", async (string id, INoteService notes, NoteAssets assets) =>
+        // This note only. Child pages and page blocks pointing here are left alone and render as a
+        // missing note, rather than a delete of one note quietly taking a subtree with it.
+        //
+        // The note is not destroyed: it moves to the trash and stays recoverable for thirty days, so
+        // its images keep their last reference and the sweep leaves them alone until it is purged.
+        endpoints.MapDelete("/api/notes/{id}", async (string id, ITrashService trash, CancellationToken cancellationToken) =>
         {
-            if (await notes.GetNoteAsync(id).ConfigureAwait(false) is null)
-                return Results.NotFound(new ErrorDto("unknown_note", $"No note '{id}'."));
+            var action = await trash
+                .DeleteAsync([new TrashDeleteRequest(NoteTrashSource.TrashKind, id)], cancellationToken)
+                .ConfigureAwait(false);
 
-            var deleted = await notes.DeleteNoteAsync(id).ConfigureAwait(false);
-            if (deleted.IsSuccess)
-            {
-                // The deleted note's images just lost their last reference; collect them.
-                // The desktop never did this, which is how its images directory accretes
-                // files no note can reach.
-                assets.Sweeper.SweepInBackground();
-                return Results.NoContent();
-            }
-            return Results.StatusCode(StatusCodes.Status500InternalServerError);
-        }).RequireNotesMigrated();
+            return action.Entries.Count == 0
+                ? Results.NotFound(new ErrorDto("unknown_note", $"No note '{id}'."))
+                : Results.Ok(TrashActionDto.FromModel(action));
+        }).RequireNotesMigrated().RequireTrash();
 
         // The only way a note's body is ever written.
         endpoints.MapPut("/api/notes/{id}/content", async (

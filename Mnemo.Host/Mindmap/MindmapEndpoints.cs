@@ -4,9 +4,12 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Models.Mindmap;
+using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.Trash;
 using Mnemo.Infrastructure.Services.Mindmap.Tools;
+using Mnemo.Infrastructure.Services.Mindmap.Trash;
 
 namespace Mnemo.Host.Mindmap;
 
@@ -110,17 +113,18 @@ public static class MindmapEndpoints
                 : ServerError(duplicated.ErrorMessage, $"Mindmap '{id}' could not be duplicated.");
         });
 
-        endpoints.MapDelete("/api/mindmaps/{id}", async (string id, IMindmapService maps, CancellationToken cancellationToken) =>
+        // Deleting a map moves it to the trash, where it stays recoverable for the retention window.
+        // The answer carries the batch id the client needs to offer Undo.
+        endpoints.MapDelete("/api/mindmaps/{id}", async (string id, ITrashService trash, CancellationToken cancellationToken) =>
         {
-            var loaded = await maps.GetAsync(id, cancellationToken).ConfigureAwait(false);
-            if (loaded.Value is null)
-                return UnknownMap(id);
+            var action = await trash
+                .DeleteAsync([new TrashDeleteRequest(MindmapTrashSource.TrashKind, id)], cancellationToken)
+                .ConfigureAwait(false);
 
-            var deleted = await maps.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
-            return deleted.IsSuccess
-                ? Results.NoContent()
-                : ServerError(deleted.ErrorMessage, $"Mindmap '{id}' could not be deleted.");
-        });
+            return action.Entries.Count == 0
+                ? UnknownMap(id)
+                : Results.Ok(TrashActionDto.FromModel(action));
+        }).RequireTrash();
 
         endpoints.MapGet("/api/mindmaps/{id}/find", async (string id, string? q, IMindmapService maps, CancellationToken cancellationToken) =>
         {

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Services.Notes.Persistence;
 
 namespace Mnemo.Infrastructure.Services;
 
@@ -11,23 +12,33 @@ public class NoteService : INoteService
 {
     private readonly IStorageProvider _storage;
     private readonly INoteCommitStore _commits;
+    private readonly INoteTrashStore _trash;
     private const string IndexKey = "notes_index";
 
-    public NoteService(IStorageProvider storage, INoteCommitStore commits)
+    public NoteService(IStorageProvider storage, INoteCommitStore commits, INoteTrashStore trash)
     {
         _storage = storage;
         _commits = commits;
+        _trash = trash;
     }
 
+    // A note the trash holds stays in the index, because the asset sweep reads that index to decide
+    // which images are still spoken for. It is filtered out here instead, which is the one place the
+    // library is assembled and so the one place "deleted" has to mean invisible.
     public async Task<IEnumerable<Note>> GetAllNotesAsync()
     {
         var indexResult = await _storage.LoadAsync<List<string>>(IndexKey);
         if (!indexResult.IsSuccess || indexResult.Value == null)
             return Enumerable.Empty<Note>();
 
+        var held = await _trash.HeldNoteIdsAsync();
+
         var notes = new List<Note>();
         foreach (var id in indexResult.Value)
         {
+            if (held.ContainsKey(id))
+                continue;
+
             var noteResult = await _storage.LoadAsync<Note>($"note_{id}");
             if (noteResult.IsSuccess && noteResult.Value != null)
                 notes.Add(noteResult.Value);
@@ -38,6 +49,10 @@ public class NoteService : INoteService
 
     public async Task<Note?> GetNoteAsync(string noteId)
     {
+        var held = await _trash.HeldNoteIdsAsync();
+        if (held.ContainsKey(noteId))
+            return null;
+
         var result = await _storage.LoadAsync<Note>($"note_{noteId}");
         return result.IsSuccess ? result.Value : null;
     }
@@ -49,8 +64,12 @@ public class NoteService : INoteService
     {
         try
         {
-            await _commits.PutAsync(note);
-            return Result.Success();
+            var result = await _commits.PutAsync(note);
+            // The one way this write is refused is a note the trash is holding. Reporting success
+            // would leave a caller, an import in particular, believing it wrote something it did not.
+            return result.Outcome == NoteCommitOutcome.Applied
+                ? Result.Success()
+                : Result.Failure($"Note {note.NoteId} is in the trash and cannot be written to.");
         }
         catch (Exception ex)
         {

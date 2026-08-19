@@ -7,6 +7,8 @@ using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
+using Mnemo.Infrastructure.Services.Flashcards.Trash;
+using Mnemo.Infrastructure.Services.Trash;
 
 namespace Mnemo.Infrastructure.Services.Flashcards;
 
@@ -20,22 +22,19 @@ public sealed class FlashcardCardService : IFlashcardCardService
     private readonly IScheduleRepository _schedules;
     private readonly IFactRepository _facts;
     private readonly FlashcardClock _clock;
-    private readonly IImageAssetService? _images;
 
     public FlashcardCardService(
         IFlashcardStore store,
         ICardRepository cards,
         IScheduleRepository schedules,
         IFactRepository facts,
-        FlashcardClock clock,
-        IImageAssetService? images = null)
+        FlashcardClock clock)
     {
         _store = store;
         _cards = cards;
         _schedules = schedules;
         _facts = facts;
         _clock = clock;
-        _images = images;
     }
 
     public Task<FlashcardCardPage> ListCardsAsync(FlashcardCardQuery query, CancellationToken cancellationToken = default)
@@ -107,9 +106,8 @@ public sealed class FlashcardCardService : IFlashcardCardService
     /// once nothing is left with a claim on it: for a card with no material, that is itself; for
     /// one with material, that is the material, once this delete leaves it with no card anywhere.
     /// </summary>
-    public async Task DeleteCardsAsync(IReadOnlyList<string> cardIds, CancellationToken cancellationToken = default)
-    {
-        var owned = await _store.WriteAsync(async (conn, tx, ct) =>
+    public Task DeleteCardsAsync(IReadOnlyList<string> cardIds, CancellationToken cancellationToken = default) =>
+        _store.WriteAsync(async (conn, tx, ct) =>
         {
             var files = new List<string>();
             var factIds = new HashSet<string>(StringComparer.Ordinal);
@@ -140,11 +138,10 @@ public sealed class FlashcardCardService : IFlashcardCardService
                 await _facts.DeleteManyAsync(conn, tx, new[] { factId }, ct).ConfigureAwait(false);
             }
 
-            return files;
-        }, cancellationToken).ConfigureAwait(false);
-
-        await FlashcardAttachmentCleanup.DeleteAsync(_images, owned, cancellationToken).ConfigureAwait(false);
-    }
+            await AssetCleanupQueue
+                .EnqueueAsync(conn, tx, FlashcardAssetReferences.AssetOwner, files, _clock.Now, ct)
+                .ConfigureAwait(false);
+        }, cancellationToken);
 
     public Task MoveCardsAsync(IReadOnlyList<string> cardIds, string targetDeckId, CancellationToken cancellationToken = default) =>
         _store.WriteAsync((conn, tx, ct) => _cards.MoveManyAsync(conn, tx, cardIds, targetDeckId, _clock.Now, ct), cancellationToken);

@@ -100,6 +100,11 @@ public sealed class ReviewRepository : IReviewRepository
         return Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
     }
 
+    // Deliberately reads reviews from held decks and held cards too. This is the history a weight
+    // fit learns from, not a picture of the library as it stands, and how someone remembered a card
+    // last month stays true after they delete it. Dropping thirty days of reviews the moment
+    // something is deleted, and putting them back on a restore, would move the scheduler's
+    // parameters for every deck sharing the preset and then move them straight back again.
     public async Task<IReadOnlyList<FlashcardReviewRow>> ListForPresetAsync(SqliteConnection conn, string presetId, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();

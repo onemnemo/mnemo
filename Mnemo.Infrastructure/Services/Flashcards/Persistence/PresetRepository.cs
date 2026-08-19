@@ -112,7 +112,7 @@ public sealed class PresetRepository : IPresetRepository
     public async Task<int> CountDecksUsingAsync(SqliteConnection conn, string presetId, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM FlashcardDecks WHERE PresetId = $id;";
+        cmd.CommandText = "SELECT COUNT(*) FROM FlashcardDecks WHERE PresetId = $id AND TrashId IS NULL;";
         cmd.Parameters.AddWithValue("$id", presetId);
         var result = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(result);

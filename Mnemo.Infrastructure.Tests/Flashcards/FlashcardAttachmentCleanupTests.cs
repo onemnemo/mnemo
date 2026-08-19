@@ -2,11 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
-using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Tests.Flashcards.Persistence;
@@ -15,29 +12,32 @@ using Xunit;
 namespace Mnemo.Infrastructure.Tests.Flashcards;
 
 /// <summary>
-/// What happens to an attachment's file on disk when whatever named it - a card, a piece of
+/// Which attachment files get queued for deletion when whatever named them - a card, a piece of
 /// material, a deck - is deleted or edited to drop it.
 /// </summary>
 /// <remarks>
 /// The recurring hazard here is aliasing: a card made from material carries the very same
 /// <see cref="FlashcardAttachment.FilePath"/> its material stored the picture under, and every
 /// other card the same material makes can carry it too. Deleting one of those cards must never
-/// take the file out from under its material or a sibling card; only deleting the material
-/// itself, or dropping the picture from the material's own edit, may do that.
+/// queue the file its material or a sibling card still shows; only deleting the material itself,
+/// or dropping the picture from the material's own edit, may do that.
+///
+/// Queueing is as far as any of this goes. The file itself is only removed once a sweep confirms
+/// nothing at all still names it, held rows included, which is what keeps a picture alive while a
+/// card that uses it is sitting in the trash.
 /// </remarks>
 public sealed class FlashcardAttachmentCleanupTests
 {
     private static readonly DateTimeOffset Now = new(2026, 3, 4, 9, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task DeletingALegacyCardWithNoMaterial_DeletesItsAttachmentFile()
+    public async Task Deleting_a_legacy_card_with_no_material_queues_its_attachment_file()
     {
         // Every card made through the normal routes gets material of its own (FlashcardCardMaterial
         // wraps even a hand typed front/back), so a card with no FactId only exists as data an
         // upgrade has not reached yet. It still owns its file outright and must still lose it.
         await using var h = await OpenAsync();
-        var images = new RecordingImageAssetService();
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock, images);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
         var path = ManagedPath("front.png");
         var card = new Flashcard(
@@ -48,18 +48,17 @@ public sealed class FlashcardAttachmentCleanupTests
 
         await cardSvc.DeleteCardsAsync([card.Id]);
 
-        Assert.Contains(path, images.Deleted);
+        Assert.Contains(path, await QueuedAsync(h));
     }
 
     [Fact]
-    public async Task DeletingTheOnlyCardOfItsMaterial_DeletesTheOrphanedMaterialAndItsFile()
+    public async Task Deleting_the_only_card_of_its_material_removes_the_orphaned_material_and_queues_its_file()
     {
         // A fact with no card left is invisible and unreachable: nothing lists it, nothing can
         // edit it, and it would otherwise sit in the database forever holding its file down.
         await using var h = await OpenAsync();
-        var images = new RecordingImageAssetService();
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock, images);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock, images);
+        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
         var path = ManagedPath("shared.png");
         var saved = await factSvc.SaveFactAsync(Draft(FlashcardCardType.BasicId, new()
@@ -71,19 +70,18 @@ public sealed class FlashcardAttachmentCleanupTests
 
         await cardSvc.DeleteCardsAsync([card.Id]);
 
-        Assert.Contains(path, images.Deleted);
+        Assert.Contains(path, await QueuedAsync(h));
         Assert.Null(await factSvc.GetFactAsync(saved.Fact.Id));
     }
 
     [Fact]
-    public async Task DeletingOneSiblingCard_LeavesTheFileTheOtherSiblingStillNeeds()
+    public async Task Deleting_one_sibling_card_leaves_the_file_the_other_sibling_still_needs()
     {
         // A cloze deletion with two markers makes two cards off one fact; deleting one is not
         // deleting the material, so the file the surviving sibling still shows must stay.
         await using var h = await OpenAsync();
-        var images = new RecordingImageAssetService();
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock, images);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock, images);
+        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
         var path = ManagedPath("shared.png");
         var saved = await factSvc.SaveFactAsync(Draft(FlashcardCardType.ClozeId, new()
@@ -94,21 +92,20 @@ public sealed class FlashcardAttachmentCleanupTests
 
         await cardSvc.DeleteCardsAsync([saved.Cards[0].Id]);
 
-        Assert.Empty(images.Deleted);
+        Assert.Empty(await QueuedAsync(h));
         Assert.NotNull(await factSvc.GetFactAsync(saved.Fact.Id));
 
         await cardSvc.DeleteCardsAsync([saved.Cards[1].Id]);
 
-        Assert.Contains(path, images.Deleted);
+        Assert.Contains(path, await QueuedAsync(h));
         Assert.Null(await factSvc.GetFactAsync(saved.Fact.Id));
     }
 
     [Fact]
-    public async Task DeletingMaterial_DeletesItsMediaFiles()
+    public async Task Deleting_material_queues_its_media_files()
     {
         await using var h = await OpenAsync();
-        var images = new RecordingImageAssetService();
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock, images);
+        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
 
         var path = ManagedPath("front.png");
         var saved = await factSvc.SaveFactAsync(Draft(FlashcardCardType.BasicId, new()
@@ -119,16 +116,15 @@ public sealed class FlashcardAttachmentCleanupTests
 
         await factSvc.DeleteFactsAsync([saved.Fact.Id]);
 
-        Assert.Contains(path, images.Deleted);
+        Assert.Contains(path, await QueuedAsync(h));
         Assert.Null(await h.Store.ReadAsync((conn, ct) => h.Cards.GetAsync(conn, saved.Cards.Single().Id, ct)));
     }
 
     [Fact]
-    public async Task SavingMaterialAgain_DeletesTheDroppedAttachment_KeepsTheOneStillThere()
+    public async Task Saving_material_again_queues_the_dropped_attachment_and_keeps_the_one_still_there()
     {
         await using var h = await OpenAsync();
-        var images = new RecordingImageAssetService();
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock, images);
+        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
 
         var kept = ManagedPath("kept.png");
         var dropped = ManagedPath("dropped.png");
@@ -147,19 +143,19 @@ public sealed class FlashcardAttachmentCleanupTests
             ["back"] = "A",
         }, id: first.Fact.Id, media: MediaOn("front", "a1", kept)));
 
-        Assert.Contains(dropped, images.Deleted);
-        Assert.DoesNotContain(kept, images.Deleted);
+        var queued = await QueuedAsync(h);
+        Assert.Contains(dropped, queued);
+        Assert.DoesNotContain(kept, queued);
     }
 
     [Fact]
-    public async Task DeletingADeck_DeletesFreeformCardFiles_AndFilesOfMaterialLeftWithNoCardsAnywhere()
+    public async Task Deleting_a_deck_queues_freeform_card_files_and_files_of_material_left_with_no_cards_anywhere()
     {
         await using var h = await OpenAsync();
-        var images = new RecordingImageAssetService();
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock, images);
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock, images);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
         var lib = new FlashcardLibraryService(
-            h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock, images);
+            h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
         var freeformPath = ManagedPath("freeform.png");
         await cardSvc.CreateCardAsync(new FlashcardCardDraft(
@@ -175,20 +171,20 @@ public sealed class FlashcardAttachmentCleanupTests
         var deleted = await lib.DeleteDeckAsync("deck-1");
 
         Assert.True(deleted);
-        Assert.Contains(freeformPath, images.Deleted);
-        Assert.Contains(materialPath, images.Deleted);
+        var queued = await QueuedAsync(h);
+        Assert.Contains(freeformPath, queued);
+        Assert.Contains(materialPath, queued);
     }
 
     [Fact]
-    public async Task DeletingADeck_KeepsMaterialAndItsFile_WhenOneOfItsCardsWasMovedElsewhereFirst()
+    public async Task Deleting_a_deck_keeps_material_and_its_file_when_one_of_its_cards_was_moved_elsewhere_first()
     {
         await using var h = await OpenAsync();
         await h.SeedDeckAsync("deck-2");
-        var images = new RecordingImageAssetService();
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock, images);
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock, images);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
         var lib = new FlashcardLibraryService(
-            h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock, images);
+            h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
         var path = ManagedPath("still-used.png");
         var saved = await factSvc.SaveFactAsync(Draft(FlashcardCardType.BasicId, new()
@@ -206,26 +202,9 @@ public sealed class FlashcardAttachmentCleanupTests
         var deleted = await lib.DeleteDeckAsync("deck-1");
 
         Assert.True(deleted);
-        Assert.DoesNotContain(path, images.Deleted);
+        Assert.DoesNotContain(path, await QueuedAsync(h));
         Assert.NotNull(await factSvc.GetFactAsync(saved.Fact.Id));
         Assert.NotNull(await h.Store.ReadAsync((conn, ct) => h.Cards.GetAsync(conn, card.Id, ct)));
-    }
-
-    [Fact]
-    public async Task AnAttachmentOutsideTheManagedDirectory_IsNeverDeleted()
-    {
-        await using var h = await OpenAsync();
-        var images = new RecordingImageAssetService();
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock, images);
-
-        // An imported card can point at a file the user still has elsewhere on disk.
-        var external = Path.Combine(Path.GetTempPath(), "mnemo-external-test", "photo.png");
-        var card = await cardSvc.CreateCardAsync(new FlashcardCardDraft(
-            "deck-1", FlashcardType.Classic, "Q", "A", [], [Attachment("e1", external)]));
-
-        await cardSvc.DeleteCardsAsync([card.Id]);
-
-        Assert.Empty(images.Deleted);
     }
 
     // ---- Plumbing ----------------------------------------------------------------------------
@@ -236,6 +215,30 @@ public sealed class FlashcardAttachmentCleanupTests
         await harness.SeedDeckAsync();
         return harness;
     }
+
+    /// <summary>
+    /// The paths waiting in the cleanup queue. Nothing enqueued yet means no table yet, which reads
+    /// the same as an empty queue.
+    /// </summary>
+    private static Task<List<string>> QueuedAsync(FlashcardStoreHarness harness) =>
+        harness.Store.ReadAsync(async (conn, ct) =>
+        {
+            var paths = new List<string>();
+
+            await using var exists = conn.CreateCommand();
+            exists.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'AssetCleanupJobs';";
+            if (await exists.ExecuteScalarAsync(ct) is null)
+                return paths;
+
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT Path FROM AssetCleanupJobs WHERE Owner = $owner;";
+            cmd.Parameters.AddWithValue("$owner", FlashcardAssetReferences.AssetOwner);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                paths.Add(reader.GetString(0));
+
+            return paths;
+        });
 
     private static string ManagedPath(string name) =>
         Path.Combine(MnemoAppPaths.GetImagesDirectory(), $"{Guid.NewGuid():N}-{name}");
@@ -253,18 +256,4 @@ public sealed class FlashcardAttachmentCleanupTests
         string deckId = "deck-1",
         IReadOnlyDictionary<string, IReadOnlyList<FlashcardAttachment>>? media = null) =>
         new(id, deckId, typeId, values, media ?? new Dictionary<string, IReadOnlyList<FlashcardAttachment>>(), []);
-
-    private sealed class RecordingImageAssetService : IImageAssetService
-    {
-        public List<string> Deleted { get; } = new();
-
-        public Task<Result<string>> ImportAndCopyAsync(string sourcePath, string blockId, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException("Not exercised by these tests.");
-
-        public Task<Result> DeleteStoredFileAsync(string absolutePath, CancellationToken cancellationToken = default)
-        {
-            Deleted.Add(absolutePath);
-            return Task.FromResult(Result.Success());
-        }
-    }
 }

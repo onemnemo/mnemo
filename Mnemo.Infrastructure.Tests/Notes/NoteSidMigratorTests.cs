@@ -150,7 +150,7 @@ public class NoteSidMigratorTests
         // a file of the right size.
         await using var backupStore = new NoteCommitStore(h.Logger, backup);
         var restored = new Mnemo.Infrastructure.Services.NoteService(
-            new Mnemo.Infrastructure.Services.SqliteStorageProvider(h.Logger, backup), backupStore);
+            new Mnemo.Infrastructure.Services.SqliteStorageProvider(h.Logger, backup), backupStore, backupStore);
         var original = await restored.GetNoteAsync(seeded.NoteId);
 
         Assert.NotNull(original);

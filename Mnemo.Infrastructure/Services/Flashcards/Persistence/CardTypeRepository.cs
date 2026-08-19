@@ -90,7 +90,7 @@ public sealed class CardTypeRepository : ICardTypeRepository
     public async Task<int> CountFactsAsync(SqliteConnection conn, string typeId, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM FlashcardFacts WHERE TypeId = $id;";
+        cmd.CommandText = "SELECT COUNT(*) FROM FlashcardFacts WHERE TypeId = $id AND TrashId IS NULL;";
         cmd.Parameters.AddWithValue("$id", typeId);
         return Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
     }

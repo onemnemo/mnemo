@@ -66,8 +66,17 @@ public sealed class FlashcardCardMaterializer
         if (generated.Count == 0)
             return default;
 
-        var existing = (await _facts.GetCardKeysAsync(conn, fact.Id, cancellationToken).ConfigureAwait(false))
+        var owned = await _facts.GetCardKeysAsync(conn, fact.Id, cancellationToken).ConfigureAwait(false);
+        var existing = owned.Where(k => !k.IsHeld)
             .ToDictionary(k => k.LayoutKey, k => k.CardId, StringComparer.Ordinal);
+
+        // A layout whose card is in the trash is left alone entirely: not rewritten, not replaced,
+        // and not swept as an orphan. The card keeps the wording it had when it was deleted and
+        // picks up later edits at the first save after it comes back. That is the price of being
+        // able to put it back where it was; making a second card for the layout in the meantime
+        // would leave the two of them fighting over one slot on the way in.
+        var held = new HashSet<string>(
+            owned.Where(k => k.IsHeld).Select(k => k.LayoutKey), StringComparer.Ordinal);
 
         var cardType = string.Equals(type.Generator, FlashcardGenerators.Cloze, StringComparison.Ordinal)
             ? FlashcardType.Cloze
@@ -84,6 +93,9 @@ public sealed class FlashcardCardMaterializer
         var updated = 0;
         foreach (var card in generated)
         {
+            if (held.Contains(card.Key))
+                continue;
+
             if (existing.Remove(card.Key, out var cardId))
             {
                 await UpdateAsync(conn, tx, cardId, fact, card, cardType, factMoved, now, cancellationToken).ConfigureAwait(false);
@@ -95,7 +107,8 @@ public sealed class FlashcardCardMaterializer
             added++;
         }
 
-        // Whatever is left in the map no longer has a layout behind it.
+        // Whatever is left in the map no longer has a layout behind it. Held cards were never in
+        // it, so a delete cannot reach one of them here.
         var orphaned = existing.Values.ToArray();
         await _cards.DeleteManyAsync(conn, tx, orphaned, cancellationToken).ConfigureAwait(false);
 

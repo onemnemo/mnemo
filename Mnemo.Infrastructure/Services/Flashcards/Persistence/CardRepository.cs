@@ -59,6 +59,13 @@ public sealed class CardRepository : ICardRepository
     /// <summary>How many columns <see cref="SelectColumns"/> reads, for callers that select more.</summary>
     private const int CardColumnCount = 16;
 
+    /// <summary>
+    /// What every ordinary read adds so a card the trash is holding stays out of it. Held cards keep
+    /// their rows, their schedules and their review history, and are simply not part of the library
+    /// until they are restored.
+    /// </summary>
+    private const string Live = "c.TrashId IS NULL";
+
     private const string ScheduleColumns =
         "s.CardId, s.DueDate, s.Stability, s.Difficulty, s.Reps, s.Lapses, s.FsrsState, s.LearningStepIndex, " +
         "s.LastReviewedAt, s.BuriedUntil";
@@ -70,7 +77,7 @@ public sealed class CardRepository : ICardRepository
     public async Task<Flashcard?> GetAsync(SqliteConnection conn, string cardId, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardCards c WHERE c.Id = $id LIMIT 1;";
+        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardCards c WHERE c.Id = $id AND {Live} LIMIT 1;";
         cmd.Parameters.AddWithValue("$id", cardId);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? ReadCard(reader, 0) : null;
@@ -79,7 +86,7 @@ public sealed class CardRepository : ICardRepository
     public async Task<IReadOnlyList<Flashcard>> ListByDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardCards c WHERE c.DeckId = $deck ORDER BY c.CreatedAt;";
+        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardCards c WHERE c.DeckId = $deck AND {Live} ORDER BY c.CreatedAt;";
         cmd.Parameters.AddWithValue("$deck", deckId);
         var list = new List<Flashcard>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -95,7 +102,7 @@ public sealed class CardRepository : ICardRepository
             SELECT COUNT(*),
                    SUM(CASE WHEN State = 0 THEN 1 ELSE 0 END),
                    SUM(CASE WHEN State = 1 THEN 1 ELSE 0 END)
-            FROM FlashcardCards WHERE DeckId = $deck;
+            FROM FlashcardCards WHERE DeckId = $deck AND TrashId IS NULL;
             """;
         cmd.Parameters.AddWithValue("$deck", deckId);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -109,7 +116,7 @@ public sealed class CardRepository : ICardRepository
 
     public async Task<FlashcardCardPage> GetPageAsync(SqliteConnection conn, FlashcardCardQuery query, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var where = new StringBuilder("WHERE 1 = 1");
+        var where = new StringBuilder($"WHERE {Live}");
         void Bind(SqliteCommand c)
         {
             c.Parameters.AddWithValue("$now", FlashcardSqlMap.Ts(now));
@@ -158,7 +165,7 @@ public sealed class CardRepository : ICardRepository
         if (query.Type is not null)
             where.Append(" AND c.Type = $type");
         if (!string.IsNullOrWhiteSpace(query.CardTypeId))
-            where.Append(" AND EXISTS (SELECT 1 FROM FlashcardFacts f WHERE f.Id = c.FactId AND f.TypeId = $cardType)");
+            where.Append(" AND EXISTS (SELECT 1 FROM FlashcardFacts f WHERE f.Id = c.FactId AND f.TypeId = $cardType AND f.TrashId IS NULL)");
         if (query.MinLapses is not null)
             where.Append(" AND s.Lapses >= $minLapses");
         if (query.MaxLapses is not null)
@@ -210,7 +217,7 @@ public sealed class CardRepository : ICardRepository
         if (limit <= 0)
             return Array.Empty<FlashcardView>();
 
-        var where = new StringBuilder("WHERE c.DeckId = $deck AND c.State = 0");
+        var where = new StringBuilder($"WHERE {Live} AND c.DeckId = $deck AND c.State = 0");
         if (fsrsStates is { Count: > 0 })
             where.Append(" AND s.FsrsState IN (").Append(string.Join(", ", fsrsStates)).Append(')');
         if (dueOnOrBefore is not null)
@@ -248,7 +255,7 @@ public sealed class CardRepository : ICardRepository
             SELECT {SelectColumns}
             FROM FlashcardCardsFts fts
             JOIN FlashcardCards c ON c.rowid = fts.rowid
-            WHERE FlashcardCardsFts MATCH $q {stateClause}
+            WHERE FlashcardCardsFts MATCH $q AND {Live} {stateClause}
             ORDER BY bm25(FlashcardCardsFts, 3.0, 2.0, 1.0), c.UpdatedAt DESC
             LIMIT $limit;
             """;
@@ -290,7 +297,8 @@ public sealed class CardRepository : ICardRepository
                 DeckId = $deck, Type = $type, Front = $front, Back = $back, TagsJson = $tags,
                 State = $state, IsFlagged = $flagged, AttachmentsJson = $attach,
                 SourceType = $srcType, SourceId = $srcId, SourceLabel = $srcLabel, UpdatedAt = $updated,
-                FactId = $fact, LayoutKey = $key;
+                FactId = $fact, LayoutKey = $key
+            WHERE TrashId IS NULL;
             """;
         BindCard(cmd, card);
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -308,7 +316,7 @@ public sealed class CardRepository : ICardRepository
                 DeckId = $deck, Type = $type, Front = $front, Back = $back, TagsJson = $tags,
                 State = $state, IsFlagged = $flagged, AttachmentsJson = $attach,
                 SourceType = $srcType, SourceId = $srcId, SourceLabel = $srcLabel, UpdatedAt = $updated
-            WHERE Id = $id;
+            WHERE Id = $id AND TrashId IS NULL;
             """;
         BindCard(cmd, card);
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -321,7 +329,9 @@ public sealed class CardRepository : ICardRepository
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
         var inClause = BuildInClause(cmd, cardIds);
-        cmd.CommandText = $"DELETE FROM FlashcardCards WHERE Id IN ({inClause});";
+        // A card the trash is holding is not this delete's to take. It belongs to a trash entry,
+        // and only that entry finishing can destroy it.
+        cmd.CommandText = $"DELETE FROM FlashcardCards WHERE Id IN ({inClause}) AND TrashId IS NULL;";
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -332,7 +342,11 @@ public sealed class CardRepository : ICardRepository
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
         var inClause = BuildInClause(cmd, cardIds);
-        cmd.CommandText = $"UPDATE FlashcardCards SET DeckId = $deck, UpdatedAt = $now WHERE Id IN ({inClause});";
+        // A deck the trash is holding cannot take cards in: moving one there would hide it until
+        // the deck came back, and put it somewhere the user cannot get it out of in the meantime.
+        cmd.CommandText =
+            $"UPDATE FlashcardCards SET DeckId = $deck, UpdatedAt = $now WHERE Id IN ({inClause}) AND TrashId IS NULL " +
+            "  AND EXISTS (SELECT 1 FROM FlashcardDecks WHERE Id = $deck AND TrashId IS NULL);";
         cmd.Parameters.AddWithValue("$deck", targetDeckId);
         cmd.Parameters.AddWithValue("$now", FlashcardSqlMap.Ts(now));
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -351,7 +365,7 @@ public sealed class CardRepository : ICardRepository
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
         var inClause = BuildInClause(cmd, cardIds);
-        cmd.CommandText = $"UPDATE FlashcardCards SET {column} = $val, UpdatedAt = $now WHERE Id IN ({inClause});";
+        cmd.CommandText = $"UPDATE FlashcardCards SET {column} = $val, UpdatedAt = $now WHERE Id IN ({inClause}) AND TrashId IS NULL;";
         cmd.Parameters.AddWithValue("$val", value);
         cmd.Parameters.AddWithValue("$now", FlashcardSqlMap.Ts(now));
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);

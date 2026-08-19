@@ -1,7 +1,7 @@
 using Mnemo.Core.Models.Mindmap;
-using Mnemo.Core.Services;
 using Mnemo.Host.Assets;
-using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services.Mindmap;
+using Mnemo.Infrastructure.Services.Mindmap.Persistence;
 
 namespace Mnemo.Host.Mindmap;
 
@@ -12,9 +12,14 @@ namespace Mnemo.Host.Mindmap;
 /// <para>
 /// A map names files from one place, the content of its elements, in the two shapes that carry an
 /// image: a canvas image dropped onto the background and an image inside a tree node. Both are read by
-/// <see cref="CollectFrom"/>, which is the one list of fields the sweep knows about. A content kind
-/// added later that stores a file belongs in that list; a file this misses is unreferenced, and the
-/// sweeper deletes it once it is past the grace window.
+/// <see cref="MindmapAssetReferences.Collect"/>, which is the one list of fields the sweep knows
+/// about. A content kind added later that stores a file belongs in that list; a file this misses is
+/// unreferenced, and the sweeper deletes it once it is past the grace window.
+/// </para>
+/// <para>
+/// The walk covers maps the trash is holding as well as maps the library shows. A deleted map can be
+/// restored for thirty days and has to come back with its images intact, so as far as the sweep is
+/// concerned a held map is a map.
 /// </para>
 /// <para>
 /// Each map is loaded one at a time rather than through the library read, which skips a row it cannot
@@ -26,11 +31,11 @@ namespace Mnemo.Host.Mindmap;
 /// </remarks>
 public sealed class MindmapAssetReferenceSource : IAssetReferenceSource
 {
-    private readonly IMindmapService _mindmaps;
+    private readonly IMindmapTrashStore _store;
 
-    public MindmapAssetReferenceSource(IMindmapService mindmaps)
+    public MindmapAssetReferenceSource(IMindmapTrashStore store)
     {
-        _mindmaps = mindmaps;
+        _store = store;
     }
 
     /// <summary>Mindmaps have no migration standing between the stored data and this read.</summary>
@@ -38,59 +43,33 @@ public sealed class MindmapAssetReferenceSource : IAssetReferenceSource
 
     public async Task<IReadOnlyCollection<string>> CollectReferencedIdsAsync(CancellationToken cancellationToken = default)
     {
-        var listed = await _mindmaps.ListAsync(cancellationToken).ConfigureAwait(false);
-        if (!listed.IsSuccess || listed.Value is null)
-            throw new InvalidOperationException("The mindmap library could not be listed; refusing to sweep against an unknown corpus.");
+        var ids = await _store.ListAllOwnedIdsAsync(cancellationToken).ConfigureAwait(false);
 
         var referenced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var summary in listed.Value)
+        foreach (var id in ids)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var map = await _mindmaps.GetAsync(summary.Id, cancellationToken).ConfigureAwait(false);
-            if (!map.IsSuccess)
-                throw new InvalidOperationException($"Mindmap '{summary.Id}' could not be read; refusing to sweep against a partly read corpus.");
-            // Listed but absent: a delete committed between the two reads. The next sweep sees a
-            // consistent state; this one stands down.
-            if (map.Value is null)
-                throw new InvalidOperationException($"Mindmap '{summary.Id}' is listed but missing; refusing to sweep until the corpus reads consistently.");
 
-            CollectFrom(map.Value, referenced);
+            MindmapDocument? map;
+            try
+            {
+                map = await _store.LoadAllOwnedAsync(id, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw new InvalidOperationException(
+                    $"Mindmap '{id}' could not be read; refusing to sweep against a partly read corpus.", ex);
+            }
+
+            // Listed but absent: a purge committed between the two reads. The next sweep sees a
+            // consistent state; this one stands down.
+            if (map is null)
+                throw new InvalidOperationException(
+                    $"Mindmap '{id}' is listed but missing; refusing to sweep until the corpus reads consistently.");
+
+            MindmapAssetReferences.Collect(map, referenced);
         }
 
         return referenced;
-    }
-
-    /// <summary>Every field of a map that can name a stored file.</summary>
-    private static void CollectFrom(MindmapDocument document, HashSet<string> into)
-    {
-        foreach (var element in document.Elements)
-        {
-            var assetId = element.Content switch
-            {
-                CanvasImageContent canvas => canvas.AssetId,
-                ImageContent image => image.AssetId,
-                _ => null,
-            };
-
-            if (ParseReference(assetId) is { } id)
-                into.Add(id);
-        }
-    }
-
-    /// <summary>The asset id a stored reference names, or null when it points somewhere this does not own.</summary>
-    private static string? ParseReference(string? assetId)
-    {
-        if (string.IsNullOrWhiteSpace(assetId))
-            return null;
-
-        // A rooted path is a desktop-era reference into the shared images directory, which nothing
-        // sweeps. One pointing into the mindmap directory should not exist, but if it does, reading it
-        // as a reference errs toward keeping the file.
-        if (Path.IsPathRooted(assetId))
-            return MnemoAppPaths.IsPathUnderMindmapAssetsDirectory(assetId) ? Path.GetFileName(assetId) : null;
-
-        // Anything else that is a single safe segment is a managed asset id. Urls and other schemes
-        // fall out here as unreferenced by the store, which is what they are.
-        return assetId.Contains('/') || assetId.Contains('\\') || assetId.Contains(':') ? null : assetId;
     }
 }

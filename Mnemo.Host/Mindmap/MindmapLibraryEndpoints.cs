@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Models.Mindmap;
+using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.Trash;
+using Mnemo.Infrastructure.Services.Mindmap.Trash;
 
 namespace Mnemo.Host.Mindmap;
 
@@ -63,13 +66,18 @@ public static class MindmapLibraryEndpoints
                 : Error(saved.ErrorMessage, $"Folder '{id}' could not be saved.");
         });
 
-        endpoints.MapDelete("/api/mindmaps/folders/{id}", async (string id, IMindmapService maps, CancellationToken cancellationToken) =>
+        // Deleting a folder takes the maps and subfolders inside it, all under one entry, so Undo puts
+        // the arrangement back rather than leaving its contents scattered at the root.
+        endpoints.MapDelete("/api/mindmaps/folders/{id}", async (string id, ITrashService trash, CancellationToken cancellationToken) =>
         {
-            var deleted = await maps.DeleteFolderAsync(id, cancellationToken).ConfigureAwait(false);
-            return deleted.IsSuccess
-                ? Results.NoContent()
-                : Error(deleted.ErrorMessage, $"Folder '{id}' could not be deleted.");
-        });
+            var action = await trash
+                .DeleteAsync([new TrashDeleteRequest(MindmapFolderTrashSource.TrashKind, id)], cancellationToken)
+                .ConfigureAwait(false);
+
+            return action.Entries.Count == 0
+                ? Results.NotFound(new ErrorDto("unknown_folder", $"No mindmap folder with id '{id}'."))
+                : Results.Ok(TrashActionDto.FromModel(action));
+        }).RequireTrash();
 
         endpoints.MapPut("/api/mindmaps/{id}/folder", async (
             string id,

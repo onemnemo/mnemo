@@ -7,6 +7,8 @@ using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
+using Mnemo.Infrastructure.Services.Flashcards.Trash;
+using Mnemo.Infrastructure.Services.Trash;
 
 namespace Mnemo.Infrastructure.Services.Flashcards;
 
@@ -19,7 +21,6 @@ public sealed class FlashcardFactService : IFlashcardFactService
     private readonly ICardRepository _cards;
     private readonly FlashcardCardMaterializer _materializer;
     private readonly FlashcardClock _clock;
-    private readonly IImageAssetService? _images;
 
     public FlashcardFactService(
         IFlashcardStore store,
@@ -27,8 +28,7 @@ public sealed class FlashcardFactService : IFlashcardFactService
         ICardTypeRepository types,
         ICardRepository cards,
         FlashcardCardMaterializer materializer,
-        FlashcardClock clock,
-        IImageAssetService? images = null)
+        FlashcardClock clock)
     {
         _store = store;
         _facts = facts;
@@ -36,7 +36,6 @@ public sealed class FlashcardFactService : IFlashcardFactService
         _cards = cards;
         _materializer = materializer;
         _clock = clock;
-        _images = images;
     }
 
     public Task<IReadOnlyList<FlashcardCardType>> ListCardTypesAsync(CancellationToken cancellationToken = default) =>
@@ -101,7 +100,7 @@ public sealed class FlashcardFactService : IFlashcardFactService
         ArgumentNullException.ThrowIfNull(draft);
         var now = _clock.Now;
 
-        var (saved, dropped) = await _store.WriteAsync(async (conn, tx, ct) =>
+        return await _store.WriteAsync(async (conn, tx, ct) =>
         {
             var type = await _types.GetAsync(conn, draft.TypeId, ct).ConfigureAwait(false)
                 ?? throw new ArgumentException($"There is no card type '{draft.TypeId}'.", nameof(draft));
@@ -136,11 +135,12 @@ public sealed class FlashcardFactService : IFlashcardFactService
                     cards.Add(card);
             }
 
-            return (new FlashcardFactSaved(fact, cards, result.Added, result.Removed), DroppedMediaPaths(existing, fact));
-        }, cancellationToken).ConfigureAwait(false);
+            await AssetCleanupQueue
+                .EnqueueAsync(conn, tx, FlashcardAssetReferences.AssetOwner, DroppedMediaPaths(existing, fact), now, ct)
+                .ConfigureAwait(false);
 
-        await FlashcardAttachmentCleanup.DeleteAsync(_images, dropped, cancellationToken).ConfigureAwait(false);
-        return saved;
+            return new FlashcardFactSaved(fact, cards, result.Added, result.Removed);
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -148,9 +148,8 @@ public sealed class FlashcardFactService : IFlashcardFactService
     /// attachment files with it and cascades away with the same delete, so collecting the
     /// material's own media here also accounts for theirs; nothing further is needed per card.
     /// </summary>
-    public async Task DeleteFactsAsync(IReadOnlyList<string> factIds, CancellationToken cancellationToken = default)
-    {
-        var owned = await _store.WriteAsync(async (conn, tx, ct) =>
+    public Task DeleteFactsAsync(IReadOnlyList<string> factIds, CancellationToken cancellationToken = default) =>
+        _store.WriteAsync(async (conn, tx, ct) =>
         {
             var files = new List<string>();
             foreach (var id in factIds)
@@ -160,12 +159,15 @@ public sealed class FlashcardFactService : IFlashcardFactService
                     files.AddRange(fact.Media.Values.SelectMany(list => list).Select(a => a.FilePath));
             }
 
-            await _facts.DeleteManyAsync(conn, tx, factIds, ct).ConfigureAwait(false);
-            return files;
-        }, cancellationToken).ConfigureAwait(false);
+            // A card of this material that the trash is holding is somebody's to get back, so it is
+            // cut loose first and lives on as a freeform card instead of cascading away with it.
+            await FlashcardTrashCascade.DetachHeldCardsAsync(conn, tx, factIds, ct).ConfigureAwait(false);
 
-        await FlashcardAttachmentCleanup.DeleteAsync(_images, owned, cancellationToken).ConfigureAwait(false);
-    }
+            await _facts.DeleteManyAsync(conn, tx, factIds, ct).ConfigureAwait(false);
+            await AssetCleanupQueue
+                .EnqueueAsync(conn, tx, FlashcardAssetReferences.AssetOwner, files, _clock.Now, ct)
+                .ConfigureAwait(false);
+        }, cancellationToken);
 
     /// <summary>The files an edit removed from the material's fields, kept until now so a save
     /// that fails or is never made never costs anyone a picture.</summary>

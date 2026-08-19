@@ -26,6 +26,12 @@ public sealed class DeckRepository : IDeckRepository
     private const string SelectColumns =
         "Id, FolderId, PresetId, Name, Description, TagsJson, SortOrder, LastStudied, Icon, CreatedAt, UpdatedAt";
 
+    /// <summary>
+    /// What every ordinary read adds so a deck the trash is holding stays out of it. Held decks keep
+    /// their rows, their cards and their history until they are restored or purged.
+    /// </summary>
+    private const string Live = "TrashId IS NULL";
+
     private readonly ILoggerService? _logger;
 
     public DeckRepository(ILoggerService? logger = null) => _logger = logger;
@@ -33,7 +39,7 @@ public sealed class DeckRepository : IDeckRepository
     public async Task<IReadOnlyList<FlashcardDeckHeader>> ListHeadersAsync(SqliteConnection conn, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardDecks ORDER BY SortOrder, Name;";
+        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardDecks WHERE {Live} ORDER BY SortOrder, Name;";
         var list = new List<FlashcardDeckHeader>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -44,23 +50,32 @@ public sealed class DeckRepository : IDeckRepository
     public async Task<FlashcardDeckHeader?> GetHeaderAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardDecks WHERE Id = $id LIMIT 1;";
+        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardDecks WHERE Id = $id AND {Live} LIMIT 1;";
         cmd.Parameters.AddWithValue("$id", deckId);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? Read(reader) : null;
     }
 
+    /// <summary>
+    /// Where a save or a move actually files a deck, for the same reason a folder has one: a folder
+    /// the trash is holding cannot take anything in, so the deck goes to the root rather than out
+    /// of sight. A folder id with no row behind it yet is left as it is.
+    /// </summary>
+    private const string LiveFolder =
+        "(SELECT $folder WHERE NOT EXISTS (SELECT 1 FROM FlashcardFolders WHERE Id = $folder AND TrashId IS NOT NULL))";
+
     public async Task UpsertAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardDeckHeader deck, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
-        cmd.CommandText = """
+        cmd.CommandText = $"""
             INSERT INTO FlashcardDecks
                 (Id, FolderId, PresetId, Name, Description, TagsJson, SortOrder, LastStudied, Icon, CreatedAt, UpdatedAt)
-            VALUES ($id, $folder, $preset, $name, $desc, $tags, $sort, $last, $icon, $created, $updated)
+            VALUES ($id, {LiveFolder}, $preset, $name, $desc, $tags, $sort, $last, $icon, $created, $updated)
             ON CONFLICT(Id) DO UPDATE SET
-                FolderId = $folder, PresetId = $preset, Name = $name, Description = $desc,
-                TagsJson = $tags, SortOrder = $sort, LastStudied = $last, Icon = $icon, UpdatedAt = $updated;
+                FolderId = {LiveFolder}, PresetId = $preset, Name = $name, Description = $desc,
+                TagsJson = $tags, SortOrder = $sort, LastStudied = $last, Icon = $icon, UpdatedAt = $updated
+            WHERE TrashId IS NULL;
             """;
         var now = deck.UpdatedAt == default ? DateTimeOffset.UtcNow : deck.UpdatedAt;
         cmd.Parameters.AddWithValue("$id", deck.Id);
@@ -86,7 +101,7 @@ public sealed class DeckRepository : IDeckRepository
         // that this delete leaves with nothing behind it anywhere.
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
-        cmd.CommandText = "DELETE FROM FlashcardDecks WHERE Id = $id;";
+        cmd.CommandText = $"DELETE FROM FlashcardDecks WHERE Id = $id AND {Live};";
         cmd.Parameters.AddWithValue("$id", deckId);
         var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return rows > 0;
@@ -96,7 +111,8 @@ public sealed class DeckRepository : IDeckRepository
     {
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
-        cmd.CommandText = "UPDATE FlashcardDecks SET FolderId = $folder, SortOrder = $sort, UpdatedAt = $now WHERE Id = $id;";
+        cmd.CommandText =
+            $"UPDATE FlashcardDecks SET FolderId = {LiveFolder}, SortOrder = $sort, UpdatedAt = $now WHERE Id = $id AND {Live};";
         cmd.Parameters.AddWithValue("$folder", (object?)folderId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$sort", sortOrder);
         cmd.Parameters.AddWithValue("$now", FlashcardSqlMap.Ts(now));
@@ -108,7 +124,7 @@ public sealed class DeckRepository : IDeckRepository
     {
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
-        cmd.CommandText = "UPDATE FlashcardDecks SET PresetId = $preset, UpdatedAt = $now WHERE Id = $id;";
+        cmd.CommandText = $"UPDATE FlashcardDecks SET PresetId = $preset, UpdatedAt = $now WHERE Id = $id AND {Live};";
         cmd.Parameters.AddWithValue("$preset", presetId);
         cmd.Parameters.AddWithValue("$now", FlashcardSqlMap.Ts(now));
         cmd.Parameters.AddWithValue("$id", deckId);
@@ -119,7 +135,7 @@ public sealed class DeckRepository : IDeckRepository
     {
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
-        cmd.CommandText = "UPDATE FlashcardDecks SET LastStudied = $when, UpdatedAt = $when WHERE Id = $id;";
+        cmd.CommandText = $"UPDATE FlashcardDecks SET LastStudied = $when, UpdatedAt = $when WHERE Id = $id AND {Live};";
         cmd.Parameters.AddWithValue("$when", FlashcardSqlMap.Ts(when));
         cmd.Parameters.AddWithValue("$id", deckId);
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
