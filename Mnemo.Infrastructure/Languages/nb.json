@@ -690,6 +690,7 @@
     "UnderlineTooltip": "Understreking (Ctrl+U)",
     "StrikethroughTooltip": "Gjennomstreking",
     "HighlightTooltip": "Uthev",
+    "InlineCodeTooltip": "Inline-kode",
     "SubscriptTooltip": "Senket skrift (Ctrl+,)",
     "SuperscriptTooltip": "Hevet skrift (Ctrl+.)",
     "TypeSlashForCommands": "Skriv '/' for kommandoer...",

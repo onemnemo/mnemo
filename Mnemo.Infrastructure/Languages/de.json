@@ -690,6 +690,7 @@
     "UnderlineTooltip": "Unterstrichen (Strg+U)",
     "StrikethroughTooltip": "Durchgestrichen",
     "HighlightTooltip": "Hervorheben",
+    "InlineCodeTooltip": "Inline-Code",
     "SubscriptTooltip": "Tiefgestellt (Strg+,)",
     "SuperscriptTooltip": "Hochgestellt (Strg+.)",
     "TypeSlashForCommands": "Typen Sie '/' für Befehle...",

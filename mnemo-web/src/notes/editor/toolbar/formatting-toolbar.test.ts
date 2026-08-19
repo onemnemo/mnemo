@@ -365,6 +365,245 @@ describe('buttons run the catalog\'s own commands', () => {
   });
 });
 
+describe('the inline code button', () => {
+  it('renders in the toolbar', () => {
+    mount([textBlock('hello')]);
+    expect(() => button('editor.code')).not.toThrow();
+  });
+
+  it('labels itself from the NotesEditor bundle', () => {
+    mount([textBlock('hello')]);
+    expect(button('editor.code').title).toBe('t:InlineCodeTooltip');
+  });
+
+  it('clicking toggles the mark across the selection', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    button('editor.code').click();
+    let coded = false;
+    view.state.doc.descendants((node) => {
+      if (node.isText && schema.marks.codeMark.isInSet(node.marks)) coded = true;
+      return true;
+    });
+    expect(coded).toBe(true);
+  });
+
+  it('reflects the active state of the current selection', () => {
+    const view = mount([textBlock('hello', { code: true })]);
+    selectAll(view);
+    expect(button('editor.code').classList.contains('is-active')).toBe(true);
+  });
+});
+
+/**
+ * The link button opens a flyout rather than running a fixed command, so its
+ * wiring gets its own section: the button's readouts (enabled/active) come
+ * from `link-commands.ts` rather than the catalog, and its click opens UI
+ * instead of dispatching straight off. `link-commands.test.ts` covers the
+ * mark logic itself; this covers only that the toolbar reaches it correctly.
+ */
+describe('the link button', () => {
+  function flyout(): HTMLElement {
+    const el = document.querySelector('.notes-link-flyout');
+    if (!el) throw new Error('flyout not open');
+    return el as HTMLElement;
+  }
+
+  function flyoutInput(): HTMLInputElement {
+    const el = flyout().querySelector<HTMLInputElement>('input');
+    if (!el) throw new Error('no url field in the flyout');
+    return el;
+  }
+
+  it('renders as a sentinel in the toolbar, not a catalog command', () => {
+    mount([textBlock('hello')]);
+    expect(() => button('editor.link')).not.toThrow();
+  });
+
+  it('labels itself from the NotesEditor bundle', () => {
+    mount([textBlock('hello')]);
+    expect(button('editor.link').title).toBe('t:LinkTooltip');
+  });
+
+  it('is enabled over a plain writable selection', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    expect(button('editor.link').disabled).toBe(false);
+  });
+
+  it('disables where the catalog refuses marks, inside a code block', () => {
+    const view = mount([codeBlock('const x = 1;')]);
+    selectAll(view);
+    expect(button('editor.link').disabled).toBe(true);
+  });
+
+  it('is not active over plain text', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    expect(button('editor.link').classList.contains('is-active')).toBe(false);
+  });
+
+  it('reports active over an already-linked selection', () => {
+    const view = mount([textBlock('hello', { linkUrl: 'https://example.com' })]);
+    selectAll(view);
+    expect(button('editor.link').classList.contains('is-active')).toBe(true);
+    expect(button('editor.link').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('a click opens the flyout instead of running a command', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    button('editor.link').click();
+    expect(document.querySelector('.notes-link-flyout')).not.toBeNull();
+  });
+
+  it('a mousedown on the link button does not steal editor focus either', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    button('editor.link').dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('clicking it again while open cancels it, rather than reopening', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    button('editor.link').click();
+    expect(document.querySelector('.notes-link-flyout')).not.toBeNull();
+    button('editor.link').click();
+    expect(document.querySelector('.notes-link-flyout')).toBeNull();
+  });
+
+  it('applying a url sets the link mark and closes the flyout', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    button('editor.link').click();
+    const input = flyoutInput();
+    input.value = 'https://example.com';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+
+    expect(document.querySelector('.notes-link-flyout')).toBeNull();
+    let href: unknown;
+    view.state.doc.descendants((node) => {
+      if (node.isText) {
+        const mark = node.marks.find((m) => m.type === schema.marks.link);
+        if (mark) href = mark.attrs.href;
+      }
+      return true;
+    });
+    expect(href).toBe('https://example.com');
+  });
+
+  it('rejects an unsafe scheme and leaves the flyout open', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    button('editor.link').click();
+    const input = flyoutInput();
+    input.value = 'javascript:alert(1)';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+
+    expect(document.querySelector('.notes-link-flyout')).not.toBeNull();
+    const error = flyout().querySelector('.notes-link-flyout-error');
+    expect(error?.hasAttribute('hidden')).toBe(false);
+    let hasLink = false;
+    view.state.doc.descendants((node) => {
+      if (node.isText && schema.marks.link.isInSet(node.marks)) hasLink = true;
+      return true;
+    });
+    expect(hasLink).toBe(false);
+  });
+
+  it('offers a remove control only when editing an existing link', () => {
+    const withLink = mount([textBlock('hello', { linkUrl: 'https://example.com' })]);
+    selectAll(withLink);
+    button('editor.link').click();
+    expect(flyout().querySelector('.notes-link-flyout-remove')).not.toBeNull();
+  });
+
+  it('has no remove control when inserting a fresh link', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    button('editor.link').click();
+    expect(flyout().querySelector('.notes-link-flyout-remove')).toBeNull();
+  });
+
+  it('removing clears the mark and closes the flyout', () => {
+    const view = mount([textBlock('hello', { linkUrl: 'https://example.com' })]);
+    selectAll(view);
+    button('editor.link').click();
+    const remove = flyout().querySelector<HTMLButtonElement>('.notes-link-flyout-remove');
+    if (!remove) throw new Error('no remove control');
+    remove.click();
+
+    expect(document.querySelector('.notes-link-flyout')).toBeNull();
+    let hasLink = false;
+    view.state.doc.descendants((node) => {
+      if (node.isText && schema.marks.link.isInSet(node.marks)) hasLink = true;
+      return true;
+    });
+    expect(hasLink).toBe(false);
+  });
+
+  it('Escape cancels without applying', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    button('editor.link').click();
+    const input = flyoutInput();
+    input.value = 'https://example.com';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+
+    expect(document.querySelector('.notes-link-flyout')).toBeNull();
+    let hasLink = false;
+    view.state.doc.descendants((node) => {
+      if (node.isText && schema.marks.link.isInSet(node.marks)) hasLink = true;
+      return true;
+    });
+    expect(hasLink).toBe(false);
+  });
+
+  it('a press inside the flyout is not read as an outside dismissal', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    button('editor.link').click();
+    flyout().dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expect(document.querySelector('.notes-link-flyout')).not.toBeNull();
+  });
+
+  it('an outside press closes it without stealing that press\'s own focus target', () => {
+    const view = mount([textBlock('hello')]);
+    selectAll(view);
+    button('editor.link').click();
+    expect(document.querySelector('.notes-link-flyout')).not.toBeNull();
+
+    const outside = document.createElement('input');
+    document.body.appendChild(outside);
+    outside.focus();
+    outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+    expect(document.querySelector('.notes-link-flyout')).toBeNull();
+    expect(document.activeElement).toBe(outside);
+  });
+
+  it('the Mod-Shift-l chord opens the flyout for a caret already inside a link', () => {
+    const view = mount([textBlock('hello', { linkUrl: 'https://example.com' })]);
+    // Two characters in, not the run's own left edge: the link mark is
+    // `inclusive: false`, so a caret at the boundary itself reads as
+    // outside it, same as any other non-inclusive mark.
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 4)));
+    settle();
+    expect(pressInDocument(view, 'l', { ctrlKey: true, shiftKey: true })).toBe(true);
+    expect(document.querySelector('.notes-link-flyout')).not.toBeNull();
+  });
+
+  it('the chord declines at a caret with no link and nothing selected', () => {
+    const view = mount([textBlock('hello')]);
+    collapseCaret(view);
+    settle();
+    expect(pressInDocument(view, 'l', { ctrlKey: true, shiftKey: true })).toBe(false);
+    expect(document.querySelector('.notes-link-flyout')).toBeNull();
+  });
+});
+
 describe('a mousedown on the toolbar never steals editor focus', () => {
   it('preventDefault is called on the toolbar root', () => {
     const view = mount([textBlock('hello')]);

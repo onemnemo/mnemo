@@ -1146,6 +1146,88 @@
   filter: brightness(1.08);
 }
 
+/* The link flyout: an address field with a Done button and, when editing an
+ * existing link, a Remove button, floating off either the toolbar's Link
+ * button or the caret. Same floating chrome and body-level positioning as
+ * the equation flyout. */
+.notes-link-flyout {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 260px;
+  max-width: 380px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--floating-chrome-divider);
+  background: var(--floating-chrome-background);
+  box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.32);
+  font-family: var(--font-sans);
+}
+.notes-link-flyout-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.notes-link-flyout-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--floating-chrome-divider);
+  border-radius: 6px;
+  background: var(--floating-chrome-hover);
+  color: var(--floating-chrome-foreground-strong);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body-small);
+  outline: none;
+}
+.notes-link-flyout-input:focus-visible {
+  border-color: var(--floating-chrome-accent);
+}
+.notes-link-flyout-input::placeholder {
+  color: var(--floating-chrome-foreground-muted);
+}
+.notes-link-flyout-done {
+  min-width: 64px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-button-text);
+  font-size: var(--font-size-body-small);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.notes-link-flyout-done:hover {
+  filter: brightness(1.08);
+}
+.notes-link-flyout-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  padding: 0;
+  border: 1px solid var(--floating-chrome-divider);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--floating-chrome-foreground-muted);
+  cursor: pointer;
+}
+.notes-link-flyout-remove:hover {
+  background: var(--floating-chrome-hover);
+  color: var(--floating-chrome-foreground-strong);
+}
+.notes-link-flyout-remove svg {
+  width: 16px;
+  height: 16px;
+}
+.notes-link-flyout-error {
+  color: var(--danger);
+  font-size: var(--font-size-body-small);
+}
+
 /* Inline marks the browser does not style itself. */
 .notes-doc code {
   font-family: var(--font-mono);

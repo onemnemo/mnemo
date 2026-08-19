@@ -109,7 +109,7 @@ function spansOf(ranges: readonly SelectionRange[]): Span[] {
  * desktop reaches the same place from the other direction: it applies per block
  * and returns early on the heading ones.
  */
-function applicableRanges(
+export function applicableRanges(
   doc: PMNode,
   ranges: readonly SelectionRange[],
   type: MarkType,

@@ -690,6 +690,7 @@
     "UnderlineTooltip": "下線 (Ctrl+U)",
     "StrikethroughTooltip": "取り消し線",
     "HighlightTooltip": "ハイライト",
+    "InlineCodeTooltip": "インラインコード",
     "SubscriptTooltip": "下付き文字 (Ctrl+,)",
     "SuperscriptTooltip": "上付き文字 (Ctrl+.)",
     "TypeSlashForCommands": "/でコマンドを入力...",
