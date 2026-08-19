@@ -178,6 +178,14 @@ describe('BlockGutter', () => {
     expect(buttons()).toEqual(['InsertBlockBelow', 'BlockActionsFormat']);
   });
 
+  it('keeps its buttons out of Tab order, so typing and pressing Tab never lands here', () => {
+    mount(calloutNote);
+    hover(blockElement(0));
+    const els = mounted?.chrome.querySelectorAll('button') ?? [];
+    expect(els.length).toBeGreaterThan(0);
+    for (const el of els) expect(el.tabIndex).toBe(-1);
+  });
+
   it('stays on the callout across a glyph change', () => {
     const { view, registry } = mount(calloutNote);
     hover(blockElement(0));
