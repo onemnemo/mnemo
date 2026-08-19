@@ -56,6 +56,7 @@ export interface DeckMenuHandlers {
   readonly test: () => void
   readonly rename: () => void
   readonly reviewSettings: () => void
+  readonly export: () => void
   readonly remove: () => void
 }
 
@@ -133,18 +134,12 @@ export function deckMenuItems({
     { kind: "item", id: "open", label: fc("OpenDeck"), icon: "flyout/open", run: on.open },
     { kind: "item", id: "rename", label: fc("RenameDeck"), icon: "flyout/rename", run: on.rename },
     {
-      // Export and review settings arrive with the transfer and preset work
-      // later this phase; the rows stay visible but inert until then.
-      kind: "submenu",
+      kind: "item",
       id: "export",
       label: fc("Export"),
       icon: "flyout/export",
-      items: [
-        { kind: "item", id: "export.mnemo", label: fc("ExportFormatMnemo"), disabled: true },
-        { kind: "item", id: "export.anki", label: fc("ExportFormatAnki"), disabled: true },
-        { kind: "item", id: "export.csv", label: fc("ExportFormatCsv"), disabled: true },
-        { kind: "item", id: "export.choose", label: fc("ChooseFormat"), disabled: true },
-      ],
+      hint: ".apkg · .csv · .mnemo",
+      run: on.export,
     },
     {
       kind: "item",
