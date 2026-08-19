@@ -108,7 +108,7 @@ public sealed class FlashcardEngineTests
         await using var h = new FlashcardStoreHarness();
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var lib = new FlashcardLibraryService(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var study = Study(h);
 
         var preset = await presetSvc.SavePresetAsync(FlashcardPreset.CreateStandard(DateTimeOffset.UtcNow)
@@ -368,7 +368,7 @@ public sealed class FlashcardEngineTests
     }
 
     private static FlashcardStudyService Study(FlashcardStoreHarness h) =>
-        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler(h.Clock), h.Clock);
+        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, h.Facts, new FsrsScheduler(h.Clock), h.Clock);
 
     private static Task<(FlashcardFsrsState? Before, FlashcardFsrsState After)[]> ReadStatePairsAsync(
         FlashcardStoreHarness h, string cardId) =>

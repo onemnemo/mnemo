@@ -1,0 +1,131 @@
+import { AppIcon } from "@/components/icon/AppIcon"
+import { IconButton } from "@/components/ui/icon-button"
+import { useT } from "@/i18n/useT"
+import { SelectControl } from "@/settings/components/controls/SelectControl"
+
+import { marker, type CardTypeDraft, type CardTypeLayoutDraft } from "../card-types"
+
+/**
+ * Sentinel for the choice that stands for no condition, since a select cannot carry null. Written
+ * so it is visible in the source and cannot be confused with a field id, which is always generated.
+ */
+const ALWAYS = "__always__"
+
+/**
+ * The cards a piece of material makes, one block per card. A card is two templates and, optionally,
+ * a field it waits for: a card whose condition names an empty field is not made at all, which is
+ * how one card type covers material that is sometimes fuller than at other times.
+ */
+export function CardTypeCards({
+  draft,
+  onPatchLayout,
+  onRemoveLayout,
+  onAddLayout,
+}: {
+  draft: CardTypeDraft
+  onPatchLayout: (layoutId: string, patch: Partial<CardTypeLayoutDraft>) => void
+  onRemoveLayout: (layoutId: string) => void
+  onAddLayout: () => void
+}) {
+  const t = useT()
+  const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
+
+  const requiresChoices = [
+    { value: ALWAYS, label: fc("CardTypesRequiresAlways") },
+    ...draft.fields.map((field) => ({ value: field.id, label: field.name })),
+  ]
+
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center gap-2">
+        <h3 className="text-[12px] font-medium uppercase tracking-[0.04em] text-ink-3">{fc("CardTypesCardsLabel")}</h3>
+        <div className="flex-1" />
+        <button
+          type="button"
+          onClick={onAddLayout}
+          className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12.5px] text-ink-3 transition-colors hover:bg-frame-hover hover:text-ink"
+        >
+          <AppIcon name="common/plus" size={12} />
+          <span>{fc("CardTypesAddCard")}</span>
+        </button>
+      </div>
+
+      {/* The example is built from a real field rather than translated, so every language shows the
+          same markers and the reader sees one their own type actually has. */}
+      <p className="flex flex-wrap items-center gap-1.5 text-[11.5px] leading-[16px] text-ink-3">
+        <span>{fc("CardTypesMarkersHint")}</span>
+        <code className="rounded bg-canvas-sunken px-1 py-0.5 font-mono text-[11px] text-ink-2">
+          {marker(draft.fields[0]?.name ?? "")}
+        </code>
+      </p>
+
+      <div className="space-y-2.5">
+        {draft.layouts.map((layout) => (
+          <div key={layout.id} className="space-y-2 rounded-lg border border-line-soft p-2.5">
+            <div className="flex items-center gap-1.5">
+              <input
+                value={layout.name}
+                onChange={(event) => onPatchLayout(layout.id, { name: event.target.value })}
+                placeholder={fc("CardTypesCardNamePlaceholder")}
+                aria-label={fc("CardTypesCardNamePlaceholder")}
+                className="h-8 min-w-0 flex-1 rounded-lg bg-transparent px-2.5 text-[13px] font-medium text-ink shadow-[0_0_0_1px_var(--line)] outline-none placeholder:text-ink-3 focus:shadow-[0_0_0_1.5px_var(--solid)]"
+              />
+              <span className="shrink-0 text-[11.5px] text-ink-3">{fc("CardTypesRequiresLabel")}</span>
+              <SelectControl
+                value={layout.requires ?? ALWAYS}
+                choices={requiresChoices}
+                onChange={(next) => onPatchLayout(layout.id, { requires: next === ALWAYS ? null : next })}
+                label={fc("CardTypesRequiresLabel")}
+                className="min-w-[126px]"
+              />
+              <IconButton
+                icon="common/trash"
+                iconSize={13}
+                label={fc("CardTypesRemoveCard")}
+                disabled={draft.layouts.length === 1}
+                onClick={() => onRemoveLayout(layout.id)}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <TemplateBox
+                label={fc("ColFront")}
+                value={layout.front}
+                onChange={(next) => onPatchLayout(layout.id, { front: next })}
+              />
+              <TemplateBox
+                label={fc("ColBack")}
+                value={layout.back}
+                onChange={(next) => onPatchLayout(layout.id, { back: next })}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function TemplateBox({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (next: string) => void
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11px] uppercase tracking-[0.04em] text-ink-3">{label}</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label={label}
+        rows={2}
+        spellCheck={false}
+        className="w-full resize-none rounded-lg bg-transparent px-2.5 py-2 font-mono text-[12.5px] leading-[1.5] text-ink shadow-[0_0_0_1px_var(--line)] outline-none focus:shadow-[0_0_0_1.5px_var(--solid)]"
+      />
+    </label>
+  )
+}

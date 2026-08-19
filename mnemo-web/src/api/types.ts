@@ -165,6 +165,99 @@ export interface CardScheduleDto {
   lastReviewedAt: string | null
 }
 
+/** Mirrors Mnemo.Host/Contracts/FlashcardFactDto.cs CardTypeFieldDto. */
+export interface CardTypeFieldDto {
+  id: string
+  name: string
+  hint: string | null
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardFactDto.cs CardTypeLayoutDto. */
+export interface CardTypeLayoutDto {
+  id: string
+  name: string
+  front: string
+  back: string
+  /** Field id that must hold a value for this layout to make a card, or null to always fire. */
+  requires: string | null
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/FlashcardFactDto.cs CardTypeDto. `generator` and `isBuiltIn` are
+ * reported but never sent: the server keeps whatever the stored type says.
+ */
+export interface CardTypeDto {
+  id: string
+  name: string
+  isBuiltIn: boolean
+  fields: CardTypeFieldDto[]
+  sortFieldId: string
+  layouts: CardTypeLayoutDto[]
+  generator: string | null
+  generateFrom: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardFactDto.cs CardTypeSummaryDto. */
+export interface CardTypeSummaryDto {
+  type: CardTypeDto
+  factCount: number
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardFactDto.cs SaveCardTypeDto. */
+export interface SaveCardTypeDto {
+  id: string | null
+  name: string
+  fields: CardTypeFieldDto[]
+  sortFieldId: string
+  layouts: CardTypeLayoutDto[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardFactDto.cs FactMediaDto. */
+export interface FactMediaDto {
+  fieldId: string
+  attachments: CardAttachmentDto[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardFactDto.cs FactDto. */
+export interface FactDto {
+  id: string
+  deckId: string
+  typeId: string
+  /** Field id to authored text. A field with no entry is empty, not missing. */
+  values: Record<string, string>
+  media: FactMediaDto[]
+  tags: string[]
+  isFlagged: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardFactDto.cs FactMediaInputDto. */
+export interface FactMediaInputDto {
+  fieldId: string
+  attachments: CardAttachmentInputDto[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardFactDto.cs SaveFactDto. */
+export interface SaveFactDto {
+  id: string | null
+  deckId: string
+  typeId: string
+  values: Record<string, string>
+  media: FactMediaInputDto[]
+  tags: string[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardFactDto.cs FactSavedDto. */
+export interface FactSavedDto {
+  fact: FactDto
+  cards: CardDto[]
+  added: number
+  removed: number
+}
+
 /** A card paired with its schedule, as the deck table renders it. */
 export interface CardViewDto {
   card: CardDto

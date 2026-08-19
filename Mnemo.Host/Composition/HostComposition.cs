@@ -12,6 +12,7 @@ using Mnemo.Infrastructure.History;
 using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.AI;
 using Mnemo.Infrastructure.Services.Flashcards;
+using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Services.ImportExport;
 using Mnemo.Infrastructure.Services.ImportExport.Adapters;
@@ -209,6 +210,8 @@ public static class HostComposition
         services.AddSingleton<IPresetRepository, PresetRepository>();
         services.AddSingleton<IDeckRepository, DeckRepository>();
         services.AddSingleton<ICardRepository, CardRepository>();
+        services.AddSingleton<ICardTypeRepository, CardTypeRepository>();
+        services.AddSingleton<IFactRepository, FactRepository>();
         services.AddSingleton<IScheduleRepository, ScheduleRepository>();
         services.AddSingleton<IReviewRepository, ReviewRepository>();
         services.AddSingleton<ITestAttemptRepository, TestAttemptRepository>();
@@ -222,8 +225,11 @@ public static class HostComposition
 
         services.AddSingleton<IFsrsScheduler, FsrsScheduler>();
 
+        services.AddSingleton<FlashcardCardMaterializer>();
+
         services.AddSingleton<IFlashcardLibraryService, FlashcardLibraryService>();
         services.AddSingleton<IFlashcardCardService, FlashcardCardService>();
+        services.AddSingleton<IFlashcardFactService, FlashcardFactService>();
         services.AddSingleton<IFlashcardStudyService, FlashcardStudyService>();
         services.AddSingleton<IFlashcardPresetService, FlashcardPresetService>();
         services.AddSingleton<IFlashcardStatsService, FlashcardStatsService>();

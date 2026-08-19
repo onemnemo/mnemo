@@ -43,5 +43,9 @@ public interface IFlashcardStudyService
     /// to take the tag and the suspension back with the lapse, or the card stays punished for a
     /// review that no longer exists.
     /// </param>
-    Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, Flashcard? restoredCard = null, CancellationToken cancellationToken = default);
+    /// <param name="unburySiblings">
+    /// Whether the grade being taken back had put the rest of its material on hold. Set when it did,
+    /// so undoing the answer also lets the related cards back in.
+    /// </param>
+    Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, Flashcard? restoredCard = null, bool unburySiblings = false, CancellationToken cancellationToken = default);
 }
