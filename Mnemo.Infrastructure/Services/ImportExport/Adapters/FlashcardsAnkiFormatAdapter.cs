@@ -26,6 +26,26 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// <summary>How Anki spells a deck hierarchy inside a single deck name.</summary>
     private const string DeckPathSeparator = "::";
 
+    // Anki's card.type column.
+    private const int AnkiCardTypeLearning = 1;
+    private const int AnkiCardTypeReview = 2;
+    private const int AnkiCardTypeRelearning = 3;
+
+    /// <summary>Anki's card.queue value for a suspended card.</summary>
+    private const int AnkiQueueSuspended = -1;
+
+    /// <summary>
+    /// Above this a due value is an absolute second rather than a day offset. Day offsets are
+    /// counted from a collection's creation, so reaching this would mean studying for millennia.
+    /// </summary>
+    private const long SecondsSinceEpochThreshold = 1_000_000_000L;
+
+    /// <summary>
+    /// How far ahead an imported due date is believed. Beyond this the row is broken, and honouring
+    /// it would hide the card rather than schedule it.
+    /// </summary>
+    private const int MaxCarriedDueDays = 365 * 20;
+
     private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
     private static readonly Regex ClozeRegex = new(@"\{\{c\d+::", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ImageTagRegex = new(@"<img\s+[^>]*src\s*=\s*['""](?<src>[^'""]+)['""][^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -132,10 +152,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             }
 
             var decksByDid = cards
-                .GroupBy(c => c.DeckId)
+                .GroupBy(c => c.HomeDeckId)
                 .OrderBy(g => g.Key)
                 .ToArray();
 
+            var now = DateTimeOffset.UtcNow;
             var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
             var folders = await DeckFolderResolver.CreateAsync(_library, cancellationToken).ConfigureAwait(false);
             var noteTypesWithExtraFields = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -164,10 +185,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     if (fields.Length > 2)
                         noteTypesWithExtraFields.Add(note.ModelName ?? $"note type {note.ModelId}");
 
-                    // Content-only: front/back/tags/type/media. Anki scheduling is intentionally dropped;
-                    // imported cards arrive FSRS-new (due now) via the card service. Images become
-                    // FlashcardAttachments (up to 3 per side); the block pipeline no longer emits image
-                    // blocks — the canonical body is the text field, attachments render as framed figures.
+                    // Images become FlashcardAttachments (up to 3 per side); the block pipeline no
+                    // longer emits image blocks, the canonical body is the text field and
+                    // attachments render as framed figures.
                     var front = await BuildSideAsync(
                         frontHtml, FlashcardAttachment.FrontSide, opened.TempDirectory, opened.Media, warnings, cancellationToken).ConfigureAwait(false);
                     var back = await BuildSideAsync(
@@ -186,7 +206,13 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                         Attachments: attachments,
                         SourceInfo: null,
                         FrontBlocks: front.Blocks,
-                        BackBlocks: back.Blocks));
+                        BackBlocks: back.Blocks,
+                        // Landing a studied collection as new cards makes every one of them due at
+                        // once, which is the opposite of what importing a schedule is for.
+                        Schedule: BuildImportedSchedule(cardRow, collectionInfo.CollectionCreatedAt, now),
+                        State: cardRow.Queue == AnkiQueueSuspended
+                            ? FlashcardCardState.Suspended
+                            : FlashcardCardState.Active));
                 }
 
                 if (drafts.Count == 0)
@@ -223,6 +249,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
             if (noteTypesWithExtraFields.Count > 0)
                 warnings.Add($"Only the first two fields were imported from these note types: {string.Join(", ", noteTypesWithExtraFields)}.");
+
+            // The first few intervals will not match what the other app would have given, and a user
+            // who is not told that reads it as the import having got the schedule wrong.
+            if (importedCards > 0 && cards.Any(c => c.Type != 0))
+                warnings.Add("Cards kept the dates they were next due. How well each one is known is measured again from your next few reviews, so early intervals may differ from the other app's.");
 
             return new ImportExportResult
             {
@@ -534,7 +565,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     {
         var cards = new List<CardRow>();
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT id, nid, did, type, queue, due, ivl, factor, reps, lapses, mod FROM cards";
+        // odue/odid hold the real due date and home deck of a card parked in a filtered deck. Read
+        // without them such a card imports into the temporary deck, due whenever the filter said.
+        command.CommandText = "SELECT id, nid, did, type, queue, due, ivl, factor, reps, lapses, mod, odue, odid FROM cards";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -549,7 +582,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 reader.IsDBNull(7) ? 2500 : reader.GetInt32(7),
                 reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
                 reader.IsDBNull(9) ? 0 : reader.GetInt32(9),
-                reader.IsDBNull(10) ? DateTimeOffset.UtcNow : ParseUnixTimestamp(reader.GetInt64(10))));
+                reader.IsDBNull(10) ? DateTimeOffset.UtcNow : ParseUnixTimestamp(reader.GetInt64(10)),
+                reader.IsDBNull(11) ? 0 : reader.GetInt64(11),
+                reader.IsDBNull(12) ? 0 : reader.GetInt64(12)));
         }
 
         return cards;
@@ -1351,6 +1386,66 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return DateTimeOffset.FromUnixTimeSeconds(value);
     }
 
+    /// <summary>
+    /// Turns one Anki card row's scheduling into the state this app keeps, or null for a card that
+    /// has never been answered. Only what the other app recorded is carried: its due date, how many
+    /// times it has been seen, how many times it lapsed, and which phase it is in. Its memory
+    /// figures are left unset, because no published mapping turns another algorithm's ease into
+    /// FSRS stability and difficulty, and a guess would read as a measurement.
+    /// </summary>
+    private static FlashcardImportedSchedule? BuildImportedSchedule(CardRow card, DateTimeOffset collectionCreatedAt, DateTimeOffset now)
+    {
+        var state = card.Type switch
+        {
+            AnkiCardTypeLearning => FlashcardFsrsState.Learning,
+            AnkiCardTypeReview => FlashcardFsrsState.Review,
+            AnkiCardTypeRelearning => FlashcardFsrsState.Relearning,
+            _ => FlashcardFsrsState.New
+        };
+
+        // A new card's due is its place in the queue, not a date, so there is nothing to carry.
+        if (state == FlashcardFsrsState.New)
+            return null;
+
+        var due = ResolveDueDate(card, state, collectionCreatedAt, now);
+
+        // The card reached this due date by waiting out its interval, so the interval back from it
+        // is when it was last answered. Arithmetic on two recorded numbers rather than a guess.
+        DateTimeOffset? lastReviewedAt = card.IntervalDays > 0 ? due.AddDays(-card.IntervalDays) : null;
+        if (lastReviewedAt > now)
+            lastReviewedAt = null;
+
+        return new FlashcardImportedSchedule(due, Math.Max(0, card.Reps), Math.Max(0, card.Lapses), state, lastReviewedAt);
+    }
+
+    /// <summary>
+    /// Anki spells a due date two ways: whole days since the collection was made, and, for a card
+    /// mid-session, an absolute second. The number itself is the only thing that tells them apart.
+    /// </summary>
+    private static DateTimeOffset ResolveDueDate(
+        CardRow card,
+        FlashcardFsrsState state,
+        DateTimeOffset collectionCreatedAt,
+        DateTimeOffset now)
+    {
+        var raw = card.EffectiveDue;
+        if (raw <= 0)
+            return now;
+
+        var due = raw >= SecondsSinceEpochThreshold
+            ? DateTimeOffset.FromUnixTimeSeconds(raw)
+            : collectionCreatedAt.AddDays(raw);
+
+        // A card that is already late stays late; one dated beyond any plausible schedule is a
+        // corrupt row, and burying it a century out would hide it forever.
+        if (due < collectionCreatedAt || due > now.AddDays(MaxCarriedDueDays))
+            return now;
+
+        // A learning card's step is not carried, so it comes back at its next opportunity rather
+        // than at a minute that no longer means anything.
+        return state == FlashcardFsrsState.Learning && due < now ? now : due;
+    }
+
     private static DateTimeOffset ParseCollectionCreatedAt(long crtRaw)
     {
         if (crtRaw <= 0)
@@ -1557,7 +1652,16 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         int Factor,
         int Reps,
         int Lapses,
-        DateTimeOffset LastModifiedAt);
+        DateTimeOffset LastModifiedAt,
+        long OriginalDue,
+        long OriginalDeckId)
+    {
+        /// <summary>The deck the card belongs to once it leaves whatever filtered deck holds it.</summary>
+        public long HomeDeckId => OriginalDeckId != 0 ? OriginalDeckId : DeckId;
+
+        /// <summary>The due value that survives the filtered deck it is parked in.</summary>
+        public long EffectiveDue => OriginalDeckId != 0 && OriginalDue != 0 ? OriginalDue : Due;
+    }
 
     private sealed record AnkiDueData(
         int Type,
