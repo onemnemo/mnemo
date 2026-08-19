@@ -843,3 +843,64 @@ export interface StatValueDto {
   type: StatValueKind
   value: string
 }
+
+/** Mirrors Mnemo.Host/Contracts/SearchDto.cs SearchWire.ResultType's wire tokens. */
+export type SearchResultType =
+  | "deck"
+  | "flashcard"
+  | "note"
+  | "mindmap"
+  | "setting"
+  | "navigation"
+  | "deck-card-summary"
+
+/**
+ * Mirrors Mnemo.Host/Contracts/SearchDto.cs SearchFlashcardMetadataDto. A card's deck context
+ * on a flashcard search hit.
+ */
+export interface SearchFlashcardMetadataDto {
+  deckId: string | null
+  deckTitle: string | null
+  frontText: string | null
+  backText: string | null
+  tags: string[]
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/SearchDto.cs SearchResultItemDto. One search hit; a client builds
+ * the navigation target from `type` (deck/note/setting on `id`, flashcard on `flashcard.deckId`
+ * plus `id`, deck-card-summary on `groupId`, navigation straight to `href`).
+ */
+export interface SearchResultItemDto {
+  id: string
+  type: SearchResultType
+  providerId: string
+  title: string
+  subtitle: string | null
+  preview: string | null
+  groupName: string
+  groupId: string | null
+  score: number
+  href: string | null
+  flashcard: SearchFlashcardMetadataDto | null
+}
+
+/** Mirrors Mnemo.Host/Contracts/SearchDto.cs SearchResultGroupDto. One provider's results. */
+export interface SearchResultGroupDto {
+  groupKey: string
+  groupDisplayName: string
+  groupOrder: number
+  resultType: SearchResultType
+  items: SearchResultItemDto[]
+  totalMatched: number
+  hasMore: boolean
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/SearchDto.cs GlobalSearchResponseDto, the GET /api/search
+ * response: a flat best-matches list plus the full groups it was drawn from.
+ */
+export interface GlobalSearchResponseDto {
+  bestMatches: SearchResultItemDto[]
+  groups: SearchResultGroupDto[]
+}

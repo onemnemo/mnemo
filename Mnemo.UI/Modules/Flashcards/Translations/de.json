@@ -374,6 +374,9 @@
     "LibraryLoadFailedHint": "Prüfe, ob Mnemo läuft, und versuche es erneut.",
     "DeckLoadFailedTitle": "Dieser Stapel konnte nicht geladen werden",
     "DeckLoadFailedHint": "Prüfe, ob Mnemo läuft, und versuche es erneut.",
-    "Retry": "Erneut versuchen"
+    "Retry": "Erneut versuchen",
+    "BrowseTitle": "Karten durchsuchen",
+    "BrowseEmptyDescription": "Füge Karten zu einem Stapel hinzu, um sie hier zu sehen.",
+    "PeekCard": "Vorschau"
   }
 }
