@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Mindmap;
 using Xunit;
 
@@ -85,7 +84,7 @@ public sealed class MindmapLibraryTests
 
         // A write half completed, a hand edited database or a build that stored a shape this one cannot
         // read all end up here: a row whose document does not parse.
-        await DamageAsync(h, "UPDATE Mindmaps SET Doc = '{\"schemaVersion\":2,\"elements\":[' WHERE Id = $id;", damaged.Id);
+        await h.DamageAsync("UPDATE Mindmaps SET Doc = '{\"schemaVersion\":2,\"elements\":[' WHERE Id = $id;", damaged.Id);
 
         var library = (await h.Service.GetLibraryAsync()).Value!;
 
@@ -97,7 +96,7 @@ public sealed class MindmapLibraryTests
     {
         await using var h = new MindmapTestHarness();
         var only = (await h.Service.CreateAsync("Damaged")).Value!;
-        await DamageAsync(h, "UPDATE Mindmaps SET Doc = 'not json at all' WHERE Id = $id;", only.Id);
+        await h.DamageAsync("UPDATE Mindmaps SET Doc = 'not json at all' WHERE Id = $id;", only.Id);
 
         var library = await h.Service.GetLibraryAsync();
 
@@ -106,11 +105,47 @@ public sealed class MindmapLibraryTests
     }
 
     [Fact]
+    public async Task GetLibrary_AMapFromANewerBuild_IsStillListedSoItCanBeSeenAndMoved()
+    {
+        await using var h = new MindmapTestHarness();
+        var future = (await h.Service.CreateAsync("Future")).Value!;
+        await h.DamageAsync(
+            "UPDATE Mindmaps SET Doc = replace(Doc, '\"schemaVersion\":2', '\"schemaVersion\":9') WHERE Id = $id;",
+            future.Id);
+
+        var library = (await h.Service.GetLibraryAsync()).Value!;
+
+        // The gallery is where a user renames, moves and deletes, so hiding the map would leave them no
+        // way to act on it at all. Opening it is the operation that has to refuse, and it says why.
+        Assert.Equal(future.Id, library.Single().Document.Id);
+        var opened = await h.Service.GetAsync(future.Id);
+        Assert.False(opened.IsSuccess);
+        Assert.Contains("schema version 9", opened.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task GetLibrary_AMapUsingAShapeThisBuildCannotRead_LeavesEveryOtherMapListed()
+    {
+        await using var h = new MindmapTestHarness();
+        var future = (await h.Service.CreateAsync("Future")).Value!;
+        var intact = (await h.Service.CreateAsync("Intact")).Value!;
+
+        // A newer build that adds an element kind writes a name this one has no case for.
+        await h.DamageAsync(
+            "UPDATE Mindmaps SET Doc = '{\"schemaVersion\":9,\"id\":\"future\",\"title\":\"Future\",\"elements\":[{\"id\":\"e1\",\"kind\":\"hologram\"}]}' WHERE Id = $id;",
+            future.Id);
+
+        var library = (await h.Service.GetLibraryAsync()).Value!;
+
+        Assert.Equal(intact.Id, library.Single().Document.Id);
+    }
+
+    [Fact]
     public async Task List_DamagedTimestamp_KeepsTheMapInTheList()
     {
         await using var h = new MindmapTestHarness();
         var map = (await h.Service.CreateAsync("Map")).Value!;
-        await DamageAsync(h, "UPDATE Mindmaps SET ModifiedAt = 'whenever' WHERE Id = $id;", map.Id);
+        await h.DamageAsync("UPDATE Mindmaps SET ModifiedAt = 'whenever' WHERE Id = $id;", map.Id);
 
         var summaries = (await h.Service.ListAsync()).Value!;
 
@@ -119,16 +154,5 @@ public sealed class MindmapLibraryTests
         var summary = Assert.Single(summaries);
         Assert.Equal(map.Id, summary.Id);
         Assert.Equal(DateTime.MinValue, summary.ModifiedAt);
-    }
-
-    /// <summary>Puts a row in the database that no write path would produce.</summary>
-    private static async Task DamageAsync(MindmapTestHarness harness, string sql, string mapId)
-    {
-        await using var connection = new SqliteConnection($"Data Source={harness.DatabasePath}");
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        command.Parameters.AddWithValue("$id", mapId);
-        await command.ExecuteNonQueryAsync();
     }
 }
