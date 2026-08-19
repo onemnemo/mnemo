@@ -78,6 +78,62 @@ public sealed class MindmapsMnemoPayloadHandlerTests
     }
 
     [Fact]
+    public async Task Import_ReplacingAnOpenMap_MovesTheRevisionForwardAndAnnouncesItself()
+    {
+        await using var source = new MindmapTestHarness();
+        await using var target = new MindmapTestHarness();
+        var map = (await source.Service.CreateAsync("Alpha", new[] { new MindmapNodeSpec { Text = "Imported" } })).Value!;
+        var files = (await ExportHandler(source).ExportAsync(Context())).Files;
+
+        // The target already holds a map of the same id, as it would after an export and a round trip back.
+        await ImportAsync(target, files);
+        var before = (await target.Service.GetAsync(map.Id)).Value!;
+
+        MindmapChangedEventArgs? seen = null;
+        target.Service.Changed += (_, e) => seen = e;
+        var result = await ImportAsync(target, files, ImportConflictPolicy.Replace);
+
+        Assert.Equal(1, result.ImportedCount);
+        // An import is a write, not a store poke: the revision has to move so an editor open on the map
+        // notices, and the notice has to carry enough for that editor to take the import back.
+        var after = (await target.Service.GetAsync(map.Id)).Value!;
+        Assert.True(after.Revision > before.Revision);
+        Assert.NotNull(seen);
+        Assert.Equal(map.Id, seen!.MapId);
+        Assert.NotNull(seen.Change);
+        Assert.Equal(before.Revision, seen.Change!.BaseRevision);
+    }
+
+    [Fact]
+    public async Task Import_ReplacingAMap_MakesAnEditComposedBeforeItConflict()
+    {
+        await using var source = new MindmapTestHarness();
+        await using var target = new MindmapTestHarness();
+        var map = (await source.Service.CreateAsync("Alpha", new[] { new MindmapNodeSpec { Text = "R" } })).Value!;
+        var files = (await ExportHandler(source).ExportAsync(Context())).Files;
+        await ImportAsync(target, files);
+
+        // The user has been editing their copy, so the incoming package genuinely disagrees with it.
+        var imported = (await target.Service.GetAsync(map.Id)).Value!;
+        var rootId = imported.Elements.Single().Id;
+        await target.Service.ApplyAsync(map.Id, imported.Revision, new MindmapEditOp[] { new SetOp { Id = rootId, Text = "user typed this" } });
+        var before = (await target.Service.GetAsync(map.Id)).Value!;
+
+        await ImportAsync(target, files, ImportConflictPolicy.Replace);
+
+        // The batch the user was composing when the import landed names an element the import rewrote, so
+        // it is refused rather than rebased onto a document that no longer resembles the one it was for.
+        var stale = (await target.Service.ApplyAsync(map.Id, before.Revision, new MindmapEditOp[]
+        {
+            new SetOp { Id = rootId, Text = "and then this" },
+        })).Value!;
+
+        Assert.False(stale.Success);
+        Assert.Equal(MindmapEditErrorCode.RevConflict, stale.Error!.Code);
+        Assert.Contains(rootId, stale.Error.ContendedIds!);
+    }
+
+    [Fact]
     public async Task RoundTrip_EmbedsAndRestoresUserTemplate()
     {
         await using var source = new MindmapTestHarness();

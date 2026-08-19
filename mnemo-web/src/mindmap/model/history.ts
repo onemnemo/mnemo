@@ -29,25 +29,37 @@ export interface HistoryEntry {
 export interface HistoryState {
   past: HistoryEntry[]
   future: HistoryEntry[]
+  /**
+   * The document revision every delta on this stack was computed against.
+   *
+   * A delta is a verbatim rewrite of named ids, so replaying one against anything other than the
+   * exact state it was made from does not fail, it succeeds and quietly writes the wrong document.
+   * Undo sends this as the revision it expects and the server refuses a mismatch, which turns
+   * "somebody wrote while your finger was on Ctrl+Z" from silent data loss into a refusal.
+   */
+  revision: number
 }
 
 /** Deep enough to cover a working session, shallow enough that the deltas cannot pile up. */
 const LIMIT = 120
 
-export function emptyHistory(): HistoryState {
-  return { past: [], future: [] }
+export function emptyHistory(revision = 0): HistoryState {
+  return { past: [], future: [], revision }
 }
 
 /**
- * Records a completed edit.
+ * Records a completed edit at the revision it committed.
  *
  * A step that changes nothing is dropped rather than pushed, so a click that reselects the same
- * value does not cost an undo press. Folding merges into the entry already on top: its `redo` grows
- * to include the new change, its `undo` stays the one that reaches back to before the group started.
+ * value does not cost an undo press. It still moves the revision: setting a node to the text it
+ * already had is a commit with an empty delta, and a stack left pointing at the revision before it
+ * would have every later undo refused. Folding merges into the entry already on top: its `redo`
+ * grows to include the new change, its `undo` stays the one that reaches back to before the group
+ * started.
  */
-export function record(state: HistoryState, entry: HistoryEntry): HistoryState {
+export function record(state: HistoryState, entry: HistoryEntry, revision: number): HistoryState {
   if (isEmptyDelta(entry.undo) && isEmptyDelta(entry.redo)) {
-    return state
+    return { ...state, revision }
   }
 
   const top = state.past[state.past.length - 1]
@@ -63,11 +75,21 @@ export function record(state: HistoryState, entry: HistoryEntry): HistoryState {
       label: entry.label,
       coalesceKey: entry.coalesceKey,
     }
-    return { past: [...state.past.slice(0, -1), merged], future: [] }
+    return { past: [...state.past.slice(0, -1), merged], future: [], revision }
   }
 
   // A new edit invalidates the redo branch: there is no longer a future to return to.
-  return { past: [...state.past, entry].slice(-LIMIT), future: [] }
+  return { past: [...state.past, entry].slice(-LIMIT), future: [], revision }
+}
+
+/**
+ * Moves the whole stack onto the revision a landed replay reported.
+ *
+ * Every delta still on it describes the same document it did a moment ago; only the number the
+ * server knows that document by has changed, because a replay is itself a write.
+ */
+export function settle(state: HistoryState, revision: number): HistoryState {
+  return { ...state, revision }
 }
 
 /**
@@ -81,7 +103,7 @@ export function undo(state: HistoryState): { entry: HistoryEntry; next: HistoryS
   }
   return {
     entry,
-    next: { past: state.past.slice(0, -1), future: [...state.future, entry] },
+    next: { ...state, past: state.past.slice(0, -1), future: [...state.future, entry] },
   }
 }
 
@@ -92,7 +114,7 @@ export function redo(state: HistoryState): { entry: HistoryEntry; next: HistoryS
   }
   return {
     entry,
-    next: { past: [...state.past, entry], future: state.future.slice(0, -1) },
+    next: { ...state, past: [...state.past, entry], future: state.future.slice(0, -1) },
   }
 }
 
@@ -116,7 +138,10 @@ export function redoLabel(state: HistoryState): string | undefined {
  * Combines two deltas into one that has the effect of applying `first` then `second`.
  *
  * Both are sets keyed by id, so `second` wins wherever they overlap, and an id `second` removes is
- * dropped from `first`'s upserts entirely rather than being restored and then removed again.
+ * dropped from `first`'s upserts entirely rather than being restored and then removed again. The
+ * two document-level fields follow the same rule: whichever delta names one last is the state being
+ * reached, and dropping them here is how a coalesced group of edits used to lose the background it
+ * was undoing back to.
  */
 export function mergeDeltas(first: MindmapRestoreDelta, second: MindmapRestoreDelta): MindmapRestoreDelta {
   const removedElements = new Set(second.removeElementIds ?? [])
@@ -128,6 +153,8 @@ export function mergeDeltas(first: MindmapRestoreDelta, second: MindmapRestoreDe
     clusters: mergeBy(first.clusters ?? [], second.clusters ?? [], (c) => c.rootId),
     removeElementIds: union(first.removeElementIds, second.removeElementIds),
     removeEdgeIds: union(first.removeEdgeIds, second.removeEdgeIds),
+    canvas: second.canvas ?? first.canvas,
+    title: second.title ?? first.title,
   }
 }
 

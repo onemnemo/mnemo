@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
@@ -134,7 +135,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const t = useT()
   const map = useMindmap(mapId ?? null)
   const templates = useMindmapTemplates()
-  const editor = useMindmapEditor(mapId ?? null)
+  // The loaded revision goes in, or a fresh editor believes it holds revision zero and reads the
+  // first notice for its own map as somebody else's write.
+  const editor = useMindmapEditor(mapId ?? null, map.data?.revision)
   const actionFor = useLocalActions("mindmap")
   const runtime = useRef<CanvasRuntime | null>(null)
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION)
@@ -204,6 +207,21 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       return found
     }
   }, [hierarchy])
+
+  /**
+   * The map was deleted while it was open.
+   *
+   * Walked out of rather than left up. Everything on this page acts on a document that is not there
+   * any more: the canvas draws the last copy the cache happens to hold, and every control on it
+   * would send a write to a map id the server has forgotten.
+   */
+  useEffect(() => {
+    if (!editor.closed) {
+      return
+    }
+    toast.warning(t("Mindmap", "MapDeletedElsewhere"))
+    navigate("mindmap")
+  }, [editor.closed, t])
 
   // An edit, an undo or another session's change can all take something out from under a selection.
   useEffect(() => {
@@ -1529,7 +1547,12 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
 
       <RefPicker target={picking?.target ?? null} onPick={pickRef} onClose={() => setPicking(null)} />
 
-      {editor.rejected ? (
+      {editor.reloaded ? (
+        // Said rather than swallowed, because a reload costs the undo stack. Someone who reaches for
+        // Ctrl+Z after one and finds nothing there has no way to tell a lost history from a broken
+        // button.
+        <Pill>{t("Mindmap", "MapChangedElsewhere")}</Pill>
+      ) : editor.rejected ? (
         <Pill>{t("Mindmap", "EditRejected")}</Pill>
       ) : templates.isError ? (
         // Said rather than swallowed. The map is drawn, but every node is a neutral card and every

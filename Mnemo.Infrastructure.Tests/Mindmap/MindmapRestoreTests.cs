@@ -7,10 +7,9 @@ using Xunit;
 namespace Mnemo.Infrastructure.Tests.Mindmap;
 
 /// <summary>
-/// Command-based undo/redo exercised through the service: an edit's reversing/replaying deltas are
-/// computed by <see cref="MindmapRestoreDelta.Between"/> — exactly as the editor view model does — and
-/// applied via <c>RestoreAsync</c>. The delete case is the load-bearing one: undo must restore the exact
-/// elements, edges and ids, since these back real users' work.
+/// Command-based undo and redo exercised through the service: an edit's reversing and replaying deltas
+/// come back on its own result, and are applied via <c>RestoreAsync</c>. The delete case is the
+/// load-bearing one: undo must restore the exact elements, edges and ids, since these back real work.
 /// </summary>
 public sealed class MindmapRestoreTests
 {
@@ -182,7 +181,7 @@ public sealed class MindmapRestoreTests
     }
 
     [Fact]
-    public async Task Restore_WithStaleRevision_Fails()
+    public async Task Restore_WithStaleRevision_IsRefusedAsAConflict()
     {
         await using var h = new MindmapTestHarness();
         var map = (await h.Service.CreateAsync("M", new List<MindmapNodeSpec> { new() { Ref = "n", Text = "N" } })).Value!;
@@ -193,7 +192,13 @@ public sealed class MindmapRestoreTests
 
         var staleDelta = MindmapRestoreDelta.Between(await DocAsync(h, map.Id), before);
         var restore = await h.Service.RestoreAsync(map.Id, before.Revision, staleDelta);
-        Assert.False(restore.IsSuccess);
+
+        // A refusal is an answer, not a transport failure: the call succeeds and reports why it declined,
+        // so the caller can tell "your undo is stale" apart from "the store is unreachable".
+        Assert.True(restore.IsSuccess);
+        Assert.False(restore.Value!.Success);
+        Assert.Equal(MindmapEditErrorCode.RevConflict, restore.Value.Error!.Code);
+        Assert.Equal("N2", Text((await DocAsync(h, map.Id)).Elements.Single()));
     }
 
     [Fact]

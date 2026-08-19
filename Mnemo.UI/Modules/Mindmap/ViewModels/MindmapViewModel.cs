@@ -2442,9 +2442,16 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         {
             // Off the UI thread for the same reason as ApplyOpsAsync: the SQLite work underneath is synchronous.
             var result = await Task.Run(() => _service.RestoreAsync(MapId, Revision, delta)).ConfigureAwait(true);
-            if (!result.IsSuccess)
+            if (!result.IsSuccess || result.Value is null)
             {
                 _logger.Warning("Mindmap", $"Undo/redo restore failed on '{MapId}': {result.ErrorMessage}");
+                return false;
+            }
+
+            // A refused restore is a successful call that declined to write, so the stack must not move.
+            if (!result.Value.Success)
+            {
+                _logger.Warning("Mindmap", $"Undo/redo restore was refused on '{MapId}': {result.Value.Error?.Message}");
                 return false;
             }
 
