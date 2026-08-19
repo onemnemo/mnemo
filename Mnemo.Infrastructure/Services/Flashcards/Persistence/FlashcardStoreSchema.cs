@@ -7,7 +7,7 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 internal static class FlashcardStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 5;
+    public const int TargetVersion = 6;
 
     /// <summary>
     /// Columns added after v1, for databases that already exist.
@@ -24,7 +24,19 @@ internal static class FlashcardStoreSchema
         ("FlashcardPresets", "NextDayStartsAtHour", "INTEGER NOT NULL DEFAULT 4"),
         ("FlashcardPresets", "LeechThreshold", "INTEGER NOT NULL DEFAULT 8"),
         ("FlashcardPresets", "LeechAction", "INTEGER NOT NULL DEFAULT 1"),
+        ("FlashcardCards", "FactId", "TEXT NULL REFERENCES FlashcardFacts(Id) ON DELETE CASCADE"),
+        ("FlashcardCards", "LayoutKey", "TEXT NULL"),
     ];
+
+    /// <summary>
+    /// Indexes over columns that <see cref="AddedColumns"/> supplies, so they can only be created
+    /// once those have been applied. A fresh database gets the columns from <see cref="CreateSql"/>
+    /// and lands here with nothing to do.
+    /// </summary>
+    public const string CreateIndexesOverAddedColumnsSql = """
+        CREATE UNIQUE INDEX IF NOT EXISTS UX_Cards_Fact_Layout ON FlashcardCards(FactId, LayoutKey);
+        CREATE INDEX IF NOT EXISTS IX_Cards_Fact ON FlashcardCards(FactId);
+        """;
 
     /// <summary>Every table, index, FTS virtual table and trigger, created if absent.</summary>
     public const string CreateSql = """
@@ -76,6 +88,37 @@ internal static class FlashcardStoreSchema
             UpdatedAt   TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS FlashcardCardTypes (
+            Id           TEXT PRIMARY KEY,
+            Name         TEXT NOT NULL,
+            IsBuiltIn    INTEGER NOT NULL DEFAULT 0,
+            FieldsJson   TEXT NOT NULL DEFAULT '[]',
+            SortFieldId  TEXT NOT NULL,
+            LayoutsJson  TEXT NOT NULL DEFAULT '[]',
+            Generator    TEXT NULL,
+            GenerateFrom TEXT NULL,
+            CreatedAt    TEXT NOT NULL,
+            UpdatedAt    TEXT NOT NULL
+        );
+
+        -- TypeId carries no foreign key on purpose: a fact whose type has been deleted still has
+        -- to list and open, falling back to the basic type, rather than blocking the delete or
+        -- taking the material down with it.
+        CREATE TABLE IF NOT EXISTS FlashcardFacts (
+            Id          TEXT PRIMARY KEY,
+            DeckId      TEXT NOT NULL,
+            TypeId      TEXT NOT NULL,
+            ValuesJson  TEXT NOT NULL DEFAULT '{}',
+            MediaJson   TEXT NOT NULL DEFAULT '{}',
+            TagsJson    TEXT NOT NULL DEFAULT '[]',
+            IsFlagged   INTEGER NOT NULL DEFAULT 0,
+            SourceType  TEXT NULL,
+            SourceId    TEXT NULL,
+            SourceLabel TEXT NULL,
+            CreatedAt   TEXT NOT NULL,
+            UpdatedAt   TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS FlashcardCards (
             Id             TEXT PRIMARY KEY,
             DeckId         TEXT NOT NULL REFERENCES FlashcardDecks(Id) ON DELETE CASCADE,
@@ -92,7 +135,9 @@ internal static class FlashcardStoreSchema
             SourceId       TEXT NULL,
             SourceLabel    TEXT NULL,
             CreatedAt      TEXT NOT NULL,
-            UpdatedAt      TEXT NOT NULL
+            UpdatedAt      TEXT NOT NULL,
+            FactId         TEXT NULL REFERENCES FlashcardFacts(Id) ON DELETE CASCADE,
+            LayoutKey      TEXT NULL
         );
 
         CREATE TABLE IF NOT EXISTS FlashcardScheduling (
@@ -144,6 +189,7 @@ internal static class FlashcardStoreSchema
             PRIMARY KEY (DeckId, Date)
         );
 
+        CREATE INDEX IF NOT EXISTS IX_Facts_Deck        ON FlashcardFacts(DeckId);
         CREATE INDEX IF NOT EXISTS IX_Cards_Deck        ON FlashcardCards(DeckId);
         CREATE INDEX IF NOT EXISTS IX_Cards_State       ON FlashcardCards(DeckId, State);
         CREATE INDEX IF NOT EXISTS IX_Sched_Due         ON FlashcardScheduling(DueDate);
