@@ -30,7 +30,7 @@ public sealed class FlashcardImportExportTests
     {
         await using var h = new FlashcardStoreHarness();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsCsvFormatAdapter(library, cardSvc, presetSvc);
 
@@ -64,7 +64,7 @@ public sealed class FlashcardImportExportTests
     {
         await using var h = new FlashcardStoreHarness();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsCsvFormatAdapter(library, cardSvc, presetSvc);
 
@@ -100,7 +100,7 @@ public sealed class FlashcardImportExportTests
         await using var h = new FlashcardStoreHarness();
         var handler = NewHandler(h);
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
         var deck = await library.CreateDeckAsync("Biology");
         var created = await cardSvc.CreateCardsAsync(deck.Id, new[] { Draft(deck.Id, "Cell?", "Unit of life") });
@@ -126,7 +126,7 @@ public sealed class FlashcardImportExportTests
         await using var source = new FlashcardStoreHarness();
         var sourceHandler = NewHandler(source);
         var sourceLibrary = NewLibrary(source);
-        var sourceCards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Clock);
+        var sourceCards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Facts, source.Clock);
 
         var deck = await sourceLibrary.CreateDeckAsync("History");
         var created = await sourceCards.CreateCardsAsync(deck.Id, new[] { Draft(deck.Id, "1066?", "Hastings") });
@@ -141,7 +141,7 @@ public sealed class FlashcardImportExportTests
         await target.Store.InitializeAsync();
         var targetHandler = NewHandler(target);
         var targetLibrary = NewLibrary(target);
-        var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Clock);
+        var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Facts, target.Clock);
 
         var import = await targetHandler.ImportAsync(BuildImportContext(export.Files, ImportConflictPolicy.KeepBoth));
 
@@ -174,7 +174,7 @@ public sealed class FlashcardImportExportTests
             await using var h = new FlashcardStoreHarness();
             var handler = NewHandler(h);
             var library = NewLibrary(h);
-            var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+            var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
             var deck = await library.CreateDeckAsync("Biology");
             var attachment = new FlashcardAttachment(
@@ -209,7 +209,7 @@ public sealed class FlashcardImportExportTests
             await using var source = new FlashcardStoreHarness();
             var sourceHandler = NewHandler(source);
             var sourceLibrary = NewLibrary(source);
-            var sourceCards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Clock);
+            var sourceCards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Facts, source.Clock);
 
             var deck = await sourceLibrary.CreateDeckAsync("Biology");
             var attachment = new FlashcardAttachment(
@@ -225,7 +225,7 @@ public sealed class FlashcardImportExportTests
             await target.Store.InitializeAsync();
             var targetHandler = NewHandler(target);
             var targetLibrary = NewLibrary(target);
-            var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Clock);
+            var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Facts, target.Clock);
 
             var import = await targetHandler.ImportAsync(BuildImportContext(export.Files, ImportConflictPolicy.KeepBoth));
             Assert.Equal(1, import.ImportedCount);
@@ -259,7 +259,7 @@ public sealed class FlashcardImportExportTests
         await using var source = new FlashcardStoreHarness();
         var sourceHandler = NewHandler(source);
         var sourceLibrary = NewLibrary(source);
-        var sourceCards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Clock);
+        var sourceCards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Facts, source.Clock);
 
         var deck = await sourceLibrary.CreateDeckAsync("Biology");
         var attachment = new FlashcardAttachment(
@@ -279,7 +279,7 @@ public sealed class FlashcardImportExportTests
         await target.Store.InitializeAsync();
         var targetHandler = NewHandler(target);
         var targetLibrary = NewLibrary(target);
-        var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Clock);
+        var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Facts, target.Clock);
 
         var import = await targetHandler.ImportAsync(BuildImportContext(export.Files, ImportConflictPolicy.KeepBoth));
         Assert.Equal(1, import.ImportedCount);
@@ -301,7 +301,7 @@ public sealed class FlashcardImportExportTests
         await using var source = new FlashcardStoreHarness();
         var sourceHandler = NewHandler(source);
         var sourceLibrary = NewLibrary(source);
-        var sourceCards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Clock);
+        var sourceCards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Facts, source.Clock);
 
         var deck = await sourceLibrary.CreateDeckAsync("States");
         var created = await sourceCards.CreateCardsAsync(deck.Id, new[]
@@ -319,7 +319,7 @@ public sealed class FlashcardImportExportTests
         await target.Store.InitializeAsync();
         var targetHandler = NewHandler(target);
         var targetLibrary = NewLibrary(target);
-        var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Clock);
+        var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Facts, target.Clock);
 
         await targetHandler.ImportAsync(BuildImportContext(export.Files, ImportConflictPolicy.KeepBoth));
 
@@ -340,7 +340,7 @@ public sealed class FlashcardImportExportTests
         await using var h = new FlashcardStoreHarness();
         var handler = NewHandler(h);
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
         var deck = await library.CreateDeckAsync("Geo");
         await cardSvc.CreateCardsAsync(deck.Id, new[] { Draft(deck.Id, "Q", "A") });
@@ -364,7 +364,7 @@ public sealed class FlashcardImportExportTests
 
     private static FlashcardsMnemoPayloadHandler NewHandler(FlashcardStoreHarness h) =>
         new(NewLibrary(h),
-            new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock),
+            new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock),
             new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock),
             h.Store,
             h.Schedules,

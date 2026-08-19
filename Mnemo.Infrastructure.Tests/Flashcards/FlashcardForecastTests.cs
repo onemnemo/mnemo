@@ -97,7 +97,7 @@ public sealed class FlashcardForecastTests
     {
         await using var h = new FlashcardStoreHarness(Now);
         var deckId = await h.SeedDeckAsync();
-        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         await cards.CreateCardsAsync(deckId, Enumerable.Range(0, 4)
             .Select(i => new FlashcardCardDraft(deckId, FlashcardType.Classic, $"Q{i}", "A",
                 Array.Empty<string>(), Array.Empty<FlashcardAttachment>()))

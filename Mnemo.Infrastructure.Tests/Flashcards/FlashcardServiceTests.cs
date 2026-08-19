@@ -53,7 +53,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
         var card = await svc.CreateCardAsync(Draft(deckId, "Q", "A"));
 
@@ -68,7 +68,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
         var attachments = Enumerable.Range(0, 4)
             .Select(i => new FlashcardAttachment($"a{i}", FlashcardAttachment.FrontSide, $"/img/{i}.png", $"{i}.png", 10))
@@ -83,7 +83,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
         var drafts = Enumerable.Range(0, 10).Select(i => Draft(deckId, $"Q{i}", $"A{i}")).ToArray();
         var created = await svc.CreateCardsAsync(deckId, drafts);
@@ -98,7 +98,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var card = await svc.CreateCardAsync(Draft(deckId, "Q", "A"));
 
         await svc.AddTagAsync(new[] { card.Id }, "plates");
@@ -116,7 +116,7 @@ public sealed class FlashcardServiceTests
         await using var h = new FlashcardStoreHarness();
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var lib = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var study = NewStudy(h);
 
         var preset = await presetSvc.SavePresetAsync(FlashcardPreset.CreateStandard(DateTimeOffset.UtcNow)
@@ -134,7 +134,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var study = NewStudy(h);
         var card = await cardSvc.CreateCardAsync(Draft(deckId, "Q", "A"));
         var now = DateTimeOffset.UtcNow;
@@ -162,7 +162,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var card = await cardSvc.CreateCardAsync(Draft(deckId, "Q", "A"));
         var now = DateTimeOffset.UtcNow;
 
@@ -186,7 +186,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var study = NewStudy(h);
         var card = await cardSvc.CreateCardAsync(Draft(deckId, "Q", "A"));
         var now = DateTimeOffset.UtcNow;
@@ -266,7 +266,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var lib = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
         var deck = await lib.CreateDeckAsync("Geology");
         await cardSvc.CreateCardsAsync(deck.Id, new[] { Draft(deck.Id, "Q1", "A"), Draft(deck.Id, "Q2", "A") });

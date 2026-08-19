@@ -98,7 +98,7 @@ public sealed class FlashcardDayBoundaryTests
         // tally belongs to the 6th and the cap for the 5th must be untouched.
         await using var h = new FlashcardStoreHarness(LateEvening, NineEast);
         var deckId = await h.SeedDeckAsync();
-        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         await cards.CreateCardAsync(new FlashcardCardDraft(
             deckId, FlashcardType.Classic, "Q", "A", Array.Empty<string>(), Array.Empty<FlashcardAttachment>()));
         var study = Study(h);
@@ -117,7 +117,7 @@ public sealed class FlashcardDayBoundaryTests
     {
         await using var h = new FlashcardStoreHarness(LateEvening);
         var deckId = await h.SeedDeckAsync();
-        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var card = await cards.CreateCardAsync(new FlashcardCardDraft(
             deckId, FlashcardType.Classic, "Q", "A", Array.Empty<string>(), Array.Empty<FlashcardAttachment>()));
         var study = Study(h);
@@ -133,7 +133,7 @@ public sealed class FlashcardDayBoundaryTests
     {
         await using var h = new FlashcardStoreHarness(LateEvening);
         var deckId = await h.SeedDeckAsync();
-        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         await cards.CreateCardsAsync(deckId, new[]
         {
             new FlashcardCardDraft(deckId, FlashcardType.Classic, "Q1", "A", Array.Empty<string>(), Array.Empty<FlashcardAttachment>()),
