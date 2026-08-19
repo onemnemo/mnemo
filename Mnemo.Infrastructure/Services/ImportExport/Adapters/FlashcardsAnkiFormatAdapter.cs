@@ -37,6 +37,16 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// <summary>Table cells sit side by side on their row's line rather than each taking one of their own.</summary>
     private static readonly Regex CellCloseRegex = new(@"<\s*/\s*(td|th)\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex AllTagsRegex = new(@"<[^>]+>", RegexOptions.Compiled);
+
+    // Both delimiter pairs must be present for a rewrite. A lone backslash-paren in ordinary prose
+    // is text, and turning it into an opening dollar would put the rest of the card inside a formula.
+    // Inline maths may not span a line the way a displayed block may.
+    private static readonly Regex InlineMathRegex = new(@"\\\((?<body>[^\n]+?)\\\)", RegexOptions.Compiled);
+    private static readonly Regex DisplayMathRegex = new(@"\\\[(?<body>.+?)\\\]", RegexOptions.Compiled | RegexOptions.Singleline);
+
+    // Anki's own field syntax for the same two things.
+    private static readonly Regex BracketInlineMathRegex = new(@"\[\$\](?<body>.+?)\[/\$\]", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex BracketDisplayMathRegex = new(@"\[\$\$\](?<body>.+?)\[/\$\$\]", RegexOptions.Compiled | RegexOptions.Singleline);
     private static readonly Regex InlineTagRegex = new(@"</?(b|strong|i|em|u|s|strike)>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly IFlashcardLibraryService _library;
@@ -558,7 +568,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         var attachments = new List<FlashcardAttachment>();
         var overflowTokens = new List<string>();
 
-        var normalized = NormalizeHtmlLineBreaks(html);
+        var normalized = NormalizeMathDelimiters(NormalizeHtmlLineBreaks(html));
         foreach (var line in normalized.Split('\n'))
         {
             var trimmed = line.Trim();
@@ -772,11 +782,29 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return normalized;
     }
 
+    /// <summary>
+    /// Rewrites the maths delimiters Anki fields use into the single dialect the card renderer
+    /// reads. A formula that arrives in any other spelling is drawn as its own source text, so the
+    /// card shows backslashes and braces where it should show the equation.
+    /// </summary>
+    private static string NormalizeMathDelimiters(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return text;
+
+        // The bracket forms first: their bodies can contain the backslash forms' characters.
+        var normalized = BracketDisplayMathRegex.Replace(text, "$$$$${body}$$$$");
+        normalized = BracketInlineMathRegex.Replace(normalized, "$$${body}$$");
+        normalized = DisplayMathRegex.Replace(normalized, "$$$$${body}$$$$");
+        normalized = InlineMathRegex.Replace(normalized, "$$${body}$$");
+        return normalized;
+    }
+
     private static string ToPlainText(string html)
     {
         if (string.IsNullOrWhiteSpace(html))
             return string.Empty;
-        var normalized = NormalizeHtmlLineBreaks(html);
+        var normalized = NormalizeMathDelimiters(NormalizeHtmlLineBreaks(html));
         var stripped = AllTagsRegex.Replace(normalized, string.Empty);
         return WebUtility.HtmlDecode(stripped).Trim();
     }
