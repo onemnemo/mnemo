@@ -73,6 +73,12 @@ describe('checklist NodeView', () => {
     expect(box.contains(realized.contentDOM!)).toBe(false);
   });
 
+  it('keeps the box in Tab order: it is the only way to toggle it by keyboard', () => {
+    const { realized } = mountItem(false);
+    const box = realized.dom.querySelector('.notes-checkbox')!;
+    expect((box as HTMLElement).tabIndex).toBe(0);
+  });
+
   it('toggles through one own-undo-step transaction on click', () => {
     const { realized, dispatched, currentState } = mountItem(false);
     clickBox(realized);
