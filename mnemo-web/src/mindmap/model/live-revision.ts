@@ -12,6 +12,8 @@
  * orderings, and orderings are exactly what a unit test can pin down and a live session cannot.
  */
 
+import type { MindmapDocumentOrder, MindmapRestoreDelta } from "./delta"
+
 export interface LiveRevisionState {
   /** Writes this editor has started and not yet seen the answer to. */
   inFlight: number
@@ -22,7 +24,19 @@ export interface LiveRevisionState {
 export interface MindmapChangedNotice {
   mapId: string
   revision: number
+  /** The revision the write applied against, which is the one a client must hold to fold it. */
+  baseRevision?: number
   kind: "created" | "edited" | "renamed" | "deleted"
+  /**
+   * The write, when it was small enough for the server to send whole.
+   *
+   * This is what makes an edit the user did not make undoable. Without it the only honest answer to
+   * an assistant rewriting half a map is to refetch and drop the undo stack, which leaves the person
+   * who has to review that rewrite with nothing to press.
+   */
+  undo?: MindmapRestoreDelta | null
+  redo?: MindmapRestoreDelta | null
+  order?: MindmapDocumentOrder | null
 }
 
 export function initialLiveRevision(revision: number): LiveRevisionState {
@@ -50,7 +64,7 @@ export function adoptRevision(state: LiveRevisionState, revision: number): LiveR
   return { ...state, known: Math.max(state.known, revision) }
 }
 
-export type LiveRevisionAction = "ignore" | "reload" | "closed"
+export type LiveRevisionAction = "ignore" | "fold" | "reload" | "closed"
 
 /**
  * What to do about a change notice.
@@ -63,6 +77,13 @@ export type LiveRevisionAction = "ignore" | "reload" | "closed"
  *   would race the response and throw away the optimistic state we are about to reconcile; the
  *   response carries the same revision and updates `known` when it lands, so the news is not lost,
  *   only deferred by a few milliseconds.
+ * - A notice that carries its own deltas and applied against exactly the revision we hold is
+ *   somebody else's write we can absorb: fold it and push one undo entry, so it is one Ctrl+Z to
+ *   take back rather than a refetch that empties the stack.
+ *
+ * Folding is gated on nothing being in flight, which is stricter than it has to be and is meant to
+ * be. A write we have not heard back from is about to move the document under us; absorbing another
+ * one first would leave the answer to ours describing a revision it never saw.
  *
  * The one thing this deliberately does not do is drop a notice that arrives while a write is in
  * flight but describes a *different, higher* revision. That is a real interleave, and the write's
@@ -82,8 +103,17 @@ export function classify(
   if (notice.revision <= state.known) {
     return "ignore"
   }
-  if (state.inFlight > 0 && notice.revision === state.known + 1) {
-    return "ignore"
+  if (state.inFlight > 0) {
+    return notice.revision === state.known + 1 ? "ignore" : "reload"
   }
-  return "reload"
+  return foldable(state, notice) ? "fold" : "reload"
+}
+
+function foldable(state: LiveRevisionState, notice: MindmapChangedNotice): boolean {
+  return (
+    notice.baseRevision === state.known &&
+    notice.undo != null &&
+    notice.redo != null &&
+    notice.order != null
+  )
 }
