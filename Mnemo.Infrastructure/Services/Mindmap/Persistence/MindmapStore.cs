@@ -414,24 +414,12 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         else if (delta.Removed.Count > 0 || delta.Upserts.Count > 0)
         {
             // Upserted rows are cleared first so re-inserting yields a single current row per element.
-            await using var remove = writer.CreateCommand();
-            remove.Transaction = tx;
-            remove.CommandText = "DELETE FROM MindmapSearch WHERE MapId = $map AND ElementId = $element;";
-            var mapParam = remove.Parameters.Add("$map", SqliteType.Text);
-            var elementParam = remove.Parameters.Add("$element", SqliteType.Text);
-            mapParam.Value = mapId;
-
-            foreach (var removedId in delta.Removed)
-            {
-                elementParam.Value = removedId;
-                await remove.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            }
-
+            var stale = new List<string>(delta.Removed.Count + delta.Upserts.Count);
+            stale.AddRange(delta.Removed);
             foreach (var entry in delta.Upserts)
-            {
-                elementParam.Value = entry.ElementId;
-                await remove.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            }
+                stale.Add(entry.ElementId);
+
+            await ClearSearchRowsAsync(writer, tx, mapId, stale, cancellationToken).ConfigureAwait(false);
         }
 
         if (delta.Upserts.Count == 0)
@@ -450,6 +438,44 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
             insElement.Value = entry.ElementId;
             insText.Value = entry.Text;
             await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Drops the mirror rows for a set of elements, a chunk of ids per statement.
+    /// <para>
+    /// The mirror's MapId and ElementId are unindexed, so every delete reads the whole table. One
+    /// statement per element therefore costs a scan per element, which is what made deleting a branch of
+    /// a few thousand nodes take seconds. Naming many ids in one statement pays for one scan instead.
+    /// </para>
+    /// </summary>
+    private static async Task ClearSearchRowsAsync(
+        SqliteConnection writer,
+        SqliteTransaction tx,
+        string mapId,
+        IReadOnlyList<string> elementIds,
+        CancellationToken cancellationToken)
+    {
+        // Well under SQLite's parameter ceiling, so the chunk count is the only thing that varies.
+        const int ChunkSize = 400;
+
+        for (var start = 0; start < elementIds.Count; start += ChunkSize)
+        {
+            var count = Math.Min(ChunkSize, elementIds.Count - start);
+            var names = new string[count];
+
+            await using var remove = writer.CreateCommand();
+            remove.Transaction = tx;
+            remove.Parameters.AddWithValue("$map", mapId);
+            for (var i = 0; i < count; i++)
+            {
+                names[i] = $"$e{i}";
+                remove.Parameters.AddWithValue(names[i], elementIds[start + i]);
+            }
+
+            remove.CommandText =
+                $"DELETE FROM MindmapSearch WHERE MapId = $map AND ElementId IN ({string.Join(", ", names)});";
+            await remove.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
