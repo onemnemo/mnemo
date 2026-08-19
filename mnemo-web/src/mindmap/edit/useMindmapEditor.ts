@@ -121,6 +121,9 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
 
   const historyRef = useRef(history)
   const liveRef = useRef<LiveRevisionState>(initialLiveRevision(0))
+  // Which map the refs above currently describe, so a write that was in the air when the user
+  // switched maps knows not to file its answer under the document that is open now.
+  const openRef = useRef(mapId)
   // Every write chains onto the one before it, so a batch is never composed against a revision that
   // a batch already in flight is about to move past.
   const queueRef = useRef<Promise<unknown>>(Promise.resolve())
@@ -132,6 +135,7 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
 
   // A different map is a different document, a different revision line and a different undo stack.
   useEffect(() => {
+    openRef.current = mapId
     historyRef.current = emptyHistory()
     setHistoryState(historyRef.current)
     liveRef.current = initialLiveRevision(0)
@@ -206,25 +210,40 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
         }
 
         const before = revisionOf(mapId)
-        liveRef.current = beginWrite(liveRef.current)
+        // Counted only while this is the map on screen. Counting a write against a document it has
+        // nothing to do with leaves that document with an in-flight write that never comes back.
+        const counted = openRef.current === mapId
+        if (counted) {
+          liveRef.current = beginWrite(liveRef.current)
+        }
         try {
           const outcome = await send(mapId, before)
 
+          // The user may have opened a different map while this was in the air. Its cache entry is
+          // still ours to patch, keyed by the id the write named, but the undo stack and the notice
+          // filter now describe another document and must not be told about this one.
+          const open = counted && openRef.current === mapId
+
           if (outcome.status !== "applied") {
-            liveRef.current = endWrite(liveRef.current, outcome.error.revision)
-            // Both are told, not just the refusal. A conflict costs the user their undo stack, and a
-            // reload that says nothing is indistinguishable from the editor having quietly forgotten.
-            setRejected(outcome.error)
-            if (outcome.status === "conflict") {
-              reload(mapId)
+            if (open) {
+              liveRef.current = endWrite(liveRef.current, outcome.error.revision)
+              // Both are told, not just the refusal. A conflict costs the user their undo stack, and
+              // a reload that says nothing is indistinguishable from the editor having quietly
+              // forgotten.
+              setRejected(outcome.error)
+              if (outcome.status === "conflict") {
+                reload(mapId)
+              }
             }
             return null
           }
 
           const { result } = outcome
-          liveRef.current = endWrite(liveRef.current, result.revision)
-          setRejected(null)
-          setReloaded(false)
+          if (open) {
+            liveRef.current = endWrite(liveRef.current, result.revision)
+            setRejected(null)
+            setReloaded(false)
+          }
 
           // A write that did not move the revision changed nothing, so there is nothing to fold and
           // nothing worth an undo step. An arrange of a map already in that shape lands here.
@@ -235,11 +254,13 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
           // Refused when the document we hold is not the one the write applied against, which a
           // server-side rebase and another session's commit both make true.
           if (!foldEditIntoCache(client, mapId, result)) {
-            reload(mapId)
+            if (open) {
+              reload(mapId)
+            }
             return result
           }
 
-          if (result.undo && result.redo) {
+          if (open && result.undo && result.redo) {
             setHistory(
               record(
                 historyRef.current,
@@ -255,7 +276,9 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
           }
           return result
         } catch (error) {
-          liveRef.current = endWrite(liveRef.current, revisionOf(mapId))
+          if (counted && openRef.current === mapId) {
+            liveRef.current = endWrite(liveRef.current, revisionOf(mapId))
+          }
           throw error
         }
       }),
@@ -296,7 +319,10 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
   const travel = useCallback(
     (direction: "undo" | "redo") =>
       void enqueue(async () => {
-        if (!mapId) {
+        // The stack belongs to whatever map is open now, so a queued press that waited out a map
+        // switch would replay the new map's delta against the old one. There is no salvaging that:
+        // the press was for a document nobody is looking at.
+        if (!mapId || openRef.current !== mapId) {
           return
         }
         const stack = historyRef.current
@@ -309,16 +335,29 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
         liveRef.current = beginWrite(liveRef.current)
         const outcome = await restoreMindmap(mapId, stack.revision, delta)
 
+        // Same rule as an ordinary write: a map switch while the replay was in the air leaves the
+        // refs describing a different document, so only the cache entry is still ours to touch.
+        const open = openRef.current === mapId
+
         if (outcome.status !== "applied") {
-          liveRef.current = endWrite(liveRef.current, outcome.error.revision)
-          setRejected(outcome.error)
-          reload(mapId)
+          if (open) {
+            liveRef.current = endWrite(liveRef.current, outcome.error.revision)
+            setRejected(outcome.error)
+            reload(mapId)
+          }
           return
         }
 
-        liveRef.current = endWrite(liveRef.current, outcome.result.revision)
+        if (open) {
+          liveRef.current = endWrite(liveRef.current, outcome.result.revision)
+        }
         if (!foldRestoreIntoCache(client, mapId, delta, outcome.result)) {
-          reload(mapId)
+          if (open) {
+            reload(mapId)
+          }
+          return
+        }
+        if (!open) {
           return
         }
         setRejected(null)
