@@ -113,6 +113,54 @@ public sealed class MindmapScaleTests
     }
 
     [Fact]
+    public async Task DeletingALargeSubtreeFinishesInOneEdit()
+    {
+        // Deleting a root cascades to everything under it, and the cascade both scans the edge list per
+        // removed element and removes from the ordered lists one id at a time.
+        await using var h = new MindmapTestHarness();
+        var map = (await h.Service.CreateAsync("Cascade")).Value!;
+        var seeded = await h.Service.ApplyAsync(map.Id, map.Revision, new MindmapEditOp[]
+        {
+            new AddNodesOp { Nodes = new[] { new MindmapNodeSpec { Ref = "root", Text = "root" } } },
+        });
+        var revision = seeded.Value!.Revision;
+        var root = seeded.Value.CreatedIds["root"];
+
+        for (var batch = 0; batch < 30; batch++)
+        {
+            var nodes = Enumerable.Range(0, 100)
+                .Select(i => new MindmapNodeSpec { Text = $"c{batch}-{i}" })
+                .ToArray();
+            var applied = await h.Service.ApplyAsync(map.Id, revision, new MindmapEditOp[]
+            {
+                new AddNodesOp { Under = root, Nodes = nodes },
+            });
+            Assert.True(applied.IsSuccess && applied.Value!.Success, "a batch was refused");
+            revision = applied.Value!.Revision;
+        }
+
+        // Taken before the delete so the check after it is worth making.
+        Assert.NotEmpty(await h.Store.SearchAsync(map.Id, "c29", 10));
+
+        var watch = Stopwatch.StartNew();
+        var deleted = await h.Service.ApplyAsync(map.Id, revision, new MindmapEditOp[]
+        {
+            new DeleteOp { Ids = new[] { root } },
+        });
+        var elapsed = watch.Elapsed;
+
+        Assert.True(deleted.IsSuccess && deleted.Value!.Success, "the delete was refused");
+        var loaded = (await h.Service.GetAsync(map.Id)).Value!;
+        Assert.Empty(loaded.Elements);
+        Assert.Empty(loaded.Edges);
+
+        // The search mirror is maintained in the same commit, so a delete that skipped it would leave the
+        // map findable by nodes that no longer exist.
+        Assert.Empty(await h.Store.SearchAsync(map.Id, "c29", 10));
+        _output.WriteLine($"cascade delete of 3001 nodes and 3000 edges: {elapsed.TotalMilliseconds:F0} ms");
+    }
+
+    [Fact]
     public async Task ALibraryOfManyLargeMapsLoads()
     {
         // The gallery reads every map's whole document, not a header, because it draws a preview and

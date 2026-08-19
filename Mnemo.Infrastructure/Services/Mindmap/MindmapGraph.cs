@@ -60,24 +60,35 @@ internal static class MindmapGraph
     /// All hierarchy descendants of <paramref name="rootId"/>, including the root itself. Used for cascade
     /// deletes and subtree styling.
     /// </summary>
-    public static HashSet<string> CollectSubtree(IEnumerable<MindmapEdge> edges, string rootId)
+    public static HashSet<string> CollectSubtree(IEnumerable<MindmapEdge> edges, string rootId) =>
+        CollectSubtrees(edges, new[] { rootId });
+
+    /// <summary>
+    /// The union of the subtrees of every id in <paramref name="rootIds"/>, roots included. The adjacency
+    /// is built once for the whole set, so deleting a hundred nodes reads the edge list once rather than
+    /// a hundred times.
+    /// </summary>
+    public static HashSet<string> CollectSubtrees(IEnumerable<MindmapEdge> edges, IEnumerable<string> rootIds)
     {
         var adjacency = BuildHierarchyAdjacency(edges);
         var result = new HashSet<string>();
         var stack = new Stack<string>();
-        stack.Push(rootId);
 
-        while (stack.Count > 0)
+        foreach (var rootId in rootIds)
         {
-            var current = stack.Pop();
-            if (!result.Add(current))
-                continue;
+            stack.Push(rootId);
+            while (stack.Count > 0)
+            {
+                var current = stack.Pop();
+                if (!result.Add(current))
+                    continue;
 
-            if (!adjacency.TryGetValue(current, out var children))
-                continue;
+                if (!adjacency.TryGetValue(current, out var children))
+                    continue;
 
-            foreach (var child in children)
-                stack.Push(child);
+                foreach (var child in children)
+                    stack.Push(child);
+            }
         }
 
         return result;
