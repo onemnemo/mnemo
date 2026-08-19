@@ -1,0 +1,72 @@
+# Runs on every push and pull request against main. This is the merge gate: it typechecks,
+# lints and tests the web UI, and builds and tests the two .NET projects, but it never packages
+# the desktop app, that stays in release.yml and only runs off a version tag.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Exact, not a major, and it has to stay in step with the node development runs on;
+          # see release.yml for why a floating major cannot be trusted with this lockfile.
+          node-version: "24.11.1"
+          cache: npm
+          cache-dependency-path: mnemo-web/package-lock.json
+
+      # Not really web-specific, this covers the whole tree, but it needs nothing beyond node
+      # itself and the web job already has that, so it runs here rather than as its own job.
+      - name: Guard against NUL bytes in tracked source files
+        run: node scripts/check-nul-bytes.mjs
+
+      - name: Install dependencies
+        working-directory: mnemo-web
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: mnemo-web
+        run: npx tsc -b
+
+      - name: Lint
+        working-directory: mnemo-web
+        run: npx oxlint src
+
+      - name: Test
+        working-directory: mnemo-web
+        run: npx vitest run
+
+  dotnet:
+    # windows-latest rather than ubuntu-latest: it is the platform release.yml's own gate has
+    # actually built and tested this solution on, Mnemo.UI included. Linux and macOS builds
+    # exist in that matrix too, but neither has completed a real run yet, so there is nothing to
+    # point at for them.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build the solution
+        run: dotnet build MnemoApp.sln -c Release
+
+      - name: Test Mnemo.Infrastructure
+        run: dotnet test Mnemo.Infrastructure.Tests/Mnemo.Infrastructure.Tests.csproj -c Release --no-build
+
+      - name: Test Mnemo.Host
+        run: dotnet test Mnemo.Host.Tests/Mnemo.Host.Tests.csproj -c Release --no-build
