@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Host.Assets;
@@ -100,7 +102,55 @@ public sealed class NoteAssetReferenceSource : IAssetReferenceSource
         {
             if (block.Payload is ImagePayload image && ParseReference(image.Path) is { } id)
                 into.Add(id);
+            CollectFromUnreadablePayload(block.UnknownPayloadJson, into);
             CollectFromBlocks(block.Children, into);
+        }
+    }
+
+    /// <summary>
+    /// Every file that could be named inside a payload this build could not read.
+    /// </summary>
+    /// <remarks>
+    /// A payload kind added after this build is kept verbatim rather than dropped, so a note
+    /// written by a newer version and opened here still holds its references, and this walk is
+    /// the only thing standing between them and the sweep. Since the shape is unknown, every
+    /// string in it is read as a possible reference. That over-collects, which costs nothing:
+    /// a name that no file carries protects nothing, and the failure it prevents is deleting
+    /// the image of a block this build cannot see.
+    /// </remarks>
+    private static void CollectFromUnreadablePayload(string? json, HashSet<string> into)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return;
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            CollectStrings(document.RootElement, into);
+        }
+        catch (JsonException)
+        {
+            // Stored exactly as it was read, so it parsed once. Nothing to walk if it no longer
+            // does, and the block's own bytes still go back untouched on the next write.
+        }
+    }
+
+    private static void CollectStrings(JsonElement element, HashSet<string> into)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.String:
+                if (ParseReference(element.GetString()) is { } id)
+                    into.Add(id);
+                break;
+            case JsonValueKind.Object:
+                foreach (var property in element.EnumerateObject())
+                    CollectStrings(property.Value, into);
+                break;
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                    CollectStrings(item, into);
+                break;
         }
     }
 
