@@ -202,7 +202,7 @@ public sealed class FlashcardAnkiModernPackageTests
         new(library, cardSvc, new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock), new ImageAssetService());
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
-        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+        new(h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
     /// <summary>A real 1x1 PNG, so the import stores what the bytes actually are.</summary>
     private static byte[] PngBytes() => Convert.FromBase64String(

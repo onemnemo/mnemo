@@ -20,19 +20,22 @@ public sealed class FlashcardCardService : IFlashcardCardService
     private readonly IScheduleRepository _schedules;
     private readonly IFactRepository _facts;
     private readonly FlashcardClock _clock;
+    private readonly IImageAssetService? _images;
 
     public FlashcardCardService(
         IFlashcardStore store,
         ICardRepository cards,
         IScheduleRepository schedules,
         IFactRepository facts,
-        FlashcardClock clock)
+        FlashcardClock clock,
+        IImageAssetService? images = null)
     {
         _store = store;
         _cards = cards;
         _schedules = schedules;
         _facts = facts;
         _clock = clock;
+        _images = images;
     }
 
     public Task<FlashcardCardPage> ListCardsAsync(FlashcardCardQuery query, CancellationToken cancellationToken = default)
@@ -98,8 +101,50 @@ public sealed class FlashcardCardService : IFlashcardCardService
         return _store.WriteAsync((conn, tx, ct) => _cards.UpdateAsync(conn, tx, updated, ct), cancellationToken);
     }
 
-    public Task DeleteCardsAsync(IReadOnlyList<string> cardIds, CancellationToken cancellationToken = default) =>
-        _store.WriteAsync((conn, tx, ct) => _cards.DeleteManyAsync(conn, tx, cardIds, ct), cancellationToken);
+    /// <summary>
+    /// Deletes cards and the files behind them. A card made from material shares its attachment
+    /// files with every other card the same material makes, so deleting one only takes a file
+    /// once nothing is left with a claim on it: for a card with no material, that is itself; for
+    /// one with material, that is the material, once this delete leaves it with no card anywhere.
+    /// </summary>
+    public async Task DeleteCardsAsync(IReadOnlyList<string> cardIds, CancellationToken cancellationToken = default)
+    {
+        var owned = await _store.WriteAsync(async (conn, tx, ct) =>
+        {
+            var files = new List<string>();
+            var factIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var id in cardIds)
+            {
+                var card = await _cards.GetAsync(conn, id, ct).ConfigureAwait(false);
+                if (card is null)
+                    continue;
+                if (card.FactId is { } factId)
+                    factIds.Add(factId);
+                else
+                    files.AddRange(card.Attachments.Select(a => a.FilePath));
+            }
+
+            await _cards.DeleteManyAsync(conn, tx, cardIds, ct).ConfigureAwait(false);
+
+            foreach (var factId in factIds)
+            {
+                var remaining = await _facts.GetCardKeysAsync(conn, factId, ct).ConfigureAwait(false);
+                if (remaining.Count > 0)
+                    continue;
+
+                var fact = await _facts.GetAsync(conn, factId, ct).ConfigureAwait(false);
+                if (fact is null)
+                    continue;
+
+                files.AddRange(fact.Media.Values.SelectMany(list => list).Select(a => a.FilePath));
+                await _facts.DeleteManyAsync(conn, tx, new[] { factId }, ct).ConfigureAwait(false);
+            }
+
+            return files;
+        }, cancellationToken).ConfigureAwait(false);
+
+        await FlashcardAttachmentCleanup.DeleteAsync(_images, owned, cancellationToken).ConfigureAwait(false);
+    }
 
     public Task MoveCardsAsync(IReadOnlyList<string> cardIds, string targetDeckId, CancellationToken cancellationToken = default) =>
         _store.WriteAsync((conn, tx, ct) => _cards.MoveManyAsync(conn, tx, cardIds, targetDeckId, _clock.Now, ct), cancellationToken);

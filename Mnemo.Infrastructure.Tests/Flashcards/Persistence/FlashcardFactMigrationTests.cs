@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Tests.Widgets;
 using Xunit;
@@ -445,12 +446,18 @@ public sealed class FlashcardFactMigrationTests
             return ids;
         }
 
-        /// <summary>Deletes through the repository, so the test sees what the app does.</summary>
+        /// <summary>Deletes through the library service, so the test sees what the app does: the
+        /// repository alone only takes the deck row, material cleanup is the service's job.</summary>
         public async Task DeleteDeckAsync(string deckId)
         {
-            await using var store = new FlashcardStore(new TestLogger(), _path, new TestTimeProvider(Now));
+            var time = new TestTimeProvider(Now);
+            await using var store = new FlashcardStore(new TestLogger(), _path, time);
             await store.InitializeAsync();
-            await store.WriteAsync((conn, tx, ct) => new DeckRepository().DeleteAsync(conn, tx, deckId, ct));
+            var library = new FlashcardLibraryService(
+                store, new FolderRepository(), new DeckRepository(), new CardRepository(), new FactRepository(),
+                new ScheduleRepository(), new ReviewRepository(), new DailyStatsRepository(), new PresetRepository(),
+                new FlashcardClock(time));
+            await library.DeleteDeckAsync(deckId);
         }
 
         public async Task<IReadOnlyList<string>> FactIdsAsync()

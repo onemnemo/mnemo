@@ -311,7 +311,7 @@ public sealed class FlashcardServiceTests
         new(deckId, FlashcardType.Classic, front, back, Array.Empty<string>(), Array.Empty<FlashcardAttachment>());
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
-        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+        new(h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
     private static FlashcardStudyService NewStudy(FlashcardStoreHarness h) =>
         new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, h.Facts, new FsrsScheduler(h.Clock), h.Clock);
