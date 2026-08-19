@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
   deleteNote: vi.fn(async () => {}),
   duplicateNote: vi.fn(async () => ({ id: 'n8' })),
   navigate: vi.fn(),
-  confirm: vi.fn(async () => false),
+  undo: vi.fn(),
   openTab: vi.fn(),
   openTransfer: vi.fn(),
 }));
@@ -39,7 +39,8 @@ vi.mock('../api', () => ({
 
 vi.mock('@/app/router', () => ({ navigate: mocks.navigate }));
 vi.mock('@/i18n/useT', () => ({ useT: () => (_ns: string, key: string) => key }));
-vi.mock('@/stores/dialog', () => ({ dialog: { confirm: mocks.confirm } }));
+// Deleting raises the undo toast, which reaches for the query cache these rows are mounted without.
+vi.mock('@/trash/undo', () => ({ useUndoDelete: () => mocks.undo }));
 vi.mock('../workspace/tabs', () => ({
   useNoteTabs: (select: (state: { open: unknown }) => unknown) => select({ open: mocks.openTab }),
 }));

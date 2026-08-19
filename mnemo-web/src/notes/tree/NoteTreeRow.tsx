@@ -12,7 +12,7 @@ import {
 import { useInlineEditor } from '@/components/ui/useInlineEditor';
 import { useT } from '@/i18n/useT';
 import { cn } from '@/lib/utils';
-import { dialog } from '@/stores/dialog';
+import { useUndoDelete } from '@/trash/undo';
 
 import {
   useCreateNote,
@@ -100,7 +100,7 @@ export function FolderRow({
   drag: TreeDrag;
 }) {
   const nt = useNotesT();
-  const t = useT();
+  const undo = useUndoDelete();
   const rename = useInlineEditor();
   const saveFolder = useSaveNoteFolder();
   const deleteFolder = useDeleteNoteFolder();
@@ -122,14 +122,7 @@ export function FolderRow({
   };
 
   const remove = async () => {
-    const ok = await dialog.confirm({
-      title: nt('DeleteFolder'),
-      message: nt('DeleteFolderConfirm', { 0: folder.name }),
-      destructive: true,
-      confirmLabel: nt('DeleteFolder'),
-      cancelLabel: t('Common', 'Cancel'),
-    });
-    if (ok) await deleteFolder.mutateAsync(folder.id);
+    undo(await deleteFolder.mutateAsync(folder.id));
   };
 
   return (
@@ -218,7 +211,7 @@ export function NoteRow({
   favourite?: boolean;
 }) {
   const nt = useNotesT();
-  const t = useT();
+  const undo = useUndoDelete();
   const rename = useInlineEditor();
   const updateNote = useUpdateNoteMetadata();
   const deleteNote = useDeleteNote();
@@ -250,14 +243,7 @@ export function NoteRow({
   };
 
   const remove = async () => {
-    const ok = await dialog.confirm({
-      title: nt('DeleteNote'),
-      message: nt('DeleteNoteConfirm', { 0: note.title.trim() || nt('Untitled') }),
-      destructive: true,
-      confirmLabel: nt('DeleteNote'),
-      cancelLabel: t('Common', 'Cancel'),
-    });
-    if (ok) await deleteNote.mutateAsync(note.id);
+    undo(await deleteNote.mutateAsync(note.id));
   };
 
   const rowKey = favourite ? undefined : handle.key;

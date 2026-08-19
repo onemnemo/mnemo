@@ -1,6 +1,7 @@
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
+import { useTrashCountQuery } from "@/trash/api"
 
 import { DEFAULT_PROFILE_PICTURE } from "../assets"
 import { useDeveloperGateTap } from "../developerGate"
@@ -40,6 +41,9 @@ export function SettingsNav({
 }) {
   const t = useT()
   const tapTitle = useDeveloperGateTap()
+  // Asked once here rather than inside every row: one row wants it and the rest would each be
+  // subscribing to a count they never draw.
+  const trashCount = useTrashCountQuery().data?.count ?? 0
 
   return (
     <div className="flex w-[236px] shrink-0 flex-col border-r border-line-soft">
@@ -80,6 +84,7 @@ export function SettingsNav({
                     key={category.id}
                     category={category}
                     selected={category.id === selectedId}
+                    trashCount={trashCount}
                     onSelect={() => onSelect(category.id)}
                   />
                 ))}
@@ -95,10 +100,13 @@ export function SettingsNav({
 function NavItem({
   category,
   selected,
+  trashCount,
   onSelect,
 }: {
   category: SettingsCategory
   selected: boolean
+  /** How much the trash is holding, for the one row that reports it. */
+  trashCount: number
   onSelect: () => void
 }) {
   const t = useT()
@@ -106,8 +114,14 @@ function NavItem({
   const avatar = useAvatarUrl(useSettingValue("User.ProfilePicture", DEFAULT_PROFILE_PICTURE))
 
   const title = UNTRANSLATED_CATEGORY_TITLES[category.id] ?? t("Settings", category.title)
-  // The AI page is tagged when its master switch is off, so the state is visible without opening it.
-  const statusTag = category.id === "AITools" && !aiEnabled ? t("Settings", "StatusOff") : null
+  // Two rows report their own state so it is visible without opening them: the AI page when its
+  // master switch is off, and the trash when it is holding something recoverable.
+  const statusTag =
+    category.id === "AITools" && !aiEnabled
+      ? t("Settings", "StatusOff")
+      : category.id === "Trash" && trashCount > 0
+        ? String(trashCount)
+        : null
 
   return (
     <button

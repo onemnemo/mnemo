@@ -18,7 +18,7 @@ import { FolderRow } from "./FolderRow"
 const mocks = vi.hoisted(() => ({
   saveFolder: vi.fn(async () => {}),
   deleteFolder: vi.fn(async () => {}),
-  confirm: vi.fn(async () => false),
+  undo: vi.fn(),
 }))
 
 vi.mock("../../api", () => ({
@@ -30,8 +30,9 @@ vi.mock("@/i18n/useT", () => ({
   useT: () => (_ns: string, key: string) => key,
 }))
 
-vi.mock("@/stores/dialog", () => ({
-  dialog: { confirm: mocks.confirm },
+// Deleting raises the undo toast, which reaches for the query cache this row is mounted without.
+vi.mock("@/trash/undo", () => ({
+  useUndoDelete: () => mocks.undo,
 }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true

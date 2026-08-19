@@ -121,7 +121,7 @@ export function MapMenuItems({ map, actions }: { map: MapCardModel; actions: Lib
         {mm("Export")}
       </MenuItem>
       <MenuSeparator />
-      <MenuItem icon="common/trash" danger onSelect={() => void actions.deleteMap(map.id, map.title)}>
+      <MenuItem icon="common/trash" danger onSelect={() => void actions.deleteMap(map.id)}>
         {mm("Delete")}
       </MenuItem>
     </>

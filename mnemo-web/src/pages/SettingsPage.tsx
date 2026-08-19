@@ -13,6 +13,7 @@ import { UNTRANSLATED_CATEGORY_TITLES, visibleCategories } from "@/settings/sche
 import { searchCategories, searchSettings, type SettingsSearchMatch } from "@/settings/search"
 import { useSettingsStore, useSettingValue } from "@/settings/store"
 import type { SettingsCategory, SettingsPageId } from "@/settings/types"
+import { TrashPage } from "@/trash/components/TrashPage"
 
 const DEFAULT_CATEGORY = "General"
 
@@ -128,6 +129,8 @@ function SettingsCategoryPage({ id }: { id: SettingsPageId }) {
   switch (id) {
     case "keyboard":
       return <KeyboardPage />
+    case "trash":
+      return <TrashPage />
   }
 }
 

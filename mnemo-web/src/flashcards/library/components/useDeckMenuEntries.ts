@@ -1,6 +1,7 @@
 import { navigate } from "@/app/router"
 import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
+import { useUndoDelete } from "@/trash/undo"
 import type { DeckSummaryDto } from "@/api/types"
 
 import { useDeleteDeck, useUpdateDeck } from "../../api"
@@ -15,6 +16,7 @@ import { deckMenuItems, type DeckMenuEntry } from "./deck-row-menu-items"
  */
 export function useDeckMenuEntries(deck: DeckSummaryDto, upToDate: boolean): readonly DeckMenuEntry[] {
   const t = useT()
+  const undo = useUndoDelete()
   const updateDeck = useUpdateDeck()
   const deleteDeck = useDeleteDeck()
   const fc = (key: string) => t("Flashcards", key)
@@ -41,14 +43,7 @@ export function useDeckMenuEntries(deck: DeckSummaryDto, upToDate: boolean): rea
   }
 
   const remove = async () => {
-    const ok = await dialog.confirm({
-      title: fc("DeleteDeck"),
-      message: fc("DeleteDeckConfirm"),
-      destructive: true,
-      confirmLabel: t("Common", "Delete"),
-      cancelLabel: t("Common", "Cancel"),
-    })
-    if (ok) await deleteDeck.mutateAsync(deck.id)
+    undo(await deleteDeck.mutateAsync(deck.id))
   }
 
   return deckMenuItems({

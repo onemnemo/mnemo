@@ -199,9 +199,10 @@ export interface SettingsGroup {
  * Almost every page in settings is label/control pairs, and the schema describes those
  * completely. Keyboard is not one of those: it is a searchable catalogue of actions with
  * a recorder in each row, and squeezing it into the row vocabulary would mean inventing
- * row kinds that only ever have one instance.
+ * row kinds that only ever have one instance. Trash is the same shape of exception: a live
+ * list of content with two verbs on every row, and nothing about it is a setting.
  */
-export type SettingsPageId = "keyboard"
+export type SettingsPageId = "keyboard" | "trash"
 
 /** One page in the settings nav. */
 export interface SettingsCategory {

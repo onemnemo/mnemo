@@ -4,7 +4,7 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { useInlineEditor } from "@/components/ui/useInlineEditor"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
-import { dialog } from "@/stores/dialog"
+import { useUndoDelete } from "@/trash/undo"
 
 import { useDeleteFolder, useSaveFolder } from "../../api"
 import type { DragHandle } from "../dnd/model"
@@ -27,6 +27,7 @@ export function FolderRow({
   drag: LibraryDrag
 }) {
   const t = useT()
+  const undo = useUndoDelete()
   const saveFolder = useSaveFolder()
   const deleteFolder = useDeleteFolder()
   const rename = useInlineEditor()
@@ -50,14 +51,7 @@ export function FolderRow({
   }
 
   const remove = async () => {
-    const ok = await dialog.confirm({
-      title: fc("DeleteFolder"),
-      message: fc("DeleteFolderConfirm", { 0: folder.name }),
-      destructive: true,
-      confirmLabel: fc("DeleteFolder"),
-      cancelLabel: t("Common", "Cancel"),
-    })
-    if (ok) await deleteFolder.mutateAsync(folder.id)
+    undo(await deleteFolder.mutateAsync(folder.id))
   }
 
   const entries = folderMenuItems({

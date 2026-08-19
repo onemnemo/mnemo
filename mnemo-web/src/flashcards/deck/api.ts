@@ -11,6 +11,7 @@ import type {
   DeckSummaryDto,
   UpdateCardDto,
 } from "@/api/types"
+import type { TrashActionDto } from "@/trash/types"
 
 import { deckKey, libraryKey } from "../api"
 
@@ -109,9 +110,9 @@ function json(body: unknown): RequestInit {
  * Every card mutation invalidates both this deck and the library: card counts,
  * due counts and retention all appear on the library page too.
  */
-function useCardMutation<TArgs>(deckId: string, mutationFn: (args: TArgs) => Promise<unknown>) {
+function useCardMutation<TArgs, TResult = unknown>(deckId: string, mutationFn: (args: TArgs) => Promise<TResult>) {
   const client = useQueryClient()
-  return useMutation<unknown, ApiError, TArgs>({
+  return useMutation<TResult, ApiError, TArgs>({
     mutationFn,
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: deckKey(deckId) })
@@ -132,8 +133,9 @@ export function useUpdateCard(deckId: string) {
   )
 }
 
+/** Moves cards to the trash. One entry per card, all of them under one batch, so undo takes them back together. */
 export function useDeleteCards(deckId: string) {
-  return useCardMutation(deckId, (cardIds: string[]) => apiSend("/cards/delete", json({ cardIds })))
+  return useCardMutation(deckId, (cardIds: string[]) => apiFetch<TrashActionDto>("/cards/delete", json({ cardIds })))
 }
 
 // Its own hook rather than useCardMutation: a move's target deck is never the

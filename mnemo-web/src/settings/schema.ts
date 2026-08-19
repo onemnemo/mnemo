@@ -495,6 +495,20 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
   },
 
   {
+    id: "Trash",
+    icon: "trash-2",
+    title: "TrashCategoryTitle",
+    subtitle: "TrashSubtitle",
+    // Nobody looks for a recovery surface under the word the app files it as.
+    keywords: ["deleted", "recover", "restore", "undo", "bin", "recycle", "undelete"],
+    section: "advanced",
+    // Its own surface: a live list of content with two verbs on every row is not a list of
+    // label/control pairs, and nothing on it is a setting.
+    page: "trash",
+    groups: [],
+  },
+
+  {
     id: "About",
     icon: "info",
     title: "About",

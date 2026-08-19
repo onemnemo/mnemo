@@ -5,6 +5,7 @@ import { Menu, MenuContent, MenuItem, MenuSeparator, MenuSubMenu, MenuTrigger } 
 import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
+import { useUndoDelete } from "@/trash/undo"
 
 import { useDecksQuery, useDeleteDeck, useFoldersQuery, useMoveDeck, useUpdateDeck } from "../../api"
 import { useCardTypeManager } from "../../cardtypes/store"
@@ -15,6 +16,7 @@ import { fetchAllCardIds, useSuspendCards } from "../api"
 /** The deck's own flyout, opened from the ellipsis button beside Study. */
 export function DeckMenu({ deck }: { deck: DeckSummaryDto }) {
   const t = useT()
+  const undo = useUndoDelete()
   const folders = useFoldersQuery()
   const decks = useDecksQuery()
   const updateDeck = useUpdateDeck()
@@ -62,16 +64,11 @@ export function DeckMenu({ deck }: { deck: DeckSummaryDto }) {
   }
 
   const remove = async () => {
-    const ok = await dialog.confirm({
-      title: fc("DeleteDeck"),
-      message: fc("DeleteDeckConfirm"),
-      destructive: true,
-      confirmLabel: t("Common", "Delete"),
-      cancelLabel: t("Common", "Cancel"),
-    })
-    if (!ok) return
-    await deleteDeck.mutateAsync(deck.id)
+    const action = await deleteDeck.mutateAsync(deck.id)
+    // Out of the deck before the toast, so undo is offered from the library rather than from a
+    // page still showing the deck it just deleted.
     navigate("flashcards")
+    undo(action)
   }
 
   const sortedFolders = [...(folders.data ?? [])].sort((a, b) => a.name.localeCompare(b.name))
