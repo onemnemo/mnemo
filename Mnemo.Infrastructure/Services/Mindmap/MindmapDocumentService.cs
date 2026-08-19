@@ -1040,24 +1040,26 @@ public sealed class MindmapDocumentService : IMindmapService
         if (op.Ids is null || op.Ids.Count == 0)
             return Err(MindmapEditErrorCode.InvalidOperation, "del requires at least one id.");
 
-        var toRemove = new HashSet<string>();
         foreach (var id in op.Ids)
         {
             if (!working.ContainsElement(id))
                 return NotFound(working, id);
-            toRemove.UnionWith(MindmapGraph.CollectSubtree(working.Edges, id));
         }
 
-        // Collect incident edges before removing elements.
-        var edgesToRemove = new HashSet<string>();
-        foreach (var elementId in toRemove)
-            foreach (var edge in working.IncidentEdges(elementId))
-                edgesToRemove.Add(edge.Id);
+        var toRemove = MindmapGraph.CollectSubtrees(working.Edges, op.Ids);
 
-        foreach (var edgeId in edgesToRemove)
-            working.RemoveEdge(edgeId);
-        foreach (var elementId in toRemove)
-            working.RemoveElement(elementId);
+        // Collect incident edges before removing elements. One pass over the edge list, because asking
+        // each removed element which edges touch it would walk the whole list again for every one of them,
+        // and a cascade delete can name thousands.
+        var edgesToRemove = new HashSet<string>();
+        foreach (var edge in working.Edges)
+        {
+            if (toRemove.Contains(edge.FromId) || toRemove.Contains(edge.ToId))
+                edgesToRemove.Add(edge.Id);
+        }
+
+        working.RemoveEdges(edgesToRemove);
+        working.RemoveElements(toRemove);
 
         // Frames orphan (never cascade) their members, but a deleted member must not linger as a dangling
         // ChildId — drop removed ids from any surviving frame's membership.
