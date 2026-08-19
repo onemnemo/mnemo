@@ -24,8 +24,16 @@ internal enum AnkiFixtureLayout
     Modern,
 }
 
-/// <summary>One note in a fixture package, and the deck it belongs to.</summary>
-internal sealed record AnkiFixtureCard(string DeckName, string FrontHtml, string BackHtml, string Tags = "");
+/// <summary>
+/// One note in a fixture package, and the deck it belongs to. <paramref name="ExtraFields"/> stands
+/// in for a note type that carries more than the two sides a card here has room for.
+/// </summary>
+internal sealed record AnkiFixtureCard(
+    string DeckName,
+    string FrontHtml,
+    string BackHtml,
+    string Tags = "",
+    IReadOnlyList<string>? ExtraFields = null);
 
 /// <summary>
 /// Writes representative Anki packages for import tests. Real packages are not checked in, so
@@ -217,6 +225,9 @@ internal static class AnkiPackageFixture
         foreach (var card in cards)
         {
             var fields = $"{card.FrontHtml}{UnitSeparator}{card.BackHtml}";
+            if (card.ExtraFields is { Count: > 0 })
+                fields += UnitSeparator + string.Join(UnitSeparator, card.ExtraFields);
+
             await ExecAsync(
                 connection,
                 "INSERT INTO notes(id,guid,mid,mod,usn,tags,flds,sfld,csum,flags,data) " +

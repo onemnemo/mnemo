@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models;
@@ -145,10 +146,14 @@ public sealed class FlashcardAnkiModernPackageTests
 
             Assert.True(result.Success, result.ErrorMessage);
             var deck = Assert.Single(await library.ListDecksAsync());
+            var folders = await library.ListFoldersAsync();
 
             // The newer schema separates the levels with a control character. Left as-is the name
             // reaches the user with an unprintable box in it.
-            Assert.Equal("Medicine::Cardiology::Arrhythmias", deck.Name);
+            Assert.Equal("Arrhythmias", deck.Name);
+            Assert.Equal(new[] { "Cardiology", "Medicine" }, folders.Select(f => f.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray());
+            Assert.DoesNotContain(AnkiPackageFixture.UnitSeparator, deck.Name);
+            Assert.All(folders, f => Assert.DoesNotContain(AnkiPackageFixture.UnitSeparator, f.Name));
         }
         finally
         {
