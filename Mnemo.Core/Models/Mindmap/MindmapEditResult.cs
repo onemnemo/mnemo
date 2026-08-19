@@ -4,8 +4,8 @@ using System.Collections.Generic;
 namespace Mnemo.Core.Models.Mindmap;
 
 /// <summary>
-/// Precise, actionable failure codes for an edit batch. A small local model will send malformed
-/// batches, so these must be exact.
+/// Precise, actionable failure codes for an edit batch. A small local model will send malformed batches,
+/// so these must be exact.
 /// </summary>
 public enum MindmapEditErrorCode
 {
@@ -43,26 +43,57 @@ public sealed record MindmapEditError
 }
 
 /// <summary>
-/// Outcome of an <c>ApplyAsync</c> batch. On success, <see cref="CreatedIds"/> maps caller ref keys to
-/// assigned short ids and <see cref="Revision"/> is the new document revision. On failure,
+/// What a write answers with, whoever made it: a canvas gesture, an arrange, a rename, an AI tool call or
+/// an import. On success, <see cref="CreatedIds"/> maps caller ref keys to assigned short ids,
+/// <see cref="Revision"/> is the new document revision, and the delta pair plus <see cref="Order"/> are
+/// everything a holder of the previous state needs to catch up without refetching. On failure,
 /// <see cref="Error"/> is set, <see cref="Success"/> is false, and nothing was persisted.
 /// </summary>
+/// <remarks>
+/// <see cref="BaseRevision"/> is the load-bearing field and the reason the deltas are computed by the
+/// service rather than by a caller reading the document either side of the write. A caller reads it as a
+/// precondition: fold <see cref="Redo"/> only into a document at exactly that revision, and replay
+/// <see cref="Undo"/> only against exactly <see cref="Revision"/>. A stale batch that rebased server-side
+/// commits against a document the caller never held, and its <see cref="BaseRevision"/> says so.
+/// </remarks>
 public sealed record MindmapEditResult
 {
     public required bool Success { get; init; }
 
-    /// <summary>The document revision after the batch (unchanged from the request on failure).</summary>
+    /// <summary>The document revision after the write (unchanged from the request on failure).</summary>
     public long Revision { get; init; }
 
-    /// <summary>Caller ref key → assigned short id, for elements/edges created by the batch.</summary>
+    /// <summary>
+    /// The revision the write actually applied against, which is <see cref="Revision"/> minus one on
+    /// success. It is not always the revision the caller asked for: a stale but non-contending batch is
+    /// rebased onto the current document, and this is what it was rebased onto.
+    /// </summary>
+    public long BaseRevision { get; init; }
+
+    /// <summary>Caller ref key to assigned short id, for elements/edges created by the write.</summary>
     public IReadOnlyDictionary<string, string> CreatedIds { get; init; } =
         new Dictionary<string, string>();
 
     /// <summary>Total elements removed by delete ops (including cascaded descendants).</summary>
     public int DeletedCount { get; init; }
 
+    /// <summary>
+    /// The delta that reverses this write: applied to the document at <see cref="Revision"/>, it produces
+    /// the state at <see cref="BaseRevision"/>. Null on failure and when the write changed nothing.
+    /// </summary>
+    public MindmapRestoreDelta? Undo { get; init; }
+
+    /// <summary>
+    /// The delta that replays this write: applied to the document at <see cref="BaseRevision"/>, it
+    /// produces the state at <see cref="Revision"/>. Null on failure and when the write changed nothing.
+    /// </summary>
+    public MindmapRestoreDelta? Redo { get; init; }
+
+    /// <summary>The committed document's element and edge order, without which a delta cannot be folded.</summary>
+    public MindmapDocumentOrder? Order { get; init; }
+
     public MindmapEditError? Error { get; init; }
 
     public static MindmapEditResult Failure(MindmapEditError error, long revision) =>
-        new() { Success = false, Revision = revision, Error = error };
+        new() { Success = false, Revision = revision, BaseRevision = revision, Error = error };
 }

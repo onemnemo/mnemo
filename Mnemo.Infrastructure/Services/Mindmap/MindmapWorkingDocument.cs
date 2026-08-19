@@ -185,6 +185,8 @@ internal sealed class MindmapWorkingDocument
 
     public void SetCanvas(MindmapCanvasOptions canvas) => Canvas = canvas;
 
+    public void SetTitle(string title) => Title = title;
+
     public MindmapDocument Materialize(long revision, DateTime modifiedAt) =>
         new()
         {
