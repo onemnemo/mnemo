@@ -155,7 +155,7 @@ export const EDITOR_COMMANDS: readonly EditorCommand[] = [
     'Mod-Shift-s',
   ),
   flag('editor.highlight', 'highlight', 'formatting-toolbar/highlighter', 'inline-format', 'Mod-Shift-h'),
-  flag('editor.code', 'code', undefined, 'inline-format'),
+  flag('editor.code', 'code', 'notes/code', 'inline-format'),
   swatch('editor.color.background', 'backgroundColor', undefined),
   swatch('editor.color.foreground', 'foregroundColor', undefined),
   flag('editor.subscript', 'subscript', 'formatting-toolbar/subscript', 'script', 'Mod-,'),

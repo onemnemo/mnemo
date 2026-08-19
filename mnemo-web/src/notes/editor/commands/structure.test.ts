@@ -8,6 +8,7 @@ import { invariantPipeline } from '../pipeline/invariants';
 import {
   backspaceStructural,
   convertBlockType,
+  deleteForwardStructural,
   insertSoftBreak,
   splitBlock,
 } from './structure';
@@ -37,6 +38,18 @@ function bullet(text?: string, attrs?: Record<string, unknown>): PMNode {
 }
 function code(text?: string, attrs?: Record<string, unknown>): PMNode {
   return schema.nodes.codeBlock.create(attrs ?? null, codeLine(text));
+}
+function divider(): PMNode {
+  return schema.nodes.divider.create(null, line());
+}
+function cell(text?: string): PMNode {
+  return schema.nodes.tableCell.create(null, line(text));
+}
+function tableRow(...cells: PMNode[]): PMNode {
+  return schema.nodes.tableRow.create(null, [line(), ...cells]);
+}
+function table(...rows: PMNode[]): PMNode {
+  return schema.nodes.table.create({ columnWidths: [] }, [line(), ...rows]);
 }
 function doc(...blocks: PMNode[]): PMNode {
   return schema.nodes.doc.create(null, blocks);
@@ -266,6 +279,136 @@ describe('backspaceStructural (Backspace at column 0)', () => {
     expect(handled).toBe(true);
     expect(state.doc.childCount).toBe(1);
     expect(state.doc.child(0).textContent).toBe('only');
+  });
+
+  it('swallows the key rather than merge text into a divider, which has no line to hold it', () => {
+    const document = doc(divider(), para('hello'));
+    const { state, handled } = run(document, backspaceStructural, { from: caretAt(document, 1, 0) });
+    expect(handled).toBe(true);
+    expect(state.doc.eq(document)).toBe(true);
+  });
+
+  it('swallows the key rather than merge text into a table, whose own line is hidden scenery', () => {
+    const t = table(tableRow(cell('a'), cell('b')));
+    const document = doc(t, para('hello'));
+    const { state, handled } = run(document, backspaceStructural, { from: caretAt(document, 1, 0) });
+    expect(handled).toBe(true);
+    expect(state.doc.eq(document)).toBe(true);
+  });
+
+  it('swallows the key rather than strand the caret deleting an empty block after a divider', () => {
+    const document = doc(divider(), para(''));
+    const { state, handled } = run(document, backspaceStructural, { from: caretAt(document, 1, 0) });
+    expect(handled).toBe(true);
+    // Nothing moved: the empty paragraph was not deleted, because doing so
+    // would have left the caret with nowhere visible to land.
+    expect(state.doc.eq(document)).toBe(true);
+  });
+
+  it('swallows the key rather than strand the caret deleting an empty block after a table', () => {
+    const t = table(tableRow(cell('a')));
+    const document = doc(t, para(''));
+    const { state, handled } = run(document, backspaceStructural, { from: caretAt(document, 1, 0) });
+    expect(handled).toBe(true);
+    expect(state.doc.eq(document)).toBe(true);
+  });
+});
+
+// --- Delete -------------------------------------------------------------
+
+describe('deleteForwardStructural (Delete at the end of a line)', () => {
+  it('does nothing when the caret is not at the line end', () => {
+    const document = doc(para('ab'));
+    const { handled } = run(document, deleteForwardStructural, { from: caretAt(document, 0, 1) });
+    expect(handled).toBe(false);
+  });
+
+  it('does nothing at the end of the last block (nothing to join with)', () => {
+    const document = doc(para('only'));
+    const { state, handled } = run(document, deleteForwardStructural, {
+      from: caretAt(document, 0, 'only'.length),
+    });
+    expect(handled).toBe(true);
+    expect(state.doc.eq(document)).toBe(true);
+  });
+
+  it('merges a following non-empty Text block in, current block keeps its type', () => {
+    const document = doc(para('foo'), para('bar'));
+    const { state } = run(document, deleteForwardStructural, { from: caretAt(document, 0, 3) });
+    expect(state.doc.childCount).toBe(1);
+    expect(state.doc.child(0).type.name).toBe('paragraph');
+    expect(state.doc.child(0).textContent).toBe('foobar');
+    // Caret stays at the join point, where it already was.
+    expect(state.selection.from).toBe(caretAt(state.doc, 0, 3));
+  });
+
+  it('merging into a heading keeps the heading and re-bolds the appended text', () => {
+    const document = doc(heading(1, 'AB', undefined, [strong]), para('cd'));
+    const { state } = run(document, deleteForwardStructural, {
+      from: caretAt(document, 0, 2),
+      plugins: true,
+    });
+    expect(state.doc.childCount).toBe(1);
+    const block = state.doc.child(0);
+    expect(block.type.name).toBe('heading');
+    expect(block.textContent).toBe('ABcd');
+    expect(allBold(block)).toBe(true);
+  });
+
+  it('a code block strips marks from the merged-in text', () => {
+    const document = doc(code('ab'), para('cd'));
+    const { state } = run(document, deleteForwardStructural, { from: caretAt(document, 0, 2) });
+    expect(state.doc.childCount).toBe(1);
+    expect(state.doc.child(0).type.name).toBe('codeBlock');
+    expect(state.doc.child(0).textContent).toBe('abcd');
+  });
+
+  it('removes a following empty Text block, caret stays where it was', () => {
+    const document = doc(para('abc'), para(''));
+    const { state } = run(document, deleteForwardStructural, { from: caretAt(document, 0, 3) });
+    expect(state.doc.childCount).toBe(1);
+    expect(state.doc.child(0).textContent).toBe('abc');
+    expect(state.selection.from).toBe(caretAt(state.doc, 0, 3));
+  });
+
+  it('swallows rather than nest a following non-Text block into this one', () => {
+    const document = doc(para('ab'), heading(1, 'Head'));
+    const { state, handled } = run(document, deleteForwardStructural, { from: caretAt(document, 0, 2) });
+    expect(handled).toBe(true);
+    // Unchanged: still two top-level blocks, the heading never became a
+    // child of the paragraph. This is the bug ProseMirror's own `Delete`
+    // binding produced (joinForward re-parents instead of merging).
+    expect(state.doc.eq(document)).toBe(true);
+    expect(state.doc.childCount).toBe(2);
+    expect(state.doc.child(1).type.name).toBe('heading');
+    expect(state.doc.child(1).textContent).toBe('Head');
+  });
+
+  it('swallows rather than absorb a following divider', () => {
+    const document = doc(para('ab'), divider());
+    const { state, handled } = run(document, deleteForwardStructural, { from: caretAt(document, 0, 2) });
+    expect(handled).toBe(true);
+    expect(state.doc.eq(document)).toBe(true);
+  });
+
+  it('swallows rather than absorb a following table', () => {
+    const t = table(tableRow(cell('a'), cell('b')));
+    const document = doc(para('ab'), t);
+    const { state, handled } = run(document, deleteForwardStructural, { from: caretAt(document, 0, 2) });
+    expect(handled).toBe(true);
+    expect(state.doc.eq(document)).toBe(true);
+  });
+
+  it('is a safe no-op at the end of a table cell, never joining across the row', () => {
+    const t = table(tableRow(cell('abc'), cell('def')));
+    const document = doc(t);
+    // Position at the end of the first cell's line content: past the doc, the
+    // table's own line, the row's own line, and into the cell's line.
+    const tableLine = schema.nodes.line.create().nodeSize;
+    const from = 1 + tableLine + 1 + tableLine + 2 + 'abc'.length;
+    const { state, handled } = run(document, deleteForwardStructural, { from });
+    expect(handled).toBe(true);
+    expect(state.doc.eq(document)).toBe(true);
   });
 });
 

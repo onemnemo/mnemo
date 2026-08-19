@@ -82,9 +82,41 @@ export function NoteTabs({
     ignorePressWithin: 'button',
   });
 
+  /**
+   * Arrow-key roving focus, the standard tablist keyboard model: only the
+   * active tab is a Tab stop, and the arrows both move focus and switch to
+   * the tab they land on, the same immediacy a click already has. Moving
+   * focus is manual because switching tabs replaces which element in the DOM
+   * carries `tabIndex={0}`, so the browser's own focus-follows-Tab-order has
+   * nothing to carry it there on its own.
+   */
+  function handleTabKeyDown(event: React.KeyboardEvent<HTMLDivElement>, index: number): void {
+    if (tabs.length === 0) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onSelect(tabs[index].id);
+      return;
+    }
+    let nextIndex: number;
+    if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = tabs.length - 1;
+    else return;
+
+    event.preventDefault();
+    const next = tabs[nextIndex];
+    onSelect(next.id);
+    const target = [...(barRef.current?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? [])].find(
+      (candidate) => candidate.dataset.tabId === next.id,
+    );
+    target?.focus();
+  }
+
   return (
     <div
       ref={barRef}
+      role="tablist"
       className="scroll-thin relative flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-divider-subtle bg-surface px-1.5"
     >
       {onExpandSidebar ? <SidebarExpandButton onExpand={onExpandSidebar} className="mr-0.5" /> : null}
@@ -97,7 +129,7 @@ export function NoteTabs({
         />
       ) : null}
 
-      {tabs.map((tab) => {
+      {tabs.map((tab, index) => {
         const active = tab.id === activeId;
         return (
           <div
@@ -105,14 +137,16 @@ export function NoteTabs({
             data-tab-id={tab.id}
             role="tab"
             aria-selected={active}
+            tabIndex={active ? 0 : -1}
             onPointerDown={(event) => drag.press(event, { id: tab.id })}
             onClick={() => !drag.suppressClick(tab.id) && onSelect(tab.id)}
+            onKeyDown={(event) => handleTabKeyDown(event, index)}
             style={{ opacity: drag.sourceKey === tab.id ? 0.35 : undefined }}
             className={cn(
-              'group/tab flex h-7 min-w-0 max-w-[210px] shrink-0 cursor-pointer items-center gap-1.5 rounded-lg pl-2.5 pr-1 transition-colors',
+              'group/tab flex h-7 min-w-0 max-w-[210px] shrink-0 cursor-pointer items-center gap-1.5 rounded-lg pl-2.5 pr-1 outline-none transition-colors',
               active
                 ? 'bg-canvas text-text-primary shadow-[0_1px_2px_rgb(0_0_0/0.06),0_0_0_1px_var(--line-soft)]'
-                : 'text-text-secondary hover:bg-frame-hover hover:text-text-primary',
+                : 'text-text-secondary hover:bg-frame-hover hover:text-text-primary focus-visible:bg-frame-hover focus-visible:text-text-primary',
             )}
           >
             {tab.emoji ? (

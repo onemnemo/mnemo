@@ -423,8 +423,20 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
         overChromeRef.current = false;
       }}
     >
+      {/*
+       * Neither button is a tab stop. This row follows the caret as much as
+       * the pointer, so it is already mounted, at the caret's own block, the
+       * moment a reader is simply typing; a stray Tab with nowhere else
+       * assigned to it in the editor would otherwise land here first, an
+       * invisible detour into editing chrome the reader never asked to reach
+       * and cannot tell they are in, before the editor's own selection lets
+       * go of anything. The same reason the checklist box and callout glyph
+       * opt out: the pointer already reaches these two, and the grip still
+       * takes real keyboard focus back on its own terms when its menu closes.
+       */}
       <button
         type="button"
+        tabIndex={-1}
         aria-label={t('NotesEditor', 'InsertBlockBelow')}
         className={CHROME_BUTTON}
         onClick={() =>
@@ -436,6 +448,7 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
       <button
         ref={gripRef}
         type="button"
+        tabIndex={-1}
         aria-label={t('NotesEditor', 'BlockActionsFormat', { 0: handle.label })}
         aria-haspopup="menu"
         aria-expanded={menuOpen}

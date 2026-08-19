@@ -17,11 +17,28 @@
  * that carries no text of its own.
  */
 
-import type { NodeType } from 'prosemirror-model';
+import type { Node as PMNode } from 'prosemirror-model';
 import { TextSelection } from 'prosemirror-state';
 import { blockContext, convertBlockType } from '../commands/structure';
 import type { SlashContribution } from '../registry/types';
 import { createTable } from '../table/model';
+import { containerBlockNames, lineIsCaretTarget } from './shared';
+
+/**
+ * Whether `block`, as resolved by {@link blockContext}, is scenery a slash
+ * row must never rewrite: a container's own structural line, or a table
+ * cell's. A cell is deliberately not a container (its line holds the caret
+ * and the text, the same reason `structure.ts`'s own commands treat it as
+ * ordinary), but `blockContext` resolves to the cell itself when the caret
+ * sits in that line, since a cell's content is `"line block*"` like any
+ * other block. Converting or replacing it there is not converting a block
+ * inside the table, it is retyping the cell, which `tableRow` cannot hold
+ * anything else in place of, the same corruption a de-format would cause if
+ * `backspaceStructural` did not guard against it either.
+ */
+function isTableScenery(block: PMNode): boolean {
+  return containerBlockNames.has(block.type.name) || block.type.name === 'tableCell';
+}
 
 /**
  * The page row: create the nested note first, then put a card in front of it.
@@ -35,10 +52,19 @@ import { createTable } from '../table/model';
  * The step is built from the state as it is after the request, not from the one
  * the row was picked in: the user can go on typing while it is in flight, and a
  * step mapped against the older document lands in the wrong place.
+ *
+ * Checked against the pick-time snapshot before the note is created, not left
+ * to the `insertAtomicBlock('page', ...)` call below: that call refuses a
+ * table cell too, but only after `create()` has already run, which would
+ * leave a real note behind with nothing in the document pointing at it. The
+ * whole point of doing this async at all is not creating something the
+ * document is not going to keep.
  */
-export const insertPageBlock: SlashContribution['insert'] = async (_state, dispatch, context) => {
+export const insertPageBlock: SlashContribution['insert'] = async (state, dispatch, context) => {
   const create = context?.services.notes?.createChild;
   if (!create || !context) return;
+  const ctx = blockContext(state);
+  if (!ctx || isTableScenery(ctx.block)) return;
 
   let referenceNoteId: string;
   try {
@@ -64,10 +90,13 @@ export const insertPageBlock: SlashContribution['insert'] = async (_state, dispa
  *
  * Refused inside an existing split, matching the desktop: the menu only ever
  * makes a two-column at the top level, and nesting arrives through paste.
+ * Refused inside a table cell for the same reason `insertTable` refuses
+ * inside a table: the row that owns the cell cannot hold a two-column in
+ * the cell's place.
  */
 export const insertTwoColumn: SlashContribution['insert'] = (state, dispatch) => {
   const ctx = blockContext(state);
-  if (!ctx) return;
+  if (!ctx || isTableScenery(ctx.block)) return;
   const { $from } = state.selection;
   for (let depth = $from.depth; depth >= 0; depth--) {
     if ($from.node(depth).type.name === 'twoColumn') return;
@@ -142,7 +171,7 @@ export function convertHere(
 ): SlashContribution['insert'] {
   return (state, dispatch) => {
     const ctx = blockContext(state);
-    if (!ctx) return;
+    if (!ctx || isTableScenery(ctx.block)) return;
     const target = state.schema.nodes[nodeName];
     if (!target) return;
 
@@ -152,11 +181,6 @@ export function convertHere(
     tr.setSelection(TextSelection.create(tr.doc, ctx.blockPos + 2));
     dispatch(tr.scrollIntoView());
   };
-}
-
-/** A block whose line the caret can sit in; the schema knows, so nothing lists them. */
-function holdsCaret(type: NodeType): boolean {
-  return type.spec.holdsCaret !== false;
 }
 
 /**
@@ -180,7 +204,7 @@ export function insertAtomicBlock(
 ): SlashContribution['insert'] {
   return (state, dispatch) => {
     const ctx = blockContext(state);
-    if (!ctx) return;
+    if (!ctx || isTableScenery(ctx.block)) return;
     const target = state.schema.nodes[nodeName];
     if (!target) return;
     const { paragraph, line } = state.schema.nodes;
@@ -194,7 +218,7 @@ export function insertAtomicBlock(
     const below = ctx.blockPos + (converted?.nodeSize ?? ctx.block.nodeSize);
     const next = tr.doc.resolve(below).nodeAfter;
 
-    if (!next || !holdsCaret(next.type)) {
+    if (!next || !lineIsCaretTarget(next.type)) {
       tr.insert(below, paragraph.create(null, line.create()));
     }
     tr.setSelection(TextSelection.create(tr.doc, below + 2));

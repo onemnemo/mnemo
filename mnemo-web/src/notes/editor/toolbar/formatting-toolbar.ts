@@ -24,6 +24,7 @@ import {
   type EditorCommand,
   type SwatchCommand,
 } from '../commands/catalog';
+import { canEditLink, isLinkActive } from '../marks/link-commands';
 import { getIconMarkup } from '../../../components/icon/icon-registry';
 import { useI18nStore } from '../../../i18n/store';
 import { createTranslate } from '../../../i18n/translate';
@@ -31,6 +32,7 @@ import { BACKGROUND_SWATCHES, TEXT_SWATCHES, type SwatchCell } from './palette';
 import { placePopover, placeToolbar, type Rect } from '../floating/position';
 import { createRovingFocus } from '../floating/roving-focus';
 import { openTransientFocus, type TransientFocusScope } from '../focus';
+import { createLinkPopover, type LinkPopoverHandle } from './link-popover';
 
 const ROOT = 'notes-formatting-toolbar';
 
@@ -65,7 +67,9 @@ const TOOLTIP_KEYS: Readonly<Record<string, string>> = {
   'editor.italic': 'ItalicTooltip',
   'editor.underline': 'UnderlineTooltip',
   'editor.strikethrough': 'StrikethroughTooltip',
+  'editor.link': 'LinkTooltip',
   'editor.highlight': 'HighlightTooltip',
+  'editor.code': 'InlineCodeTooltip',
   'editor.subscript': 'SubscriptTooltip',
   'editor.superscript': 'SuperscriptTooltip',
   'editor.equation': 'EquationTooltip',
@@ -73,11 +77,24 @@ const TOOLTIP_KEYS: Readonly<Record<string, string>> = {
 
 /**
  * The buttons shown, in order, and the divider groups around them, matching
- * the desktop toolbar. Link belongs with the link-editing surface, and code,
- * clear-marks and undo/redo belong to the slash menu and keymap.
+ * the desktop toolbar's `Bold Italic Underline Strikethrough Link Highlight`
+ * run. `editor.link` is a sentinel, not a catalog id: it names where the
+ * bespoke link button (built below, alongside the colour button) sits in the
+ * row, since a command that opens UI cannot live in the catalog `run` slot
+ * `isCommandEnabled` dry-runs. `editor.code` has no desktop button to match
+ * against, so it is appended to the same group; clear-marks and undo/redo
+ * stay with the slash menu and keymap.
  */
 const BUTTON_GROUPS: readonly (readonly string[])[] = [
-  ['editor.bold', 'editor.italic', 'editor.underline', 'editor.strikethrough', 'editor.highlight'],
+  [
+    'editor.bold',
+    'editor.italic',
+    'editor.underline',
+    'editor.strikethrough',
+    'editor.link',
+    'editor.highlight',
+    'editor.code',
+  ],
   ['editor.subscript', 'editor.superscript', 'editor.equation'],
 ];
 
@@ -101,10 +118,17 @@ export interface FormattingToolbarOptions {
   readonly closeDelayMs?: number;
 }
 
-interface ToolbarButton {
-  readonly el: HTMLButtonElement;
-  readonly command: DirectCommand;
-}
+/**
+ * A catalog-backed button runs a fixed `Command` and reads its highlight from
+ * the same catalog entry. A link button has neither, a fixed href to apply or
+ * a meaningful dry run, its state comes from the mark at the selection, and
+ * clicking it opens the popover rather than running anything, so it is its
+ * own kind rather than a `DirectCommand` faked up to fit the shape the dry
+ * run in `isCommandEnabled` would otherwise call on every selection change.
+ */
+type ToolbarButton =
+  | { readonly kind: 'command'; readonly el: HTMLButtonElement; readonly command: DirectCommand }
+  | { readonly kind: 'link'; readonly el: HTMLButtonElement };
 
 interface SwatchCellButton {
   readonly el: HTMLButtonElement;
@@ -223,8 +247,6 @@ function buildToolbarDom(
   const buttons: ToolbarButton[] = [];
   BUTTON_GROUPS.forEach((ids, index) => {
     for (const id of ids) {
-      const command = commandsById.get(id);
-      if (!command || command.kind !== 'direct') continue;
       const el = document.createElement('button');
       el.type = 'button';
       el.className = `${ROOT}-btn`;
@@ -237,6 +259,18 @@ function buildToolbarDom(
         // button draws a sigma, and a glyph wins over `title` as the name.
         el.setAttribute('aria-label', el.title);
       }
+
+      if (id === 'editor.link') {
+        el.setAttribute('aria-haspopup', 'true');
+        el.setAttribute('aria-pressed', 'false');
+        el.appendChild(iconSpan('formatting-toolbar/link'));
+        root.appendChild(el);
+        buttons.push({ kind: 'link', el });
+        continue;
+      }
+
+      const command = commandsById.get(id);
+      if (!command || command.kind !== 'direct') continue;
       // A toggle says whether it is on; an insert has nothing to be on about,
       // and the catalog already draws that line with `isActive`.
       if (command.isActive) el.setAttribute('aria-pressed', 'false');
@@ -247,7 +281,7 @@ function buildToolbarDom(
         el.appendChild(iconSpan(command.icon));
       }
       root.appendChild(el);
-      buttons.push({ el, command });
+      buttons.push({ kind: 'command', el, command });
     }
     if (index < BUTTON_GROUPS.length - 1) root.appendChild(divider());
   });
@@ -310,6 +344,21 @@ function defaultTranslate(key: string): string {
   return createTranslate(useI18nStore.getState().bundle)('NotesEditor', key);
 }
 
+const isMac = typeof navigator !== 'undefined' && /Mac|iP(hone|[oa]d)/.test(navigator.platform);
+
+/**
+ * The desktop's `editor.link` chord (`Primary+Shift+L` in
+ * `EditorKeybindManifest.Chords`), matched by hand rather than through
+ * `editorKeymap`'s catalog-driven binding: this command opens UI, which is
+ * exactly what a catalog `run` must not do, `isCommandEnabled` dry-runs every
+ * entry with no `dispatch` on every selection change. `Mod` follows
+ * `prosemirror-keymap`'s own reading of it, Cmd on Mac, Ctrl elsewhere.
+ */
+function isLinkChord(event: KeyboardEvent): boolean {
+  const mod = isMac ? event.metaKey : event.ctrlKey;
+  return mod && event.shiftKey && event.key.toLowerCase() === 'l';
+}
+
 /** The plugin to include in a note's editable `EditorState` plugins. */
 export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}): Plugin {
   const commands = options.commands ?? EDITOR_COMMANDS;
@@ -321,6 +370,9 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
   // Keyed by view rather than captured: one plugin instance can be reached from
   // more than one view, and the toolbar to focus is the one this view owns.
   const focusEntries = new WeakMap<EditorView, () => boolean>();
+  // The link popover instance for each view, so the `Mod-Shift-l` handler
+  // below can reach the same popover the toolbar button opens.
+  const linkEntries = new WeakMap<EditorView, LinkPopoverHandle>();
 
   return new Plugin({
     state: {
@@ -331,6 +383,8 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
     view(editorView) {
       const dom = buildToolbarDom(commandsById, translate);
       document.body.appendChild(dom.root);
+      const linkPopover = createLinkPopover(editorView);
+      linkEntries.set(editorView, linkPopover);
 
       let visible = false;
       let popoverOpen = false;
@@ -412,6 +466,7 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
         visible = false;
         dom.root.setAttribute('data-hidden', '');
         closePopover();
+        linkPopover.close();
         toolbarFocus.reset();
         if (focusScope) {
           // Whatever emptied the selection has already put it where it wants
@@ -478,7 +533,15 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
 
       function updateActiveStates(view: EditorView): void {
         const { state } = view;
-        for (const { el, command } of dom.buttons) {
+        for (const button of dom.buttons) {
+          if (button.kind === 'link') {
+            const active = isLinkActive(state);
+            button.el.classList.toggle('is-active', active);
+            button.el.setAttribute('aria-pressed', String(active));
+            button.el.disabled = !canEditLink(state);
+            continue;
+          }
+          const { el, command } = button;
           const active = command.isActive?.(state) ?? false;
           el.classList.toggle('is-active', active);
           if (command.isActive) el.setAttribute('aria-pressed', String(active));
@@ -529,8 +592,17 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
       }
 
       // Buttons run their command against the live view, using the same
-      // dry-run/dispatch split as every other command surface.
-      for (const { el, command } of dom.buttons) {
+      // dry-run/dispatch split as every other command surface. The link
+      // button has no command of its own to run; a click just toggles its
+      // popover, anchored to the button that was pressed.
+      for (const button of dom.buttons) {
+        if (button.kind === 'link') {
+          button.el.addEventListener('click', () => {
+            linkPopover.toggle(button.el.getBoundingClientRect());
+          });
+          continue;
+        }
+        const { el, command } = button;
         el.addEventListener('click', () => {
           command.run(editorView.state, editorView.dispatch, editorView);
         });
@@ -563,11 +635,14 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
       /**
        * One press dismisses one layer. A press outside an open colour popover
        * closes just that popover; only a press with no popover open reaches
-       * the toolbar itself.
+       * the toolbar itself. The link flyout is its own layer above all of
+       * this: a press inside it is left alone, and a press outside it while
+       * it is open closes only the flyout, the same one-layer-per-press rule.
        */
       function onDocumentMouseDown(event: MouseEvent): void {
         const target = event.target as Node | null;
         if (!target) return;
+        if (linkPopover.contains(target)) return;
         if (editorView.dom.contains(target)) {
           // A press in the document is the start of a selection gesture, even
           // if it turns out to be a plain click. Whatever the toolbar was
@@ -585,6 +660,11 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
           return;
         }
         if (dom.root.contains(target)) return;
+        // A genuinely external press: it is already claiming focus for
+        // itself, so the flyout is dismissed without fighting that press's
+        // own destination (`close` restores the selection but does not
+        // refocus the editor).
+        if (linkPopover.isOpen()) linkPopover.close();
         dismissed = true;
         // Stood down before hiding, because at mousedown the press has not
         // taken focus yet: leaving the scope alive would let `hide` pull focus
@@ -665,6 +745,8 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
           document.removeEventListener('mousedown', onDocumentMouseDown, true);
           document.removeEventListener('mouseup', onDocumentMouseUp, true);
           focusEntries.delete(editorView);
+          linkEntries.delete(editorView);
+          linkPopover.destroy();
           // Never restored: the view is going away, and there is no document
           // left to put a selection back into.
           focusScope?.release();
@@ -675,8 +757,17 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
     },
     props: {
       handleKeyDown(view, event) {
-        if (event.key !== FOCUS_CHORD || !event.altKey) return false;
-        return focusEntries.get(view)?.() ?? false;
+        if (event.key === FOCUS_CHORD && event.altKey) {
+          return focusEntries.get(view)?.() ?? false;
+        }
+        if (isLinkChord(event)) {
+          // A bare caret has `from === to`, and `measureAnchor` handles that
+          // the same as any other selection; the fallback is only for the
+          // environments it already returns null for.
+          const anchor = measureAnchor(view) ?? { top: 0, bottom: 0, left: 0, right: 0 };
+          return linkEntries.get(view)?.open(anchor) ?? false;
+        }
+        return false;
       },
     },
   });

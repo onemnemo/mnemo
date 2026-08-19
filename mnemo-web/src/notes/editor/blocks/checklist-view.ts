@@ -33,9 +33,13 @@ export function checklistView(
   box.className = 'notes-checkbox';
   box.setAttribute('contenteditable', 'false');
   box.setAttribute('role', 'checkbox');
-  // The editable surface is the tab stop; the box is a pointer affordance,
-  // keyboard users toggle through the command surface instead.
-  box.tabIndex = -1;
+  // Reachable by keyboard, because activating it is the only way to toggle
+  // it. There is no command-catalog entry for a checklist's checked state,
+  // unlike the callout glyph or the gutter row, where a keyboard path exists
+  // elsewhere and the pointer affordance rightly opts out; a native button
+  // already answers Enter and Space with a click, matching the desktop's own
+  // CheckBox, which is a real tab stop too.
+  box.tabIndex = 0;
   box.innerHTML =
     `<svg viewBox="0 0 11 9" fill="none" aria-hidden="true">` +
     `<path d="${CHECK_PATH}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
