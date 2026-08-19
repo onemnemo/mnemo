@@ -165,7 +165,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             await _schedules.UpsertAsync(conn, tx, entry.UpdatedSchedule, ct).ConfigureAwait(false);
             var reviewId = await _reviews.AppendAsync(conn, tx, entry.Review, ct).ConfigureAwait(false);
             await _dailyStats.IncrementAsync(conn, tx, entry.Review.DeckId, entry.LocalDay,
-                entry.IntroducedNewCard ? 1 : 0, 1, ct).ConfigureAwait(false);
+                entry.IntroducedNewCard ? 1 : 0, ChargesReviewCap(entry.Review.StateBefore) ? 1 : 0, ct).ConfigureAwait(false);
             return reviewId;
         }, cancellationToken);
     }
@@ -177,8 +177,19 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
         {
             await _schedules.UpsertAsync(conn, tx, restoredSchedule, ct).ConfigureAwait(false);
             await _reviews.DeleteAsync(conn, tx, reviewId, ct).ConfigureAwait(false);
+            // restoredSchedule is the card as it was before the grade, so its state is the same
+            // one the grade was charged against.
             await _dailyStats.IncrementAsync(conn, tx, deckId, localDay,
-                wasNewIntroduction ? -1 : 0, -1, ct).ConfigureAwait(false);
+                wasNewIntroduction ? -1 : 0, ChargesReviewCap(restoredSchedule.FsrsState) ? -1 : 0, ct).ConfigureAwait(false);
         }, cancellationToken);
     }
+
+    /// <summary>
+    /// The daily review cap limits how many cards due for review get shown, so only an answer
+    /// on a card that was already in review spends it. Introducing a new card and stepping a
+    /// learning or relearning card are counted elsewhere, and charging them here used to hide
+    /// genuine reviews behind repetitions the user had not asked to be limited.
+    /// </summary>
+    private static bool ChargesReviewCap(FlashcardFsrsState? stateBefore) =>
+        stateBefore == FlashcardFsrsState.Review;
 }

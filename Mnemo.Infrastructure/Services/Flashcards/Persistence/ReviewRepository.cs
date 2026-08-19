@@ -43,8 +43,8 @@ public sealed class ReviewRepository : IReviewRepository
         cmd.Transaction = tx;
         cmd.CommandText = """
             INSERT INTO FlashcardReviews
-                (CardId, DeckId, SessionId, Grade, ReviewedAt, ElapsedDays, ScheduledDays, StabilityAfter, DifficultyAfter, StateAfter)
-            VALUES ($card, $deck, $session, $grade, $at, $elapsed, $scheduled, $stab, $diff, $state);
+                (CardId, DeckId, SessionId, Grade, ReviewedAt, ElapsedDays, ScheduledDays, StabilityAfter, DifficultyAfter, StateBefore, StateAfter)
+            VALUES ($card, $deck, $session, $grade, $at, $elapsed, $scheduled, $stab, $diff, $before, $state);
             SELECT last_insert_rowid();
             """;
         cmd.Parameters.AddWithValue("$card", log.CardId);
@@ -56,6 +56,7 @@ public sealed class ReviewRepository : IReviewRepository
         cmd.Parameters.AddWithValue("$scheduled", log.ScheduledDays);
         cmd.Parameters.AddWithValue("$stab", (object?)log.StabilityAfter ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$diff", (object?)log.DifficultyAfter ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$before", log.StateBefore is { } before ? (int)before : DBNull.Value);
         cmd.Parameters.AddWithValue("$state", (int)log.StateAfter);
         var id = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt64(id);
