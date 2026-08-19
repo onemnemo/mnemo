@@ -19,6 +19,11 @@ import { deckKey, libraryKey } from "../api"
 // adding or deleting a card moves the deck's counts on the library page.
 export { deckKey }
 
+// The prefix every deck's card key sits under. A move puts cards in a second deck
+// that this hook was never scoped to, so it needs the wider net the collection-wide
+// browser already casts in ../browse/api.ts, not just the deck the mutation started from.
+const everyDeckKey = ["flashcards", "deck"] as const
+
 export interface CardQuery {
   text: string
   state: CardStateFilter
@@ -131,10 +136,20 @@ export function useDeleteCards(deckId: string) {
   return useCardMutation(deckId, (cardIds: string[]) => apiSend("/cards/delete", json({ cardIds })))
 }
 
-export function useMoveCards(deckId: string) {
-  return useCardMutation(deckId, ({ cardIds, targetDeckId }: { cardIds: string[]; targetDeckId: string }) =>
-    apiSend("/cards/move", json({ cardIds, targetDeckId })),
-  )
+// Its own hook rather than useCardMutation: a move's target deck is never the
+// deckId this page is scoped to, so it has to invalidate every open deck's cache,
+// the same way a cross-deck selection on the browse page already does. The
+// parameter stays, unused, so the call site reads the same as every sibling
+// hook in this file.
+export function useMoveCards(_deckId: string) {
+  const client = useQueryClient()
+  return useMutation<unknown, ApiError, { cardIds: string[]; targetDeckId: string }>({
+    mutationFn: ({ cardIds, targetDeckId }) => apiSend("/cards/move", json({ cardIds, targetDeckId })),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: everyDeckKey })
+      await client.invalidateQueries({ queryKey: libraryKey })
+    },
+  })
 }
 
 export function useSuspendCards(deckId: string) {

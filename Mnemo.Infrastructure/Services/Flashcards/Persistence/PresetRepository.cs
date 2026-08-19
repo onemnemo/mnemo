@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Services;
 
 namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
@@ -25,6 +26,10 @@ public sealed class PresetRepository : IPresetRepository
         "Id, Name, NewPerDay, MaxReviewsPerDay, Algorithm, DesiredRetention, LearningStepsJson, " +
         "RelearnStepsJson, ShuffleOrder, BuryRelated, AutoReveal, WeightsJson, CreatedAt, UpdatedAt, " +
         "NextDayStartsAtHour, LeechThreshold, LeechAction";
+
+    private readonly ILoggerService? _logger;
+
+    public PresetRepository(ILoggerService? logger = null) => _logger = logger;
 
     public async Task<IReadOnlyList<FlashcardPreset>> ListAsync(SqliteConnection conn, CancellationToken cancellationToken)
     {
@@ -113,22 +118,26 @@ public sealed class PresetRepository : IPresetRepository
         return Convert.ToInt32(result);
     }
 
-    private static FlashcardPreset Read(SqliteDataReader reader) => new(
-        Id: reader.GetString(0),
-        Name: reader.GetString(1),
-        NewPerDay: reader.GetInt32(2),
-        MaxReviewsPerDay: reader.GetInt32(3),
-        Algorithm: (FlashcardSchedulingAlgorithm)reader.GetInt32(4),
-        DesiredRetention: reader.GetDouble(5),
-        LearningSteps: FlashcardSqlMap.ReadIntList(reader.GetString(6), new[] { 1, 10 }),
-        RelearnSteps: FlashcardSqlMap.ReadIntList(reader.GetString(7), new[] { 10 }),
-        ShuffleOrder: reader.GetInt32(8) != 0,
-        BuryRelated: reader.GetInt32(9) != 0,
-        AutoReveal: FlashcardSqlMap.ReadAutoReveal(reader.GetString(10)),
-        Weights: FlashcardSqlMap.ReadDoubleListN(FlashcardSqlMap.ReadStringN(reader, 11)),
-        CreatedAt: FlashcardSqlMap.ReadTs(reader, 12),
-        UpdatedAt: FlashcardSqlMap.ReadTs(reader, 13),
-        NextDayStartsAtHour: reader.GetInt32(14),
-        LeechThreshold: reader.GetInt32(15),
-        LeechAction: FlashcardSqlMap.ReadLeechAction(reader.GetInt32(16)));
+    private FlashcardPreset Read(SqliteDataReader reader)
+    {
+        var id = reader.GetString(0);
+        return new FlashcardPreset(
+            Id: id,
+            Name: reader.GetString(1),
+            NewPerDay: reader.GetInt32(2),
+            MaxReviewsPerDay: reader.GetInt32(3),
+            Algorithm: (FlashcardSchedulingAlgorithm)reader.GetInt32(4),
+            DesiredRetention: reader.GetDouble(5),
+            LearningSteps: FlashcardSqlMap.ReadIntList(reader.GetString(6), new[] { 1, 10 }, _logger, $"preset {id}"),
+            RelearnSteps: FlashcardSqlMap.ReadIntList(reader.GetString(7), new[] { 10 }, _logger, $"preset {id}"),
+            ShuffleOrder: reader.GetInt32(8) != 0,
+            BuryRelated: reader.GetInt32(9) != 0,
+            AutoReveal: FlashcardSqlMap.ReadAutoReveal(reader.GetString(10)),
+            Weights: FlashcardSqlMap.ReadDoubleListN(FlashcardSqlMap.ReadStringN(reader, 11), _logger, $"preset {id}"),
+            CreatedAt: FlashcardSqlMap.ReadTs(reader, 12),
+            UpdatedAt: FlashcardSqlMap.ReadTs(reader, 13),
+            NextDayStartsAtHour: reader.GetInt32(14),
+            LeechThreshold: reader.GetInt32(15),
+            LeechAction: FlashcardSqlMap.ReadLeechAction(reader.GetInt32(16)));
+    }
 }

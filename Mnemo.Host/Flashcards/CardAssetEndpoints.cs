@@ -25,12 +25,12 @@ public static class CardAssetEndpoints
     {
         // The multipart body is read directly rather than bound as IFormFile so no antiforgery
         // filter is attached - loopback binding plus the bearer token are the security boundary.
-        endpoints.MapPost("/api/flashcards/assets", async (HttpRequest request) =>
+        endpoints.MapPost("/api/flashcards/assets", async (HttpRequest request, CancellationToken cancellationToken) =>
         {
             if (!request.HasFormContentType)
                 return Results.BadRequest(new ErrorDto("invalid_upload", "Expected a multipart form upload."));
 
-            var form = await request.ReadFormAsync().ConfigureAwait(false);
+            var form = await request.ReadFormAsync(cancellationToken).ConfigureAwait(false);
             var file = form.Files.GetFile("file") ?? form.Files.FirstOrDefault();
             if (file is null || file.Length == 0)
                 return Results.BadRequest(new ErrorDto("empty_upload", "No file was uploaded."));
@@ -42,10 +42,15 @@ public static class CardAssetEndpoints
                 return Results.BadRequest(new ErrorDto("unsupported_image", "Only PNG, JPEG, GIF and WebP images can be attached."));
 
             var assetId = FlashcardAssetStore.Generate(extension);
-            var path = FlashcardAssetStore.ResolvePath(assetId)!; // freshly generated -> always valid
-            Directory.CreateDirectory(FlashcardAssetStore.Directory);
-            await using (var stream = File.Create(path))
-                await file.CopyToAsync(stream).ConfigureAwait(false);
+            try
+            {
+                await using var content = file.OpenReadStream();
+                await FlashcardAssetStore.SaveAsync(content, assetId, cancellationToken).ConfigureAwait(false);
+            }
+            catch (InvalidDataException)
+            {
+                return Results.BadRequest(new ErrorDto("unsupported_image", "The file does not contain the image data its name claims."));
+            }
 
             // The display name is the name the user's file had, matching the desktop, so two
             // images picked from same-named files read alike in the editor.

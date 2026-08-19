@@ -80,10 +80,11 @@ export function PresetDetails({
       <Section label={fc("ReviewSettingsSchedulingLabel")}>
         <SettingRowShell title={fc("ReviewSettingsAlgorithmTitle")}>
           {/* FSRS is the only scheduler, and presets are saved without asking which - the row
-              exists to name what is running, as it does on the desktop. */}
+              exists to name what is running, as it does on the desktop. The version number is
+              not localised: it names a fixed algorithm, not language-dependent content. */}
           <SelectControl
             value="fsrs"
-            choices={[{ value: "fsrs", label: "FSRS-5" }]}
+            choices={[{ value: "fsrs", label: "FSRS-6" }]}
             onChange={() => undefined}
             label={fc("ReviewSettingsAlgorithmTitle")}
           />

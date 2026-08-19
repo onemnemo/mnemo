@@ -24,6 +24,7 @@ const handlers = (): DeckMenuHandlers => ({
   test: vi.fn(),
   rename: vi.fn(),
   reviewSettings: vi.fn(),
+  export: vi.fn(),
   remove: vi.fn(),
 })
 
@@ -76,6 +77,7 @@ describe("deckMenuItems", () => {
       ["open", "open"],
       ["rename", "rename"],
       ["review-settings", "reviewSettings"],
+      ["export", "export"],
       ["delete", "remove"],
     ]
 
@@ -92,14 +94,11 @@ describe("deckMenuItems", () => {
     expect(danger.map((entry) => entry.id)).toEqual(["delete"])
   })
 
-  it("leaves the unfinished export rows disabled and inert", () => {
+  it("wires export to its handler rather than leaving it disabled", () => {
     const entries = deckMenuItems({ deck: deck(), upToDate: false, t, on: handlers() })
-    const exports = flatten(entries).filter((entry) => entry.id.startsWith("export."))
+    const item = itemById(entries, "export")
 
-    expect(exports).toHaveLength(4)
-    for (const entry of exports) {
-      expect(entry, entry.id).toMatchObject({ kind: "item", disabled: true })
-      expect(entry.kind === "item" && entry.run, entry.id).toBeUndefined()
-    }
+    expect(item.disabled).toBeFalsy()
+    expect(item.run).toBeTypeOf("function")
   })
 })

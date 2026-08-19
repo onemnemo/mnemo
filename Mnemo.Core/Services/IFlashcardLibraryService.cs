@@ -17,7 +17,6 @@ public interface IFlashcardLibraryService
     Task SaveDeckAsync(FlashcardDeckHeader deck, CancellationToken cancellationToken = default);
 
     Task MoveDeckAsync(string deckId, string? folderId, int sortOrder, CancellationToken cancellationToken = default);
-    Task ReorderAsync(IReadOnlyList<FlashcardOrderEntry> entries, CancellationToken cancellationToken = default);
 
     Task<bool> DeleteDeckAsync(string deckId, CancellationToken cancellationToken = default);
     Task<bool> DeleteFolderAsync(string folderId, CancellationToken cancellationToken = default);

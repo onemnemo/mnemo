@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -18,32 +19,38 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
     private readonly IFolderRepository _folders;
     private readonly IDeckRepository _decks;
     private readonly ICardRepository _cards;
+    private readonly IFactRepository _facts;
     private readonly IScheduleRepository _schedules;
     private readonly IReviewRepository _reviews;
     private readonly IDailyStatsRepository _dailyStats;
     private readonly IPresetRepository _presets;
     private readonly FlashcardClock _clock;
+    private readonly IImageAssetService? _images;
 
     public FlashcardLibraryService(
         IFlashcardStore store,
         IFolderRepository folders,
         IDeckRepository decks,
         ICardRepository cards,
+        IFactRepository facts,
         IScheduleRepository schedules,
         IReviewRepository reviews,
         IDailyStatsRepository dailyStats,
         IPresetRepository presets,
-        FlashcardClock clock)
+        FlashcardClock clock,
+        IImageAssetService? images = null)
     {
         _store = store;
         _folders = folders;
         _decks = decks;
         _cards = cards;
+        _facts = facts;
         _schedules = schedules;
         _reviews = reviews;
         _dailyStats = dailyStats;
         _presets = presets;
         _clock = clock;
+        _images = images;
     }
 
     public Task<IReadOnlyList<FlashcardFolder>> ListFoldersAsync(CancellationToken cancellationToken = default) =>
@@ -126,22 +133,79 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
     public Task MoveDeckAsync(string deckId, string? folderId, int sortOrder, CancellationToken cancellationToken = default) =>
         _store.WriteAsync((conn, tx, ct) => _decks.MoveAsync(conn, tx, deckId, folderId, sortOrder, _clock.Now, ct), cancellationToken);
 
-    public Task ReorderAsync(IReadOnlyList<FlashcardOrderEntry> entries, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Deletes a deck. Its cards cascade away on their own foreign key, but material has none -
+    /// without this, a fact whose cards all lived here would survive its deck forever, unreachable
+    /// and still counted as "in use" against a card type. A card moved to another deck before the
+    /// delete keeps its material alive; only material left with nothing behind it is removed.
+    /// </summary>
+    public async Task<bool> DeleteDeckAsync(string deckId, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(entries);
-        var now = _clock.Now;
-        return _store.WriteAsync(async (conn, tx, ct) =>
+        var owned = new List<string>();
+        var deleted = await _store.WriteAsync(async (conn, tx, ct) =>
         {
-            foreach (var e in entries)
-                await _decks.MoveAsync(conn, tx, e.DeckId, e.FolderId, e.SortOrder, now, ct).ConfigureAwait(false);
-        }, cancellationToken);
+            // Freeform cards own their attachment files outright; cards made from material share
+            // theirs with it, so only the freeform ones are gathered before the cascade takes them.
+            var cards = await _cards.ListByDeckAsync(conn, deckId, ct).ConfigureAwait(false);
+            owned.AddRange(cards.Where(c => c.FactId is null).SelectMany(c => c.Attachments).Select(a => a.FilePath));
+
+            var homeFacts = await _facts.ListByDeckAsync(conn, deckId, ct).ConfigureAwait(false);
+            var result = await _decks.DeleteAsync(conn, tx, deckId, ct).ConfigureAwait(false);
+            if (!result)
+                return false;
+
+            foreach (var fact in homeFacts)
+            {
+                var remaining = await _facts.GetCardKeysAsync(conn, fact.Id, ct).ConfigureAwait(false);
+                if (remaining.Count > 0)
+                    continue;
+
+                owned.AddRange(fact.Media.Values.SelectMany(list => list).Select(a => a.FilePath));
+                await _facts.DeleteManyAsync(conn, tx, new[] { fact.Id }, ct).ConfigureAwait(false);
+            }
+
+            return true;
+        }, cancellationToken).ConfigureAwait(false);
+
+        if (deleted)
+            await FlashcardAttachmentCleanup.DeleteAsync(_images, owned, cancellationToken).ConfigureAwait(false);
+
+        return deleted;
     }
 
-    public Task<bool> DeleteDeckAsync(string deckId, CancellationToken cancellationToken = default) =>
-        _store.WriteAsync((conn, tx, ct) => _decks.DeleteAsync(conn, tx, deckId, ct), cancellationToken);
-
+    /// <summary>
+    /// Deletes a folder. Its direct child folders and decks are lifted to the root rather than
+    /// cascading, and that reparenting happens in the same transaction as the delete, so a failure
+    /// partway through cannot leave some of the folder's contents reparented, or any of them still
+    /// pointing at a folder that is about to stop existing.
+    /// </summary>
     public Task<bool> DeleteFolderAsync(string folderId, CancellationToken cancellationToken = default) =>
-        _store.WriteAsync((conn, tx, ct) => _folders.DeleteAsync(conn, tx, folderId, ct), cancellationToken);
+        _store.WriteAsync(async (conn, tx, ct) =>
+        {
+            var folders = await _folders.ListAsync(conn, ct).ConfigureAwait(false);
+            if (!folders.Any(f => f.Id == folderId))
+                return false;
+
+            var now = _clock.Now;
+            var nextRootOrder = folders.Where(f => f.ParentId is null).Select(f => f.Order).DefaultIfEmpty(-1).Max() + 1;
+            var orphanedFolders = folders
+                .Where(f => f.ParentId == folderId)
+                .OrderBy(f => f.Order)
+                .ThenBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            for (var i = 0; i < orphanedFolders.Count; i++)
+            {
+                await _folders.UpsertAsync(conn, tx, orphanedFolders[i] with { ParentId = null, Order = nextRootOrder + i }, now, ct)
+                    .ConfigureAwait(false);
+            }
+
+            var decks = await _decks.ListHeadersAsync(conn, ct).ConfigureAwait(false);
+            foreach (var deck in decks.Where(d => d.FolderId == folderId))
+                await _decks.MoveAsync(conn, tx, deck.Id, null, deck.SortOrder, now, ct).ConfigureAwait(false);
+
+            return await _folders.DeleteAsync(conn, tx, folderId, ct).ConfigureAwait(false);
+        }, cancellationToken);
 
     private async Task<FlashcardDeckSummary> BuildSummaryAsync(
         SqliteConnection conn, FlashcardDeckHeader header, FlashcardPreset preset,

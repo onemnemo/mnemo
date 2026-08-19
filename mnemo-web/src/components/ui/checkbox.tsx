@@ -30,6 +30,9 @@ export function Checkbox({
       onCheckedChange={onToggle}
       aria-label={label}
       onClick={(event) => event.stopPropagation()}
+      // A row that opens on double-click needs this stopped too, or two quick
+      // clicks on the box both toggle it and are read as a double-click on the row.
+      onDoubleClick={(event) => event.stopPropagation()}
       className={cn(
         "grid size-[15px] shrink-0 place-items-center rounded-[4px] transition-colors outline-none",
         "focus-visible:ring-2 focus-visible:ring-accent/40",

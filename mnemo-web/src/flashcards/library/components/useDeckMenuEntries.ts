@@ -5,6 +5,7 @@ import type { DeckSummaryDto } from "@/api/types"
 
 import { useDeleteDeck, useUpdateDeck } from "../../api"
 import { useReviewSettings } from "../../presets/store"
+import { useTransfer } from "../../transfer/store"
 import { deckMenuItems, type DeckMenuEntry } from "./deck-row-menu-items"
 
 /**
@@ -62,6 +63,11 @@ export function useDeckMenuEntries(deck: DeckSummaryDto, upToDate: boolean): rea
       test: () => navigate("flashcard-test", deck.id),
       rename: () => void rename(),
       reviewSettings: () => useReviewSettings.getState().open(deck.id, deck.name),
+      export: () =>
+        useTransfer.getState().open({
+          direction: "export",
+          scope: { label: deck.name, deckIds: [deck.id] },
+        }),
       remove: () => void remove(),
     },
   })

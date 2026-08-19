@@ -60,8 +60,6 @@ internal sealed class FakeDeckLibrary : IFlashcardLibraryService
 
     public Task MoveDeckAsync(string deckId, string? folderId, int sortOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-    public Task ReorderAsync(IReadOnlyList<FlashcardOrderEntry> entries, CancellationToken cancellationToken = default) => Task.CompletedTask;
-
     public Task<bool> DeleteDeckAsync(string deckId, CancellationToken cancellationToken = default) => Task.FromResult(false);
 
     public Task<bool> DeleteFolderAsync(string folderId, CancellationToken cancellationToken = default) => Task.FromResult(false);

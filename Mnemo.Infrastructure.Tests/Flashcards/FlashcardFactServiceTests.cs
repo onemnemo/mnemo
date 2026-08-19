@@ -376,6 +376,32 @@ public sealed class FlashcardFactServiceTests
     }
 
     [Fact]
+    public async Task Moving_a_card_on_its_own_survives_a_later_edit_of_its_material()
+    {
+        await using var harness = await OpenAsync();
+        await harness.SeedDeckAsync("deck-2");
+        var first = await harness.FactService.SaveFactAsync(Draft(FlashcardCardType.BasicId, new()
+        {
+            ["front"] = "Amiodarone",
+            ["back"] = "Class III",
+        }));
+        var cardId = first.Cards.Single().Id;
+
+        await harness.Store.WriteAsync((conn, tx, ct) =>
+            harness.Cards.MoveManyAsync(conn, tx, [cardId], "deck-2", harness.Clock.Now, ct));
+
+        var second = await harness.FactService.SaveFactAsync(Draft(FlashcardCardType.BasicId, new()
+        {
+            ["front"] = "Amiodarone",
+            ["back"] = "Class III antiarrhythmic",
+        }, id: first.Fact.Id));
+
+        var card = Assert.Single(second.Cards);
+        Assert.Equal(cardId, card.Id);
+        Assert.Equal("deck-2", card.DeckId);
+    }
+
+    [Fact]
     public async Task The_material_behind_a_card_opens_from_the_card()
     {
         await using var harness = await OpenAsync();

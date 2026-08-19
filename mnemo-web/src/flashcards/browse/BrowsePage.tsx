@@ -106,9 +106,12 @@ export function BrowsePage() {
   const selectedIds = selectedViews.map((item) => item.card.id)
   const peekView = peekId ? (page?.items ?? []).find((item) => item.card.id === peekId) ?? null : null
 
-  const run = async (action: Promise<unknown>) => {
+  // A context menu action on a single unselected row must not disturb an
+  // unrelated multi-selection sitting elsewhere on the page, so the selection
+  // only clears when the ids the action just touched were part of it.
+  const run = async (ids: string[], action: Promise<unknown>) => {
     await action
-    clearSelection()
+    if (ids.some((cardId) => selected.has(cardId))) clearSelection()
   }
 
   const confirmDelete = async (ids: string[]) => {
@@ -119,7 +122,7 @@ export function BrowsePage() {
       confirmLabel: t("Common", "Delete"),
       cancelLabel: t("Common", "Cancel"),
     })
-    if (ok) await run(deleteCards.mutateAsync(ids))
+    if (ok) await run(ids, deleteCards.mutateAsync(ids))
   }
 
   const filtered =
@@ -178,10 +181,11 @@ export function BrowsePage() {
                   const deckId = page.items.find((item) => item.card.id === cardId)?.card.deckId
                   if (deckId) openEdit(deckId, cardId)
                 },
-                onFlag: (cardId, value) => void run(flagCards.mutateAsync({ cardIds: [cardId], value })),
-                onSuspend: (cardId, value) => void run(suspendCards.mutateAsync({ cardIds: [cardId], value })),
+                onFlag: (cardId, value) => void run([cardId], flagCards.mutateAsync({ cardIds: [cardId], value })),
+                onSuspend: (cardId, value) =>
+                  void run([cardId], suspendCards.mutateAsync({ cardIds: [cardId], value })),
                 onMove: (cardId, targetDeckId) =>
-                  void run(moveCards.mutateAsync({ cardIds: [cardId], targetDeckId })),
+                  void run([cardId], moveCards.mutateAsync({ cardIds: [cardId], targetDeckId })),
                 onDelete: (cardId) => void confirmDelete([cardId]),
               }}
             />
@@ -225,10 +229,12 @@ export function BrowsePage() {
           allSuspended={selectedViews.every((item) => item.card.state === "suspended")}
           allFlagged={selectedViews.every((item) => item.card.isFlagged)}
           moveTargets={moveTargets}
-          onMove={(targetDeckId) => void run(moveCards.mutateAsync({ cardIds: selectedIds, targetDeckId }))}
-          onTag={(tag) => void run(tagCards.mutateAsync({ cardIds: selectedIds, tag }))}
-          onSuspend={(value) => void run(suspendCards.mutateAsync({ cardIds: selectedIds, value }))}
-          onFlag={(value) => void run(flagCards.mutateAsync({ cardIds: selectedIds, value }))}
+          onMove={(targetDeckId) =>
+            void run(selectedIds, moveCards.mutateAsync({ cardIds: selectedIds, targetDeckId }))
+          }
+          onTag={(tag) => void run(selectedIds, tagCards.mutateAsync({ cardIds: selectedIds, tag }))}
+          onSuspend={(value) => void run(selectedIds, suspendCards.mutateAsync({ cardIds: selectedIds, value }))}
+          onFlag={(value) => void run(selectedIds, flagCards.mutateAsync({ cardIds: selectedIds, value }))}
           onDelete={() => void confirmDelete(selectedIds)}
           onClear={clearSelection}
         />

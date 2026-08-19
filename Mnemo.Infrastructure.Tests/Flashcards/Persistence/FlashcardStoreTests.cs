@@ -176,4 +176,24 @@ public sealed class FlashcardStoreTests
         Assert.Null(card);   // ON DELETE CASCADE fired (foreign_keys=ON)
         Assert.Null(sched);
     }
+
+    [Fact]
+    public async Task DailyStats_Increment_FloorsAtZero_AndNeverGoesNegative()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var deckId = await h.SeedDeckAsync();
+
+        // A negative delta larger than the row (or a row that does not exist yet) must land at
+        // zero rather than negative: a negative count would inflate the next day's review budget.
+        await h.Store.WriteAsync((conn, tx, ct) => h.DailyStats.IncrementAsync(conn, tx, deckId, "2026-07-06", -1, -3, ct));
+        var floored = await h.Store.ReadAsync((conn, ct) => h.DailyStats.GetAsync(conn, deckId, "2026-07-06", ct));
+        Assert.Equal(0, floored.NewIntroduced);
+        Assert.Equal(0, floored.ReviewsDone);
+
+        await h.Store.WriteAsync((conn, tx, ct) => h.DailyStats.IncrementAsync(conn, tx, deckId, "2026-07-06", 2, 5, ct));
+        await h.Store.WriteAsync((conn, tx, ct) => h.DailyStats.IncrementAsync(conn, tx, deckId, "2026-07-06", -5, -9, ct));
+        var afterOvershoot = await h.Store.ReadAsync((conn, ct) => h.DailyStats.GetAsync(conn, deckId, "2026-07-06", ct));
+        Assert.Equal(0, afterOvershoot.NewIntroduced);
+        Assert.Equal(0, afterOvershoot.ReviewsDone);
+    }
 }

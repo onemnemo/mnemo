@@ -95,7 +95,7 @@ public sealed class FlashcardAnkiMathDelimiterTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = new FlashcardLibraryService(
-            h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+            h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
         var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(
             library, cardService, new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock), new ImageAssetService());
