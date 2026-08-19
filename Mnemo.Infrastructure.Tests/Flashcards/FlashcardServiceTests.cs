@@ -286,6 +286,33 @@ public sealed class FlashcardServiceTests
         Assert.Equal(25, summary.DeltaVsPrevious);
     }
 
+    /// <summary>
+    /// Reviews and test attempts carry no foreign key to their deck, so a deleted deck's rows
+    /// stay behind. A stats read for that deck id has to answer the same way it would for one
+    /// that never existed, not with the real numbers the gone deck left on disk.
+    /// </summary>
+    [Fact]
+    public async Task StatsReads_TreatAGoneDeckAsOneWithNoHistory_NotTheRowsItLeftBehind()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts, h.Decks, h.Presets, h.Clock);
+        var now = DateTimeOffset.UtcNow;
+        const string goneDeckId = "deck-gone";
+
+        await h.Store.WriteAsync((c, tx, ct) => h.Reviews.AppendAsync(c, tx, new FlashcardReviewLog(
+            FlashcardReviewLog.Unassigned, "c0", goneDeckId, "s1", FlashcardReviewGrade.Good, now, 0, 1, null, null,
+            FlashcardFsrsState.Review, FlashcardFsrsState.Review), ct));
+        await stats.RecordTestAttemptAsync(new FlashcardTestAttempt("t1", goneDeckId, now, now, 10, 9, 1, 0, 90));
+
+        Assert.Equal(0, await stats.GetTrueRetentionAsync(goneDeckId));
+        Assert.All(await stats.GetRetentionTrendAsync(goneDeckId, days: 3), point => Assert.Equal(0, point.ReviewsCount));
+
+        var summary = await stats.GetTestSummaryAsync(goneDeckId);
+        Assert.False(summary.HasAttempts);
+
+        Assert.Empty(await stats.GetTestTrendAsync(goneDeckId));
+    }
+
     // --- Library service ---
 
     [Fact]
