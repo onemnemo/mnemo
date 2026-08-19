@@ -52,9 +52,16 @@ internal static class MindmapArrange
         IMindmapLayoutService layout,
         CancellationToken cancellationToken)
     {
-        var nodeById = document.Elements
-            .Where(e => e.Kind == ElementKind.Node)
-            .ToDictionary(e => e.Id);
+        // First occurrence wins rather than throwing on a repeat. An id is unique in any document a write
+        // produced, but arrange also runs on documents this build did not write, and refusing to tidy a
+        // map because it carries a duplicate leaves the user no way to see what is wrong with it.
+        var nodeById = new Dictionary<string, MindmapElement>(StringComparer.Ordinal);
+        foreach (var element in document.Elements)
+        {
+            if (element.Kind == ElementKind.Node)
+                nodeById.TryAdd(element.Id, element);
+        }
+
         if (nodeById.Count == 0)
             return Array.Empty<MindmapEditOp>();
 
@@ -63,7 +70,6 @@ internal static class MindmapArrange
 
         var childrenOf = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var parentOf = new Dictionary<string, string>(StringComparer.Ordinal);
-        var orderOf = new Dictionary<string, int>(StringComparer.Ordinal);
 
         // Sibling order IS the hierarchy edge array's order. Nothing else stores it, so reading the edges
         // in document order is not a shortcut, it is the definition.
@@ -77,20 +83,31 @@ internal static class MindmapArrange
                 kids = new List<string>();
                 childrenOf[edge.FromId] = kids;
             }
-            orderOf[edge.ToId] = kids.Count;
             kids.Add(edge.ToId);
             parentOf[edge.ToId] = edge.FromId;
         }
 
-        var clusterSettings = document.Clusters.ToDictionary(c => c.RootId, StringComparer.Ordinal);
+        var clusterSettings = new Dictionary<string, ClusterSettings>(StringComparer.Ordinal);
+        foreach (var cluster in document.Clusters)
+            clusterSettings.TryAdd(cluster.RootId, cluster);
+
         var placed = new Dictionary<string, LayoutPosition>(StringComparer.Ordinal);
         var chosen = new List<MindmapEditOp>();
         var stackTop = 0.0;
 
+        // Shared across every cluster, not per cluster. A document is meant to be a forest, but one
+        // written by an older build or hand-edited into a package can hold a cycle or a second parent,
+        // and a write is only refused when the state it replaced was sound, so a broken map stays
+        // openable on purpose. Claiming each node once keeps the walk finite and keeps a node that two
+        // roots can reach out of both node lists, which is what a layout needs to be handed.
+        var claimed = new HashSet<string>(StringComparer.Ordinal);
+
         // In document order, so arranging the same map twice lays the clusters out the same way round.
         foreach (var root in document.Elements.Where(e => e.Kind == ElementKind.Node && !parentOf.ContainsKey(e.Id)))
         {
-            var nodes = Collect(root.Id, nodeById, childrenOf, parentOf, orderOf, sizes, framed);
+            var nodes = Collect(root.Id, nodeById, childrenOf, sizes, framed, claimed);
+            if (nodes.Count == 0)
+                continue;
             var settings = clusterSettings.GetValueOrDefault(root.Id);
 
             // Asking for a named arrangement is also choosing it. Recorded in the same batch as the moves
@@ -179,30 +196,44 @@ internal static class MindmapArrange
         return held;
     }
 
+    /// <summary>
+    /// The cluster under <paramref name="rootId"/>, as the layout wants it: every node exactly once,
+    /// each naming the parent it was actually reached through.
+    /// </summary>
+    /// <remarks>
+    /// Parent and sibling order are carried down the walk rather than read from a document-wide map,
+    /// because on a malformed graph those disagree. Two hierarchy edges into one node leave a
+    /// document-wide map holding whichever came last, which can name a node in a different cluster,
+    /// and a layout handed a parent it was not given cannot place the child. Taking both from the walk
+    /// makes every cluster self-contained whatever the edges say. On a sound forest the two are the
+    /// same value.
+    /// </remarks>
     private static List<LayoutNode> Collect(
         string rootId,
         IReadOnlyDictionary<string, MindmapElement> nodeById,
         IReadOnlyDictionary<string, List<string>> childrenOf,
-        IReadOnlyDictionary<string, string> parentOf,
-        IReadOnlyDictionary<string, int> orderOf,
         IReadOnlyDictionary<string, MindmapArrangeSize> sizes,
-        IReadOnlySet<string> framed)
+        IReadOnlySet<string> framed,
+        HashSet<string> claimed)
     {
         var nodes = new List<LayoutNode>();
-        var stack = new Stack<string>();
-        stack.Push(rootId);
+        var stack = new Stack<Reached>();
+        stack.Push(new Reached(rootId, null, 0));
 
         while (stack.Count > 0)
         {
-            var id = stack.Pop();
+            var (id, parentId, order) = stack.Pop();
+            if (!claimed.Add(id))
+                continue;
+
             var element = nodeById[id];
             var size = sizes.GetValueOrDefault(id);
 
             nodes.Add(new LayoutNode
             {
                 Id = id,
-                ParentId = parentOf.GetValueOrDefault(id),
-                Order = orderOf.GetValueOrDefault(id),
+                ParentId = parentId,
+                Order = order,
                 Width = size.Width > 0 ? size.Width : element.Width ?? DefaultWidth,
                 Height = size.Height > 0 ? size.Height : element.Height ?? DefaultHeight,
                 Collapsed = element.Collapsed,
@@ -214,7 +245,7 @@ internal static class MindmapArrange
             if (!childrenOf.TryGetValue(id, out var kids)) continue;
             // Pushed in reverse so the pop order is sibling order, which the layout providers rely on.
             for (var i = kids.Count - 1; i >= 0; i--)
-                stack.Push(kids[i]);
+                stack.Push(new Reached(kids[i], id, i));
         }
 
         return nodes;
@@ -321,6 +352,9 @@ internal static class MindmapArrange
 
 /// <summary>One node an arrange is not moving, as the rectangle the clusters it does move go around.</summary>
 internal readonly record struct HeldBox(string Id, double MinX, double MinY, double MaxX, double MaxY);
+
+/// <summary>A node waiting on the collect stack, with the parent and sibling slot it was reached through.</summary>
+internal readonly record struct Reached(string Id, string? ParentId, int Order);
 
 /// <summary>
 /// One node's rendered size, as measured by the client that drew it.
