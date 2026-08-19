@@ -45,11 +45,17 @@ public sealed class FlashcardCardMaterializer
     /// Rebuilds the cards a fact makes. A fact that currently makes none is left exactly as it is:
     /// deleting every card of a fact is never something this decides on its own.
     /// </summary>
+    /// <param name="previousDeckId">
+    /// The deck the fact was filed under before this save, or null for a fact that is being
+    /// created. Passing the fact's own current deck here (rather than null) tells this call that
+    /// the material is not moving, so a card someone filed elsewhere on its own is left there.
+    /// </param>
     public async Task<FlashcardMaterializeResult> ApplyAsync(
         SqliteConnection conn,
         SqliteTransaction tx,
         FlashcardCardType type,
         FlashcardFact fact,
+        string? previousDeckId,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -67,13 +73,20 @@ public sealed class FlashcardCardMaterializer
             ? FlashcardType.Cloze
             : FlashcardType.Classic;
 
+        // The material itself moving to a new deck takes every card it makes along, even one that
+        // had been filed elsewhere on its own; that is what re-homing the whole piece of material
+        // means. Anything else that reaches this call, a rewording or a card type edit, leaves a
+        // card's deck exactly where it was.
+        var factMoved = previousDeckId is not null
+            && !string.Equals(previousDeckId, fact.DeckId, StringComparison.Ordinal);
+
         var added = 0;
         var updated = 0;
         foreach (var card in generated)
         {
             if (existing.Remove(card.Key, out var cardId))
             {
-                await UpdateAsync(conn, tx, cardId, fact, card, cardType, now, cancellationToken).ConfigureAwait(false);
+                await UpdateAsync(conn, tx, cardId, fact, card, cardType, factMoved, now, cancellationToken).ConfigureAwait(false);
                 updated++;
                 continue;
             }
@@ -91,17 +104,20 @@ public sealed class FlashcardCardMaterializer
 
     private async Task UpdateAsync(
         SqliteConnection conn, SqliteTransaction tx, string cardId, FlashcardFact fact,
-        FlashcardGeneratedCard generated, FlashcardType cardType, DateTimeOffset now, CancellationToken cancellationToken)
+        FlashcardGeneratedCard generated, FlashcardType cardType, bool factMoved, DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         var current = await _cards.GetAsync(conn, cardId, cancellationToken).ConfigureAwait(false);
         if (current is null)
             return;
 
         // Suspension and the flag stay with the card, because they are things someone did to this
-        // card while studying it. Everything else is a rendering of the material.
+        // card while studying it. The deck stays too, unless the material itself just moved: a
+        // card filed elsewhere on its own keeps that filing through an ordinary edit, but re-homing
+        // the whole piece of material is explicit enough to take its cards along.
         await _cards.UpdateAsync(conn, tx, current with
         {
-            DeckId = fact.DeckId,
+            DeckId = factMoved ? fact.DeckId : current.DeckId,
             Type = cardType,
             Front = generated.Front,
             Back = generated.Back,

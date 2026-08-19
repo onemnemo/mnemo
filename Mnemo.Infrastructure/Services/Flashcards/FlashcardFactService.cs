@@ -74,7 +74,7 @@ public sealed class FlashcardFactService : IFlashcardFactService
             if (previous is not null)
             {
                 foreach (var fact in await _facts.ListByTypeAsync(conn, saved.Id, ct).ConfigureAwait(false))
-                    await _materializer.ApplyAsync(conn, tx, saved, fact, now, ct).ConfigureAwait(false);
+                    await _materializer.ApplyAsync(conn, tx, saved, fact, fact.DeckId, now, ct).ConfigureAwait(false);
             }
 
             return saved;
@@ -126,7 +126,7 @@ public sealed class FlashcardFactService : IFlashcardFactService
                 throw new ArgumentException("This would make no cards. Fill in a field a card uses.", nameof(draft));
 
             await _facts.UpsertAsync(conn, tx, fact, ct).ConfigureAwait(false);
-            var result = await _materializer.ApplyAsync(conn, tx, type, fact, now, ct).ConfigureAwait(false);
+            var result = await _materializer.ApplyAsync(conn, tx, type, fact, existing?.DeckId, now, ct).ConfigureAwait(false);
 
             var keys = await _facts.GetCardKeysAsync(conn, fact.Id, ct).ConfigureAwait(false);
             var cards = new List<Flashcard>(keys.Count);
