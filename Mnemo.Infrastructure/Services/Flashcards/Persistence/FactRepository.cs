@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Services;
 
 namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
@@ -42,6 +43,10 @@ public sealed class FactRepository : IFactRepository
     private const string SelectColumns =
         "f.Id, f.DeckId, f.TypeId, f.ValuesJson, f.MediaJson, f.TagsJson, f.IsFlagged, " +
         "f.SourceType, f.SourceId, f.SourceLabel, f.CreatedAt, f.UpdatedAt";
+
+    private readonly ILoggerService? _logger;
+
+    public FactRepository(ILoggerService? logger = null) => _logger = logger;
 
     public async Task<FlashcardFact?> GetAsync(SqliteConnection conn, string factId, CancellationToken cancellationToken)
     {
@@ -167,8 +172,9 @@ public sealed class FactRepository : IFactRepository
         return ids;
     }
 
-    private static FlashcardFact Read(SqliteDataReader reader)
+    private FlashcardFact Read(SqliteDataReader reader)
     {
+        var id = reader.GetString(0);
         var sourceType = FlashcardSqlMap.ReadStringN(reader, 7);
         var sourceId = FlashcardSqlMap.ReadStringN(reader, 8);
         FlashcardSourceInfo? source = sourceType is not null && sourceId is not null
@@ -176,12 +182,12 @@ public sealed class FactRepository : IFactRepository
             : null;
 
         return new FlashcardFact(
-            Id: reader.GetString(0),
+            Id: id,
             DeckId: reader.GetString(1),
             TypeId: reader.GetString(2),
-            Values: FlashcardFactSqlMap.ReadValues(reader.GetString(3)),
-            Media: FlashcardFactSqlMap.ReadMedia(reader.GetString(4)),
-            Tags: FlashcardSqlMap.ReadTags(reader.GetString(5)),
+            Values: FlashcardFactSqlMap.ReadValues(reader.GetString(3), _logger, $"fact {id}"),
+            Media: FlashcardFactSqlMap.ReadMedia(reader.GetString(4), _logger, $"fact {id}"),
+            Tags: FlashcardSqlMap.ReadTags(reader.GetString(5), _logger, $"fact {id}"),
             IsFlagged: reader.GetInt32(6) != 0,
             SourceInfo: source,
             CreatedAt: FlashcardSqlMap.ReadTs(reader, 10),

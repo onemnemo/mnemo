@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Services;
 
 namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
@@ -24,6 +25,10 @@ public sealed class DeckRepository : IDeckRepository
 {
     private const string SelectColumns =
         "Id, FolderId, PresetId, Name, Description, TagsJson, SortOrder, LastStudied, Icon, CreatedAt, UpdatedAt";
+
+    private readonly ILoggerService? _logger;
+
+    public DeckRepository(ILoggerService? logger = null) => _logger = logger;
 
     public async Task<IReadOnlyList<FlashcardDeckHeader>> ListHeadersAsync(SqliteConnection conn, CancellationToken cancellationToken)
     {
@@ -127,16 +132,20 @@ public sealed class DeckRepository : IDeckRepository
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static FlashcardDeckHeader Read(SqliteDataReader reader) => new(
-        Id: reader.GetString(0),
-        FolderId: FlashcardSqlMap.ReadStringN(reader, 1),
-        PresetId: reader.GetString(2),
-        Name: reader.GetString(3),
-        Description: FlashcardSqlMap.ReadStringN(reader, 4),
-        Tags: FlashcardSqlMap.ReadTags(reader.GetString(5)),
-        SortOrder: reader.GetInt32(6),
-        LastStudied: FlashcardSqlMap.ReadTsN(reader, 7),
-        Icon: FlashcardSqlMap.ReadStringN(reader, 8),
-        CreatedAt: FlashcardSqlMap.ReadTs(reader, 9),
-        UpdatedAt: FlashcardSqlMap.ReadTs(reader, 10));
+    private FlashcardDeckHeader Read(SqliteDataReader reader)
+    {
+        var id = reader.GetString(0);
+        return new FlashcardDeckHeader(
+            Id: id,
+            FolderId: FlashcardSqlMap.ReadStringN(reader, 1),
+            PresetId: reader.GetString(2),
+            Name: reader.GetString(3),
+            Description: FlashcardSqlMap.ReadStringN(reader, 4),
+            Tags: FlashcardSqlMap.ReadTags(reader.GetString(5), _logger, $"deck {id}"),
+            SortOrder: reader.GetInt32(6),
+            LastStudied: FlashcardSqlMap.ReadTsN(reader, 7),
+            Icon: FlashcardSqlMap.ReadStringN(reader, 8),
+            CreatedAt: FlashcardSqlMap.ReadTs(reader, 9),
+            UpdatedAt: FlashcardSqlMap.ReadTs(reader, 10));
+    }
 }
