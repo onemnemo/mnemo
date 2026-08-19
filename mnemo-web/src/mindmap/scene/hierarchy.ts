@@ -182,3 +182,40 @@ export function hiddenDescendantCount(hierarchy: Hierarchy, id: string): number 
   }
   return count
 }
+
+/**
+ * The node two levels up, or null at a root or one level below it, where there is nowhere to outdent
+ * to.
+ *
+ * A grandparent is always a strict ancestor of the node asking for it, never a descendant, so a
+ * reparent onto whatever this returns can never fold a node under its own subtree; nothing calling
+ * this has to check for a cycle itself.
+ */
+export function grandparentOf(hierarchy: Hierarchy | null, id: string): string | null {
+  const parentId = hierarchy?.byId.get(id)?.parentId
+  if (!parentId) {
+    return null
+  }
+  return hierarchy?.byId.get(parentId)?.parentId ?? null
+}
+
+/**
+ * Everything a delete actually removes: the selection, plus every descendant each selected node takes
+ * with it.
+ *
+ * Collapsed descendants are absent from the scene but not from the document, and a delete reaches
+ * those too, so this reads the hierarchy rather than what happens to be drawn. Always at least the
+ * selection's own size; larger the moment a selected node has children.
+ */
+export function reachedBySelection(hierarchy: Hierarchy | null, ids: Iterable<string>): Set<string> {
+  const selected = [...ids]
+  const reached = new Set(selected)
+  if (hierarchy) {
+    for (const id of selected) {
+      for (const descendant of descendantsOf(hierarchy, id)) {
+        reached.add(descendant)
+      }
+    }
+  }
+  return reached
+}

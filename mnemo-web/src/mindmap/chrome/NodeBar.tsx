@@ -37,8 +37,16 @@ export interface NodeActions {
   collapse: { collapsed: boolean; onToggle: () => void } | null
   /** Save this branch's styling as a template, or null when the selection is not one branch. */
   onSaveTemplate: (() => void) | null
+  /** Move the node out from under its parent, or null when it has no grandparent to land under. */
+  onOutdent: (() => void) | null
   onDuplicate: () => void
   onDelete: () => void
+  /**
+   * How many elements a delete actually removes, selection plus every descendant it takes with it.
+   * Always at least the selection's own size; larger the moment a selected node has children,
+   * collapsed ones included since a delete reaches those too.
+   */
+  deleteCount: number
 }
 
 export interface NodeBarProps {
@@ -201,12 +209,7 @@ export function NodeBar({ element, count, onStyle, color, onKind, actions }: Nod
           <AppIcon name="ellipsis" size={15} />
         </Slot>
         {open === "more" ? (
-          <FlyoutMore
-            actions={actions}
-            pinned={element.pinned === true}
-            count={count}
-            onDone={() => setOpen(null)}
-          />
+          <FlyoutMore actions={actions} pinned={element.pinned === true} onDone={() => setOpen(null)} />
         ) : null}
       </span>
 
@@ -231,12 +234,10 @@ export function NodeBar({ element, count, onStyle, color, onKind, actions }: Nod
 function FlyoutMore({
   actions,
   pinned,
-  count,
   onDone,
 }: {
   actions: NodeActions
   pinned: boolean
-  count: number
   onDone: () => void
 }) {
   const t = useT()
@@ -266,10 +267,17 @@ function FlyoutMore({
       {onSaveTemplate ? (
         <MenuItem label={t("Mindmap", "SaveAsTemplate")} icon="palette" onClick={run(onSaveTemplate)} />
       ) : null}
+      {actions.onOutdent ? (
+        <MenuItem label={t("Mindmap", "Outdent")} icon="chevron-left" onClick={run(actions.onOutdent)} />
+      ) : null}
       <MenuItem label={t("Mindmap", "Duplicate")} icon="copy" onClick={run(actions.onDuplicate)} />
       <MenuSep />
       <MenuItem
-        label={count > 1 ? `${t("Mindmap", "Delete")} (${count})` : t("Mindmap", "Delete")}
+        label={
+          actions.deleteCount > 1
+            ? `${t("Mindmap", "Delete")} (${actions.deleteCount})`
+            : t("Mindmap", "Delete")
+        }
         icon="common/trash"
         danger
         onClick={run(actions.onDelete)}

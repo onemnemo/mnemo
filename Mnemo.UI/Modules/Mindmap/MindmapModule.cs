@@ -86,6 +86,8 @@ internal static class MindmapKeybindManifest
     public static readonly KeybindActionDefinition[] Definitions =
     [
         Chords("mindmap.recenter", "Primary+D0", "Primary+NumPad0"),
+        Chords("mindmap.zoom-in", "Primary+OemPlus", "Primary+Add"),
+        Chords("mindmap.zoom-out", "Primary+OemMinus", "Primary+Subtract"),
         Chords("mindmap.undo", "Primary+Z"),
         Chords("mindmap.redo", "Primary+Y", "Primary+Shift+Z"),
         Chords("mindmap.clear-selection", "Escape"),
@@ -97,6 +99,10 @@ internal static class MindmapKeybindManifest
         Chords("mindmap.duplicate", "Primary+D"),
         Chords("mindmap.add-child", "Tab"),
         Chords("mindmap.enter", "Return", "Enter"),
+        // The reverse of add-child: takes a node out from under its parent and drops it in next to
+        // it. Only reaches nodes that have a grandparent to land under; a depth-one node has no move
+        // to make here since the move op cannot express "become a new root".
+        Chords("mindmap.outdent", "Shift+Tab"),
         Chords("mindmap.edit-edge-label", "F2"),
         Chords("mindmap.tool-select", "V"),
         Chords("mindmap.tool-pan", "H"),
