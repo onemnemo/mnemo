@@ -25,6 +25,15 @@ function column(...blocks: PMNode[]): PMNode {
 function twoColumn(left: PMNode, right: PMNode): PMNode {
   return schema.nodes.twoColumn.create(null, [line(), left, right]);
 }
+function tableCell(text?: string): PMNode {
+  return schema.nodes.tableCell.create(null, line(text));
+}
+function tableRow(...cells: PMNode[]): PMNode {
+  return schema.nodes.tableRow.create(null, [line(), ...cells]);
+}
+function table(...rows: PMNode[]): PMNode {
+  return schema.nodes.table.create({ columnWidths: [] }, [line(), ...rows]);
+}
 function doc(...blocks: PMNode[]): PMNode {
   return schema.nodes.doc.create(null, blocks);
 }
@@ -217,5 +226,24 @@ describe('two-column slash creation', () => {
       dispatched = true;
     });
     expect(dispatched).toBe(false); // no-op inside an existing split
+  });
+
+  it('refuses inside a table cell: a split cannot take the cell\'s place in its row', () => {
+    const document = doc(table(tableRow(tableCell('a'), tableCell('b'))));
+    const base = stateWith(document);
+    // Caret at the start of the left cell's own line.
+    let cellPos = -1;
+    base.doc.descendants((node, pos) => {
+      if (cellPos >= 0) return false;
+      if (node.type.name === 'tableCell') cellPos = pos + 2;
+      return true;
+    });
+    const placed = base.apply(base.tr.setSelection(TextSelection.create(base.doc, cellPos)));
+    let dispatched = false;
+    insertTwoColumn(placed, () => {
+      dispatched = true;
+    });
+    expect(dispatched).toBe(false);
+    expect(placed.doc.firstChild!.type.name).toBe('table');
   });
 });
