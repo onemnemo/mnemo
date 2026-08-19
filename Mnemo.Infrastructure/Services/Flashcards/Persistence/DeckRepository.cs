@@ -80,17 +80,10 @@ public sealed class DeckRepository : IDeckRepository
     public async Task<bool> DeleteAsync(SqliteConnection conn, SqliteTransaction tx, string deckId, CancellationToken cancellationToken)
     {
         // Facts are not owned by the deck through a foreign key, because a fact has to survive
-        // things a deck row does not, so the deck's material is cleared here rather than by a
-        // cascade. Doing it first lets the cards go with their facts; the deck delete then takes
-        // whatever is left.
-        await using (var facts = conn.CreateCommand())
-        {
-            facts.Transaction = tx;
-            facts.CommandText = "DELETE FROM FlashcardFacts WHERE DeckId = $id;";
-            facts.Parameters.AddWithValue("$id", deckId);
-            await facts.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        }
-
+        // things a deck row does not: a card it made can be moved to another deck and go on
+        // needing it. Deleting one here regardless of that would take a card the user kept
+        // elsewhere down with it, so material cleanup is the caller's job, done only for a fact
+        // that this delete leaves with nothing behind it anywhere.
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
         cmd.CommandText = "DELETE FROM FlashcardDecks WHERE Id = $id;";

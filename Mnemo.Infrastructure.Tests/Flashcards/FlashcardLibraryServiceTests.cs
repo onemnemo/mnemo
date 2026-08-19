@@ -53,7 +53,7 @@ public sealed class FlashcardLibraryServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var throwingDecks = new ThrowingMoveDeckRepository(h.Decks);
-        var lib = new FlashcardLibraryService(h.Store, h.Folders, throwingDecks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+        var lib = new FlashcardLibraryService(h.Store, h.Folders, throwingDecks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
         var parent = await SaveFolderAsync(lib, "parent", null, 0);
         var child = await SaveFolderAsync(lib, "child", parent.Id, 0);
@@ -84,7 +84,7 @@ public sealed class FlashcardLibraryServiceTests
     }
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
-        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+        new(h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
     /// <summary>Forwards to a real repository except on <see cref="MoveAsync"/>, which always fails,
     /// to prove a folder delete rolls back completely rather than leaving a partial reparent.</summary>

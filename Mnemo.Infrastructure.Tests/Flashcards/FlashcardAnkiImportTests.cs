@@ -328,7 +328,7 @@ public sealed class FlashcardAnkiImportTests
     }
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
-        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+        new(h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
     /// <summary>Writes a minimal single-note, single-card package in the older layout.</summary>
     private static Task<string> BuildApkgAsync(

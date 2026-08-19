@@ -107,7 +107,7 @@ public sealed class FlashcardEngineTests
     {
         await using var h = new FlashcardStoreHarness();
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
-        var lib = new FlashcardLibraryService(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+        var lib = new FlashcardLibraryService(h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var study = Study(h);
 
@@ -133,7 +133,7 @@ public sealed class FlashcardEngineTests
     {
         await using var h = new FlashcardStoreHarness();
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
-        var lib = new FlashcardLibraryService(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+        var lib = new FlashcardLibraryService(h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
         var study = Study(h);
 
         // NewPerDay 0 keeps new cards out, so only the review budget shapes the queue.
