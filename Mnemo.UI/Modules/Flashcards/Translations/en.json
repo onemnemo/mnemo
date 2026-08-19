@@ -1,4 +1,24 @@
 {
+  "Keybinds": {
+    "module.flashcards-session": "Session",
+    "category.flashcards-session": "Session",
+    "flashcards-session.close": "Leave session",
+    "flashcards-session.undo": "Undo grade",
+    "flashcards-session.reveal": "Show answer / grade good",
+    "flashcards-session.edit": "Edit card",
+    "flashcards-session.grade-again": "Grade again",
+    "flashcards-session.grade-hard": "Grade hard",
+    "flashcards-session.grade-good": "Grade good",
+    "flashcards-session.grade-easy": "Grade easy",
+    "module.flashcards-test": "Test",
+    "category.flashcards-test": "Test",
+    "flashcards-test.close": "Leave test",
+    "flashcards-test.undo": "Undo grade",
+    "flashcards-test.edit": "Edit card",
+    "flashcards-test.grade-missed": "Grade missed",
+    "flashcards-test.grade-close": "Grade close",
+    "flashcards-test.grade-got-it": "Grade got it"
+  },
   "Flashcards": {
     "Title": "Flashcards",
     "Import": "Import",
