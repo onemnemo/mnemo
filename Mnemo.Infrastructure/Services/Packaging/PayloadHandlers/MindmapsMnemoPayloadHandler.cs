@@ -139,7 +139,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
                     };
                     result.DuplicatedCount++;
                 }
-                // Replace keeps the id; SaveAsync upserts over the existing row.
+                // Replace keeps the id; the service stores it as the next revision of what is there.
             }
 
             existingMapIds.Add(document.Id);
@@ -149,9 +149,26 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             if (!string.IsNullOrWhiteSpace(folderId) && folderIdMap.TryGetValue(folderId, out var remapped))
                 folderId = remapped;
 
-            await _store.SaveAsync(document, BuildFullSearchDelta(document), cancellationToken).ConfigureAwait(false);
+            // Through the service, not the store. An import is a write like any other: it has to take the
+            // per-map write gate so it cannot land in the middle of an edit batch, it has to move the
+            // revision forward so an editor open on the map notices, and its result has to be recorded in
+            // the change log so a batch composed before it is refused rather than rebased onto a document
+            // that no longer resembles the one it was written against.
+            var stored = await _mindmaps.ReplaceAsync(document, cancellationToken).ConfigureAwait(false);
+            if (!stored.IsSuccess || stored.Value is null)
+            {
+                result.Warnings.Add($"Skipped mindmap '{document.Title}': {stored.ErrorMessage ?? "it could not be stored."}");
+                continue;
+            }
+
+            if (!stored.Value.Success)
+            {
+                result.Warnings.Add($"Skipped mindmap '{document.Title}': {stored.Value.Error?.Message ?? "it failed validation."}");
+                continue;
+            }
+
             if (!string.IsNullOrWhiteSpace(folderId))
-                await _store.SetFolderAsync(document.Id, folderId, cancellationToken).ConfigureAwait(false);
+                await _mindmaps.MoveToFolderAsync(document.Id, folderId, cancellationToken).ConfigureAwait(false);
 
             result.ImportedCount++;
         }
@@ -340,19 +357,6 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
 
             File.WriteAllBytes(destination, pair.Value);
         }
-    }
-
-    private static MindmapSearchDelta BuildFullSearchDelta(MindmapDocument document)
-    {
-        var upserts = new List<MindmapSearchEntry>();
-        foreach (var element in document.Elements)
-        {
-            var text = MindmapSearchText.Extract(element);
-            if (!string.IsNullOrEmpty(text))
-                upserts.Add(new MindmapSearchEntry(element.Id, text));
-        }
-
-        return new MindmapSearchDelta { Upserts = upserts, FullReplace = true };
     }
 
     private static void AddIfPresent(HashSet<string> set, string? id)
