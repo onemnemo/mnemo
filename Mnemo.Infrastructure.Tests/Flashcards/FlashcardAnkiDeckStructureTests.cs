@@ -219,6 +219,38 @@ public sealed class FlashcardAnkiDeckStructureTests
     }
 
     [Fact]
+    public async Task Import_CardReferencingAudio_SaysTheSoundWasNotImported()
+    {
+        var apkg = await AnkiPackageFixture.WriteAsync(
+            AnkiFixtureLayout.Legacy,
+            new[]
+            {
+                new AnkiFixtureCard("Listening", "Say it", "hola [sound:hola.mp3]"),
+                new AnkiFixtureCard("Listening", "No audio here", "adios"),
+            },
+            new Dictionary<string, byte[]>());
+
+        try
+        {
+            await using var h = new FlashcardStoreHarness();
+            await h.Store.InitializeAsync();
+            var library = NewLibrary(h);
+            var adapter = NewAdapter(h, library, new FlashcardCardService(h.Store, h.Cards, h.Schedules));
+
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+            Assert.True(result.Success, result.ErrorMessage);
+
+            // Leaving the reference on the card with nothing said reads as a rendering bug.
+            var warning = Assert.Single(result.Warnings, w => w.Contains("audio", StringComparison.OrdinalIgnoreCase));
+            Assert.StartsWith("1 card", warning, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
     public async Task Import_ListAndTableMarkup_KeepsTheLineBreaks()
     {
         var apkg = await AnkiPackageFixture.WriteAsync(
