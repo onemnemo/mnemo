@@ -25,6 +25,17 @@ public interface IReviewRepository
     Task<int> CountForDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Every review answered in a deck bound to <paramref name="presetId"/>, oldest first within
+    /// each card. This is the training data for weight fitting, which is why it is grouped by card
+    /// rather than by time: a fit replays one card's history at a time.
+    /// </summary>
+    /// <remarks>
+    /// Rows whose deck no longer exists are left out. The table carries no foreign key, so they
+    /// survive a deck delete, but nothing can say which preset they were answered under.
+    /// </remarks>
+    Task<IReadOnlyList<FlashcardReviewRow>> ListForPresetAsync(SqliteConnection conn, string presetId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Passed (grade != Again) over total non-learning reviews for a deck since <paramref name="since"/>.
     /// Learning-step reviews (state after was Learning) are excluded per the retention definition.
     /// </summary>
@@ -87,6 +98,41 @@ public sealed class ReviewRepository : IReviewRepository
         cmd.CommandText = "SELECT COUNT(*) FROM FlashcardReviews WHERE DeckId = $deck;";
         cmd.Parameters.AddWithValue("$deck", deckId);
         return Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+    }
+
+    public async Task<IReadOnlyList<FlashcardReviewRow>> ListForPresetAsync(SqliteConnection conn, string presetId, CancellationToken cancellationToken)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT r.Id, r.CardId, r.Grade, r.ReviewedAt, r.ElapsedDays, r.StateBefore, r.StateAfter
+            FROM FlashcardReviews r
+            JOIN FlashcardDecks d ON d.Id = r.DeckId
+            WHERE d.PresetId = $preset
+            ORDER BY r.CardId, r.ReviewedAt, r.Id;
+            """;
+        cmd.Parameters.AddWithValue("$preset", presetId);
+
+        var rows = new List<FlashcardReviewRow>();
+        // Rows arrive grouped by card, so one string per card is enough for the whole run.
+        var cardId = string.Empty;
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var read = reader.GetString(1);
+            if (!string.Equals(read, cardId, StringComparison.Ordinal))
+                cardId = read;
+
+            rows.Add(new FlashcardReviewRow(
+                reader.GetInt64(0),
+                cardId,
+                (FlashcardReviewGrade)reader.GetInt32(2),
+                FlashcardSqlMap.ReadTs(reader, 3),
+                reader.GetDouble(4),
+                reader.IsDBNull(5) ? null : (FlashcardFsrsState)reader.GetInt32(5),
+                (FlashcardFsrsState)reader.GetInt32(6)));
+        }
+
+        return rows;
     }
 
     public async Task<FlashcardRetentionSample> GetRetentionSampleAsync(SqliteConnection conn, string deckId, DateTimeOffset since, CancellationToken cancellationToken)
