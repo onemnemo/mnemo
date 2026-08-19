@@ -57,8 +57,13 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
             block.Id = idEl.GetString() ?? block.Id;
         if (TryGetPropertyCaseInsensitive(root, "sid", out var sidEl) && sidEl.ValueKind == JsonValueKind.String)
             block.Sid = sidEl.GetString() ?? string.Empty;
-        if (TryGetPropertyCaseInsensitive(root, "type", out var typeEl) && TryReadBlockType(typeEl, out BlockType bt))
-            block.Type = bt;
+        if (TryGetPropertyCaseInsensitive(root, "type", out var typeEl))
+        {
+            if (TryReadBlockType(typeEl, out BlockType bt))
+                block.Type = bt;
+            else if (typeEl.ValueKind == JsonValueKind.String && typeEl.GetString() is { Length: > 0 } token)
+                block.UnknownType = token;
+        }
         if (TryGetPropertyCaseInsensitive(root, "order", out var orderEl))
             block.Order = orderEl.GetInt32();
 
@@ -73,9 +78,14 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
             : null;
 
         if (TryGetPropertyCaseInsensitive(root, "payload", out var payloadEl))
-            block.Payload = ReadPayload(payloadEl);
+        {
+            block.Payload = ReadPayload(payloadEl, out var unknownPayload);
+            block.UnknownPayloadJson = unknownPayload;
+        }
         else
+        {
             block.Payload = PayloadFromLegacyMeta(block.Type, block.Meta, legacyContent);
+        }
 
         if (TryGetPropertyCaseInsensitive(root, "spans", out var spansEl) && spansEl.ValueKind == JsonValueKind.Array)
             block.Spans = ReadSpans(spansEl);
@@ -109,12 +119,28 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
         return string.Empty;
     }
 
-    private static BlockPayload ReadPayload(JsonElement el)
+    /// <summary>
+    /// Reads a payload. A kind this build does not know is handed back through
+    /// <paramref name="unknownJson"/> rather than rejected: refusing it failed the whole note, so a
+    /// single block from a newer version made every note holding it unreadable.
+    /// </summary>
+    private static BlockPayload ReadPayload(JsonElement el, out string? unknownJson)
     {
+        unknownJson = null;
         if (el.ValueKind != JsonValueKind.Object)
             return new EmptyPayload();
+
         var kind = TryGetPropertyCaseInsensitive(el, "kind", out var k) ? k.GetString() : null;
-        kind = kind?.ToLowerInvariant();
+        var known = ReadKnownPayload(el, kind?.ToLowerInvariant());
+        if (known is not null)
+            return known;
+
+        unknownJson = el.GetRawText();
+        return new EmptyPayload();
+    }
+
+    private static BlockPayload? ReadKnownPayload(JsonElement el, string? kind)
+    {
         return kind switch
         {
             "equation" => new EquationPayload(TryGetPropertyCaseInsensitive(el, "latex", out var lx) ? lx.GetString() ?? string.Empty : string.Empty),
@@ -153,7 +179,7 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
                 TryGetPropertyCaseInsensitive(el, "tone", out var tn) ? tn.GetString() ?? "note" : "note"),
             "empty" => new EmptyPayload(),
             null or "" => new EmptyPayload(),
-            _ => throw new JsonException($"Unknown block payload kind '{kind}'.")
+            _ => null
         };
     }
 
@@ -523,19 +549,28 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
         if (!string.IsNullOrEmpty(value.Sid))
             writer.WriteString("sid", value.Sid);
 
-        writer.WriteString("type", value.Type.ToString());
+        // A type or payload this build could not read goes back exactly as it arrived, so opening a
+        // note in an older version and saving it does not strip the blocks it did not understand.
+        writer.WriteString("type", value.UnknownType ?? value.Type.ToString());
         writer.WriteNumber("order", value.Order);
 
         writer.WritePropertyName("spans");
         WriteSpans(writer, value.Spans);
 
         writer.WritePropertyName("payload");
-        var payloadToWrite = value.Payload;
-        if (value.Type == BlockType.TwoColumn && payloadToWrite is EmptyPayload)
-            payloadToWrite = new TwoColumnPayload(NormalizeSplitRatio(ReadMetaDouble(value.Meta ?? new Dictionary<string, object>(), "columnSplitRatio")));
-        if (value.Type == BlockType.Page && payloadToWrite is EmptyPayload)
-            payloadToWrite = new PagePayload(ReadMetaString(value.Meta ?? new Dictionary<string, object>(), "reference_note_id"));
-        WritePayload(writer, payloadToWrite);
+        if (value.UnknownPayloadJson is { Length: > 0 } rawPayload)
+        {
+            writer.WriteRawValue(rawPayload);
+        }
+        else
+        {
+            var payloadToWrite = value.Payload;
+            if (value.Type == BlockType.TwoColumn && payloadToWrite is EmptyPayload)
+                payloadToWrite = new TwoColumnPayload(NormalizeSplitRatio(ReadMetaDouble(value.Meta ?? new Dictionary<string, object>(), "columnSplitRatio")));
+            if (value.Type == BlockType.Page && payloadToWrite is EmptyPayload)
+                payloadToWrite = new PagePayload(ReadMetaString(value.Meta ?? new Dictionary<string, object>(), "reference_note_id"));
+            WritePayload(writer, payloadToWrite);
+        }
 
         writer.WritePropertyName("meta");
         if (value.Type == BlockType.TwoColumn)

@@ -74,10 +74,19 @@ function isJson(value: unknown): value is Json {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * A type token this build does not know is carried through, not coerced to `Text`.
+ *
+ * Coercing made the block invisible: the mapper's unknown-type quarantine could
+ * never fire from real saved bytes, so a note written by a newer version opened
+ * as a page of paragraphs and the first autosave wrote that back over the
+ * original. Carrying the token means the mapper refuses the document and the
+ * note is left exactly as it was found.
+ */
 function parseBlockType(value: unknown): BlockType {
-  if (typeof value === 'string') {
+  if (typeof value === 'string' && value.length > 0) {
     const match = allBlockTypes.find((t) => t.toLowerCase() === value.toLowerCase());
-    if (match) return match;
+    return match ?? (value as BlockType);
   }
   // Older files stored the enum's ordinal.
   if (typeof value === 'number' && allBlockTypes[value] !== undefined) return allBlockTypes[value];
@@ -211,10 +220,24 @@ function parsePayload(value: unknown): BlockPayload {
       };
     case 'tablecell':
       return { kind: 'tableCell', fill: str(prop(value, 'fill')) };
-    default:
-      // Unknown kinds included: an unrecognised payload must not lose the block.
-      return { kind: 'empty' };
+    default: {
+      // Carried through for the same reason as an unknown block type. Reading it
+      // as `empty` let the editor open the block and save that emptiness back
+      // over a payload it simply could not decode; keeping the kind makes the
+      // normalizer report a mismatch and hold the note instead.
+      const kind = str(prop(value, 'kind'));
+      return kind === '' ? { kind: 'empty' } : unknownPayload(kind);
+    }
   }
+}
+
+/**
+ * A stand-in for a payload kind this build has no reader for. It carries only the
+ * kind: the fields belong to a shape nothing here can describe, and the note is
+ * held rather than edited, so there is nothing that would put them back.
+ */
+function unknownPayload(kind: string): BlockPayload {
+  return { kind } as BlockPayload;
 }
 
 /**

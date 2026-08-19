@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
+using Mnemo.Core.Identity;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
@@ -18,6 +19,9 @@ namespace Mnemo.Infrastructure.Services.Notes.Persistence;
 ///
 /// Reads still go through <see cref="IStorageProvider"/>; only writes are funnelled here, because a
 /// write is the only operation that can leave the note and its index disagreeing.
+///
+/// Every write reads the stored note inside its own transaction and changes only what that write
+/// owns, so two writers touching different halves of a note compose instead of racing.
 /// </summary>
 public sealed class NoteCommitStore : INoteCommitStore, IAsyncDisposable
 {
@@ -25,6 +29,7 @@ public sealed class NoteCommitStore : INoteCommitStore, IAsyncDisposable
     public const string IndexKey = "notes_index";
 
     private readonly ILoggerService _logger;
+    private readonly SidGenerator _sids;
     private readonly string _connectionString;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
     private readonly SemaphoreSlim _initGate = new(1, 1);
@@ -32,9 +37,11 @@ public sealed class NoteCommitStore : INoteCommitStore, IAsyncDisposable
     private bool _initialized;
 
     /// <param name="databasePath">Optional absolute DB path (tests). Defaults to app user data <c>mnemo.db</c>.</param>
-    public NoteCommitStore(ILoggerService logger, string? databasePath = null)
+    /// <param name="sids">Optional generator, so a test can force a collision deterministically.</param>
+    public NoteCommitStore(ILoggerService logger, string? databasePath = null, SidGenerator? sids = null)
     {
         _logger = logger;
+        _sids = sids ?? new SidGenerator();
         var dbPath = databasePath ?? MnemoAppPaths.GetLocalUserDataFile("mnemo.db");
         var dbDir = Path.GetDirectoryName(dbPath);
         if (!string.IsNullOrWhiteSpace(dbDir))
@@ -86,40 +93,64 @@ public sealed class NoteCommitStore : INoteCommitStore, IAsyncDisposable
         }
     }
 
-    public Task<NoteCommitResult> CommitAsync(Note note, long baseVer, string requestId, CancellationToken cancellationToken = default)
+    public Task<NoteCommitResult> CommitAsync(string noteId, IReadOnlyList<Block>? blocks, long baseVer, string requestId, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(note);
+        ArgumentException.ThrowIfNullOrWhiteSpace(noteId);
         if (string.IsNullOrWhiteSpace(requestId))
             throw new ArgumentException("A commit needs a request id to be idempotent on retry.", nameof(requestId));
 
         return WriteAsync(async (conn, tx, ct) =>
         {
-            var stored = await ReadValueAsync<Note>(conn, tx, NoteKey(note.NoteId), ct).ConfigureAwait(false);
+            var stored = await ReadValueAsync<Note>(conn, tx, NoteKey(noteId), ct).ConfigureAwait(false);
             if (stored is null)
                 return new NoteCommitResult(NoteCommitOutcome.NotFound, 0);
 
             // Checked before the version, because a retry of a commit that already landed carries a
             // base version that is now genuinely stale. Reading it as a conflict would turn a dropped
             // acknowledgement into a spurious merge prompt.
-            var lastRequest = await ReadValueAsync<NoteCommitMark>(conn, tx, CommitKey(note.NoteId), ct).ConfigureAwait(false);
+            var lastRequest = await ReadValueAsync<NoteCommitMark>(conn, tx, CommitKey(noteId), ct).ConfigureAwait(false);
             if (lastRequest is not null && lastRequest.RequestId == requestId)
                 return new NoteCommitResult(NoteCommitOutcome.AlreadyApplied, stored.Ver);
 
             if (stored.Ver != baseVer)
                 return new NoteCommitResult(NoteCommitOutcome.Stale, stored.Ver);
 
-            var nextVer = stored.Ver + 1;
-            note.Ver = nextVer;
-            note.Sid = stored.Sid;
-            note.NoteId = stored.NoteId;
-            note.CreatedAt = stored.CreatedAt;
-            note.ModifiedAt = DateTime.UtcNow;
+            // The stored note is what gets written back, so a commit is structurally unable to carry
+            // a title, a sid or a folder along with the body it was asked to write.
+            stored.Blocks = blocks is null ? null : [.. blocks];
+            BlockSids.Repair(stored.Blocks, _sids);
+            stored.Ver += 1;
+            stored.ModifiedAt = DateTime.UtcNow;
 
-            await WriteValueAsync(conn, tx, NoteKey(note.NoteId), note, ct).ConfigureAwait(false);
-            await WriteValueAsync(conn, tx, CommitKey(note.NoteId), new NoteCommitMark(requestId, nextVer), ct).ConfigureAwait(false);
-            await EnsureIndexedAsync(conn, tx, note.NoteId, ct).ConfigureAwait(false);
+            await WriteValueAsync(conn, tx, NoteKey(noteId), stored, ct).ConfigureAwait(false);
+            await WriteValueAsync(conn, tx, CommitKey(noteId), new NoteCommitMark(requestId, stored.Ver), ct).ConfigureAwait(false);
+            await EnsureIndexedAsync(conn, tx, noteId, ct).ConfigureAwait(false);
 
-            return new NoteCommitResult(NoteCommitOutcome.Applied, nextVer);
+            return new NoteCommitResult(NoteCommitOutcome.Applied, stored.Ver);
+        }, cancellationToken);
+    }
+
+    public Task<NoteCommitResult> UpdateMetadataAsync(string noteId, NoteMetadata metadata, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(noteId);
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        return WriteAsync(async (conn, tx, ct) =>
+        {
+            var stored = await ReadValueAsync<Note>(conn, tx, NoteKey(noteId), ct).ConfigureAwait(false);
+            if (stored is null)
+                return new NoteCommitResult(NoteCommitOutcome.NotFound, 0);
+
+            metadata.ApplyTo(stored);
+            stored.ModifiedAt = DateTime.UtcNow;
+
+            // The version is deliberately left alone. It counts body revisions, and every open editor
+            // holds one as its edit token; advancing it for a rename would fail their next save as a
+            // conflict they have no way to resolve.
+            await WriteValueAsync(conn, tx, NoteKey(noteId), stored, ct).ConfigureAwait(false);
+            await EnsureIndexedAsync(conn, tx, noteId, ct).ConfigureAwait(false);
+
+            return new NoteCommitResult(NoteCommitOutcome.Applied, stored.Ver);
         }, cancellationToken);
     }
 
@@ -140,11 +171,64 @@ public sealed class NoteCommitStore : INoteCommitStore, IAsyncDisposable
             else if (note.CreatedAt == default)
                 note.CreatedAt = DateTime.UtcNow;
 
+            await AssignNoteSidAsync(conn, tx, note, stored, ct).ConfigureAwait(false);
+            BlockSids.Repair(note.Blocks, _sids);
+
             await WriteValueAsync(conn, tx, NoteKey(note.NoteId), note, ct).ConfigureAwait(false);
             await EnsureIndexedAsync(conn, tx, note.NoteId, ct).ConfigureAwait(false);
 
             return new NoteCommitResult(NoteCommitOutcome.Applied, note.Ver);
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gives <paramref name="note"/> the sid it will be stored under. A note that already exists keeps
+    /// the one it has, because a sid is durable identity and callers hand back stale copies of it.
+    /// Anything else is minted against the sids the corpus currently holds, inside this transaction,
+    /// so two notes created at once cannot be handed the same one.
+    /// </summary>
+    private async Task AssignNoteSidAsync(SqliteConnection conn, SqliteTransaction tx, Note note, Note? stored, CancellationToken ct)
+    {
+        if (stored is not null && Sid.IsWellFormedNoteSid(stored.Sid))
+        {
+            note.Sid = stored.Sid;
+            return;
+        }
+
+        var taken = await ReadNoteSidsAsync(conn, tx, note.NoteId, ct).ConfigureAwait(false);
+        if (!Sid.IsWellFormedNoteSid(note.Sid) || taken.Contains(note.Sid))
+            note.Sid = _sids.NextNoteSid(taken);
+    }
+
+    /// <summary>
+    /// The sids every other note holds. Read out of the stored row rather than by loading notes,
+    /// because deserializing the corpus would parse every block in the database to answer a question
+    /// about one field.
+    /// </summary>
+    private static async Task<HashSet<string>> ReadNoteSidsAsync(SqliteConnection conn, SqliteTransaction tx, string exceptNoteId, CancellationToken ct)
+    {
+        var sids = new HashSet<string>(StringComparer.Ordinal);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        // The folder rows share the note_ prefix, and the index and migration marker do not, which is
+        // why the underscore is matched literally rather than scanned for with a wildcard.
+        cmd.CommandText =
+            @"SELECT COALESCE(json_extract(Value, '$.Sid'), json_extract(Value, '$.sid'))
+              FROM Storage
+              WHERE Key LIKE 'note\_%' ESCAPE '\'
+                AND Key NOT LIKE 'note\_folder\_%' ESCAPE '\'
+                AND Key <> $self";
+        cmd.Parameters.AddWithValue("$self", NoteKey(exceptNoteId));
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
+        {
+            if (!await reader.IsDBNullAsync(0, ct).ConfigureAwait(false) && reader.GetString(0) is { Length: > 0 } sid)
+                sids.Add(sid);
+        }
+
+        return sids;
     }
 
     /// <summary>
