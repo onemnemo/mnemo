@@ -57,6 +57,21 @@ function isFullyCovered(node: PMNode, selected: ReadonlySet<string>): boolean {
  * into so only its covered parts go. A `columnGroup` cell is never deleted on
  * its own - its parent row requires exactly two - so it is always descended into
  * and its covered leaves are removed individually.
+ *
+ * A table's own `tableRow` and `tableCell` get the same treatment, for a
+ * stricter reason: shape there is not this module's to change at all. A table
+ * cell holds no repair invariant the way an emptied two-column cell does, so a
+ * lone covered cell deleted here would either leave its row short of its
+ * neighbours or, at one cell wide, break the row's own "at least one cell"
+ * shape outright; a lone covered row skirts `removeRow`'s refusal to take a
+ * table below one row and drops its header flag without the splice that keeps
+ * it aligned. Both are reachable from an ordinary selection that merely spans
+ * past a table without ever meaning to touch it - the anchor or target can
+ * land on a cell's own sid, since a cell is a real selectable leaf, and the
+ * run between two such points can cover some of a table's cells without
+ * covering the table. Recursing into a row or cell that turns up this way
+ * finds no block children of its own and removes nothing, which is the
+ * correct outcome: a table changes shape only through its own commands.
  */
 function planDeletions(
   node: PMNode,
@@ -68,8 +83,11 @@ function planDeletions(
   node.forEach((child, offset) => {
     if (!registry.byNodeName.has(child.type.name)) return; // skip the line and non-blocks
     const childPos = nodePos + 1 + offset;
-    const isCell = child.type.name === 'columnGroup';
-    if (!isCell && isFullyCovered(child, selected)) {
+    const neverBare =
+      child.type.name === 'columnGroup' ||
+      child.type.name === 'tableRow' ||
+      child.type.name === 'tableCell';
+    if (!neverBare && isFullyCovered(child, selected)) {
       out.push({ from: childPos, to: childPos + child.nodeSize });
     } else {
       out.push(...planDeletions(child, childPos, registry, selected));
