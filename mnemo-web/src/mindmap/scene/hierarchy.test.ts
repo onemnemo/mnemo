@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest"
 
 import type { MindmapDocument, MindmapEdge, MindmapElement } from "../model/document"
 
-import { analyzeHierarchy, childrenIds, hiddenDescendantCount, hierarchyEdgesBelow } from "./hierarchy"
+import {
+  analyzeHierarchy,
+  childrenIds,
+  grandparentOf,
+  hiddenDescendantCount,
+  hierarchyEdgesBelow,
+  reachedBySelection,
+} from "./hierarchy"
 
 const node = (id: string, over: Partial<MindmapElement> = {}): MindmapElement => ({
   id,
@@ -197,6 +204,83 @@ describe("the edges below a node", () => {
     const document = doc([node("r"), node("a")], [link("r", "a")])
 
     expect(hierarchyEdgesBelow(document, analyzeHierarchy(document), "a")).toEqual([])
+  })
+})
+
+describe("grandparentOf", () => {
+  it("finds the node two levels up", () => {
+    const h = analyzeHierarchy(
+      doc([node("r"), node("a"), node("b")], [link("r", "a"), link("a", "b")]),
+    )
+
+    expect(grandparentOf(h, "b")).toBe("r")
+  })
+
+  it("is null for a root, which has no parent to skip past", () => {
+    const h = analyzeHierarchy(doc([node("r")], []))
+
+    expect(grandparentOf(h, "r")).toBeNull()
+  })
+
+  it("is null for a depth-one node, whose parent is already the root", () => {
+    const h = analyzeHierarchy(doc([node("r"), node("a")], [link("r", "a")]))
+
+    expect(grandparentOf(h, "a")).toBeNull()
+  })
+
+  it("is null for an id the hierarchy does not know, and for a null hierarchy", () => {
+    const h = analyzeHierarchy(doc([node("r")], []))
+
+    expect(grandparentOf(h, "missing")).toBeNull()
+    expect(grandparentOf(null, "r")).toBeNull()
+  })
+})
+
+describe("reachedBySelection", () => {
+  it("is just the selection when nothing selected has children", () => {
+    const h = analyzeHierarchy(doc([node("r"), node("a"), node("b")], [link("r", "a"), link("r", "b")]))
+
+    expect(reachedBySelection(h, ["b"])).toEqual(new Set(["b"]))
+  })
+
+  it("pulls in every descendant of a selected node, not just its direct children", () => {
+    const h = analyzeHierarchy(
+      doc(
+        [node("r"), node("a"), node("b"), node("c")],
+        [link("r", "a"), link("a", "b"), link("b", "c")],
+      ),
+    )
+
+    expect(reachedBySelection(h, ["a"])).toEqual(new Set(["a", "b", "c"]))
+  })
+
+  it("unions across a multi-element selection without double counting", () => {
+    const h = analyzeHierarchy(
+      doc(
+        [node("r"), node("a"), node("b"), node("shared")],
+        [link("r", "a"), link("r", "b"), link("a", "shared")],
+      ),
+    )
+
+    expect(reachedBySelection(h, ["a", "b"])).toEqual(new Set(["a", "b", "shared"]))
+  })
+
+  it("reaches a collapsed descendant too, since a delete is not stopped by what a collapse hides", () => {
+    const h = analyzeHierarchy(
+      doc(
+        [node("r"), node("a", { collapsed: true }), node("hidden")],
+        [link("r", "a"), link("a", "hidden")],
+      ),
+    )
+
+    expect(reachedBySelection(h, ["a"])).toEqual(new Set(["a", "hidden"]))
+  })
+
+  it("is empty for an empty selection, and unaffected by a null hierarchy", () => {
+    const h = analyzeHierarchy(doc([node("r")], []))
+
+    expect(reachedBySelection(h, [])).toEqual(new Set())
+    expect(reachedBySelection(null, ["x", "y"])).toEqual(new Set(["x", "y"]))
   })
 })
 
