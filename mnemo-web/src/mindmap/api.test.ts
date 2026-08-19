@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 /**
  * The rule that decides whether a write can be patched into the open document instead of refetched.
  *
@@ -7,13 +9,14 @@
  */
 
 import { QueryClient } from "@tanstack/react-query"
-import { beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   foldEditIntoCache,
   foldNoticeIntoCache,
   foldRestoreIntoCache,
   mapKey,
+  restoreMindmap,
   type MindmapOpsResult,
 } from "./api"
 import type { MindmapDocument, MindmapElement } from "./model/document"
@@ -128,6 +131,48 @@ describe("folding a replayed undo", () => {
 
     expect(folded).toBe(false)
     expect(cached()!.elements!.map((e) => e.id)).toEqual(["a"])
+  })
+})
+
+describe("asking the server to replay a delta", () => {
+  function answering(status: number, body: unknown) {
+    return vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }),
+    )
+  }
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it("reads a stale replay as a conflict", async () => {
+    answering(409, { code: "rev_conflict", message: "moved on", revision: 9 })
+
+    const outcome = await restoreMindmap("m", 4, {})
+
+    expect(outcome.status).toBe("conflict")
+  })
+
+  it("reads a delta the server would not accept as a refusal, not a thrown request", async () => {
+    // An undo composed against a document the server has since moved past can name an edge whose
+    // endpoint is gone. That comes back 400, and treating it as a transport failure would leave the
+    // editor counting a write that is never going to land.
+    answering(400, { code: "validation_error", message: "edge would be stranded", revision: 9 })
+
+    const outcome = await restoreMindmap("m", 4, {})
+
+    expect(outcome.status).toBe("rejected")
+    expect(outcome.status !== "applied" && outcome.error.revision).toBe(9)
+  })
+
+  it("reads a map that is gone as a refusal too", async () => {
+    answering(404, { code: "not_found", message: "no such map", revision: 0 })
+
+    expect((await restoreMindmap("m", 4, {})).status).toBe("rejected")
+  })
+
+  it("still throws for a status the protocol has no answer for", async () => {
+    answering(500, { error: "mindmap_error", message: "boom" })
+
+    await expect(restoreMindmap("m", 4, {})).rejects.toThrow()
   })
 })
 

@@ -203,14 +203,26 @@ export async function arrangeMindmap(
   }
 }
 
+/**
+ * Replays one delta from the undo stack.
+ *
+ * Refused for the same range of reasons a batch is, not only for a stale revision: a delta computed
+ * against a document the server has since moved past can name an edge whose endpoint is gone or
+ * describe a shape that is not a tree any more, and both come back as a plain refusal rather than a
+ * conflict. Reading only 409 as an answer would turn those into thrown transport failures.
+ */
 export async function restoreMindmap(
   id: string,
   expectedRevision: number,
   delta: MindmapRestoreDelta,
-): Promise<{ status: "applied"; result: MindmapRestoreResult } | { status: "conflict"; error: MindmapEditError }> {
+): Promise<
+  | { status: "applied"; result: MindmapRestoreResult }
+  | { status: "conflict"; error: MindmapEditError }
+  | { status: "rejected"; error: MindmapEditError }
+> {
   const { status, data } = await apiFetchExpecting<MindmapRestoreResult | MindmapEditError>(
     `/mindmaps/${encodeURIComponent(id)}/restore`,
-    [409],
+    [400, 404, 409],
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -218,9 +230,10 @@ export async function restoreMindmap(
     },
   )
 
-  return status === 200
-    ? { status: "applied", result: data as MindmapRestoreResult }
-    : { status: "conflict", error: data as MindmapEditError }
+  if (status === 200) {
+    return { status: "applied", result: data as MindmapRestoreResult }
+  }
+  return { status: status === 409 ? "conflict" : "rejected", error: data as MindmapEditError }
 }
 
 export function createMindmap(body: {

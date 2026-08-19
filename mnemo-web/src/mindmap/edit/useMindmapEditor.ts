@@ -313,8 +313,10 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
    * the request would look perfectly current. Sending the stack's revision makes it a conflict, which
    * is what it is.
    *
-   * The entry stays on the stack unless the replay lands, because a restore refused for a stale
-   * revision is a step the user still has not taken, not a step they have.
+   * The move onto `step.next` only happens if the replay lands, because a refused restore is a step
+   * the user still has not taken. A refusal for any reason then refetches and starts a fresh stack:
+   * the server declined to be in the state these deltas describe, so none of them can be trusted to
+   * describe it any more.
    */
   const travel = useCallback(
     (direction: "undo" | "redo") =>
@@ -333,7 +335,18 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
 
         const delta = direction === "undo" ? step.entry.undo : step.entry.redo
         liveRef.current = beginWrite(liveRef.current)
-        const outcome = await restoreMindmap(mapId, stack.revision, delta)
+        let outcome
+        try {
+          outcome = await restoreMindmap(mapId, stack.revision, delta)
+        } catch (error) {
+          // A refusal is an answer and comes back as a value; reaching here means the request never
+          // completed. The count has to come back down either way, or every notice after this is
+          // read as the echo of a write that is never going to land.
+          if (openRef.current === mapId) {
+            liveRef.current = endWrite(liveRef.current, revisionOf(mapId))
+          }
+          throw error
+        }
 
         // Same rule as an ordinary write: a map switch while the replay was in the air leaves the
         // refs describing a different document, so only the cache entry is still ours to touch.
@@ -364,7 +377,7 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
         setReloaded(false)
         setHistory(settle(step.next, outcome.result.revision))
       }),
-    [client, enqueue, mapId, reload, setHistory],
+    [client, enqueue, mapId, reload, revisionOf, setHistory],
   )
 
   /**
