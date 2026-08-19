@@ -21,22 +21,25 @@ const CLOZE_PATTERN = /\{\{c(\d+)::(.+?)(?:::(.+?))?\}\}/g
 const FIELD_PATTERN = /\{\{([^{}]+)\}\}/g
 const BLANK_RUN_PATTERN = /\n{3,}/g
 
-/** The material an editor is holding, keyed the way a fact stores it. */
-export interface FactLike {
+/**
+ * The material an editor is holding, keyed the way a fact stores it. Generic over the attachment,
+ * so the editor can pass the drafts it is still holding rather than only what the server sent.
+ */
+export interface FactLike<TMedia = CardAttachmentDto> {
   values: Record<string, string>
-  media: Record<string, CardAttachmentDto[]>
+  media: Record<string, TMedia[]>
 }
 
 /** One card the material makes. */
-export interface GeneratedCard {
+export interface GeneratedCard<TMedia = CardAttachmentDto> {
   /** Stable half of the card's identity: a layout id, or `c<n>` for a deletion. */
   key: string
   /** Names the card beside its siblings, or null when the generator decides the shape. */
   layoutName: string | null
   front: string
   back: string
-  frontMedia: CardAttachmentDto[]
-  backMedia: CardAttachmentDto[]
+  frontMedia: TMedia[]
+  backMedia: TMedia[]
 }
 
 /** A layout that exists but is not firing, and the field name that would switch it on. */
@@ -45,11 +48,11 @@ export interface DormantLayout {
   requiredFieldName: string
 }
 
-function value(fact: FactLike, fieldId: string): string {
+function value<TMedia>(fact: FactLike<TMedia>, fieldId: string): string {
   return fact.values[fieldId] ?? ""
 }
 
-function mediaOn(fact: FactLike, fieldId: string): CardAttachmentDto[] {
+function mediaOn<TMedia>(fact: FactLike<TMedia>, fieldId: string): TMedia[] {
   return fact.media[fieldId] ?? []
 }
 
@@ -107,7 +110,11 @@ function fieldIdsByName(type: CardTypeDto): Map<string, string> {
  * has is dropped rather than printed, along with the blank line it leaves behind, so a stale
  * layout looks thin instead of showing markup to someone mid review.
  */
-export function renderSide(template: string | null | undefined, type: CardTypeDto, fact: FactLike): string {
+export function renderSide<TMedia>(
+  template: string | null | undefined,
+  type: CardTypeDto,
+  fact: FactLike<TMedia>,
+): string {
   if (!template) return ""
 
   const byName = fieldIdsByName(type)
@@ -131,7 +138,7 @@ export function clozeOrdinalFromKey(key: string | null | undefined): number | nu
   return Number.parseInt(key.slice(1), 10)
 }
 
-function filled(fact: FactLike, fieldId: string | null): boolean {
+function filled<TMedia>(fact: FactLike<TMedia>, fieldId: string | null): boolean {
   return !fieldId || value(fact, fieldId).trim().length > 0
 }
 
@@ -139,7 +146,7 @@ function joinParagraphs(parts: string[]): string {
   return parts.filter((part) => part.length > 0).join("\n\n")
 }
 
-function mediaFor(template: string, type: CardTypeDto, fact: FactLike): CardAttachmentDto[] {
+function mediaFor<TMedia>(template: string, type: CardTypeDto, fact: FactLike<TMedia>): TMedia[] {
   if (Object.keys(fact.media).length === 0) return []
 
   const byName = fieldIdsByName(type)
@@ -149,7 +156,7 @@ function mediaFor(template: string, type: CardTypeDto, fact: FactLike): CardAtta
   })
 }
 
-function generateCloze(type: CardTypeDto, fact: FactLike, source: string): GeneratedCard[] {
+function generateCloze<TMedia>(type: CardTypeDto, fact: FactLike<TMedia>, source: string): GeneratedCard<TMedia>[] {
   const text = value(fact, source)
   const extra = type.fields.find((field) => field.id !== source)
   const tail = extra ? value(fact, extra.id).trim() : ""
@@ -167,7 +174,7 @@ function generateCloze(type: CardTypeDto, fact: FactLike, source: string): Gener
   }))
 }
 
-function generateOcclusion(type: CardTypeDto, fact: FactLike, source: string): GeneratedCard[] {
+function generateOcclusion<TMedia>(type: CardTypeDto, fact: FactLike<TMedia>, source: string): GeneratedCard<TMedia>[] {
   const rest = type.fields.filter((field) => field.id !== source)
 
   return [
@@ -183,7 +190,7 @@ function generateOcclusion(type: CardTypeDto, fact: FactLike, source: string): G
 }
 
 /** Every card the material currently makes, in the order they are shown. */
-export function generate(type: CardTypeDto, fact: FactLike): GeneratedCard[] {
+export function generate<TMedia>(type: CardTypeDto, fact: FactLike<TMedia>): GeneratedCard<TMedia>[] {
   const source = effectiveGenerateFrom(type)
 
   if (type.generator === CLOZE_GENERATOR) return generateCloze(type, fact, source)
@@ -205,7 +212,7 @@ export function generate(type: CardTypeDto, fact: FactLike): GeneratedCard[] {
  * Layouts that exist but are not firing, with the field that would switch each one on. Empty for
  * a generated type, whose cards come from the content rather than from a list.
  */
-export function dormant(type: CardTypeDto, fact: FactLike): DormantLayout[] {
+export function dormant<TMedia>(type: CardTypeDto, fact: FactLike<TMedia>): DormantLayout[] {
   if (type.generator) return []
 
   return type.layouts

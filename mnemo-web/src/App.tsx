@@ -6,7 +6,7 @@ import { AppShell } from "@/components/shell/AppShell"
 import { DialogHost } from "@/components/shell/DialogHost"
 import { CommandPalette } from "@/components/shell/palette/CommandPalette"
 import { TooltipHost } from "@/components/ui/tooltip"
-import { CardEditorOverlay } from "@/flashcards/editor/CardEditorOverlay"
+import { FactEditorOverlay } from "@/flashcards/facts/FactEditorOverlay"
 import { ReviewSettingsOverlay } from "@/flashcards/presets/ReviewSettingsOverlay"
 import { TransferOverlay } from "@/flashcards/transfer/TransferOverlay"
 import { registerKeybindAction } from "@/keybinds/registry"
@@ -58,7 +58,7 @@ function App() {
       <AppShell />
       <CommandPalette />
       <DialogHost />
-      <CardEditorOverlay />
+      <FactEditorOverlay />
       <ReviewSettingsOverlay />
       <TransferOverlay />
       <OnboardingWizard />
