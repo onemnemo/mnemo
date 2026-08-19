@@ -255,6 +255,7 @@
     "StudyEdit": "Editar tarjeta",
     "StudyFlag": "Marcar tarjeta",
     "StudyUndo": "Deshacer el último repaso",
+    "StudyMathUnreadable": "No se pudo leer esta fórmula",
     "StudyAllCaughtUpTitle": "Todo al día",
     "StudyAllCaughtUpDesc": "No hay nada programado ahora mismo. Usa el repaso intensivo de la baraja para seguir practicando.",
     "StudyCompleteTitle": "Sesión completada",
