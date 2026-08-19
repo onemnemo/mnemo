@@ -76,7 +76,10 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         var localDay = FlashcardLocalDay.For(now);
         if (WritesSchedule)
         {
-            var elapsedDays = Math.Max(0d, (now - (current.Schedule.LastReviewedAt ?? current.Schedule.DueDate)).TotalDays);
+            // A card with no prior review has no elapsed interval to log, so this is 0 rather than
+            // the scheduler's formula, which falls back to the card's due date (its creation time
+            // for a New card) and would otherwise log the card's age as if it were a review gap.
+            var elapsedDays = current.Schedule.LastReviewedAt is null ? 0d : _scheduler.ElapsedDays(current.Schedule, now);
             var scheduledDays = Math.Max(0d, (current.Schedule.DueDate - (current.Schedule.LastReviewedAt ?? current.Schedule.DueDate)).TotalDays);
             var log = new FlashcardReviewLog(FlashcardReviewLog.Unassigned, current.Card.Id, DeckId, _sessionId,
                 grade, now, elapsedDays, scheduledDays, updatedSchedule.Stability, updatedSchedule.Difficulty, updatedSchedule.FsrsState);

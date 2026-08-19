@@ -217,7 +217,8 @@ public sealed class FsrsScheduler : IFsrsScheduler
     private static int[] Steps(IReadOnlyList<int> steps) =>
         steps is null ? Array.Empty<int>() : steps.Where(s => s > 0).ToArray();
 
-    private static double ElapsedDays(FlashcardSchedule current, DateTimeOffset now) =>
+    /// <inheritdoc />
+    public double ElapsedDays(FlashcardSchedule current, DateTimeOffset now) =>
         Math.Max(0d, (now - (current.LastReviewedAt ?? current.DueDate)).TotalDays);
 
     // --- FSRS-6 core ---
