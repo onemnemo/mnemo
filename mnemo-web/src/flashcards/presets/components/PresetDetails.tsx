@@ -17,6 +17,7 @@ import {
   retentionPercent,
   type PresetDraft,
 } from "../presets"
+import { PresetOptimizer } from "./PresetOptimizer"
 
 /** The editor for the selected preset: daily limits, scheduling, session behaviour. */
 export function PresetDetails({
@@ -144,6 +145,11 @@ export function PresetDetails({
             label={fc("ReviewSettingsLapseActionTitle")}
           />
         </SettingRowShell>
+      </Section>
+
+      <Section label={fc("ReviewSettingsMemoryLabel")}>
+        {/* Keyed on the preset so a result found for one is never left on screen beside another. */}
+        <PresetOptimizer key={draft.serverId ?? draft.key} presetId={draft.serverId} />
       </Section>
 
       <Section label={fc("ReviewSettingsSessionLabel")}>
