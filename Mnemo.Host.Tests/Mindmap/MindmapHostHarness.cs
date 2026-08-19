@@ -20,6 +20,9 @@ internal sealed class MindmapHostHarness : IAsyncDisposable
     /// <summary>The real providers, since an arrange is only worth testing against layouts that run.</summary>
     public MindmapLayoutService Layout { get; }
 
+    /// <summary>The database file, so a test can put a row in it that no write path would produce.</summary>
+    public string DatabasePath => _dbPath;
+
     public MindmapHostHarness()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"mnemo_host_mm_{Guid.NewGuid():N}.db");

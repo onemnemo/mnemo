@@ -93,6 +93,26 @@ public sealed class MindmapStoreTests
     }
 
     [Fact]
+    public async Task IncrementalDelta_MoreRowsThanOneStatementNames_RemovesExactlyThoseRows()
+    {
+        await using var h = new MindmapTestHarness();
+        var nodes = Enumerable.Range(0, 900).Select(i => Node($"n{i}", $"word{i}")).ToArray();
+        var document = Doc("m1", "M", 1, nodes);
+        await h.Store.SaveAsync(document, FullDelta(document));
+
+        // Deleting a branch names more elements than one statement can carry, so the removal is split.
+        // A split that loses a chunk leaves search hits for nodes the user deleted, and one that overreaches
+        // makes surviving nodes unfindable, so both ends of the boundary are checked.
+        var removed = Enumerable.Range(0, 500).Select(i => $"n{i}").ToArray();
+        await h.Store.SaveAsync(document with { Revision = 2 }, new MindmapSearchDelta { Removed = removed });
+
+        Assert.Empty(await h.Store.SearchAsync("m1", "word0", 10));
+        Assert.Empty(await h.Store.SearchAsync("m1", "word499", 10));
+        Assert.Single(await h.Store.SearchAsync("m1", "word500", 10));
+        Assert.Single(await h.Store.SearchAsync("m1", "word899", 10));
+    }
+
+    [Fact]
     public async Task Search_WithPunctuation_DoesNotThrow()
     {
         await using var h = new MindmapTestHarness();

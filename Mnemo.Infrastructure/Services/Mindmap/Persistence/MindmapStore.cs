@@ -113,12 +113,16 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
+            var id = reader.IsDBNull(0) ? null : reader.GetString(0);
+            if (id is null)
+                continue;
+
             results.Add(new MindmapDocumentSummary
             {
-                Id = reader.GetString(0),
-                Title = reader.GetString(1),
-                Revision = reader.GetInt64(2),
-                ModifiedAt = ParseDate(reader.GetString(3)),
+                Id = id,
+                Title = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                Revision = reader.IsDBNull(2) ? 0 : reader.GetInt64(2),
+                ModifiedAt = ReadDate(reader, 3),
             });
         }
 
@@ -208,13 +212,16 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Doc, FolderId, LinkedDecksJson FROM Mindmaps;";
+        cmd.CommandText = "SELECT Doc, FolderId, LinkedDecksJson, Id FROM Mindmaps;";
 
         var entries = new List<MindmapLibraryEntry>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            var document = MindmapDocumentSerializer.Deserialize(reader.GetString(0));
+            // One row the reader cannot make sense of costs the library that map, not the library. A
+            // truncated write, a hand-edited database or a document from a build that stored a shape this
+            // one cannot read would otherwise take down the gallery for every other map the user has.
+            var document = TryReadDocument(reader);
             if (document is null)
                 continue;
 
@@ -222,11 +229,38 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
             {
                 Document = document,
                 FolderId = reader.IsDBNull(1) ? null : reader.GetString(1),
-                LinkedDeckIds = ParseDeckIds(reader.GetString(2)),
+                LinkedDeckIds = reader.IsDBNull(2) ? Array.Empty<string>() : ParseDeckIds(reader.GetString(2)),
             });
         }
 
         return entries;
+    }
+
+    /// <summary>
+    /// The document in the current row, or null when it cannot be read. Logged with the row's id so an
+    /// unreadable map is findable rather than merely absent.
+    /// </summary>
+    private MindmapDocument? TryReadDocument(SqliteDataReader reader)
+    {
+        var id = reader.IsDBNull(3) ? "(no id)" : reader.GetString(3);
+        try
+        {
+            if (reader.IsDBNull(0))
+            {
+                _logger.Warning("Mindmap", $"Mindmap '{id}' has no stored document and was left out of the library.");
+                return null;
+            }
+
+            var document = MindmapDocumentSerializer.Deserialize(reader.GetString(0));
+            if (document is null)
+                _logger.Warning("Mindmap", $"Mindmap '{id}' deserialized to nothing and was left out of the library.");
+            return document;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or NotSupportedException)
+        {
+            _logger.Warning("Mindmap", $"Mindmap '{id}' could not be read and was left out of the library: {ex.Message}");
+            return null;
+        }
     }
 
     public async Task<IReadOnlyList<MindmapFolder>> GetFoldersAsync(CancellationToken cancellationToken = default)
@@ -380,24 +414,12 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         else if (delta.Removed.Count > 0 || delta.Upserts.Count > 0)
         {
             // Upserted rows are cleared first so re-inserting yields a single current row per element.
-            await using var remove = writer.CreateCommand();
-            remove.Transaction = tx;
-            remove.CommandText = "DELETE FROM MindmapSearch WHERE MapId = $map AND ElementId = $element;";
-            var mapParam = remove.Parameters.Add("$map", SqliteType.Text);
-            var elementParam = remove.Parameters.Add("$element", SqliteType.Text);
-            mapParam.Value = mapId;
-
-            foreach (var removedId in delta.Removed)
-            {
-                elementParam.Value = removedId;
-                await remove.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            }
-
+            var stale = new List<string>(delta.Removed.Count + delta.Upserts.Count);
+            stale.AddRange(delta.Removed);
             foreach (var entry in delta.Upserts)
-            {
-                elementParam.Value = entry.ElementId;
-                await remove.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            }
+                stale.Add(entry.ElementId);
+
+            await ClearSearchRowsAsync(writer, tx, mapId, stale, cancellationToken).ConfigureAwait(false);
         }
 
         if (delta.Upserts.Count == 0)
@@ -416,6 +438,44 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
             insElement.Value = entry.ElementId;
             insText.Value = entry.Text;
             await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Drops the mirror rows for a set of elements, a chunk of ids per statement.
+    /// <para>
+    /// The mirror's MapId and ElementId are unindexed, so every delete reads the whole table. One
+    /// statement per element therefore costs a scan per element, which is what made deleting a branch of
+    /// a few thousand nodes take seconds. Naming many ids in one statement pays for one scan instead.
+    /// </para>
+    /// </summary>
+    private static async Task ClearSearchRowsAsync(
+        SqliteConnection writer,
+        SqliteTransaction tx,
+        string mapId,
+        IReadOnlyList<string> elementIds,
+        CancellationToken cancellationToken)
+    {
+        // Well under SQLite's parameter ceiling, so the chunk count is the only thing that varies.
+        const int ChunkSize = 400;
+
+        for (var start = 0; start < elementIds.Count; start += ChunkSize)
+        {
+            var count = Math.Min(ChunkSize, elementIds.Count - start);
+            var names = new string[count];
+
+            await using var remove = writer.CreateCommand();
+            remove.Transaction = tx;
+            remove.Parameters.AddWithValue("$map", mapId);
+            for (var i = 0; i < count; i++)
+            {
+                names[i] = $"$e{i}";
+                remove.Parameters.AddWithValue(names[i], elementIds[start + i]);
+            }
+
+            remove.CommandText =
+                $"DELETE FROM MindmapSearch WHERE MapId = $map AND ElementId IN ({string.Join(", ", names)});";
+            await remove.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -538,8 +598,24 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         return false;
     }
 
-    private static DateTime ParseDate(string value) =>
-        DateTime.Parse(value, CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
+    /// <summary>
+    /// The timestamp in a column, or <see cref="DateTime.MinValue"/> when it is absent or unparseable. A
+    /// header list sorts and labels by this; a map with a damaged timestamp belongs at the bottom of the
+    /// list, not missing from it.
+    /// </summary>
+    private static DateTime ReadDate(SqliteDataReader reader, int ordinal)
+    {
+        if (reader.IsDBNull(ordinal))
+            return DateTime.MinValue;
+
+        return DateTime.TryParse(
+            reader.GetString(ordinal),
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.RoundtripKind,
+            out var parsed)
+            ? parsed
+            : DateTime.MinValue;
+    }
 
     public async ValueTask DisposeAsync()
     {

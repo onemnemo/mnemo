@@ -201,6 +201,7 @@ public static class HostComposition
         // undo history can still restore.
         services.AddSingleton(_ => Lifecycle.HostInstanceLock.Acquire());
         services.AddSingleton<Notes.NoteAssets>();
+        services.AddSingleton<Mindmap.MindmapAssets>();
 
         // Relational flashcard store: owned store, repositories, and blob-to-relational migrator.
         services.AddSingleton<IFlashcardStore, FlashcardStore>();
