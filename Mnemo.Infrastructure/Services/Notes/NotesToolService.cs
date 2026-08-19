@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Mnemo.Core.Identity;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Tools;
 using Mnemo.Core.Models.Tools.Notes;
@@ -21,25 +22,33 @@ namespace Mnemo.Infrastructure.Services.Notes;
 /// to map a note cheaply, <c>read_note</c> to pull only the parts that matter, and <c>edit_note</c>
 /// to apply a batch of surgical block operations atomically. Blocks are addressed by id or short-id
 /// prefix and resolved across the whole tree (including nested two-column cells). Reads are lossless
-/// (markdown + typed payloads) so edits are never made blind, and edits carry an optional version
-/// token so the agent never silently clobbers a note the user is editing.
+/// (markdown + typed payloads) so edits are never made blind.
+/// <para>
+/// A body edit is a body edit whoever makes it, so <c>edit_note</c> goes through the same
+/// compare-and-swap the editor's own saves use, on the same version. The version token these tools
+/// hand out is that version: an agent and a person writing at once now see one conflict between them
+/// rather than each quietly overwriting the other.
+/// </para>
 /// </remarks>
 public sealed class NotesToolService
 {
     private static readonly JsonSerializerOptions CloneOptions = new();
 
     private readonly INoteService _notes;
+    private readonly INoteCommitStore _commits;
     private readonly INavigationService _nav;
     private readonly IMainThreadDispatcher _ui;
     private readonly INoteFolderService? _folders;
 
     public NotesToolService(
         INoteService notes,
+        INoteCommitStore commits,
         INavigationService nav,
         IMainThreadDispatcher ui,
         INoteFolderService? folders = null)
     {
         _notes = notes;
+        _commits = commits;
         _nav = nav;
         _ui = ui;
         _folders = folders;
@@ -214,17 +223,32 @@ public sealed class NotesToolService
         }
 
         NoteBlockTree.ReindexByPosition(working);
-        note.Blocks = working;
-        note.Content = string.Empty;
+        // Blocks the ops built have no sid yet, and a copied one carries the sid it was copied from.
+        // Repaired here rather than only at the write so the ids reported back address the tree that
+        // was actually stored.
+        BlockSids.Repair(working, new SidGenerator());
 
-        var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
-        if (!res.IsSuccess)
-            return ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
+        // The version read at the top of this call is the base: an edit that took long enough for the
+        // person in the editor to save must lose, not overwrite them.
+        var commit = await _commits.CommitAsync(note.NoteId, working, note.Ver, Guid.NewGuid().ToString("N")).ConfigureAwait(false);
+        switch (commit.Outcome)
+        {
+            case NoteCommitOutcome.Stale:
+                return ToolInvocationResult.Failure(ToolResultCodes.Conflict,
+                    "The note changed while this edit was being applied. Re-read it (outline_note/read_note) and retry with the new version.",
+                    new { note_id = note.NoteId, version = VersionOf(commit.Ver) });
+            case NoteCommitOutcome.NotFound:
+                return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{note.NoteId}\".");
+            case NoteCommitOutcome.Applied or NoteCommitOutcome.AlreadyApplied:
+                break;
+            default:
+                return ToolInvocationResult.Failure(ToolResultCodes.InternalError, "Save failed.");
+        }
 
         return ToolInvocationResult.Success($"Applied {p.Ops.Count} op(s).", new
         {
             note_id = note.NoteId,
-            version = Version(note),
+            version = VersionOf(commit.Ver),
             applied = p.Ops.Count,
             block_count = working.Count
         });
@@ -247,6 +271,7 @@ public sealed class NotesToolService
             note.Blocks = [];
 
         NoteBlockTree.ReindexByPosition(note.Blocks);
+        BlockSids.Repair(note.Blocks, new SidGenerator());
         note.Content = string.Empty;
 
         if (!string.IsNullOrWhiteSpace(p.Folder))
@@ -278,31 +303,32 @@ public sealed class NotesToolService
                 : ToolInvocationResult.Failure(ToolResultCodes.InternalError, del.ErrorMessage ?? "Delete failed.");
         }
 
+        // Filing and favouriting are metadata, so they go through the metadata write and leave the
+        // note's version where it is. Renaming a note somebody has open must not end their session.
+        var metadata = NoteMetadata.FromNote(note!);
         var changed = false;
 
         if (!string.IsNullOrWhiteSpace(p.Rename))
         {
-            note!.Title = p.Rename.Trim();
+            metadata = metadata with { Title = p.Rename.Trim() };
             changed = true;
         }
 
         if (p.ClearFolder == true)
         {
-            note!.FolderId = null;
-            note.FolderPath = string.Empty;
+            metadata = metadata with { FolderId = null, FolderPath = string.Empty };
             changed = true;
         }
         else if (!string.IsNullOrWhiteSpace(p.MoveToFolder))
         {
             var (folderId, folderName) = await ResolveFolderAsync(p.MoveToFolder!.Trim()).ConfigureAwait(false);
-            note!.FolderId = folderId;
-            note.FolderPath = folderName ?? p.MoveToFolder!.Trim();
+            metadata = metadata with { FolderId = folderId, FolderPath = folderName ?? p.MoveToFolder!.Trim() };
             changed = true;
         }
 
         if (p.Favorite.HasValue)
         {
-            note!.IsFavorite = p.Favorite.Value;
+            metadata = metadata with { IsFavorite = p.Favorite.Value };
             changed = true;
         }
 
@@ -310,11 +336,14 @@ public sealed class NotesToolService
             return ToolInvocationResult.Failure(ToolResultCodes.ValidationError,
                 "Nothing to do. Provide rename, move_to_folder, clear_folder, favorite, or delete.");
 
-        var res = await _notes.SaveNoteAsync(note!).ConfigureAwait(false);
-        return res.IsSuccess
-            ? ToolInvocationResult.Success($"Note updated (id: {note.NoteId}).",
-                new { note_id = note.NoteId, title = note.Title, favorite = note.IsFavorite, folder = note.FolderPath })
-            : ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
+        var result = await _commits.UpdateMetadataAsync(note!.NoteId, metadata).ConfigureAwait(false);
+        return result.Outcome switch
+        {
+            NoteCommitOutcome.Applied => ToolInvocationResult.Success($"Note updated (id: {note.NoteId}).",
+                new { note_id = note.NoteId, title = metadata.Title, favorite = metadata.IsFavorite, folder = metadata.FolderPath }),
+            NoteCommitOutcome.NotFound => ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{note.NoteId}\"."),
+            _ => ToolInvocationResult.Failure(ToolResultCodes.InternalError, "Save failed."),
+        };
     }
 
     // ---------------------------------------------------------------- UI
@@ -657,7 +686,14 @@ public sealed class NotesToolService
         modifiedUtc = n.ModifiedAt
     };
 
-    private static string Version(Note note) => note.ModifiedAt.Ticks.ToString(CultureInfo.InvariantCulture);
+    /// <summary>
+    /// The note's stored version, which is the same token the editor commits against. It was the
+    /// modification timestamp once, which moved for a rename and so reported a conflict for a change
+    /// to the body that had not happened.
+    /// </summary>
+    private static string Version(Note note) => VersionOf(note.Ver);
+
+    private static string VersionOf(long ver) => ver.ToString(CultureInfo.InvariantCulture);
 
     private static List<Block> Clone(List<Block> blocks)
     {

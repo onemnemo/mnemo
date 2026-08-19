@@ -110,6 +110,46 @@ public sealed class NoteAssetReferenceSourceTests
     }
 
     [Fact]
+    public async Task CollectsFilesNamedInsideAPayloadThisBuildCannotRead()
+    {
+        // A block written by a newer version keeps its payload verbatim, so the file it names
+        // is still in use while being invisible to the walk over known payloads. Missing it
+        // deletes the image of a block the user can still see in the version that wrote it.
+        AddNote("n1", new Block
+        {
+            Type = BlockType.Text,
+            UnknownPayloadJson = """{"kind":"gallery","frames":[{"path":"gallery1.png"},{"path":"gallery2.png"}]}""",
+        });
+
+        var ids = await Source().CollectReferencedIdsAsync();
+
+        Assert.Contains("gallery1.png", ids);
+        Assert.Contains("gallery2.png", ids);
+    }
+
+    [Fact]
+    public async Task IgnoresAnUnreadablePayloadThatNamesNoFile()
+    {
+        AddNote("n1", new Block
+        {
+            Type = BlockType.Text,
+            UnknownPayloadJson = """{"kind":"timeline","start":1969,"source":"https://example.com/x.png"}""",
+        });
+
+        // Only the shapes a stored file can take count, so a URL and a number are not references.
+        Assert.DoesNotContain("https://example.com/x.png", await Source().CollectReferencedIdsAsync());
+    }
+
+    [Fact]
+    public async Task SurvivesAnUnreadablePayloadThatIsNotJson()
+    {
+        AddNote("n1", ImageBlock("aaaa.png"), new Block { Type = BlockType.Text, UnknownPayloadJson = "{" });
+
+        // Refusing to walk it must not cost the references the rest of the corpus does hold.
+        Assert.Contains("aaaa.png", await Source().CollectReferencedIdsAsync());
+    }
+
+    [Fact]
     public async Task ToleratesNotesWithoutBlocksAndAMissingIndex()
     {
         // A profile with no notes yet has no index row at all; that is a real empty corpus,

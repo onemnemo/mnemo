@@ -141,6 +141,38 @@ describe('quarantine', () => {
     expect(result.reason.kind).toBe('unknown-type');
     expect(result.blocks).toHaveLength(1);
   });
+
+  /**
+   * The two above hand the mapper a block built in code. These start from the
+   * bytes a newer version would actually write, because the parser used to
+   * flatten both of them into shapes this build knows, and a quarantine that
+   * cannot be reached from stored data protects nothing.
+   */
+  const storedText = {
+    id: 'b1',
+    sid: 'aaaaa',
+    type: 'Text',
+    order: 0,
+    spans: [{ kind: 'text', text: 'hello' }],
+    payload: { kind: 'empty' },
+    meta: {},
+  };
+
+  it('refuses a stored block whose type this build does not know', () => {
+    const result = mapper.toDoc([parseBlock({ ...storedText, type: 'Timeline' })]);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason.kind).toBe('unknown-type');
+  });
+
+  it('refuses a stored block whose payload kind this build does not know', () => {
+    const result = mapper.toDoc([parseBlock({ ...storedText, payload: { kind: 'timeline', start: 1969 } })]);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason.kind).toBe('invalid-shape');
+  });
 });
 
 /**
