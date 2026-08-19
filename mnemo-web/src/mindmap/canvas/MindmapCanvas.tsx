@@ -60,6 +60,8 @@ export interface MindmapCanvasProps {
   onCamera?: (viewport: Viewport) => void
   /** The camera stopped moving, for a zoom readout. Never per frame. */
   onCameraSettled?: (viewport: Viewport) => void
+  /** A Fit hit the camera's floor: the map is too large to show whole, even at the lowest zoom. */
+  onFitClamped?: () => void
   className?: string
 }
 
@@ -97,6 +99,7 @@ export function MindmapCanvas({
   onChrome,
   onCamera,
   onCameraSettled,
+  onFitClamped,
   className,
 }: MindmapCanvasProps) {
   const pane = useRef<HTMLDivElement>(null)
@@ -127,6 +130,7 @@ export function MindmapCanvas({
     onChrome,
     onCamera,
     onCameraSettled,
+    onFitClamped,
   })
   live.current = {
     selection,
@@ -142,6 +146,7 @@ export function MindmapCanvas({
     onChrome,
     onCamera,
     onCameraSettled,
+    onFitClamped,
   }
 
   // Starts wherever a camera at 1:1 belongs, which is where every runtime starts before it fits.
@@ -169,6 +174,7 @@ export function MindmapCanvas({
       onEdgeMode: setEdgeMode,
       onCameraChange: (next) => live.current.onCamera?.(next),
       onCameraSettled: (next) => live.current.onCameraSettled?.(next),
+      onFitClamped: () => live.current.onFitClamped?.(),
     })
     runtime.current = created
     if (runtimeRef) {
@@ -186,7 +192,7 @@ export function MindmapCanvas({
     created.index().setSelected([...live.current.selection.elements])
 
     const repaintSelection = createSelectionRepainter(scene, (id) => created.index().boxOf(id))
-    const uninstall = installInteraction(
+    const installed = installInteraction(
       {
         pane: pane.current,
         index: created.index(),
@@ -215,9 +221,10 @@ export function MindmapCanvas({
         chrome: (id, part) => live.current.onChrome?.(id, part),
       },
     )
+    created.cancelGesture = installed.cancel
 
     return () => {
-      uninstall()
+      installed.uninstall()
       camera.current = { id: scene.id, viewport: created.viewport() }
       created.dispose()
       runtime.current = null

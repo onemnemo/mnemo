@@ -63,6 +63,12 @@ export interface CanvasRuntimeOptions {
   readonly onCameraChange?: (viewport: Viewport) => void
   /** Told after the camera settles, for a zoom readout. Never per frame. */
   readonly onCameraSettled?: (viewport: Viewport) => void
+  /**
+   * A `fit()` hit the camera's floor and is showing the map smaller than a whole-map fit would need,
+   * which only happens on a map large enough that framing all of it is not actually possible. Silent
+   * otherwise; most maps fit with room to spare and this never fires for them.
+   */
+  readonly onFitClamped?: () => void
 }
 
 export interface CanvasRuntime {
@@ -99,6 +105,13 @@ export interface CanvasRuntime {
   pin(elementIds: readonly string[], edgeIds: readonly string[]): void
   unpin(): void
   index(): SceneIndex
+  /**
+   * Aborts whatever pointer gesture the interaction layer has active, reverting positions and sizes
+   * to where the gesture began. Wired in by the caller, which owns the interaction controller this
+   * runtime does not know about; a no-op until then. What lets a keyboard Escape cancel a drag,
+   * resize, marquee, or connect line a pointer started.
+   */
+  cancelGesture(): void
   dispose(): void
 }
 
@@ -252,13 +265,16 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
 
     pendingFit = false
     const bounds = boundsOf(scene.elements)
-    const { zoom } = fitZoom(bounds, width, height)
+    const { zoom, clampedToFloor } = fitZoom(bounds, width, height)
     viewport = {
       zoom,
       x: (bounds.minX + bounds.maxX) / 2 - width / (2 * zoom),
       y: (bounds.minY + bounds.maxY) / 2 - height / (2 * zoom),
     }
     applyCamera()
+    if (clampedToFloor) {
+      options.onFitClamped?.()
+    }
   }
 
   const resize = (): void => {
@@ -283,13 +299,22 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
 
   const onWheel = (event: WheelEvent): void => {
     event.preventDefault()
-    const rect = elements.pane.getBoundingClientRect()
-    viewport = zoomAt(viewport, event.deltaY, event.clientX - rect.left, event.clientY - rect.top)
+    if (event.ctrlKey) {
+      // A trackpad's pinch gesture is delivered as a wheel event with ctrlKey synthesized true,
+      // which is also the platform convention for "this wheel means zoom" on a real ctrl-held wheel.
+      const rect = elements.pane.getBoundingClientRect()
+      viewport = zoomAt(viewport, event.deltaY, event.clientX - rect.left, event.clientY - rect.top)
+    } else {
+      // Plain wheel pans, the way two-finger trackpad scroll and every other canvas surface reads
+      // it. Negated because panBy is calibrated for a hand dragging the surface, where moving the
+      // hand down reveals what is above; a wheel scrolling down should reveal what is below instead.
+      viewport = panBy(viewport, -event.deltaX, -event.deltaY)
+    }
     applyCamera()
   }
 
   const onPointerDown = (event: PointerEvent): void => {
-    // Middle button, or a space-held left drag, pans from anywhere. A plain left press on empty
+    // Middle button, or an alt-held left drag, pans from anywhere. A plain left press on empty
     // canvas is a marquee, which belongs to the selection layer and not here.
     const wantsPan = event.button === 1 || (event.button === 0 && event.altKey)
     if (!wantsPan) {
@@ -392,6 +417,10 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
     },
 
     unpin: () => culler.unpinAll(),
+
+    // Overwritten by the caller once the interaction controller is installed, which knows what
+    // gesture, if any, is active. This runtime has no notion of gestures at all.
+    cancelGesture: () => {},
 
     rebindEdges(next) {
       edgeCamera = next.edgeCamera

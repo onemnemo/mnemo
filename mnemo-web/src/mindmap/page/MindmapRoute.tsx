@@ -66,10 +66,18 @@ import {
 } from "../model/document"
 import { op, type FrameOp, type MindmapOp, type NodeSpec } from "../model/ops"
 import { absoluteUrl, followRef, isFollowable } from "./follow"
+import { isChromeControl, isTyping } from "./route-guards"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import { accentOf, branchSwatchOf } from "../scene/branch"
 import { imageRefOf, nodeKindOf, type NodeKind } from "../scene/content"
-import { analyzeHierarchy, childrenIds, descendantsOf, hierarchyEdgesBelow } from "../scene/hierarchy"
+import {
+  analyzeHierarchy,
+  childrenIds,
+  descendantsOf,
+  grandparentOf,
+  hierarchyEdgesBelow,
+  reachedBySelection,
+} from "../scene/hierarchy"
 import { frameBox, projectScene, type FrameMemberBox } from "../scene/project"
 import { sceneMeasurers } from "../scene/measurers"
 import { useMindmapRefs } from "../scene/useRefs"
@@ -84,6 +92,9 @@ const DUPLICATE_STEP = 48
 
 /** The gap between pictures dropped together, so a handful of them arrives as a row and not as a pile. */
 const IMAGE_STEP = 16
+
+/** One press's worth of zoom, matching the dock's own step so the keyboard and the buttons agree. */
+const ZOOM_STEP = 1.25
 
 /** A ref on a top-level spec, which is the only way the ids the server made come back. */
 const withRef = (spec: NodeSpec, index: number): NodeSpec => ({ ...spec, ref: `n${index}` })
@@ -864,6 +875,26 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   }, [editor, selection, t])
 
   /**
+   * Moves a node out one level, taking its place right after the parent it just left.
+   *
+   * Only a grandparent makes this a `reparent` the server can take: the op needs either an `under`
+   * or an `xy`, never neither, so a depth-one node has nowhere to go without inventing a new root
+   * position. The grandparent is always a strict ancestor of the node it is adopting, so this can
+   * never fold a node under its own descendant.
+   */
+  const outdent = useCallback(
+    (id: string) => {
+      const grandparentId = grandparentOf(hierarchy, id)
+      const parentId = hierarchy?.byId.get(id)?.parentId
+      if (!grandparentId || !parentId) {
+        return
+      }
+      void editor.apply([op.reparent(id, grandparentId, parentId)], { label: t("Mindmap", "Outdent") })
+    },
+    [editor, hierarchy, t],
+  )
+
+  /**
    * Restyles every selected edge in one step, and everything below it when asked.
    *
    * One op per edge, since an edge style is written to one edge at a time, but one batch: pressing
@@ -1065,6 +1096,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
    */
   const nodeActions = useMemo((): NodeActions => {
     const branchy = soleNode && hierarchy && childrenIds(hierarchy, soleNode).length > 0 ? soleNode : null
+    // What a delete actually removes: the selection, plus every descendant each selected node takes
+    // with it. Collapsed descendants are absent from the scene but not from the document, and a
+    // delete reaches those too, so this reads the hierarchy rather than what happens to be drawn.
+    const reached = reachedBySelection(hierarchy, selection.elements)
     return {
       onPin: pinNodes,
       collapse: branchy
@@ -1077,10 +1112,12 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           }
         : null,
       onSaveTemplate: soleNode ? () => setCapturing(soleNode) : null,
+      onOutdent: soleNode && grandparentOf(hierarchy, soleNode) ? () => outdent(soleNode) : null,
       onDuplicate: () => void duplicateSelection(),
       onDelete: deleteSelection,
+      deleteCount: reached.size,
     }
-  }, [deleteSelection, duplicateSelection, editor, hierarchy, pinNodes, scene, soleNode, t])
+  }, [deleteSelection, duplicateSelection, editor, hierarchy, outdent, pinNodes, scene, selection, soleNode, t])
 
   const minimap = useMinimapShown((scene?.elements.length ?? 0) > 0)
 
@@ -1206,7 +1243,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
    */
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (isTyping(event.target)) {
+      if (isTyping(event.target) || isChromeControl(event.target)) {
         return
       }
 
@@ -1250,6 +1287,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         case "mindmap.enter":
           event.preventDefault()
           if (primary) void addSibling(primary)
+          return
+        case "mindmap.outdent":
+          event.preventDefault()
+          if (primary) outdent(primary)
           return
         case "mindmap.edit-edge-label":
           event.preventDefault()
@@ -1305,9 +1346,22 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           event.preventDefault()
           runtime.current?.fit()
           return
+        case "mindmap.zoom-in":
+          event.preventDefault()
+          runtime.current?.zoomBy(ZOOM_STEP)
+          return
+        case "mindmap.zoom-out":
+          event.preventDefault()
+          runtime.current?.zoomBy(1 / ZOOM_STEP)
+          return
         case "mindmap.clear-selection":
           event.preventDefault()
-          // An armed tool first: Escape is "never mind", and the thing most recently asked for is
+          // A gesture in progress first: Escape means "never mind this", and a drag, resize, marquee
+          // or connect line half finished is the most recent thing the user asked for, same as an
+          // armed tool below. Cancelling it also puts every moved element back, so the selection it
+          // leaves behind is the one from before the gesture, not a half-committed one.
+          runtime.current?.cancelGesture()
+          // An armed tool next: Escape is "never mind", and the thing most recently asked for is
           // the thing it should take back.
           if (isOneShot(tool)) {
             setTool("select")
@@ -1331,6 +1385,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       duplicateSelection,
       editor,
       insertImage,
+      outdent,
       pasteCopy,
       radial,
       scene,
@@ -1483,6 +1538,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           onConnect={connect}
           onCamera={(viewport) => minimapCamera.current?.(viewport)}
           onCameraSettled={(viewport) => setZoom(viewport.zoom)}
+          onFitClamped={() => toast.info(t("Mindmap", "FitClamped"))}
         />
 
         {/* Not while a label is being typed: the bar would sit over the field, and none of what it
@@ -1711,16 +1767,3 @@ function overlaps(a: FrameMemberBox, b: FrameMemberBox): boolean {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
 }
 
-/** Keys belong to whatever is being typed into, not to the map behind it. */
-function isTyping(target: EventTarget | null): boolean {
-  const element = target as HTMLElement | null
-  if (!element) {
-    return false
-  }
-  return (
-    element.isContentEditable ||
-    element.tagName === "INPUT" ||
-    element.tagName === "TEXTAREA" ||
-    element.tagName === "SELECT"
-  )
-}
