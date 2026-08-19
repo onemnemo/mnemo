@@ -35,6 +35,12 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     private const int AnkiQueueSuspended = -1;
 
     /// <summary>
+    /// Anki's note type kind for cloze. Such a type makes one card per deletion off a single
+    /// template, so its card ordinals name deletions rather than templates.
+    /// </summary>
+    private const int AnkiClozeModelType = 1;
+
+    /// <summary>
     /// Above this a due value is an absolute second rather than a day offset. Day offsets are
     /// counted from a collection's creation, so reaching this would mean studying for millennia.
     /// </summary>
@@ -48,6 +54,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
     private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
     private static readonly Regex ClozeRegex = new(@"\{\{c\d+::", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    /// <summary>A marker in an Anki card template, which is a field name, a filtered one, or one of Anki's own.</summary>
+    private static readonly Regex AnkiTemplateFieldRegex = new(@"\{\{([^{}]+)\}\}", RegexOptions.Compiled);
     private static readonly Regex ImageTagRegex = new(@"<img\s+[^>]*src\s*=\s*['""](?<src>[^'""]+)['""][^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex BreakRegex = new(@"<\s*br\s*/?\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     /// <summary>Closing tags that end a line of text. Without them a list or a table reads as one run-on line.</summary>
@@ -181,12 +189,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                         continue;
 
                     var fields = note.Fields;
-                    var frontHtml = fields.Length > 0 ? fields[0] : string.Empty;
-                    var backHtml = fields.Length > 1 ? fields[1] : string.Empty;
+                    var (frontHtml, backHtml) = SidesFor(note, cardRow.Ord, collectionInfo.NoteTypes);
 
-                    // A card here has two sides, so a note type with more fields than that loses the
-                    // rest. Say so once per note type rather than per card or not at all.
-                    if (fields.Length > 2)
+                    // A card here has two sides, so fields a template does not show are lost. Say so
+                    // once per note type rather than per card or not at all.
+                    if (fields.Length > 2 && !collectionInfo.NoteTypes.ContainsKey(note.ModelId))
                         noteTypesWithExtraFields.Add(note.ModelName ?? $"note type {note.ModelId}");
 
                     // A card holds images and nothing else, so an audio reference stays as the text
@@ -471,7 +478,13 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         command.CommandText = "SELECT crt, decks, models FROM col LIMIT 1";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            return new CollectionInfo(DateTimeOffset.UtcNow, new Dictionary<long, string>(), new Dictionary<long, string>());
+        {
+            return new CollectionInfo(
+                DateTimeOffset.UtcNow,
+                new Dictionary<long, string>(),
+                new Dictionary<long, string>(),
+                new Dictionary<long, AnkiNoteType>());
+        }
 
         var crt = reader.IsDBNull(0) ? 0L : reader.GetInt64(0);
         var decksJson = reader.IsDBNull(1) ? "{}" : reader.GetString(1);
@@ -480,6 +493,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         var createdAt = ParseCollectionCreatedAt(crt);
         var deckNames = ParseNameMap(decksJson);
         var modelNames = ParseNameMap(modelsJson);
+        var noteTypes = ParseNoteTypes(modelsJson);
 
         // Newer collections blank these two columns and keep the names in tables of their own.
         // Without the fallback every deck in a modern package would import under a placeholder name.
@@ -489,8 +503,176 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         if (modelNames.Count == 0)
             modelNames = await ReadNameTableAsync(connection, "notetypes", cancellationToken).ConfigureAwait(false);
 
-        return new CollectionInfo(createdAt, deckNames, modelNames);
+        return new CollectionInfo(createdAt, deckNames, modelNames, noteTypes);
     }
+
+    /// <summary>
+    /// Reads what each note type's templates ask for, so a note that makes several different cards
+    /// imports as several different cards rather than as several copies of the first one.
+    /// </summary>
+    /// <remarks>
+    /// A collection that keeps its note types relationally holds the templates as an encoded blob
+    /// rather than as text, so nothing is read there and such a package keeps landing every card of
+    /// a note on the note's first two fields.
+    /// </remarks>
+    private static Dictionary<long, AnkiNoteType> ParseNoteTypes(string json)
+    {
+        var map = new Dictionary<long, AnkiNoteType>();
+        if (string.IsNullOrWhiteSpace(json))
+            return map;
+
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(json);
+        }
+        catch (JsonException)
+        {
+            return map;
+        }
+
+        using (doc)
+        {
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                return map;
+
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                if (!long.TryParse(prop.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+                    continue;
+                if (prop.Value.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                var fieldNames = ReadOrderedNames(prop.Value, "flds");
+                if (fieldNames.Count == 0)
+                    continue;
+
+                // A cloze note type makes one card per deletion off a single template, so its card
+                // ordinals name deletions rather than templates and this mapping does not apply.
+                var isCloze = prop.Value.TryGetProperty("type", out var type)
+                    && type.ValueKind == JsonValueKind.Number
+                    && type.GetInt32() == AnkiClozeModelType;
+
+                map[id] = new AnkiNoteType(isCloze, fieldNames, ReadTemplates(prop.Value, fieldNames));
+            }
+        }
+
+        return map;
+    }
+
+    private static List<string> ReadOrderedNames(JsonElement model, string property)
+    {
+        var names = new List<string>();
+        if (!model.TryGetProperty(property, out var list) || list.ValueKind != JsonValueKind.Array)
+            return names;
+
+        foreach (var entry in list.EnumerateArray())
+        {
+            names.Add(entry.ValueKind == JsonValueKind.Object && entry.TryGetProperty("name", out var name)
+                ? name.GetString() ?? string.Empty
+                : string.Empty);
+        }
+
+        return names;
+    }
+
+    private static List<AnkiTemplate> ReadTemplates(JsonElement model, IReadOnlyList<string> fieldNames)
+    {
+        var templates = new List<AnkiTemplate>();
+        if (!model.TryGetProperty("tmpls", out var list) || list.ValueKind != JsonValueKind.Array)
+            return templates;
+
+        var position = 0;
+        foreach (var entry in list.EnumerateArray())
+        {
+            if (entry.ValueKind != JsonValueKind.Object)
+            {
+                position++;
+                continue;
+            }
+
+            var ord = entry.TryGetProperty("ord", out var o) && o.ValueKind == JsonValueKind.Number
+                ? o.GetInt32()
+                : position;
+            var name = entry.TryGetProperty("name", out var n) ? n.GetString() ?? string.Empty : string.Empty;
+            var front = FieldPositions(ReadString(entry, "qfmt"), fieldNames);
+            // Anki repeats the question on the answer through FrontSide, so a field the question
+            // already showed is not counted again.
+            var back = FieldPositions(ReadString(entry, "afmt"), fieldNames).Except(front).ToArray();
+
+            templates.Add(new AnkiTemplate(ord, name, front, back));
+            position++;
+        }
+
+        return templates;
+    }
+
+    private static string ReadString(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var value) ? value.GetString() ?? string.Empty : string.Empty;
+
+    /// <summary>
+    /// Which of a note type's fields a template shows, in the order it shows them. A marker naming
+    /// something that is not a field, whether one of Anki's own or a conditional section, is left
+    /// out rather than guessed at.
+    /// </summary>
+    private static int[] FieldPositions(string template, IReadOnlyList<string> fieldNames)
+    {
+        if (string.IsNullOrEmpty(template))
+            return [];
+
+        var positions = new List<int>();
+        foreach (Match match in AnkiTemplateFieldRegex.Matches(template))
+        {
+            var token = match.Groups[1].Value.Trim();
+            // A conditional opens and closes with these, and neither prints anything itself.
+            if (token.Length == 0 || token[0] is '#' or '^' or '/')
+                continue;
+
+            // Filters stack ahead of the field name, as in "{{text:furigana:Reading}}".
+            var colon = token.LastIndexOf(':');
+            if (colon >= 0)
+                token = token[(colon + 1)..].Trim();
+
+            for (var i = 0; i < fieldNames.Count; i++)
+            {
+                if (!string.Equals(fieldNames[i], token, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (!positions.Contains(i))
+                    positions.Add(i);
+                break;
+            }
+        }
+
+        return positions.ToArray();
+    }
+
+    /// <summary>
+    /// The question and answer HTML one card row stands for. Falls back to the note's first two
+    /// fields when nothing is known about the template, which is the shape every note had before
+    /// templates were read at all.
+    /// </summary>
+    private static (string Front, string Back) SidesFor(NoteRow note, int ord, IReadOnlyDictionary<long, AnkiNoteType> noteTypes)
+    {
+        var fields = note.Fields;
+        var fallback = (
+            fields.Length > 0 ? fields[0] : string.Empty,
+            fields.Length > 1 ? fields[1] : string.Empty);
+
+        if (!noteTypes.TryGetValue(note.ModelId, out var noteType) || noteType.IsCloze)
+            return fallback;
+        if (noteType.TemplateFor(ord) is not { } template || template.FrontFields.Count == 0)
+            return fallback;
+
+        return (JoinFields(fields, template.FrontFields), JoinFields(fields, template.BackFields));
+    }
+
+    private static string JoinFields(string[] fields, IReadOnlyList<int> positions) =>
+        string.Join(
+            "<br><br>",
+            positions
+                .Where(i => i >= 0 && i < fields.Length)
+                .Select(i => fields[i])
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
 
     /// <summary>
     /// Reads an id-to-name table from a collection that keeps its names relationally. Deck names
@@ -579,7 +761,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         await using var command = connection.CreateCommand();
         // odue/odid hold the real due date and home deck of a card parked in a filtered deck. Read
         // without them such a card imports into the temporary deck, due whenever the filter said.
-        command.CommandText = "SELECT id, nid, did, type, queue, due, ivl, factor, reps, lapses, mod, odue, odid FROM cards";
+        command.CommandText = "SELECT id, nid, did, ord, type, queue, due, ivl, factor, reps, lapses, mod, odue, odid FROM cards";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -589,14 +771,15 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 reader.GetInt64(2),
                 reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
                 reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
-                reader.IsDBNull(5) ? 0 : reader.GetInt64(5),
-                reader.IsDBNull(6) ? 0 : reader.GetInt32(6),
-                reader.IsDBNull(7) ? 2500 : reader.GetInt32(7),
-                reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
+                reader.IsDBNull(5) ? 0 : reader.GetInt32(5),
+                reader.IsDBNull(6) ? 0 : reader.GetInt64(6),
+                reader.IsDBNull(7) ? 0 : reader.GetInt32(7),
+                reader.IsDBNull(8) ? 2500 : reader.GetInt32(8),
                 reader.IsDBNull(9) ? 0 : reader.GetInt32(9),
-                reader.IsDBNull(10) ? DateTimeOffset.UtcNow : ParseUnixTimestamp(reader.GetInt64(10)),
-                reader.IsDBNull(11) ? 0 : reader.GetInt64(11),
-                reader.IsDBNull(12) ? 0 : reader.GetInt64(12)));
+                reader.IsDBNull(10) ? 0 : reader.GetInt32(10),
+                reader.IsDBNull(11) ? DateTimeOffset.UtcNow : ParseUnixTimestamp(reader.GetInt64(11)),
+                reader.IsDBNull(12) ? 0 : reader.GetInt64(12),
+                reader.IsDBNull(13) ? 0 : reader.GetInt64(13)));
         }
 
         return cards;
@@ -1646,7 +1829,26 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     private sealed record CollectionInfo(
         DateTimeOffset CollectionCreatedAt,
         IReadOnlyDictionary<long, string> Decks,
-        IReadOnlyDictionary<long, string> Models);
+        IReadOnlyDictionary<long, string> Models,
+        IReadOnlyDictionary<long, AnkiNoteType> NoteTypes);
+
+    /// <summary>
+    /// One of a note type's card templates, reduced to the question it asks and the answer it
+    /// gives, as positions in the note's fields.
+    /// </summary>
+    /// <remarks>
+    /// The template itself is HTML and lays out a card that is not the shape of ours, so only the
+    /// part that decides what the card is about survives the crossing: which fields the question
+    /// shows and which the answer adds. Anki repeats the question on the answer through
+    /// <c>FrontSide</c>, so a field already asked is not counted again on the back.
+    /// </remarks>
+    private sealed record AnkiTemplate(int Ord, string Name, IReadOnlyList<int> FrontFields, IReadOnlyList<int> BackFields);
+
+    /// <summary>A note type's field names and the templates it makes cards from.</summary>
+    private sealed record AnkiNoteType(bool IsCloze, IReadOnlyList<string> FieldNames, IReadOnlyList<AnkiTemplate> Templates)
+    {
+        public AnkiTemplate? TemplateFor(int ord) => Templates.FirstOrDefault(t => t.Ord == ord);
+    }
 
     private sealed record NoteRow(long Id, string Tags, string[] Fields, long ModelId)
     {
@@ -1657,6 +1859,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         long Id,
         long NoteId,
         long DeckId,
+        /// <summary>Which of the note type's templates this card comes from.</summary>
+        int Ord,
         int Type,
         int Queue,
         long Due,

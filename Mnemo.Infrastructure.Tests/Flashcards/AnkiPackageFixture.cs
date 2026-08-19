@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -40,8 +41,29 @@ internal sealed record AnkiFixtureScheduling(
     long OriginalDeckId = 0);
 
 /// <summary>
+/// One of a note type's templates, in the two format strings Anki keeps a card's question and
+/// answer in. A marker naming a field prints that field, and <c>{{FrontSide}}</c> on an answer
+/// repeats the question.
+/// </summary>
+internal sealed record AnkiFixtureTemplate(string Name, string QuestionFormat, string AnswerFormat);
+
+/// <summary>
+/// A note type a fixture note is written under, for when the two sides of one
+/// <see cref="AnkiFixtureCard"/> are not the whole story: named fields, and the templates that
+/// decide what each of a note's cards shows. A note written under one lands a card row per
+/// template rather than the single row a plain fixture note lands.
+/// </summary>
+internal sealed record AnkiFixtureNoteType(
+    long Id,
+    string Name,
+    IReadOnlyList<string> FieldNames,
+    IReadOnlyList<AnkiFixtureTemplate> Templates,
+    bool IsCloze = false);
+
+/// <summary>
 /// One note in a fixture package, and the deck it belongs to. <paramref name="ExtraFields"/> stands
-/// in for a note type that carries more than the two sides a card here has room for.
+/// in for a note type that carries more than the two sides a card here has room for, and
+/// <paramref name="NoteType"/> for one whose templates decide what each card shows.
 /// </summary>
 internal sealed record AnkiFixtureCard(
     string DeckName,
@@ -49,7 +71,8 @@ internal sealed record AnkiFixtureCard(
     string BackHtml,
     string Tags = "",
     IReadOnlyList<string>? ExtraFields = null,
-    AnkiFixtureScheduling? Scheduling = null);
+    AnkiFixtureScheduling? Scheduling = null,
+    AnkiFixtureNoteType? NoteType = null);
 
 /// <summary>
 /// Writes representative Anki packages for import tests. Real packages are not checked in, so
@@ -254,11 +277,11 @@ internal static class AnkiPackageFixture
 
         if (layout == AnkiFixtureLayout.Legacy)
         {
-            await WriteLegacyNameColumnsAsync(connection, deckIds).ConfigureAwait(false);
+            await WriteLegacyNameColumnsAsync(connection, deckIds, cards).ConfigureAwait(false);
         }
         else
         {
-            await WriteModernNameTablesAsync(connection, deckIds).ConfigureAwait(false);
+            await WriteModernNameTablesAsync(connection, deckIds, cards).ConfigureAwait(false);
         }
 
         var noteId = 100L;
@@ -275,33 +298,92 @@ internal static class AnkiPackageFixture
                 "VALUES(@id, @guid, @mid, 0, 0, @tags, @flds, '', 0, 0, '');",
                 ("@id", noteId),
                 ("@guid", $"g{noteId}"),
-                ("@mid", BasicNotetypeId),
+                ("@mid", card.NoteType?.Id ?? BasicNotetypeId),
                 ("@tags", card.Tags),
                 ("@flds", fields)).ConfigureAwait(false);
 
             var scheduling = card.Scheduling ?? new AnkiFixtureScheduling();
-            await ExecAsync(
-                connection,
-                "INSERT INTO cards(id,nid,did,ord,mod,usn,type,queue,due,ivl,factor,reps,lapses,left,odue,odid,flags,data) " +
-                "VALUES(@id, @nid, @did, 0, 0, 0, @type, @queue, @due, @ivl, 2500, @reps, @lapses, 0, @odue, @odid, 0, '');",
-                ("@id", cardId),
-                ("@nid", noteId),
-                ("@did", deckIds[card.DeckName]),
-                ("@type", scheduling.Type),
-                ("@queue", scheduling.Queue),
-                ("@due", scheduling.Due),
-                ("@ivl", scheduling.Interval),
-                ("@reps", scheduling.Reps),
-                ("@lapses", scheduling.Lapses),
-                ("@odue", scheduling.OriginalDue),
-                ("@odid", scheduling.OriginalDeckId)).ConfigureAwait(false);
+            // A note makes one card per template, and the ordinal is how a card row says which of
+            // them it stands for. A note with no note type declared makes the single card the
+            // fixture has always written.
+            var ordinals = card.NoteType is { Templates.Count: > 0 } noteType
+                ? Enumerable.Range(0, noteType.Templates.Count)
+                : [0];
+            foreach (var ord in ordinals)
+            {
+                await ExecAsync(
+                    connection,
+                    "INSERT INTO cards(id,nid,did,ord,mod,usn,type,queue,due,ivl,factor,reps,lapses,left,odue,odid,flags,data) " +
+                    "VALUES(@id, @nid, @did, @ord, 0, 0, @type, @queue, @due, @ivl, 2500, @reps, @lapses, 0, @odue, @odid, 0, '');",
+                    ("@id", cardId),
+                    ("@nid", noteId),
+                    ("@did", deckIds[card.DeckName]),
+                    ("@ord", ord),
+                    ("@type", scheduling.Type),
+                    ("@queue", scheduling.Queue),
+                    ("@due", scheduling.Due),
+                    ("@ivl", scheduling.Interval),
+                    ("@reps", scheduling.Reps),
+                    ("@lapses", scheduling.Lapses),
+                    ("@odue", scheduling.OriginalDue),
+                    ("@odid", scheduling.OriginalDeckId)).ConfigureAwait(false);
+                cardId++;
+            }
 
             noteId++;
-            cardId++;
         }
     }
 
-    private static async Task WriteLegacyNameColumnsAsync(SqliteConnection connection, IReadOnlyDictionary<string, long> deckIds)
+    /// <summary>The note types a set of fixture notes is written under, first use winning.</summary>
+    private static List<AnkiFixtureNoteType> DeclaredNoteTypes(IReadOnlyList<AnkiFixtureCard> cards)
+    {
+        var declared = new List<AnkiFixtureNoteType>();
+        foreach (var card in cards)
+        {
+            if (card.NoteType is { } noteType && !declared.Exists(t => t.Id == noteType.Id))
+                declared.Add(noteType);
+        }
+
+        return declared;
+    }
+
+    /// <summary>
+    /// One note type as the legacy models column holds it: ordered field and template names, and
+    /// the format strings a card is rendered through.
+    /// </summary>
+    private static Dictionary<string, object?> ModelJson(AnkiFixtureNoteType noteType)
+    {
+        var fields = new List<object?>();
+        for (var i = 0; i < noteType.FieldNames.Count; i++)
+            fields.Add(new Dictionary<string, object?> { ["name"] = noteType.FieldNames[i], ["ord"] = i });
+
+        var templates = new List<object?>();
+        for (var i = 0; i < noteType.Templates.Count; i++)
+        {
+            var template = noteType.Templates[i];
+            templates.Add(new Dictionary<string, object?>
+            {
+                ["name"] = template.Name,
+                ["ord"] = i,
+                ["qfmt"] = template.QuestionFormat,
+                ["afmt"] = template.AnswerFormat,
+            });
+        }
+
+        return new Dictionary<string, object?>
+        {
+            ["id"] = noteType.Id,
+            ["name"] = noteType.Name,
+            ["type"] = noteType.IsCloze ? 1 : 0,
+            ["flds"] = fields,
+            ["tmpls"] = templates,
+        };
+    }
+
+    private static async Task WriteLegacyNameColumnsAsync(
+        SqliteConnection connection,
+        IReadOnlyDictionary<string, long> deckIds,
+        IReadOnlyList<AnkiFixtureCard> cards)
     {
         var decks = new Dictionary<string, object?>(StringComparer.Ordinal);
         foreach (var (name, id) in deckIds)
@@ -312,6 +394,9 @@ internal static class AnkiPackageFixture
             [BasicNotetypeId.ToString(CultureInfo.InvariantCulture)] =
                 new Dictionary<string, object?> { ["id"] = BasicNotetypeId, ["name"] = BasicNotetypeName }
         };
+
+        foreach (var noteType in DeclaredNoteTypes(cards))
+            models[noteType.Id.ToString(CultureInfo.InvariantCulture)] = ModelJson(noteType);
 
         await ExecAsync(
             connection,
@@ -326,7 +411,10 @@ internal static class AnkiPackageFixture
     /// The current schema keeps the two name columns present but empty and moves the names into
     /// tables of their own, with a unit separator between the levels of a deck's hierarchy.
     /// </summary>
-    private static async Task WriteModernNameTablesAsync(SqliteConnection connection, IReadOnlyDictionary<string, long> deckIds)
+    private static async Task WriteModernNameTablesAsync(
+        SqliteConnection connection,
+        IReadOnlyDictionary<string, long> deckIds,
+        IReadOnlyList<AnkiFixtureCard> cards)
     {
         await ExecAsync(connection, """
             CREATE TABLE decks (id INTEGER PRIMARY KEY, name TEXT NOT NULL, mtime_secs INTEGER NOT NULL,
@@ -355,6 +443,19 @@ internal static class AnkiPackageFixture
             "INSERT INTO notetypes(id,name,mtime_secs,usn,config) VALUES(@id, @name, 0, 0, x'');",
             ("@id", BasicNotetypeId),
             ("@name", BasicNotetypeName)).ConfigureAwait(false);
+
+        // The current layout keeps a note type's fields and templates in an encoded config rather
+        // than as text, so only the name is written here and a reader gets no templates from it.
+        foreach (var noteType in DeclaredNoteTypes(cards))
+        {
+            if (noteType.Id == BasicNotetypeId)
+                continue;
+            await ExecAsync(
+                connection,
+                "INSERT INTO notetypes(id,name,mtime_secs,usn,config) VALUES(@id, @name, 0, 0, x'');",
+                ("@id", noteType.Id),
+                ("@name", noteType.Name)).ConfigureAwait(false);
+        }
     }
 
     private static async Task ExecAsync(SqliteConnection connection, string sql, params (string Name, object Value)[] parameters)

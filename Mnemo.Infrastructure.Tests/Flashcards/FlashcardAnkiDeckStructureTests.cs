@@ -219,6 +219,103 @@ public sealed class FlashcardAnkiDeckStructureTests
     }
 
     [Fact]
+    public async Task Import_NoteWithTwoTemplates_LandsTwoDifferentCards()
+    {
+        var reversed = new AnkiFixtureNoteType(
+            Id: 1608194021077L,
+            Name: "Basic (and reversed card)",
+            FieldNames: new[] { "Front", "Back" },
+            Templates: new[]
+            {
+                new AnkiFixtureTemplate("Card 1", "{{Front}}", "{{FrontSide}}<hr id=answer>{{Back}}"),
+                new AnkiFixtureTemplate("Card 2", "{{Back}}", "{{FrontSide}}<hr id=answer>{{Front}}"),
+            });
+
+        var apkg = await AnkiPackageFixture.WriteAsync(
+            AnkiFixtureLayout.Legacy,
+            new[] { new AnkiFixtureCard("Vocab", "hund", "dog", NoteType: reversed) },
+            new Dictionary<string, byte[]>());
+
+        try
+        {
+            await using var h = new FlashcardStoreHarness();
+            await h.Store.InitializeAsync();
+            var library = NewLibrary(h);
+            var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+            var adapter = NewAdapter(h, library, cardService);
+
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+            Assert.True(result.Success, result.ErrorMessage);
+
+            // Both card rows used to render the note's first two fields, so a reversed note landed
+            // the recognition card twice and the recall direction it was written for never arrived.
+            var deck = Assert.Single(await library.ListDecksAsync());
+            var page = await cardService.ListCardsAsync(new FlashcardCardQuery(deck.Id));
+            var sides = page.Items.Select(i => (i.Card.Front, i.Card.Back)).ToArray();
+            Assert.Equal(2, sides.Length);
+            Assert.Contains(("hund", "dog"), sides);
+            Assert.Contains(("dog", "hund"), sides);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task Import_TemplateUsingLaterFields_ShowsThemRatherThanTheFirstTwo()
+    {
+        var vocabulary = new AnkiFixtureNoteType(
+            Id: 1608194021078L,
+            Name: "Vocabulary",
+            FieldNames: new[] { "Word", "Reading", "Meaning", "Example" },
+            Templates: new[]
+            {
+                new AnkiFixtureTemplate("Recall", "{{Meaning}}", "{{FrontSide}}{{Word}}{{Example}}"),
+            });
+
+        var apkg = await AnkiPackageFixture.WriteAsync(
+            AnkiFixtureLayout.Legacy,
+            new[]
+            {
+                new AnkiFixtureCard(
+                    "Japanese",
+                    "犬",
+                    "いぬ",
+                    ExtraFields: new[] { "dog", "犬を飼っています" },
+                    NoteType: vocabulary),
+            },
+            new Dictionary<string, byte[]>());
+
+        try
+        {
+            await using var h = new FlashcardStoreHarness();
+            await h.Store.InitializeAsync();
+            var library = NewLibrary(h);
+            var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+            var adapter = NewAdapter(h, library, cardService);
+
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+            Assert.True(result.Success, result.ErrorMessage);
+
+            var deck = Assert.Single(await library.ListDecksAsync());
+            var card = Assert.Single((await cardService.ListCardsAsync(new FlashcardCardQuery(deck.Id))).Items).Card;
+
+            // The question a template asks can be a field the note keeps well past the second one.
+            Assert.Equal("dog", card.Front);
+            Assert.Equal("犬\n\n犬を飼っています", card.Back);
+
+            // Nothing the template asked for was dropped, so warning that fields were lost would
+            // send the user looking for a problem that is not there.
+            Assert.DoesNotContain(result.Warnings, w => w.Contains("first two fields", StringComparison.Ordinal));
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
     public async Task Import_CardReferencingAudio_SaysTheSoundWasNotImported()
     {
         var apkg = await AnkiPackageFixture.WriteAsync(
