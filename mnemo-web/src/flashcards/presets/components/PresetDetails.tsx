@@ -155,16 +155,13 @@ export function PresetDetails({
           />
         </SettingRowShell>
 
-        {/* Ships inert on the desktop too - the switch shows the stored value and says why. */}
         <SettingRowShell
           title={fc("ReviewSettingsBuryTitle")}
-          description={fc("ReviewSettingsBuryComingSoon")}
-          dimmed
+          description={fc("ReviewSettingsBuryHint")}
         >
           <ToggleControl
             checked={draft.buryRelated}
-            onChange={() => undefined}
-            disabled
+            onChange={(buryRelated) => onPatch({ buryRelated })}
             label={fc("ReviewSettingsBuryTitle")}
           />
         </SettingRowShell>

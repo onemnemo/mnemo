@@ -177,5 +177,5 @@ public sealed class FlashcardLeechTests
         (await h.Store.ReadAsync((conn, ct) => h.Cards.GetAsync(conn, "c1", ct)))!;
 
     private static FlashcardStudyService Study(FlashcardStoreHarness h) =>
-        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler(h.Clock), h.Clock);
+        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, h.Facts, new FsrsScheduler(h.Clock), h.Clock);
 }

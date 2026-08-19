@@ -204,7 +204,7 @@
     "ReviewSettingsSessionLabel": "セッション",
     "ReviewSettingsShuffleTitle": "カードの順序をシャッフル",
     "ReviewSettingsBuryTitle": "関連カードを翌日まで保留",
-    "ReviewSettingsBuryComingSoon": "近日公開",
+    "ReviewSettingsBuryHint": "1枚に答えると、同じ素材の残りのカードは翌日まで保留されます。",
     "ReviewSettingsAutoRevealTitle": "解答を自動表示",
     "ReviewSettingsAutoRevealOff": "オフ",
     "ReviewSettingsAutoReveal5s": "5秒",

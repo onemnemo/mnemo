@@ -204,7 +204,7 @@
     "ReviewSettingsSessionLabel": "SITZUNG",
     "ReviewSettingsShuffleTitle": "Kartenreihenfolge mischen",
     "ReviewSettingsBuryTitle": "Verwandte Karten bis morgen zurückstellen",
-    "ReviewSettingsBuryComingSoon": "Demnächst verfügbar",
+    "ReviewSettingsBuryHint": "Wird eine Karte beantwortet, wartet der Rest ihres Materials bis zum nächsten Tag.",
     "ReviewSettingsAutoRevealTitle": "Antwort automatisch aufdecken",
     "ReviewSettingsAutoRevealOff": "Aus",
     "ReviewSettingsAutoReveal5s": "5 Sek.",

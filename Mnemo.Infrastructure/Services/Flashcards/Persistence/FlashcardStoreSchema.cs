@@ -7,7 +7,7 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 internal static class FlashcardStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 6;
+    public const int TargetVersion = 7;
 
     /// <summary>
     /// Columns added after v1, for databases that already exist.
@@ -26,6 +26,7 @@ internal static class FlashcardStoreSchema
         ("FlashcardPresets", "LeechAction", "INTEGER NOT NULL DEFAULT 1"),
         ("FlashcardCards", "FactId", "TEXT NULL REFERENCES FlashcardFacts(Id) ON DELETE CASCADE"),
         ("FlashcardCards", "LayoutKey", "TEXT NULL"),
+        ("FlashcardScheduling", "BuriedUntil", "TEXT NULL"),
     ];
 
     /// <summary>
@@ -149,7 +150,10 @@ internal static class FlashcardStoreSchema
             Lapses            INTEGER NOT NULL DEFAULT 0,
             FsrsState         INTEGER NOT NULL DEFAULT 0,
             LearningStepIndex INTEGER NOT NULL DEFAULT 0,
-            LastReviewedAt    TEXT NULL
+            LastReviewedAt    TEXT NULL,
+            -- When set and still ahead, the card is held back from the queue and the counts
+            -- because another card off the same material was answered. Null means never buried.
+            BuriedUntil       TEXT NULL
         );
 
         CREATE TABLE IF NOT EXISTS FlashcardReviews (
