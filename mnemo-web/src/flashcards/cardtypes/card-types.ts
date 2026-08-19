@@ -8,6 +8,11 @@ export interface CardTypeFieldDraft {
   id: string
   name: string
   hint: string
+  /**
+   * The name this field is written under in the templates. It trails the name while a rename is
+   * being typed, so a name that is momentarily empty does not lose track of the markers to rewrite.
+   */
+  markerName: string
 }
 
 export interface CardTypeLayoutDraft {
@@ -57,7 +62,12 @@ export function draftFromSummary(summary: CardTypeSummaryDto): CardTypeDraft {
     isBuiltIn: type.isBuiltIn,
     generator: type.generator,
     generateFrom: type.generateFrom,
-    fields: type.fields.map((field) => ({ id: field.id, name: field.name, hint: field.hint ?? "" })),
+    fields: type.fields.map((field) => ({
+      id: field.id,
+      name: field.name,
+      hint: field.hint ?? "",
+      markerName: field.name,
+    })),
     sortFieldId: type.sortFieldId,
     layouts: type.layouts.map((layout) => ({
       id: layout.id,
@@ -76,8 +86,8 @@ export function draftFromSummary(summary: CardTypeSummaryDto): CardTypeDraft {
  * type is usable before anything is typed into it.
  */
 export function newDraft(name: string, frontName: string, backName: string, cardName: string): CardTypeDraft {
-  const front: CardTypeFieldDraft = { id: localId(), name: frontName, hint: "" }
-  const back: CardTypeFieldDraft = { id: localId(), name: backName, hint: "" }
+  const front: CardTypeFieldDraft = { id: localId(), name: frontName, hint: "", markerName: frontName }
+  const back: CardTypeFieldDraft = { id: localId(), name: backName, hint: "", markerName: backName }
   return {
     key: `new:${localId()}`,
     serverId: null,
@@ -109,17 +119,47 @@ export function marker(fieldName: string): string {
 export function addField(draft: CardTypeDraft, name: string): CardTypeDraft {
   return {
     ...draft,
-    fields: [...draft.fields, { id: localId(), name, hint: "" }],
+    fields: [...draft.fields, { id: localId(), name, hint: "", markerName: name }],
     dirty: true,
   }
 }
 
+/**
+ * Edits one field, carrying a rename into the templates that show it.
+ *
+ * A template names a field by its name, so without this a rename would quietly blank whatever that
+ * field filled in. The server does the same for a type it already holds, but a type being created
+ * has nothing to compare against there, and this is also what keeps the templates on screen honest
+ * while the rename is being typed.
+ */
 export function patchField(draft: CardTypeDraft, fieldId: string, patch: Partial<CardTypeFieldDraft>): CardTypeDraft {
+  const before = draft.fields.find((field) => field.id === fieldId)
+  const after = patch.name?.trim() ?? ""
+  const rename = before && after.length > 0 && after !== before.markerName ? before.markerName : null
+
   return {
     ...draft,
-    fields: draft.fields.map((field) => (field.id === fieldId ? { ...field, ...patch } : field)),
+    fields: draft.fields.map((field) =>
+      field.id === fieldId
+        ? { ...field, ...patch, markerName: rename === null ? field.markerName : after }
+        : field,
+    ),
+    layouts:
+      rename === null
+        ? draft.layouts
+        : draft.layouts.map((layout) => ({
+            ...layout,
+            front: rewriteMarker(layout.front, rename, after),
+            back: rewriteMarker(layout.back, rename, after),
+          })),
     dirty: true,
   }
+}
+
+function rewriteMarker(template: string, from: string, to: string): string {
+  return template.replace(/\{\{([^{}]+)\}\}/g, (whole, name: string) =>
+    name.trim() === from ? marker(to) : whole,
+  )
 }
 
 /**

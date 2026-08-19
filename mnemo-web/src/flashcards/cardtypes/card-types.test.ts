@@ -100,6 +100,23 @@ describe("card type drafts", () => {
     expect(next.layouts[0].requires).toBeNull()
   })
 
+  it("carries a rename into the templates showing that field", () => {
+    const draft = fresh()
+    const renamed = patchField(draft, draft.fields[0].id, { name: "Term" })
+
+    expect(renamed.layouts[0].front).toBe(marker("Term"))
+    expect(renamed.layouts[0].back).toBe(marker("Back"))
+  })
+
+  it("still finds the markers after the name has been emptied and typed again", () => {
+    const draft = fresh()
+    // What typing over a selected name looks like one keystroke at a time.
+    const cleared = patchField(draft, draft.fields[0].id, { name: "" })
+    const retyped = patchField(cleared, draft.fields[0].id, { name: "Term" })
+
+    expect(retyped.layouts[0].front).toBe(marker("Term"))
+  })
+
   it("names every reason a type cannot be saved", () => {
     const draft = fresh()
 
