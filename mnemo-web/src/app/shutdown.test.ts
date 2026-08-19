@@ -52,6 +52,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
@@ -141,13 +142,38 @@ describe("completeShutdown", () => {
     const handshake = completeShutdown()
     await Promise.resolve()
     // Reporting ready here would be a lie the host acts on immediately.
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(paths(fetchMock)).not.toContain("/api/app/shutdown-ready")
 
     saving.finish()
     await handshake
-    expect(fetchMock).toHaveBeenCalledOnce()
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/app/shutdown-ready")
-    expect((fetchMock.mock.calls[0][1] as RequestInit).method).toBe("POST")
+    expect(paths(fetchMock)).toEqual(["/api/app/shutdown-hold", "/api/app/shutdown-ready"])
+    expect((fetchMock.mock.calls[1][1] as RequestInit).method).toBe("POST")
+  })
+
+  it("holds the clock for a save, not only for a question", async () => {
+    // The host's grace period is measured from before the SPA has serialized
+    // anything, so a note slow to write is the one whose write gets cut short.
+    const fetchMock = stubFetch()
+    onShutdown(() => Promise.resolve())
+
+    await completeShutdown()
+
+    expect(paths(fetchMock)).toEqual(["/api/app/shutdown-hold", "/api/app/shutdown-ready"])
+  })
+
+  it("stops waiting for a participant that never finishes", async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const fetchMock = stubFetch()
+    onShutdown(() => new Promise<void>(() => undefined))
+
+    const handshake = completeShutdown()
+    await vi.advanceTimersByTimeAsync(10_000)
+    await handshake
+
+    // Holding stops the host's clock, so without a ceiling of its own a hung
+    // save is a window that never closes.
+    expect(paths(fetchMock)).toEqual(["/api/app/shutdown-hold", "/api/app/shutdown-ready"])
   })
 
   it("runs once however many times the host asks", async () => {
@@ -157,7 +183,7 @@ describe("completeShutdown", () => {
 
     await Promise.all([completeShutdown(), completeShutdown()])
     expect(participant).toHaveBeenCalledOnce()
-    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(paths(fetchMock)).toEqual(["/api/app/shutdown-hold", "/api/app/shutdown-ready"])
   })
 
   it("reports ready even when saving failed", async () => {
@@ -168,7 +194,7 @@ describe("completeShutdown", () => {
     await completeShutdown()
     // Whatever went wrong, holding the window open for the full grace period
     // does not fix it and looks like a hang.
-    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(paths(fetchMock)).toEqual(["/api/app/shutdown-hold", "/api/app/shutdown-ready"])
   })
 
   it("holds the clock before asking, then saves and reports ready", async () => {

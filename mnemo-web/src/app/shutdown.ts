@@ -112,23 +112,57 @@ export function completeShutdown(): Promise<void> {
   return handshake
 }
 
-async function negotiate(): Promise<void> {
-  if (guards.size > 0) {
-    // Before asking, not after: the host's grace period was measured for a save
-    // and will expire out from under anyone reading a dialog.
-    await report("/app/shutdown-hold")
+/**
+ * How long participants get once the clock has been held.
+ *
+ * The host's grace period is generous for the case it was measured on, one
+ * commit against a local file. This is the ceiling for the cases it was not: a
+ * document large enough to be slow to serialize, or a save already in flight
+ * that has to finish before the final one can start. Bounded rather than open
+ * ended, because unlike a prompt there is nobody waiting to answer a request
+ * that hangs, and an unbounded wait is a window that will not close.
+ */
+const participantDeadlineMs = 10_000
 
-    if (!(await runShutdownGuards())) {
-      handshake = null
-      await report("/app/shutdown-cancel")
-      return
-    }
+async function negotiate(): Promise<void> {
+  // Held for saving as much as for asking. The host's grace period starts before
+  // the SPA has serialized anything, so the note big enough to be slow to write
+  // is exactly the note whose write gets cut off half way through.
+  if (guards.size > 0 || participants.size > 0) {
+    // Before either, not after: the period will otherwise expire out from under
+    // whoever is reading a dialog or waiting on a commit.
+    await report("/app/shutdown-hold")
+  }
+
+  if (!(await runShutdownGuards())) {
+    handshake = null
+    await report("/app/shutdown-cancel")
+    return
   }
 
   try {
-    await runShutdown()
+    await withDeadline(runShutdown(), participantDeadlineMs)
   } finally {
     await report("/app/shutdown-ready")
+  }
+}
+
+/** Resolves when the work settles or the deadline passes, whichever is first. */
+async function withDeadline(work: Promise<void>, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const expiry = new Promise<"expired">((resolve) => {
+    timer = setTimeout(() => {
+      resolve("expired")
+    }, ms)
+  })
+
+  try {
+    const first = await Promise.race([work.then(() => "done" as const), expiry])
+    if (first === "expired") {
+      console.error(`[shutdown] gave up waiting for a participant after ${String(ms)}ms`)
+    }
+  } finally {
+    clearTimeout(timer)
   }
 }
 
