@@ -690,6 +690,7 @@
     "UnderlineTooltip": "Underline (Ctrl+U)",
     "StrikethroughTooltip": "Strikethrough",
     "HighlightTooltip": "Highlight",
+    "InlineCodeTooltip": "Inline code",
     "SubscriptTooltip": "Subscript (Ctrl+,)",
     "SuperscriptTooltip": "Superscript (Ctrl+.)",
     "TypeSlashForCommands": "Type '/' for commands...",
