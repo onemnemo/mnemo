@@ -12,7 +12,7 @@
  * needs: what this block type *is*.
  */
 
-import type { AttributeSpec, Node as PMNode, NodeSpec } from 'prosemirror-model';
+import type { AttributeSpec, Node as PMNode, NodeSpec, NodeType } from 'prosemirror-model';
 import type {
   AiSegment,
   AnyBlockModule,
@@ -176,6 +176,21 @@ export const containerBlockNames: ReadonlySet<string> = new Set([
  * on the way down ends the walk, and the block named is this one.
  */
 export const opaqueBlockNames: ReadonlySet<string> = new Set(['table']);
+
+/**
+ * Whether a block of this type has a line the caret can actually land in and the
+ * user can actually see: not a container's structural scenery, and not an atomic
+ * block whose realized view renders no editable content for its line at all.
+ *
+ * One predicate for both cases, because they fail a merge or a focus the same
+ * way: the position exists in the document but nothing in the DOM sits at it. A
+ * command that is about to write into a neighboring block, or leave the caret in
+ * one, asks this first, the same way `defineBlock` asks `spec.holdsCaret` rather
+ * than carrying a list of block names that drifts the moment a type is added.
+ */
+export function lineIsCaretTarget(type: NodeType): boolean {
+  return !containerBlockNames.has(type.name) && type.spec.holdsCaret !== false;
+}
 
 /** The line is always the first child; block children always follow it. */
 export function lineOf(node: PMNode): PMNode | null {

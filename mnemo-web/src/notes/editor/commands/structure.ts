@@ -26,7 +26,7 @@ import { Fragment, Mark, type Node as PMNode, type NodeType } from 'prosemirror-
 import { TextSelection, type Command, type Transaction } from 'prosemirror-state';
 import { keymap } from 'prosemirror-keymap';
 import type { Plugin } from 'prosemirror-state';
-import { blockChildrenOf, containerBlockNames, lineOf } from '../blocks/shared';
+import { blockChildrenOf, containerBlockNames, lineIsCaretTarget, lineOf } from '../blocks/shared';
 import { asOwnUndoStep } from '../history';
 import { backspaceAtCellStart, cellStartContext } from './two-column';
 
@@ -374,13 +374,20 @@ function deleteEmptyBlock(
   const prev = $block.nodeBefore;
   const prevLine = prev ? lineOf(prev) : null;
 
-  if (prev && prevLine) {
+  if (prev && prevLine && lineIsCaretTarget(prev.type)) {
     const prevStart = blockPos - prev.nodeSize;
     const prevLineEnd = prevStart + 2 + prevLine.content.size;
     const tr = state.tr.delete(blockPos, blockPos + block.nodeSize);
     tr.setSelection(TextSelection.create(tr.doc, prevLineEnd));
     return dispatchStructural(tr.scrollIntoView(), dispatch);
   }
+
+  // A previous sibling exists but is not somewhere the caret can land: a
+  // divider, a table, an atom drawing from its payload. Deleting our empty
+  // block would strand the caret in scenery the user cannot see or reach, so
+  // swallow the key instead, the same as when there is no previous sibling
+  // at all.
+  if (prev) return true;
 
   // No previous sibling. Delete only if a sibling remains after us, so the
   // document never drops below one block; otherwise the last block stays put.
@@ -402,10 +409,14 @@ function mergeIntoPrevious(
   const $block = state.doc.resolve(blockPos);
   const prev = $block.nodeBefore;
   const prevLine = prev ? lineOf(prev) : null;
-  // Nothing to merge into (first block, or a previous block with no line): the
-  // desktop's MergeWithPrevious simply does nothing here. Swallow the key so a
-  // stray join does not happen instead.
-  if (!prev || !prevLine) return true;
+  // Nothing to merge into: no previous block, a previous block with no line,
+  // or a previous block whose line is not somewhere the caret can land (a
+  // divider, a table, an atom drawing from its payload). Merging into one of
+  // those would write the caret's text into a line the user can never see or
+  // reach again, though it would still be sitting there on save. The
+  // desktop's MergeWithPrevious does nothing here either; swallow the key so
+  // a stray join does not happen instead.
+  if (!prev || !prevLine || !lineIsCaretTarget(prev.type)) return true;
 
   const prevStart = blockPos - prev.nodeSize;
   const prevLineEnd = prevStart + 2 + prevLine.content.size;
@@ -490,19 +501,75 @@ export const backspaceStructural: Command = (state, dispatch) => {
   return dispatchStructural(tr, dispatch);
 };
 
+/**
+ * Forward Delete, but only its structural half, the mirror of
+ * {@link backspaceStructural}: a collapsed caret at the end of its line is the
+ * one case intercepted here; everywhere else this returns false and the
+ * ordinary character delete happens.
+ *
+ * Left unhandled, ProseMirror's own `Delete` binding runs `joinForward`
+ * instead, which cannot see this schema's `"line block*"` shape: `line` is
+ * not itself a member of the `block` group, so its generic join finds no
+ * content match and falls back to re-parenting the next block as a *child*
+ * of this one rather than merging their text. That corrupts structure on the
+ * single most ordinary use of the key, joining two paragraphs.
+ *
+ * The ladder mirrors Backspace's own asymmetry rather than inventing a new
+ * one: Backspace only ever melts its *own* block into whatever precedes it,
+ * and only when that block is Text, other block types de-format instead of
+ * merging. Delete applies the same rule to the block ahead: only a following
+ * Text block ever merges in, keeping this block's own type, because Text is
+ * the only shape allowed to disappear into a neighbor of any other kind. A
+ * divider, a table, or another non-Text block next door swallows the key,
+ * never nested and never silently reformatted.
+ */
+export const deleteForwardStructural: Command = (state, dispatch) => {
+  const sel = state.selection;
+  if (!(sel instanceof TextSelection) || !sel.empty) return false;
+  const ctx = blockContext(state);
+  if (!ctx || ctx.offset !== ctx.line.content.size) return false;
+
+  const { block, blockPos, line } = ctx;
+
+  // Same guards as Backspace: a container is never the caret's block, a
+  // table cell has nothing to join across its isolating boundary, and an
+  // image or its caption never merges or de-formats in either direction.
+  if (containerBlockNames.has(block.type.name)) return true;
+  if (block.type.name === 'tableCell') return true;
+  if (block.type.name === 'image') return true;
+
+  const afterPos = blockPos + block.nodeSize;
+  const next = state.doc.resolve(afterPos).nodeAfter;
+  if (!next || next.type.name !== 'paragraph') return true;
+
+  const nextLine = lineOf(next);
+  if (!nextLine) return true;
+
+  const lineContentEnd = blockPos + 2 + line.content.size;
+  // A code block's line forbids marks; drop them so the appended prose is valid.
+  const content = line.type.name === 'codeLine' ? stripMarks(nextLine.content) : nextLine.content;
+
+  const tr = state.tr.delete(afterPos, afterPos + next.nodeSize);
+  tr.insert(lineContentEnd, content);
+  tr.setSelection(TextSelection.create(tr.doc, lineContentEnd));
+  return dispatchStructural(tr.scrollIntoView(), dispatch);
+};
+
 /** The structural keybindings, in prosemirror-keymap form. */
 export function structureKeyBindings(): Record<string, Command> {
   return {
     Enter: splitBlock,
     'Mod-Enter': insertSoftBreak,
     Backspace: backspaceStructural,
+    Delete: deleteForwardStructural,
   };
 }
 
 /**
  * The structural keymap plugin. Mounted above the base keymap so column-0
- * Backspace and Enter are ours, while every other key, including a mid-line
- * Backspace, falls through to ProseMirror's own handling.
+ * Backspace, end-of-line Delete, and Enter are ours, while every other key,
+ * including a mid-line Backspace or Delete, falls through to ProseMirror's
+ * own handling.
  */
 export function structureKeymap(): Plugin {
   return keymap(structureKeyBindings());

@@ -19,6 +19,22 @@ const twoColumn = (sid: string, left: PMNode, right: PMNode) =>
   schema.nodes.twoColumn.create({ sid, id: sid, splitRatio: 0.5 }, [line(), left, right]);
 const docOf = (...blocks: PMNode[]) => schema.nodes.doc.create(null, blocks);
 
+const tableCell = (text?: string) => schema.nodes.tableCell.create(null, line(text));
+const tableRow = (...cells: PMNode[]) => schema.nodes.tableRow.create(null, [line(), ...cells]);
+const table = (...rows: PMNode[]) => schema.nodes.table.create({ columnWidths: [] }, [line(), ...rows]);
+
+/** Position of the first tableCell's own content start, `text.length` past its line's opening. */
+function firstCellCaret(doc: PMNode): number {
+  let cellPos = -1;
+  doc.descendants((node, pos) => {
+    if (cellPos >= 0) return false;
+    if (node.type.name === 'tableCell') cellPos = pos;
+    return true;
+  });
+  if (cellPos < 0) throw new Error('no tableCell in doc');
+  return cellPos + 2;
+}
+
 function stateWith(doc: PMNode, caret: number): EditorState {
   const base = EditorState.create({ schema, doc, plugins: [blockSelectionPlugin(registry)] });
   return base.apply(base.tr.setSelection(TextSelection.create(base.doc, caret)));
@@ -119,6 +135,84 @@ describe('placeBlockRun', () => {
     // The emptied heading is gone rather than left blank above the paste.
     expect(texts(next)).toEqual(['pasted', 'dy']);
     expect(next.doc.child(0).type.name).toBe('paragraph');
+  });
+});
+
+describe('placeBlockRun folds into a table cell', () => {
+  it('lands a single pasted block as the cell line text, not a nested block', () => {
+    const doc = docOf(table(tableRow(tableCell())));
+    const state = stateWith(doc, firstCellCaret(doc));
+    const next = state.apply(placeBlockRun(state, run('pasted')));
+
+    // Still one table, one row, one cell: the cell was never replaced or split.
+    expect(next.doc.firstChild!.type.name).toBe('table');
+    const cellNode = next.doc.firstChild!.child(1).child(1);
+    expect(cellNode.type.name).toBe('tableCell');
+    // Just the line: a nested paragraph here is the corruption this guards against.
+    expect(cellNode.childCount).toBe(1);
+    expect(cellNode.textContent).toBe('pasted');
+  });
+
+  it('joins a multi-block run with a soft break instead of nesting each as its own block', () => {
+    const doc = docOf(table(tableRow(tableCell())));
+    const state = stateWith(doc, firstCellCaret(doc));
+    const next = state.apply(placeBlockRun(state, run('one', 'two')));
+
+    const cellNode = next.doc.firstChild!.child(1).child(1);
+    expect(cellNode.childCount).toBe(1);
+    expect(cellNode.textContent).toBe('one\ntwo');
+  });
+
+  it('contributes only its separating break for a block with no text of its own', () => {
+    const divider = schema.nodes.divider.create(null, line());
+    const slice = new Slice(Fragment.fromArray([para('one', ''), divider, para('two', '')]), 0, 0);
+    const doc = docOf(table(tableRow(tableCell())));
+    const state = stateWith(doc, firstCellCaret(doc));
+    const next = state.apply(placeBlockRun(state, slice));
+
+    const cellNode = next.doc.firstChild!.child(1).child(1);
+    expect(cellNode.textContent).toBe('one\n\ntwo');
+  });
+
+  it('carries marks on the pasted text into the cell rather than dropping them', () => {
+    const strong = schema.marks.strong.create();
+    const styled = schema.nodes.paragraph.create(
+      null,
+      schema.nodes.line.create(null, schema.text('bold', [strong])),
+    );
+    const slice = new Slice(Fragment.fromArray([styled]), 0, 0);
+    const doc = docOf(table(tableRow(tableCell())));
+    const state = stateWith(doc, firstCellCaret(doc));
+    const next = state.apply(placeBlockRun(state, slice));
+
+    const cellLine = next.doc.firstChild!.child(1).child(1).firstChild!;
+    expect(cellLine.textContent).toBe('bold');
+    expect(strong.isInSet(cellLine.firstChild!.marks)).toBeTruthy();
+  });
+
+  it('never grows or tears the table: row and cell counts survive a fold-in paste', () => {
+    const doc = docOf(
+      table(
+        tableRow(tableCell('a'), tableCell('b')),
+        tableRow(tableCell('c'), tableCell('d')),
+      ),
+    );
+    const state = stateWith(doc, firstCellCaret(doc));
+    const next = state.apply(placeBlockRun(state, run('one', 'two', 'three')));
+
+    const tableNode = next.doc.firstChild!;
+    const rows = [] as PMNode[];
+    tableNode.forEach((child) => {
+      if (child.type.name === 'tableRow') rows.push(child);
+    });
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      const cells = [] as PMNode[];
+      row.forEach((child) => {
+        if (child.type.name === 'tableCell') cells.push(child);
+      });
+      expect(cells).toHaveLength(2);
+    }
   });
 });
 
