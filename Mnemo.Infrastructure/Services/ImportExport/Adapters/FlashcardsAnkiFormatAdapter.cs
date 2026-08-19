@@ -58,6 +58,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     private static readonly Regex CellCloseRegex = new(@"<\s*/\s*(td|th)\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex AllTagsRegex = new(@"<[^>]+>", RegexOptions.Compiled);
 
+    /// <summary>How Anki references an audio clip inside a field. Cards here hold images only.</summary>
+    private static readonly Regex SoundTagRegex = new(@"\[sound:[^\]]+\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     // Both delimiter pairs must be present for a rewrite. A lone backslash-paren in ordinary prose
     // is text, and turning it into an opening dollar would put the rest of the card inside a formula.
     // Inline maths may not span a line the way a displayed block may.
@@ -161,6 +164,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             var folders = await DeckFolderResolver.CreateAsync(_library, cancellationToken).ConfigureAwait(false);
             var noteTypesWithExtraFields = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
             var failedDecks = 0;
+            var cardsWithAudio = 0;
 
             foreach (var deckGroup in decksByDid)
             {
@@ -184,6 +188,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     // rest. Say so once per note type rather than per card or not at all.
                     if (fields.Length > 2)
                         noteTypesWithExtraFields.Add(note.ModelName ?? $"note type {note.ModelId}");
+
+                    // A card holds images and nothing else, so an audio reference stays as the text
+                    // it is written as. Counted rather than silently left on the card.
+                    if (SoundTagRegex.IsMatch(frontHtml) || SoundTagRegex.IsMatch(backHtml))
+                        cardsWithAudio++;
 
                     // Images become FlashcardAttachments (up to 3 per side); the block pipeline no
                     // longer emits image blocks, the canonical body is the text field and
@@ -249,6 +258,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
             if (noteTypesWithExtraFields.Count > 0)
                 warnings.Add($"Only the first two fields were imported from these note types: {string.Join(", ", noteTypesWithExtraFields)}.");
+
+            if (cardsWithAudio > 0)
+                warnings.Add($"{cardsWithAudio} card(s) reference audio, which cards here cannot hold yet. The reference is left in the text and the sound file was not imported.");
 
             // The first few intervals will not match what the other app would have given, and a user
             // who is not told that reads it as the import having got the schedule wrong.
