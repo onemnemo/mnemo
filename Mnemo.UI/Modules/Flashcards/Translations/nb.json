@@ -175,6 +175,7 @@
     "TransferExportTitle": "Eksporter flashkort",
     "TransferExportDeckTitle": "Eksporter kortstokk",
     "TransferConflictQuestion": "Hvis en kortstokk allerede finnes",
+    "TransferConflictNotApplicable": "Disse filene inneholder ingen kort-IDer, så alt i dem importeres som nytt.",
     "TransferNounSingular": "kort",
     "TransferNounPlural": "kort",
     "TransferFromFormat": "Fra {0}",

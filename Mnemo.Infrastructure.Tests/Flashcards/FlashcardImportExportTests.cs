@@ -248,6 +248,93 @@ public sealed class FlashcardImportExportTests
     }
 
     [Fact]
+    public async Task MnemoRoundTrip_CarriesAttachmentBytes_ToAMachineWithoutTheOriginal()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"mnemo_backup_img_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var imageBytes = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        var imagePath = Path.Combine(tempDir, $"card_image_{Guid.NewGuid():N}.png");
+        await File.WriteAllBytesAsync(imagePath, imageBytes);
+
+        await using var source = new FlashcardStoreHarness();
+        var sourceHandler = NewHandler(source);
+        var sourceLibrary = NewLibrary(source);
+        var sourceCards = new FlashcardCardService(source.Store, source.Cards, source.Schedules);
+
+        var deck = await sourceLibrary.CreateDeckAsync("Biology");
+        var attachment = new FlashcardAttachment(
+            Guid.NewGuid().ToString("N"), FlashcardAttachment.FrontSide, imagePath, "diagram.png", imageBytes.Length, "a diagram");
+        await sourceCards.CreateCardsAsync(deck.Id, new[]
+        {
+            new FlashcardCardDraft(deck.Id, FlashcardType.Classic, "Cell?", "Unit of life", Array.Empty<string>(), new[] { attachment })
+        });
+
+        var export = await sourceHandler.ExportAsync(new MnemoPayloadExportContext { Options = new MnemoPackageExportOptions() });
+
+        // The package has to stand on its own. Losing the original is exactly the case a backup is
+        // taken for, so the restore below has nothing but the package to work from.
+        Directory.Delete(tempDir, recursive: true);
+
+        await using var target = new FlashcardStoreHarness();
+        await target.Store.InitializeAsync();
+        var targetHandler = NewHandler(target);
+        var targetLibrary = NewLibrary(target);
+        var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules);
+
+        var import = await targetHandler.ImportAsync(BuildImportContext(export.Files, ImportConflictPolicy.KeepBoth));
+        Assert.Equal(1, import.ImportedCount);
+
+        var importedDeck = Assert.Single(await targetLibrary.ListDecksAsync());
+        var page = await targetCards.ListCardsAsync(new FlashcardCardQuery(importedDeck.Id));
+        var restored = Assert.Single(Assert.Single(page.Items).Card.Attachments);
+
+        Assert.True(File.Exists(restored.FilePath), restored.FilePath);
+        Assert.Equal(imageBytes, await File.ReadAllBytesAsync(restored.FilePath));
+        Assert.Equal("diagram.png", restored.DisplayName);
+        Assert.Equal("a diagram", restored.Caption);
+        File.Delete(restored.FilePath);
+    }
+
+    [Fact]
+    public async Task MnemoRoundTrip_KeepsSuspensionAndFlags()
+    {
+        await using var source = new FlashcardStoreHarness();
+        var sourceHandler = NewHandler(source);
+        var sourceLibrary = NewLibrary(source);
+        var sourceCards = new FlashcardCardService(source.Store, source.Cards, source.Schedules);
+
+        var deck = await sourceLibrary.CreateDeckAsync("States");
+        var created = await sourceCards.CreateCardsAsync(deck.Id, new[]
+        {
+            Draft(deck.Id, "suspended", "a"),
+            Draft(deck.Id, "flagged", "b"),
+            Draft(deck.Id, "plain", "c"),
+        });
+        await sourceCards.SetSuspendedAsync(new[] { created[0].Id }, true);
+        await sourceCards.SetFlaggedAsync(new[] { created[1].Id }, true);
+
+        var export = await sourceHandler.ExportAsync(new MnemoPayloadExportContext { Options = new MnemoPackageExportOptions() });
+
+        await using var target = new FlashcardStoreHarness();
+        await target.Store.InitializeAsync();
+        var targetHandler = NewHandler(target);
+        var targetLibrary = NewLibrary(target);
+        var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules);
+
+        await targetHandler.ImportAsync(BuildImportContext(export.Files, ImportConflictPolicy.KeepBoth));
+
+        var importedDeck = Assert.Single(await targetLibrary.ListDecksAsync());
+        var page = await targetCards.ListCardsAsync(new FlashcardCardQuery(importedDeck.Id));
+        var byFront = page.Items.ToDictionary(v => v.Card.Front, v => v.Card, StringComparer.Ordinal);
+
+        // A card the user took out of study coming back active puts it straight back in the queue.
+        Assert.Equal(FlashcardCardState.Suspended, byFront["suspended"].State);
+        Assert.True(byFront["flagged"].IsFlagged);
+        Assert.Equal(FlashcardCardState.Active, byFront["plain"].State);
+        Assert.False(byFront["plain"].IsFlagged);
+    }
+
+    [Fact]
     public async Task MnemoImport_Skip_LeavesExistingDeckUntouched()
     {
         await using var h = new FlashcardStoreHarness();

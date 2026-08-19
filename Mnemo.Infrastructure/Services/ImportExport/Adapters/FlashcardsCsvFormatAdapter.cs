@@ -30,6 +30,9 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
     public bool SupportsImport => true;
     public bool SupportsExport => true;
 
+    /// <summary>A row carries no id, so nothing in a file can collide with anything already saved.</summary>
+    public bool SupportsConflictPolicy => false;
+
     public Task<ImportExportPreview> PreviewImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(new ImportExportPreview

@@ -28,10 +28,17 @@ public sealed class ImageAssetService : IImageAssetService
 
         try
         {
+            var length = new FileInfo(sourcePath).Length;
+            if (length > ImageContentType.MaxImageBytes)
+                return Result<string>.Failure($"Image exceeds the {ImageContentType.MaxImageBytes / (1024 * 1024)} MB limit.");
+
+            var ext = await DetectExtensionAsync(sourcePath, cancellationToken).ConfigureAwait(false);
+            if (ext is null)
+                return Result<string>.Failure("File is not a supported image (PNG, JPEG, GIF, WebP or BMP).");
+
             var imagesDir = MnemoAppPaths.GetImagesDirectory();
             Directory.CreateDirectory(imagesDir);
 
-            var ext = Path.GetExtension(sourcePath);
             var dest = Path.Combine(imagesDir, blockId + ext);
 
             await Task.Run(() => File.Copy(sourcePath, dest, overwrite: true), cancellationToken)
@@ -47,6 +54,16 @@ public sealed class ImageAssetService : IImageAssetService
         {
             return Result<string>.Failure($"Failed to copy image: {ex.Message}", ex);
         }
+    }
+
+    private static async Task<string?> DetectExtensionAsync(string sourcePath, CancellationToken cancellationToken)
+    {
+        var header = new byte[ImageContentType.HeaderBytes];
+        int read;
+        await using (var file = File.OpenRead(sourcePath))
+            read = await file.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, cancellationToken)
+                .ConfigureAwait(false);
+        return ImageContentType.DetectExtension(header.AsSpan(0, read));
     }
 
     /// <inheritdoc/>

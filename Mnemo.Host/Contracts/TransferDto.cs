@@ -6,15 +6,26 @@ namespace Mnemo.Host.Contracts;
 /// One import/export format the app can handle. Hand-mirrored in
 /// <c>mnemo-web/src/api/types.ts</c>; the C# side is authoritative.
 /// </summary>
+/// <param name="SupportsConflictPolicy">
+/// Whether importing this format reads the conflict policy. False for formats whose files carry no
+/// ids to collide on, so a client can stop offering a choice that would not be applied.
+/// </param>
 public sealed record TransferFormatDto(
     string FormatId,
     string DisplayName,
     IReadOnlyList<string> Extensions,
     bool SupportsImport,
-    bool SupportsExport)
+    bool SupportsExport,
+    bool SupportsConflictPolicy)
 {
     public static TransferFormatDto FromModel(ImportExportCapability model)
-        => new(model.FormatId, model.DisplayName, model.Extensions, model.SupportsImport, model.SupportsExport);
+        => new(
+            model.FormatId,
+            model.DisplayName,
+            model.Extensions,
+            model.SupportsImport,
+            model.SupportsExport,
+            model.SupportsConflictPolicy);
 }
 
 /// <summary>

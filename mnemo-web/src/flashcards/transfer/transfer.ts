@@ -24,6 +24,8 @@ export interface QueuedFile {
   status: QueueStatus
   /** The server's handle for the staged bytes; absent until the upload lands. */
   uploadId?: string
+  /** Which adapter read the file, so the dialog can tell what that format actually honours. */
+  formatId?: string
   formatName?: string
   /** Null for a format that only knows its card count once it has been imported. */
   cardCount?: number | null
@@ -38,6 +40,7 @@ export function queuedFromUpload(key: string, upload: TransferUploadDto): Queued
     sizeBytes: upload.sizeBytes,
     status: upload.canImport ? "ready" : "rejected",
     uploadId: upload.uploadId,
+    formatId: upload.formatId,
     formatName: upload.formatName,
     cardCount: upload.cardCount,
     notes: upload.warnings.length > 0 ? upload.warnings : undefined,
@@ -83,6 +86,29 @@ export function readyCardCount(queue: readonly QueuedFile[]): number | null {
   const ready = queue.filter((file) => file.status === "ready")
   if (ready.length === 0 || ready.some((file) => typeof file.cardCount !== "number")) return null
   return ready.reduce((sum, file) => sum + (file.cardCount ?? 0), 0)
+}
+
+/**
+ * Whether asking about collisions means anything for what is queued. CSV rows and Anki notes carry
+ * no id the import can match against, so every import of one is new content whatever was picked.
+ * Putting the question on screen anyway promises a behaviour that never runs, so it is asked only
+ * when at least one queued file is in a format that reads the answer. An empty queue keeps it:
+ * there is nothing yet to contradict.
+ */
+export function conflictPolicyApplies(
+  queue: readonly QueuedFile[],
+  formats: readonly TransferFormatDto[],
+): boolean {
+  const ready = queue.filter((file) => file.status === "ready")
+  if (ready.length === 0) return true
+
+  const byId = new Map(formats.map((format) => [format.formatId, format]))
+  // An unrecognised format is left alone: guessing "it does not apply" would hide a real choice.
+  return ready.some((file) => {
+    if (file.formatId === undefined) return true
+    const format = byId.get(file.formatId)
+    return format === undefined || format.supportsConflictPolicy !== false
+  })
 }
 
 /** Whether the dialog can commit: something to import, and nothing still being read. */

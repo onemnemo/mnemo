@@ -22,6 +22,7 @@ namespace Mnemo.Infrastructure.Tests.Flashcards;
 /// <see cref="FlashcardAttachment"/>s (up to 3 per side; overflow appended as inline markdown tokens)
 /// rather than image blocks. The canonical body is the text field and blocks carry no image payloads.
 /// </summary>
+[Collection(AnkiPackageFixture.TestCollection)]
 public sealed class FlashcardAnkiImportTests
 {
     private const char UnitSeparator = '';
@@ -40,7 +41,7 @@ public sealed class FlashcardAnkiImportTests
             deckName: "Biology",
             frontHtml: "What is this? <img src=\"diagram.png\">",
             backHtml: "A cell",
-            media: new Dictionary<string, byte[]> { ["diagram.png"] = new byte[128] });
+            media: new Dictionary<string, byte[]> { ["diagram.png"] = PngBytes() });
 
         try
         {
@@ -56,6 +57,14 @@ public sealed class FlashcardAnkiImportTests
             Assert.Equal("diagram.png", attachment.DisplayName);
             Assert.True(attachment.SizeBytes > 0);
             Assert.True(File.Exists(attachment.FilePath));
+
+            // Anki stores media under numbered names, so the stored copy has to take its
+            // extension from the bytes. Without one the file is not a servable asset id and
+            // every imported image renders as a broken placeholder.
+            var storedName = Path.GetFileName(attachment.FilePath);
+            Assert.Equal(".png", Path.GetExtension(storedName));
+            Assert.Equal(storedName, Path.GetFileName(storedName));
+            Assert.DoesNotContain("..", storedName, StringComparison.Ordinal);
 
             // No image blocks anywhere — the block pipeline is text-only now.
             var allBlocks = (card.FrontBlocks ?? Array.Empty<Block>())
@@ -84,10 +93,10 @@ public sealed class FlashcardAnkiImportTests
             backHtml: "back",
             media: new Dictionary<string, byte[]>
             {
-                ["a.png"] = new byte[16],
-                ["b.png"] = new byte[16],
-                ["c.png"] = new byte[16],
-                ["d.png"] = new byte[16]
+                ["a.png"] = PngBytes(),
+                ["b.png"] = PngBytes(),
+                ["c.png"] = PngBytes(),
+                ["d.png"] = PngBytes()
             });
 
         try
@@ -144,7 +153,163 @@ public sealed class FlashcardAnkiImportTests
         }
     }
 
+    [Fact]
+    public async Task Import_MediaNamedAsTheWrongType_StoresTheTypeTheBytesCarry()
+    {
+        await using var h = new FlashcardStoreHarness();
+        await h.Store.InitializeAsync();
+        var library = NewLibrary(h);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
+
+        var apkg = await BuildApkgAsync(
+            deckName: "Mislabelled",
+            frontHtml: "<img src=\"photo.png\">",
+            backHtml: "back",
+            media: new Dictionary<string, byte[]> { ["photo.png"] = JpegBytes() });
+
+        try
+        {
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+
+            Assert.True(result.Success, result.ErrorMessage);
+            var deck = Assert.Single(await library.ListDecksAsync());
+            var page = await cardSvc.ListCardsAsync(new FlashcardCardQuery(deck.Id));
+            var attachment = Assert.Single(Assert.Single(page.Items).Card.Attachments);
+
+            Assert.Equal(".jpg", Path.GetExtension(attachment.FilePath));
+            Assert.Equal("photo.png", attachment.DisplayName);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task Import_NonImageMedia_IsRefusedWithAWarning()
+    {
+        await using var h = new FlashcardStoreHarness();
+        await h.Store.InitializeAsync();
+        var library = NewLibrary(h);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
+
+        var apkg = await BuildApkgAsync(
+            deckName: "NotAnImage",
+            frontHtml: "<img src=\"report.pdf\">",
+            backHtml: "back",
+            media: new Dictionary<string, byte[]> { ["report.pdf"] = "%PDF-1.4 not an image"u8.ToArray() });
+
+        try
+        {
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+
+            var deck = Assert.Single(await library.ListDecksAsync());
+            var page = await cardSvc.ListCardsAsync(new FlashcardCardQuery(deck.Id));
+            Assert.Empty(Assert.Single(page.Items).Card.Attachments);
+            Assert.Contains(result.Warnings, w => w.Contains("report.pdf", StringComparison.Ordinal));
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Import_SrcPointingOutsideThePackage_CopiesNothing(bool absolute)
+    {
+        await using var h = new FlashcardStoreHarness();
+        await h.Store.InitializeAsync();
+        var library = NewLibrary(h);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
+
+        // A real image outside the package, so only the containment check can stop it being
+        // copied. A non-image would be refused for the wrong reason and prove nothing.
+        var outsideName = $"mnemo_anki_outside_{Guid.NewGuid():N}.png";
+        var outsidePath = Path.Combine(Path.GetTempPath(), outsideName);
+        await File.WriteAllBytesAsync(outsidePath, PngBytes());
+
+        var src = absolute ? outsidePath : "../" + outsideName;
+        var apkg = await BuildApkgAsync(
+            deckName: "Traversal",
+            frontHtml: $"<img src=\"{src.Replace("\\", "/", StringComparison.Ordinal)}\">",
+            backHtml: "back",
+            media: new Dictionary<string, byte[]>());
+
+        try
+        {
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+
+            var deck = Assert.Single(await library.ListDecksAsync());
+            var page = await cardSvc.ListCardsAsync(new FlashcardCardQuery(deck.Id));
+            Assert.Empty(Assert.Single(page.Items).Card.Attachments);
+            Assert.Contains(result.Warnings, w => w.Contains("was not found in package", StringComparison.Ordinal));
+            Assert.True(File.Exists(outsidePath));
+        }
+        finally
+        {
+            File.Delete(apkg);
+            File.Delete(outsidePath);
+        }
+    }
+
+    [Fact]
+    public async Task Import_PackageEntryEscapingTheWorkingDirectory_WritesNothingOutside()
+    {
+        await using var h = new FlashcardStoreHarness();
+        await h.Store.InitializeAsync();
+        var library = NewLibrary(h);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
+
+        var apkg = await BuildApkgAsync("Escape", "front", "back", new Dictionary<string, byte[]>());
+        var escapeName = $"mnemo_anki_escape_{Guid.NewGuid():N}.png";
+        var escapePath = Path.Combine(Path.GetTempPath(), escapeName);
+
+        // The working directory sits directly under the temp directory, so one level up is enough
+        // for an archive entry to plant a file where nothing asked it to.
+        await using (var file = File.Open(apkg, FileMode.Open, FileAccess.ReadWrite))
+        using (var archive = new ZipArchive(file, ZipArchiveMode.Update))
+        {
+            var entry = archive.CreateEntry("../" + escapeName, CompressionLevel.NoCompression);
+            await using var stream = entry.Open();
+            await stream.WriteAsync(PngBytes());
+        }
+
+        try
+        {
+            var before = LeftoverImportDirectories();
+
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+
+            Assert.False(result.Success);
+            Assert.False(File.Exists(escapePath));
+            Assert.Equal(before, LeftoverImportDirectories());
+        }
+        finally
+        {
+            File.Delete(apkg);
+            File.Delete(escapePath);
+        }
+    }
+
     // --- helpers ---
+
+    /// <summary>A real 1x1 PNG, so the import stores what the bytes actually are.</summary>
+    private static byte[] PngBytes() => Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+
+    /// <summary>A real 1x1 JPEG.</summary>
+    private static byte[] JpegBytes() => Convert.FromBase64String(
+        "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==");
 
     private static HashSet<string> LeftoverImportDirectories() =>
         new(Directory.GetDirectories(Path.GetTempPath(), "mnemo-anki-import-*"), StringComparer.OrdinalIgnoreCase);
@@ -165,84 +330,14 @@ public sealed class FlashcardAnkiImportTests
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
         new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets);
 
-    /// <summary>
-    /// Writes a minimal single-note, single-card Anki package (collection.anki2 + media map + files).
-    /// </summary>
-    private static async Task<string> BuildApkgAsync(
+    /// <summary>Writes a minimal single-note, single-card package in the older layout.</summary>
+    private static Task<string> BuildApkgAsync(
         string deckName,
         string frontHtml,
         string backHtml,
-        IReadOnlyDictionary<string, byte[]> media)
-    {
-        var tempRoot = Path.Combine(Path.GetTempPath(), $"mnemo_anki_fixture_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempRoot);
-
-        var dbPath = Path.Combine(tempRoot, "collection.anki2");
-        await using (var conn = new SqliteConnection($"Data Source={dbPath};Pooling=False"))
-        {
-            await conn.OpenAsync();
-            await ExecAsync(conn, """
-                CREATE TABLE col (id INTEGER PRIMARY KEY, crt INTEGER, mod INTEGER, scm INTEGER, ver INTEGER,
-                    dty INTEGER, usn INTEGER, ls INTEGER, conf TEXT, models TEXT, decks TEXT, dconf TEXT, tags TEXT);
-                CREATE TABLE notes (id INTEGER PRIMARY KEY, guid TEXT, mid INTEGER, mod INTEGER, usn INTEGER,
-                    tags TEXT, flds TEXT, sfld TEXT, csum INTEGER, flags INTEGER, data TEXT);
-                CREATE TABLE cards (id INTEGER PRIMARY KEY, nid INTEGER, did INTEGER, ord INTEGER, mod INTEGER,
-                    usn INTEGER, type INTEGER, queue INTEGER, due INTEGER, ivl INTEGER, factor INTEGER,
-                    reps INTEGER, lapses INTEGER, left INTEGER, odue INTEGER, odid INTEGER, flags INTEGER, data TEXT);
-                """);
-
-            const long did = 1500000000001L;
-            const long mid = 1608194021001L;
-            var decksJson = JsonSerializer.Serialize(new Dictionary<string, object?>
-            {
-                [did.ToString(CultureInfo.InvariantCulture)] = new Dictionary<string, object?> { ["id"] = did, ["name"] = deckName }
-            });
-            var modelsJson = JsonSerializer.Serialize(new Dictionary<string, object?>
-            {
-                [mid.ToString(CultureInfo.InvariantCulture)] = new Dictionary<string, object?> { ["id"] = mid, ["name"] = "Basic" }
-            });
-
-            await ExecAsync(conn,
-                "INSERT INTO col(id,crt,mod,scm,ver,dty,usn,ls,conf,models,decks,dconf,tags) " +
-                "VALUES(1, 0, 0, 0, 11, 0, 0, 0, '{}', @models, @decks, '{}', '{}');",
-                ("@models", modelsJson), ("@decks", decksJson));
-
-            var flds = $"{frontHtml}{UnitSeparator}{backHtml}";
-            await ExecAsync(conn,
-                "INSERT INTO notes(id,guid,mid,mod,usn,tags,flds,sfld,csum,flags,data) " +
-                "VALUES(100, 'g', @mid, 0, 0, '', @flds, '', 0, 0, '');",
-                ("@mid", mid), ("@flds", flds));
-            await ExecAsync(conn,
-                "INSERT INTO cards(id,nid,did,ord,mod,usn,type,queue,due,ivl,factor,reps,lapses,left,odue,odid,flags,data) " +
-                "VALUES(200, 100, @did, 0, 0, 0, 0, 0, 0, 0, 2500, 0, 0, 0, 0, 0, 0, '');",
-                ("@did", did));
-        }
-        SqliteConnection.ClearAllPools();
-
-        // Anki media map: numbered files on disk, original names in the JSON.
-        var mediaMap = new Dictionary<string, string>(StringComparer.Ordinal);
-        var index = 0;
-        foreach (var (name, bytes) in media)
-        {
-            var slot = index.ToString(CultureInfo.InvariantCulture);
-            await File.WriteAllBytesAsync(Path.Combine(tempRoot, slot), bytes);
-            mediaMap[slot] = name;
-            index++;
-        }
-        await File.WriteAllTextAsync(Path.Combine(tempRoot, "media"), JsonSerializer.Serialize(mediaMap));
-
-        var apkgPath = Path.Combine(Path.GetTempPath(), $"mnemo_anki_{Guid.NewGuid():N}.apkg");
-        ZipFile.CreateFromDirectory(tempRoot, apkgPath, CompressionLevel.Optimal, includeBaseDirectory: false);
-        try { Directory.Delete(tempRoot, recursive: true); } catch (IOException) { }
-        return apkgPath;
-    }
-
-    private static async Task ExecAsync(SqliteConnection conn, string sql, params (string Name, object Value)[] parameters)
-    {
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = sql;
-        foreach (var (name, value) in parameters)
-            cmd.Parameters.AddWithValue(name, value);
-        await cmd.ExecuteNonQueryAsync();
-    }
+        IReadOnlyDictionary<string, byte[]> media) =>
+        AnkiPackageFixture.WriteAsync(
+            AnkiFixtureLayout.Legacy,
+            [new AnkiFixtureCard(deckName, frontHtml, backHtml)],
+            media);
 }
