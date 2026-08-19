@@ -42,19 +42,14 @@ public sealed class StudySessionRegistryTests
     public async Task StartExclusiveOnDifferentDecksDoesNotWaitOnEachOther()
     {
         var registry = new StudySessionRegistry();
+        var a = new Rendezvous();
+        var b = new Rendezvous();
 
-        Task<int> Start() => Task.Delay(250).ContinueWith(_ => 1);
+        var first = registry.StartExclusiveAsync("deck-a", async () => await a.MeetAsync(b), CancellationToken.None);
+        var second = registry.StartExclusiveAsync("deck-b", async () => await b.MeetAsync(a), CancellationToken.None);
+        var met = await Task.WhenAll(first, second);
 
-        var clock = System.Diagnostics.Stopwatch.StartNew();
-        var a = registry.StartExclusiveAsync("deck-a", Start, CancellationToken.None);
-        var b = registry.StartExclusiveAsync("deck-b", Start, CancellationToken.None);
-        await Task.WhenAll(a, b);
-        clock.Stop();
-
-        // Serialized, the pair would take at least 500ms; run side by side they finish near 250ms.
-        // 450ms sits well clear of both so ordinary scheduling noise cannot flip the result.
-        Assert.True(clock.ElapsedMilliseconds < 450,
-            $"two different decks waited on each other's gate ({clock.ElapsedMilliseconds}ms)");
+        Assert.True(met[0] && met[1], "two different decks waited on each other's gate");
     }
 
     [Fact]
@@ -196,14 +191,16 @@ public sealed class StudySessionRegistryTests
         var a = registry.Add(new FakeSession("deck-a"), "Deck A", FlashcardSessionScope.Due, FlashcardAutoReveal.Off, now);
         var b = registry.Add(new FakeSession("deck-b"), "Deck B", FlashcardSessionScope.Due, FlashcardAutoReveal.Off, now);
 
-        var clock = System.Diagnostics.Stopwatch.StartNew();
-        var first = a.MutateAsync(() => Task.Delay(250), CancellationToken.None);
-        var second = b.MutateAsync(() => Task.Delay(250), CancellationToken.None);
-        await Task.WhenAll(first, second);
-        clock.Stop();
+        var left = new Rendezvous();
+        var right = new Rendezvous();
+        var metLeft = false;
+        var metRight = false;
 
-        Assert.True(clock.ElapsedMilliseconds < 450,
-            $"two different sessions waited on each other's gate ({clock.ElapsedMilliseconds}ms)");
+        var first = a.MutateAsync(async () => { metLeft = await left.MeetAsync(right); }, CancellationToken.None);
+        var second = b.MutateAsync(async () => { metRight = await right.MeetAsync(left); }, CancellationToken.None);
+        await Task.WhenAll(first, second);
+
+        Assert.True(metLeft && metRight, "two different sessions waited on each other's gate");
     }
 
     [Fact]
@@ -220,6 +217,28 @@ public sealed class StudySessionRegistryTests
         entry.RecordUndo();
         entry.RecordUndo();
         Assert.Equal(0, entry.Graded);
+    }
+
+    /// <summary>
+    /// One half of a pair of bodies that can only finish if they are inside their gates at the same
+    /// moment. Each announces itself and then waits for the other, so a gate the two wrongly share
+    /// is caught by the pair never meeting rather than by how long the pair took, which is the only
+    /// form of this assertion a loaded build machine cannot flip on its own. The wait is bounded so
+    /// a shared gate is reported as a failure instead of hanging the run.
+    /// </summary>
+    private sealed class Rendezvous
+    {
+        private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
+
+        private readonly TaskCompletionSource _arrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>True when the other side was inside its gate while this one was inside its own.</summary>
+        public async Task<bool> MeetAsync(Rendezvous other)
+        {
+            _arrived.SetResult();
+            var finished = await Task.WhenAny(other._arrived.Task, Task.Delay(Patience));
+            return ReferenceEquals(finished, other._arrived.Task);
+        }
     }
 
     private sealed class FakeSession(string deckId) : IFlashcardSession

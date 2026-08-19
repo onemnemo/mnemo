@@ -220,8 +220,31 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             await _dailyStats.IncrementAsync(conn, tx, deckId, localDay,
                 wasNewIntroduction ? -1 : 0, ChargesReviewCap(restoredSchedule.FsrsState) ? -1 : 0, ct).ConfigureAwait(false);
             if (restoredCard is not null)
-                await _cards.UpdateAsync(conn, tx, restoredCard, ct).ConfigureAwait(false);
+                await LiftLeechAsync(conn, tx, restoredCard, ct).ConfigureAwait(false);
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Puts back the tags and the state a leech took, and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// The card handed here is the copy the session queued, which can be a whole session old by the
+    /// time the reader undoes anything. Writing all of it would carry that copy's deck, text and
+    /// attachments back over whatever the card has become since, so an edit or a deck move made
+    /// during the session would quietly disappear on an undo. Only the two fields marking a leech
+    /// are restored; the modified time stays as it is, because the row really did change twice.
+    /// </remarks>
+    private async Task LiftLeechAsync(SqliteConnection conn, SqliteTransaction tx, Flashcard restoredCard, CancellationToken ct)
+    {
+        var current = await _cards.GetAsync(conn, restoredCard.Id, ct).ConfigureAwait(false);
+        if (current is null)
+            return;
+
+        await _cards.UpdateAsync(conn, tx, current with
+        {
+            Tags = restoredCard.Tags,
+            State = restoredCard.State,
+        }, ct).ConfigureAwait(false);
     }
 
     /// <summary>

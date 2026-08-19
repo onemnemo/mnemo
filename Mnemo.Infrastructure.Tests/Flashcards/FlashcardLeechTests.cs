@@ -124,6 +124,32 @@ public sealed class FlashcardLeechTests
     }
 
     [Fact]
+    public async Task Undo_LiftsTheMarkWithoutTakingBackAnEditMadeSinceTheCardWasQueued()
+    {
+        await using var h = new FlashcardStoreHarness(Now);
+        var deckId = await SeedAsync(h, threshold: 3, FlashcardLeechAction.Suspend);
+        await AddLapsingCardAsync(h, deckId, lapses: 2);
+        // Its own preset, so seeding it does not overwrite the one carrying the leech limit.
+        var elsewhere = await h.SeedDeckAsync("deck-2", "preset-2");
+
+        var session = await Study(h).StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+        await session.GradeAsync(FlashcardReviewGrade.Again);
+
+        // The card is moved and rewritten after the grade, the way a second tab or the collection
+        // browser would. The session is still holding the copy it queued before any of this.
+        var edited = (await GetCardAsync(h)) with { DeckId = elsewhere, Front = "rewritten" };
+        await h.Store.WriteAsync((conn, tx, ct) => h.Cards.UpdateAsync(conn, tx, edited, ct));
+
+        Assert.True(await session.UndoAsync());
+
+        var card = await GetCardAsync(h);
+        Assert.Empty(card.Tags);
+        Assert.Equal(FlashcardCardState.Active, card.State);
+        Assert.Equal(elsewhere, card.DeckId);
+        Assert.Equal("rewritten", card.Front);
+    }
+
+    [Fact]
     public async Task Cram_MarksNothing()
     {
         await using var h = new FlashcardStoreHarness(Now);
