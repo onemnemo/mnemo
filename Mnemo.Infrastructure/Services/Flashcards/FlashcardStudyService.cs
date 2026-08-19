@@ -13,6 +13,14 @@ namespace Mnemo.Infrastructure.Services.Flashcards;
 /// <inheritdoc />
 public sealed class FlashcardStudyService : IFlashcardStudyService
 {
+    /// <summary>
+    /// The forecast spans every deck at once, and decks may roll their day over at different hours,
+    /// so its columns are plain local calendar dates. A day-scale due date is snapped to the start
+    /// of its own deck's day, which is an hour of the date that day is named after, so every deck's
+    /// cards land on the column they are scheduled for whichever hour that deck uses.
+    /// </summary>
+    private const int ChartDayStartHour = 0;
+
     private readonly IFlashcardStore _store;
     private readonly IDeckRepository _decks;
     private readonly IScheduleRepository _schedules;
@@ -55,7 +63,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             var raw = await _schedules.GetRawDueCountsAsync(conn, deckId, now, ct).ConfigureAwait(false);
             var preset = await _presets.GetAsync(conn, header.PresetId, ct).ConfigureAwait(false)
                          ?? FlashcardPreset.CreateStandard(now);
-            var stat = await _dailyStats.GetAsync(conn, deckId, _clock.TodayKey(), ct).ConfigureAwait(false);
+            var stat = await _dailyStats.GetAsync(conn, deckId, _clock.TodayKey(preset.DayStartHour), ct).ConfigureAwait(false);
             return FlashcardDueCalculator.Cap(raw, preset, stat);
         }, cancellationToken);
 
@@ -68,7 +76,8 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             // Ninety days is the ceiling because past it the projection stops describing a schedule
             // and starts describing FSRS's own interval growth.
             var span = Math.Clamp(days, 1, 90);
-            var today = DateOnly.FromDateTime(_clock.Now.UtcDateTime);
+
+            var today = _clock.Today(ChartDayStartHour);
 
             // Today comes off the same cap-aware aggregate the due-today banner uses rather than off
             // the day query below, so the first column of the chart and the number beside it are one
@@ -83,15 +92,15 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             if (span == 1)
                 return forecast;
 
-            var from = new DateTimeOffset(today.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-            var to = new DateTimeOffset(today.AddDays(span).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-            var byDay = await _schedules.GetScheduledCountsByUtcDayAsync(conn, from, to, ct).ConfigureAwait(false);
+            // One boundary per remaining day plus a closing one, so day i is the half-open window
+            // between consecutive entries.
+            var boundaries = new DateTimeOffset[span];
+            for (var i = 0; i < span; i++)
+                boundaries[i] = _clock.StartOf(today.AddDays(i + 1), ChartDayStartHour);
+            var byWindow = await _schedules.GetScheduledCountsByWindowAsync(conn, boundaries, ct).ConfigureAwait(false);
 
             for (var offset = 1; offset < span; offset++)
-            {
-                var day = today.AddDays(offset);
-                forecast.Add(new FlashcardForecastDay(day, byDay.TryGetValue(day, out var due) ? due : 0, 0));
-            }
+                forecast.Add(new FlashcardForecastDay(today.AddDays(offset), byWindow[offset - 1], 0));
             return forecast;
         }, cancellationToken);
 
@@ -104,13 +113,13 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             byId[p.Id] = p;
 
         var now = _clock.Now;
-        var today = _clock.TodayKey();
         var total = FlashcardDueCounts.Empty;
         foreach (var header in headers)
         {
             var raw = await _schedules.GetRawDueCountsAsync(conn, header.Id, now, ct).ConfigureAwait(false);
             var preset = byId.TryGetValue(header.PresetId, out var p) ? p : FlashcardPreset.CreateStandard(now);
-            var stat = await _dailyStats.GetAsync(conn, header.Id, today, ct).ConfigureAwait(false);
+            // Each deck's preset decides when its day turns over, so the key is per deck.
+            var stat = await _dailyStats.GetAsync(conn, header.Id, _clock.TodayKey(preset.DayStartHour), ct).ConfigureAwait(false);
             total = total.Add(FlashcardDueCalculator.Cap(raw, preset, stat));
         }
         return total;
@@ -133,7 +142,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             var items = new List<FlashcardView>();
             if (request.Mode == FlashcardSessionMode.Review)
             {
-                var stat = await _dailyStats.GetAsync(conn, request.DeckId, _clock.TodayKey(), ct).ConfigureAwait(false);
+                var stat = await _dailyStats.GetAsync(conn, request.DeckId, _clock.TodayKey(deckPreset.DayStartHour), ct).ConfigureAwait(false);
                 var newBudget = Math.Max(0, deckPreset.NewPerDay - stat.NewIntroduced);
                 var reviewBudget = Math.Max(0, deckPreset.MaxReviewsPerDay - stat.ReviewsDone);
 

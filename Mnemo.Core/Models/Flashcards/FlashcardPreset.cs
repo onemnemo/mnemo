@@ -19,10 +19,19 @@ public sealed record FlashcardPreset(
     FlashcardAutoReveal AutoReveal,
     IReadOnlyList<double>? Weights = null,
     DateTimeOffset CreatedAt = default,
-    DateTimeOffset UpdatedAt = default)
+    DateTimeOffset UpdatedAt = default,
+    // The local hour a study day rolls over at. Late-night studying belongs to the day the user
+    // thinks they are still in, so the day ends here rather than at midnight.
+    int NextDayStartsAtHour = FlashcardPreset.DefaultNextDayStartsAtHour)
 {
     /// <summary>Id of the seeded default preset that every legacy deck is attached to on migration.</summary>
     public const string StandardPresetId = "preset-standard";
+
+    /// <summary>Four in the morning: late enough to be after a long evening, early enough to be before a normal start.</summary>
+    public const int DefaultNextDayStartsAtHour = 4;
+
+    /// <summary>The hour clamped to something a day can actually start at.</summary>
+    public int DayStartHour => Math.Clamp(NextDayStartsAtHour, 0, 23);
 
     /// <summary>Builds the default "Standard" preset with FSRS-6 defaults.</summary>
     public static FlashcardPreset CreateStandard(DateTimeOffset now) => new(

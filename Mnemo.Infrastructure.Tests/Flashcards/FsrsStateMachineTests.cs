@@ -12,11 +12,19 @@ namespace Mnemo.Infrastructure.Tests.Flashcards;
 /// </summary>
 public sealed class FsrsStateMachineTests
 {
-    private static readonly FlashcardPreset Preset = FlashcardPreset.CreateStandard(DateTimeOffset.UtcNow);
-    private readonly FsrsScheduler _scheduler = new();
+    /// <summary>A fixed instant, so day snapping lands the same way on every machine and every run.</summary>
+    private static readonly DateTimeOffset Now = new(2026, 3, 5, 9, 30, 0, TimeSpan.Zero);
+
+    private static readonly FlashcardPreset Preset = FlashcardPreset.CreateStandard(Now);
+    private static readonly FlashcardClock Clock = new(new TestTimeProvider(Now));
+    private readonly FsrsScheduler _scheduler = new(Clock);
 
     private static int DueInMinutes(FlashcardSchedule s, DateTimeOffset now) =>
         (int)Math.Round((s.DueDate - now).TotalMinutes);
+
+    /// <summary>How many study days out a graduated card landed, which is what its interval means.</summary>
+    private static int DueInDays(FlashcardSchedule s, DateTimeOffset now) =>
+        Clock.DaysBetween(now, s.DueDate, Preset.DayStartHour);
 
     private static FlashcardSchedule Learning(int stepIndex, DateTimeOffset now) =>
         new("c", now, 3.0d, 5.0d, 2, 0, FlashcardFsrsState.Learning, stepIndex, now.AddMinutes(-10));
@@ -24,7 +32,7 @@ public sealed class FsrsStateMachineTests
     [Fact]
     public void Hard_RepeatsTheCurrentLearningStep()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         // Standard steps are 1m then 10m; sitting on the second one.
         var next = _scheduler.ApplyGrade(Learning(1, now), FlashcardReviewGrade.Hard, now, Preset);
 
@@ -36,7 +44,7 @@ public sealed class FsrsStateMachineTests
     [Fact]
     public void Again_ResetsToTheFirstLearningStep()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var next = _scheduler.ApplyGrade(Learning(1, now), FlashcardReviewGrade.Again, now, Preset);
 
         Assert.Equal(FlashcardFsrsState.Learning, next.FsrsState);
@@ -47,18 +55,18 @@ public sealed class FsrsStateMachineTests
     [Fact]
     public void Easy_GraduatesFromAnyLearningStep()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var next = _scheduler.ApplyGrade(Learning(0, now), FlashcardReviewGrade.Easy, now, Preset);
 
         Assert.Equal(FlashcardFsrsState.Review, next.FsrsState);
         Assert.Equal(0, next.LearningStepIndex);
-        Assert.True((next.DueDate - now).TotalDays >= 1d);
+        Assert.True(DueInDays(next, now) >= 1);
     }
 
     [Fact]
     public void Relearning_GraduatesBackToReview_OnGood()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         // Standard relearn steps are a single 10m step, so Good graduates straight out.
         var relearning = new FlashcardSchedule("c", now, 4.0d, 6.0d, 9, 1,
             FlashcardFsrsState.Relearning, 0, now.AddMinutes(-10));
@@ -66,14 +74,14 @@ public sealed class FsrsStateMachineTests
         var next = _scheduler.ApplyGrade(relearning, FlashcardReviewGrade.Good, now, Preset);
 
         Assert.Equal(FlashcardFsrsState.Review, next.FsrsState);
-        Assert.True((next.DueDate - now).TotalDays >= 1d);
+        Assert.True(DueInDays(next, now) >= 1);
         Assert.Equal(1, next.Lapses); // graduating does not add a lapse
     }
 
     [Fact]
     public void Relearning_Again_StaysInRelearning_WithoutCountingAnotherLapse()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var relearning = new FlashcardSchedule("c", now, 4.0d, 6.0d, 9, 1,
             FlashcardFsrsState.Relearning, 0, now.AddMinutes(-10));
 
@@ -87,7 +95,7 @@ public sealed class FsrsStateMachineTests
     [Fact]
     public void LapseFromReview_IsTheOnlyThingThatIncrementsLapses()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var review = new FlashcardSchedule("c", now.AddDays(-1), 10d, 5d, 4, 3,
             FlashcardFsrsState.Review, 0, now.AddDays(-8));
 
@@ -101,7 +109,7 @@ public sealed class FsrsStateMachineTests
     [Fact]
     public void EveryGrade_IncrementsReps()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var schedule = FlashcardSchedule.NewFor("c", now);
 
         foreach (var grade in new[]
@@ -119,7 +127,7 @@ public sealed class FsrsStateMachineTests
     [Fact]
     public void CustomLearningSteps_AreWalkedInOrder()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var preset = Preset with { LearningSteps = new[] { 5, 25, 120 } };
 
         var s0 = _scheduler.ApplyGrade(FlashcardSchedule.NewFor("c", now), FlashcardReviewGrade.Good, now, preset);
@@ -138,19 +146,19 @@ public sealed class FsrsStateMachineTests
     [Fact]
     public void NoLearningSteps_SendsNewCardsStraightToReview()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var preset = Preset with { LearningSteps = Array.Empty<int>() };
 
         var next = _scheduler.ApplyGrade(FlashcardSchedule.NewFor("c", now), FlashcardReviewGrade.Good, now, preset);
 
         Assert.Equal(FlashcardFsrsState.Review, next.FsrsState);
-        Assert.True((next.DueDate - now).TotalDays >= 1d);
+        Assert.True(DueInDays(next, now) >= 1);
     }
 
     [Fact]
     public void NonPositiveSteps_AreDiscarded()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var preset = Preset with { LearningSteps = new[] { 0, -5, 15 } };
 
         var next = _scheduler.ApplyGrade(FlashcardSchedule.NewFor("c", now), FlashcardReviewGrade.Good, now, preset);
@@ -164,7 +172,7 @@ public sealed class FsrsStateMachineTests
     {
         // Editing a preset re-schedules every deck bound to it, so a card can be sitting on a step
         // index the shortened list no longer has.
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var shortened = Preset with { LearningSteps = new[] { 7 } };
 
         var hard = _scheduler.ApplyGrade(Learning(4, now), FlashcardReviewGrade.Hard, now, shortened);
@@ -185,7 +193,7 @@ public sealed class FsrsStateMachineTests
     [InlineData(FlashcardReviewGrade.Easy, "8d")]
     public void DescribeInterval_NewCard_ProducesExactPreviews(FlashcardReviewGrade grade, string expected)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         Assert.Equal(expected, _scheduler.DescribeInterval(FlashcardSchedule.NewFor("c", now), grade, now, Preset));
     }
 
@@ -196,7 +204,7 @@ public sealed class FsrsStateMachineTests
     [InlineData(FlashcardReviewGrade.Easy, "45d")]
     public void DescribeInterval_ReviewCard_ProducesExactPreviews(FlashcardReviewGrade grade, string expected)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var review = new FlashcardSchedule("c", now.AddDays(-8), 10d, 5d, 5, 0,
             FlashcardFsrsState.Review, 0, now.AddDays(-8));
 
@@ -206,7 +214,7 @@ public sealed class FsrsStateMachineTests
     [Fact]
     public void GradingStampsLastReviewedAt()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var next = _scheduler.ApplyGrade(FlashcardSchedule.NewFor("c", now), FlashcardReviewGrade.Good, now, Preset);
 
         Assert.Equal(now, next.LastReviewedAt);
@@ -215,7 +223,7 @@ public sealed class FsrsStateMachineTests
     [Fact]
     public void DifficultyStaysWithinBounds_UnderRepeatedExtremeGrades()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
 
         var easy = FlashcardSchedule.NewFor("c", now);
         for (var i = 0; i < 50; i++)
