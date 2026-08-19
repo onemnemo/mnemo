@@ -373,6 +373,8 @@ export interface PresetDto {
   shuffleOrder: boolean
   buryRelated: boolean
   autoReveal: AutoReveal
+  /** The local hour a study day rolls over at, 0 to 23. Anything before it counts as yesterday. */
+  nextDayStartsAtHour: number
   deckCount: number
   isStandard: boolean
   createdAt: string
@@ -393,6 +395,7 @@ export interface SavePresetDto {
   shuffleOrder: boolean
   buryRelated: boolean
   autoReveal: AutoReveal
+  nextDayStartsAtHour: number
 }
 
 // --- Import / export -------------------------------------------------------

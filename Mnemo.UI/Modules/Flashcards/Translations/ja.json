@@ -193,6 +193,8 @@
     "ReviewSettingsRetentionDescription": "値が高いほど復習の頻度が上がります",
     "ReviewSettingsLearningStepsTitle": "学習ステップ",
     "ReviewSettingsLearningStepsDescription": "分単位でスペース区切り、例: \"1m 10m\"",
+    "ReviewSettingsDayStartTitle": "翌日の開始時刻",
+    "ReviewSettingsDayStartDescription": "この時刻より前の復習は前日分として数えられます",
     "ReviewSettingsSessionLabel": "セッション",
     "ReviewSettingsShuffleTitle": "カードの順序をシャッフル",
     "ReviewSettingsBuryTitle": "関連カードを翌日まで保留",

@@ -32,10 +32,15 @@ export interface PresetDraft {
   shuffleOrder: boolean
   buryRelated: boolean
   autoReveal: AutoReveal
+  /** The local hour a study day rolls over at, 0 to 23. */
+  nextDayStartsAtHour: number
   deckCount: number
   isStandard: boolean
   dirty: boolean
 }
+
+/** The hours the day-start row offers, which is every one of them. */
+export const DAY_START_HOURS = Array.from({ length: 24 }, (_, hour) => hour)
 
 /** The Standard defaults, which seed a new preset and back "Restore defaults". */
 const STANDARD_VALUES = {
@@ -46,6 +51,7 @@ const STANDARD_VALUES = {
   shuffleOrder: false,
   buryRelated: true,
   autoReveal: "off",
+  nextDayStartsAtHour: 4,
 } as const
 
 export function draftFromPreset(preset: PresetDto): PresetDraft {
@@ -60,6 +66,7 @@ export function draftFromPreset(preset: PresetDto): PresetDraft {
     shuffleOrder: preset.shuffleOrder,
     buryRelated: preset.buryRelated,
     autoReveal: preset.autoReveal,
+    nextDayStartsAtHour: preset.nextDayStartsAtHour,
     deckCount: preset.deckCount,
     isStandard: preset.isStandard,
     dirty: false,
@@ -100,6 +107,7 @@ export function toSaveDto(draft: PresetDraft): SavePresetDto {
     shuffleOrder: draft.shuffleOrder,
     buryRelated: draft.buryRelated,
     autoReveal: draft.autoReveal,
+    nextDayStartsAtHour: draft.nextDayStartsAtHour,
   }
 }
 

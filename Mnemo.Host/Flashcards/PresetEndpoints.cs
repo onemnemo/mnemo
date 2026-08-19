@@ -89,6 +89,7 @@ public static class PresetEndpoints
                 ShuffleOrder = body.ShuffleOrder,
                 BuryRelated = body.BuryRelated,
                 AutoReveal = autoReveal,
+                NextDayStartsAtHour = body.NextDayStartsAtHour ?? standard.NextDayStartsAtHour,
                 CreatedAt = default,
             },
             cancellationToken).ConfigureAwait(false);
@@ -125,6 +126,7 @@ public static class PresetEndpoints
                 ShuffleOrder = body.ShuffleOrder,
                 BuryRelated = body.BuryRelated,
                 AutoReveal = autoReveal,
+                NextDayStartsAtHour = body.NextDayStartsAtHour ?? stored.NextDayStartsAtHour,
             },
             cancellationToken).ConfigureAwait(false);
 
@@ -256,6 +258,12 @@ public static class PresetEndpoints
         if (!FlashcardWire.TryParseAutoReveal(body.AutoReveal, out autoReveal))
         {
             error = Results.BadRequest(new ErrorDto("invalid_auto_reveal", $"Unknown auto-reveal '{body.AutoReveal}'."));
+            return true;
+        }
+
+        if (body.NextDayStartsAtHour is { } hour && (hour < 0 || hour > 23))
+        {
+            error = Results.BadRequest(new ErrorDto("invalid_day_start", "The next day must start at an hour between 0 and 23."));
             return true;
         }
 
