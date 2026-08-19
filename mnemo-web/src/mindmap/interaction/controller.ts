@@ -149,10 +149,22 @@ type Gesture =
       box: ResizeBox
     }
 
+export interface InstalledInteraction {
+  /** Removes every listener this attached. Does not touch a gesture in progress; call `cancel` first. */
+  uninstall(): void
+  /**
+   * Aborts whatever gesture is active right now: a drag, resize, marquee, or connect line reverts as
+   * if the pointer had gone away. A no-op when nothing is active. This is what lets a keyboard cancel
+   * a gesture a pointer started, since Escape carries no pointer id to match against a real
+   * `pointercancel`.
+   */
+  cancel(): void
+}
+
 export function installInteraction(
   surface: InteractionSurface,
   handlers: InteractionHandlers,
-): () => void {
+): InstalledInteraction {
   const { pane, index, scene } = surface
 
   // Membership is an explicit id list rather than derived containment, so a frame is wherever its
@@ -522,10 +534,16 @@ export function installInteraction(
     )
   }
 
-  const onPointerCancel = (event: PointerEvent): void => {
-    if (gesture.kind === "none" || event.pointerId !== gesture.pointerId) {
+  /**
+   * Puts whatever is active back where it started and drops it. Shared by a real `pointercancel`,
+   * which names the pointer that lost its gesture, and an external cancel, which does not: both mean
+   * the same thing to a gesture that only ever tracks one pointer at a time.
+   */
+  const resetGesture = (): void => {
+    if (gesture.kind === "none") {
       return
     }
+    const pointerId = gesture.pointerId
     if (gesture.kind === "marquee") {
       gesture.box.remove()
     }
@@ -548,7 +566,14 @@ export function installInteraction(
       surface.unpin()
     }
     gesture = { kind: "none" }
-    releaseCapture(pane, event.pointerId)
+    releaseCapture(pane, pointerId)
+  }
+
+  const onPointerCancel = (event: PointerEvent): void => {
+    if (gesture.kind === "none" || event.pointerId !== gesture.pointerId) {
+      return
+    }
+    resetGesture()
   }
 
   const onDoubleClick = (event: MouseEvent): void => {
@@ -565,18 +590,21 @@ export function installInteraction(
   pane.addEventListener("pointercancel", onPointerCancel)
   pane.addEventListener("dblclick", onDoubleClick)
 
-  return () => {
-    pane.removeEventListener("pointerdown", onPointerDown)
-    pane.removeEventListener("pointermove", onPointerMove)
-    pane.removeEventListener("pointerup", onPointerUp)
-    pane.removeEventListener("pointercancel", onPointerCancel)
-    pane.removeEventListener("dblclick", onDoubleClick)
-    if (gesture.kind === "marquee") {
-      gesture.box.remove()
-    }
-    if (gesture.kind === "connect") {
-      gesture.line.remove()
-    }
+  return {
+    uninstall: () => {
+      pane.removeEventListener("pointerdown", onPointerDown)
+      pane.removeEventListener("pointermove", onPointerMove)
+      pane.removeEventListener("pointerup", onPointerUp)
+      pane.removeEventListener("pointercancel", onPointerCancel)
+      pane.removeEventListener("dblclick", onDoubleClick)
+      if (gesture.kind === "marquee") {
+        gesture.box.remove()
+      }
+      if (gesture.kind === "connect") {
+        gesture.line.remove()
+      }
+    },
+    cancel: resetGesture,
   }
 }
 

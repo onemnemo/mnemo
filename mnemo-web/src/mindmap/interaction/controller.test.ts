@@ -156,7 +156,7 @@ function harness(scene: Scene = SCENE) {
   let selection: Selection = EMPTY_SELECTION
   let tool: MindmapTool = "select"
 
-  const uninstall = installInteraction(
+  const installed = installInteraction(
     {
       pane,
       index,
@@ -216,9 +216,10 @@ function harness(scene: Scene = SCENE) {
     grouped,
     chromed,
     uninstall: () => {
-      uninstall()
+      installed.uninstall()
       pane.remove()
     },
+    cancelGesture: () => installed.cancel(),
     unpinCount: () => unpins,
     selection: () => selection,
     arm: (next: MindmapTool) => {
@@ -599,6 +600,65 @@ describe("a resize grip", () => {
 
     expect(h.resizes).toHaveLength(1)
     expect(h.connected).toHaveLength(0)
+    h.uninstall()
+  })
+})
+
+describe("cancelGesture, the Escape path", () => {
+  // Escape does not send a pointercancel; it calls the same revert through a second door. Each
+  // gesture kind already proves its revert is correct against the native pointercancel path above,
+  // so what is worth pinning here is only that the door itself is wired: cancelGesture() reaches the
+  // same resetGesture() and leaves the same gesture-free state behind.
+  it("puts a drag back where it started", () => {
+    const h = harness()
+    h.press("a", { x: 210, y: -50 })
+    h.move({ x: 310, y: 40 })
+    h.cancelGesture()
+
+    expect(h.positions.get("a")).toEqual({ x: 200, y: -60 })
+    expect(h.positions.get("a1")).toEqual({ x: 400, y: -60 })
+    expect(h.commits).toHaveLength(0)
+    expect(h.unpinCount()).toBe(1)
+    h.uninstall()
+  })
+
+  it("closes the marquee band without selecting what it was touching", () => {
+    const h = harness()
+    const before = h.pane.children.length
+    h.press(null, { x: 150, y: -100 })
+    h.move({ x: 450, y: 20 })
+    expect(h.pane.children.length).toBe(before + 1)
+
+    h.cancelGesture()
+
+    expect(h.pane.children.length).toBe(before)
+    expect(h.selection().elements.size).toBe(0)
+    h.uninstall()
+  })
+
+  it("leaves no preview behind when a connect drag is cancelled", () => {
+    const h = harness()
+    h.arm("connect")
+    h.press("a", { x: 210, y: -50 })
+    h.move({ x: 300, y: 100 })
+    expect(h.pane.querySelectorAll("svg")).toHaveLength(1)
+
+    h.cancelGesture()
+
+    expect(h.pane.querySelectorAll("svg")).toHaveLength(0)
+    expect(h.connected).toHaveLength(0)
+    h.uninstall()
+  })
+
+  it("puts the box back when a resize is cancelled", () => {
+    const h = harness()
+    h.pressGrip("a", "se", { x: 300, y: -20 })
+    h.move({ x: 500, y: 200 })
+    h.cancelGesture()
+
+    expect(h.boxes.get("a")).toEqual({ x: 200, y: -60, width: 100, height: 40 })
+    expect(h.resizes).toHaveLength(0)
+    expect(h.unpinCount()).toBe(1)
     h.uninstall()
   })
 })
