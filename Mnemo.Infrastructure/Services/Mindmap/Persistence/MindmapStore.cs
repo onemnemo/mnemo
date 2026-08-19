@@ -113,12 +113,16 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
+            var id = reader.IsDBNull(0) ? null : reader.GetString(0);
+            if (id is null)
+                continue;
+
             results.Add(new MindmapDocumentSummary
             {
-                Id = reader.GetString(0),
-                Title = reader.GetString(1),
-                Revision = reader.GetInt64(2),
-                ModifiedAt = ParseDate(reader.GetString(3)),
+                Id = id,
+                Title = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                Revision = reader.IsDBNull(2) ? 0 : reader.GetInt64(2),
+                ModifiedAt = ReadDate(reader, 3),
             });
         }
 
@@ -208,13 +212,16 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Doc, FolderId, LinkedDecksJson FROM Mindmaps;";
+        cmd.CommandText = "SELECT Doc, FolderId, LinkedDecksJson, Id FROM Mindmaps;";
 
         var entries = new List<MindmapLibraryEntry>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            var document = MindmapDocumentSerializer.Deserialize(reader.GetString(0));
+            // One row the reader cannot make sense of costs the library that map, not the library. A
+            // truncated write, a hand-edited database or a document from a build that stored a shape this
+            // one cannot read would otherwise take down the gallery for every other map the user has.
+            var document = TryReadDocument(reader);
             if (document is null)
                 continue;
 
@@ -222,11 +229,38 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
             {
                 Document = document,
                 FolderId = reader.IsDBNull(1) ? null : reader.GetString(1),
-                LinkedDeckIds = ParseDeckIds(reader.GetString(2)),
+                LinkedDeckIds = reader.IsDBNull(2) ? Array.Empty<string>() : ParseDeckIds(reader.GetString(2)),
             });
         }
 
         return entries;
+    }
+
+    /// <summary>
+    /// The document in the current row, or null when it cannot be read. Logged with the row's id so an
+    /// unreadable map is findable rather than merely absent.
+    /// </summary>
+    private MindmapDocument? TryReadDocument(SqliteDataReader reader)
+    {
+        var id = reader.IsDBNull(3) ? "(no id)" : reader.GetString(3);
+        try
+        {
+            if (reader.IsDBNull(0))
+            {
+                _logger.Warning("Mindmap", $"Mindmap '{id}' has no stored document and was left out of the library.");
+                return null;
+            }
+
+            var document = MindmapDocumentSerializer.Deserialize(reader.GetString(0));
+            if (document is null)
+                _logger.Warning("Mindmap", $"Mindmap '{id}' deserialized to nothing and was left out of the library.");
+            return document;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or NotSupportedException)
+        {
+            _logger.Warning("Mindmap", $"Mindmap '{id}' could not be read and was left out of the library: {ex.Message}");
+            return null;
+        }
     }
 
     public async Task<IReadOnlyList<MindmapFolder>> GetFoldersAsync(CancellationToken cancellationToken = default)
@@ -538,8 +572,24 @@ public sealed class MindmapStore : IMindmapStore, IAsyncDisposable
         return false;
     }
 
-    private static DateTime ParseDate(string value) =>
-        DateTime.Parse(value, CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
+    /// <summary>
+    /// The timestamp in a column, or <see cref="DateTime.MinValue"/> when it is absent or unparseable. A
+    /// header list sorts and labels by this; a map with a damaged timestamp belongs at the bottom of the
+    /// list, not missing from it.
+    /// </summary>
+    private static DateTime ReadDate(SqliteDataReader reader, int ordinal)
+    {
+        if (reader.IsDBNull(ordinal))
+            return DateTime.MinValue;
+
+        return DateTime.TryParse(
+            reader.GetString(ordinal),
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.RoundtripKind,
+            out var parsed)
+            ? parsed
+            : DateTime.MinValue;
+    }
 
     public async ValueTask DisposeAsync()
     {
