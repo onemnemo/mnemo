@@ -158,6 +158,7 @@ public static class Program
         app.MapProfileAssets();
         app.MapKeybinds();
         app.MapNav();
+        app.MapSearch();
         app.MapChat();
         app.MapChatTurns();
         app.MapChatAssets();
