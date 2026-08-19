@@ -17,6 +17,7 @@ import { useT } from '@/i18n/useT';
 import { cn } from '@/lib/utils';
 import { dialog } from '@/stores/dialog';
 import { useSettingsStore } from '@/settings/store';
+import { useUndoDelete } from '@/trash/undo';
 import type { NoteSummaryDto } from '@/api/types';
 
 import { useDeleteNote, useDuplicateNote, useUpdateNoteMetadata } from '../api';
@@ -37,6 +38,7 @@ import { EDITOR_WIDTH_KEY, useEditorMeasure, useEditorWidthOptions } from './use
 export function PaneActions({ note }: { note: NoteSummaryDto }) {
   const t = useT();
   const nt = (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
+  const undo = useUndoDelete();
   const updateNote = useUpdateNoteMetadata();
   const deleteNote = useDeleteNote();
   const duplicateNote = useDuplicateNote();
@@ -96,16 +98,11 @@ export function PaneActions({ note }: { note: NoteSummaryDto }) {
   };
 
   const remove = async () => {
-    const ok = await dialog.confirm({
-      title: nt('DeleteNote'),
-      message: nt('DeleteNoteConfirm', { 0: title }),
-      destructive: true,
-      confirmLabel: nt('DeleteNote'),
-      cancelLabel: t('Common', 'Cancel'),
-    });
-    if (!ok) return;
-    await deleteNote.mutateAsync(note.id);
+    const action = await deleteNote.mutateAsync(note.id);
+    // Out of the note before the toast, so undo is offered from the tree rather than from a
+    // page still showing the note it just deleted.
     navigate('notes');
+    undo(action);
   };
 
   return (

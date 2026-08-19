@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { apiFetch, apiSend, ApiError } from "@/api/client"
 import type { CardPageDto, CardSort, CardStateFilter } from "@/api/types"
+import type { TrashActionDto } from "@/trash/types"
 
 import { libraryKey } from "../api"
 
@@ -82,9 +83,9 @@ function json(body: unknown): RequestInit {
  * decks, so there is no single deck key to name) and the library, since card counts, due
  * counts and retention all appear there too.
  */
-function useBrowseMutation<TArgs>(mutationFn: (args: TArgs) => Promise<unknown>) {
+function useBrowseMutation<TArgs, TResult = unknown>(mutationFn: (args: TArgs) => Promise<TResult>) {
   const client = useQueryClient()
-  return useMutation<unknown, ApiError, TArgs>({
+  return useMutation<TResult, ApiError, TArgs>({
     mutationFn,
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: browseKey })
@@ -94,8 +95,9 @@ function useBrowseMutation<TArgs>(mutationFn: (args: TArgs) => Promise<unknown>)
   })
 }
 
+/** Moves cards to the trash. One entry per card, all of them under one batch, so undo takes them back together. */
 export function useBrowseDeleteCards() {
-  return useBrowseMutation((cardIds: string[]) => apiSend("/cards/delete", json({ cardIds })))
+  return useBrowseMutation((cardIds: string[]) => apiFetch<TrashActionDto>("/cards/delete", json({ cardIds })))
 }
 
 export function useBrowseMoveCards() {

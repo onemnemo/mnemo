@@ -3,6 +3,7 @@ import { useState } from "react"
 import { navigate } from "@/app/router"
 import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
+import { useUndoDelete } from "@/trash/undo"
 
 import {
   useCreateMindmap,
@@ -20,14 +21,15 @@ import { useLibraryView } from "./store"
  * The library's verbs, in one place because the grid and the list offer the same ones and a card and
  * a row must not disagree about what "delete" asks first.
  *
- * Each verb owns its own confirmation. A menu item that opens a dialog and a menu item that acts
- * immediately look identical, so the decision belongs with the action rather than with whichever
- * surface happened to render the row.
+ * Each verb owns whatever it has to ask or offer afterwards. A menu item that opens a dialog and a
+ * menu item that acts immediately look identical, so the decision belongs with the action rather
+ * than with whichever surface happened to render the row.
  */
 export function useLibraryActions() {
   const t = useT()
   const mm = (key: string) => t("Mindmap", key)
 
+  const undo = useUndoDelete()
   const create = useCreateMindmap()
   const rename = useRenameMindmap()
   const duplicate = useDuplicateMindmap()
@@ -108,17 +110,8 @@ export function useLibraryActions() {
       await duplicate.mutateAsync({ id })
     },
 
-    async deleteMap(id: string, title: string) {
-      const ok = await dialog.confirm({
-        title: mm("DeleteMapTitle"),
-        message: mm("DeleteMapConfirm").replace("{0}", title || mm("UntitledMap")),
-        destructive: true,
-        confirmLabel: mm("Delete"),
-        cancelLabel: mm("Cancel"),
-      })
-      if (ok) {
-        await remove.mutateAsync(id)
-      }
+    async deleteMap(id: string) {
+      undo(await remove.mutateAsync(id))
     },
 
     async renameFolder(folder: MindmapFolder) {
@@ -137,22 +130,12 @@ export function useLibraryActions() {
     },
 
     async deleteFolder(folder: MindmapFolder, leaving: boolean) {
-      const ok = await dialog.confirm({
-        title: mm("DeleteFolderTitle"),
-        message: mm("DeleteFolderConfirm").replace("{0}", folder.name),
-        destructive: true,
-        confirmLabel: mm("Delete"),
-        cancelLabel: mm("Cancel"),
-      })
-      if (!ok) {
-        return
-      }
       // Walking out first when the folder being deleted is the one on screen. Deleting it underneath
       // the view would leave the page showing a folder that no longer exists until the refetch lands.
       if (leaving) {
         openFolder(folder.parentId ?? null)
       }
-      await removeFolder.mutateAsync(folder.id)
+      undo(await removeFolder.mutateAsync(folder.id))
     },
 
     async fileMap(id: string, target: string | null) {

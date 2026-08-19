@@ -81,7 +81,8 @@ vi.mock("./components/SelectionBar", () => ({
 
 vi.mock("@/app/router", () => ({ navigate: vi.fn() }))
 vi.mock("@/i18n/useT", () => ({ useT: () => (_ns: string, key: string) => key }))
-vi.mock("@/stores/dialog", () => ({ dialog: { confirm: vi.fn(async () => true) } }))
+// Deleting raises the undo toast, which reaches for the query cache this page is mounted without.
+vi.mock("@/trash/undo", () => ({ useUndoDelete: () => vi.fn() }))
 
 let container: HTMLDivElement
 let root: Root

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useT } from "@/i18n/useT"
-import { dialog } from "@/stores/dialog"
+import { useUndoDelete } from "@/trash/undo"
 
 import { useDecksQuery } from "../api"
 import { useCardEditor } from "../editor/store"
@@ -31,6 +31,7 @@ import { useDeckView } from "./store"
 export function DeckPage({ deckId }: { deckId?: string }) {
   const t = useT()
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
+  const undo = useUndoDelete()
 
   const openDeck = useDeckView((s) => s.openDeck)
   const search = useDeckView((s) => s.search)
@@ -111,15 +112,12 @@ export function DeckPage({ deckId }: { deckId?: string }) {
     if (ids.some((cardId) => selected.has(cardId))) clearSelection()
   }
 
-  const confirmDelete = async (ids: string[]) => {
-    const ok = await dialog.confirm({
-      title: fc("DeleteCard"),
-      message: ids.length === 1 ? fc("DeleteCardConfirm") : fc("DeleteCardsConfirmFormat", { 0: ids.length }),
-      destructive: true,
-      confirmLabel: t("Common", "Delete"),
-      cancelLabel: t("Common", "Cancel"),
-    })
-    if (ok) await run(ids, deleteCards.mutateAsync(ids))
+  // Beside `run` rather than through it: it clears the selection on the same rule, but the
+  // answer is the undoable batch and `run` has nowhere to put one.
+  const removeCards = async (ids: string[]) => {
+    const action = await deleteCards.mutateAsync(ids)
+    if (ids.some((cardId) => selected.has(cardId))) clearSelection()
+    undo(action)
   }
 
   if (missing) return null
@@ -188,7 +186,7 @@ export function DeckPage({ deckId }: { deckId?: string }) {
                       void run([cardId], suspendCards.mutateAsync({ cardIds: [cardId], value })),
                     onMove: (cardId, targetDeckId) =>
                       void run([cardId], moveCards.mutateAsync({ cardIds: [cardId], targetDeckId })),
-                    onDelete: (cardId) => void confirmDelete([cardId]),
+                    onDelete: (cardId) => void removeCards([cardId]),
                   }}
                 />
               ) : null}
@@ -232,7 +230,7 @@ export function DeckPage({ deckId }: { deckId?: string }) {
           onTag={(tag) => void run(selectedIds, tagCards.mutateAsync({ cardIds: selectedIds, tag }))}
           onSuspend={(value) => void run(selectedIds, suspendCards.mutateAsync({ cardIds: selectedIds, value }))}
           onFlag={(value) => void run(selectedIds, flagCards.mutateAsync({ cardIds: selectedIds, value }))}
-          onDelete={() => void confirmDelete(selectedIds)}
+          onDelete={() => void removeCards(selectedIds)}
           onClear={clearSelection}
         />
       ) : null}

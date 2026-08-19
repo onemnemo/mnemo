@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { apiFetch, apiSend, ApiError } from "@/api/client"
 import type { CardTypeDto, CardTypeSummaryDto, FactDto, FactSavedDto, SaveCardTypeDto, SaveFactDto } from "@/api/types"
+import type { TrashActionDto } from "@/trash/types"
 
 export const cardTypesKey = ["flashcards", "card-types"] as const
 
@@ -45,8 +46,9 @@ export function saveFact(body: SaveFactDto): Promise<FactSavedDto> {
     : apiFetch<FactSavedDto>("/facts", json(body))
 }
 
-export function deleteFacts(factIds: string[]): Promise<void> {
-  return apiSend("/facts/delete", json({ factIds }))
+/** Moves material to the trash, taking the cards it authored with it. */
+export function deleteFacts(factIds: string[]): Promise<TrashActionDto> {
+  return apiFetch<TrashActionDto>("/facts/delete", json({ factIds }))
 }
 
 export function saveCardType(body: SaveCardTypeDto): Promise<CardTypeDto> {

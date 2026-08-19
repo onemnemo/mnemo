@@ -12,6 +12,7 @@ import type {
   SaveFolderDto,
   UpdateDeckDto,
 } from "@/api/types"
+import type { TrashActionDto } from "@/trash/types"
 
 // Query keys for the library. Every mutation invalidates the whole library key
 // rather than patching caches by hand: folder and deck moves change counts,
@@ -94,13 +95,13 @@ export function fetchRetentionTrend(deckId: string, days: number): Promise<Reten
  */
 export const deckKey = (deckId: string) => ["flashcards", "deck", deckId] as const
 
-function useLibraryMutation<TArgs>(
-  mutationFn: (args: TArgs) => Promise<unknown>,
+function useLibraryMutation<TArgs, TResult = unknown>(
+  mutationFn: (args: TArgs) => Promise<TResult>,
   /** Keys outside the library that this mutation also invalidates. */
   alsoInvalidate?: (args: TArgs) => readonly (readonly unknown[])[],
 ) {
   const client = useQueryClient()
-  return useMutation<unknown, ApiError, TArgs>({
+  return useMutation<TResult, ApiError, TArgs>({
     mutationFn,
     onSuccess: (_result, args) => {
       void client.invalidateQueries({ queryKey: libraryKey })
@@ -124,8 +125,9 @@ export function useUpdateDeck() {
   )
 }
 
+/** Moves a deck to the trash, with its cards, their schedules and their history intact. */
 export function useDeleteDeck() {
-  return useLibraryMutation((id: string) => apiSend(`/decks/${id}`, { method: "DELETE" }))
+  return useLibraryMutation((id: string) => apiFetch<TrashActionDto>(`/decks/${id}`, { method: "DELETE" }))
 }
 
 export function useMoveDeck() {
@@ -144,9 +146,9 @@ export function useSaveFolder() {
   )
 }
 
-/** Deletes a folder; the server lifts its decks and subfolders to the root. */
+/** Moves a folder to the trash, taking the decks and subfolders inside it under one entry. */
 export function useDeleteFolder() {
-  return useLibraryMutation((id: string) => apiSend(`/deck-folders/${id}`, { method: "DELETE" }))
+  return useLibraryMutation((id: string) => apiFetch<TrashActionDto>(`/deck-folders/${id}`, { method: "DELETE" }))
 }
 
 /** One reorganize's worth of writes: folder rows to save, and at most one deck to re-home. */

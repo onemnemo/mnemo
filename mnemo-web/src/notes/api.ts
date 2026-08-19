@@ -13,6 +13,7 @@ import type {
   SaveNoteFolderDto,
   UpdateNoteMetadataDto,
 } from "@/api/types"
+import type { TrashActionDto } from "@/trash/types"
 
 // Query keys for the notes tree. Mutations invalidate the whole tree rather than
 // patching caches by hand: a move changes ordering, folder membership and the
@@ -230,9 +231,9 @@ export function useDuplicateNote() {
   })
 }
 
-/** Deletes one note. Child pages and links to it survive and render as missing. */
+/** Moves one note to the trash. Child pages and links to it survive and render as missing. */
 export function useDeleteNote() {
-  return useNotesMutation((id: string) => apiSend(`/notes/${id}`, { method: "DELETE" }))
+  return useNotesMutation((id: string) => apiFetch<TrashActionDto>(`/notes/${id}`, { method: "DELETE" }))
 }
 
 export function useCreateNoteFolder() {
@@ -245,9 +246,9 @@ export function useSaveNoteFolder() {
   )
 }
 
-/** Deletes a folder; the server lifts its notes and subfolders to the root. */
+/** Moves a folder to the trash, taking the notes and subfolders inside it under one entry. */
 export function useDeleteNoteFolder() {
-  return useNotesMutation((id: string) => apiSend(`/note-folders/${id}`, { method: "DELETE" }))
+  return useNotesMutation((id: string) => apiFetch<TrashActionDto>(`/note-folders/${id}`, { method: "DELETE" }))
 }
 
 /**

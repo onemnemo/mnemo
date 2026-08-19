@@ -12,6 +12,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 
 import { apiFetch, apiFetchExpecting, apiSend } from "@/api/client"
+import type { TrashActionDto } from "@/trash/types"
 
 import { applyDelta, type MindmapDocumentOrder, type MindmapRestoreDelta } from "./model/delta"
 import type {
@@ -269,8 +270,9 @@ export function duplicateMindmap(id: string, title?: string): Promise<MindmapDoc
   })
 }
 
-export function deleteMindmap(id: string): Promise<void> {
-  return apiSend(`/mindmaps/${encodeURIComponent(id)}`, { method: "DELETE" })
+/** Moves one map to the trash, with its revision history. */
+export function deleteMindmap(id: string): Promise<TrashActionDto> {
+  return apiFetch<TrashActionDto>(`/mindmaps/${encodeURIComponent(id)}`, { method: "DELETE" })
 }
 
 export function moveMindmapToFolder(id: string, folderId: string | null): Promise<void> {
@@ -289,8 +291,9 @@ export function saveMindmapFolder(folder: MindmapFolder): Promise<void> {
   })
 }
 
-export function deleteMindmapFolder(id: string): Promise<void> {
-  return apiSend(`/mindmaps/folders/${encodeURIComponent(id)}`, { method: "DELETE" })
+/** Moves a folder to the trash, taking the maps and subfolders inside it under one entry. */
+export function deleteMindmapFolder(id: string): Promise<TrashActionDto> {
+  return apiFetch<TrashActionDto>(`/mindmaps/folders/${encodeURIComponent(id)}`, { method: "DELETE" })
 }
 
 /* -------------------------------------------------------------------------- */
@@ -492,7 +495,7 @@ export function useDeleteMindmap() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: deleteMindmap,
-    onSuccess: (_void, id) => {
+    onSuccess: (_action, id) => {
       client.removeQueries({ queryKey: mapKey(id) })
       void client.invalidateQueries({ queryKey: mindmapKey })
     },
@@ -523,7 +526,7 @@ export function useDeleteMindmapFolder() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: deleteMindmapFolder,
-    // Deleting a folder orphans its maps to the root, so the library moves too.
+    // The folder takes its maps with it, so the library moves too.
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: mindmapFoldersKey })
       void client.invalidateQueries({ queryKey: mindmapLibraryKey })
