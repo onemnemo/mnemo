@@ -298,6 +298,9 @@ public static class PresetEndpoints
             return true;
         }
 
+        if (FlashcardTextValidation.TooLong(name, FlashcardTextLimits.MaxNameLength, "invalid_name", "A preset name", out error))
+            return true;
+
         if (body.NewPerDay < 0 || body.NewPerDay > MaxNewPerDay)
         {
             error = Results.BadRequest(new ErrorDto("invalid_limit", $"New cards per day must be between 0 and {MaxNewPerDay}."));

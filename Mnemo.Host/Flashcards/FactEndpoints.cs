@@ -73,6 +73,8 @@ public static class FactEndpoints
         var name = body.Name?.Trim();
         if (string.IsNullOrEmpty(name))
             return Results.BadRequest(new ErrorDto("invalid_name", "A card type needs a name."));
+        if (FlashcardTextValidation.TooLong(name, FlashcardTextLimits.MaxNameLength, "invalid_name", "A card type name", out var nameError))
+            return nameError;
 
         var typeId = string.IsNullOrWhiteSpace(id) ? Guid.NewGuid().ToString("N") : id.Trim();
         var existing = await facts.GetCardTypeAsync(typeId, cancellationToken).ConfigureAwait(false);
@@ -155,6 +157,19 @@ public static class FactEndpoints
         if (string.IsNullOrWhiteSpace(body.DeckId))
             return Results.BadRequest(new ErrorDto("invalid_deck", "Material belongs to a deck."));
 
+        if (body.Values is not null)
+        {
+            foreach (var value in body.Values.Values)
+            {
+                if ((value?.Length ?? 0) > FlashcardTextLimits.MaxFieldValueLength)
+                {
+                    return Results.BadRequest(new ErrorDto(
+                        "invalid_value",
+                        $"A field value must be {FlashcardTextLimits.MaxFieldValueLength} characters or fewer."));
+                }
+            }
+        }
+
         // Without this the missing deck surfaces as a raw foreign-key violation from the driver,
         // which the global handler would render as an opaque 500.
         var deck = await library.GetDeckAsync(body.DeckId, cancellationToken).ConfigureAwait(false);
@@ -173,7 +188,7 @@ public static class FactEndpoints
             TypeId: body.TypeId?.Trim() ?? string.Empty,
             Values: NormalizeValues(body.Values),
             Media: ResolveMedia(body.Media, existing),
-            Tags: NormalizeTags(body.Tags));
+            Tags: FlashcardTextValidation.NormalizeTags(body.Tags));
 
         try
         {
@@ -268,8 +283,4 @@ public static class FactEndpoints
             Caption: input.Caption);
     }
 
-    private static IReadOnlyList<string> NormalizeTags(IReadOnlyList<string>? tags) =>
-        tags is null
-            ? Array.Empty<string>()
-            : tags.Select(t => t?.Trim() ?? string.Empty).Where(t => t.Length > 0).ToArray();
 }

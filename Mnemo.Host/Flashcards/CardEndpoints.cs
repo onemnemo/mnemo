@@ -164,6 +164,12 @@ public static class CardEndpoints
             var front = body.Front?.Trim();
             if (string.IsNullOrEmpty(front))
                 return Results.BadRequest(new ErrorDto("invalid_front", "A card front is required."));
+            if (FlashcardTextValidation.TooLong(front, FlashcardTextLimits.MaxFieldValueLength, "invalid_front", "A card front", out var frontError))
+                return frontError;
+
+            var back = body.Back?.Trim() ?? string.Empty;
+            if (FlashcardTextValidation.TooLong(back, FlashcardTextLimits.MaxFieldValueLength, "invalid_back", "A card back", out var backError))
+                return backError;
 
             // Without this the missing deck surfaces as a raw foreign-key violation from the
             // driver, which the global handler would render as an opaque 500.
@@ -178,8 +184,8 @@ public static class CardEndpoints
                 deckId,
                 FlashcardWire.ParseType(body.Type),
                 front,
-                body.Back?.Trim() ?? string.Empty,
-                NormalizeTags(body.Tags),
+                back,
+                FlashcardTextValidation.NormalizeTags(body.Tags),
                 attachments);
 
             var card = await cards.CreateCardAsync(draft, cancellationToken).ConfigureAwait(false);
@@ -197,6 +203,12 @@ public static class CardEndpoints
             var front = body.Front?.Trim();
             if (string.IsNullOrEmpty(front))
                 return Results.BadRequest(new ErrorDto("invalid_front", "A card front is required."));
+            if (FlashcardTextValidation.TooLong(front, FlashcardTextLimits.MaxFieldValueLength, "invalid_front", "A card front", out var frontError))
+                return frontError;
+
+            var back = body.Back?.Trim() ?? string.Empty;
+            if (FlashcardTextValidation.TooLong(back, FlashcardTextLimits.MaxFieldValueLength, "invalid_back", "A card back", out var backError))
+                return backError;
 
             var existing = await cards.GetCardAsync(id, cancellationToken).ConfigureAwait(false);
             if (existing is null)
@@ -219,8 +231,8 @@ public static class CardEndpoints
                 DeckId = deckId,
                 Type = FlashcardWire.ParseType(body.Type),
                 Front = front,
-                Back = body.Back?.Trim() ?? string.Empty,
-                Tags = NormalizeTags(body.Tags),
+                Back = back,
+                Tags = FlashcardTextValidation.NormalizeTags(body.Tags),
                 Attachments = attachments,
                 // The stored blocks are a render cache over the canonical text, so a content
                 // edit has to drop them or the card would keep rendering its previous body.
@@ -363,7 +375,11 @@ public static class CardEndpoints
 
         endpoints.MapPost("/api/cards/tag", async (AddCardTagDto body, IFlashcardCardService cards, CancellationToken cancellationToken) =>
         {
-            await cards.AddTagAsync(Ids(body.CardIds), body.Tag ?? string.Empty, cancellationToken).ConfigureAwait(false);
+            var tag = (body.Tag ?? string.Empty).Trim();
+            if (tag.Length > FlashcardTextLimits.MaxTagLength)
+                tag = tag[..FlashcardTextLimits.MaxTagLength];
+
+            await cards.AddTagAsync(Ids(body.CardIds), tag, cancellationToken).ConfigureAwait(false);
             return Results.NoContent();
         });
     }
@@ -375,8 +391,4 @@ public static class CardEndpoints
     private static IReadOnlyList<string> Ids(IReadOnlyList<string>? cardIds) =>
         cardIds ?? Array.Empty<string>();
 
-    private static IReadOnlyList<string> NormalizeTags(IReadOnlyList<string>? tags) =>
-        tags is null
-            ? Array.Empty<string>()
-            : tags.Select(t => t?.Trim() ?? string.Empty).Where(t => t.Length > 0).ToArray();
 }
