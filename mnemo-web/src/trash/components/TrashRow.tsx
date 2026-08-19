@@ -44,6 +44,7 @@ export function TrashRow({
       ? t("Trash", entry.containedCount === 1 ? "ContainedOne" : "ContainedManyFormat", { 0: entry.containedCount })
       : null,
     formatRelative(entry.deletedAt, now, t),
+    formatExpiresIn(entry.expiresAt, now, t),
   ].filter(Boolean)
 
   return (
@@ -52,10 +53,7 @@ export function TrashRow({
         <AppIcon name={kindIcon(entry.kind)} size={16} strokeWidth={1.6} className="shrink-0 text-ink-icon" />
         <div className="min-w-0">
           <p className="truncate text-[13.5px] text-ink">{entry.title}</p>
-          <p className="mt-0.5 truncate text-[12px] text-ink-3">
-            {details.join(" · ")}
-            <span className="ml-1.5 text-ink-3">{formatExpiresIn(entry.expiresAt, now, t)}</span>
-          </p>
+          <p className="mt-0.5 truncate text-[12px] text-ink-3">{details.join(" · ")}</p>
         </div>
       </div>
 

@@ -13,6 +13,11 @@ const DAY = 24 * HOUR
  * something is kept, and a number written into the web app would go stale the day that setting
  * moves. Anything already past its date reads as going shortly rather than as a negative count,
  * because the sweep runs on its own schedule and the row can outlive its own deadline by minutes.
+ *
+ * Days round up, hours round down. A row deleted a second ago has a few milliseconds under the
+ * full retention left, and reading "29 days left" beside a toast that promised 30 makes the app
+ * look like it is already counting one down. Hours are the ordinary countdown, where saying more
+ * time is left than there is would be the lie instead.
  */
 export function formatExpiresIn(expiresAt: string, now: number, t: TranslateFn): string {
   const value = new Date(expiresAt).getTime()
@@ -21,7 +26,7 @@ export function formatExpiresIn(expiresAt: string, now: number, t: TranslateFn):
   const left = value - now
   if (left < HOUR) return t("Trash", "ExpiresSoon")
   if (left < DAY) return count(t, Math.floor(left / HOUR), "ExpiresHour", "ExpiresHours")
-  return count(t, Math.floor(left / DAY), "ExpiresDay", "ExpiresDays")
+  return count(t, Math.ceil(left / DAY), "ExpiresDay", "ExpiresDays")
 }
 
 /**
