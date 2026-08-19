@@ -23,7 +23,8 @@ public sealed class ImportExportCoordinator : IImportExportCoordinator
                 DisplayName = a.DisplayName,
                 Extensions = a.Extensions.ToList(),
                 SupportsImport = a.SupportsImport,
-                SupportsExport = a.SupportsExport
+                SupportsExport = a.SupportsExport,
+                SupportsConflictPolicy = a.SupportsConflictPolicy
             })
             .OrderBy(c => c.ContentType, StringComparer.OrdinalIgnoreCase)
             .ThenBy(c => c.FormatId, StringComparer.OrdinalIgnoreCase)

@@ -73,6 +73,13 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     public bool SupportsImport => true;
     public bool SupportsExport => true;
 
+    /// <summary>
+    /// An Anki note's identity is its <c>guid</c>, which nothing here records, so there is no id an
+    /// import can collide on and every import of a package is new content. Offering the choice
+    /// anyway would promise a behaviour that never runs.
+    /// </summary>
+    public bool SupportsConflictPolicy => false;
+
     public async Task<ImportExportPreview> PreviewImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
         try
