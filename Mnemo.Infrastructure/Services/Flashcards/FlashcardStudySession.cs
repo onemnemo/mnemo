@@ -9,13 +9,19 @@ using Mnemo.Core.Services;
 namespace Mnemo.Infrastructure.Services.Flashcards;
 
 /// <summary>
-/// In-memory stateful study queue shared by Review and Cram. Cards graded into a learning/relearning
-/// step are re-inserted a few positions ahead so they reappear within the session; graduated cards
-/// leave. Review persists each grade through the study service; Cram persists nothing.
+/// In-memory stateful study queue shared by Review and Cram. Cards graded into a learning or
+/// relearning step come back when that step says, ordered against the other waiting cards;
+/// graduated cards leave. Review persists each grade through the study service; Cram persists
+/// nothing.
 /// </summary>
 internal sealed class FlashcardStudySession : IFlashcardSession
 {
-    private const int RequeueGap = 3;
+    /// <summary>
+    /// How far ahead of its step a card may still be shown. A short step is a wait the reader will
+    /// sit through rather than end the session over, but a step further out than this belongs to a
+    /// later sitting, so the card leaves instead of pinning the session open.
+    /// </summary>
+    private static readonly TimeSpan LearnAhead = TimeSpan.FromMinutes(20);
 
     private readonly IFlashcardStudyService _service;
     private readonly IFsrsScheduler _scheduler;
@@ -91,14 +97,33 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         }
 
         _queue.RemoveAt(0);
-        var requeued = updatedSchedule.FsrsState is FlashcardFsrsState.Learning or FlashcardFsrsState.Relearning;
+        var stepping = updatedSchedule.FsrsState is FlashcardFsrsState.Learning or FlashcardFsrsState.Relearning;
+        var requeued = stepping && updatedSchedule.DueDate - now <= LearnAhead;
         var updatedView = current with { Schedule = updatedSchedule };
         if (requeued)
-            _queue.Insert(Math.Min(_queue.Count, RequeueGap), updatedView);
+            _queue.Insert(NextStepPosition(updatedSchedule.DueDate, now), updatedView);
         else
             _completed++;
 
         _undo.Push(new UndoRecord(current, reviewId, wasNew, localDay, requeued));
+    }
+
+    /// <summary>
+    /// Where a card waiting on a step belongs: after everything that can be answered right away,
+    /// and among the other waiting cards in the order their steps come due. A fixed gap would put
+    /// a one minute step and a ten minute step back in the same place.
+    /// </summary>
+    private int NextStepPosition(DateTimeOffset due, DateTimeOffset now)
+    {
+        for (var i = 0; i < _queue.Count; i++)
+        {
+            var waiting = _queue[i].Schedule;
+            if (waiting.DueDate <= now)
+                continue;
+            if (waiting.DueDate > due)
+                return i;
+        }
+        return _queue.Count;
     }
 
     public async Task<bool> UndoAsync(CancellationToken cancellationToken = default)

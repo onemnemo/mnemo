@@ -146,24 +146,41 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
                 var newBudget = Math.Max(0, deckPreset.NewPerDay - stat.NewIntroduced);
                 var reviewBudget = Math.Max(0, deckPreset.MaxReviewsPerDay - stat.ReviewsDone);
 
-                items.AddRange(await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 1, 3 }, now, int.MaxValue, ct).ConfigureAwait(false));
-                items.AddRange(await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 2 }, now, reviewBudget, ct).ConfigureAwait(false));
-                items.AddRange(await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 0 }, null, newBudget, ct).ConfigureAwait(false));
+                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 1, 3 }, now, int.MaxValue, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
+                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 2 }, now, reviewBudget, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
+                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 0 }, null, newBudget, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
             }
             else // Cram
             {
                 var due = request.Scope == FlashcardSessionScope.Due ? (DateTimeOffset?)now : null;
-                items.AddRange(await _cards.GetActiveViewsAsync(conn, request.DeckId, null, due, int.MaxValue, ct).ConfigureAwait(false));
+                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, null, due, int.MaxValue, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
             }
 
             return (deckPreset, items);
         }, cancellationToken).ConfigureAwait(false);
 
-        IReadOnlyList<FlashcardView> ordered = preset.ShuffleOrder
-            ? queue.OrderBy(_ => Guid.NewGuid()).ToList()
-            : queue;
+        return new FlashcardStudySession(this, _scheduler, _clock, preset, request.Mode, request.DeckId, queue);
+    }
 
-        return new FlashcardStudySession(this, _scheduler, _clock, preset, request.Mode, request.DeckId, ordered);
+    /// <summary>
+    /// Appends one band of the queue, shuffled when the preset asks for it.
+    /// </summary>
+    /// <remarks>
+    /// Shuffling happens inside a band rather than across the whole queue, so the order between
+    /// bands survives. Learning cards are already overdue and reviews are the day's plan; a
+    /// shuffle of the concatenation would let a card being seen for the first time outrank both.
+    /// </remarks>
+    private static void AddBand(List<FlashcardView> queue, IReadOnlyList<FlashcardView> band, bool shuffle)
+    {
+        if (!shuffle)
+        {
+            queue.AddRange(band);
+            return;
+        }
+
+        var shuffled = band.ToArray();
+        Random.Shared.Shuffle(shuffled);
+        queue.AddRange(shuffled);
     }
 
     public Task<long> RecordReviewAsync(FlashcardReviewEntry entry, CancellationToken cancellationToken = default)
