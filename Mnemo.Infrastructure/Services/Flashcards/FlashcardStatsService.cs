@@ -15,13 +15,23 @@ public sealed class FlashcardStatsService : IFlashcardStatsService
     private readonly IFlashcardStore _store;
     private readonly IReviewRepository _reviews;
     private readonly ITestAttemptRepository _tests;
+    private readonly IDeckRepository _decks;
+    private readonly IPresetRepository _presets;
     private readonly FlashcardClock _clock;
 
-    public FlashcardStatsService(IFlashcardStore store, IReviewRepository reviews, ITestAttemptRepository tests, FlashcardClock clock)
+    public FlashcardStatsService(
+        IFlashcardStore store,
+        IReviewRepository reviews,
+        ITestAttemptRepository tests,
+        IDeckRepository decks,
+        IPresetRepository presets,
+        FlashcardClock clock)
     {
         _store = store;
         _reviews = reviews;
         _tests = tests;
+        _decks = decks;
+        _presets = presets;
         _clock = clock;
     }
 
@@ -33,24 +43,35 @@ public sealed class FlashcardStatsService : IFlashcardStatsService
         return sample.Total == 0 ? 0 : (int)Math.Round(100.0 * sample.Passed / sample.Total, MidpointRounding.AwayFromZero);
     }
 
-    public async Task<IReadOnlyList<FlashcardRetentionTrendPoint>> GetRetentionTrendAsync(string deckId, int days = 14, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<FlashcardRetentionTrendPoint>> GetRetentionTrendAsync(string deckId, int days = 14, CancellationToken cancellationToken = default)
     {
-        days = Math.Clamp(days, 1, 90);
-        var since = _clock.Now.AddDays(-(days - 1));
-        var rows = await _store.ReadAsync((conn, ct) => _reviews.GetDailyRetentionAsync(conn, deckId, since, ct), cancellationToken).ConfigureAwait(false);
-        var byDay = rows.ToDictionary(r => r.Day);
-
-        var start = DateOnly.FromDateTime(since.UtcDateTime);
-        var points = new List<FlashcardRetentionTrendPoint>(days);
-        for (var i = 0; i < days; i++)
+        var span = Math.Clamp(days, 1, 90);
+        return _store.ReadAsync<IReadOnlyList<FlashcardRetentionTrendPoint>>(async (conn, ct) =>
         {
-            var day = start.AddDays(i);
-            if (byDay.TryGetValue(day, out var r) && r.Total > 0)
-                points.Add(new FlashcardRetentionTrendPoint(day, (int)Math.Round(100.0 * r.Passed / r.Total, MidpointRounding.AwayFromZero), r.Total));
-            else
-                points.Add(new FlashcardRetentionTrendPoint(day, 0, 0));
-        }
-        return points;
+            // The trend is read against the deck's own study days, the same ones the daily caps are
+            // charged to, so an evening review shows up on the day the user counts it as.
+            var now = _clock.Now;
+            var header = await _decks.GetHeaderAsync(conn, deckId, ct).ConfigureAwait(false);
+            var preset = header is null
+                ? null
+                : await _presets.GetAsync(conn, header.PresetId, ct).ConfigureAwait(false);
+            var hour = (preset ?? FlashcardPreset.CreateStandard(now)).DayStartHour;
+
+            var start = _clock.Today(hour).AddDays(-(span - 1));
+            var boundaries = new DateTimeOffset[span + 1];
+            for (var i = 0; i <= span; i++)
+                boundaries[i] = _clock.StartOf(start.AddDays(i), hour);
+            var samples = await _reviews.GetRetentionByWindowAsync(conn, deckId, boundaries, ct).ConfigureAwait(false);
+
+            var points = new List<FlashcardRetentionTrendPoint>(span);
+            for (var i = 0; i < span; i++)
+            {
+                var sample = samples[i];
+                var pct = sample.Total == 0 ? 0 : (int)Math.Round(100.0 * sample.Passed / sample.Total, MidpointRounding.AwayFromZero);
+                points.Add(new FlashcardRetentionTrendPoint(start.AddDays(i), pct, sample.Total));
+            }
+            return points;
+        }, cancellationToken);
     }
 
     public Task RecordTestAttemptAsync(FlashcardTestAttempt attempt, CancellationToken cancellationToken = default)

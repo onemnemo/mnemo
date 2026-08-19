@@ -76,7 +76,7 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         var wasNew = current.Schedule.FsrsState == FlashcardFsrsState.New;
 
         long reviewId = 0;
-        var localDay = _clock.KeyFor(now);
+        var localDay = _clock.KeyFor(now, _preset.DayStartHour);
         if (WritesSchedule)
         {
             // A card with no prior review has no elapsed interval to log, so this is 0 rather than

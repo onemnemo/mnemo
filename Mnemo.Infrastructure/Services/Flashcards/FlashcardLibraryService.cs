@@ -59,12 +59,12 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
                 byId[p.Id] = p;
 
             var now = _clock.Now;
-            var today = _clock.TodayKey();
             var summaries = new List<FlashcardDeckSummary>(headers.Count);
             foreach (var header in headers)
             {
                 var preset = byId.TryGetValue(header.PresetId, out var p) ? p : FlashcardPreset.CreateStandard(now);
-                summaries.Add(await BuildSummaryAsync(conn, header, preset, now, today, ct).ConfigureAwait(false));
+                // Each deck's preset decides when its day turns over, so the key is per deck.
+                summaries.Add(await BuildSummaryAsync(conn, header, preset, now, _clock.TodayKey(preset.DayStartHour), ct).ConfigureAwait(false));
             }
             return (IReadOnlyList<FlashcardDeckSummary>)summaries;
         }, cancellationToken);
@@ -78,7 +78,7 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
             var now = _clock.Now;
             var preset = await _presets.GetAsync(conn, header.PresetId, ct).ConfigureAwait(false)
                          ?? FlashcardPreset.CreateStandard(now);
-            return await BuildSummaryAsync(conn, header, preset, now, _clock.TodayKey(), ct).ConfigureAwait(false);
+            return await BuildSummaryAsync(conn, header, preset, now, _clock.TodayKey(preset.DayStartHour), ct).ConfigureAwait(false);
         }, cancellationToken);
 
     public Task SaveFolderAsync(FlashcardFolder folder, CancellationToken cancellationToken = default)

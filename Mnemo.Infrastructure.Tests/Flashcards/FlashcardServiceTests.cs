@@ -167,7 +167,7 @@ public sealed class FlashcardServiceTests
         var now = DateTimeOffset.UtcNow;
 
         // Study service whose daily-stats write throws after the schedule + review writes.
-        var study = new FlashcardStudyService(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, new ThrowingDailyStats(), h.Cards, new FsrsScheduler(), h.Clock);
+        var study = new FlashcardStudyService(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, new ThrowingDailyStats(), h.Cards, new FsrsScheduler(h.Clock), h.Clock);
         var entry = new FlashcardReviewEntry(
             new FlashcardSchedule(card.Id, now.AddDays(3), 6, 5, 1, 0, FlashcardFsrsState.Review, 0, now),
             new FlashcardReviewLog(FlashcardReviewLog.Unassigned, card.Id, deckId, "s1", FlashcardReviewGrade.Good, now, 0, 3, 6, 5, FlashcardFsrsState.Review, FlashcardFsrsState.Review),
@@ -220,7 +220,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts, h.Clock);
+        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts, h.Decks, h.Presets, h.Clock);
         var now = DateTimeOffset.UtcNow;
 
         // 3 passed (Good/Hard/Easy) + 1 failed (Again), all in Review state.
@@ -244,7 +244,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts, h.Clock);
+        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts, h.Decks, h.Presets, h.Clock);
         var now = DateTimeOffset.UtcNow;
 
         await stats.RecordTestAttemptAsync(new FlashcardTestAttempt("t1", deckId, now.AddHours(-2), now.AddHours(-2), 10, 6, 2, 2, 70));
@@ -287,7 +287,7 @@ public sealed class FlashcardServiceTests
         new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
     private static FlashcardStudyService NewStudy(FlashcardStoreHarness h) =>
-        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler(), h.Clock);
+        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler(h.Clock), h.Clock);
 
     private sealed class ThrowingDailyStats : IDailyStatsRepository
     {

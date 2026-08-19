@@ -27,15 +27,68 @@ public sealed class FlashcardDayBoundaryTests
     [Fact]
     public void StudyDay_FollowsTheUsersZone_NotUtc()
     {
-        Assert.Equal("2026-03-06", new FlashcardClock(new TestTimeProvider(LateEvening, NineEast)).TodayKey());
-        Assert.Equal("2026-03-05", new FlashcardClock(new TestTimeProvider(LateEvening, TimeZoneInfo.Utc)).TodayKey());
-        Assert.Equal("2026-03-05", new FlashcardClock(new TestTimeProvider(LateEvening, TenWest)).TodayKey());
+        // Rolling over at midnight here, so the only thing under test is the zone.
+        Assert.Equal("2026-03-06", Key(LateEvening, NineEast, 0));
+        Assert.Equal("2026-03-05", Key(LateEvening, TimeZoneInfo.Utc, 0));
+        Assert.Equal("2026-03-05", Key(LateEvening, TenWest, 0));
 
         // An hour later the zone nine hours east is unchanged but UTC has rolled over too.
         var afterMidnight = LateEvening.AddHours(1);
-        Assert.Equal("2026-03-06", new FlashcardClock(new TestTimeProvider(afterMidnight, NineEast)).TodayKey());
-        Assert.Equal("2026-03-06", new FlashcardClock(new TestTimeProvider(afterMidnight, TimeZoneInfo.Utc)).TodayKey());
-        Assert.Equal("2026-03-05", new FlashcardClock(new TestTimeProvider(afterMidnight, TenWest)).TodayKey());
+        Assert.Equal("2026-03-06", Key(afterMidnight, NineEast, 0));
+        Assert.Equal("2026-03-06", Key(afterMidnight, TimeZoneInfo.Utc, 0));
+        Assert.Equal("2026-03-05", Key(afterMidnight, TenWest, 0));
+    }
+
+    [Fact]
+    public void StudyDay_EndsAtTheRolloverHour_NotAtMidnight()
+    {
+        // Half past midnight is still the evening before as far as the study day is concerned, and
+        // stays that way until the rollover hour arrives.
+        Assert.Equal("2026-03-05", Key(new DateTimeOffset(2026, 3, 6, 0, 30, 0, TimeSpan.Zero), TimeZoneInfo.Utc, 4));
+        Assert.Equal("2026-03-05", Key(new DateTimeOffset(2026, 3, 6, 3, 59, 0, TimeSpan.Zero), TimeZoneInfo.Utc, 4));
+        Assert.Equal("2026-03-06", Key(new DateTimeOffset(2026, 3, 6, 4, 0, 0, TimeSpan.Zero), TimeZoneInfo.Utc, 4));
+
+        // Hour zero is plain midnight, which is what a user who turns the setting down asks for.
+        Assert.Equal("2026-03-06", Key(new DateTimeOffset(2026, 3, 6, 0, 30, 0, TimeSpan.Zero), TimeZoneInfo.Utc, 0));
+    }
+
+    [Fact]
+    public void DayScaleInterval_LandsAtTheStartOfTheTargetDay()
+    {
+        // Answered late in the evening, so an interval measured in elapsed hours would put the card
+        // back before the day it belongs to had begun.
+        var clock = new FlashcardClock(new TestTimeProvider(LateEvening));
+        var due = clock.DueAfterDays(LateEvening, 3, 4);
+
+        Assert.Equal(new DateTimeOffset(2026, 3, 8, 4, 0, 0, TimeSpan.Zero), due);
+        Assert.Equal(3, clock.DaysBetween(LateEvening, due, 4));
+    }
+
+    [Fact]
+    public void DayScaleInterval_SurvivesADaylightSavingShift()
+    {
+        // A zone that springs forward at two in the morning deletes the hour a day starting at two
+        // would begin on. The day still has to start somewhere, and the count of days must hold.
+        var spring = TimeZoneInfo.CreateCustomTimeZone(
+            "test-dst", TimeSpan.FromHours(-5), "test", "test", "test",
+            new[]
+            {
+                TimeZoneInfo.AdjustmentRule.CreateAdjustmentRule(
+                    DateTime.MinValue.Date, DateTime.MaxValue.Date, TimeSpan.FromHours(1),
+                    TimeZoneInfo.TransitionTime.CreateFloatingDateRule(new DateTime(1, 1, 1, 2, 0, 0), 3, 2, DayOfWeek.Sunday),
+                    TimeZoneInfo.TransitionTime.CreateFloatingDateRule(new DateTime(1, 1, 1, 2, 0, 0), 11, 1, DayOfWeek.Sunday)),
+            });
+
+        var clock = new FlashcardClock(new TestTimeProvider(LateEvening, spring));
+        // Local Saturday the 7th, the day before the shift.
+        var saturdayEvening = new DateTimeOffset(2026, 3, 8, 1, 0, 0, TimeSpan.Zero);
+
+        foreach (var hour in new[] { 0, 2, 4 })
+        {
+            var due = clock.DueAfterDays(saturdayEvening, 2, hour);
+            Assert.Equal(2, clock.DaysBetween(saturdayEvening, due, hour));
+            Assert.Equal(clock.DayOf(saturdayEvening, hour).AddDays(2), clock.DayOf(due, hour));
+        }
     }
 
     [Fact]
@@ -76,7 +129,7 @@ public sealed class FlashcardDayBoundaryTests
     }
 
     [Fact]
-    public async Task MovingTheClockForward_MovesTheDayTheCapIsChargedTo()
+    public async Task TheDayTheCapIsChargedTo_TurnsOverAtTheRolloverHour_NotAtMidnight()
     {
         await using var h = new FlashcardStoreHarness(LateEvening);
         var deckId = await h.SeedDeckAsync();
@@ -85,24 +138,35 @@ public sealed class FlashcardDayBoundaryTests
         {
             new FlashcardCardDraft(deckId, FlashcardType.Classic, "Q1", "A", Array.Empty<string>(), Array.Empty<FlashcardAttachment>()),
             new FlashcardCardDraft(deckId, FlashcardType.Classic, "Q2", "A", Array.Empty<string>(), Array.Empty<FlashcardAttachment>()),
+            new FlashcardCardDraft(deckId, FlashcardType.Classic, "Q3", "A", Array.Empty<string>(), Array.Empty<FlashcardAttachment>()),
         });
         var study = Study(h);
 
-        var first = await study.StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
-        await first.GradeAsync(FlashcardReviewGrade.Easy);
+        await GradeOneAsync(study, deckId); // 23:30 on the 5th
 
-        h.Time.Advance(TimeSpan.FromHours(1)); // crosses UTC midnight into the 6th
-        var second = await study.StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
-        await second.GradeAsync(FlashcardReviewGrade.Easy);
+        h.Time.Advance(TimeSpan.FromHours(1)); // 00:30 on the 6th, past midnight but still the 5th
+        await GradeOneAsync(study, deckId);
+
+        h.Time.Advance(TimeSpan.FromHours(4)); // 04:30 on the 6th, past the rollover hour
+        await GradeOneAsync(study, deckId);
 
         var fifth = await h.Store.ReadAsync((c, ct) => h.DailyStats.GetAsync(c, deckId, "2026-03-05", ct));
         var sixth = await h.Store.ReadAsync((c, ct) => h.DailyStats.GetAsync(c, deckId, "2026-03-06", ct));
-        Assert.Equal(1, fifth.NewIntroduced);
+        Assert.Equal(2, fifth.NewIntroduced);
         Assert.Equal(1, sixth.NewIntroduced);
     }
 
+    private static string Key(DateTimeOffset instant, TimeZoneInfo zone, int startHour) =>
+        new FlashcardClock(new TestTimeProvider(instant, zone)).TodayKey(startHour);
+
+    private static async Task GradeOneAsync(FlashcardStudyService study, string deckId)
+    {
+        var session = await study.StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+        await session.GradeAsync(FlashcardReviewGrade.Easy);
+    }
+
     private static FlashcardStudyService Study(FlashcardStoreHarness h) =>
-        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler(), h.Clock);
+        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler(h.Clock), h.Clock);
 
     private static Task<DateTimeOffset> ReadReviewedAtAsync(FlashcardStoreHarness h, string cardId) =>
         h.Store.ReadAsync(async (conn, ct) =>

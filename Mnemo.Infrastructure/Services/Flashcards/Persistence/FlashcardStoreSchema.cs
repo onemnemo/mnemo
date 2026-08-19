@@ -7,7 +7,7 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 internal static class FlashcardStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 3;
+    public const int TargetVersion = 4;
 
     /// <summary>
     /// Columns added after v1, for databases that already exist.
@@ -21,6 +21,7 @@ internal static class FlashcardStoreSchema
     [
         ("FlashcardDecks", "Icon", "TEXT NULL"),
         ("FlashcardReviews", "StateBefore", "INTEGER NULL"),
+        ("FlashcardPresets", "NextDayStartsAtHour", "INTEGER NOT NULL DEFAULT 4"),
     ];
 
     /// <summary>Every table, index, FTS virtual table and trigger, created if absent.</summary>
@@ -53,7 +54,8 @@ internal static class FlashcardStoreSchema
             AutoReveal        TEXT    NOT NULL DEFAULT 'off',
             WeightsJson       TEXT    NULL,
             CreatedAt         TEXT NOT NULL,
-            UpdatedAt         TEXT NOT NULL
+            UpdatedAt         TEXT NOT NULL,
+            NextDayStartsAtHour INTEGER NOT NULL DEFAULT 4
         );
 
         CREATE TABLE IF NOT EXISTS FlashcardDecks (

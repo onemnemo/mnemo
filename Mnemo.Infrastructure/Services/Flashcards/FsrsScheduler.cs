@@ -11,9 +11,20 @@ namespace Mnemo.Infrastructure.Services.Flashcards;
 /// Relearning cards additionally walk the preset's minute-based learning steps before graduating to
 /// Review. Again resets to step 0, Good advances a step (graduating past the last step), Hard repeats
 /// the current step, Easy graduates immediately.
+///
+/// Intervals measured in days land on the start of a study day; only the minute-scale learning
+/// steps stay exact instants, because those are meant to come back within the sitting.
 /// </summary>
 public sealed class FsrsScheduler : IFsrsScheduler
 {
+    private readonly FlashcardClock _clock;
+
+    public FsrsScheduler(FlashcardClock clock)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        _clock = clock;
+    }
+
     private const int WeightCount = 21;
     private const int Fsrs5WeightCount = 19;
     private const double MinStability = 0.001d;
@@ -57,7 +68,7 @@ public sealed class FsrsScheduler : IFsrsScheduler
                 {
                     nextState = FlashcardFsrsState.Review;
                     stepIndex = 0;
-                    due = reviewedAt.AddDays(NextInterval(stability, retention, weights));
+                    due = DayScaleDue(reviewedAt, NextInterval(stability, retention, weights), preset);
                 }
                 else
                 {
@@ -84,7 +95,7 @@ public sealed class FsrsScheduler : IFsrsScheduler
                 difficulty = NextDifficulty(baseDifficulty, grade, weights);
 
                 var steps = Steps(current.FsrsState == FlashcardFsrsState.Relearning ? preset.RelearnSteps : preset.LearningSteps);
-                (nextState, stepIndex, due) = StepThrough(current.FsrsState, current.LearningStepIndex, grade, steps, stability, retention, weights, reviewedAt);
+                (nextState, stepIndex, due) = StepThrough(current.FsrsState, current.LearningStepIndex, grade, steps, stability, retention, weights, reviewedAt, preset);
                 break;
             }
 
@@ -117,7 +128,7 @@ public sealed class FsrsScheduler : IFsrsScheduler
                 {
                     nextState = FlashcardFsrsState.Review;
                     stepIndex = 0;
-                    due = reviewedAt.AddDays(NextInterval(stability, retention, weights));
+                    due = DayScaleDue(reviewedAt, NextInterval(stability, retention, weights), preset);
                 }
                 break;
             }
@@ -138,8 +149,21 @@ public sealed class FsrsScheduler : IFsrsScheduler
 
     public string DescribeInterval(FlashcardSchedule current, FlashcardReviewGrade grade, DateTimeOffset now, FlashcardPreset preset)
     {
-        var next = ApplyGrade(current, grade, now, preset).DueDate;
-        var delta = next - now;
+        ArgumentNullException.ThrowIfNull(preset);
+        var next = ApplyGrade(current, grade, now, preset);
+
+        if (next.FsrsState == FlashcardFsrsState.Review)
+        {
+            // A graduated card is due at the start of a study day, so the honest answer is how many
+            // days away that day is rather than how many hours until it opens. Answering late in the
+            // evening and seeing the card the morning after next is two days out, even though fewer
+            // than forty eight hours separate the two instants.
+            var days = _clock.DaysBetween(now, next.DueDate, preset.DayStartHour);
+            return $"{Math.Max(1, days)}d";
+        }
+
+        // A learning or relearning step is an exact wait rather than a day, so it is reported as one.
+        var delta = next.DueDate - now;
         if (delta.TotalDays >= 1d)
             return $"{Math.Round(delta.TotalDays, MidpointRounding.AwayFromZero):0}d";
         if (delta.TotalHours >= 1d)
@@ -147,12 +171,19 @@ public sealed class FsrsScheduler : IFsrsScheduler
         return $"{Math.Max(1, Math.Round(delta.TotalMinutes, MidpointRounding.AwayFromZero)):0}m";
     }
 
+    /// <summary>
+    /// Where a whole number of days from now lands. Snapping to the start of the target study day
+    /// is what makes a day mean the same thing to the scheduler, the daily caps and the forecast.
+    /// </summary>
+    private DateTimeOffset DayScaleDue(DateTimeOffset reviewedAt, int intervalDays, FlashcardPreset preset) =>
+        _clock.DueAfterDays(reviewedAt, intervalDays, preset.DayStartHour);
+
     // Learning/Relearning step machine. Returns (nextState, nextStepIndex, due).
-    private static (FlashcardFsrsState, int, DateTimeOffset) StepThrough(
+    private (FlashcardFsrsState, int, DateTimeOffset) StepThrough(
         FlashcardFsrsState state, int stepIndex, FlashcardReviewGrade grade, int[] steps,
-        double stability, double retention, double[] weights, DateTimeOffset now)
+        double stability, double retention, double[] weights, DateTimeOffset now, FlashcardPreset preset)
     {
-        DateTimeOffset Graduate() => now.AddDays(NextInterval(stability, retention, weights));
+        DateTimeOffset Graduate() => DayScaleDue(now, NextInterval(stability, retention, weights), preset);
 
         switch (grade)
         {
