@@ -63,6 +63,7 @@ function handlers(): DeckMenuHandlers {
     test: vi.fn(),
     rename: vi.fn(),
     reviewSettings: vi.fn(),
+    export: vi.fn(),
     remove: vi.fn(),
   }
 }
