@@ -30,7 +30,11 @@ public static class LibraryEndpoints
 
         endpoints.MapPost("/api/deck-folders", async (SaveFolderDto body, IFlashcardLibraryService library, CancellationToken cancellationToken) =>
         {
-            var folder = new FlashcardFolder(Guid.NewGuid().ToString("N"), body.Name, body.ParentId, body.Order);
+            var name = body.Name?.Trim() ?? string.Empty;
+            if (FlashcardTextValidation.TooLong(name, FlashcardTextLimits.MaxNameLength, "invalid_name", "A folder name", out var error))
+                return error;
+
+            var folder = new FlashcardFolder(Guid.NewGuid().ToString("N"), name, body.ParentId, body.Order);
             await library.SaveFolderAsync(folder, cancellationToken).ConfigureAwait(false);
             return Results.Ok(FolderDto.FromModel(folder));
         });
@@ -41,7 +45,11 @@ public static class LibraryEndpoints
             if (!folders.Any(f => f.Id == id))
                 return Results.NotFound(new ErrorDto("unknown_folder", $"No folder '{id}'."));
 
-            await library.SaveFolderAsync(new FlashcardFolder(id, body.Name, body.ParentId, body.Order), cancellationToken)
+            var name = body.Name?.Trim() ?? string.Empty;
+            if (FlashcardTextValidation.TooLong(name, FlashcardTextLimits.MaxNameLength, "invalid_name", "A folder name", out var error))
+                return error;
+
+            await library.SaveFolderAsync(new FlashcardFolder(id, name, body.ParentId, body.Order), cancellationToken)
                 .ConfigureAwait(false);
             return Results.NoContent();
         });
@@ -75,6 +83,8 @@ public static class LibraryEndpoints
             var name = body.Name?.Trim();
             if (string.IsNullOrEmpty(name))
                 return Results.BadRequest(new ErrorDto("invalid_name", "A deck name is required."));
+            if (FlashcardTextValidation.TooLong(name, FlashcardTextLimits.MaxNameLength, "invalid_name", "A deck name", out var nameError))
+                return nameError;
 
             var presetId = body.PresetId;
             if (string.IsNullOrEmpty(presetId))
@@ -104,9 +114,22 @@ public static class LibraryEndpoints
             var name = body.Name?.Trim();
             if (string.IsNullOrEmpty(name))
                 return Results.BadRequest(new ErrorDto("invalid_name", "A deck name is required."));
+            if (FlashcardTextValidation.TooLong(name, FlashcardTextLimits.MaxNameLength, "invalid_name", "A deck name", out var nameError))
+                return nameError;
+
+            var description = body.Description;
+            if (description is not null
+                && FlashcardTextValidation.TooLong(description, FlashcardTextLimits.MaxDescriptionLength, "invalid_description", "A deck description", out var descriptionError))
+                return descriptionError;
 
             await library.SaveDeckAsync(
-                    deck.Header with { Name = name, Description = body.Description, Tags = body.Tags ?? [], Icon = Blank(body.Icon) },
+                    deck.Header with
+                    {
+                        Name = name,
+                        Description = description,
+                        Tags = FlashcardTextValidation.NormalizeTags(body.Tags),
+                        Icon = Blank(body.Icon),
+                    },
                     cancellationToken)
                 .ConfigureAwait(false);
             return Results.NoContent();
