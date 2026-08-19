@@ -16,9 +16,13 @@ namespace Mnemo.Host.Notes;
 /// one: it takes the version the client edited and applies the write only if the note is
 /// still on it. A plain content <c>PUT</c> alongside it would be a second way to write the
 /// same bytes with none of those checks, and the two would drift the first time the commit
-/// path learned something the plain one did not. The metadata endpoint keeps its half of
-/// that bargain by loading the stored note and replacing only metadata fields, so it cannot
-/// lose content even by accident.
+/// path learned something the plain one did not.
+/// </para>
+/// <para>
+/// The two write endpoints own disjoint halves of a note and neither reads the other's half
+/// across a request boundary, so a rename and a keystroke land in either order without one
+/// undoing the other. That is also why renaming an open note does not move its version: the
+/// editor's version is its edit token, and metadata is not part of what it edits.
 /// </para>
 /// <para>
 /// Every route here is closed until the sid migration completes; see <see cref="NotesReady"/>.
@@ -80,10 +84,10 @@ public static class NoteEndpoints
             string id,
             UpdateNoteMetadataDto body,
             INoteService notes,
-            INoteFolderService folderService) =>
+            INoteFolderService folderService,
+            INoteCommitStore commits) =>
         {
-            var note = await notes.GetNoteAsync(id).ConfigureAwait(false);
-            if (note is null)
+            if (await notes.GetNoteAsync(id).ConfigureAwait(false) is null)
                 return Results.NotFound(new ErrorDto("unknown_note", $"No note '{id}'."));
 
             var title = body.Title?.Trim();
@@ -104,26 +108,30 @@ public static class NoteEndpoints
                     return Results.BadRequest(new ErrorDto("invalid_parent", "A note cannot be filed under itself."));
             }
 
-            note.Title = title;
-            note.FolderId = folderId;
-            note.ParentNoteId = parentNoteId;
-            note.Order = body.Order;
-            note.IsFavorite = body.IsFavorite;
-            note.Emoji = Blank(body.Emoji);
-            note.Cover = Blank(body.Cover);
-            note.Tags = body.Tags is null
-                ? new List<string>()
-                : body.Tags.Select(t => t.Trim()).Where(t => t.Length > 0).Distinct().ToList();
-            // Recomputed on every write rather than only at creation, so the stored
-            // breadcrumb still matches the tree after a note moves. The desktop app
-            // writes it once and leaves it, which is why old notes can carry a path
-            // naming a folder they no longer live in.
-            note.FolderPath = NoteTree.BuildFolderPath(folders, folderId);
+            var metadata = new NoteMetadata(
+                title,
+                folderId,
+                parentNoteId,
+                body.Order,
+                body.IsFavorite,
+                Blank(body.Emoji),
+                Blank(body.Cover),
+                body.Tags is null
+                    ? []
+                    : [.. body.Tags.Select(t => t.Trim()).Where(t => t.Length > 0).Distinct()],
+                // Recomputed on every write rather than only at creation, so the stored
+                // breadcrumb still matches the tree after a note moves. The desktop app
+                // writes it once and leaves it, which is why old notes can carry a path
+                // naming a folder they no longer live in.
+                NoteTree.BuildFolderPath(folders, folderId));
 
-            var saved = await notes.SaveNoteAsync(note).ConfigureAwait(false);
-            return saved.IsSuccess
-                ? Results.NoContent()
-                : Results.StatusCode(StatusCodes.Status500InternalServerError);
+            var result = await commits.UpdateMetadataAsync(id, metadata).ConfigureAwait(false);
+            return result.Outcome switch
+            {
+                NoteCommitOutcome.Applied => Results.NoContent(),
+                NoteCommitOutcome.NotFound => Results.NotFound(new ErrorDto("unknown_note", $"No note '{id}'.")),
+                _ => Results.StatusCode(StatusCodes.Status500InternalServerError),
+            };
         }).RequireNotesMigrated();
 
         // Matches the desktop app: a hard delete of this note only. Child pages and
@@ -150,25 +158,16 @@ public static class NoteEndpoints
         endpoints.MapPut("/api/notes/{id}/content", async (
             string id,
             CommitNoteContentDto body,
-            INoteService notes,
             INoteCommitStore commits) =>
         {
             if (string.IsNullOrWhiteSpace(body.RequestId))
                 return Results.BadRequest(new ErrorDto("invalid_request", "A commit needs a request id so a retry is not mistaken for a second edit."));
 
-            var stored = await notes.GetNoteAsync(id).ConfigureAwait(false);
-            if (stored is null)
-                return Results.NotFound(new ErrorDto("unknown_note", $"No note '{id}'."));
-
             var blocks = body.Blocks?.ToList() ?? [];
             if (BlockSids.TryPrepareForCommit(blocks, new SidGenerator()) is { } problem)
                 return Results.BadRequest(new ErrorDto("invalid_block_sid", problem));
 
-            // Only the body moves. Everything the metadata endpoint owns is read from storage, so a
-            // commit racing a rename cannot revert the rename.
-            stored.Blocks = blocks;
-
-            var result = await commits.CommitAsync(stored, body.BaseVer, body.RequestId).ConfigureAwait(false);
+            var result = await commits.CommitAsync(id, blocks, body.BaseVer, body.RequestId).ConfigureAwait(false);
             var payload = new NoteCommitResultDto(result.Outcome.ToString(), result.Ver);
 
             return result.Outcome switch
