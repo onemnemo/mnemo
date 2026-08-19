@@ -1,0 +1,275 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Services;
+using Mnemo.Host.Contracts;
+
+namespace Mnemo.Host.Flashcards;
+
+/// <summary>
+/// Card types and the material that fills them. Cards are made from material rather than authored,
+/// so nothing here writes a card directly: a save hands back the cards the material now has.
+/// </summary>
+public static class FactEndpoints
+{
+    public static void MapFlashcardFacts(this IEndpointRouteBuilder endpoints)
+    {
+        MapCardTypes(endpoints);
+        MapFacts(endpoints);
+    }
+
+    private static void MapCardTypes(IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/api/card-types", async (IFlashcardFactService facts, CancellationToken cancellationToken) =>
+        {
+            var types = await facts.ListCardTypesAsync(cancellationToken).ConfigureAwait(false);
+            var summaries = new List<CardTypeSummaryDto>(types.Count);
+            foreach (var type in types)
+            {
+                var count = await facts.CountFactsUsingTypeAsync(type.Id, cancellationToken).ConfigureAwait(false);
+                summaries.Add(new CardTypeSummaryDto(CardTypeDto.FromModel(type), count));
+            }
+
+            return summaries;
+        });
+
+        endpoints.MapGet("/api/card-types/{id}", async (string id, IFlashcardFactService facts, CancellationToken cancellationToken) =>
+        {
+            var type = await facts.GetCardTypeAsync(id, cancellationToken).ConfigureAwait(false);
+            return type is null
+                ? Results.NotFound(new ErrorDto("unknown_card_type", $"No card type '{id}'."))
+                : Results.Ok(CardTypeDto.FromModel(type));
+        });
+
+        endpoints.MapPost("/api/card-types", (SaveCardTypeDto body, IFlashcardFactService facts, CancellationToken cancellationToken) =>
+            SaveCardTypeAsync(body, body.Id, facts, cancellationToken));
+
+        endpoints.MapPut("/api/card-types/{id}", (string id, SaveCardTypeDto body, IFlashcardFactService facts, CancellationToken cancellationToken) =>
+            SaveCardTypeAsync(body, id, facts, cancellationToken));
+
+        endpoints.MapDelete("/api/card-types/{id}", async (string id, IFlashcardFactService facts, CancellationToken cancellationToken) =>
+        {
+            try
+            {
+                var deleted = await facts.DeleteCardTypeAsync(id, cancellationToken).ConfigureAwait(false);
+                return deleted
+                    ? Results.NoContent()
+                    : Results.NotFound(new ErrorDto("unknown_card_type", $"No card type '{id}', or it ships with the app."));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(new ErrorDto("card_type_in_use", ex.Message));
+            }
+        });
+    }
+
+    private static async Task<IResult> SaveCardTypeAsync(
+        SaveCardTypeDto body,
+        string? id,
+        IFlashcardFactService facts,
+        CancellationToken cancellationToken)
+    {
+        var name = body.Name?.Trim();
+        if (string.IsNullOrEmpty(name))
+            return Results.BadRequest(new ErrorDto("invalid_name", "A card type needs a name."));
+
+        var typeId = string.IsNullOrWhiteSpace(id) ? Guid.NewGuid().ToString("N") : id.Trim();
+        var existing = await facts.GetCardTypeAsync(typeId, cancellationToken).ConfigureAwait(false);
+
+        var fields = (body.Fields ?? Array.Empty<CardTypeFieldDto>()).Select(f => f.ToModel()).ToList();
+        var sortFieldId = string.IsNullOrWhiteSpace(body.SortFieldId)
+            ? fields.FirstOrDefault()?.Id ?? string.Empty
+            : body.SortFieldId.Trim();
+
+        var type = new FlashcardCardType(
+            Id: typeId,
+            Name: name,
+            // The service refuses to un-built-in a built in type; a client cannot claim to be one.
+            IsBuiltIn: existing?.IsBuiltIn ?? false,
+            Fields: fields,
+            SortFieldId: sortFieldId,
+            Layouts: (body.Layouts ?? Array.Empty<CardTypeLayoutDto>()).Select(l => l.ToModel()).ToList(),
+            // Changing a generator would change how many cards every fact using this type makes, so
+            // it is whatever the stored type says and is never taken from the request.
+            Generator: existing?.Generator,
+            GenerateFrom: existing?.GenerateFrom);
+
+        try
+        {
+            var saved = await facts.SaveCardTypeAsync(type, cancellationToken).ConfigureAwait(false);
+            return Results.Ok(CardTypeDto.FromModel(saved));
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new ErrorDto("invalid_card_type", ex.Message));
+        }
+    }
+
+    private static void MapFacts(IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/api/facts/{id}", async (string id, IFlashcardFactService facts, CancellationToken cancellationToken) =>
+        {
+            var fact = await facts.GetFactAsync(id, cancellationToken).ConfigureAwait(false);
+            return fact is null
+                ? Results.NotFound(new ErrorDto("unknown_fact", $"No material '{id}'."))
+                : Results.Ok(FactDto.FromModel(fact));
+        });
+
+        // Opening the editor from a card someone clicked in the deck table.
+        endpoints.MapGet("/api/cards/{id}/fact", async (string id, IFlashcardFactService facts, CancellationToken cancellationToken) =>
+        {
+            var fact = await facts.GetFactForCardAsync(id, cancellationToken).ConfigureAwait(false);
+            return fact is null
+                ? Results.NotFound(new ErrorDto("unknown_fact", $"Card '{id}' has no material behind it."))
+                : Results.Ok(FactDto.FromModel(fact));
+        });
+
+        endpoints.MapPost("/api/facts", (
+            SaveFactDto body,
+            IFlashcardFactService facts,
+            IFlashcardLibraryService library,
+            CancellationToken cancellationToken) => SaveFactAsync(body, body.Id, facts, library, cancellationToken));
+
+        endpoints.MapPut("/api/facts/{id}", (
+            string id,
+            SaveFactDto body,
+            IFlashcardFactService facts,
+            IFlashcardLibraryService library,
+            CancellationToken cancellationToken) => SaveFactAsync(body, id, facts, library, cancellationToken));
+
+        endpoints.MapPost("/api/facts/delete", async (FactIdsDto body, IFlashcardFactService facts, CancellationToken cancellationToken) =>
+        {
+            await facts.DeleteFactsAsync(body.FactIds ?? Array.Empty<string>(), cancellationToken).ConfigureAwait(false);
+            return Results.NoContent();
+        });
+    }
+
+    private static async Task<IResult> SaveFactAsync(
+        SaveFactDto body,
+        string? id,
+        IFlashcardFactService facts,
+        IFlashcardLibraryService library,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(body.DeckId))
+            return Results.BadRequest(new ErrorDto("invalid_deck", "Material belongs to a deck."));
+
+        // Without this the missing deck surfaces as a raw foreign-key violation from the driver,
+        // which the global handler would render as an opaque 500.
+        var deck = await library.GetDeckAsync(body.DeckId, cancellationToken).ConfigureAwait(false);
+        if (deck is null)
+            return Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{body.DeckId}'."));
+
+        var existing = string.IsNullOrWhiteSpace(id)
+            ? null
+            : await facts.GetFactAsync(id, cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(id) && existing is null)
+            return Results.NotFound(new ErrorDto("unknown_fact", $"No material '{id}'."));
+
+        var draft = new FlashcardFactDraft(
+            Id: existing?.Id,
+            DeckId: body.DeckId,
+            TypeId: body.TypeId?.Trim() ?? string.Empty,
+            Values: NormalizeValues(body.Values),
+            Media: ResolveMedia(body.Media, existing),
+            Tags: NormalizeTags(body.Tags));
+
+        try
+        {
+            var saved = await facts.SaveFactAsync(draft, cancellationToken).ConfigureAwait(false);
+            return Results.Ok(FactSavedDto.FromModel(saved));
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new ErrorDto("invalid_fact", ex.Message));
+        }
+    }
+
+    private static IReadOnlyDictionary<string, string> NormalizeValues(IReadOnlyDictionary<string, string>? values)
+    {
+        if (values is null || values.Count == 0)
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+
+        var map = new Dictionary<string, string>(values.Count, StringComparer.Ordinal);
+        foreach (var (fieldId, value) in values)
+        {
+            if (!string.IsNullOrWhiteSpace(fieldId))
+                map[fieldId.Trim()] = value ?? string.Empty;
+        }
+
+        return map;
+    }
+
+    /// <summary>
+    /// Maps the editor's per-field attachment lists onto stored attachments. Entries naming an
+    /// attachment the material already has are reused untouched, which is how an attachment the
+    /// host cannot serve survives a round trip through the browser; entries naming an uploaded
+    /// asset become new attachments sized from the file on disk, so a client cannot claim a size
+    /// it did not upload. Anything resolving to neither is dropped rather than failing the save.
+    /// </summary>
+    private static IReadOnlyDictionary<string, IReadOnlyList<FlashcardAttachment>> ResolveMedia(
+        IReadOnlyList<FactMediaInputDto>? media,
+        FlashcardFact? existing)
+    {
+        var resolved = new Dictionary<string, IReadOnlyList<FlashcardAttachment>>(StringComparer.Ordinal);
+        if (media is null || media.Count == 0)
+            return resolved;
+
+        var carried = (existing?.Media.Values.SelectMany(list => list) ?? Enumerable.Empty<FlashcardAttachment>())
+            .GroupBy(a => a.Id, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var field in media)
+        {
+            if (string.IsNullOrWhiteSpace(field.FieldId) || field.Attachments is not { Count: > 0 })
+                continue;
+
+            var list = new List<FlashcardAttachment>(field.Attachments.Count);
+            foreach (var input in field.Attachments)
+            {
+                var attachment = Resolve(input, carried);
+                // A duplicate id would let one attachment be counted twice against the cap and
+                // would break the reuse lookup on the next save.
+                if (attachment is null || !seen.Add(attachment.Id))
+                    continue;
+                if (list.Count >= IFlashcardCardService.MaxAttachmentsPerSide)
+                    break;
+                list.Add(attachment);
+            }
+
+            if (list.Count > 0)
+                resolved[field.FieldId.Trim()] = list;
+        }
+
+        return resolved;
+    }
+
+    private static FlashcardAttachment? Resolve(
+        CardAttachmentInputDto input,
+        IReadOnlyDictionary<string, FlashcardAttachment> carried)
+    {
+        if (!string.IsNullOrEmpty(input.Id) && carried.TryGetValue(input.Id, out var existing))
+            return existing with { Caption = input.Caption };
+
+        if (FlashcardAssetStore.ResolvePath(input.AssetId) is not { } path || !File.Exists(path))
+            return null;
+
+        var assetId = input.AssetId!;
+        return new FlashcardAttachment(
+            Id: FlashcardAssetStore.AttachmentIdForAssetId(assetId),
+            // A layout decides which side its fields land on, so the stored side is a placeholder
+            // the materializer rewrites per card.
+            Side: FlashcardAttachment.FrontSide,
+            FilePath: path,
+            DisplayName: string.IsNullOrWhiteSpace(input.DisplayName) ? assetId : input.DisplayName,
+            SizeBytes: new FileInfo(path).Length,
+            Caption: input.Caption);
+    }
+
+    private static IReadOnlyList<string> NormalizeTags(IReadOnlyList<string>? tags) =>
+        tags is null
+            ? Array.Empty<string>()
+            : tags.Select(t => t?.Trim() ?? string.Empty).Where(t => t.Length > 0).ToArray();
+}
