@@ -360,6 +360,9 @@ export interface RetentionTrendPointDto {
 
 export type SchedulingAlgorithm = "fsrs"
 
+/** What happens to a card that has lapsed as often as its preset allows. */
+export type LeechAction = "none" | "tag" | "suspend"
+
 /** Mirrors Mnemo.Host/Contracts/PresetDto.cs PresetDto. */
 export interface PresetDto {
   id: string
@@ -375,6 +378,9 @@ export interface PresetDto {
   autoReveal: AutoReveal
   /** The local hour a study day rolls over at, 0 to 23. Anything before it counts as yesterday. */
   nextDayStartsAtHour: number
+  /** How many lapses a card is allowed before the action below applies to it. */
+  leechThreshold: number
+  leechAction: LeechAction
   deckCount: number
   isStandard: boolean
   createdAt: string
@@ -396,6 +402,8 @@ export interface SavePresetDto {
   buryRelated: boolean
   autoReveal: AutoReveal
   nextDayStartsAtHour: number
+  leechThreshold: number
+  leechAction: LeechAction
 }
 
 // --- Import / export -------------------------------------------------------

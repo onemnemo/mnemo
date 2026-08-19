@@ -122,4 +122,17 @@ internal static class FlashcardSqlMap
         "10s" => FlashcardAutoReveal.TenSeconds,
         _ => FlashcardAutoReveal.Off
     };
+
+    // --- LeechAction enum ↔ stored ordinal ---
+
+    /// <summary>
+    /// Falls back to Tag rather than None, so a value this build does not recognise still leaves a
+    /// mark on the card instead of silently doing nothing about it.
+    /// </summary>
+    public static FlashcardLeechAction ReadLeechAction(int value) => value switch
+    {
+        0 => FlashcardLeechAction.None,
+        2 => FlashcardLeechAction.Suspend,
+        _ => FlashcardLeechAction.Tag
+    };
 }

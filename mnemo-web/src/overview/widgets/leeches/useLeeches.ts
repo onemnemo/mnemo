@@ -4,9 +4,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch, ApiError } from "@/api/client"
 import type { CardPageDto, DeckSummaryDto } from "@/api/types"
 import { useDecksQuery } from "@/flashcards/api"
+import { LEECH_LAPSES } from "@/flashcards/leeches"
 
 import { deckFanOutKey, deckFanOutRoot } from "../../api"
-import { LEECH_THRESHOLD, rankLeeches, type LeechRow } from "./leeches"
+import { rankLeeches, type LeechRow } from "./leeches"
 
 const FAN_OUT = "leeches"
 
@@ -32,7 +33,7 @@ async function loadLeeches(decks: readonly DeckSummaryDto[]) {
   const perDeck = await Promise.all(
     decks.map(async (deck) => {
       const query = new URLSearchParams({
-        minLapses: String(LEECH_THRESHOLD),
+        minLapses: String(LEECH_LAPSES),
         sort: "lapses",
         desc: "true",
         limit: String(PER_DECK),

@@ -81,6 +81,12 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         var updatedSchedule = _scheduler.ApplyGrade(current.Schedule, grade, now, _preset);
         var wasNew = current.Schedule.FsrsState == FlashcardFsrsState.New;
 
+        // Cram writes nothing, so it cannot mark a leech either. A card the reader is drilling
+        // outside its schedule has not lapsed in any sense the scheduler tracks.
+        var leeched = WritesSchedule
+            ? FlashcardLeech.Evaluate(current.Card, current.Schedule, updatedSchedule, _preset, now)
+            : null;
+
         long reviewId = 0;
         var localDay = _clock.KeyFor(now, _preset.DayStartHour);
         if (WritesSchedule)
@@ -93,19 +99,22 @@ internal sealed class FlashcardStudySession : IFlashcardSession
             var log = new FlashcardReviewLog(FlashcardReviewLog.Unassigned, current.Card.Id, DeckId, _sessionId,
                 grade, now, elapsedDays, scheduledDays, updatedSchedule.Stability, updatedSchedule.Difficulty,
                 current.Schedule.FsrsState, updatedSchedule.FsrsState);
-            reviewId = await _service.RecordReviewAsync(new FlashcardReviewEntry(updatedSchedule, log, wasNew, localDay), cancellationToken).ConfigureAwait(false);
+            reviewId = await _service.RecordReviewAsync(new FlashcardReviewEntry(updatedSchedule, log, wasNew, localDay, leeched), cancellationToken).ConfigureAwait(false);
         }
 
         _queue.RemoveAt(0);
         var stepping = updatedSchedule.FsrsState is FlashcardFsrsState.Learning or FlashcardFsrsState.Relearning;
-        var requeued = stepping && updatedSchedule.DueDate - now <= LearnAhead;
-        var updatedView = current with { Schedule = updatedSchedule };
+        // A card just suspended for lapsing too often does not come back on its relearning step:
+        // the whole point of suspending it was that another repetition is not the answer.
+        var suspended = leeched?.State == FlashcardCardState.Suspended;
+        var requeued = stepping && !suspended && updatedSchedule.DueDate - now <= LearnAhead;
+        var updatedView = current with { Schedule = updatedSchedule, Card = leeched ?? current.Card };
         if (requeued)
             _queue.Insert(NextStepPosition(updatedSchedule.DueDate, now), updatedView);
         else
             _completed++;
 
-        _undo.Push(new UndoRecord(current, reviewId, wasNew, localDay, requeued));
+        _undo.Push(new UndoRecord(current, reviewId, wasNew, localDay, requeued, leeched is not null));
     }
 
     /// <summary>
@@ -133,7 +142,8 @@ internal sealed class FlashcardStudySession : IFlashcardSession
 
         var record = _undo.Pop();
         if (WritesSchedule && record.ReviewId > 0)
-            await _service.UndoReviewAsync(DeckId, record.Before.Schedule, record.ReviewId, record.LocalDay, record.WasNew, cancellationToken).ConfigureAwait(false);
+            await _service.UndoReviewAsync(DeckId, record.Before.Schedule, record.ReviewId, record.LocalDay, record.WasNew,
+                record.Leeched ? record.Before.Card : null, cancellationToken).ConfigureAwait(false);
 
         // Remove the post-grade copy of the card (if it was requeued) and restore the pre-grade card to the front.
         var idx = _queue.FindIndex(v => string.Equals(v.Card.Id, record.Before.Card.Id, StringComparison.Ordinal));
@@ -146,5 +156,5 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         return true;
     }
 
-    private sealed record UndoRecord(FlashcardView Before, long ReviewId, bool WasNew, string LocalDay, bool Requeued);
+    private sealed record UndoRecord(FlashcardView Before, long ReviewId, bool WasNew, string LocalDay, bool Requeued, bool Leeched);
 }
