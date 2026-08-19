@@ -142,7 +142,7 @@ public sealed class FlashcardServiceTests
         var entry = new FlashcardReviewEntry(
             UpdatedSchedule: new FlashcardSchedule(card.Id, now.AddDays(3), 6, 5, 1, 0, FlashcardFsrsState.Review, 0, now),
             Review: new FlashcardReviewLog(FlashcardReviewLog.Unassigned, card.Id, deckId, "s1",
-                FlashcardReviewGrade.Good, now, 0, 3, 6, 5, FlashcardFsrsState.Review),
+                FlashcardReviewGrade.Good, now, 0, 3, 6, 5, FlashcardFsrsState.Review, FlashcardFsrsState.Review),
             IntroducedNewCard: true,
             LocalDay: "2026-07-06");
         var id = await study.RecordReviewAsync(entry);
@@ -170,7 +170,7 @@ public sealed class FlashcardServiceTests
         var study = new FlashcardStudyService(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, new ThrowingDailyStats(), h.Cards, new FsrsScheduler(), h.Clock);
         var entry = new FlashcardReviewEntry(
             new FlashcardSchedule(card.Id, now.AddDays(3), 6, 5, 1, 0, FlashcardFsrsState.Review, 0, now),
-            new FlashcardReviewLog(FlashcardReviewLog.Unassigned, card.Id, deckId, "s1", FlashcardReviewGrade.Good, now, 0, 3, 6, 5, FlashcardFsrsState.Review),
+            new FlashcardReviewLog(FlashcardReviewLog.Unassigned, card.Id, deckId, "s1", FlashcardReviewGrade.Good, now, 0, 3, 6, 5, FlashcardFsrsState.Review, FlashcardFsrsState.Review),
             false, "2026-07-06");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => study.RecordReviewAsync(entry));
@@ -190,20 +190,24 @@ public sealed class FlashcardServiceTests
         var study = NewStudy(h);
         var card = await cardSvc.CreateCardAsync(Draft(deckId, "Q", "A"));
         var now = DateTimeOffset.UtcNow;
-        var priorSchedule = (await h.Store.ReadAsync((c, ct) => h.Schedules.GetAsync(c, card.Id, ct)))!;
+        // The card is already in review, so undoing gives the day's review cap its slot back.
+        var priorSchedule = new FlashcardSchedule(card.Id, now, 4, 5, 2, 0, FlashcardFsrsState.Review, 0, now.AddDays(-4));
+        await h.Store.WriteAsync((c, tx, ct) => h.Schedules.UpsertAsync(c, tx, priorSchedule, ct));
 
         var entry = new FlashcardReviewEntry(
-            new FlashcardSchedule(card.Id, now.AddDays(3), 6, 5, 1, 0, FlashcardFsrsState.Review, 0, now),
-            new FlashcardReviewLog(FlashcardReviewLog.Unassigned, card.Id, deckId, "s1", FlashcardReviewGrade.Good, now, 0, 3, 6, 5, FlashcardFsrsState.Review),
+            new FlashcardSchedule(card.Id, now.AddDays(3), 6, 5, 3, 0, FlashcardFsrsState.Review, 0, now),
+            new FlashcardReviewLog(FlashcardReviewLog.Unassigned, card.Id, deckId, "s1", FlashcardReviewGrade.Good, now, 0, 3, 6, 5, FlashcardFsrsState.Review, FlashcardFsrsState.Review),
             true, "2026-07-06");
         var id = await study.RecordReviewAsync(entry);
+        var afterGrade = await h.Store.ReadAsync((c, ct) => h.DailyStats.GetAsync(c, deckId, "2026-07-06", ct));
+        Assert.Equal(1, afterGrade.ReviewsDone);
 
         await study.UndoReviewAsync(deckId, priorSchedule, id, "2026-07-06", wasNewIntroduction: true);
 
         var sched = await h.Store.ReadAsync((c, ct) => h.Schedules.GetAsync(c, card.Id, ct));
         var reviews = await h.Store.ReadAsync((c, ct) => h.Reviews.CountForDeckAsync(c, deckId, ct));
         var stat = await h.Store.ReadAsync((c, ct) => h.DailyStats.GetAsync(c, deckId, "2026-07-06", ct));
-        Assert.Equal(FlashcardFsrsState.New, sched!.FsrsState);
+        Assert.Equal(priorSchedule.DueDate, sched!.DueDate);
         Assert.Equal(0, reviews);
         Assert.Equal(0, stat.NewIntroduced);
         Assert.Equal(0, stat.ReviewsDone);
@@ -228,7 +232,7 @@ public sealed class FlashcardServiceTests
         {
             await h.Store.WriteAsync((c, tx, ct) => h.Reviews.AppendAsync(c, tx, new FlashcardReviewLog(
                 FlashcardReviewLog.Unassigned, $"c{i}", deckId, "s1", grade, now.AddMinutes(-i), 0, 1, null, null,
-                FlashcardFsrsState.Review), ct));
+                FlashcardFsrsState.Review, FlashcardFsrsState.Review), ct));
         }
 
         var retention = await stats.GetTrueRetentionAsync(deckId);

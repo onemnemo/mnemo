@@ -148,11 +148,13 @@ public sealed class FlashcardStoreMigrator : IFlashcardStoreMigrator
                     if (session.SessionConfig?.SessionType != 0) // 0 = Review; only Review fed the schedule
                         continue;
                     var sessionId = Guid.NewGuid().ToString("N");
+                    // The blob kept no per-review stability, difficulty or starting state, so those
+                    // stay null rather than being invented from the card's current values.
                     foreach (var result in session.CardResults ?? new List<LegacyCardResult>())
                         await _reviews.AppendAsync(conn, tx, new FlashcardReviewLog(
                             FlashcardReviewLog.Unassigned, result.CardId, session.DeckId, sessionId,
                             (FlashcardReviewGrade)result.Grade, result.ReviewedAt, 0, 0, null, null,
-                            FlashcardFsrsState.Review), ct).ConfigureAwait(false);
+                            null, FlashcardFsrsState.Review), ct).ConfigureAwait(false);
                 }
             }, cancellationToken).ConfigureAwait(false);
 

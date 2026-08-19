@@ -7,7 +7,7 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 internal static class FlashcardStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 2;
+    public const int TargetVersion = 3;
 
     /// <summary>
     /// Columns added after v1, for databases that already exist.
@@ -20,6 +20,7 @@ internal static class FlashcardStoreSchema
     public static readonly (string Table, string Column, string Definition)[] AddedColumns =
     [
         ("FlashcardDecks", "Icon", "TEXT NULL"),
+        ("FlashcardReviews", "StateBefore", "INTEGER NULL"),
     ];
 
     /// <summary>Every table, index, FTS virtual table and trigger, created if absent.</summary>
@@ -111,7 +112,10 @@ internal static class FlashcardStoreSchema
             ScheduledDays   REAL NOT NULL,
             StabilityAfter  REAL NULL,
             DifficultyAfter REAL NULL,
-            StateAfter      INTEGER NOT NULL
+            StateAfter      INTEGER NOT NULL,
+            -- Null on rows written before the column existed: those reviews genuinely have no
+            -- recorded starting state, and guessing one would be worse than admitting it.
+            StateBefore     INTEGER NULL
         );
 
         CREATE TABLE IF NOT EXISTS FlashcardTestAttempts (

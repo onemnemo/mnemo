@@ -85,7 +85,8 @@ internal sealed class FlashcardStudySession : IFlashcardSession
             var elapsedDays = current.Schedule.LastReviewedAt is null ? 0d : _scheduler.ElapsedDays(current.Schedule, now);
             var scheduledDays = Math.Max(0d, (current.Schedule.DueDate - (current.Schedule.LastReviewedAt ?? current.Schedule.DueDate)).TotalDays);
             var log = new FlashcardReviewLog(FlashcardReviewLog.Unassigned, current.Card.Id, DeckId, _sessionId,
-                grade, now, elapsedDays, scheduledDays, updatedSchedule.Stability, updatedSchedule.Difficulty, updatedSchedule.FsrsState);
+                grade, now, elapsedDays, scheduledDays, updatedSchedule.Stability, updatedSchedule.Difficulty,
+                current.Schedule.FsrsState, updatedSchedule.FsrsState);
             reviewId = await _service.RecordReviewAsync(new FlashcardReviewEntry(updatedSchedule, log, wasNew, localDay), cancellationToken).ConfigureAwait(false);
         }
 
