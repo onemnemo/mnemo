@@ -45,6 +45,14 @@ public static class FlashcardAssetStore
     /// <summary>Mints an asset id for an uploaded image, carrying its (validated) extension.</summary>
     public static string Generate(string extension) => Store.GenerateAssetId(extension);
 
+    /// <summary>
+    /// Writes an upload under its minted id, rejecting bytes that do not match the image type
+    /// the extension claims. See <see cref="ManagedAssetStore.SaveAsync"/>.
+    /// </summary>
+    /// <exception cref="System.IO.InvalidDataException">The bytes do not match the claimed image type.</exception>
+    public static Task<string> SaveAsync(Stream content, string assetId, CancellationToken cancellationToken = default) =>
+        Store.SaveAsync(content, assetId, cancellationToken);
+
     /// <summary>The attachment id an asset id belongs to - the filename without its extension.</summary>
     public static string AttachmentIdForAssetId(string assetId) =>
         Path.GetFileNameWithoutExtension(assetId);
