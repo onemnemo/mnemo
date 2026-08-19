@@ -19,6 +19,9 @@ internal sealed class MindmapTestHarness : IAsyncDisposable
 
     public MindmapDocumentService Service { get; }
 
+    /// <summary>The database file, so a test can put a row in it that no write path would produce.</summary>
+    public string DatabasePath => _dbPath;
+
     public MindmapTestHarness(MindmapShortIdGenerator? idGenerator = null)
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"mnemo_mm_{Guid.NewGuid():N}.db");
