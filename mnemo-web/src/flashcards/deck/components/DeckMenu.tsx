@@ -6,6 +6,7 @@ import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 
 import { useDecksQuery, useDeleteDeck, useFoldersQuery, useMoveDeck, useUpdateDeck } from "../../api"
+import { useCardTypeManager } from "../../cardtypes/store"
 import { useReviewSettings } from "../../presets/store"
 import { useTransfer } from "../../transfer/store"
 import { fetchAllCardIds, useSuspendCards } from "../api"
@@ -102,6 +103,11 @@ export function DeckMenu({ deck }: { deck: DeckSummaryDto }) {
           onSelect={() => useReviewSettings.getState().open(deck.id, deck.name)}
         >
           {fc("ReviewSettingsMenu")}
+        </MenuItem>
+        {/* Card types are collection wide rather than this deck's, and so is the review preset
+            beside it. Both are reached from where the work is rather than from a settings page. */}
+        <MenuItem icon="layers" onSelect={() => useCardTypeManager.getState().show()}>
+          {fc("CardTypesMenu")}
         </MenuItem>
         <MenuItem
           icon="flyout/export"
