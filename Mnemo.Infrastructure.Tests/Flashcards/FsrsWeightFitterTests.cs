@@ -35,13 +35,20 @@ public sealed class FsrsWeightFitterTests
         };
         var scheduler = new FsrsScheduler(new FlashcardClock(new TestTimeProvider(Start)));
 
+        // Every grade is answered both after a gap of a day or more and inside the same day, because
+        // the two run through different equations and a grade seen on only one side of that split
+        // leaves the other side free to drift. The hard penalty and the easy bonus apply only above
+        // the split, and only below it does an Again skip the floor that holds stability from
+        // falling, so those three are the terms a shorter sequence lets through unchecked.
         var grades = new[]
         {
             FlashcardReviewGrade.Good, FlashcardReviewGrade.Good, FlashcardReviewGrade.Again,
             FlashcardReviewGrade.Hard, FlashcardReviewGrade.Good, FlashcardReviewGrade.Easy,
-            FlashcardReviewGrade.Good, FlashcardReviewGrade.Again, FlashcardReviewGrade.Good
+            FlashcardReviewGrade.Good, FlashcardReviewGrade.Again, FlashcardReviewGrade.Good,
+            FlashcardReviewGrade.Hard, FlashcardReviewGrade.Again, FlashcardReviewGrade.Easy,
+            FlashcardReviewGrade.Hard, FlashcardReviewGrade.Good
         };
-        var gaps = new[] { 0d, 3d, 12d, 0.02d, 1d, 20d, 45d, 7d, 2d };
+        var gaps = new[] { 0d, 3d, 12d, 0.02d, 1d, 20d, 45d, 7d, 2d, 6d, 0.5d, 0.3d, 4d, 9d };
 
         var schedule = FlashcardSchedule.NewFor("card-1", Start);
         var at = Start;
