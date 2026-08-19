@@ -8,6 +8,7 @@ using Mnemo.Host.Events;
 using Mnemo.Host.HeadlessShell;
 using Mnemo.Host.I18n;
 using Mnemo.Host.Lifecycle;
+using Mnemo.Host.Trash;
 using Mnemo.Infrastructure.History;
 using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.AI;
@@ -29,6 +30,7 @@ using Mnemo.Infrastructure.Services.Spellcheck;
 using Mnemo.Infrastructure.Services.Statistics;
 using Mnemo.Infrastructure.Services.TextShortcuts;
 using Mnemo.Infrastructure.Services.Tools;
+using Mnemo.Infrastructure.Services.Trash;
 using Mnemo.Infrastructure.Services.Updates;
 using Mnemo.Infrastructure.Services.Widgets;
 using Mnemo.UI.Services;
@@ -249,6 +251,24 @@ public static class HostComposition
         services.AddSingleton<IContentFormatAdapter, FlashcardsCsvFormatAdapter>();
         services.AddSingleton<IContentFormatAdapter, FlashcardsAnkiFormatAdapter>();
         services.AddSingleton<IContentFormatAdapter, MindmapsMnemoFormatAdapter>();
+
+        // Application trash. The sources that own each kind are registered beside their own module;
+        // an empty set here simply means nothing routes through the trash yet. TrashMaintenance is
+        // resolved rather than injected into the coordinator, because the coordinator is also what
+        // asks it for a pass.
+        services.AddSingleton(sp => new TrashDatabase(sp.GetRequiredService<ILoggerService>()));
+        services.AddSingleton<ITrashStore, TrashStore>();
+        services.AddSingleton<IAssetCleanupStore, AssetCleanupStore>();
+        services.AddSingleton<TrashSourceRegistry>();
+        services.AddSingleton<TrashMaintenance>();
+        services.AddSingleton<ITrashMaintenance>(sp => sp.GetRequiredService<TrashMaintenance>());
+        services.AddSingleton<AssetCleanupWorker>();
+        services.AddSingleton<ITrashService>(sp => new TrashService(
+            sp.GetRequiredService<ITrashStore>(),
+            sp.GetRequiredService<TrashSourceRegistry>(),
+            sp.GetRequiredService<ILoggerService>(),
+            sp.GetRequiredService<ITrashMaintenance>(),
+            sp.GetRequiredService<TimeProvider>()));
 
         // Mindmap services themselves come from MindmapModule.ConfigureServices, which this host runs
         // like every other module registration. Only the bridge onto the events channel is host-side,

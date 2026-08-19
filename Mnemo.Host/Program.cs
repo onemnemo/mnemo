@@ -27,6 +27,7 @@ using Mnemo.Host.Profile;
 using Mnemo.Host.Settings;
 using Mnemo.Host.Startup;
 using Mnemo.Host.Statistics;
+using Mnemo.Host.Trash;
 using Mnemo.Host.Updates;
 using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
@@ -183,6 +184,7 @@ public static class Program
         app.MapMindmapTransfer();
         app.MapOverview();
         app.MapStatistics();
+        app.MapTrash();
         app.MapUpdates();
 
         if (options.DevMode)
@@ -216,6 +218,10 @@ public static class Program
         // Maps have no session to close, so this is their only sweep: no client has loaded yet,
         // which is the one moment nothing can undo a delete back into a reference.
         app.Services.GetRequiredService<Mindmap.MindmapAssets>().Sweeper.SweepInBackground();
+        // Reconciles the trash against what the modules actually hold, then keeps expiry and the
+        // file cleanup queue moving. Backgrounded because the routes gate themselves on it, so
+        // nothing needs the window to wait.
+        app.Services.GetRequiredService<TrashMaintenance>().StartInBackground();
 
         var apiBaseUrl = ResolveBoundAddress(app);
         logger.Info(CrashLog.Category, $"API listening on {apiBaseUrl}");
