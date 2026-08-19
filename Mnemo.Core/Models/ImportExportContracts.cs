@@ -42,6 +42,12 @@ public sealed class ImportExportCapability
     public bool SupportsImport { get; set; }
 
     public bool SupportsExport { get; set; }
+
+    /// <summary>
+    /// Whether importing this format reads <see cref="ImportExportOptionKeys.ConflictPolicy"/>.
+    /// False means every import of it is new content whatever the caller asked for.
+    /// </summary>
+    public bool SupportsConflictPolicy { get; set; } = true;
 }
 
 public sealed class ImportExportRequest

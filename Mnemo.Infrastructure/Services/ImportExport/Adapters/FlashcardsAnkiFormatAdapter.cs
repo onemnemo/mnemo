@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO.Compression;
 using System.Net;
@@ -9,6 +10,8 @@ using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services.ImportExport.Adapters.Anki;
 
 namespace Mnemo.Infrastructure.Services.ImportExport.Adapters;
 
@@ -19,12 +22,54 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 {
     private const char UnitSeparator = '\u001f';
     private const int CardPageSize = 200;
+
+    /// <summary>How Anki spells a deck hierarchy inside a single deck name.</summary>
+    private const string DeckPathSeparator = "::";
+
+    // Anki's card.type column.
+    private const int AnkiCardTypeLearning = 1;
+    private const int AnkiCardTypeReview = 2;
+    private const int AnkiCardTypeRelearning = 3;
+
+    /// <summary>Anki's card.queue value for a suspended card.</summary>
+    private const int AnkiQueueSuspended = -1;
+
+    /// <summary>
+    /// Above this a due value is an absolute second rather than a day offset. Day offsets are
+    /// counted from a collection's creation, so reaching this would mean studying for millennia.
+    /// </summary>
+    private const long SecondsSinceEpochThreshold = 1_000_000_000L;
+
+    /// <summary>
+    /// How far ahead an imported due date is believed. Beyond this the row is broken, and honouring
+    /// it would hide the card rather than schedule it.
+    /// </summary>
+    private const int MaxCarriedDueDays = 365 * 20;
+
     private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
     private static readonly Regex ClozeRegex = new(@"\{\{c\d+::", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ImageTagRegex = new(@"<img\s+[^>]*src\s*=\s*['""](?<src>[^'""]+)['""][^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex BreakRegex = new(@"<\s*br\s*/?\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex DivCloseRegex = new(@"<\s*/\s*div\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    /// <summary>Closing tags that end a line of text. Without them a list or a table reads as one run-on line.</summary>
+    private static readonly Regex BlockCloseRegex = new(
+        @"<\s*/\s*(div|p|li|ul|ol|tr|h[1-6]|blockquote|pre)\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>Table cells sit side by side on their row's line rather than each taking one of their own.</summary>
+    private static readonly Regex CellCloseRegex = new(@"<\s*/\s*(td|th)\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex AllTagsRegex = new(@"<[^>]+>", RegexOptions.Compiled);
+
+    /// <summary>How Anki references an audio clip inside a field. Cards here hold images only.</summary>
+    private static readonly Regex SoundTagRegex = new(@"\[sound:[^\]]+\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // Both delimiter pairs must be present for a rewrite. A lone backslash-paren in ordinary prose
+    // is text, and turning it into an opening dollar would put the rest of the card inside a formula.
+    // Inline maths may not span a line the way a displayed block may.
+    private static readonly Regex InlineMathRegex = new(@"\\\((?<body>[^\n]+?)\\\)", RegexOptions.Compiled);
+    private static readonly Regex DisplayMathRegex = new(@"\\\[(?<body>.+?)\\\]", RegexOptions.Compiled | RegexOptions.Singleline);
+
+    // Anki's own field syntax for the same two things.
+    private static readonly Regex BracketInlineMathRegex = new(@"\[\$\](?<body>.+?)\[/\$\]", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex BracketDisplayMathRegex = new(@"\[\$\$\](?<body>.+?)\[/\$\$\]", RegexOptions.Compiled | RegexOptions.Singleline);
     private static readonly Regex InlineTagRegex = new(@"</?(b|strong|i|em|u|s|strike)>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly IFlashcardLibraryService _library;
@@ -50,6 +95,13 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     public IReadOnlyList<string> Extensions => [".apkg"];
     public bool SupportsImport => true;
     public bool SupportsExport => true;
+
+    /// <summary>
+    /// An Anki note's identity is its <c>guid</c>, which nothing here records, so there is no id an
+    /// import can collide on and every import of a package is new content. Offering the choice
+    /// anyway would promise a behaviour that never runs.
+    /// </summary>
+    public bool SupportsConflictPolicy => false;
 
     public async Task<ImportExportPreview> PreviewImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
@@ -92,8 +144,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         try
         {
             await using var opened = await OpenApkgAsync(request.FilePath, cancellationToken).ConfigureAwait(false);
+            warnings.AddRange(opened.Warnings);
             var collectionInfo = await ReadCollectionInfoAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
-            var mediaMap = await ReadMediaMapAsync(opened.TempDirectory, cancellationToken).ConfigureAwait(false);
             var notes = await ReadNotesAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
             var cards = await ReadCardsAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
             foreach (var note in notes.Values)
@@ -103,17 +155,22 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             }
 
             var decksByDid = cards
-                .GroupBy(c => c.DeckId)
+                .GroupBy(c => c.HomeDeckId)
                 .OrderBy(g => g.Key)
                 .ToArray();
 
+            var now = DateTimeOffset.UtcNow;
             var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
+            var folders = await DeckFolderResolver.CreateAsync(_library, cancellationToken).ConfigureAwait(false);
+            var noteTypesWithExtraFields = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            var failedDecks = 0;
+            var cardsWithAudio = 0;
 
             foreach (var deckGroup in decksByDid)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var deckName = collectionInfo.Decks.TryGetValue(deckGroup.Key, out var n) && !string.IsNullOrWhiteSpace(n)
+                var deckPath = collectionInfo.Decks.TryGetValue(deckGroup.Key, out var n) && !string.IsNullOrWhiteSpace(n)
                     ? n
                     : $"Imported Deck {deckGroup.Key}";
                 var drafts = new List<FlashcardCardDraft>();
@@ -127,14 +184,23 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     var frontHtml = fields.Length > 0 ? fields[0] : string.Empty;
                     var backHtml = fields.Length > 1 ? fields[1] : string.Empty;
 
-                    // Content-only: front/back/tags/type/media. Anki scheduling is intentionally dropped;
-                    // imported cards arrive FSRS-new (due now) via the card service. Images become
-                    // FlashcardAttachments (up to 3 per side); the block pipeline no longer emits image
-                    // blocks — the canonical body is the text field, attachments render as framed figures.
+                    // A card here has two sides, so a note type with more fields than that loses the
+                    // rest. Say so once per note type rather than per card or not at all.
+                    if (fields.Length > 2)
+                        noteTypesWithExtraFields.Add(note.ModelName ?? $"note type {note.ModelId}");
+
+                    // A card holds images and nothing else, so an audio reference stays as the text
+                    // it is written as. Counted rather than silently left on the card.
+                    if (SoundTagRegex.IsMatch(frontHtml) || SoundTagRegex.IsMatch(backHtml))
+                        cardsWithAudio++;
+
+                    // Images become FlashcardAttachments (up to 3 per side); the block pipeline no
+                    // longer emits image blocks, the canonical body is the text field and
+                    // attachments render as framed figures.
                     var front = await BuildSideAsync(
-                        frontHtml, FlashcardAttachment.FrontSide, opened.TempDirectory, mediaMap, warnings, cancellationToken).ConfigureAwait(false);
+                        frontHtml, FlashcardAttachment.FrontSide, opened.TempDirectory, opened.Media, warnings, cancellationToken).ConfigureAwait(false);
                     var back = await BuildSideAsync(
-                        backHtml, FlashcardAttachment.BackSide, opened.TempDirectory, mediaMap, warnings, cancellationToken).ConfigureAwait(false);
+                        backHtml, FlashcardAttachment.BackSide, opened.TempDirectory, opened.Media, warnings, cancellationToken).ConfigureAwait(false);
 
                     var attachments = front.Attachments.Count == 0 && back.Attachments.Count == 0
                         ? (IReadOnlyList<FlashcardAttachment>)Array.Empty<FlashcardAttachment>()
@@ -149,20 +215,57 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                         Attachments: attachments,
                         SourceInfo: null,
                         FrontBlocks: front.Blocks,
-                        BackBlocks: back.Blocks));
+                        BackBlocks: back.Blocks,
+                        // Landing a studied collection as new cards makes every one of them due at
+                        // once, which is the opposite of what importing a schedule is for.
+                        Schedule: BuildImportedSchedule(cardRow, collectionInfo.CollectionCreatedAt, now),
+                        State: cardRow.Queue == AnkiQueueSuspended
+                            ? FlashcardCardState.Suspended
+                            : FlashcardCardState.Active));
                 }
 
                 if (drafts.Count == 0)
                     continue;
 
-                var deck = await _library.CreateDeckAsync(deckName, folderId: null, presetId: preset.Id, cancellationToken).ConfigureAwait(false);
-                await _library.SaveDeckAsync(
-                    deck with { Description = "Imported from Anki package" },
-                    cancellationToken).ConfigureAwait(false);
-                var created = await _cards.CreateCardsAsync(deck.Id, drafts, cancellationToken).ConfigureAwait(false);
-                importedDecks++;
-                importedCards += created.Count;
+                // A deck and its cards land together or not at all. Half of one is a named, empty
+                // deck the user has to find and delete before retrying.
+                string? createdDeckId = null;
+                try
+                {
+                    var (folderId, deckName) = await folders.ResolveAsync(deckPath, cancellationToken).ConfigureAwait(false);
+                    var deck = await _library.CreateDeckAsync(deckName, folderId, preset.Id, cancellationToken).ConfigureAwait(false);
+                    createdDeckId = deck.Id;
+                    await _library.SaveDeckAsync(
+                        deck with { Description = "Imported from Anki package" },
+                        cancellationToken).ConfigureAwait(false);
+                    var created = await _cards.CreateCardsAsync(deck.Id, drafts, cancellationToken).ConfigureAwait(false);
+                    importedDecks++;
+                    importedCards += created.Count;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    failedDecks++;
+                    warnings.Add($"Deck '{deckPath}' could not be imported: {ex.Message}");
+                    if (createdDeckId is not null)
+                        await TryDeleteDeckAsync(createdDeckId, cancellationToken).ConfigureAwait(false);
+                }
             }
+
+            // One failed deck used to discard the count of every deck that already landed, so a
+            // retry produced duplicates of everything that had worked.
+            if (failedDecks > 0)
+                warnings.Add($"{failedDecks} of {decksByDid.Length} deck(s) in the package could not be imported.");
+
+            if (noteTypesWithExtraFields.Count > 0)
+                warnings.Add($"Only the first two fields were imported from these note types: {string.Join(", ", noteTypesWithExtraFields)}.");
+
+            if (cardsWithAudio > 0)
+                warnings.Add($"{cardsWithAudio} card(s) reference audio, which cards here cannot hold yet. The reference is left in the text and the sound file was not imported.");
+
+            // The first few intervals will not match what the other app would have given, and a user
+            // who is not told that reads it as the import having got the schedule wrong.
+            if (importedCards > 0 && cards.Any(c => c.Type != 0))
+                warnings.Add("Cards kept the dates they were next due. How well each one is known is measured again from your next few reviews, so early intervals may differ from the other app's.");
 
             return new ImportExportResult
             {
@@ -214,8 +317,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             try
             {
                 var dbPath = Path.Combine(tempRoot, "collection.anki2");
-                var mediaMap = new Dictionary<string, string>(StringComparer.Ordinal);
-                var mediaCounter = 0;
+                var media = new MediaExportState();
                 var exportedCards = 0;
                 var now = DateTimeOffset.UtcNow;
                 var nowMs = now.ToUnixTimeMilliseconds();
@@ -246,8 +348,10 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                             var mod = nowSec;
                             var tags = card.Tags.Count > 0 ? $" {string.Join(' ', card.Tags)} " : string.Empty;
 
-                            var frontHtml = BuildFieldHtml(card.Front, card.FrontBlocks, tempRoot, mediaMap, ref mediaCounter, warnings);
-                            var backHtml = BuildFieldHtml(card.Back, card.BackBlocks, tempRoot, mediaMap, ref mediaCounter, warnings);
+                            var frontHtml = BuildFieldHtml(
+                                card.Front, card.FrontBlocks, card.Attachments, FlashcardAttachment.FrontSide, tempRoot, media, warnings);
+                            var backHtml = BuildFieldHtml(
+                                card.Back, card.BackBlocks, card.Attachments, FlashcardAttachment.BackSide, tempRoot, media, warnings);
                             var flds = $"{frontHtml}{UnitSeparator}{backHtml}";
                             var sfld = card.Front;
                             var csum = ComputeChecksum(card.Front);
@@ -262,7 +366,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 }
 
                 var mediaJsonPath = Path.Combine(tempRoot, "media");
-                await File.WriteAllTextAsync(mediaJsonPath, JsonSerializer.Serialize(mediaMap), Utf8WithoutBom, cancellationToken).ConfigureAwait(false);
+                await File.WriteAllTextAsync(mediaJsonPath, JsonSerializer.Serialize(media.Map), Utf8WithoutBom, cancellationToken).ConfigureAwait(false);
 
                 if (File.Exists(request.FilePath))
                     File.Delete(request.FilePath);
@@ -328,23 +432,21 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         Directory.CreateDirectory(tempDirectory);
         try
         {
-            ZipFile.ExtractToDirectory(apkgPath, tempDirectory);
-
-            var dbPath = Path.Combine(tempDirectory, "collection.anki21");
-            if (!File.Exists(dbPath))
-                dbPath = Path.Combine(tempDirectory, "collection.anki2");
-            if (!File.Exists(dbPath))
-                throw new InvalidOperationException("Package does not contain collection.anki21 or collection.anki2.");
+            var contents = await AnkiPackageReader.ExtractAsync(apkgPath, tempDirectory, cancellationToken).ConfigureAwait(false);
 
             var connectionString = new SqliteConnectionStringBuilder
             {
-                DataSource = dbPath,
+                DataSource = contents.CollectionPath,
                 Mode = SqliteOpenMode.ReadOnly,
                 Pooling = false
             }.ToString();
             var connection = new SqliteConnection(connectionString);
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-            return new OpenedApkg(tempDirectory, connection);
+            return new OpenedApkg(
+                tempDirectory,
+                connection,
+                MediaIndex.FromStoredNames(contents.MediaNamesByStoredName),
+                contents.Warnings);
         }
         catch
         {
@@ -378,7 +480,63 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         var createdAt = ParseCollectionCreatedAt(crt);
         var deckNames = ParseNameMap(decksJson);
         var modelNames = ParseNameMap(modelsJson);
+
+        // Newer collections blank these two columns and keep the names in tables of their own.
+        // Without the fallback every deck in a modern package would import under a placeholder name.
+        await reader.CloseAsync().ConfigureAwait(false);
+        if (deckNames.Count == 0)
+            deckNames = await ReadNameTableAsync(connection, "decks", cancellationToken).ConfigureAwait(false);
+        if (modelNames.Count == 0)
+            modelNames = await ReadNameTableAsync(connection, "notetypes", cancellationToken).ConfigureAwait(false);
+
         return new CollectionInfo(createdAt, deckNames, modelNames);
+    }
+
+    /// <summary>
+    /// Reads an id-to-name table from a collection that keeps its names relationally. Deck names
+    /// there separate the levels of a hierarchy with a unit separator, normalized here to the
+    /// spelling every other collection version uses.
+    /// </summary>
+    private static async Task<Dictionary<long, string>> ReadNameTableAsync(
+        SqliteConnection connection,
+        string tableName,
+        CancellationToken cancellationToken)
+    {
+        var map = new Dictionary<long, string>();
+        if (!await TableExistsAsync(connection, tableName, cancellationToken).ConfigureAwait(false))
+            return map;
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT id, name FROM {tableName}";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                if (reader.IsDBNull(0) || reader.IsDBNull(1))
+                    continue;
+
+                map[reader.GetInt64(0)] = reader.GetString(1)
+                    .Replace(UnitSeparator.ToString(), DeckPathSeparator, StringComparison.Ordinal);
+            }
+        }
+        catch (SqliteException)
+        {
+            // These tables declare a collation Anki registers at runtime and plain SQLite does not
+            // know. Losing the names costs placeholder deck titles; failing here would cost the
+            // whole import.
+            map.Clear();
+        }
+
+        return map;
+    }
+
+    private static async Task<bool> TableExistsAsync(SqliteConnection connection, string tableName, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $name LIMIT 1";
+        command.Parameters.AddWithValue("$name", tableName);
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not null;
     }
 
     private static Dictionary<long, string> ParseNameMap(string json)
@@ -394,15 +552,6 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         }
 
         return map;
-    }
-
-    private static async Task<Dictionary<string, string>> ReadMediaMapAsync(string tempDirectory, CancellationToken cancellationToken)
-    {
-        var mediaPath = Path.Combine(tempDirectory, "media");
-        if (!File.Exists(mediaPath))
-            return new Dictionary<string, string>(StringComparer.Ordinal);
-        var json = await File.ReadAllTextAsync(mediaPath, cancellationToken).ConfigureAwait(false);
-        return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new Dictionary<string, string>(StringComparer.Ordinal);
     }
 
     private static async Task<Dictionary<long, NoteRow>> ReadNotesAsync(SqliteConnection connection, CancellationToken cancellationToken)
@@ -428,7 +577,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     {
         var cards = new List<CardRow>();
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT id, nid, did, type, queue, due, ivl, factor, reps, lapses, mod FROM cards";
+        // odue/odid hold the real due date and home deck of a card parked in a filtered deck. Read
+        // without them such a card imports into the temporary deck, due whenever the filter said.
+        command.CommandText = "SELECT id, nid, did, type, queue, due, ivl, factor, reps, lapses, mod, odue, odid FROM cards";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -443,7 +594,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 reader.IsDBNull(7) ? 2500 : reader.GetInt32(7),
                 reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
                 reader.IsDBNull(9) ? 0 : reader.GetInt32(9),
-                reader.IsDBNull(10) ? DateTimeOffset.UtcNow : ParseUnixTimestamp(reader.GetInt64(10))));
+                reader.IsDBNull(10) ? DateTimeOffset.UtcNow : ParseUnixTimestamp(reader.GetInt64(10)),
+                reader.IsDBNull(11) ? 0 : reader.GetInt64(11),
+                reader.IsDBNull(12) ? 0 : reader.GetInt64(12)));
         }
 
         return cards;
@@ -461,7 +614,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         string html,
         string side,
         string tempDirectory,
-        IReadOnlyDictionary<string, string> mediaMap,
+        MediaIndex media,
         ICollection<string> warnings,
         CancellationToken cancellationToken)
     {
@@ -469,7 +622,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         var attachments = new List<FlashcardAttachment>();
         var overflowTokens = new List<string>();
 
-        var normalized = NormalizeHtmlLineBreaks(html);
+        var normalized = NormalizeMathDelimiters(NormalizeHtmlLineBreaks(html));
         foreach (var line in normalized.Split('\n'))
         {
             var trimmed = line.Trim();
@@ -495,7 +648,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 if (string.IsNullOrWhiteSpace(src))
                     continue;
 
-                var resolvedMediaPath = ResolveMediaPath(src, tempDirectory, mediaMap);
+                var resolvedMediaPath = ResolveMediaPath(src, tempDirectory, media);
                 if (resolvedMediaPath == null)
                 {
                     warnings.Add($"Referenced media '{src}' was not found in package.");
@@ -510,7 +663,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     continue;
                 }
 
-                var displayName = Path.GetFileName(src);
+                var displayName = Path.GetFileName(WebUtility.HtmlDecode(src));
                 if (string.IsNullOrWhiteSpace(displayName))
                     displayName = Path.GetFileName(copied.Value!);
 
@@ -606,21 +759,70 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return spans;
     }
 
-    private static string? ResolveMediaPath(string src, string tempDirectory, IReadOnlyDictionary<string, string> mediaMap)
+    private static string? ResolveMediaPath(string src, string tempDirectory, MediaIndex media)
     {
-        var directPath = Path.Combine(tempDirectory, src);
-        if (File.Exists(directPath))
-            return directPath;
-
-        var mediaNumber = mediaMap.FirstOrDefault(kv => string.Equals(kv.Value, src, StringComparison.OrdinalIgnoreCase)).Key;
-        if (!string.IsNullOrWhiteSpace(mediaNumber))
+        foreach (var name in CandidateMediaNames(src))
         {
-            var mappedPath = Path.Combine(tempDirectory, mediaNumber);
-            if (File.Exists(mappedPath))
-                return mappedPath;
+            if (ResolveContainedFile(tempDirectory, name) is { } direct)
+                return direct;
+
+            if (media.TryGetStoredName(name, out var stored) && ResolveContainedFile(tempDirectory, stored) is { } mapped)
+                return mapped;
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Full path of <paramref name="relativeName"/> inside the extracted package, or null when it
+    /// does not exist or resolves outside the package directory.
+    /// </summary>
+    /// <remarks>
+    /// The name comes from untrusted note HTML. An absolute path makes <see cref="Path.Combine"/>
+    /// discard the package directory outright, and a relative one can climb out with "..", so the
+    /// resolved path is checked for containment instead of being trusted.
+    /// </remarks>
+    private static string? ResolveContainedFile(string tempDirectory, string relativeName)
+    {
+        if (string.IsNullOrWhiteSpace(relativeName))
+            return null;
+
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(Path.Combine(tempDirectory, relativeName));
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            return null;
+        }
+
+        if (!MnemoAppPaths.IsPathUnder(fullPath, tempDirectory))
+            return null;
+
+        return File.Exists(fullPath) ? fullPath : null;
+    }
+
+    /// <summary>Spellings of one <c>src</c> worth trying, since Anki fields carry both HTML entities and percent escapes.</summary>
+    private static IEnumerable<string> CandidateMediaNames(string src)
+    {
+        yield return src;
+
+        var decoded = WebUtility.HtmlDecode(src);
+        if (!string.Equals(decoded, src, StringComparison.Ordinal))
+            yield return decoded;
+
+        string? unescaped = null;
+        try
+        {
+            unescaped = Uri.UnescapeDataString(decoded);
+        }
+        catch (UriFormatException)
+        {
+        }
+
+        if (unescaped is not null && !string.Equals(unescaped, decoded, StringComparison.Ordinal))
+            yield return unescaped;
     }
 
     private static string NormalizeHtmlLineBreaks(string html)
@@ -629,7 +831,26 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             return string.Empty;
         var normalized = html;
         normalized = BreakRegex.Replace(normalized, "\n");
-        normalized = DivCloseRegex.Replace(normalized, "\n");
+        normalized = CellCloseRegex.Replace(normalized, " ");
+        normalized = BlockCloseRegex.Replace(normalized, "\n");
+        return normalized;
+    }
+
+    /// <summary>
+    /// Rewrites the maths delimiters Anki fields use into the single dialect the card renderer
+    /// reads. A formula that arrives in any other spelling is drawn as its own source text, so the
+    /// card shows backslashes and braces where it should show the equation.
+    /// </summary>
+    private static string NormalizeMathDelimiters(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return text;
+
+        // The bracket forms first: their bodies can contain the backslash forms' characters.
+        var normalized = BracketDisplayMathRegex.Replace(text, "$$$$${body}$$$$");
+        normalized = BracketInlineMathRegex.Replace(normalized, "$$${body}$$");
+        normalized = DisplayMathRegex.Replace(normalized, "$$$$${body}$$$$");
+        normalized = InlineMathRegex.Replace(normalized, "$$${body}$$");
         return normalized;
     }
 
@@ -637,7 +858,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     {
         if (string.IsNullOrWhiteSpace(html))
             return string.Empty;
-        var normalized = NormalizeHtmlLineBreaks(html);
+        var normalized = NormalizeMathDelimiters(NormalizeHtmlLineBreaks(html));
         var stripped = AllTagsRegex.Replace(normalized, string.Empty);
         return WebUtility.HtmlDecode(stripped).Trim();
     }
@@ -667,14 +888,39 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             ? summaries.Where(s => selectedIds.Contains(s.Id))
             : summaries;
 
+        var folderPaths = await BuildFolderPathsAsync(cancellationToken).ConfigureAwait(false);
         var result = new List<AnkiExportDeck>();
         foreach (var summary in selected)
         {
             var cards = await LoadExportCardsAsync(summary.Id, cancellationToken).ConfigureAwait(false);
-            result.Add(new AnkiExportDeck(summary.Id, summary.Name, summary.Header.Description, cards));
+            result.Add(new AnkiExportDeck(summary.Id, QualifiedDeckName(summary, folderPaths), summary.Header.Description, cards));
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The deck's name prefixed with the folders it sits in, which is how the receiving app spells a
+    /// hierarchy. Exporting the bare name flattens a whole library into a list of unrelated decks.
+    /// </summary>
+    private static string QualifiedDeckName(FlashcardDeckSummary summary, IReadOnlyDictionary<string, string> folderPaths)
+    {
+        var folderId = summary.Header.FolderId;
+        if (string.IsNullOrWhiteSpace(folderId) || !folderPaths.TryGetValue(folderId, out var path))
+            return summary.Name;
+
+        return $"{path}{DeckPathSeparator}{summary.Name}";
+    }
+
+    private async Task<Dictionary<string, string>> BuildFolderPathsAsync(CancellationToken cancellationToken)
+    {
+        var folders = await _library.ListFoldersAsync(cancellationToken).ConfigureAwait(false);
+        var byId = folders.ToDictionary(f => f.Id, StringComparer.Ordinal);
+        var paths = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var folder in folders)
+            paths[folder.Id] = DeckFolderResolver.BuildPath(folder, byId);
+
+        return paths;
     }
 
     private async Task<List<AnkiExportCard>> LoadExportCardsAsync(string deckId, CancellationToken cancellationToken)
@@ -690,7 +936,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             foreach (var view in page.Items)
             {
                 var card = view.Card;
-                cards.Add(new AnkiExportCard(card.Id, card.Front, card.Back, card.Tags, card.FrontBlocks, card.BackBlocks));
+                cards.Add(new AnkiExportCard(
+                    card.Id, card.Front, card.Back, card.Tags, card.Attachments, card.FrontBlocks, card.BackBlocks));
             }
 
             offset += page.Items.Count;
@@ -1026,30 +1273,47 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// One card side as Anki field HTML: the card's text followed by an <c>&lt;img&gt;</c> for each
+    /// image on that side.
+    /// </summary>
+    /// <remarks>
+    /// Images live on the card as attachments. Reading them off the rich blocks instead, as the
+    /// export used to, found nothing, because the block pipeline stopped emitting image blocks; a
+    /// deck full of pictures exported as a deck of bare text.
+    /// </remarks>
     private static string BuildFieldHtml(
         string plain,
         IReadOnlyList<Block>? blocks,
+        IReadOnlyList<FlashcardAttachment>? attachments,
+        string side,
         string tempRoot,
-        IDictionary<string, string> mediaMap,
-        ref int mediaCounter,
+        MediaExportState media,
         ICollection<string> warnings)
     {
-        if (blocks is null || blocks.Count == 0)
-            return WebUtility.HtmlEncode(plain ?? string.Empty);
-
-        var fragments = new List<string>(blocks.Count);
-        foreach (var block in blocks.OrderBy(b => b.Order))
+        var fragments = new List<string>();
+        if (blocks is { Count: > 0 })
         {
-            if (block.Type == BlockType.Image && block.Payload is ImagePayload imagePayload)
+            foreach (var block in blocks.OrderBy(b => b.Order))
             {
-                var copiedFilename = TryCopyMedia(imagePayload.Path, tempRoot, mediaMap, ref mediaCounter, warnings);
-                if (copiedFilename != null)
-                    fragments.Add($"<img src=\"{WebUtility.HtmlEncode(copiedFilename)}\">");
-                continue;
+                var text = block.Spans is { Count: > 0 } ? SerializeSpansToHtml(block.Spans) : WebUtility.HtmlEncode(block.Content);
+                fragments.Add(text);
             }
+        }
+        else
+        {
+            // Anki collapses a raw newline to a space, so a multi-line card would arrive as one run-on line.
+            fragments.Add(WebUtility.HtmlEncode(plain ?? string.Empty).Replace("\n", "<br>", StringComparison.Ordinal));
+        }
 
-            var text = block.Spans is { Count: > 0 } ? SerializeSpansToHtml(block.Spans) : WebUtility.HtmlEncode(block.Content);
-            fragments.Add(text);
+        foreach (var attachment in attachments ?? Array.Empty<FlashcardAttachment>())
+        {
+            if (!string.Equals(attachment.Side, side, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var exportedName = TryCopyMedia(attachment.FilePath, tempRoot, media, warnings);
+            if (exportedName != null)
+                fragments.Add($"<img src=\"{WebUtility.HtmlEncode(exportedName)}\">");
         }
 
         return string.Join("<br>", fragments.Where(f => !string.IsNullOrWhiteSpace(f)));
@@ -1058,8 +1322,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     private static string? TryCopyMedia(
         string sourcePath,
         string tempRoot,
-        IDictionary<string, string> mediaMap,
-        ref int mediaCounter,
+        MediaExportState media,
         ICollection<string> warnings)
     {
         if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
@@ -1068,17 +1331,14 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             return null;
         }
 
-        var originalName = Path.GetFileName(sourcePath);
-        var existing = mediaMap.FirstOrDefault(kv => string.Equals(kv.Value, originalName, StringComparison.OrdinalIgnoreCase));
-        if (!string.IsNullOrWhiteSpace(existing.Key))
-            return originalName;
+        if (media.TryGetExportedName(sourcePath, out var already))
+            return already;
 
-        var slot = mediaCounter.ToString(CultureInfo.InvariantCulture);
-        mediaCounter++;
-        var dest = Path.Combine(tempRoot, slot);
-        File.Copy(sourcePath, dest, overwrite: true);
-        mediaMap[slot] = originalName;
-        return originalName;
+        var exportedName = media.ReserveName(Path.GetFileName(sourcePath));
+        var slot = media.NextSlot();
+        File.Copy(sourcePath, Path.Combine(tempRoot, slot), overwrite: true);
+        media.Record(sourcePath, slot, exportedName);
+        return exportedName;
     }
 
     private static string SerializeSpansToHtml(IReadOnlyList<InlineSpan> spans)
@@ -1138,6 +1398,66 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return DateTimeOffset.FromUnixTimeSeconds(value);
     }
 
+    /// <summary>
+    /// Turns one Anki card row's scheduling into the state this app keeps, or null for a card that
+    /// has never been answered. Only what the other app recorded is carried: its due date, how many
+    /// times it has been seen, how many times it lapsed, and which phase it is in. Its memory
+    /// figures are left unset, because no published mapping turns another algorithm's ease into
+    /// FSRS stability and difficulty, and a guess would read as a measurement.
+    /// </summary>
+    private static FlashcardImportedSchedule? BuildImportedSchedule(CardRow card, DateTimeOffset collectionCreatedAt, DateTimeOffset now)
+    {
+        var state = card.Type switch
+        {
+            AnkiCardTypeLearning => FlashcardFsrsState.Learning,
+            AnkiCardTypeReview => FlashcardFsrsState.Review,
+            AnkiCardTypeRelearning => FlashcardFsrsState.Relearning,
+            _ => FlashcardFsrsState.New
+        };
+
+        // A new card's due is its place in the queue, not a date, so there is nothing to carry.
+        if (state == FlashcardFsrsState.New)
+            return null;
+
+        var due = ResolveDueDate(card, state, collectionCreatedAt, now);
+
+        // The card reached this due date by waiting out its interval, so the interval back from it
+        // is when it was last answered. Arithmetic on two recorded numbers rather than a guess.
+        DateTimeOffset? lastReviewedAt = card.IntervalDays > 0 ? due.AddDays(-card.IntervalDays) : null;
+        if (lastReviewedAt > now)
+            lastReviewedAt = null;
+
+        return new FlashcardImportedSchedule(due, Math.Max(0, card.Reps), Math.Max(0, card.Lapses), state, lastReviewedAt);
+    }
+
+    /// <summary>
+    /// Anki spells a due date two ways: whole days since the collection was made, and, for a card
+    /// mid-session, an absolute second. The number itself is the only thing that tells them apart.
+    /// </summary>
+    private static DateTimeOffset ResolveDueDate(
+        CardRow card,
+        FlashcardFsrsState state,
+        DateTimeOffset collectionCreatedAt,
+        DateTimeOffset now)
+    {
+        var raw = card.EffectiveDue;
+        if (raw <= 0)
+            return now;
+
+        var due = raw >= SecondsSinceEpochThreshold
+            ? DateTimeOffset.FromUnixTimeSeconds(raw)
+            : collectionCreatedAt.AddDays(raw);
+
+        // A card that is already late stays late; one dated beyond any plausible schedule is a
+        // corrupt row, and burying it a century out would hide it forever.
+        if (due < collectionCreatedAt || due > now.AddDays(MaxCarriedDueDays))
+            return now;
+
+        // A learning card's step is not carried, so it comes back at its next opportunity rather
+        // than at a minute that no longer means anything.
+        return state == FlashcardFsrsState.Learning && due < now ? now : due;
+    }
+
     private static DateTimeOffset ParseCollectionCreatedAt(long crtRaw)
     {
         if (crtRaw <= 0)
@@ -1152,7 +1472,106 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return ParseUnixTimestamp(crtRaw);
     }
 
-    private sealed record OpenedApkg(string TempDirectory, SqliteConnection Connection) : IAsyncDisposable
+    private async Task TryDeleteDeckAsync(string deckId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _library.DeleteDeckAsync(deckId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The deck stays, empty. Failing the cleanup must not replace the real failure.
+        }
+    }
+
+    /// <summary>
+    /// Maps an Anki deck path onto Mnemo's folders, creating the chain it needs and reusing whatever
+    /// already exists so a second import of the same collection does not build a parallel tree.
+    /// </summary>
+    private sealed class DeckFolderResolver
+    {
+        private readonly IFlashcardLibraryService _library;
+        private readonly Dictionary<string, string> _folderIdByPath = new(StringComparer.OrdinalIgnoreCase);
+        private int _nextOrder;
+
+        private DeckFolderResolver(IFlashcardLibraryService library) => _library = library;
+
+        public static async Task<DeckFolderResolver> CreateAsync(IFlashcardLibraryService library, CancellationToken cancellationToken)
+        {
+            var resolver = new DeckFolderResolver(library);
+            var folders = await library.ListFoldersAsync(cancellationToken).ConfigureAwait(false);
+            var byId = folders.ToDictionary(f => f.Id, StringComparer.Ordinal);
+            foreach (var folder in folders)
+            {
+                var path = BuildPath(folder, byId);
+                if (!string.IsNullOrEmpty(path))
+                    resolver._folderIdByPath.TryAdd(path, folder.Id);
+                resolver._nextOrder = Math.Max(resolver._nextOrder, folder.Order + 1);
+            }
+
+            return resolver;
+        }
+
+        /// <summary>Splits a deck path into the folder it belongs in and the deck's own name.</summary>
+        public async Task<(string? FolderId, string DeckName)> ResolveAsync(string deckPath, CancellationToken cancellationToken)
+        {
+            var segments = deckPath
+                .Split(DeckPathSeparator, StringSplitOptions.None)
+                .Select(segment => segment.Trim())
+                .Where(segment => segment.Length > 0)
+                .ToArray();
+
+            if (segments.Length == 0)
+                return (null, deckPath);
+            if (segments.Length == 1)
+                return (null, segments[0]);
+
+            string? parentId = null;
+            var path = new StringBuilder();
+            for (var i = 0; i < segments.Length - 1; i++)
+            {
+                if (path.Length > 0)
+                    path.Append(DeckPathSeparator);
+                path.Append(segments[i]);
+
+                var key = path.ToString();
+                if (!_folderIdByPath.TryGetValue(key, out var folderId))
+                {
+                    folderId = Guid.NewGuid().ToString();
+                    await _library.SaveFolderAsync(
+                        new FlashcardFolder(folderId, segments[i], parentId, _nextOrder++),
+                        cancellationToken).ConfigureAwait(false);
+                    _folderIdByPath[key] = folderId;
+                }
+
+                parentId = folderId;
+            }
+
+            return (parentId, segments[^1]);
+        }
+
+        public static string BuildPath(FlashcardFolder folder, IReadOnlyDictionary<string, FlashcardFolder> byId)
+        {
+            var segments = new List<string>();
+            var current = folder;
+            // Saved data can carry a parent cycle; the depth cap keeps a bad row from hanging a walk.
+            for (var depth = 0; current is not null && depth < 64; depth++)
+            {
+                segments.Add(current.Name);
+                if (string.IsNullOrEmpty(current.ParentId) || !byId.TryGetValue(current.ParentId, out current))
+                    break;
+            }
+
+            segments.Reverse();
+            return string.Join(DeckPathSeparator, segments);
+        }
+    }
+
+    private sealed record OpenedApkg(
+        string TempDirectory,
+        SqliteConnection Connection,
+        MediaIndex Media,
+        IReadOnlyList<string> Warnings) : IAsyncDisposable
     {
         public async ValueTask DisposeAsync()
         {
@@ -1191,6 +1610,39 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         IReadOnlyList<Block> Blocks,
         IReadOnlyList<FlashcardAttachment> Attachments);
 
+    /// <summary>
+    /// The package's media table: which file inside the package backs each referenced filename.
+    /// Anki stores media under numbered names with the real names in a side table, so an
+    /// <c>&lt;img src="diagram.png"&gt;</c> resolves only through here.
+    /// </summary>
+    private sealed class MediaIndex
+    {
+        public static readonly MediaIndex Empty = new(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
+        private readonly Dictionary<string, string> _storedNameByName;
+
+        private MediaIndex(Dictionary<string, string> storedNameByName) => _storedNameByName = storedNameByName;
+
+        /// <summary>
+        /// Inverts a stored-name to original-name table once. Resolving per image against the raw
+        /// table is a scan of the whole collection's media for every picture on every card.
+        /// </summary>
+        public static MediaIndex FromStoredNames(IEnumerable<KeyValuePair<string, string>> namesByStoredName)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (storedName, originalName) in namesByStoredName)
+            {
+                if (!string.IsNullOrWhiteSpace(originalName))
+                    map.TryAdd(originalName, storedName);
+            }
+
+            return new MediaIndex(map);
+        }
+
+        public bool TryGetStoredName(string originalName, [MaybeNullWhen(false)] out string storedName) =>
+            _storedNameByName.TryGetValue(originalName, out storedName);
+    }
+
     private sealed record CollectionInfo(
         DateTimeOffset CollectionCreatedAt,
         IReadOnlyDictionary<long, string> Decks,
@@ -1212,7 +1664,16 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         int Factor,
         int Reps,
         int Lapses,
-        DateTimeOffset LastModifiedAt);
+        DateTimeOffset LastModifiedAt,
+        long OriginalDue,
+        long OriginalDeckId)
+    {
+        /// <summary>The deck the card belongs to once it leaves whatever filtered deck holds it.</summary>
+        public long HomeDeckId => OriginalDeckId != 0 ? OriginalDeckId : DeckId;
+
+        /// <summary>The due value that survives the filtered deck it is parked in.</summary>
+        public long EffectiveDue => OriginalDeckId != 0 && OriginalDue != 0 ? OriginalDue : Due;
+    }
 
     private sealed record AnkiDueData(
         int Type,
@@ -1232,6 +1693,55 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         string Front,
         string Back,
         IReadOnlyList<string> Tags,
+        IReadOnlyList<FlashcardAttachment>? Attachments,
         IReadOnlyList<Block>? FrontBlocks,
         IReadOnlyList<Block>? BackBlocks);
+
+    /// <summary>
+    /// The media table being assembled for an export: which numbered file each image was copied to,
+    /// and the filename it is referenced by.
+    /// </summary>
+    /// <remarks>
+    /// Two images can share a filename while being different pictures, since the name a card shows
+    /// is the one the file had wherever it came from. Keying by that name alone made the second one
+    /// resolve to the first, so a card silently displayed someone else's picture. Identity is the
+    /// stored file, and a name already taken is given a suffix.
+    /// </remarks>
+    private sealed class MediaExportState
+    {
+        private readonly Dictionary<string, string> _nameBySourcePath = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _usedNames = new(StringComparer.OrdinalIgnoreCase);
+        private int _counter;
+
+        /// <summary>Slot inside the package to the filename cards reference it by.</summary>
+        public Dictionary<string, string> Map { get; } = new(StringComparer.Ordinal);
+
+        public bool TryGetExportedName(string sourcePath, [MaybeNullWhen(false)] out string exportedName) =>
+            _nameBySourcePath.TryGetValue(sourcePath, out exportedName);
+
+        public string ReserveName(string preferredName)
+        {
+            var name = string.IsNullOrWhiteSpace(preferredName) ? "image" : preferredName;
+            if (!_usedNames.Contains(name))
+                return name;
+
+            var stem = Path.GetFileNameWithoutExtension(name);
+            var extension = Path.GetExtension(name);
+            for (var suffix = 2; ; suffix++)
+            {
+                var candidate = $"{stem}_{suffix.ToString(CultureInfo.InvariantCulture)}{extension}";
+                if (!_usedNames.Contains(candidate))
+                    return candidate;
+            }
+        }
+
+        public string NextSlot() => (_counter++).ToString(CultureInfo.InvariantCulture);
+
+        public void Record(string sourcePath, string slot, string exportedName)
+        {
+            Map[slot] = exportedName;
+            _usedNames.Add(exportedName);
+            _nameBySourcePath[sourcePath] = exportedName;
+        }
+    }
 }

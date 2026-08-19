@@ -20,12 +20,18 @@ namespace Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 /// JSON shape so previously exported packages still import. Legacy-only fields that the relational
 /// store no longer tracks are filled with neutral values on export: <c>retrievability</c> and
 /// <c>leitnerBox</c> are always null, <c>schedulingAlgorithm</c> is always FSRS, and deck
-/// <c>retentionScore</c> carries the summary's retention percent. New card-only fields (state, flags,
-/// attachments) are not part of the legacy wire shape and are dropped on export.
+/// <c>retentionScore</c> carries the summary's retention percent. Suspension, flags and attachments
+/// are carried in fields of their own that an older package simply does not have, and attachment
+/// bytes travel under <c>assets/images/</c> so a package restores on a machine that has never seen
+/// the original files.
 /// </remarks>
 public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
 {
     private const int CardPageSize = 200;
+    private const string AssetPrefix = "assets/images/";
+
+    /// <summary>Bumped when attachment bytes, suspension and flags joined the payload.</summary>
+    private const int SnapshotSchemaVersion = 2;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IFlashcardLibraryService _library;
@@ -68,25 +74,86 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
         }
 
         var deckSnapshots = new List<DeckSnapshotDto>(summaries.Count);
+        var attachmentPaths = new List<string>();
         foreach (var summary in summaries)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            deckSnapshots.Add(await BuildDeckSnapshotAsync(summary, cancellationToken).ConfigureAwait(false));
+            deckSnapshots.Add(await BuildDeckSnapshotAsync(summary, attachmentPaths, cancellationToken).ConfigureAwait(false));
         }
 
         var folderSnapshots = folders
             .Select(f => new FolderSnapshotDto { Id = f.Id, Name = f.Name, ParentId = f.ParentId, Order = f.Order })
             .ToList();
 
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["flashcards.db"] = BuildFlashcardsSqlite(deckSnapshots, folderSnapshots)
+        };
+        AddImageAssets(files, attachmentPaths);
+
         return new MnemoPayloadExportData
         {
             ItemCount = deckSnapshots.Count,
-            SchemaVersion = 1,
-            Files = new Dictionary<string, byte[]>
-            {
-                ["flashcards.db"] = BuildFlashcardsSqlite(deckSnapshots, folderSnapshots)
-            }
+            SchemaVersion = SnapshotSchemaVersion,
+            Files = files
         };
+    }
+
+    /// <summary>
+    /// Copies every attachment's bytes into the package. Without them a backup restores cards whose
+    /// pictures point at files only the machine that wrote the package ever had.
+    /// </summary>
+    private void AddImageAssets(IDictionary<string, byte[]> files, IReadOnlyList<string> attachmentPaths)
+    {
+        foreach (var path in attachmentPaths)
+        {
+            var fileName = Path.GetFileName(path);
+            if (string.IsNullOrWhiteSpace(fileName))
+                continue;
+
+            var key = AssetPrefix + fileName;
+            if (files.ContainsKey(key))
+                continue;
+
+            if (!File.Exists(path))
+            {
+                // A picture the user already deleted must never fail the export.
+                _logger.Warning("Flashcards", $"Skipping missing card image '{path}' while exporting.");
+                continue;
+            }
+
+            files[key] = File.ReadAllBytes(path);
+        }
+    }
+
+    /// <summary>
+    /// Writes packaged attachment bytes into the local images directory. A file already there is
+    /// left alone: a restore must never overwrite a picture this machine's own cards point at.
+    /// </summary>
+    private static void RestoreImageAssets(IReadOnlyDictionary<string, byte[]> files)
+    {
+        string? imagesDirectory = null;
+        foreach (var pair in files)
+        {
+            if (!pair.Key.StartsWith(AssetPrefix, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var fileName = Path.GetFileName(pair.Key.Replace('\\', '/'));
+            if (string.IsNullOrWhiteSpace(fileName))
+                continue;
+
+            if (imagesDirectory is null)
+            {
+                imagesDirectory = MnemoAppPaths.GetImagesDirectory();
+                Directory.CreateDirectory(imagesDirectory);
+            }
+
+            var destination = Path.Combine(imagesDirectory, fileName);
+            if (File.Exists(destination))
+                continue;
+
+            File.WriteAllBytes(destination, pair.Value);
+        }
     }
 
     public async Task<MnemoPayloadImportResult> ImportAsync(MnemoPayloadImportContext context, CancellationToken cancellationToken = default)
@@ -95,6 +162,7 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
             return new MnemoPayloadImportResult { Warnings = { "Flashcards payload missing flashcards.db file." } };
 
         var snapshot = ReadFlashcardsSqlite(bytes);
+        RestoreImageAssets(context.Files);
         var existingFolders = await _library.ListFoldersAsync(cancellationToken).ConfigureAwait(false);
         var existingDecks = await _library.ListDecksAsync(cancellationToken).ConfigureAwait(false);
         var existingFolderIds = new HashSet<string>(existingFolders.Select(f => f.Id), StringComparer.Ordinal);
@@ -188,6 +256,7 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
             return;
 
         var isFsrs = deck.SchedulingAlgorithm == (int)FlashcardSchedulingAlgorithm.Fsrs;
+        var imagesDirectory = MnemoAppPaths.GetImagesDirectory();
         var drafts = new FlashcardCardDraft[cards.Count];
         for (var i = 0; i < cards.Count; i++)
         {
@@ -196,8 +265,16 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
             // Convert legacy embedded image tokens (`![alt](path){align=...}`) into attachment
             // records at the import boundary so no downstream renderer needs the regex again.
             var conversion = FlashcardImageTokenConverter.Convert(c.Id, c.Front, c.Back);
-            foreach (var warning in conversion.Warnings)
-                _logger.Warning("Flashcards", warning.Message);
+
+            // A package that carries attachments of its own also carried their bytes, so its
+            // tokens are only a compatibility copy: strip them from the text and keep the field.
+            // Their converted form points at paths from the machine that wrote the package.
+            var carriesAttachments = c.Attachments is { Count: > 0 };
+            if (!carriesAttachments)
+            {
+                foreach (var warning in conversion.Warnings)
+                    _logger.Warning("Flashcards", warning.Message);
+            }
 
             drafts[i] = new FlashcardCardDraft(
                 DeckId: deckId,
@@ -205,7 +282,9 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
                 Front: conversion.CleanFront,
                 Back: conversion.CleanBack,
                 Tags: c.Tags ?? Array.Empty<string>(),
-                Attachments: conversion.Attachments,
+                Attachments: carriesAttachments
+                    ? BuildAttachments(c.Attachments!, imagesDirectory)
+                    : conversion.Attachments,
                 SourceInfo: BuildSourceInfo(c.SourceInfo),
                 FrontBlocks: c.FrontBlocks,
                 BackBlocks: c.BackBlocks);
@@ -215,6 +294,8 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
         var created = await _cards.CreateCardsAsync(deckId, drafts, cancellationToken).ConfigureAwait(false);
         if (created.Count != cards.Count)
             _logger.Warning("Flashcards", $"Imported {created.Count}/{cards.Count} card(s) into deck '{deckId}'; some rows were skipped.");
+
+        await RestoreCardFlagsAsync(created, cards, cancellationToken).ConfigureAwait(false);
 
         // Best-effort FSRS carry-over: only for FSRS-scheduled legacy decks; non-FSRS stays New/due-now.
         if (!isFsrs)
@@ -245,7 +326,65 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
         }, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<DeckSnapshotDto> BuildDeckSnapshotAsync(FlashcardDeckSummary summary, CancellationToken cancellationToken)
+    /// <summary>
+    /// Rebuilds attachment records against this installation's images directory. The packaged file
+    /// name is the only part that travels; the path it had on the machine that wrote the package is
+    /// meaningless anywhere else.
+    /// </summary>
+    private static IReadOnlyList<FlashcardAttachment> BuildAttachments(
+        IReadOnlyList<AttachmentSnapshotDto> snapshots,
+        string imagesDirectory)
+    {
+        var attachments = new List<FlashcardAttachment>(snapshots.Count);
+        foreach (var snapshot in snapshots)
+        {
+            var fileName = Path.GetFileName(snapshot.FileName.Replace('\\', '/'));
+            if (string.IsNullOrWhiteSpace(fileName))
+                continue;
+
+            attachments.Add(new FlashcardAttachment(
+                Id: string.IsNullOrWhiteSpace(snapshot.Id) ? Guid.NewGuid().ToString("N") : snapshot.Id,
+                Side: string.Equals(snapshot.Side, FlashcardAttachment.BackSide, StringComparison.OrdinalIgnoreCase)
+                    ? FlashcardAttachment.BackSide
+                    : FlashcardAttachment.FrontSide,
+                FilePath: Path.Combine(imagesDirectory, fileName),
+                DisplayName: string.IsNullOrWhiteSpace(snapshot.DisplayName) ? fileName : snapshot.DisplayName,
+                SizeBytes: snapshot.SizeBytes,
+                Caption: snapshot.Caption));
+        }
+
+        return attachments;
+    }
+
+    /// <summary>
+    /// Restores suspension and flags, which the create path has no way to express. A suspended card
+    /// that comes back active puts a card the user deliberately took out of study back in the queue.
+    /// </summary>
+    private async Task RestoreCardFlagsAsync(
+        IReadOnlyList<Flashcard> created,
+        IReadOnlyList<CardSnapshotDto> sources,
+        CancellationToken cancellationToken)
+    {
+        var suspended = new List<string>();
+        var flagged = new List<string>();
+        for (var i = 0; i < created.Count && i < sources.Count; i++)
+        {
+            if (sources[i].State == (int)FlashcardCardState.Suspended)
+                suspended.Add(created[i].Id);
+            if (sources[i].IsFlagged == true)
+                flagged.Add(created[i].Id);
+        }
+
+        if (suspended.Count > 0)
+            await _cards.SetSuspendedAsync(suspended, true, cancellationToken).ConfigureAwait(false);
+        if (flagged.Count > 0)
+            await _cards.SetFlaggedAsync(flagged, true, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<DeckSnapshotDto> BuildDeckSnapshotAsync(
+        FlashcardDeckSummary summary,
+        ICollection<string> attachmentPaths,
+        CancellationToken cancellationToken)
     {
         var header = summary.Header;
         var cards = new List<CardSnapshotDto>();
@@ -257,7 +396,7 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
                 new FlashcardCardQuery(header.Id, Offset: offset, Limit: CardPageSize),
                 cancellationToken).ConfigureAwait(false);
             foreach (var view in page.Items)
-                cards.Add(ToCardSnapshot(view));
+                cards.Add(ToCardSnapshot(view, attachmentPaths));
 
             offset += page.Items.Count;
             if (page.Items.Count == 0 || offset >= page.TotalCount)
@@ -278,19 +417,41 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
         };
     }
 
-    private static CardSnapshotDto ToCardSnapshot(FlashcardView view)
+    private static CardSnapshotDto ToCardSnapshot(FlashcardView view, ICollection<string> attachmentPaths)
     {
         var card = view.Card;
         var schedule = view.Schedule;
+        var attachments = new List<AttachmentSnapshotDto>();
+        foreach (var attachment in card.Attachments ?? Array.Empty<FlashcardAttachment>())
+        {
+            var fileName = Path.GetFileName(attachment.FilePath);
+            if (string.IsNullOrWhiteSpace(fileName))
+                continue;
+
+            attachmentPaths.Add(attachment.FilePath);
+            attachments.Add(new AttachmentSnapshotDto
+            {
+                Id = attachment.Id,
+                Side = attachment.Side,
+                FileName = fileName,
+                DisplayName = attachment.DisplayName,
+                SizeBytes = attachment.SizeBytes,
+                Caption = attachment.Caption
+            });
+        }
+
         return new CardSnapshotDto
         {
             Id = card.Id,
             DeckId = card.DeckId,
-            // Attachments are not part of the legacy wire shape, so re-embed them as the same inline
-            // `![alt](path){align=...}` tokens the migrator/import path strips — the exported snapshot
-            // stays legacy-shaped and re-importing it converts the tokens back into attachments.
+            // The inline `![alt](path){align=...}` tokens stay in the text for builds that predate
+            // the attachment field, which read a package's images only from there. A build that
+            // understands the field strips the tokens and uses the field instead.
             Front = EmbedAttachmentsAsTokens(card.Front, card.Attachments, FlashcardAttachment.FrontSide),
             Back = EmbedAttachmentsAsTokens(card.Back, card.Attachments, FlashcardAttachment.BackSide),
+            Attachments = attachments,
+            State = (int)card.State,
+            IsFlagged = card.IsFlagged,
             Type = (int)card.Type,
             Tags = card.Tags?.ToArray() ?? Array.Empty<string>(),
             DueDate = schedule.DueDate,
@@ -496,6 +657,23 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
         public int? LeitnerBox { get; set; }
         public DateTimeOffset? LastReviewedAt { get; set; }
         public int? FsrsState { get; set; }
+        public List<AttachmentSnapshotDto>? Attachments { get; set; }
+        public int? State { get; set; }
+        public bool? IsFlagged { get; set; }
+    }
+
+    /// <summary>
+    /// One card image. The file name is the entry the bytes travel under, never a machine-specific
+    /// path: a restore rebuilds the path from wherever this installation keeps its images.
+    /// </summary>
+    private sealed class AttachmentSnapshotDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Side { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
+        public string? DisplayName { get; set; }
+        public long SizeBytes { get; set; }
+        public string? Caption { get; set; }
     }
 
     private sealed class SourceSnapshotDto

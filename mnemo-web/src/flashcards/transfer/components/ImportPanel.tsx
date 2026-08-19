@@ -5,7 +5,7 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import type { ConflictPolicy, TransferFormatDto } from "@/api/types"
-import { formatFileSize, importExtensions, MAX_FILES, type QueuedFile } from "../transfer"
+import { conflictPolicyApplies, formatFileSize, importExtensions, MAX_FILES, type QueuedFile } from "../transfer"
 import { Segmented } from "./Segmented"
 
 const CONFLICT_OPTIONS: { value: ConflictPolicy; labelKey: string; captionKey: string }[] = [
@@ -139,24 +139,30 @@ export function ImportPanel({
         </p>
       ) : null}
 
-      <div className="space-y-2">
-        <span className="block text-body-extra-small font-semibold text-text-secondary">
-          {fc("TransferConflictQuestion")}
-        </span>
-        <Segmented
-          label={fc("TransferConflictQuestion")}
-          value={conflict}
-          onChange={onConflictChange}
-          options={CONFLICT_OPTIONS.map((option) => ({
-            value: option.value,
-            label: common(option.labelKey),
-            disabled: busy,
-          }))}
-        />
-        <p className="text-caption text-text-tertiary">
-          {common(CONFLICT_OPTIONS.find((option) => option.value === conflict)?.captionKey ?? "")}
-        </p>
-      </div>
+      {/* Asked only when a queued format reads the answer, so the dialog never offers a choice the
+          import would ignore. */}
+      {conflictPolicyApplies(queue, formats) ? (
+        <div className="space-y-2">
+          <span className="block text-body-extra-small font-semibold text-text-secondary">
+            {fc("TransferConflictQuestion")}
+          </span>
+          <Segmented
+            label={fc("TransferConflictQuestion")}
+            value={conflict}
+            onChange={onConflictChange}
+            options={CONFLICT_OPTIONS.map((option) => ({
+              value: option.value,
+              label: common(option.labelKey),
+              disabled: busy,
+            }))}
+          />
+          <p className="text-caption text-text-tertiary">
+            {common(CONFLICT_OPTIONS.find((option) => option.value === conflict)?.captionKey ?? "")}
+          </p>
+        </div>
+      ) : (
+        <p className="text-caption text-text-tertiary">{fc("TransferConflictNotApplicable")}</p>
+      )}
     </div>
   )
 }

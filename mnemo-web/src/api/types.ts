@@ -408,6 +408,12 @@ export interface TransferFormatDto {
   extensions: string[]
   supportsImport: boolean
   supportsExport: boolean
+  /**
+   * Whether importing this format reads the conflict policy. Optional only so a fixture built
+   * before the server sent it still type-checks; absent reads as "it does", matching the server's
+   * default. Formats whose files carry no ids to collide on report false and the choice is hidden.
+   */
+  supportsConflictPolicy?: boolean
 }
 
 /** Mirrors Mnemo.Host/Contracts/TransferDto.cs TransferUploadDto. */

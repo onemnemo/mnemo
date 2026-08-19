@@ -1,4 +1,5 @@
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services;
 
 namespace Mnemo.Host.Assets;
 
@@ -190,7 +191,7 @@ public sealed class ManagedAssetStore
 
     private static async Task<bool> IsImageSignatureValidAsync(string path, string extension, CancellationToken cancellationToken)
     {
-        var header = new byte[12];
+        var header = new byte[ImageContentType.HeaderBytes];
         int read;
         await using (var file = File.OpenRead(path))
             read = await file.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, cancellationToken).ConfigureAwait(false);
@@ -201,30 +202,8 @@ public sealed class ManagedAssetStore
     /// True when the leading bytes carry the magic number of the claimed image type. A
     /// renamed executable or HTML file must not become a servable "image".
     /// </summary>
-    public static bool MatchesImageSignature(ReadOnlySpan<byte> header, string? extension)
-    {
-        switch (extension?.ToLowerInvariant())
-        {
-            case ".png":
-                return StartsWith(header, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-            case ".jpg":
-            case ".jpeg":
-                return StartsWith(header, [0xFF, 0xD8, 0xFF]);
-            case ".gif":
-                return StartsWith(header, "GIF87a"u8) || StartsWith(header, "GIF89a"u8);
-            case ".webp":
-                return header.Length >= 12
-                    && StartsWith(header, "RIFF"u8)
-                    && header.Slice(8, 4).SequenceEqual("WEBP"u8);
-            case ".bmp":
-                return StartsWith(header, "BM"u8);
-            default:
-                return false;
-        }
-    }
-
-    private static bool StartsWith(ReadOnlySpan<byte> header, ReadOnlySpan<byte> signature) =>
-        header.Length >= signature.Length && header[..signature.Length].SequenceEqual(signature);
+    public static bool MatchesImageSignature(ReadOnlySpan<byte> header, string? extension) =>
+        ImageContentType.Matches(header, extension);
 
     private static void TryDelete(string path)
     {
