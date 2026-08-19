@@ -262,6 +262,8 @@
     "StudyLeaveTitle": "Sitzung verlassen?",
     "StudyLeaveMessage": "Dein bisheriger Fortschritt ist gespeichert. Du kannst später weitermachen.",
     "StudyLeaveConfirm": "Verlassen",
+    "StudyGradeErrorTitle": "Bewertung konnte nicht gespeichert werden",
+    "StudyUndoErrorTitle": "Wiederholung konnte nicht rückgängig gemacht werden",
     "TestModeChip": "Test · nur Übung",
     "TestGradeMissed": "Verfehlt",
     "TestGradeClose": "Knapp",

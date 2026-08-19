@@ -262,6 +262,8 @@
     "StudyLeaveTitle": "Forlate økten?",
     "StudyLeaveMessage": "Fremgangen din så langt er lagret. Du kan fortsette resten senere.",
     "StudyLeaveConfirm": "Forlat",
+    "StudyGradeErrorTitle": "Kunne ikke lagre vurderingen",
+    "StudyUndoErrorTitle": "Kunne ikke angre repetisjonen",
     "TestModeChip": "Test · kun øving",
     "TestGradeMissed": "Bommet",
     "TestGradeClose": "Nære",

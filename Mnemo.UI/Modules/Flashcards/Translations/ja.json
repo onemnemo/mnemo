@@ -262,6 +262,8 @@
     "StudyLeaveTitle": "セッションを終了しますか？",
     "StudyLeaveMessage": "これまでの進捗は保存されます。残りは後で続けられます。",
     "StudyLeaveConfirm": "終了",
+    "StudyGradeErrorTitle": "採点を保存できませんでした",
+    "StudyUndoErrorTitle": "復習を取り消せませんでした",
     "TestModeChip": "テスト · 練習のみ",
     "TestGradeMissed": "不正解",
     "TestGradeClose": "惜しい",
