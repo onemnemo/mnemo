@@ -45,7 +45,7 @@ const PAGES: Record<string, PageRenderer> = {
   mindmap: (p) =>
     p[0] ? (
       <Suspense fallback={<div className="min-h-full" />}>
-        <MindmapRoute mapId={p[0]} />
+        <MindmapRoute key={p[0]} mapId={p[0]} />
       </Suspense>
     ) : (
       <Suspense fallback={<div className="min-h-full" />}>

@@ -85,12 +85,12 @@ public static class MindmapEndpoints
             if (title is null)
                 return Results.BadRequest(new ErrorDto("invalid_name", "A map title is required."));
 
+            // A rename answers exactly the way an edit batch does, deltas and all, because it is one: the
+            // client folds it into the same cache and pushes the same single entry onto the same stack.
             var renamed = await maps.RenameAsync(id, title, cancellationToken).ConfigureAwait(false);
-            if (renamed.IsSuccess && renamed.Value is not null)
-                return MindmapJson.Ok(renamed.Value);
-            return IsMissing(renamed.ErrorMessage, id)
-                ? UnknownMap(id)
-                : ServerError(renamed.ErrorMessage, $"Mindmap '{id}' could not be renamed.");
+            if (!renamed.IsSuccess || renamed.Value is null)
+                return ServerError(renamed.ErrorMessage, $"Mindmap '{id}' could not be renamed.");
+            return renamed.Value.Success ? MindmapJson.Ok(Committed(renamed.Value)) : Rejected(renamed.Value);
         });
 
         endpoints.MapPost("/api/mindmaps/{id}/duplicate", async (string id, HttpRequest request, IMindmapService maps, CancellationToken cancellationToken) =>
@@ -209,9 +209,9 @@ public static class MindmapEndpoints
         // revision and no deltas leaves the client's document and its undo stack alone.
         if (moves.Count == 0)
             return MindmapJson.Ok(new MindmapOpsResultDto(
-                before.Revision, EmptyIds, 0, null, null, OrderOf(before)));
+                before.Revision, before.Revision, EmptyIds, 0, null, null, OrderOf(before)));
 
-        return await CommitAsync(id, before, body.ExpectedRevision, moves, maps, cancellationToken).ConfigureAwait(false);
+        return await CommitAsync(id, body.ExpectedRevision, moves, maps, cancellationToken).ConfigureAwait(false);
     }
 
     private static IReadOnlyDictionary<string, MindmapArrangeSize> ReadSizes(
@@ -235,15 +235,9 @@ public static class MindmapEndpoints
 
     /// <summary>
     /// Applies one edit batch and hands back what the client needs to stay in step without refetching:
-    /// the new revision, the ids the batch created, and the two deltas plus the document order (see
-    /// <see cref="MindmapOpsResultDto"/> for why order travels with them).
+    /// the new revision, the revision it applied against, the ids the batch created, and the two deltas
+    /// plus the document order (see <see cref="MindmapOpsResultDto"/> for why order travels with them).
     /// </summary>
-    /// <remarks>
-    /// The before-document is read outside the service's per-map write gate, so a commit from another
-    /// session can in principle land between that read and the batch. The revision arithmetic after the
-    /// apply detects exactly that case, and the response then carries no deltas at all rather than
-    /// deltas that would quietly undo the other session's work on the next Ctrl+Z.
-    /// </remarks>
     public static async Task<IResult> ApplyOpsAsync(
         string id,
         Stream requestBody,
@@ -260,19 +254,21 @@ public static class MindmapEndpoints
                     failedOpIndex >= 0 ? failedOpIndex : null, null, null),
                 StatusCodes.Status400BadRequest);
 
-        var before = (await maps.GetAsync(id, cancellationToken).ConfigureAwait(false)).Value;
-        if (before is null)
-            return UnknownMap(id);
-
-        return await CommitAsync(id, before, body.ExpectedRevision, ops, maps, cancellationToken).ConfigureAwait(false);
+        return await CommitAsync(id, body.ExpectedRevision, ops, maps, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Applies an op list against a document already read, and builds the answer both write paths share.
+    /// Applies an op list and builds the answer both write paths share.
     /// </summary>
+    /// <remarks>
+    /// Nothing here reads the document either side of the write. The service computes the deltas from the
+    /// pre-image and post-image it holds inside the per-map write gate, which is the only place the two
+    /// are guaranteed to be consecutive states of the same map; a pair of reads taken out here can have a
+    /// commit from another session between them, and the delta built from those describes a document
+    /// nobody ever had.
+    /// </remarks>
     private static async Task<IResult> CommitAsync(
         string id,
-        MindmapDocument before,
         long expectedRevision,
         IReadOnlyList<MindmapEditOp> ops,
         IMindmapService maps,
@@ -283,24 +279,12 @@ public static class MindmapEndpoints
             return ServerError(applied.ErrorMessage, $"The edit batch for mindmap '{id}' could not be applied.");
 
         var result = applied.Value;
-        if (!result.Success)
-            return Rejected(result);
-
-        var after = (await maps.GetAsync(id, cancellationToken).ConfigureAwait(false)).Value;
-        var interleaved = after is null || after.Revision != before.Revision + 1;
-
-        return MindmapJson.Ok(new MindmapOpsResultDto(
-            result.Revision,
-            result.CreatedIds,
-            result.DeletedCount,
-            interleaved ? null : MindmapRestoreDelta.Between(after!, before),
-            interleaved ? null : MindmapRestoreDelta.Between(before, after!),
-            interleaved ? null : OrderOf(after!)));
+        return result.Success ? MindmapJson.Ok(Committed(result)) : Rejected(result);
     }
 
     /// <summary>
     /// Replays a delta from the client's undo stack. The client already holds both directions, so all
-    /// this returns is the new revision and the order the document settled into.
+    /// this returns is the revision the map landed on, the one it applied against, and its order.
     /// </summary>
     public static async Task<IResult> RestoreAsync(
         string id,
@@ -313,24 +297,31 @@ public static class MindmapEndpoints
             return error!;
 
         var restored = await maps.RestoreAsync(id, body!.ExpectedRevision, body.Delta, cancellationToken).ConfigureAwait(false);
-        if (!restored.IsSuccess)
-        {
-            if (IsMissing(restored.ErrorMessage, id))
-                return UnknownMap(id);
+        if (!restored.IsSuccess || restored.Value is null)
+            return ServerError(restored.ErrorMessage, $"The restore for mindmap '{id}' could not be applied.");
 
-            // The service refuses a restore against a revision that moved, because a delta is a verbatim
-            // rewrite of specific ids: replaying it over someone else's edit would silently revert them.
-            return MindmapJson.Json(
-                new MindmapEditErrorDto("rev_conflict", restored.ErrorMessage ?? "The map moved on.", body.ExpectedRevision, null, null, null),
-                StatusCodes.Status409Conflict);
-        }
+        // A refused restore comes back typed, the same way a refused batch does. The commonest reason is
+        // that the map moved on: a delta is a verbatim rewrite of specific ids, so replaying it over
+        // someone else's edit would silently revert them with no conflict to notice.
+        var result = restored.Value;
+        if (!result.Success)
+            return Rejected(result);
 
-        var after = (await maps.GetAsync(id, cancellationToken).ConfigureAwait(false)).Value;
-        if (after is null)
-            return UnknownMap(id);
-
-        return MindmapJson.Ok(new MindmapRestoreResultDto(restored.Value, OrderOf(after)));
+        return MindmapJson.Ok(new MindmapRestoreResultDto(result.Revision, result.BaseRevision, OrderDto(result.Order)));
     }
+
+    /// <summary>The wire shape of a committed write, straight off the service's result.</summary>
+    private static MindmapOpsResultDto Committed(MindmapEditResult result) => new(
+        result.Revision,
+        result.BaseRevision,
+        result.CreatedIds,
+        result.DeletedCount,
+        result.Undo,
+        result.Redo,
+        OrderDto(result.Order));
+
+    private static MindmapDocumentOrderDto? OrderDto(MindmapDocumentOrder? order) =>
+        order is null ? null : new MindmapDocumentOrderDto(order.Elements, order.Edges);
 
     private static MindmapDocumentOrderDto OrderOf(MindmapDocument document) =>
         new(document.Elements.Select(e => e.Id).ToList(), document.Edges.Select(e => e.Id).ToList());

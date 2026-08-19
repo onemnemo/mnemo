@@ -62,12 +62,19 @@ public sealed record ArrangeMindmapDto(
 /// these id lists reproduces the server's document exactly.
 /// </para>
 /// <para>
-/// All three are null when a concurrent commit interleaved with this one. The client cannot fold a
-/// delta it cannot trust, so it refetches; <paramref name="Revision"/> is still authoritative.
+/// <paramref name="BaseRevision"/> is the precondition for using any of them: the deltas describe the
+/// step from that revision to <paramref name="Revision"/>, and folding <paramref name="Redo"/> into a
+/// document at any other revision produces a state neither side ever had. A stale batch that the server
+/// rebased commits against a document the client never held, and this is how the client finds out.
+/// </para>
+/// <para>
+/// The deltas and the order are null when the write changed nothing, which is not a failure: there is
+/// simply nothing to fold and nothing to undo.
 /// </para>
 /// </summary>
 public sealed record MindmapOpsResultDto(
     long Revision,
+    long BaseRevision,
     IReadOnlyDictionary<string, string> CreatedIds,
     int DeletedCount,
     MindmapRestoreDelta? Undo,
@@ -79,8 +86,11 @@ public sealed record MindmapDocumentOrderDto(
     IReadOnlyList<string> Elements,
     IReadOnlyList<string> Edges);
 
-/// <summary>What a restore hands back: the new revision, and the order the restored document settled into.</summary>
-public sealed record MindmapRestoreResultDto(long Revision, MindmapDocumentOrderDto Order);
+/// <summary>
+/// What a restore hands back. The client already holds both directions of the delta it sent, so this is
+/// only the revision the map landed on, the one it applied against, and the order it settled into.
+/// </summary>
+public sealed record MindmapRestoreResultDto(long Revision, long BaseRevision, MindmapDocumentOrderDto? Order);
 
 /// <summary>
 /// A rejected batch. <paramref name="Code"/> is the machine-readable reason
