@@ -37,6 +37,14 @@ export interface MindmapRestoreDelta {
    * nothing at all.
    */
   canvas?: MindmapCanvasOptions
+  /**
+   * The document title, when the write changed it.
+   *
+   * Carried for the same reason the canvas is: a title belongs to the document rather than to any
+   * element, so a delta made only of touched rows comes back empty for a rename. It is what lets a
+   * rename be an ordinary write with an ordinary undo instead of a second kind of thing.
+   */
+  title?: string
 }
 
 /** Element and edge ids in document order. */
@@ -52,7 +60,8 @@ export function isEmptyDelta(delta: MindmapRestoreDelta): boolean {
     !delta.clusters?.length &&
     !delta.removeElementIds?.length &&
     !delta.removeEdgeIds?.length &&
-    !delta.canvas
+    !delta.canvas &&
+    delta.title == null
   )
 }
 
@@ -87,6 +96,9 @@ export function applyDelta(
     // Replaced whole rather than merged: the delta carries the canvas as it should end up, so
     // keeping fields from the state being left behind would be the opposite of restoring it.
     canvas: delta.canvas ?? document.canvas,
+    // Checked against null rather than falsiness, because a map can be renamed to nothing and the
+    // empty string is then the title being restored rather than the absence of one.
+    title: delta.title ?? document.title,
   }
 }
 

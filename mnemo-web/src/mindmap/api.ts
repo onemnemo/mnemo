@@ -42,9 +42,15 @@ export const mapKey = (id: string) => [...mindmapKey, "map", id] as const
 /** Mirrors Mnemo.Host/Contracts/MindmapDto.cs. */
 export interface MindmapOpsResult {
   revision: number
+  /**
+   * The revision the write applied against, which is not always the one we asked for: a stale but
+   * non-contending batch is rebased server-side, and this is what it was rebased onto. Folding the
+   * delta into anything else produces a map that renders fine and is quietly wrong.
+   */
+  baseRevision: number
   createdIds: Record<string, string>
   deletedCount: number
-  /** Null when a concurrent commit interleaved, in which case the client refetches instead. */
+  /** Null when the write changed nothing, in which case there is nothing to fold and nothing to undo. */
   undo: MindmapRestoreDelta | null
   redo: MindmapRestoreDelta | null
   order: MindmapDocumentOrder | null
@@ -52,7 +58,8 @@ export interface MindmapOpsResult {
 
 export interface MindmapRestoreResult {
   revision: number
-  order: MindmapDocumentOrder
+  baseRevision: number
+  order: MindmapDocumentOrder | null
 }
 
 export interface MindmapEditError {
@@ -229,8 +236,12 @@ export function createMindmap(body: {
   })
 }
 
-export function renameMindmap(id: string, title: string): Promise<MindmapDocument> {
-  return apiFetch<MindmapDocument>(`/mindmaps/${encodeURIComponent(id)}/title`, {
+/**
+ * Renames a map, and answers the way an edit batch does, because it is one: the title travels on the
+ * same delta pair, so the same fold and the same single undo entry work on it.
+ */
+export function renameMindmap(id: string, title: string): Promise<MindmapOpsResult> {
+  return apiFetch<MindmapOpsResult>(`/mindmaps/${encodeURIComponent(id)}/title`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title }),
@@ -276,23 +287,17 @@ export function deleteMindmapFolder(id: string): Promise<void> {
 /**
  * Folds an accepted edit into the cached document.
  *
- * Returns false when it could not, which happens only when the server withheld the delta because
- * another session's commit interleaved. The caller's answer to that is a refetch, and it must be a
- * refetch: folding a delta that does not describe the document you hold produces a map that renders
- * fine and is quietly wrong.
+ * Returns false when it could not, and the caller's only answer to that is a refetch. A delta is a
+ * verbatim rewrite of named ids: applied to a document other than the one it was computed from it
+ * does not fail, it succeeds and produces a map that renders fine and is quietly wrong. So the
+ * basis is checked rather than assumed. The revision we hold has to be exactly the one the write
+ * applied against, which a rebased batch and an interleaved commit both make false.
  */
 export function foldEditIntoCache(client: QueryClient, id: string, result: MindmapOpsResult): boolean {
   if (!result.redo || !result.order) {
     return false
   }
-
-  const current = client.getQueryData<MindmapDocument>(mapKey(id))
-  if (!current) {
-    return false
-  }
-
-  client.setQueryData<MindmapDocument>(mapKey(id), applyDelta(current, result.redo, result.revision, result.order))
-  return true
+  return foldInto(client, id, result.redo, result.baseRevision, result.revision, result.order)
 }
 
 export function foldRestoreIntoCache(
@@ -301,12 +306,40 @@ export function foldRestoreIntoCache(
   delta: MindmapRestoreDelta,
   result: MindmapRestoreResult,
 ): boolean {
+  return foldInto(client, id, delta, result.baseRevision, result.revision, result.order)
+}
+
+/**
+ * Folds an external write, one this client did not make, into the cached document.
+ *
+ * Same rule and same refusal as an edit of our own: an assistant's rewrite is only absorbable when
+ * we hold exactly the revision it landed on.
+ */
+export function foldNoticeIntoCache(
+  client: QueryClient,
+  id: string,
+  redo: MindmapRestoreDelta,
+  baseRevision: number,
+  revision: number,
+  order: MindmapDocumentOrder,
+): boolean {
+  return foldInto(client, id, redo, baseRevision, revision, order)
+}
+
+function foldInto(
+  client: QueryClient,
+  id: string,
+  delta: MindmapRestoreDelta,
+  baseRevision: number,
+  revision: number,
+  order: MindmapDocumentOrder | null,
+): boolean {
   const current = client.getQueryData<MindmapDocument>(mapKey(id))
-  if (!current) {
+  if (!current || current.revision !== baseRevision) {
     return false
   }
 
-  client.setQueryData<MindmapDocument>(mapKey(id), applyDelta(current, delta, result.revision, result.order))
+  client.setQueryData<MindmapDocument>(mapKey(id), applyDelta(current, delta, revision, order ?? undefined))
   return true
 }
 
@@ -416,11 +449,18 @@ export function useRenameMindmap() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: ({ id, title }: { id: string; title: string }) => renameMindmap(id, title),
-    onSuccess: (document) => {
+    onSuccess: (result, { id }) => {
       // Both keys: the library lists the title, and the open document carries the revision the
       // rename just bumped. Patching one and not the other is how the header and the gallery
       // disagree about what the map is called.
-      client.setQueryData(mapKey(document.id), document)
+      //
+      // Folded rather than overwritten with a whole document, because the rename came back as a
+      // delta and nothing here has read the map. A cache that is not on the revision the rename
+      // applied against refuses the fold and refetches, which is the same rule every other write
+      // follows and the reason a rename during someone else's edit cannot revert it.
+      if (!foldEditIntoCache(client, id, result)) {
+        void client.invalidateQueries({ queryKey: mapKey(id) })
+      }
       void client.invalidateQueries({ queryKey: mindmapLibraryKey })
       void client.invalidateQueries({ queryKey: mindmapListKey })
     },

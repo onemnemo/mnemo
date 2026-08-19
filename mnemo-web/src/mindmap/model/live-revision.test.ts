@@ -15,6 +15,16 @@ function notice(revision: number, over: Partial<MindmapChangedNotice> = {}): Min
   return { mapId: MAP, revision, kind: "edited", ...over }
 }
 
+/** A notice carrying the write whole, which is the only kind that can be folded. */
+function carried(revision: number, baseRevision: number): MindmapChangedNotice {
+  return notice(revision, {
+    baseRevision,
+    undo: { removeElementIds: ["n1"] },
+    redo: { elements: [{ id: "n1", kind: "node", content: { $type: "text", text: "one" } }] },
+    order: { elements: ["n1"], edges: [] },
+  })
+}
+
 describe("a change notice", () => {
   it("is ignored when it names another map", () => {
     expect(classify(initialLiveRevision(3), notice(9, { mapId: "other" }), MAP)).toBe("ignore")
@@ -29,8 +39,43 @@ describe("a change notice", () => {
     expect(classify(initialLiveRevision(7), notice(6), MAP)).toBe("ignore")
   })
 
-  it("reloads when someone else moved the map on", () => {
+  it("reloads when someone else moved the map on without saying what they did", () => {
     expect(classify(initialLiveRevision(7), notice(8), MAP)).toBe("reload")
+  })
+
+  it("folds someone else's write when it arrives whole and applied against what we hold", () => {
+    // This is the assistant or an import editing the open map. Folding is what makes that one
+    // Ctrl+Z to take back, rather than a refetch that empties the undo stack.
+    expect(classify(initialLiveRevision(7), carried(8, 7), MAP)).toBe("fold")
+  })
+
+  it("reloads rather than folding a write that applied against a revision we never held", () => {
+    // The delta is a verbatim rewrite of named ids. Applied to a different document it does not
+    // fail, it succeeds and writes something neither side ever had.
+    expect(classify(initialLiveRevision(7), carried(9, 8), MAP)).toBe("reload")
+  })
+
+  it("reloads when a carried notice is missing any of the three pieces a fold needs", () => {
+    const whole = carried(8, 7)
+
+    expect(classify(initialLiveRevision(7), { ...whole, undo: null }, MAP)).toBe("reload")
+    expect(classify(initialLiveRevision(7), { ...whole, redo: null }, MAP)).toBe("reload")
+    expect(classify(initialLiveRevision(7), { ...whole, order: null }, MAP)).toBe("reload")
+  })
+
+  it("does not fold a rename it can only half apply", () => {
+    // A rename that fell back to a bare notice has no title to put anywhere; refetching is the only
+    // way to learn the new one.
+    expect(classify(initialLiveRevision(7), notice(8, { kind: "renamed" }), MAP)).toBe("reload")
+    expect(classify(initialLiveRevision(7), carried(8, 7), MAP)).toBe("fold")
+  })
+
+  it("will not fold while one of our own writes is still out", () => {
+    // That write is about to move the document under us. Absorbing another one first would leave
+    // its answer describing a revision it never saw.
+    const state = beginWrite(initialLiveRevision(7))
+
+    expect(classify(state, carried(9, 8), MAP)).toBe("reload")
   })
 
   it("is ignored when it is the echo of a write still in flight", () => {

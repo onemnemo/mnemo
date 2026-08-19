@@ -100,6 +100,32 @@ describe("isEmptyDelta", () => {
     // background or a template an edit nothing could undo.
     expect(isEmptyDelta({ canvas: { background: "grid" } })).toBe(false)
   })
+
+  it("counts a title, including a rename to nothing", () => {
+    expect(isEmptyDelta({ title: "Plan" })).toBe(false)
+    expect(isEmptyDelta({ title: "" })).toBe(false)
+  })
+})
+
+describe("a title in a delta", () => {
+  it("renames the document, which is what makes a rename undoable like any other edit", () => {
+    const named: MindmapDocument = { ...base, title: "Draft" }
+
+    expect(applyDelta(named, { title: "Final" }, 5).title).toBe("Final")
+  })
+
+  it("restores an empty title rather than reading it as no title at all", () => {
+    // A map can be renamed to nothing, and undoing back to that has to reach the empty string.
+    const named: MindmapDocument = { ...base, title: "Draft" }
+
+    expect(applyDelta(named, { title: "" }, 5).title).toBe("")
+  })
+
+  it("leaves the title alone when the delta says nothing about it", () => {
+    const named: MindmapDocument = { ...base, title: "Draft" }
+
+    expect(applyDelta(named, { elements: [node("b", "x")] }, 5).title).toBe("Draft")
+  })
 })
 
 describe("a canvas in a delta", () => {
