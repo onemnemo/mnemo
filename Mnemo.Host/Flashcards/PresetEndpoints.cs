@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
+using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Optimizer;
 
 namespace Mnemo.Host.Flashcards;
@@ -78,6 +79,7 @@ public static class PresetEndpoints
     private static async Task<IResult> CreateAsync(
         SavePresetDto body,
         IFlashcardPresetService presets,
+        FlashcardClock clock,
         CancellationToken cancellationToken)
     {
         if (Validate(body, out var name, out var autoReveal, out var leechAction, out var error))
@@ -85,7 +87,7 @@ public static class PresetEndpoints
 
         // Seeded from Standard so the fields with no editor - relearn steps, weights, algorithm -
         // start somewhere sane rather than at the enum's zero, which is not a valid algorithm.
-        var standard = FlashcardPreset.CreateStandard(DateTimeOffset.UtcNow);
+        var standard = FlashcardPreset.CreateStandard(clock.Now);
         var created = await presets.SavePresetAsync(
             standard with
             {
