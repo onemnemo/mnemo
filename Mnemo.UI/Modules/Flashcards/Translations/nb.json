@@ -357,6 +357,9 @@
     "LibraryLoadFailedHint": "Sjekk at Mnemo kjører, og prøv igjen.",
     "DeckLoadFailedTitle": "Denne kortstokken kunne ikke lastes",
     "DeckLoadFailedHint": "Sjekk at Mnemo kjører, og prøv igjen.",
-    "Retry": "Prøv igjen"
+    "Retry": "Prøv igjen",
+    "BrowseTitle": "Bla gjennom kort",
+    "BrowseEmptyDescription": "Legg til kort i en kortstokk for å se dem her.",
+    "PeekCard": "Titt"
   }
 }
