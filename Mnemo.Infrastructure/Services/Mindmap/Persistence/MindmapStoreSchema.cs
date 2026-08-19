@@ -10,7 +10,7 @@ namespace Mnemo.Infrastructure.Services.Mindmap.Persistence;
 internal static class MindmapStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 3;
+    public const int TargetVersion = 4;
 
     /// <summary>Every table and the FTS virtual table, created if absent (fresh databases).</summary>
     public const string CreateSql = """
@@ -19,6 +19,9 @@ internal static class MindmapStoreSchema
             AppliedAt TEXT NOT NULL
         );
 
+        -- TrashId marks a row the trash holds. It is the entry id in the shared ledger, and while it is
+        -- set the row is invisible to every ordinary read: the map is deleted as far as the app is
+        -- concerned, and only the recovery screen can bring it back.
         CREATE TABLE IF NOT EXISTS Mindmaps (
             Id              TEXT PRIMARY KEY,
             Title           TEXT NOT NULL,
@@ -28,7 +31,8 @@ internal static class MindmapStoreSchema
             CreatedAt       TEXT NOT NULL,
             ModifiedAt      TEXT NOT NULL,
             FolderId        TEXT NULL,
-            LinkedDecksJson TEXT NOT NULL DEFAULT '[]'
+            LinkedDecksJson TEXT NOT NULL DEFAULT '[]',
+            TrashId         TEXT NULL
         );
 
         -- Library folders. Subfolders cascade on delete; a deleted folder's maps keep a dangling FolderId
@@ -38,7 +42,8 @@ internal static class MindmapStoreSchema
             Id        TEXT PRIMARY KEY,
             ParentId  TEXT NULL REFERENCES MindmapFolders(Id) ON DELETE CASCADE,
             Name      TEXT NOT NULL,
-            SortOrder INTEGER NOT NULL DEFAULT 0
+            SortOrder INTEGER NOT NULL DEFAULT 0,
+            TrashId   TEXT NULL
         );
 
         -- User style templates, global across all maps. The whole template is stored as JSON; Name is
@@ -67,4 +72,26 @@ internal static class MindmapStoreSchema
     public const string AddFolderIdColumnSql = "ALTER TABLE Mindmaps ADD COLUMN FolderId TEXT NULL;";
 
     public const string AddLinkedDecksColumnSql = "ALTER TABLE Mindmaps ADD COLUMN LinkedDecksJson TEXT NOT NULL DEFAULT '[]';";
+
+    /// <summary>v3 to v4: the column the trash marks a held map with.</summary>
+    public const string AddMapTrashIdColumnSql = "ALTER TABLE Mindmaps ADD COLUMN TrashId TEXT NULL;";
+
+    /// <summary>v3 to v4: the same column on folders, so a folder can be held with its subtree.</summary>
+    public const string AddFolderTrashIdColumnSql = "ALTER TABLE MindmapFolders ADD COLUMN TrashId TEXT NULL;";
+
+    /// <summary>
+    /// Indexes over the trash column, applied after the migration has added it so an upgrade of an
+    /// existing database does not index a column that is not there yet.
+    /// </summary>
+    /// <remarks>
+    /// Two shapes, because the two readers want opposite halves. Ordinary reads filter on
+    /// <c>TrashId IS NULL</c> and sort by ModifiedAt, so the live index leads with the filter and
+    /// carries the sort. The trash reads one entry's rows and is partial, so it stays as small as the
+    /// number of held rows rather than the size of the library.
+    /// </remarks>
+    public const string TrashIndexSql = """
+        CREATE INDEX IF NOT EXISTS IX_Mindmaps_Live ON Mindmaps(TrashId, ModifiedAt DESC);
+        CREATE INDEX IF NOT EXISTS IX_Mindmaps_Trash ON Mindmaps(TrashId) WHERE TrashId IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS IX_MindmapFolders_Trash ON MindmapFolders(TrashId) WHERE TrashId IS NOT NULL;
+        """;
 }

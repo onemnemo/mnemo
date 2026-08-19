@@ -2,6 +2,7 @@ using Mnemo.Core.Services;
 using Mnemo.Host.Assets;
 using Mnemo.Host.Lifecycle;
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services.Mindmap.Persistence;
 
 namespace Mnemo.Host.Mindmap;
 
@@ -33,19 +34,23 @@ namespace Mnemo.Host.Mindmap;
 /// </remarks>
 public sealed class MindmapAssets
 {
-    public MindmapAssets(IMindmapService mindmaps, ILoggerService logger, HostInstanceLock instanceLock)
+    public MindmapAssets(IMindmapTrashStore maps, ILoggerService logger, HostInstanceLock instanceLock)
     {
+        References = new MindmapAssetReferenceSource(maps);
         Store = new ManagedAssetStore(MnemoAppPaths.GetMindmapAssetsDirectory, ManagedAssetStore.ImageExtensions);
         Legacy = new ManagedAssetStore(MnemoAppPaths.GetImagesDirectory, ManagedAssetStore.ImageExtensions);
         Sweeper = new AssetSweeper(
             Store,
-            [new MindmapAssetReferenceSource(mindmaps)],
+            [References],
             new AssetSessionRegistry(),
             logger,
             // Another running instance has a client of its own this process cannot see, whose undo
             // history could still bring back an image this sweep would call an orphan.
             standDown: () => instanceLock.AnotherInstanceIsRunning() ? "another app instance is running" : null);
     }
+
+    /// <summary>Every image a stored map still names, held maps included. Shared with cleanup.</summary>
+    public MindmapAssetReferenceSource References { get; }
 
     /// <summary>Where new uploads go, and the only directory the sweep touches.</summary>
     public ManagedAssetStore Store { get; }

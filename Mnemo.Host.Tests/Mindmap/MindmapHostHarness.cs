@@ -17,6 +17,9 @@ internal sealed class MindmapHostHarness : IAsyncDisposable
 
     public MindmapDocumentService Service { get; }
 
+    /// <summary>The store itself, for what reads past the library into everything it owns.</summary>
+    public MindmapStore Store => _store;
+
     /// <summary>The real providers, since an arrange is only worth testing against layouts that run.</summary>
     public MindmapLayoutService Layout { get; }
 

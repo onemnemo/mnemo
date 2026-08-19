@@ -242,6 +242,16 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
                 CreatedAt: now,
                 UpdatedAt: now), cancellationToken).ConfigureAwait(false);
 
+            // A deck id can also collide with one the trash is holding. Nothing above can see that
+            // row, and the save leaves it alone rather than overwriting something restorable, so the
+            // deck is not there afterwards. Importing its cards regardless would file them under a
+            // deck nobody can open, so the deck is reported as skipped instead.
+            if (await _library.GetDeckAsync(deckId, cancellationToken).ConfigureAwait(false) is null)
+            {
+                result.SkippedCount++;
+                continue;
+            }
+
             await ImportDeckCardsAsync(deckId, deck, cancellationToken).ConfigureAwait(false);
             result.ImportedCount++;
         }

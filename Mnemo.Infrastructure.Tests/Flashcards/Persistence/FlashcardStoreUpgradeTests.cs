@@ -109,6 +109,86 @@ public sealed class FlashcardStoreUpgradeTests
         }
     }
 
+    [Fact]
+    public async Task A_collection_written_before_the_trash_keeps_its_content_and_reads_back_live()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"mnemo_fc_v7_{Guid.NewGuid():N}.db");
+        try
+        {
+            await WriteRealCollectionAsync(path, "deck-1", "c1");
+            await StripTheTrashAsync(path);
+
+            var decks = new DeckRepository();
+            var cards = new CardRepository();
+            await using var store = new FlashcardStore(new TestLogger(), path);
+            await store.InitializeAsync();
+
+            foreach (var (table, column, _) in FlashcardStoreSchema.AddedColumns)
+                Assert.True(
+                    await ColumnExistsAsync(store, table, column),
+                    $"{table}.{column} is missing after opening a collection written before the trash.");
+            Assert.True(await TableExistsAsync(store, "FlashcardTrashFactHomes"));
+            Assert.True(await IndexExistsAsync(store, "IX_Cards_Trash"));
+
+            // Nothing in an existing collection was ever deleted, so every row has to come back as
+            // something the library can still see rather than something held out of it.
+            var deck = await store.ReadAsync((conn, ct) => decks.GetHeaderAsync(conn, "deck-1", ct));
+            Assert.NotNull(deck);
+            var card = await store.ReadAsync((conn, ct) => cards.GetAsync(conn, "c1", ct));
+            Assert.NotNull(card);
+            Assert.Equal("Q", card!.Front);
+        }
+        finally
+        {
+            Delete(path);
+        }
+    }
+
+    /// <summary>Writes a collection with the current build, so the file has the full real shape.</summary>
+    private static async Task WriteRealCollectionAsync(string path, string deckId, string cardId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await using var store = new FlashcardStore(new TestLogger(), path);
+        await store.InitializeAsync();
+        await store.WriteAsync(async (conn, tx, ct) =>
+        {
+            await new PresetRepository().UpsertAsync(conn, tx, FlashcardPreset.CreateStandard(now), ct);
+            await new DeckRepository().UpsertAsync(conn, tx, new FlashcardDeckHeader(
+                deckId, null, FlashcardPreset.StandardPresetId, "Deck", null, Array.Empty<string>(),
+                0, null, null, now, now), ct);
+            await new CardRepository().InsertAsync(conn, tx, new Flashcard(
+                cardId, deckId, FlashcardType.Classic, "Q", "A", Array.Empty<string>(),
+                FlashcardCardState.Active, false, Array.Empty<FlashcardAttachment>(), null, null, null, now, now), ct);
+        });
+    }
+
+    /// <summary>
+    /// Takes the file back to what the build before the trash left behind: the columns, indexes and
+    /// table the trash added are removed and the stamp is moved back, so reopening has real work to do.
+    /// </summary>
+    private static async Task StripTheTrashAsync(string path)
+    {
+        SqliteConnection.ClearAllPools();
+        await using var conn = new SqliteConnection($"Data Source={path}");
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            DROP INDEX IF EXISTS IX_Folders_Trash;
+            DROP INDEX IF EXISTS IX_Decks_Trash;
+            DROP INDEX IF EXISTS IX_Facts_Trash;
+            DROP INDEX IF EXISTS IX_Cards_Trash;
+            DROP INDEX IF EXISTS IX_Cards_Live_Deck;
+            DROP INDEX IF EXISTS IX_Facts_Live_Deck;
+            DROP TABLE IF EXISTS FlashcardTrashFactHomes;
+            ALTER TABLE FlashcardFolders DROP COLUMN TrashId;
+            ALTER TABLE FlashcardDecks   DROP COLUMN TrashId;
+            ALTER TABLE FlashcardFacts   DROP COLUMN TrashId;
+            ALTER TABLE FlashcardCards   DROP COLUMN TrashId;
+            UPDATE FlashcardSchemaVersion SET Version = 7;
+            """;
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     /// <summary>
     /// The v1 shape, written by hand: the decks table without Icon, plus the version stamp
     /// that stops a plain version check from doing any work.
@@ -170,6 +250,22 @@ public sealed class FlashcardStoreUpgradeTests
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = $"SELECT 1 FROM pragma_table_info('{table}') WHERE name = $column LIMIT 1;";
             cmd.Parameters.AddWithValue("$column", column);
+            return await cmd.ExecuteScalarAsync(ct) is not null;
+        });
+
+    private static Task<bool> TableExistsAsync(FlashcardStore store, string table) =>
+        ExistsInMasterAsync(store, "table", table);
+
+    private static Task<bool> IndexExistsAsync(FlashcardStore store, string index) =>
+        ExistsInMasterAsync(store, "index", index);
+
+    private static Task<bool> ExistsInMasterAsync(FlashcardStore store, string type, string name) =>
+        store.ReadAsync(async (conn, ct) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT 1 FROM sqlite_master WHERE type = $type AND name = $name LIMIT 1;";
+            cmd.Parameters.AddWithValue("$type", type);
+            cmd.Parameters.AddWithValue("$name", name);
             return await cmd.ExecuteScalarAsync(ct) is not null;
         });
 

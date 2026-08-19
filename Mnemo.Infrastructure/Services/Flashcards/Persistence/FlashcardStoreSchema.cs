@@ -7,7 +7,7 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 internal static class FlashcardStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 7;
+    public const int TargetVersion = 8;
 
     /// <summary>
     /// Columns added after v1, for databases that already exist.
@@ -27,6 +27,12 @@ internal static class FlashcardStoreSchema
         ("FlashcardCards", "FactId", "TEXT NULL REFERENCES FlashcardFacts(Id) ON DELETE CASCADE"),
         ("FlashcardCards", "LayoutKey", "TEXT NULL"),
         ("FlashcardScheduling", "BuriedUntil", "TEXT NULL"),
+        // Non-null names the trash entry holding the row. Null is the only default, so every row
+        // that already exists reads as live and no backfill is needed.
+        ("FlashcardFolders", "TrashId", "TEXT NULL"),
+        ("FlashcardDecks", "TrashId", "TEXT NULL"),
+        ("FlashcardFacts", "TrashId", "TEXT NULL"),
+        ("FlashcardCards", "TrashId", "TEXT NULL"),
     ];
 
     /// <summary>
@@ -34,9 +40,22 @@ internal static class FlashcardStoreSchema
     /// once those have been applied. A fresh database gets the columns from <see cref="CreateSql"/>
     /// and lands here with nothing to do.
     /// </summary>
+    /// <remarks>
+    /// The unique index over a card's material and layout deliberately covers held cards too. A
+    /// layout has one card whatever the trash is doing with it, which is what makes a restore
+    /// impossible to collide: nothing can have taken the slot while the card was away.
+    /// </remarks>
     public const string CreateIndexesOverAddedColumnsSql = """
         CREATE UNIQUE INDEX IF NOT EXISTS UX_Cards_Fact_Layout ON FlashcardCards(FactId, LayoutKey);
         CREATE INDEX IF NOT EXISTS IX_Cards_Fact ON FlashcardCards(FactId);
+
+        CREATE INDEX IF NOT EXISTS IX_Folders_Trash ON FlashcardFolders(TrashId) WHERE TrashId IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS IX_Decks_Trash   ON FlashcardDecks(TrashId)   WHERE TrashId IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS IX_Facts_Trash   ON FlashcardFacts(TrashId)   WHERE TrashId IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS IX_Cards_Trash   ON FlashcardCards(TrashId)   WHERE TrashId IS NOT NULL;
+
+        CREATE INDEX IF NOT EXISTS IX_Cards_Live_Deck ON FlashcardCards(DeckId, TrashId);
+        CREATE INDEX IF NOT EXISTS IX_Facts_Live_Deck ON FlashcardFacts(DeckId, TrashId);
         """;
 
     /// <summary>Every table, index, FTS virtual table and trigger, created if absent.</summary>
@@ -52,7 +71,8 @@ internal static class FlashcardStoreSchema
             Name       TEXT NOT NULL,
             SortOrder  INTEGER NOT NULL DEFAULT 0,
             CreatedAt  TEXT NOT NULL,
-            UpdatedAt  TEXT NOT NULL
+            UpdatedAt  TEXT NOT NULL,
+            TrashId    TEXT NULL
         );
 
         CREATE TABLE IF NOT EXISTS FlashcardPresets (
@@ -86,7 +106,8 @@ internal static class FlashcardStoreSchema
             LastStudied TEXT NULL,
             Icon        TEXT NULL,
             CreatedAt   TEXT NOT NULL,
-            UpdatedAt   TEXT NOT NULL
+            UpdatedAt   TEXT NOT NULL,
+            TrashId     TEXT NULL
         );
 
         CREATE TABLE IF NOT EXISTS FlashcardCardTypes (
@@ -117,7 +138,8 @@ internal static class FlashcardStoreSchema
             SourceId    TEXT NULL,
             SourceLabel TEXT NULL,
             CreatedAt   TEXT NOT NULL,
-            UpdatedAt   TEXT NOT NULL
+            UpdatedAt   TEXT NOT NULL,
+            TrashId     TEXT NULL
         );
 
         CREATE TABLE IF NOT EXISTS FlashcardCards (
@@ -138,7 +160,8 @@ internal static class FlashcardStoreSchema
             CreatedAt      TEXT NOT NULL,
             UpdatedAt      TEXT NOT NULL,
             FactId         TEXT NULL REFERENCES FlashcardFacts(Id) ON DELETE CASCADE,
-            LayoutKey      TEXT NULL
+            LayoutKey      TEXT NULL,
+            TrashId        TEXT NULL
         );
 
         CREATE TABLE IF NOT EXISTS FlashcardScheduling (
@@ -191,6 +214,18 @@ internal static class FlashcardStoreSchema
             NewIntroduced INTEGER NOT NULL DEFAULT 0,
             ReviewsDone   INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (DeckId, Date)
+        );
+
+        -- A fact whose home deck went to the trash while its other cards stayed live is filed
+        -- under one of those live decks instead, so nothing live points at a deck nobody can see.
+        -- The move is recorded here so restoring the deck can put the fact back, and only if the
+        -- fact is still where the move left it: a filing the user chose in between wins.
+        CREATE TABLE IF NOT EXISTS FlashcardTrashFactHomes (
+            TrashId           TEXT NOT NULL,
+            FactId            TEXT NOT NULL,
+            OriginalDeckId    TEXT NOT NULL,
+            ReplacementDeckId TEXT NOT NULL,
+            PRIMARY KEY (TrashId, FactId)
         );
 
         CREATE INDEX IF NOT EXISTS IX_Facts_Deck        ON FlashcardFacts(DeckId);

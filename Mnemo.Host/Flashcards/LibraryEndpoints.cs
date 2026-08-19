@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.Trash;
+using Mnemo.Infrastructure.Services.Flashcards.Trash;
 
 namespace Mnemo.Host.Flashcards;
 
@@ -54,16 +57,22 @@ public static class LibraryEndpoints
             return Results.NoContent();
         });
 
-        // Deleting a folder lifts its contents to the root instead of cascading. The service
-        // does the reparenting and the delete in one transaction, so a failure partway through
-        // cannot leave decks pointing at a folder that no longer exists.
-        endpoints.MapDelete("/api/deck-folders/{id}", async (string id, IFlashcardLibraryService library, CancellationToken cancellationToken) =>
+        // Deleting a folder takes the decks and subfolders inside it, all under one entry, so Undo
+        // puts the arrangement back rather than leaving its contents scattered at the root. Nothing
+        // is destroyed: the whole subtree stays recoverable for thirty days.
+        endpoints.MapDelete("/api/deck-folders/{id}", async (
+            string id,
+            ITrashService trash,
+            CancellationToken cancellationToken) =>
         {
-            var deleted = await library.DeleteFolderAsync(id, cancellationToken).ConfigureAwait(false);
-            return deleted
-                ? Results.NoContent()
-                : Results.NotFound(new ErrorDto("unknown_folder", $"No folder '{id}'."));
-        });
+            var action = await trash
+                .DeleteAsync([new TrashDeleteRequest(FlashcardDeckFolderTrashSource.TrashKind, id)], cancellationToken)
+                .ConfigureAwait(false);
+
+            return action.Entries.Count == 0
+                ? Results.NotFound(new ErrorDto("unknown_folder", $"No folder '{id}'."))
+                : Results.Ok(TrashActionDto.FromModel(action));
+        }).RequireTrash();
     }
 
     private static void MapDecks(IEndpointRouteBuilder endpoints)
@@ -135,13 +144,23 @@ public static class LibraryEndpoints
             return Results.NoContent();
         });
 
-        endpoints.MapDelete("/api/decks/{id}", async (string id, IFlashcardLibraryService library, CancellationToken cancellationToken) =>
+        // A deleted deck keeps its cards, their schedules and their review history for thirty days,
+        // so restoring it puts somebody back exactly where they were rather than starting the deck
+        // over. Material filed here whose cards all live in this deck goes with it; material with a
+        // card somewhere else stays, refiled under the deck that card is in.
+        endpoints.MapDelete("/api/decks/{id}", async (
+            string id,
+            ITrashService trash,
+            CancellationToken cancellationToken) =>
         {
-            var deleted = await library.DeleteDeckAsync(id, cancellationToken).ConfigureAwait(false);
-            return deleted
-                ? Results.NoContent()
-                : Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{id}'."));
-        });
+            var action = await trash
+                .DeleteAsync([new TrashDeleteRequest(FlashcardDeckTrashSource.TrashKind, id)], cancellationToken)
+                .ConfigureAwait(false);
+
+            return action.Entries.Count == 0
+                ? Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{id}'."))
+                : Results.Ok(TrashActionDto.FromModel(action));
+        }).RequireTrash();
 
         endpoints.MapPost("/api/decks/{id}/move", async (string id, MoveDeckDto body, IFlashcardLibraryService library, CancellationToken cancellationToken) =>
         {

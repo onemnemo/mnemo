@@ -34,7 +34,7 @@ public sealed class MindmapAssetReclamationTests : IDisposable
         await using var h = new MindmapHostHarness();
         await MapWithCanvasImageAsync(h, "canvas.png");
 
-        var referenced = await new MindmapAssetReferenceSource(h.Service).CollectReferencedIdsAsync();
+        var referenced = await new MindmapAssetReferenceSource(h.Store).CollectReferencedIdsAsync();
 
         Assert.Contains("canvas.png", referenced);
     }
@@ -45,7 +45,7 @@ public sealed class MindmapAssetReclamationTests : IDisposable
         await using var h = new MindmapHostHarness();
         await MapWithNodeImageAsync(h, "node.png");
 
-        var referenced = await new MindmapAssetReferenceSource(h.Service).CollectReferencedIdsAsync();
+        var referenced = await new MindmapAssetReferenceSource(h.Store).CollectReferencedIdsAsync();
 
         Assert.Contains("node.png", referenced);
     }
@@ -59,7 +59,7 @@ public sealed class MindmapAssetReclamationTests : IDisposable
         var absolute = Path.Combine(Path.GetTempPath(), "elsewhere", "old.png");
         await MapWithCanvasImageAsync(h, absolute);
 
-        var referenced = await new MindmapAssetReferenceSource(h.Service).CollectReferencedIdsAsync();
+        var referenced = await new MindmapAssetReferenceSource(h.Store).CollectReferencedIdsAsync();
 
         Assert.Empty(referenced);
     }
@@ -74,7 +74,7 @@ public sealed class MindmapAssetReclamationTests : IDisposable
         await DamageAsync(h, map.Id);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => new MindmapAssetReferenceSource(h.Service).CollectReferencedIdsAsync());
+            () => new MindmapAssetReferenceSource(h.Store).CollectReferencedIdsAsync());
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public sealed class MindmapAssetReclamationTests : IDisposable
     private AssetSweeper Sweeper(MindmapHostHarness h) =>
         new(
             new ManagedAssetStore(() => _directory, ManagedAssetStore.ImageExtensions),
-            [new MindmapAssetReferenceSource(h.Service)],
+            [new MindmapAssetReferenceSource(h.Store)],
             new AssetSessionRegistry(),
             new NullLogger(),
             TimeSpan.FromMinutes(30));

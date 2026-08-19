@@ -9,8 +9,12 @@ using Mnemo.Core.Services;
 
 namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
-/// <summary>A card the material already made, and the layout it came from.</summary>
-public readonly record struct FlashcardFactCardKey(string CardId, string LayoutKey);
+/// <summary>
+/// A card the material already made, and the layout it came from. <paramref name="IsHeld"/> marks a
+/// card the trash is holding: it still occupies its layout, so nothing may take the slot while it is
+/// away, but it is not part of what the material currently shows.
+/// </summary>
+public readonly record struct FlashcardFactCardKey(string CardId, string LayoutKey, bool IsHeld);
 
 /// <summary>
 /// Row-level access to <c>FlashcardFacts</c>. The cards a fact makes live in
@@ -44,6 +48,9 @@ public sealed class FactRepository : IFactRepository
         "f.Id, f.DeckId, f.TypeId, f.ValuesJson, f.MediaJson, f.TagsJson, f.IsFlagged, " +
         "f.SourceType, f.SourceId, f.SourceLabel, f.CreatedAt, f.UpdatedAt";
 
+    /// <summary>What every ordinary read adds so material the trash is holding stays out of it.</summary>
+    private const string Live = "f.TrashId IS NULL";
+
     private readonly ILoggerService? _logger;
 
     public FactRepository(ILoggerService? logger = null) => _logger = logger;
@@ -51,7 +58,7 @@ public sealed class FactRepository : IFactRepository
     public async Task<FlashcardFact?> GetAsync(SqliteConnection conn, string factId, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardFacts f WHERE f.Id = $id LIMIT 1;";
+        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardFacts f WHERE f.Id = $id AND {Live} LIMIT 1;";
         cmd.Parameters.AddWithValue("$id", factId);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? Read(reader) : null;
@@ -62,8 +69,8 @@ public sealed class FactRepository : IFactRepository
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = $"""
             SELECT {SelectColumns} FROM FlashcardFacts f
-            JOIN FlashcardCards c ON c.FactId = f.Id
-            WHERE c.Id = $id LIMIT 1;
+            JOIN FlashcardCards c ON c.FactId = f.Id AND c.TrashId IS NULL
+            WHERE c.Id = $id AND {Live} LIMIT 1;
             """;
         cmd.Parameters.AddWithValue("$id", cardId);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -73,7 +80,7 @@ public sealed class FactRepository : IFactRepository
     public async Task<IReadOnlyList<FlashcardFact>> ListByDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardFacts f WHERE f.DeckId = $deck ORDER BY f.CreatedAt;";
+        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardFacts f WHERE f.DeckId = $deck AND {Live} ORDER BY f.CreatedAt;";
         cmd.Parameters.AddWithValue("$deck", deckId);
         var list = new List<FlashcardFact>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -85,7 +92,7 @@ public sealed class FactRepository : IFactRepository
     public async Task<IReadOnlyList<FlashcardFact>> ListByTypeAsync(SqliteConnection conn, string typeId, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardFacts f WHERE f.TypeId = $type ORDER BY f.CreatedAt;";
+        cmd.CommandText = $"SELECT {SelectColumns} FROM FlashcardFacts f WHERE f.TypeId = $type AND {Live} ORDER BY f.CreatedAt;";
         cmd.Parameters.AddWithValue("$type", typeId);
         var list = new List<FlashcardFact>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -108,7 +115,8 @@ public sealed class FactRepository : IFactRepository
             ON CONFLICT(Id) DO UPDATE SET
                 DeckId = $deck, TypeId = $type, ValuesJson = $values, MediaJson = $media,
                 TagsJson = $tags, IsFlagged = $flagged, SourceType = $srcType, SourceId = $srcId,
-                SourceLabel = $srcLabel, UpdatedAt = $updated;
+                SourceLabel = $srcLabel, UpdatedAt = $updated
+            WHERE TrashId IS NULL;
             """;
         var now = fact.UpdatedAt == default ? DateTimeOffset.UtcNow : fact.UpdatedAt;
         cmd.Parameters.AddWithValue("$id", fact.Id);
@@ -138,19 +146,21 @@ public sealed class FactRepository : IFactRepository
             names[i] = "$f" + i.ToString(CultureInfo.InvariantCulture);
             cmd.Parameters.AddWithValue(names[i], factIds[i]);
         }
-        cmd.CommandText = $"DELETE FROM FlashcardFacts WHERE Id IN ({string.Join(", ", names)});";
+        cmd.CommandText = $"DELETE FROM FlashcardFacts WHERE Id IN ({string.Join(", ", names)}) AND TrashId IS NULL;";
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<FlashcardFactCardKey>> GetCardKeysAsync(SqliteConnection conn, string factId, CancellationToken cancellationToken)
     {
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT Id, LayoutKey FROM FlashcardCards WHERE FactId = $id AND LayoutKey IS NOT NULL;";
+        // Deliberately all owned: a held card still holds its layout, and a fact whose only cards
+        // are held is still material something can be restored onto rather than an orphan to sweep.
+        cmd.CommandText = "SELECT Id, LayoutKey, TrashId FROM FlashcardCards WHERE FactId = $id AND LayoutKey IS NOT NULL;";
         cmd.Parameters.AddWithValue("$id", factId);
         var keys = new List<FlashcardFactCardKey>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            keys.Add(new FlashcardFactCardKey(reader.GetString(0), reader.GetString(1)));
+            keys.Add(new FlashcardFactCardKey(reader.GetString(0), reader.GetString(1), !reader.IsDBNull(2)));
         return keys;
     }
 
@@ -162,7 +172,7 @@ public sealed class FactRepository : IFactRepository
             SELECT sibling.Id
             FROM FlashcardCards card
             JOIN FlashcardCards sibling ON sibling.FactId = card.FactId
-            WHERE card.Id = $id AND sibling.Id <> $id;
+            WHERE card.Id = $id AND sibling.Id <> $id AND sibling.TrashId IS NULL;
             """;
         cmd.Parameters.AddWithValue("$id", cardId);
         var ids = new List<string>();

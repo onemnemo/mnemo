@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.Trash;
+using Mnemo.Infrastructure.Services.Flashcards.Trash;
 
 namespace Mnemo.Host.Flashcards;
 
@@ -140,11 +143,24 @@ public static class FactEndpoints
             IFlashcardLibraryService library,
             CancellationToken cancellationToken) => SaveFactAsync(body, id, facts, library, cancellationToken));
 
-        endpoints.MapPost("/api/facts/delete", async (FactIdsDto body, IFlashcardFactService facts, CancellationToken cancellationToken) =>
+        // Deleting material takes every card it makes, wherever those cards were filed, because a
+        // card without its material has nothing left to generate or edit it. All of it comes back
+        // together, so this is one entry rather than one per card.
+        endpoints.MapPost("/api/facts/delete", async (
+            FactIdsDto body,
+            ITrashService trash,
+            CancellationToken cancellationToken) =>
         {
-            await facts.DeleteFactsAsync(body.FactIds ?? Array.Empty<string>(), cancellationToken).ConfigureAwait(false);
-            return Results.NoContent();
-        });
+            var requests = (body.FactIds ?? Array.Empty<string>())
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => new TrashDeleteRequest(FlashcardFactTrashSource.TrashKind, id))
+                .ToArray();
+            if (requests.Length == 0)
+                return Results.BadRequest(new ErrorDto("no_facts", "Deleting needs at least one piece of material."));
+
+            var action = await trash.DeleteAsync(requests, cancellationToken).ConfigureAwait(false);
+            return Results.Ok(TrashActionDto.FromModel(action));
+        }).RequireTrash();
     }
 
     private static async Task<IResult> SaveFactAsync(

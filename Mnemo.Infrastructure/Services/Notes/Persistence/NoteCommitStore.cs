@@ -23,7 +23,7 @@ namespace Mnemo.Infrastructure.Services.Notes.Persistence;
 /// Every write reads the stored note inside its own transaction and changes only what that write
 /// owns, so two writers touching different halves of a note compose instead of racing.
 /// </summary>
-public sealed class NoteCommitStore : INoteCommitStore, IAsyncDisposable
+public sealed partial class NoteCommitStore : INoteCommitStore, IAsyncDisposable
 {
     /// <summary>The storage key of the note id index. Owned here; readers must not restate it.</summary>
     public const string IndexKey = "notes_index";
@@ -102,7 +102,9 @@ public sealed class NoteCommitStore : INoteCommitStore, IAsyncDisposable
         return WriteAsync(async (conn, tx, ct) =>
         {
             var stored = await ReadValueAsync<Note>(conn, tx, NoteKey(noteId), ct).ConfigureAwait(false);
-            if (stored is null)
+            // A held note is deleted as far as everything outside the recovery screen is concerned, so
+            // a write aimed at one is answered the same way as a write aimed at nothing.
+            if (stored is null || await IsNoteHeldAsync(conn, tx, noteId, ct).ConfigureAwait(false))
                 return new NoteCommitResult(NoteCommitOutcome.NotFound, 0);
 
             // Checked before the version, because a retry of a commit that already landed carries a
@@ -138,7 +140,9 @@ public sealed class NoteCommitStore : INoteCommitStore, IAsyncDisposable
         return WriteAsync(async (conn, tx, ct) =>
         {
             var stored = await ReadValueAsync<Note>(conn, tx, NoteKey(noteId), ct).ConfigureAwait(false);
-            if (stored is null)
+            // A held note is deleted as far as everything outside the recovery screen is concerned, so
+            // a write aimed at one is answered the same way as a write aimed at nothing.
+            if (stored is null || await IsNoteHeldAsync(conn, tx, noteId, ct).ConfigureAwait(false))
                 return new NoteCommitResult(NoteCommitOutcome.NotFound, 0);
 
             metadata.ApplyTo(stored);
@@ -161,6 +165,11 @@ public sealed class NoteCommitStore : INoteCommitStore, IAsyncDisposable
         return WriteAsync(async (conn, tx, ct) =>
         {
             var stored = await ReadValueAsync<Note>(conn, tx, NoteKey(note.NoteId), ct).ConfigureAwait(false);
+
+            // Writing over a held note would put a deleted note back in the library with content
+            // nobody deleted, and leave the trash entry pointing at it.
+            if (await IsNoteHeldAsync(conn, tx, note.NoteId, ct).ConfigureAwait(false))
+                return new NoteCommitResult(NoteCommitOutcome.NotFound, stored?.Ver ?? 0);
 
             // Never resets, so a note restored to older content still advances past every version a
             // client could be holding. An old edit token must not become valid again for new content.
@@ -253,6 +262,11 @@ public sealed class NoteCommitStore : INoteCommitStore, IAsyncDisposable
     {
         return WriteAsync(async (conn, tx, ct) =>
         {
+            // The trash owns a held note's row until it is restored or the thirty days run out, so a
+            // hard delete of one is refused rather than quietly destroying what recovery would return.
+            if (await IsNoteHeldAsync(conn, tx, noteId, ct).ConfigureAwait(false))
+                return false;
+
             var index = await ReadValueAsync<List<string>>(conn, tx, IndexKey, ct).ConfigureAwait(false) ?? new List<string>();
             var removed = index.Remove(noteId);
 

@@ -15,14 +15,18 @@ using Mnemo.Infrastructure.Services.AI;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
+using Mnemo.Infrastructure.Services.Flashcards.Trash;
 using Mnemo.Infrastructure.Services.ImportExport;
 using Mnemo.Infrastructure.Services.ImportExport.Adapters;
 using Mnemo.Infrastructure.Services.Keybinds;
 using Mnemo.Infrastructure.Services.Mindmap;
+using Mnemo.Infrastructure.Services.Mindmap.Persistence;
 using Mnemo.Infrastructure.Services.Mindmap.Tools;
+using Mnemo.Infrastructure.Services.Mindmap.Trash;
 using Mnemo.Infrastructure.Services.Notes;
 using Mnemo.Infrastructure.Services.Notes.Pdf;
 using Mnemo.Infrastructure.Services.Notes.Persistence;
+using Mnemo.Infrastructure.Services.Notes.Trash;
 using Mnemo.Infrastructure.Services.Packaging;
 using Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 using Mnemo.Infrastructure.Services.Search;
@@ -186,6 +190,8 @@ public static class HostComposition
         // services that depend on both.
         services.AddSingleton<NoteCommitStore>();
         services.AddSingleton<INoteCommitStore>(sp => sp.GetRequiredService<NoteCommitStore>());
+        services.AddSingleton<INoteTrashStore>(sp => sp.GetRequiredService<NoteCommitStore>());
+        services.AddSingleton<INoteFolderStore>(sp => sp.GetRequiredService<NoteCommitStore>());
         services.AddSingleton<INoteSidMigrator, NoteSidMigrator>();
         services.AddSingleton<INoteService, NoteService>();
         services.AddSingleton<INoteFolderService, NoteFolderService>();
@@ -252,10 +258,8 @@ public static class HostComposition
         services.AddSingleton<IContentFormatAdapter, FlashcardsAnkiFormatAdapter>();
         services.AddSingleton<IContentFormatAdapter, MindmapsMnemoFormatAdapter>();
 
-        // Application trash. The sources that own each kind are registered beside their own module;
-        // an empty set here simply means nothing routes through the trash yet. TrashMaintenance is
-        // resolved rather than injected into the coordinator, because the coordinator is also what
-        // asks it for a pass.
+        // Application trash. TrashMaintenance is resolved rather than injected into the coordinator,
+        // because the coordinator is also what asks it for a pass.
         services.AddSingleton(sp => new TrashDatabase(sp.GetRequiredService<ILoggerService>()));
         services.AddSingleton<ITrashStore, TrashStore>();
         services.AddSingleton<IAssetCleanupStore, AssetCleanupStore>();
@@ -269,6 +273,21 @@ public static class HostComposition
             sp.GetRequiredService<ILoggerService>(),
             sp.GetRequiredService<ITrashMaintenance>(),
             sp.GetRequiredService<TimeProvider>()));
+
+        // The kinds each module owns. A store that holds both live and held rows exposes its trash
+        // half through a second interface onto the one instance the module registered, so capture and
+        // an ordinary save share a writer and cannot interleave.
+        services.AddSingleton<IMindmapTrashStore>(sp => (IMindmapTrashStore)sp.GetRequiredService<IMindmapStore>());
+        services.AddSingleton<ITrashSource, MindmapTrashSource>();
+        services.AddSingleton<ITrashSource, MindmapFolderTrashSource>();
+        services.AddSingleton<IAssetCleanupOwner, Mindmap.MindmapAssetCleanupOwner>();
+        services.AddSingleton<ITrashSource, NoteTrashSource>();
+        services.AddSingleton<ITrashSource, NoteFolderTrashSource>();
+        services.AddSingleton<ITrashSource, FlashcardDeckFolderTrashSource>();
+        services.AddSingleton<ITrashSource, FlashcardDeckTrashSource>();
+        services.AddSingleton<ITrashSource, FlashcardFactTrashSource>();
+        services.AddSingleton<ITrashSource, FlashcardCardTrashSource>();
+        services.AddSingleton<IAssetCleanupOwner, Flashcards.FlashcardAssetCleanupOwner>();
 
         // Mindmap services themselves come from MindmapModule.ConfigureServices, which this host runs
         // like every other module registration. Only the bridge onto the events channel is host-side,

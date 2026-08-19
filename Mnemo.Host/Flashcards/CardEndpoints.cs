@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.Trash;
+using Mnemo.Infrastructure.Services.Flashcards.Trash;
 
 namespace Mnemo.Host.Flashcards;
 
@@ -341,11 +344,22 @@ public static class CardEndpoints
 
     private static void MapBatchOperations(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/api/cards/delete", async (CardIdsDto body, IFlashcardCardService cards, CancellationToken cancellationToken) =>
+        // Deleted cards keep their schedules and their review history for thirty days. Cards deleted
+        // together share one batch, so Undo brings back everything the one action took.
+        endpoints.MapPost("/api/cards/delete", async (
+            CardIdsDto body,
+            ITrashService trash,
+            CancellationToken cancellationToken) =>
         {
-            await cards.DeleteCardsAsync(Ids(body.CardIds), cancellationToken).ConfigureAwait(false);
-            return Results.NoContent();
-        });
+            var requests = Ids(body.CardIds)
+                .Select(id => new TrashDeleteRequest(FlashcardCardTrashSource.TrashKind, id))
+                .ToArray();
+            if (requests.Length == 0)
+                return Results.BadRequest(new ErrorDto("no_cards", "Deleting needs at least one card."));
+
+            var action = await trash.DeleteAsync(requests, cancellationToken).ConfigureAwait(false);
+            return Results.Ok(TrashActionDto.FromModel(action));
+        }).RequireTrash();
 
         endpoints.MapPost("/api/cards/move", async (
             MoveCardsDto body,

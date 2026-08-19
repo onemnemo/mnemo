@@ -117,7 +117,7 @@ public sealed class ScheduleRepository : IScheduleRepository
                 SUM(CASE WHEN s.FsrsState = 2 AND s.DueDate <= $now THEN 1 ELSE 0 END)
             FROM FlashcardScheduling s
             JOIN FlashcardCards c ON c.Id = s.CardId
-            WHERE c.DeckId = $deck AND c.State = 0
+            WHERE c.DeckId = $deck AND c.State = 0 AND c.TrashId IS NULL
               AND (s.BuriedUntil IS NULL OR s.BuriedUntil <= $now);
             """;
         cmd.Parameters.AddWithValue("$deck", deckId);
@@ -160,7 +160,7 @@ public sealed class ScheduleRepository : IScheduleRepository
             FROM windows w
             JOIN FlashcardScheduling s ON s.DueDate >= w.Start AND s.DueDate < w.Stop
             JOIN FlashcardCards c ON c.Id = s.CardId
-            WHERE c.State = 0 AND s.FsrsState <> 0
+            WHERE c.State = 0 AND c.TrashId IS NULL AND s.FsrsState <> 0
             GROUP BY w.Idx;
             """;
 

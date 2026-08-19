@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Models;
+using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.Trash;
+using Mnemo.Infrastructure.Services.Notes.Trash;
 
 namespace Mnemo.Host.Notes;
 
@@ -67,40 +70,22 @@ public static class NoteFolderEndpoints
                 : Results.StatusCode(StatusCodes.Status500InternalServerError);
         }).RequireNotesMigrated();
 
-        // Deleting a folder lifts its contents to the root instead of cascading, so a
-        // folder delete never destroys a note. The desktop app does this across several
-        // calls from its view model; here it is one request, because a client that dies
-        // half way through would otherwise leave notes filed under a folder that is gone.
+        // Deleting a folder takes the notes and subfolders inside it, all under one entry, so Undo
+        // puts the arrangement back rather than leaving its contents scattered at the root. Nothing
+        // is destroyed: the whole subtree stays recoverable for thirty days.
         endpoints.MapDelete("/api/note-folders/{id}", async (
             string id,
-            INoteFolderService folders,
-            INoteService notes) =>
+            ITrashService trash,
+            CancellationToken cancellationToken) =>
         {
-            var all = (await folders.GetAllFoldersAsync().ConfigureAwait(false)).ToList();
-            if (!all.Any(f => f.FolderId == id))
-                return Results.NotFound(new ErrorDto("unknown_folder", $"No note folder '{id}'."));
+            var action = await trash
+                .DeleteAsync([new TrashDeleteRequest(NoteFolderTrashSource.TrashKind, id)], cancellationToken)
+                .ConfigureAwait(false);
 
-            var orphanedNotes = (await notes.GetAllNotesAsync().ConfigureAwait(false))
-                .Where(n => n.FolderId == id)
-                .ToList();
-            foreach (var note in orphanedNotes)
-            {
-                note.FolderId = null;
-                note.FolderPath = string.Empty;
-                await notes.SaveNoteAsync(note).ConfigureAwait(false);
-            }
-
-            foreach (var child in all.Where(f => f.ParentId == id))
-            {
-                child.ParentId = null;
-                await folders.SaveFolderAsync(child).ConfigureAwait(false);
-            }
-
-            var deleted = await folders.DeleteFolderAsync(id).ConfigureAwait(false);
-            return deleted.IsSuccess
-                ? Results.NoContent()
-                : Results.StatusCode(StatusCodes.Status500InternalServerError);
-        }).RequireNotesMigrated();
+            return action.Entries.Count == 0
+                ? Results.NotFound(new ErrorDto("unknown_folder", $"No note folder '{id}'."))
+                : Results.Ok(TrashActionDto.FromModel(action));
+        }).RequireNotesMigrated().RequireTrash();
     }
 
     /// <summary>Null and empty both mean the root, and a client may send either.</summary>

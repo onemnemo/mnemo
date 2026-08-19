@@ -24,7 +24,8 @@ internal sealed class NoteSidMigrationHarness : IAsyncDisposable
         Logger = new RecordingLogger();
         Storage = new SqliteStorageProvider(Logger, DatabasePath);
         Store = new NoteCommitStore(Logger, DatabasePath);
-        Notes = new NoteService(Storage, Store);
+        Notes = new NoteService(Storage, Store, Store);
+        Folders = new NoteFolderService(Storage, Store, Store);
     }
 
     public string DatabasePath { get; }
@@ -32,6 +33,7 @@ internal sealed class NoteSidMigrationHarness : IAsyncDisposable
     public SqliteStorageProvider Storage { get; }
     public NoteService Notes { get; }
     public NoteCommitStore Store { get; }
+    public NoteFolderService Folders { get; }
 
     public string BackupDirectory => Path.Combine(_directory, "backups");
 

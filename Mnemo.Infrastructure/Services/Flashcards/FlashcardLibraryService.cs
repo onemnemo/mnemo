@@ -7,6 +7,8 @@ using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
+using Mnemo.Infrastructure.Services.Flashcards.Trash;
+using Mnemo.Infrastructure.Services.Trash;
 
 namespace Mnemo.Infrastructure.Services.Flashcards;
 
@@ -25,7 +27,7 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
     private readonly IDailyStatsRepository _dailyStats;
     private readonly IPresetRepository _presets;
     private readonly FlashcardClock _clock;
-    private readonly IImageAssetService? _images;
+    private readonly ILoggerService? _logger;
 
     public FlashcardLibraryService(
         IFlashcardStore store,
@@ -38,7 +40,7 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
         IDailyStatsRepository dailyStats,
         IPresetRepository presets,
         FlashcardClock clock,
-        IImageAssetService? images = null)
+        ILoggerService? logger = null)
     {
         _store = store;
         _folders = folders;
@@ -50,7 +52,7 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
         _dailyStats = dailyStats;
         _presets = presets;
         _clock = clock;
-        _images = images;
+        _logger = logger;
     }
 
     public Task<IReadOnlyList<FlashcardFolder>> ListFoldersAsync(CancellationToken cancellationToken = default) =>
@@ -139,19 +141,28 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
     /// and still counted as "in use" against a card type. A card moved to another deck before the
     /// delete keeps its material alive; only material left with nothing behind it is removed.
     /// </summary>
-    public async Task<bool> DeleteDeckAsync(string deckId, CancellationToken cancellationToken = default)
-    {
-        var owned = new List<string>();
-        var deleted = await _store.WriteAsync(async (conn, tx, ct) =>
+    public Task<bool> DeleteDeckAsync(string deckId, CancellationToken cancellationToken = default) =>
+        _store.WriteAsync(async (conn, tx, ct) =>
         {
+            // Nothing below is worth doing for a deck that is not there to delete, and the cascade
+            // step in particular must not run against a deck the trash is holding: its cards are
+            // held with it and are exactly what a restore needs.
+            if (await _decks.GetHeaderAsync(conn, deckId, ct).ConfigureAwait(false) is null)
+                return false;
+
             // Freeform cards own their attachment files outright; cards made from material share
             // theirs with it, so only the freeform ones are gathered before the cascade takes them.
+            var owned = new List<string>();
             var cards = await _cards.ListByDeckAsync(conn, deckId, ct).ConfigureAwait(false);
             owned.AddRange(cards.Where(c => c.FactId is null).SelectMany(c => c.Attachments).Select(a => a.FilePath));
 
             var homeFacts = await _facts.ListByDeckAsync(conn, deckId, ct).ConfigureAwait(false);
-            var result = await _decks.DeleteAsync(conn, tx, deckId, ct).ConfigureAwait(false);
-            if (!result)
+
+            await FlashcardTrashCascade
+                .DestroyHeldCardsInDeckAsync(conn, tx, deckId, _logger, ct)
+                .ConfigureAwait(false);
+
+            if (!await _decks.DeleteAsync(conn, tx, deckId, ct).ConfigureAwait(false))
                 return false;
 
             foreach (var fact in homeFacts)
@@ -164,14 +175,11 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
                 await _facts.DeleteManyAsync(conn, tx, new[] { fact.Id }, ct).ConfigureAwait(false);
             }
 
+            await AssetCleanupQueue
+                .EnqueueAsync(conn, tx, FlashcardAssetReferences.AssetOwner, owned, _clock.Now, ct)
+                .ConfigureAwait(false);
             return true;
-        }, cancellationToken).ConfigureAwait(false);
-
-        if (deleted)
-            await FlashcardAttachmentCleanup.DeleteAsync(_images, owned, cancellationToken).ConfigureAwait(false);
-
-        return deleted;
-    }
+        }, cancellationToken);
 
     /// <summary>
     /// Deletes a folder. Its direct child folders and decks are lifted to the root rather than
@@ -203,6 +211,10 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
             var decks = await _decks.ListHeadersAsync(conn, ct).ConfigureAwait(false);
             foreach (var deck in decks.Where(d => d.FolderId == folderId))
                 await _decks.MoveAsync(conn, tx, deck.Id, null, deck.SortOrder, now, ct).ConfigureAwait(false);
+
+            // Neither list above can show a folder the trash is holding, and a deck it holds is
+            // sent to the root by its own foreign key. Only held folders need lifting by hand.
+            await FlashcardTrashCascade.LiftHeldFoldersAsync(conn, tx, folderId, ct).ConfigureAwait(false);
 
             return await _folders.DeleteAsync(conn, tx, folderId, ct).ConfigureAwait(false);
         }, cancellationToken);
