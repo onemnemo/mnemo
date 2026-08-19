@@ -374,6 +374,9 @@
     "LibraryLoadFailedHint": "Comprueba que Mnemo se esté ejecutando y vuelve a intentarlo.",
     "DeckLoadFailedTitle": "No se pudo cargar este mazo",
     "DeckLoadFailedHint": "Comprueba que Mnemo se esté ejecutando y vuelve a intentarlo.",
-    "Retry": "Reintentar"
+    "Retry": "Reintentar",
+    "BrowseTitle": "Explorar tarjetas",
+    "BrowseEmptyDescription": "Añade tarjetas a un mazo para verlas aquí.",
+    "PeekCard": "Vistazo"
   }
 }

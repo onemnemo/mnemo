@@ -41,6 +41,7 @@ import {
   Ellipsis,
   Eraser,
   ExternalLink,
+  Eye,
   File,
   FileText,
   Flame,
@@ -157,6 +158,8 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   "copy-plus": CopyPlus,
   "list-filter": ListFilter,
   "external-link": ExternalLink,
+  // The browse table's quick-look action, beside the pencil that opens the full editor.
+  eye: Eye,
 
   // The mindmap's tool dock. Drawing-tool glyphs, and the project has no art of its own for them.
   "mouse-pointer-2": MousePointer2,

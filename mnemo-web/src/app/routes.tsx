@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ReactNode } from "react"
 
+import { BrowsePage } from "@/flashcards/browse/BrowsePage"
 import { DeckPage } from "@/flashcards/deck/DeckPage"
 import { LibraryPage } from "@/flashcards/library/LibraryPage"
 import { SessionPage } from "@/flashcards/session/SessionPage"
@@ -53,6 +54,7 @@ const PAGES: Record<string, PageRenderer> = {
       </Suspense>
     ),
   flashcards: () => <LibraryPage />,
+  "flashcard-browse": () => <BrowsePage />,
   "flashcard-deck": (p) => <DeckPage deckId={p[0]} />,
   "flashcard-session": (p) => <SessionPage deckId={p[0]} mode={p[1]} scope={p[2]} />,
   "flashcard-test": (p) => <TestPage deckId={p[0]} />,
