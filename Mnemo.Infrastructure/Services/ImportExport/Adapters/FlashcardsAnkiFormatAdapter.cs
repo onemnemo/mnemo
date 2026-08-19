@@ -22,11 +22,20 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 {
     private const char UnitSeparator = '\u001f';
     private const int CardPageSize = 200;
+
+    /// <summary>How Anki spells a deck hierarchy inside a single deck name.</summary>
+    private const string DeckPathSeparator = "::";
+
     private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
     private static readonly Regex ClozeRegex = new(@"\{\{c\d+::", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ImageTagRegex = new(@"<img\s+[^>]*src\s*=\s*['""](?<src>[^'""]+)['""][^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex BreakRegex = new(@"<\s*br\s*/?\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex DivCloseRegex = new(@"<\s*/\s*div\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    /// <summary>Closing tags that end a line of text. Without them a list or a table reads as one run-on line.</summary>
+    private static readonly Regex BlockCloseRegex = new(
+        @"<\s*/\s*(div|p|li|ul|ol|tr|h[1-6]|blockquote|pre)\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>Table cells sit side by side on their row's line rather than each taking one of their own.</summary>
+    private static readonly Regex CellCloseRegex = new(@"<\s*/\s*(td|th)\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex AllTagsRegex = new(@"<[^>]+>", RegexOptions.Compiled);
     private static readonly Regex InlineTagRegex = new(@"</?(b|strong|i|em|u|s|strike)>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -111,12 +120,15 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 .ToArray();
 
             var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
+            var folders = await DeckFolderResolver.CreateAsync(_library, cancellationToken).ConfigureAwait(false);
+            var noteTypesWithExtraFields = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            var failedDecks = 0;
 
             foreach (var deckGroup in decksByDid)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var deckName = collectionInfo.Decks.TryGetValue(deckGroup.Key, out var n) && !string.IsNullOrWhiteSpace(n)
+                var deckPath = collectionInfo.Decks.TryGetValue(deckGroup.Key, out var n) && !string.IsNullOrWhiteSpace(n)
                     ? n
                     : $"Imported Deck {deckGroup.Key}";
                 var drafts = new List<FlashcardCardDraft>();
@@ -129,6 +141,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     var fields = note.Fields;
                     var frontHtml = fields.Length > 0 ? fields[0] : string.Empty;
                     var backHtml = fields.Length > 1 ? fields[1] : string.Empty;
+
+                    // A card here has two sides, so a note type with more fields than that loses the
+                    // rest. Say so once per note type rather than per card or not at all.
+                    if (fields.Length > 2)
+                        noteTypesWithExtraFields.Add(note.ModelName ?? $"note type {note.ModelId}");
 
                     // Content-only: front/back/tags/type/media. Anki scheduling is intentionally dropped;
                     // imported cards arrive FSRS-new (due now) via the card service. Images become
@@ -158,14 +175,37 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 if (drafts.Count == 0)
                     continue;
 
-                var deck = await _library.CreateDeckAsync(deckName, folderId: null, presetId: preset.Id, cancellationToken).ConfigureAwait(false);
-                await _library.SaveDeckAsync(
-                    deck with { Description = "Imported from Anki package" },
-                    cancellationToken).ConfigureAwait(false);
-                var created = await _cards.CreateCardsAsync(deck.Id, drafts, cancellationToken).ConfigureAwait(false);
-                importedDecks++;
-                importedCards += created.Count;
+                // A deck and its cards land together or not at all. Half of one is a named, empty
+                // deck the user has to find and delete before retrying.
+                string? createdDeckId = null;
+                try
+                {
+                    var (folderId, deckName) = await folders.ResolveAsync(deckPath, cancellationToken).ConfigureAwait(false);
+                    var deck = await _library.CreateDeckAsync(deckName, folderId, preset.Id, cancellationToken).ConfigureAwait(false);
+                    createdDeckId = deck.Id;
+                    await _library.SaveDeckAsync(
+                        deck with { Description = "Imported from Anki package" },
+                        cancellationToken).ConfigureAwait(false);
+                    var created = await _cards.CreateCardsAsync(deck.Id, drafts, cancellationToken).ConfigureAwait(false);
+                    importedDecks++;
+                    importedCards += created.Count;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    failedDecks++;
+                    warnings.Add($"Deck '{deckPath}' could not be imported: {ex.Message}");
+                    if (createdDeckId is not null)
+                        await TryDeleteDeckAsync(createdDeckId, cancellationToken).ConfigureAwait(false);
+                }
             }
+
+            // One failed deck used to discard the count of every deck that already landed, so a
+            // retry produced duplicates of everything that had worked.
+            if (failedDecks > 0)
+                warnings.Add($"{failedDecks} of {decksByDid.Length} deck(s) in the package could not be imported.");
+
+            if (noteTypesWithExtraFields.Count > 0)
+                warnings.Add($"Only the first two fields were imported from these note types: {string.Join(", ", noteTypesWithExtraFields)}.");
 
             return new ImportExportResult
             {
@@ -416,7 +456,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 if (reader.IsDBNull(0) || reader.IsDBNull(1))
                     continue;
 
-                map[reader.GetInt64(0)] = reader.GetString(1).Replace(UnitSeparator.ToString(), "::", StringComparison.Ordinal);
+                map[reader.GetInt64(0)] = reader.GetString(1)
+                    .Replace(UnitSeparator.ToString(), DeckPathSeparator, StringComparison.Ordinal);
             }
         }
         catch (SqliteException)
@@ -726,7 +767,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             return string.Empty;
         var normalized = html;
         normalized = BreakRegex.Replace(normalized, "\n");
-        normalized = DivCloseRegex.Replace(normalized, "\n");
+        normalized = CellCloseRegex.Replace(normalized, " ");
+        normalized = BlockCloseRegex.Replace(normalized, "\n");
         return normalized;
     }
 
@@ -764,14 +806,39 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             ? summaries.Where(s => selectedIds.Contains(s.Id))
             : summaries;
 
+        var folderPaths = await BuildFolderPathsAsync(cancellationToken).ConfigureAwait(false);
         var result = new List<AnkiExportDeck>();
         foreach (var summary in selected)
         {
             var cards = await LoadExportCardsAsync(summary.Id, cancellationToken).ConfigureAwait(false);
-            result.Add(new AnkiExportDeck(summary.Id, summary.Name, summary.Header.Description, cards));
+            result.Add(new AnkiExportDeck(summary.Id, QualifiedDeckName(summary, folderPaths), summary.Header.Description, cards));
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The deck's name prefixed with the folders it sits in, which is how the receiving app spells a
+    /// hierarchy. Exporting the bare name flattens a whole library into a list of unrelated decks.
+    /// </summary>
+    private static string QualifiedDeckName(FlashcardDeckSummary summary, IReadOnlyDictionary<string, string> folderPaths)
+    {
+        var folderId = summary.Header.FolderId;
+        if (string.IsNullOrWhiteSpace(folderId) || !folderPaths.TryGetValue(folderId, out var path))
+            return summary.Name;
+
+        return $"{path}{DeckPathSeparator}{summary.Name}";
+    }
+
+    private async Task<Dictionary<string, string>> BuildFolderPathsAsync(CancellationToken cancellationToken)
+    {
+        var folders = await _library.ListFoldersAsync(cancellationToken).ConfigureAwait(false);
+        var byId = folders.ToDictionary(f => f.Id, StringComparer.Ordinal);
+        var paths = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var folder in folders)
+            paths[folder.Id] = DeckFolderResolver.BuildPath(folder, byId);
+
+        return paths;
     }
 
     private async Task<List<AnkiExportCard>> LoadExportCardsAsync(string deckId, CancellationToken cancellationToken)
@@ -1261,6 +1328,101 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             return DateTimeOffset.FromUnixTimeSeconds(crtRaw * 86400L);
 
         return ParseUnixTimestamp(crtRaw);
+    }
+
+    private async Task TryDeleteDeckAsync(string deckId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _library.DeleteDeckAsync(deckId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The deck stays, empty. Failing the cleanup must not replace the real failure.
+        }
+    }
+
+    /// <summary>
+    /// Maps an Anki deck path onto Mnemo's folders, creating the chain it needs and reusing whatever
+    /// already exists so a second import of the same collection does not build a parallel tree.
+    /// </summary>
+    private sealed class DeckFolderResolver
+    {
+        private readonly IFlashcardLibraryService _library;
+        private readonly Dictionary<string, string> _folderIdByPath = new(StringComparer.OrdinalIgnoreCase);
+        private int _nextOrder;
+
+        private DeckFolderResolver(IFlashcardLibraryService library) => _library = library;
+
+        public static async Task<DeckFolderResolver> CreateAsync(IFlashcardLibraryService library, CancellationToken cancellationToken)
+        {
+            var resolver = new DeckFolderResolver(library);
+            var folders = await library.ListFoldersAsync(cancellationToken).ConfigureAwait(false);
+            var byId = folders.ToDictionary(f => f.Id, StringComparer.Ordinal);
+            foreach (var folder in folders)
+            {
+                var path = BuildPath(folder, byId);
+                if (!string.IsNullOrEmpty(path))
+                    resolver._folderIdByPath.TryAdd(path, folder.Id);
+                resolver._nextOrder = Math.Max(resolver._nextOrder, folder.Order + 1);
+            }
+
+            return resolver;
+        }
+
+        /// <summary>Splits a deck path into the folder it belongs in and the deck's own name.</summary>
+        public async Task<(string? FolderId, string DeckName)> ResolveAsync(string deckPath, CancellationToken cancellationToken)
+        {
+            var segments = deckPath
+                .Split(DeckPathSeparator, StringSplitOptions.None)
+                .Select(segment => segment.Trim())
+                .Where(segment => segment.Length > 0)
+                .ToArray();
+
+            if (segments.Length == 0)
+                return (null, deckPath);
+            if (segments.Length == 1)
+                return (null, segments[0]);
+
+            string? parentId = null;
+            var path = new StringBuilder();
+            for (var i = 0; i < segments.Length - 1; i++)
+            {
+                if (path.Length > 0)
+                    path.Append(DeckPathSeparator);
+                path.Append(segments[i]);
+
+                var key = path.ToString();
+                if (!_folderIdByPath.TryGetValue(key, out var folderId))
+                {
+                    folderId = Guid.NewGuid().ToString();
+                    await _library.SaveFolderAsync(
+                        new FlashcardFolder(folderId, segments[i], parentId, _nextOrder++),
+                        cancellationToken).ConfigureAwait(false);
+                    _folderIdByPath[key] = folderId;
+                }
+
+                parentId = folderId;
+            }
+
+            return (parentId, segments[^1]);
+        }
+
+        public static string BuildPath(FlashcardFolder folder, IReadOnlyDictionary<string, FlashcardFolder> byId)
+        {
+            var segments = new List<string>();
+            var current = folder;
+            // Saved data can carry a parent cycle; the depth cap keeps a bad row from hanging a walk.
+            for (var depth = 0; current is not null && depth < 64; depth++)
+            {
+                segments.Add(current.Name);
+                if (string.IsNullOrEmpty(current.ParentId) || !byId.TryGetValue(current.ParentId, out current))
+                    break;
+            }
+
+            segments.Reverse();
+            return string.Join(DeckPathSeparator, segments);
+        }
     }
 
     private sealed record OpenedApkg(
