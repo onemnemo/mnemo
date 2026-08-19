@@ -15,11 +15,23 @@ namespace Mnemo.Infrastructure.Tests.Flashcards;
 /// </summary>
 public sealed class FsrsSpecConformanceTests
 {
-    private static readonly FlashcardPreset Preset = FlashcardPreset.CreateStandard(DateTimeOffset.UtcNow);
+    /// <summary>A fixed instant, so day snapping lands the same way on every machine and every run.</summary>
+    private static readonly DateTimeOffset Now = new(2026, 3, 5, 9, 30, 0, TimeSpan.Zero);
+
+    private static readonly FlashcardPreset Preset = FlashcardPreset.CreateStandard(Now);
     private static readonly double[] W = FsrsReferenceOracle.DefaultWeights;
+    private static readonly FlashcardClock Clock = new(new TestTimeProvider(Now));
     private const int Precision = 9;
 
-    private readonly FsrsScheduler _scheduler = new();
+    private readonly FsrsScheduler _scheduler = new(Clock);
+
+    /// <summary>
+    /// The interval the scheduler chose, read back as a count of study days. Day-scale due dates are
+    /// snapped to the start of a day, so elapsed time between the two instants is a partial day out
+    /// and only the day count recovers the number the scheduler actually picked.
+    /// </summary>
+    private static int Days(DateTimeOffset from, DateTimeOffset to) =>
+        Clock.DaysBetween(from, to, Preset.DayStartHour);
 
     private static FlashcardSchedule ReviewCard(double stability, double difficulty, double elapsedDays, DateTimeOffset now) =>
         new("c", now.AddDays(-elapsedDays), stability, difficulty, 5, 0,
@@ -59,7 +71,7 @@ public sealed class FsrsSpecConformanceTests
         var target = FsrsReferenceOracle.RawInitialDifficulty(4, W);
         Assert.True(target < 1d, $"expected the FSRS-6 default D_0(Easy) to sit below the clamp, got {target}");
 
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var next = _scheduler.ApplyGrade(ReviewCard(10d, 5d, 8d, now), FlashcardReviewGrade.Hard, now, Preset);
 
         var damped = 5d + W[6] * (10d - 5d) / 9d; // delta = -w6 * (2 - 3) = +w6
@@ -82,7 +94,7 @@ public sealed class FsrsSpecConformanceTests
         Assert.True(Math.Abs(unclamped - wrong) > 1d,
             $"expected a material gap between the unclamped and clamped targets, got {unclamped} and {wrong}");
 
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var next = _scheduler.ApplyGrade(ReviewCard(10d, 5d, 8d, now), FlashcardReviewGrade.Good, now, Preset with { Weights = w });
         Assert.Equal(unclamped, next.Difficulty!.Value, Precision);
     }
@@ -95,7 +107,7 @@ public sealed class FsrsSpecConformanceTests
     [InlineData(FlashcardReviewGrade.Easy, 20000d)]
     public void ShortTermStability_NeverShrinksOnAPassingGrade(FlashcardReviewGrade grade, double stability)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var learning = new FlashcardSchedule("c", now, stability, 5d, 1, 0, FlashcardFsrsState.Learning, 0, now.AddHours(-2));
 
         var raw = Math.Exp(W[17] * ((int)grade - 3 + W[18])) * Math.Pow(stability, -W[19]);
@@ -110,7 +122,7 @@ public sealed class FsrsSpecConformanceTests
     {
         // Again is the one same-day grade the floor does not cover.
         const double stability = 100d;
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var learning = new FlashcardSchedule("c", now, stability, 5d, 1, 0, FlashcardFsrsState.Learning, 0, now.AddHours(-2));
 
         var next = _scheduler.ApplyGrade(learning, FlashcardReviewGrade.Again, now, Preset);
@@ -127,7 +139,7 @@ public sealed class FsrsSpecConformanceTests
         // The short-term regime is about elapsed time, not card state, so a Review card graded again
         // the same day takes the same path a Learning card would.
         const double stability = 20d;
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var card = new FlashcardSchedule("c", now, stability, 5d, 5, 0, FlashcardFsrsState.Review, 0, now.AddHours(-3));
 
         var next = _scheduler.ApplyGrade(card, grade, now, Preset);
@@ -139,7 +151,7 @@ public sealed class FsrsSpecConformanceTests
     public void ReviewCard_LapsedSameDay_UsesShortTermStabilityAndStillCountsTheLapse()
     {
         const double stability = 20d;
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var card = new FlashcardSchedule("c", now, stability, 5d, 5, 0, FlashcardFsrsState.Review, 0, now.AddHours(-3));
 
         var next = _scheduler.ApplyGrade(card, FlashcardReviewGrade.Again, now, Preset);
@@ -153,12 +165,12 @@ public sealed class FsrsSpecConformanceTests
     public void NextInterval_IsClampedToTheReferenceMaximum()
     {
         // A very mature card at the lowest allowed retention is where the raw interval runs away.
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var card = ReviewCard(30000d, 1d, 1d, now);
 
         var next = _scheduler.ApplyGrade(card, FlashcardReviewGrade.Easy, now, Preset with { DesiredRetention = 0.70d });
 
-        Assert.InRange((next.DueDate - now).TotalDays, 1d, 36500d);
+        Assert.InRange(Days(now, next.DueDate), 1, 36500);
         Assert.InRange(next.Stability!.Value, 0.001d, 36500d);
     }
 
@@ -187,7 +199,7 @@ public sealed class FsrsSpecConformanceTests
     [InlineData(FlashcardReviewGrade.Easy)]
     public void NewCard_UsesSpecInitialStabilityAndDifficulty(FlashcardReviewGrade grade)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var next = _scheduler.ApplyGrade(FlashcardSchedule.NewFor("c", now), grade, now, Preset);
 
         Assert.Equal(FsrsReferenceOracle.InitialStability((int)grade, W), next.Stability!.Value, Precision);
@@ -206,7 +218,7 @@ public sealed class FsrsSpecConformanceTests
     public void ReviewCard_SuccessfulRecall_MatchesSpec(
         FlashcardReviewGrade grade, double stability, double difficulty, double elapsedDays)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var next = _scheduler.ApplyGrade(ReviewCard(stability, difficulty, elapsedDays, now), grade, now, Preset);
 
         var r = FsrsReferenceOracle.Retrievability(elapsedDays, stability, W);
@@ -217,7 +229,7 @@ public sealed class FsrsSpecConformanceTests
         Assert.Equal(FlashcardFsrsState.Review, next.FsrsState);
         Assert.Equal(expectedStability, next.Stability!.Value, Precision);
         Assert.Equal(expectedDifficulty, next.Difficulty!.Value, Precision);
-        Assert.Equal(expectedInterval, (int)Math.Round((next.DueDate - now).TotalDays));
+        Assert.Equal(expectedInterval, Days(now, next.DueDate));
     }
 
     [Theory]
@@ -226,7 +238,7 @@ public sealed class FsrsSpecConformanceTests
     [InlineData(5.0, 5.0, 60.0)]
     public void ReviewCard_Lapse_DifficultyMatchesSpec(double stability, double difficulty, double elapsedDays)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var next = _scheduler.ApplyGrade(ReviewCard(stability, difficulty, elapsedDays, now), FlashcardReviewGrade.Again, now, Preset);
 
         Assert.Equal(FlashcardFsrsState.Relearning, next.FsrsState);
@@ -244,7 +256,7 @@ public sealed class FsrsSpecConformanceTests
     [InlineData(2.0, 5.0, 30.0)]
     public void ReviewCard_Lapse_StabilityMatchesSpec(double stability, double difficulty, double elapsedDays)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var next = _scheduler.ApplyGrade(ReviewCard(stability, difficulty, elapsedDays, now), FlashcardReviewGrade.Again, now, Preset);
 
         var r = FsrsReferenceOracle.Retrievability(elapsedDays, stability, W);
@@ -263,7 +275,7 @@ public sealed class FsrsSpecConformanceTests
     [InlineData(0.1, 3.0, 730.0)]
     public void ReviewCard_Lapse_HoldsTheCap_WhereTheRawTermWouldOvershoot(double stability, double difficulty, double elapsedDays)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var next = _scheduler.ApplyGrade(ReviewCard(stability, difficulty, elapsedDays, now), FlashcardReviewGrade.Again, now, Preset);
 
         var r = FsrsReferenceOracle.Retrievability(elapsedDays, stability, W);
@@ -285,7 +297,7 @@ public sealed class FsrsSpecConformanceTests
     public void ReviewCard_Lapse_NeverRaisesStabilityAboveItsPreLapseValue(double stability, double difficulty, double elapsedDays)
     {
         // Forgetting a card must not leave it more durable than it was before the lapse.
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var next = _scheduler.ApplyGrade(ReviewCard(stability, difficulty, elapsedDays, now), FlashcardReviewGrade.Again, now, Preset);
 
         Assert.True(next.Stability!.Value < stability,
@@ -297,7 +309,7 @@ public sealed class FsrsSpecConformanceTests
     [InlineData(FlashcardReviewGrade.Good)]
     public void LearningCard_SameDay_UsesSpecShortTermStability(FlashcardReviewGrade grade)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         // Learning state with elapsed < 1 day is the short-term regime.
         var learning = new FlashcardSchedule("c", now, 3.0d, 5.0d, 1, 0, FlashcardFsrsState.Learning, 0, now.AddHours(-2));
 
@@ -312,7 +324,7 @@ public sealed class FsrsSpecConformanceTests
     [InlineData(0.95)]
     public void DesiredRetention_DrivesIntervalPerSpec(double retention)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var preset = Preset with { DesiredRetention = retention };
         const double stability = 10.0d;
         const double difficulty = 5.0d;
@@ -324,7 +336,7 @@ public sealed class FsrsSpecConformanceTests
         var expectedStability = FsrsReferenceOracle.RecallStability(difficulty, stability, r, 3, W);
         var expectedInterval = FsrsReferenceOracle.NextInterval(expectedStability, retention, W);
 
-        Assert.Equal(expectedInterval, (int)Math.Round((next.DueDate - now).TotalDays));
+        Assert.Equal(expectedInterval, Days(now, next.DueDate));
     }
 
     [Fact]
@@ -332,7 +344,7 @@ public sealed class FsrsSpecConformanceTests
     {
         // The scheduler clamps to [0.70, 0.99] while the preset editor offers [0.80, 0.97]
         // (PresetEndpoints), so these bounds are only reachable by an imported or seeded preset.
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var card = ReviewCard(10d, 5d, 8d, now);
 
         var belowFloor = _scheduler.ApplyGrade(card, FlashcardReviewGrade.Good, now, Preset with { DesiredRetention = 0.1d });
@@ -350,7 +362,7 @@ public sealed class FsrsSpecConformanceTests
     [Fact]
     public void CustomWeights_AreHonouredAtTwentyOne()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var custom = (double[])W.Clone();
         custom[0] = 1.5d; // initial stability for Again
 
@@ -363,7 +375,7 @@ public sealed class FsrsSpecConformanceTests
     public void CustomWeights_AreHonouredAtNineteen()
     {
         // 19 is what the FSRS-5 optimizer emits, so a user pasting one must not be ignored.
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var nineteen = new double[19];
         Array.Copy(FsrsReferenceOracle.Fsrs5Defaults, nineteen, 19);
         nineteen[0] = 1.5d;
@@ -378,7 +390,7 @@ public sealed class FsrsSpecConformanceTests
     {
         // The padding has to be exact, not merely accepted: a 19-slot vector is an FSRS-5 one, and
         // w19 = 0 with w20 = 0.5 is precisely the FSRS-5 model expressed in FSRS-6's parameterisation.
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var fsrs5 = FsrsReferenceOracle.Fsrs5Defaults;
         var nineteen = new double[19];
         Array.Copy(fsrs5, nineteen, 19);
@@ -404,7 +416,7 @@ public sealed class FsrsSpecConformanceTests
     [InlineData(22)]
     public void CustomWeights_OfAnyOtherLength_Throw(int count)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var preset = Preset with { Weights = new double[count] };
         Assert.Throws<ArgumentException>(() =>
             _scheduler.ApplyGrade(FlashcardSchedule.NewFor("c", now), FlashcardReviewGrade.Good, now, preset));
@@ -413,7 +425,7 @@ public sealed class FsrsSpecConformanceTests
     [Fact]
     public void NullWeights_FallBackToDefaults()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Now;
         var preset = Preset with { Weights = null };
         var next = _scheduler.ApplyGrade(FlashcardSchedule.NewFor("c", now), FlashcardReviewGrade.Again, now, preset);
         Assert.Equal(W[0], next.Stability!.Value, Precision);

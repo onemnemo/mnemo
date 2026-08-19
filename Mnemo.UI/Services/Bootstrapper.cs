@@ -139,6 +139,11 @@ public static class Bootstrapper
         services.AddSingleton<IDailyStatsRepository, DailyStatsRepository>();
         services.AddSingleton<IFlashcardStoreMigrator, FlashcardStoreMigrator>();
 
+        // Scheduling reads the time through this rather than the static properties, so day
+        // boundaries stay one decision the tests can drive.
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<FlashcardClock>();
+
         // FSRS-only scheduler for the new engine.
         services.AddSingleton<IFsrsScheduler, FsrsScheduler>();
 

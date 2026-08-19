@@ -43,6 +43,11 @@ describe("rankLeeches", () => {
     expect(rankLeeches(decks, 10).some((row) => row.cardId === "b")).toBe(false)
   })
 
+  it("uses the same line as the deck browser, so a card is called out in both or neither", () => {
+    const pair = [{ deckId: "d", deckName: "D", cards: [card("two", "Two", 2), card("three", "Three", 3)] }]
+    expect(rankLeeches(pair, 10).map((row) => row.cardId)).toEqual(["three"])
+  })
+
   it("honours the limit", () => {
     expect(rankLeeches(decks, 2).map((row) => row.cardId)).toEqual(["c", "a"])
   })

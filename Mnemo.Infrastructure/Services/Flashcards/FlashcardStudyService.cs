@@ -13,6 +13,14 @@ namespace Mnemo.Infrastructure.Services.Flashcards;
 /// <inheritdoc />
 public sealed class FlashcardStudyService : IFlashcardStudyService
 {
+    /// <summary>
+    /// The forecast spans every deck at once, and decks may roll their day over at different hours,
+    /// so its columns are plain local calendar dates. A day-scale due date is snapped to the start
+    /// of its own deck's day, which is an hour of the date that day is named after, so every deck's
+    /// cards land on the column they are scheduled for whichever hour that deck uses.
+    /// </summary>
+    private const int ChartDayStartHour = 0;
+
     private readonly IFlashcardStore _store;
     private readonly IDeckRepository _decks;
     private readonly IScheduleRepository _schedules;
@@ -21,6 +29,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
     private readonly IDailyStatsRepository _dailyStats;
     private readonly ICardRepository _cards;
     private readonly IFsrsScheduler _scheduler;
+    private readonly FlashcardClock _clock;
 
     public FlashcardStudyService(
         IFlashcardStore store,
@@ -30,7 +39,8 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
         IReviewRepository reviews,
         IDailyStatsRepository dailyStats,
         ICardRepository cards,
-        IFsrsScheduler scheduler)
+        IFsrsScheduler scheduler,
+        FlashcardClock clock)
     {
         _store = store;
         _decks = decks;
@@ -40,6 +50,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
         _dailyStats = dailyStats;
         _cards = cards;
         _scheduler = scheduler;
+        _clock = clock;
     }
 
     public Task<FlashcardDueCounts> GetDueCountsAsync(string deckId, CancellationToken cancellationToken = default) =>
@@ -48,11 +59,11 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             var header = await _decks.GetHeaderAsync(conn, deckId, ct).ConfigureAwait(false);
             if (header is null)
                 return FlashcardDueCounts.Empty;
-            var now = DateTimeOffset.UtcNow;
+            var now = _clock.Now;
             var raw = await _schedules.GetRawDueCountsAsync(conn, deckId, now, ct).ConfigureAwait(false);
             var preset = await _presets.GetAsync(conn, header.PresetId, ct).ConfigureAwait(false)
                          ?? FlashcardPreset.CreateStandard(now);
-            var stat = await _dailyStats.GetAsync(conn, deckId, FlashcardLocalDay.Today(), ct).ConfigureAwait(false);
+            var stat = await _dailyStats.GetAsync(conn, deckId, _clock.TodayKey(preset.DayStartHour), ct).ConfigureAwait(false);
             return FlashcardDueCalculator.Cap(raw, preset, stat);
         }, cancellationToken);
 
@@ -65,7 +76,8 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             // Ninety days is the ceiling because past it the projection stops describing a schedule
             // and starts describing FSRS's own interval growth.
             var span = Math.Clamp(days, 1, 90);
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            var today = _clock.Today(ChartDayStartHour);
 
             // Today comes off the same cap-aware aggregate the due-today banner uses rather than off
             // the day query below, so the first column of the chart and the number beside it are one
@@ -80,15 +92,15 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             if (span == 1)
                 return forecast;
 
-            var from = new DateTimeOffset(today.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-            var to = new DateTimeOffset(today.AddDays(span).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-            var byDay = await _schedules.GetScheduledCountsByUtcDayAsync(conn, from, to, ct).ConfigureAwait(false);
+            // One boundary per remaining day plus a closing one, so day i is the half-open window
+            // between consecutive entries.
+            var boundaries = new DateTimeOffset[span];
+            for (var i = 0; i < span; i++)
+                boundaries[i] = _clock.StartOf(today.AddDays(i + 1), ChartDayStartHour);
+            var byWindow = await _schedules.GetScheduledCountsByWindowAsync(conn, boundaries, ct).ConfigureAwait(false);
 
             for (var offset = 1; offset < span; offset++)
-            {
-                var day = today.AddDays(offset);
-                forecast.Add(new FlashcardForecastDay(day, byDay.TryGetValue(day, out var due) ? due : 0, 0));
-            }
+                forecast.Add(new FlashcardForecastDay(today.AddDays(offset), byWindow[offset - 1], 0));
             return forecast;
         }, cancellationToken);
 
@@ -100,14 +112,14 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
         foreach (var p in presets)
             byId[p.Id] = p;
 
-        var now = DateTimeOffset.UtcNow;
-        var today = FlashcardLocalDay.Today();
+        var now = _clock.Now;
         var total = FlashcardDueCounts.Empty;
         foreach (var header in headers)
         {
             var raw = await _schedules.GetRawDueCountsAsync(conn, header.Id, now, ct).ConfigureAwait(false);
             var preset = byId.TryGetValue(header.PresetId, out var p) ? p : FlashcardPreset.CreateStandard(now);
-            var stat = await _dailyStats.GetAsync(conn, header.Id, today, ct).ConfigureAwait(false);
+            // Each deck's preset decides when its day turns over, so the key is per deck.
+            var stat = await _dailyStats.GetAsync(conn, header.Id, _clock.TodayKey(preset.DayStartHour), ct).ConfigureAwait(false);
             total = total.Add(FlashcardDueCalculator.Cap(raw, preset, stat));
         }
         return total;
@@ -121,7 +133,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
 
         var (preset, queue) = await _store.ReadAsync(async (conn, ct) =>
         {
-            var now = DateTimeOffset.UtcNow;
+            var now = _clock.Now;
             var header = await _decks.GetHeaderAsync(conn, request.DeckId, ct).ConfigureAwait(false);
             var deckPreset = header is null
                 ? FlashcardPreset.CreateStandard(now)
@@ -130,28 +142,45 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             var items = new List<FlashcardView>();
             if (request.Mode == FlashcardSessionMode.Review)
             {
-                var stat = await _dailyStats.GetAsync(conn, request.DeckId, FlashcardLocalDay.Today(), ct).ConfigureAwait(false);
+                var stat = await _dailyStats.GetAsync(conn, request.DeckId, _clock.TodayKey(deckPreset.DayStartHour), ct).ConfigureAwait(false);
                 var newBudget = Math.Max(0, deckPreset.NewPerDay - stat.NewIntroduced);
                 var reviewBudget = Math.Max(0, deckPreset.MaxReviewsPerDay - stat.ReviewsDone);
 
-                items.AddRange(await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 1, 3 }, now, int.MaxValue, ct).ConfigureAwait(false));
-                items.AddRange(await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 2 }, now, reviewBudget, ct).ConfigureAwait(false));
-                items.AddRange(await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 0 }, null, newBudget, ct).ConfigureAwait(false));
+                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 1, 3 }, now, int.MaxValue, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
+                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 2 }, now, reviewBudget, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
+                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 0 }, null, newBudget, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
             }
             else // Cram
             {
                 var due = request.Scope == FlashcardSessionScope.Due ? (DateTimeOffset?)now : null;
-                items.AddRange(await _cards.GetActiveViewsAsync(conn, request.DeckId, null, due, int.MaxValue, ct).ConfigureAwait(false));
+                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, null, due, int.MaxValue, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
             }
 
             return (deckPreset, items);
         }, cancellationToken).ConfigureAwait(false);
 
-        IReadOnlyList<FlashcardView> ordered = preset.ShuffleOrder
-            ? queue.OrderBy(_ => Guid.NewGuid()).ToList()
-            : queue;
+        return new FlashcardStudySession(this, _scheduler, _clock, preset, request.Mode, request.DeckId, queue);
+    }
 
-        return new FlashcardStudySession(this, _scheduler, preset, request.Mode, request.DeckId, ordered);
+    /// <summary>
+    /// Appends one band of the queue, shuffled when the preset asks for it.
+    /// </summary>
+    /// <remarks>
+    /// Shuffling happens inside a band rather than across the whole queue, so the order between
+    /// bands survives. Learning cards are already overdue and reviews are the day's plan; a
+    /// shuffle of the concatenation would let a card being seen for the first time outrank both.
+    /// </remarks>
+    private static void AddBand(List<FlashcardView> queue, IReadOnlyList<FlashcardView> band, bool shuffle)
+    {
+        if (!shuffle)
+        {
+            queue.AddRange(band);
+            return;
+        }
+
+        var shuffled = band.ToArray();
+        Random.Shared.Shuffle(shuffled);
+        queue.AddRange(shuffled);
     }
 
     public Task<long> RecordReviewAsync(FlashcardReviewEntry entry, CancellationToken cancellationToken = default)
@@ -162,20 +191,35 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             await _schedules.UpsertAsync(conn, tx, entry.UpdatedSchedule, ct).ConfigureAwait(false);
             var reviewId = await _reviews.AppendAsync(conn, tx, entry.Review, ct).ConfigureAwait(false);
             await _dailyStats.IncrementAsync(conn, tx, entry.Review.DeckId, entry.LocalDay,
-                entry.IntroducedNewCard ? 1 : 0, 1, ct).ConfigureAwait(false);
+                entry.IntroducedNewCard ? 1 : 0, ChargesReviewCap(entry.Review.StateBefore) ? 1 : 0, ct).ConfigureAwait(false);
+            if (entry.LeechedCard is { } leeched)
+                await _cards.UpdateAsync(conn, tx, leeched, ct).ConfigureAwait(false);
             return reviewId;
         }, cancellationToken);
     }
 
-    public Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, CancellationToken cancellationToken = default)
+    public Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, Flashcard? restoredCard = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(restoredSchedule);
         return _store.WriteAsync(async (conn, tx, ct) =>
         {
             await _schedules.UpsertAsync(conn, tx, restoredSchedule, ct).ConfigureAwait(false);
             await _reviews.DeleteAsync(conn, tx, reviewId, ct).ConfigureAwait(false);
+            // restoredSchedule is the card as it was before the grade, so its state is the same
+            // one the grade was charged against.
             await _dailyStats.IncrementAsync(conn, tx, deckId, localDay,
-                wasNewIntroduction ? -1 : 0, -1, ct).ConfigureAwait(false);
+                wasNewIntroduction ? -1 : 0, ChargesReviewCap(restoredSchedule.FsrsState) ? -1 : 0, ct).ConfigureAwait(false);
+            if (restoredCard is not null)
+                await _cards.UpdateAsync(conn, tx, restoredCard, ct).ConfigureAwait(false);
         }, cancellationToken);
     }
+
+    /// <summary>
+    /// The daily review cap limits how many cards due for review get shown, so only an answer
+    /// on a card that was already in review spends it. Introducing a new card and stepping a
+    /// learning or relearning card are counted elsewhere, and charging them here used to hide
+    /// genuine reviews behind repetitions the user had not asked to be limited.
+    /// </summary>
+    private static bool ChargesReviewCap(FlashcardFsrsState? stateBefore) =>
+        stateBefore == FlashcardFsrsState.Review;
 }

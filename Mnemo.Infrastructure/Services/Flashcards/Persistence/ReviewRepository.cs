@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -27,12 +30,18 @@ public interface IReviewRepository
     /// </summary>
     Task<FlashcardRetentionSample> GetRetentionSampleAsync(SqliteConnection conn, string deckId, DateTimeOffset since, CancellationToken cancellationToken);
 
-    /// <summary>Per-UTC-day passed/total (excluding learning-step reviews) since <paramref name="since"/>.</summary>
-    Task<IReadOnlyList<FlashcardDailyRetention>> GetDailyRetentionAsync(SqliteConnection conn, string deckId, DateTimeOffset since, CancellationToken cancellationToken);
+    /// <summary>
+    /// Passed/total (excluding learning-step reviews) inside each of the windows described by
+    /// <paramref name="boundaries"/>. Window i runs from boundaries[i] up to boundaries[i + 1], so
+    /// N + 1 boundaries describe N windows and the result holds one sample per window, in order.
+    /// </summary>
+    /// <remarks>
+    /// The caller passes instants because a study day starts at a local hour whose distance from
+    /// UTC moves with daylight saving, which the stored timestamps cannot be regrouped by in SQL.
+    /// </remarks>
+    Task<IReadOnlyList<FlashcardRetentionSample>> GetRetentionByWindowAsync(
+        SqliteConnection conn, string deckId, IReadOnlyList<DateTimeOffset> boundaries, CancellationToken cancellationToken);
 }
-
-/// <summary>Passed/total scheduled reviews grouped by a single UTC day.</summary>
-public readonly record struct FlashcardDailyRetention(DateOnly Day, int Passed, int Total);
 
 /// <inheritdoc />
 public sealed class ReviewRepository : IReviewRepository
@@ -43,8 +52,8 @@ public sealed class ReviewRepository : IReviewRepository
         cmd.Transaction = tx;
         cmd.CommandText = """
             INSERT INTO FlashcardReviews
-                (CardId, DeckId, SessionId, Grade, ReviewedAt, ElapsedDays, ScheduledDays, StabilityAfter, DifficultyAfter, StateAfter)
-            VALUES ($card, $deck, $session, $grade, $at, $elapsed, $scheduled, $stab, $diff, $state);
+                (CardId, DeckId, SessionId, Grade, ReviewedAt, ElapsedDays, ScheduledDays, StabilityAfter, DifficultyAfter, StateBefore, StateAfter)
+            VALUES ($card, $deck, $session, $grade, $at, $elapsed, $scheduled, $stab, $diff, $before, $state);
             SELECT last_insert_rowid();
             """;
         cmd.Parameters.AddWithValue("$card", log.CardId);
@@ -56,6 +65,7 @@ public sealed class ReviewRepository : IReviewRepository
         cmd.Parameters.AddWithValue("$scheduled", log.ScheduledDays);
         cmd.Parameters.AddWithValue("$stab", (object?)log.StabilityAfter ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$diff", (object?)log.DifficultyAfter ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$before", log.StateBefore is { } before ? (int)before : DBNull.Value);
         cmd.Parameters.AddWithValue("$state", (int)log.StateAfter);
         var id = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt64(id);
@@ -100,27 +110,49 @@ public sealed class ReviewRepository : IReviewRepository
         return new FlashcardRetentionSample(passed, total);
     }
 
-    public async Task<IReadOnlyList<FlashcardDailyRetention>> GetDailyRetentionAsync(SqliteConnection conn, string deckId, DateTimeOffset since, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<FlashcardRetentionSample>> GetRetentionByWindowAsync(
+        SqliteConnection conn, string deckId, IReadOnlyList<DateTimeOffset> boundaries, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(boundaries);
+        var windows = boundaries.Count - 1;
+        if (windows <= 0)
+            return Array.Empty<FlashcardRetentionSample>();
+
         await using var cmd = conn.CreateCommand();
-        // ReviewedAt is stored as ISO-8601 UTC ("O"); substr(1,10) is the yyyy-MM-dd day.
-        cmd.CommandText = """
-            SELECT substr(ReviewedAt, 1, 10) AS Day,
-                   SUM(CASE WHEN Grade <> 1 THEN 1 ELSE 0 END),
+        var values = new StringBuilder();
+        for (var i = 0; i < windows; i++)
+        {
+            if (i > 0)
+                values.Append(", ");
+            values.Append(CultureInfo.InvariantCulture, $"({i}, $s{i}, $e{i})");
+            cmd.Parameters.AddWithValue($"$s{i}", FlashcardSqlMap.Ts(boundaries[i]));
+            cmd.Parameters.AddWithValue($"$e{i}", FlashcardSqlMap.Ts(boundaries[i + 1]));
+        }
+
+        // ReviewedAt is written by FlashcardSqlMap.Ts, which normalises to UTC, so the stored text
+        // compares against a bound exactly as the instants do. Only the loop counter reaches the
+        // statement text; the bounds are parameters. StateAfter = 1 is Learning, excluded so
+        // learning-step reps do not dilute retention.
+        cmd.CommandText = $"""
+            WITH windows(Idx, Start, Stop) AS (VALUES {values})
+            SELECT w.Idx,
+                   SUM(CASE WHEN r.Grade <> 1 THEN 1 ELSE 0 END),
                    COUNT(*)
-            FROM FlashcardReviews
-            WHERE DeckId = $deck AND ReviewedAt >= $since AND StateAfter <> 1
-            GROUP BY Day ORDER BY Day;
+            FROM windows w
+            JOIN FlashcardReviews r ON r.ReviewedAt >= w.Start AND r.ReviewedAt < w.Stop
+            WHERE r.DeckId = $deck AND r.StateAfter <> 1
+            GROUP BY w.Idx;
             """;
         cmd.Parameters.AddWithValue("$deck", deckId);
-        cmd.Parameters.AddWithValue("$since", FlashcardSqlMap.Ts(since));
-        var list = new List<FlashcardDailyRetention>();
+
+        var samples = new FlashcardRetentionSample[windows];
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            if (DateOnly.TryParse(reader.GetString(0), out var day))
-                list.Add(new FlashcardDailyRetention(day, reader.IsDBNull(1) ? 0 : reader.GetInt32(1), reader.GetInt32(2)));
+            var idx = reader.GetInt32(0);
+            if (idx >= 0 && idx < windows)
+                samples[idx] = new FlashcardRetentionSample(reader.IsDBNull(1) ? 0 : reader.GetInt32(1), reader.GetInt32(2));
         }
-        return list;
+        return samples;
     }
 }

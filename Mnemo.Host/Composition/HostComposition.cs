@@ -215,6 +215,11 @@ public static class HostComposition
         services.AddSingleton<IDailyStatsRepository, DailyStatsRepository>();
         services.AddSingleton<IFlashcardStoreMigrator, FlashcardStoreMigrator>();
 
+        // Scheduling reads the time through this rather than the static properties, so day
+        // boundaries stay one decision the tests can drive.
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<FlashcardClock>();
+
         services.AddSingleton<IFsrsScheduler, FsrsScheduler>();
 
         services.AddSingleton<IFlashcardLibraryService, FlashcardLibraryService>();

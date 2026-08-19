@@ -23,7 +23,8 @@ public sealed class PresetRepository : IPresetRepository
 {
     private const string SelectColumns =
         "Id, Name, NewPerDay, MaxReviewsPerDay, Algorithm, DesiredRetention, LearningStepsJson, " +
-        "RelearnStepsJson, ShuffleOrder, BuryRelated, AutoReveal, WeightsJson, CreatedAt, UpdatedAt";
+        "RelearnStepsJson, ShuffleOrder, BuryRelated, AutoReveal, WeightsJson, CreatedAt, UpdatedAt, " +
+        "NextDayStartsAtHour, LeechThreshold, LeechAction";
 
     public async Task<IReadOnlyList<FlashcardPreset>> ListAsync(SqliteConnection conn, CancellationToken cancellationToken)
     {
@@ -61,14 +62,17 @@ public sealed class PresetRepository : IPresetRepository
         cmd.CommandText = """
             INSERT INTO FlashcardPresets
                 (Id, Name, NewPerDay, MaxReviewsPerDay, Algorithm, DesiredRetention, LearningStepsJson,
-                 RelearnStepsJson, ShuffleOrder, BuryRelated, AutoReveal, WeightsJson, CreatedAt, UpdatedAt)
+                 RelearnStepsJson, ShuffleOrder, BuryRelated, AutoReveal, WeightsJson, CreatedAt, UpdatedAt,
+                 NextDayStartsAtHour, LeechThreshold, LeechAction)
             VALUES
-                ($id, $name, $new, $max, $algo, $ret, $learn, $relearn, $shuffle, $bury, $auto, $weights, $created, $updated)
+                ($id, $name, $new, $max, $algo, $ret, $learn, $relearn, $shuffle, $bury, $auto, $weights, $created, $updated,
+                 $dayStart, $leechAt, $leechDo)
             ON CONFLICT(Id) DO UPDATE SET
                 Name = $name, NewPerDay = $new, MaxReviewsPerDay = $max, Algorithm = $algo,
                 DesiredRetention = $ret, LearningStepsJson = $learn, RelearnStepsJson = $relearn,
                 ShuffleOrder = $shuffle, BuryRelated = $bury, AutoReveal = $auto, WeightsJson = $weights,
-                UpdatedAt = $updated;
+                UpdatedAt = $updated, NextDayStartsAtHour = $dayStart, LeechThreshold = $leechAt,
+                LeechAction = $leechDo;
             """;
         cmd.Parameters.AddWithValue("$id", preset.Id);
         cmd.Parameters.AddWithValue("$name", preset.Name);
@@ -84,6 +88,9 @@ public sealed class PresetRepository : IPresetRepository
         cmd.Parameters.AddWithValue("$weights", (object?)FlashcardSqlMap.DoubleListN(preset.Weights) ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$created", FlashcardSqlMap.Ts(preset.CreatedAt == default ? DateTimeOffset.UtcNow : preset.CreatedAt));
         cmd.Parameters.AddWithValue("$updated", FlashcardSqlMap.Ts(preset.UpdatedAt == default ? DateTimeOffset.UtcNow : preset.UpdatedAt));
+        cmd.Parameters.AddWithValue("$dayStart", preset.DayStartHour);
+        cmd.Parameters.AddWithValue("$leechAt", preset.LeechLapses);
+        cmd.Parameters.AddWithValue("$leechDo", (int)preset.LeechAction);
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -120,5 +127,8 @@ public sealed class PresetRepository : IPresetRepository
         AutoReveal: FlashcardSqlMap.ReadAutoReveal(reader.GetString(10)),
         Weights: FlashcardSqlMap.ReadDoubleListN(FlashcardSqlMap.ReadStringN(reader, 11)),
         CreatedAt: FlashcardSqlMap.ReadTs(reader, 12),
-        UpdatedAt: FlashcardSqlMap.ReadTs(reader, 13));
+        UpdatedAt: FlashcardSqlMap.ReadTs(reader, 13),
+        NextDayStartsAtHour: reader.GetInt32(14),
+        LeechThreshold: reader.GetInt32(15),
+        LeechAction: FlashcardSqlMap.ReadLeechAction(reader.GetInt32(16)));
 }

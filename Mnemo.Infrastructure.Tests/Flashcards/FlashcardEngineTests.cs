@@ -11,8 +11,16 @@ namespace Mnemo.Infrastructure.Tests.Flashcards;
 
 public sealed class FlashcardEngineTests
 {
-    private static readonly FlashcardPreset Preset = FlashcardPreset.CreateStandard(DateTimeOffset.UtcNow);
-    private readonly FsrsScheduler _scheduler = new();
+    /// <summary>A fixed instant, so day snapping lands the same way on every machine and every run.</summary>
+    private static readonly DateTimeOffset Now = new(2026, 3, 5, 9, 30, 0, TimeSpan.Zero);
+
+    private static readonly FlashcardPreset Preset = FlashcardPreset.CreateStandard(Now);
+    private static readonly FlashcardClock Clock = new(new TestTimeProvider(Now));
+    private readonly FsrsScheduler _scheduler = new(Clock);
+
+    /// <summary>How many study days out a graduated card landed, which is what its interval means.</summary>
+    private static int DueInDays(FlashcardSchedule s, DateTimeOffset now) =>
+        Clock.DaysBetween(now, s.DueDate, Preset.DayStartHour);
 
     // --- Scheduler ---
 
@@ -34,7 +42,7 @@ public sealed class FlashcardEngineTests
         var next = _scheduler.ApplyGrade(FlashcardSchedule.NewFor("c", now), FlashcardReviewGrade.Easy, now, Preset);
 
         Assert.Equal(FlashcardFsrsState.Review, next.FsrsState);
-        Assert.True((next.DueDate - now).TotalDays >= 1);
+        Assert.True(DueInDays(next, now) >= 1);
     }
 
     [Fact]
@@ -49,7 +57,7 @@ public sealed class FlashcardEngineTests
 
         var graduated = _scheduler.ApplyGrade(step1, FlashcardReviewGrade.Good, now, Preset);
         Assert.Equal(FlashcardFsrsState.Review, graduated.FsrsState);
-        Assert.True((graduated.DueDate - now).TotalDays >= 1);
+        Assert.True(DueInDays(graduated, now) >= 1);
     }
 
     [Fact]
@@ -98,9 +106,9 @@ public sealed class FlashcardEngineTests
     public async Task Review_HonoursNewPerDayCap()
     {
         await using var h = new FlashcardStoreHarness();
-        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
-        var lib = new FlashcardLibraryService(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
+        var lib = new FlashcardLibraryService(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
         var study = Study(h);
 
         var preset = await presetSvc.SavePresetAsync(FlashcardPreset.CreateStandard(DateTimeOffset.UtcNow)
@@ -116,7 +124,7 @@ public sealed class FlashcardEngineTests
         while (!session.IsFinished)
             await session.GradeAsync(FlashcardReviewGrade.Easy);
 
-        var stat = await h.Store.ReadAsync((c, ct) => h.DailyStats.GetAsync(c, deck.Id, FlashcardLocalDay.Today(), ct));
+        var stat = await h.Store.ReadAsync((c, ct) => h.DailyStats.GetAsync(c, deck.Id, h.Clock.TodayKey(FlashcardPreset.DefaultNextDayStartsAtHour), ct));
         Assert.Equal(2, stat.NewIntroduced);
     }
 
@@ -124,8 +132,8 @@ public sealed class FlashcardEngineTests
     public async Task Review_HonoursMaxReviewsPerDayCap()
     {
         await using var h = new FlashcardStoreHarness();
-        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
-        var lib = new FlashcardLibraryService(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
+        var lib = new FlashcardLibraryService(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
         var study = Study(h);
 
         // NewPerDay 0 keeps new cards out, so only the review budget shapes the queue.
@@ -255,7 +263,7 @@ public sealed class FlashcardEngineTests
         var scheduleBefore = (await h.Store.ReadAsync((c, ct) => h.Schedules.GetAsync(c, "a", ct)))!;
         var reviewsBefore = await h.Store.ReadAsync((c, ct) => h.Reviews.CountForDeckAsync(c, deckId, ct));
 
-        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts);
+        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts, h.Decks, h.Presets, h.Clock);
         var startedAt = DateTimeOffset.UtcNow.AddMinutes(-3);
         // (GotIt*1 + Close*0.5) / CardsTested * 100 = (2 + 0.5) / 4 * 100 = 62.5
         var attempt = new FlashcardTestAttempt(
@@ -291,7 +299,7 @@ public sealed class FlashcardEngineTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts);
+        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts, h.Decks, h.Presets, h.Clock);
         var now = DateTimeOffset.UtcNow;
 
         await stats.RecordTestAttemptAsync(new FlashcardTestAttempt(
@@ -311,8 +319,74 @@ public sealed class FlashcardEngineTests
         Assert.Equal(new[] { 50.0, 75.0 }, trend.Select(a => a.ScorePct));
     }
 
+    [Fact]
+    public async Task Review_LearningStepsAndNewCards_DoNotSpendTheReviewCap()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var deckId = await h.SeedDeckAsync();
+        var study = Study(h);
+        await AddReviewCardAsync(h, deckId, "already-in-review");
+        await h.AddCardAsync(
+            FlashcardStoreHarness.Card("brand-new", deckId, "Front", "Back"),
+            FlashcardSchedule.NewFor("brand-new", h.Clock.Now));
+
+        var session = await study.StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+        while (!session.IsFinished)
+            await session.GradeAsync(FlashcardReviewGrade.Good);
+
+        var logged = await h.Store.ReadAsync((c, ct) => h.Reviews.CountForDeckAsync(c, deckId, ct));
+        var stat = await h.Store.ReadAsync((c, ct) => h.DailyStats.GetAsync(c, deckId, h.Clock.TodayKey(FlashcardPreset.DefaultNextDayStartsAtHour), ct));
+        // The new card is answered three times on its way through the learning steps, so the
+        // session logs four answers in all. Only the card that arrived in review spends the cap.
+        Assert.Equal(4, logged);
+        Assert.Equal(1, stat.ReviewsDone);
+        Assert.Equal(1, stat.NewIntroduced);
+    }
+
+    [Fact]
+    public async Task Review_LogsTheStateTheCardWasIn_BeforeTheGrade()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var deckId = await h.SeedDeckAsync();
+        var study = Study(h);
+        await h.AddCardAsync(
+            FlashcardStoreHarness.Card("c1", deckId, "Front", "Back"),
+            FlashcardSchedule.NewFor("c1", h.Clock.Now));
+
+        var session = await study.StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+        await session.GradeAsync(FlashcardReviewGrade.Good); // new card enters the first learning step
+        await session.GradeAsync(FlashcardReviewGrade.Good); // and advances to the second
+
+        var pairs = await ReadStatePairsAsync(h, "c1");
+        Assert.Equal(
+            new (FlashcardFsrsState? Before, FlashcardFsrsState After)[]
+            {
+                (FlashcardFsrsState.New, FlashcardFsrsState.Learning),
+                (FlashcardFsrsState.Learning, FlashcardFsrsState.Learning),
+            },
+            pairs);
+    }
+
     private static FlashcardStudyService Study(FlashcardStoreHarness h) =>
-        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler());
+        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler(h.Clock), h.Clock);
+
+    private static Task<(FlashcardFsrsState? Before, FlashcardFsrsState After)[]> ReadStatePairsAsync(
+        FlashcardStoreHarness h, string cardId) =>
+        h.Store.ReadAsync(async (conn, ct) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT StateBefore, StateAfter FROM FlashcardReviews WHERE CardId = $card ORDER BY Id;";
+            cmd.Parameters.AddWithValue("$card", cardId);
+            var rows = new List<(FlashcardFsrsState?, FlashcardFsrsState)>();
+            await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
+            {
+                rows.Add((
+                    reader.IsDBNull(0) ? null : (FlashcardFsrsState)reader.GetInt32(0),
+                    (FlashcardFsrsState)reader.GetInt32(1)));
+            }
+            return rows.ToArray();
+        });
 
     private static Task AddReviewCardAsync(FlashcardStoreHarness h, string deckId, string id)
     {

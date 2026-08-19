@@ -27,6 +27,12 @@ public static class PresetEndpoints
     private const int MaxLearningSteps = 5;
 
     /// <summary>
+    /// The most lapses a card may be allowed before it is called a leech. Mirrors the domain's own
+    /// clamp, so a value past it is refused here rather than silently pulled back on save.
+    /// </summary>
+    private const int MaxLeechThreshold = FlashcardPreset.MaxLeechThreshold;
+
+    /// <summary>
     /// A year, in minutes. A learning step is a short intra-session interval, and the scheduler
     /// adds it straight to the due date without complaint - a step of a billion minutes parks the
     /// card several thousand years out, where nothing errors and the card simply stops appearing.
@@ -71,7 +77,7 @@ public static class PresetEndpoints
         IFlashcardPresetService presets,
         CancellationToken cancellationToken)
     {
-        if (Validate(body, out var name, out var autoReveal, out var error))
+        if (Validate(body, out var name, out var autoReveal, out var leechAction, out var error))
             return error;
 
         // Seeded from Standard so the fields with no editor - relearn steps, weights, algorithm -
@@ -89,6 +95,9 @@ public static class PresetEndpoints
                 ShuffleOrder = body.ShuffleOrder,
                 BuryRelated = body.BuryRelated,
                 AutoReveal = autoReveal,
+                NextDayStartsAtHour = body.NextDayStartsAtHour ?? standard.NextDayStartsAtHour,
+                LeechThreshold = body.LeechThreshold ?? standard.LeechThreshold,
+                LeechAction = leechAction ?? standard.LeechAction,
                 CreatedAt = default,
             },
             cancellationToken).ConfigureAwait(false);
@@ -105,7 +114,7 @@ public static class PresetEndpoints
         if (string.IsNullOrWhiteSpace(presetId))
             return Results.BadRequest(new ErrorDto("preset_required", "A preset must be named."));
 
-        if (Validate(body, out var name, out var autoReveal, out var error))
+        if (Validate(body, out var name, out var autoReveal, out var leechAction, out var error))
             return error;
 
         var stored = await presets.GetPresetAsync(presetId, cancellationToken).ConfigureAwait(false);
@@ -125,6 +134,9 @@ public static class PresetEndpoints
                 ShuffleOrder = body.ShuffleOrder,
                 BuryRelated = body.BuryRelated,
                 AutoReveal = autoReveal,
+                NextDayStartsAtHour = body.NextDayStartsAtHour ?? stored.NextDayStartsAtHour,
+                LeechThreshold = body.LeechThreshold ?? stored.LeechThreshold,
+                LeechAction = leechAction ?? stored.LeechAction,
             },
             cancellationToken).ConfigureAwait(false);
 
@@ -216,9 +228,11 @@ public static class PresetEndpoints
         SavePresetDto body,
         out string name,
         out FlashcardAutoReveal autoReveal,
+        out FlashcardLeechAction? leechAction,
         out IResult error)
     {
         autoReveal = FlashcardAutoReveal.Off;
+        leechAction = null;
         name = body.Name?.Trim() ?? string.Empty;
 
         if (name.Length == 0)
@@ -257,6 +271,28 @@ public static class PresetEndpoints
         {
             error = Results.BadRequest(new ErrorDto("invalid_auto_reveal", $"Unknown auto-reveal '{body.AutoReveal}'."));
             return true;
+        }
+
+        if (body.NextDayStartsAtHour is { } hour && (hour < 0 || hour > 23))
+        {
+            error = Results.BadRequest(new ErrorDto("invalid_day_start", "The next day must start at an hour between 0 and 23."));
+            return true;
+        }
+
+        if (body.LeechThreshold is { } lapses && (lapses < 1 || lapses > MaxLeechThreshold))
+        {
+            error = Results.BadRequest(new ErrorDto("invalid_leech_threshold", $"The lapse limit must be between 1 and {MaxLeechThreshold}."));
+            return true;
+        }
+
+        if (body.LeechAction is not null)
+        {
+            if (!FlashcardWire.TryParseLeechAction(body.LeechAction, out var parsed))
+            {
+                error = Results.BadRequest(new ErrorDto("invalid_leech_action", $"Unknown leech action '{body.LeechAction}'."));
+                return true;
+            }
+            leechAction = parsed;
         }
 
         error = Results.Empty;
