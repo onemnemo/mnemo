@@ -255,6 +255,7 @@
     "StudyEdit": "Edit card",
     "StudyFlag": "Flag card",
     "StudyUndo": "Undo last review",
+    "StudyMathUnreadable": "This formula could not be read",
     "StudyAllCaughtUpTitle": "All caught up",
     "StudyAllCaughtUpDesc": "Nothing is scheduled right now. Use Cram from the deck to keep practicing.",
     "StudyCompleteTitle": "Session complete",
