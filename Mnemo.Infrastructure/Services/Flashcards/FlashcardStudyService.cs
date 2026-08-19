@@ -21,6 +21,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
     private readonly IDailyStatsRepository _dailyStats;
     private readonly ICardRepository _cards;
     private readonly IFsrsScheduler _scheduler;
+    private readonly FlashcardClock _clock;
 
     public FlashcardStudyService(
         IFlashcardStore store,
@@ -30,7 +31,8 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
         IReviewRepository reviews,
         IDailyStatsRepository dailyStats,
         ICardRepository cards,
-        IFsrsScheduler scheduler)
+        IFsrsScheduler scheduler,
+        FlashcardClock clock)
     {
         _store = store;
         _decks = decks;
@@ -40,6 +42,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
         _dailyStats = dailyStats;
         _cards = cards;
         _scheduler = scheduler;
+        _clock = clock;
     }
 
     public Task<FlashcardDueCounts> GetDueCountsAsync(string deckId, CancellationToken cancellationToken = default) =>
@@ -48,11 +51,11 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             var header = await _decks.GetHeaderAsync(conn, deckId, ct).ConfigureAwait(false);
             if (header is null)
                 return FlashcardDueCounts.Empty;
-            var now = DateTimeOffset.UtcNow;
+            var now = _clock.Now;
             var raw = await _schedules.GetRawDueCountsAsync(conn, deckId, now, ct).ConfigureAwait(false);
             var preset = await _presets.GetAsync(conn, header.PresetId, ct).ConfigureAwait(false)
                          ?? FlashcardPreset.CreateStandard(now);
-            var stat = await _dailyStats.GetAsync(conn, deckId, FlashcardLocalDay.Today(), ct).ConfigureAwait(false);
+            var stat = await _dailyStats.GetAsync(conn, deckId, _clock.TodayKey(), ct).ConfigureAwait(false);
             return FlashcardDueCalculator.Cap(raw, preset, stat);
         }, cancellationToken);
 
@@ -65,7 +68,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             // Ninety days is the ceiling because past it the projection stops describing a schedule
             // and starts describing FSRS's own interval growth.
             var span = Math.Clamp(days, 1, 90);
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var today = DateOnly.FromDateTime(_clock.Now.UtcDateTime);
 
             // Today comes off the same cap-aware aggregate the due-today banner uses rather than off
             // the day query below, so the first column of the chart and the number beside it are one
@@ -100,8 +103,8 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
         foreach (var p in presets)
             byId[p.Id] = p;
 
-        var now = DateTimeOffset.UtcNow;
-        var today = FlashcardLocalDay.Today();
+        var now = _clock.Now;
+        var today = _clock.TodayKey();
         var total = FlashcardDueCounts.Empty;
         foreach (var header in headers)
         {
@@ -121,7 +124,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
 
         var (preset, queue) = await _store.ReadAsync(async (conn, ct) =>
         {
-            var now = DateTimeOffset.UtcNow;
+            var now = _clock.Now;
             var header = await _decks.GetHeaderAsync(conn, request.DeckId, ct).ConfigureAwait(false);
             var deckPreset = header is null
                 ? FlashcardPreset.CreateStandard(now)
@@ -130,7 +133,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             var items = new List<FlashcardView>();
             if (request.Mode == FlashcardSessionMode.Review)
             {
-                var stat = await _dailyStats.GetAsync(conn, request.DeckId, FlashcardLocalDay.Today(), ct).ConfigureAwait(false);
+                var stat = await _dailyStats.GetAsync(conn, request.DeckId, _clock.TodayKey(), ct).ConfigureAwait(false);
                 var newBudget = Math.Max(0, deckPreset.NewPerDay - stat.NewIntroduced);
                 var reviewBudget = Math.Max(0, deckPreset.MaxReviewsPerDay - stat.ReviewsDone);
 
@@ -151,7 +154,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             ? queue.OrderBy(_ => Guid.NewGuid()).ToList()
             : queue;
 
-        return new FlashcardStudySession(this, _scheduler, preset, request.Mode, request.DeckId, ordered);
+        return new FlashcardStudySession(this, _scheduler, _clock, preset, request.Mode, request.DeckId, ordered);
     }
 
     public Task<long> RecordReviewAsync(FlashcardReviewEntry entry, CancellationToken cancellationToken = default)

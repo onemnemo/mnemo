@@ -22,6 +22,7 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
     private readonly IReviewRepository _reviews;
     private readonly IDailyStatsRepository _dailyStats;
     private readonly IPresetRepository _presets;
+    private readonly FlashcardClock _clock;
 
     public FlashcardLibraryService(
         IFlashcardStore store,
@@ -31,7 +32,8 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
         IScheduleRepository schedules,
         IReviewRepository reviews,
         IDailyStatsRepository dailyStats,
-        IPresetRepository presets)
+        IPresetRepository presets,
+        FlashcardClock clock)
     {
         _store = store;
         _folders = folders;
@@ -41,6 +43,7 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
         _reviews = reviews;
         _dailyStats = dailyStats;
         _presets = presets;
+        _clock = clock;
     }
 
     public Task<IReadOnlyList<FlashcardFolder>> ListFoldersAsync(CancellationToken cancellationToken = default) =>
@@ -55,8 +58,8 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
             foreach (var p in presets)
                 byId[p.Id] = p;
 
-            var now = DateTimeOffset.UtcNow;
-            var today = FlashcardLocalDay.Today();
+            var now = _clock.Now;
+            var today = _clock.TodayKey();
             var summaries = new List<FlashcardDeckSummary>(headers.Count);
             foreach (var header in headers)
             {
@@ -72,21 +75,21 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
             var header = await _decks.GetHeaderAsync(conn, deckId, ct).ConfigureAwait(false);
             if (header is null)
                 return null;
-            var now = DateTimeOffset.UtcNow;
+            var now = _clock.Now;
             var preset = await _presets.GetAsync(conn, header.PresetId, ct).ConfigureAwait(false)
                          ?? FlashcardPreset.CreateStandard(now);
-            return await BuildSummaryAsync(conn, header, preset, now, FlashcardLocalDay.Today(), ct).ConfigureAwait(false);
+            return await BuildSummaryAsync(conn, header, preset, now, _clock.TodayKey(), ct).ConfigureAwait(false);
         }, cancellationToken);
 
     public Task SaveFolderAsync(FlashcardFolder folder, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(folder);
-        return _store.WriteAsync((conn, tx, ct) => _folders.UpsertAsync(conn, tx, folder, DateTimeOffset.UtcNow, ct), cancellationToken);
+        return _store.WriteAsync((conn, tx, ct) => _folders.UpsertAsync(conn, tx, folder, _clock.Now, ct), cancellationToken);
     }
 
     public async Task<FlashcardDeckHeader> CreateDeckAsync(string name, string? folderId = null, string? presetId = null, CancellationToken cancellationToken = default)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.Now;
         var effectivePreset = presetId;
         if (string.IsNullOrEmpty(effectivePreset))
         {
@@ -121,12 +124,12 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
     }
 
     public Task MoveDeckAsync(string deckId, string? folderId, int sortOrder, CancellationToken cancellationToken = default) =>
-        _store.WriteAsync((conn, tx, ct) => _decks.MoveAsync(conn, tx, deckId, folderId, sortOrder, DateTimeOffset.UtcNow, ct), cancellationToken);
+        _store.WriteAsync((conn, tx, ct) => _decks.MoveAsync(conn, tx, deckId, folderId, sortOrder, _clock.Now, ct), cancellationToken);
 
     public Task ReorderAsync(IReadOnlyList<FlashcardOrderEntry> entries, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.Now;
         return _store.WriteAsync(async (conn, tx, ct) =>
         {
             foreach (var e in entries)

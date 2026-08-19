@@ -88,7 +88,7 @@ public sealed class FlashcardForecastTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
         await cards.CreateCardsAsync(deckId, Enumerable.Range(0, 4)
             .Select(i => new FlashcardCardDraft(deckId, FlashcardType.Classic, $"Q{i}", "A",
                 Array.Empty<string>(), Array.Empty<FlashcardAttachment>()))
@@ -134,5 +134,5 @@ public sealed class FlashcardForecastTests
     }
 
     private static FlashcardStudyService NewStudy(FlashcardStoreHarness h) =>
-        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler());
+        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler(), h.Clock);
 }
