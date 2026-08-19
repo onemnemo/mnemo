@@ -193,6 +193,8 @@
     "ReviewSettingsRetentionDescription": "Höher bedeutet häufigere Wiederholungen",
     "ReviewSettingsLearningStepsTitle": "Lernschritte",
     "ReviewSettingsLearningStepsDescription": "Minuten durch Leerzeichen getrennt, z. B. \"1m 10m\"",
+    "ReviewSettingsDayStartTitle": "Nächster Tag beginnt um",
+    "ReviewSettingsDayStartDescription": "Wiederholungen vor dieser Uhrzeit zählen noch zum Vortag",
     "ReviewSettingsSessionLabel": "SITZUNG",
     "ReviewSettingsShuffleTitle": "Kartenreihenfolge mischen",
     "ReviewSettingsBuryTitle": "Verwandte Karten bis morgen zurückstellen",

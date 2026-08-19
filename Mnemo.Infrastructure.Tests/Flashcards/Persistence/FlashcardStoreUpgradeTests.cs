@@ -73,6 +73,36 @@ public sealed class FlashcardStoreUpgradeTests
         }
     }
 
+    [Fact]
+    public async Task A_preset_saved_before_the_rollover_hour_reads_back_with_the_default()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"mnemo_fc_v1_{Guid.NewGuid():N}.db");
+        try
+        {
+            await WriteVersionOneAsync(path);
+            await InsertVersionOneDeckAsync(path, "deck-1", "Antiarrhythmics");
+
+            var presets = new PresetRepository();
+            await using var store = new FlashcardStore(new TestLogger(), path);
+            await store.InitializeAsync();
+
+            // The column arrives with a default rather than a null, so a collection that predates
+            // the setting keeps the day it always had instead of quietly moving to midnight.
+            var before = await store.ReadAsync((conn, ct) => presets.GetAsync(conn, FlashcardPreset.StandardPresetId, ct));
+            Assert.NotNull(before);
+            Assert.Equal(FlashcardPreset.DefaultNextDayStartsAtHour, before!.NextDayStartsAtHour);
+
+            await store.WriteAsync((conn, tx, ct) => presets.UpsertAsync(conn, tx, before with { NextDayStartsAtHour = 2 }, ct));
+
+            var after = await store.ReadAsync((conn, ct) => presets.GetAsync(conn, FlashcardPreset.StandardPresetId, ct));
+            Assert.Equal(2, after!.NextDayStartsAtHour);
+        }
+        finally
+        {
+            Delete(path);
+        }
+    }
+
     /// <summary>
     /// The v1 shape, written by hand: the decks table without Icon, plus the version stamp
     /// that stops a plain version check from doing any work.

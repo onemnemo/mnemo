@@ -22,6 +22,7 @@ public sealed record PresetDto(
     bool ShuffleOrder,
     bool BuryRelated,
     string AutoReveal,
+    int NextDayStartsAtHour,
     int DeckCount,
     bool IsStandard,
     DateTimeOffset CreatedAt,
@@ -39,6 +40,7 @@ public sealed record PresetDto(
             model.ShuffleOrder,
             model.BuryRelated,
             FlashcardWire.AutoReveal(model.AutoReveal),
+            model.DayStartHour,
             deckCount,
             string.Equals(model.Id, FlashcardPreset.StandardPresetId, StringComparison.Ordinal),
             model.CreatedAt,
@@ -63,7 +65,10 @@ public sealed record SavePresetDto(
     IReadOnlyList<int> LearningSteps,
     bool ShuffleOrder,
     bool BuryRelated,
-    string AutoReveal);
+    string AutoReveal,
+    // Optional so a client that predates the setting keeps the stored hour instead of sending
+    // nothing and having it read as midnight.
+    int? NextDayStartsAtHour = null);
 
 /// <summary>Re-binds a deck to a preset. Sent by the dialog when it was opened from a deck.</summary>
 public sealed record AssignPresetDto(string PresetId);

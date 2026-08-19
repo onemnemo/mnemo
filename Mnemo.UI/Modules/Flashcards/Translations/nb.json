@@ -193,6 +193,8 @@
     "ReviewSettingsRetentionDescription": "Høyere verdi gir hyppigere repetisjoner",
     "ReviewSettingsLearningStepsTitle": "Læringstrinn",
     "ReviewSettingsLearningStepsDescription": "Minutter atskilt med mellomrom, f.eks. \"1m 10m\"",
+    "ReviewSettingsDayStartTitle": "Neste dag starter klokken",
+    "ReviewSettingsDayStartDescription": "Repetisjoner før denne timen teller fortsatt til dagen før",
     "ReviewSettingsSessionLabel": "ØKT",
     "ReviewSettingsShuffleTitle": "Bland kortrekkefølgen",
     "ReviewSettingsBuryTitle": "Utsett relaterte kort til i morgen",

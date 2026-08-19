@@ -193,6 +193,8 @@
     "ReviewSettingsRetentionDescription": "Higher means more frequent reviews",
     "ReviewSettingsLearningStepsTitle": "Learning steps",
     "ReviewSettingsLearningStepsDescription": "Space-separated minutes, e.g. \"1m 10m\"",
+    "ReviewSettingsDayStartTitle": "Next day starts at",
+    "ReviewSettingsDayStartDescription": "Reviews before this hour still count towards the previous day",
     "ReviewSettingsSessionLabel": "SESSION",
     "ReviewSettingsShuffleTitle": "Shuffle card order",
     "ReviewSettingsBuryTitle": "Bury related cards until tomorrow",

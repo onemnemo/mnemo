@@ -193,6 +193,8 @@
     "ReviewSettingsRetentionDescription": "Un valor más alto implica repasos más frecuentes",
     "ReviewSettingsLearningStepsTitle": "Pasos de aprendizaje",
     "ReviewSettingsLearningStepsDescription": "Minutos separados por espacios, p. ej. \"1m 10m\"",
+    "ReviewSettingsDayStartTitle": "El día siguiente empieza a las",
+    "ReviewSettingsDayStartDescription": "Los repasos anteriores a esta hora siguen contando para el día anterior",
     "ReviewSettingsSessionLabel": "SESIÓN",
     "ReviewSettingsShuffleTitle": "Mezclar el orden de las tarjetas",
     "ReviewSettingsBuryTitle": "Posponer tarjetas relacionadas hasta mañana",
