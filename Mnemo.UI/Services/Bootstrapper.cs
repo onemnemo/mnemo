@@ -72,6 +72,7 @@ public static class Bootstrapper
         services.AddSingleton<IMainThreadDispatcher, AvaloniaMainThreadDispatcher>();
         services.AddSingleton(sp => new NotesToolService(
             sp.GetRequiredService<INoteService>(),
+            sp.GetRequiredService<INoteCommitStore>(),
             sp.GetRequiredService<INavigationService>(),
             sp.GetRequiredService<IMainThreadDispatcher>(),
             sp.GetService<INoteFolderService>()));
