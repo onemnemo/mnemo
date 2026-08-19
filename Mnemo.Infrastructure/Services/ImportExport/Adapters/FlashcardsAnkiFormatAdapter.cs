@@ -11,6 +11,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services.ImportExport.Adapters.Anki;
 
 namespace Mnemo.Infrastructure.Services.ImportExport.Adapters;
 
@@ -94,8 +95,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         try
         {
             await using var opened = await OpenApkgAsync(request.FilePath, cancellationToken).ConfigureAwait(false);
+            warnings.AddRange(opened.Warnings);
             var collectionInfo = await ReadCollectionInfoAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
-            var mediaMap = await ReadMediaMapAsync(opened.TempDirectory, cancellationToken).ConfigureAwait(false);
             var notes = await ReadNotesAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
             var cards = await ReadCardsAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
             foreach (var note in notes.Values)
@@ -134,9 +135,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     // FlashcardAttachments (up to 3 per side); the block pipeline no longer emits image
                     // blocks — the canonical body is the text field, attachments render as framed figures.
                     var front = await BuildSideAsync(
-                        frontHtml, FlashcardAttachment.FrontSide, opened.TempDirectory, mediaMap, warnings, cancellationToken).ConfigureAwait(false);
+                        frontHtml, FlashcardAttachment.FrontSide, opened.TempDirectory, opened.Media, warnings, cancellationToken).ConfigureAwait(false);
                     var back = await BuildSideAsync(
-                        backHtml, FlashcardAttachment.BackSide, opened.TempDirectory, mediaMap, warnings, cancellationToken).ConfigureAwait(false);
+                        backHtml, FlashcardAttachment.BackSide, opened.TempDirectory, opened.Media, warnings, cancellationToken).ConfigureAwait(false);
 
                     var attachments = front.Attachments.Count == 0 && back.Attachments.Count == 0
                         ? (IReadOnlyList<FlashcardAttachment>)Array.Empty<FlashcardAttachment>()
@@ -330,23 +331,21 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         Directory.CreateDirectory(tempDirectory);
         try
         {
-            ZipFile.ExtractToDirectory(apkgPath, tempDirectory);
-
-            var dbPath = Path.Combine(tempDirectory, "collection.anki21");
-            if (!File.Exists(dbPath))
-                dbPath = Path.Combine(tempDirectory, "collection.anki2");
-            if (!File.Exists(dbPath))
-                throw new InvalidOperationException("Package does not contain collection.anki21 or collection.anki2.");
+            var contents = await AnkiPackageReader.ExtractAsync(apkgPath, tempDirectory, cancellationToken).ConfigureAwait(false);
 
             var connectionString = new SqliteConnectionStringBuilder
             {
-                DataSource = dbPath,
+                DataSource = contents.CollectionPath,
                 Mode = SqliteOpenMode.ReadOnly,
                 Pooling = false
             }.ToString();
             var connection = new SqliteConnection(connectionString);
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-            return new OpenedApkg(tempDirectory, connection);
+            return new OpenedApkg(
+                tempDirectory,
+                connection,
+                MediaIndex.FromStoredNames(contents.MediaNamesByStoredName),
+                contents.Warnings);
         }
         catch
         {
@@ -380,7 +379,62 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         var createdAt = ParseCollectionCreatedAt(crt);
         var deckNames = ParseNameMap(decksJson);
         var modelNames = ParseNameMap(modelsJson);
+
+        // Newer collections blank these two columns and keep the names in tables of their own.
+        // Without the fallback every deck in a modern package would import under a placeholder name.
+        await reader.CloseAsync().ConfigureAwait(false);
+        if (deckNames.Count == 0)
+            deckNames = await ReadNameTableAsync(connection, "decks", cancellationToken).ConfigureAwait(false);
+        if (modelNames.Count == 0)
+            modelNames = await ReadNameTableAsync(connection, "notetypes", cancellationToken).ConfigureAwait(false);
+
         return new CollectionInfo(createdAt, deckNames, modelNames);
+    }
+
+    /// <summary>
+    /// Reads an id-to-name table from a collection that keeps its names relationally. Deck names
+    /// there separate the levels of a hierarchy with a unit separator, normalized here to the
+    /// spelling every other collection version uses.
+    /// </summary>
+    private static async Task<Dictionary<long, string>> ReadNameTableAsync(
+        SqliteConnection connection,
+        string tableName,
+        CancellationToken cancellationToken)
+    {
+        var map = new Dictionary<long, string>();
+        if (!await TableExistsAsync(connection, tableName, cancellationToken).ConfigureAwait(false))
+            return map;
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT id, name FROM {tableName}";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                if (reader.IsDBNull(0) || reader.IsDBNull(1))
+                    continue;
+
+                map[reader.GetInt64(0)] = reader.GetString(1).Replace(UnitSeparator.ToString(), "::", StringComparison.Ordinal);
+            }
+        }
+        catch (SqliteException)
+        {
+            // These tables declare a collation Anki registers at runtime and plain SQLite does not
+            // know. Losing the names costs placeholder deck titles; failing here would cost the
+            // whole import.
+            map.Clear();
+        }
+
+        return map;
+    }
+
+    private static async Task<bool> TableExistsAsync(SqliteConnection connection, string tableName, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $name LIMIT 1";
+        command.Parameters.AddWithValue("$name", tableName);
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not null;
     }
 
     private static Dictionary<long, string> ParseNameMap(string json)
@@ -396,17 +450,6 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         }
 
         return map;
-    }
-
-    private static async Task<MediaIndex> ReadMediaMapAsync(string tempDirectory, CancellationToken cancellationToken)
-    {
-        var mediaPath = Path.Combine(tempDirectory, "media");
-        if (!File.Exists(mediaPath))
-            return MediaIndex.Empty;
-
-        var json = await File.ReadAllTextAsync(mediaPath, cancellationToken).ConfigureAwait(false);
-        var map = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-        return map is null ? MediaIndex.Empty : MediaIndex.FromStoredNames(map);
     }
 
     private static async Task<Dictionary<long, NoteRow>> ReadNotesAsync(SqliteConnection connection, CancellationToken cancellationToken)
@@ -1205,7 +1248,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return ParseUnixTimestamp(crtRaw);
     }
 
-    private sealed record OpenedApkg(string TempDirectory, SqliteConnection Connection) : IAsyncDisposable
+    private sealed record OpenedApkg(
+        string TempDirectory,
+        SqliteConnection Connection,
+        MediaIndex Media,
+        IReadOnlyList<string> Warnings) : IAsyncDisposable
     {
         public async ValueTask DisposeAsync()
         {

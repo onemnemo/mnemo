@@ -22,6 +22,7 @@ namespace Mnemo.Infrastructure.Tests.Flashcards;
 /// <see cref="FlashcardAttachment"/>s (up to 3 per side; overflow appended as inline markdown tokens)
 /// rather than image blocks. The canonical body is the text field and blocks carry no image payloads.
 /// </summary>
+[Collection(AnkiPackageFixture.TestCollection)]
 public sealed class FlashcardAnkiImportTests
 {
     private const char UnitSeparator = '';
@@ -259,6 +260,47 @@ public sealed class FlashcardAnkiImportTests
         }
     }
 
+    [Fact]
+    public async Task Import_PackageEntryEscapingTheWorkingDirectory_WritesNothingOutside()
+    {
+        await using var h = new FlashcardStoreHarness();
+        await h.Store.InitializeAsync();
+        var library = NewLibrary(h);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
+
+        var apkg = await BuildApkgAsync("Escape", "front", "back", new Dictionary<string, byte[]>());
+        var escapeName = $"mnemo_anki_escape_{Guid.NewGuid():N}.png";
+        var escapePath = Path.Combine(Path.GetTempPath(), escapeName);
+
+        // The working directory sits directly under the temp directory, so one level up is enough
+        // for an archive entry to plant a file where nothing asked it to.
+        await using (var file = File.Open(apkg, FileMode.Open, FileAccess.ReadWrite))
+        using (var archive = new ZipArchive(file, ZipArchiveMode.Update))
+        {
+            var entry = archive.CreateEntry("../" + escapeName, CompressionLevel.NoCompression);
+            await using var stream = entry.Open();
+            await stream.WriteAsync(PngBytes());
+        }
+
+        try
+        {
+            var before = LeftoverImportDirectories();
+
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+
+            Assert.False(result.Success);
+            Assert.False(File.Exists(escapePath));
+            Assert.Equal(before, LeftoverImportDirectories());
+        }
+        finally
+        {
+            File.Delete(apkg);
+            File.Delete(escapePath);
+        }
+    }
+
     // --- helpers ---
 
     /// <summary>A real 1x1 PNG, so the import stores what the bytes actually are.</summary>
@@ -288,84 +330,14 @@ public sealed class FlashcardAnkiImportTests
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
         new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets);
 
-    /// <summary>
-    /// Writes a minimal single-note, single-card Anki package (collection.anki2 + media map + files).
-    /// </summary>
-    private static async Task<string> BuildApkgAsync(
+    /// <summary>Writes a minimal single-note, single-card package in the older layout.</summary>
+    private static Task<string> BuildApkgAsync(
         string deckName,
         string frontHtml,
         string backHtml,
-        IReadOnlyDictionary<string, byte[]> media)
-    {
-        var tempRoot = Path.Combine(Path.GetTempPath(), $"mnemo_anki_fixture_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempRoot);
-
-        var dbPath = Path.Combine(tempRoot, "collection.anki2");
-        await using (var conn = new SqliteConnection($"Data Source={dbPath};Pooling=False"))
-        {
-            await conn.OpenAsync();
-            await ExecAsync(conn, """
-                CREATE TABLE col (id INTEGER PRIMARY KEY, crt INTEGER, mod INTEGER, scm INTEGER, ver INTEGER,
-                    dty INTEGER, usn INTEGER, ls INTEGER, conf TEXT, models TEXT, decks TEXT, dconf TEXT, tags TEXT);
-                CREATE TABLE notes (id INTEGER PRIMARY KEY, guid TEXT, mid INTEGER, mod INTEGER, usn INTEGER,
-                    tags TEXT, flds TEXT, sfld TEXT, csum INTEGER, flags INTEGER, data TEXT);
-                CREATE TABLE cards (id INTEGER PRIMARY KEY, nid INTEGER, did INTEGER, ord INTEGER, mod INTEGER,
-                    usn INTEGER, type INTEGER, queue INTEGER, due INTEGER, ivl INTEGER, factor INTEGER,
-                    reps INTEGER, lapses INTEGER, left INTEGER, odue INTEGER, odid INTEGER, flags INTEGER, data TEXT);
-                """);
-
-            const long did = 1500000000001L;
-            const long mid = 1608194021001L;
-            var decksJson = JsonSerializer.Serialize(new Dictionary<string, object?>
-            {
-                [did.ToString(CultureInfo.InvariantCulture)] = new Dictionary<string, object?> { ["id"] = did, ["name"] = deckName }
-            });
-            var modelsJson = JsonSerializer.Serialize(new Dictionary<string, object?>
-            {
-                [mid.ToString(CultureInfo.InvariantCulture)] = new Dictionary<string, object?> { ["id"] = mid, ["name"] = "Basic" }
-            });
-
-            await ExecAsync(conn,
-                "INSERT INTO col(id,crt,mod,scm,ver,dty,usn,ls,conf,models,decks,dconf,tags) " +
-                "VALUES(1, 0, 0, 0, 11, 0, 0, 0, '{}', @models, @decks, '{}', '{}');",
-                ("@models", modelsJson), ("@decks", decksJson));
-
-            var flds = $"{frontHtml}{UnitSeparator}{backHtml}";
-            await ExecAsync(conn,
-                "INSERT INTO notes(id,guid,mid,mod,usn,tags,flds,sfld,csum,flags,data) " +
-                "VALUES(100, 'g', @mid, 0, 0, '', @flds, '', 0, 0, '');",
-                ("@mid", mid), ("@flds", flds));
-            await ExecAsync(conn,
-                "INSERT INTO cards(id,nid,did,ord,mod,usn,type,queue,due,ivl,factor,reps,lapses,left,odue,odid,flags,data) " +
-                "VALUES(200, 100, @did, 0, 0, 0, 0, 0, 0, 0, 2500, 0, 0, 0, 0, 0, 0, '');",
-                ("@did", did));
-        }
-        SqliteConnection.ClearAllPools();
-
-        // Anki media map: numbered files on disk, original names in the JSON.
-        var mediaMap = new Dictionary<string, string>(StringComparer.Ordinal);
-        var index = 0;
-        foreach (var (name, bytes) in media)
-        {
-            var slot = index.ToString(CultureInfo.InvariantCulture);
-            await File.WriteAllBytesAsync(Path.Combine(tempRoot, slot), bytes);
-            mediaMap[slot] = name;
-            index++;
-        }
-        await File.WriteAllTextAsync(Path.Combine(tempRoot, "media"), JsonSerializer.Serialize(mediaMap));
-
-        var apkgPath = Path.Combine(Path.GetTempPath(), $"mnemo_anki_{Guid.NewGuid():N}.apkg");
-        ZipFile.CreateFromDirectory(tempRoot, apkgPath, CompressionLevel.Optimal, includeBaseDirectory: false);
-        try { Directory.Delete(tempRoot, recursive: true); } catch (IOException) { }
-        return apkgPath;
-    }
-
-    private static async Task ExecAsync(SqliteConnection conn, string sql, params (string Name, object Value)[] parameters)
-    {
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = sql;
-        foreach (var (name, value) in parameters)
-            cmd.Parameters.AddWithValue(name, value);
-        await cmd.ExecuteNonQueryAsync();
-    }
+        IReadOnlyDictionary<string, byte[]> media) =>
+        AnkiPackageFixture.WriteAsync(
+            AnkiFixtureLayout.Legacy,
+            [new AnkiFixtureCard(deckName, frontHtml, backHtml)],
+            media);
 }
