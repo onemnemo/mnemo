@@ -14,7 +14,12 @@ public interface IDailyStatsRepository
 {
     Task<FlashcardDailyStat> GetAsync(SqliteConnection conn, string deckId, string localDay, CancellationToken cancellationToken);
 
-    /// <summary>Adds the given deltas to today's row, creating it if absent. Idempotent per call.</summary>
+    /// <summary>
+    /// Adds the given deltas to today's row, creating it if absent, floored at zero. A negative
+    /// delta undoes a prior increment; the floor is what stops an undo replayed past its own
+    /// increment, or one reaching a row a purge already reset, from carrying the count negative
+    /// and inflating tomorrow's budget.
+    /// </summary>
     Task IncrementAsync(SqliteConnection conn, SqliteTransaction tx, string deckId, string localDay, int newDelta, int reviewsDelta, CancellationToken cancellationToken);
 }
 
@@ -39,10 +44,10 @@ public sealed class DailyStatsRepository : IDailyStatsRepository
         cmd.Transaction = tx;
         cmd.CommandText = """
             INSERT INTO FlashcardDailyStats (DeckId, Date, NewIntroduced, ReviewsDone)
-            VALUES ($deck, $day, $new, $reviews)
+            VALUES ($deck, $day, MAX(0, $new), MAX(0, $reviews))
             ON CONFLICT(DeckId, Date) DO UPDATE SET
-                NewIntroduced = NewIntroduced + $new,
-                ReviewsDone   = ReviewsDone + $reviews;
+                NewIntroduced = MAX(0, NewIntroduced + $new),
+                ReviewsDone   = MAX(0, ReviewsDone + $reviews);
             """;
         cmd.Parameters.AddWithValue("$deck", deckId);
         cmd.Parameters.AddWithValue("$day", localDay);
