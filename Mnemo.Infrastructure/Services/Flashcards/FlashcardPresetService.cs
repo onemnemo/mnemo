@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Services.Flashcards.Optimizer;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
 namespace Mnemo.Infrastructure.Services.Flashcards;
@@ -41,9 +42,19 @@ public sealed class FlashcardPresetService : IFlashcardPresetService
         return standard;
     }
 
+    /// <remarks>
+    /// This is the only way a preset reaches the store, so it is where the weight vector is checked.
+    /// The scheduler validates a vector's length but not its values, and a weight far enough out of
+    /// range drives stability to NaN, which SQLite cannot hold: the column lands NULL and the card's
+    /// memory state silently resets to a new card's. Refusing the write is the only outcome that
+    /// keeps that from being irreversible.
+    /// </remarks>
     public async Task<FlashcardPreset> SavePresetAsync(FlashcardPreset preset, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(preset);
+        if (!FsrsWeightRules.TryValidate(preset.Weights, out var weightError))
+            throw new ArgumentException(weightError, nameof(preset));
+
         var now = _clock.Now;
         var toSave = preset with
         {
