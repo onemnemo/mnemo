@@ -20,9 +20,10 @@ export const EventType = {
    */
   Shutdown: "shutdown",
   /**
-   * A map committed a change; payload is {@link MindmapChangedEventData}. A nudge, not a patch:
-   * whoever has that map open compares the revision against its own and refetches only if behind,
-   * which is also how it ignores the echo of its own edit.
+   * A map committed a change; payload is {@link MindmapChangedEventData}. Whoever has that map open
+   * compares the revision against its own and ignores the echo of its own edit. When the notice
+   * carries the write whole and the editor is on exactly the revision it applied against, it folds
+   * it and gains one undo entry; otherwise it refetches.
    */
   MindmapChanged: "mindmap-changed",
   /**
@@ -41,10 +42,20 @@ export interface ToastEventData {
   durationMs: number
 }
 
-/** Payload of a `mindmap-changed` event - mirrors Mnemo.Host/Mindmap/MindmapChangeBridge.cs. */
+/**
+ * Payload of a `mindmap-changed` event - mirrors Mnemo.Host/Mindmap/MindmapChangeBridge.cs.
+ *
+ * It also carries the write itself, as a delta pair plus the document order, so a change nobody in
+ * the editor made can still be taken back with one Ctrl+Z. Those fields are shaped by the mindmap
+ * module and read there (see its `MindmapChangedNotice`); they are left out of this declaration so
+ * the events layer does not have to know the mindmap document model. They are omitted from the wire
+ * too when the change was too big to be worth pushing down a channel every module shares, and the
+ * client refetches instead.
+ */
 export interface MindmapChangedEventData {
   mapId: string
   revision: number
+  baseRevision: number
   kind: "created" | "edited" | "renamed" | "deleted"
 }
 
