@@ -1,12 +1,12 @@
 import type { CSSProperties, KeyboardEvent, ReactNode } from "react"
 
 import type { CardDto } from "@/api/types"
-import { Markdown } from "@/chat/components/Markdown"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { useSettingValue } from "@/settings/store"
 
+import { MathText } from "../../MathText"
 import { AttachmentCarousel } from "../../session/components/AttachmentCarousel"
 import { answerText, promptText } from "../../study"
 
@@ -83,8 +83,10 @@ export function TestCard({
 
       {/* Room kept on the right so a long first line never runs under the corner actions. */}
       <div className="flex flex-wrap items-start gap-x-6 gap-y-4 pr-16">
-        <div className="min-w-0 flex-[1_1_17rem]">
-          <Markdown content={promptText(card)} />
+        <div className="chat-prose min-w-0 flex-[1_1_17rem]" data-selectable>
+          <p>
+            <MathText>{promptText(card)}</MathText>
+          </p>
         </div>
         <AttachmentCarousel key={`${card.id}-front`} attachments={card.attachments} side="front" />
       </div>
@@ -122,8 +124,16 @@ export function TestCard({
         <div className="animate-rise">
           <Rule label={fc("TestCorrectAnswerLabel")} />
           <div className="flex items-start">
-            <div className="mr-3.5 min-w-0 flex-1">
-              <Markdown content={answerText(card)} />
+            <div className="chat-prose mr-3.5 min-w-0 flex-1" data-selectable>
+              {/* Paragraphs, not one block: an answer can carry more than the answer itself,
+                  and the blank line between them is the only signal that survives typing. */}
+              {answerText(card)
+                .split(/\n{2,}/)
+                .map((para, i) => (
+                  <p key={i}>
+                    <MathText>{para}</MathText>
+                  </p>
+                ))}
             </div>
             <AttachmentCarousel key={`${card.id}-back`} attachments={card.attachments} side="back" />
           </div>

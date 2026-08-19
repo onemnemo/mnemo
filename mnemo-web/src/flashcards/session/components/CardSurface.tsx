@@ -4,9 +4,9 @@ import type { CardDto } from "@/api/types"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
-import { Markdown } from "@/chat/components/Markdown"
 import { useSettingValue } from "@/settings/store"
 
+import { MathText } from "../../MathText"
 import { answerText, promptText } from "../../study"
 import { AttachmentCarousel } from "./AttachmentCarousel"
 
@@ -81,8 +81,10 @@ export function CardSurface({
 
       <div style={proseSize}>
         <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
-          <div className="min-w-0 flex-[1_1_17rem]">
-            <Markdown content={promptText(card)} />
+          <div className="chat-prose min-w-0 flex-[1_1_17rem]" data-selectable>
+            <p>
+              <MathText>{promptText(card)}</MathText>
+            </p>
           </div>
           <AttachmentCarousel key={`${card.id}-front`} attachments={card.attachments} side="front" />
         </div>
@@ -91,8 +93,16 @@ export function CardSurface({
           <>
             <div className="my-6 h-px bg-line-soft" />
             <div className="animate-rise flex flex-wrap items-start gap-x-6 gap-y-4">
-              <div className="min-w-0 flex-[1_1_17rem]">
-                <Markdown content={answerText(card)} />
+              <div className="chat-prose min-w-0 flex-[1_1_17rem]" data-selectable>
+                {/* Paragraphs, not one block: an answer can carry more than the answer itself,
+                    and the blank line between them is the only signal that survives typing. */}
+                {answerText(card)
+                  .split(/\n{2,}/)
+                  .map((para, i) => (
+                    <p key={i}>
+                      <MathText>{para}</MathText>
+                    </p>
+                  ))}
               </div>
               <AttachmentCarousel key={`${card.id}-back`} attachments={card.attachments} side="back" />
             </div>
