@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO.Compression;
 using System.Net;
@@ -9,6 +10,7 @@ using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Common;
 
 namespace Mnemo.Infrastructure.Services.ImportExport.Adapters;
 
@@ -396,13 +398,15 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return map;
     }
 
-    private static async Task<Dictionary<string, string>> ReadMediaMapAsync(string tempDirectory, CancellationToken cancellationToken)
+    private static async Task<MediaIndex> ReadMediaMapAsync(string tempDirectory, CancellationToken cancellationToken)
     {
         var mediaPath = Path.Combine(tempDirectory, "media");
         if (!File.Exists(mediaPath))
-            return new Dictionary<string, string>(StringComparer.Ordinal);
+            return MediaIndex.Empty;
+
         var json = await File.ReadAllTextAsync(mediaPath, cancellationToken).ConfigureAwait(false);
-        return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        var map = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+        return map is null ? MediaIndex.Empty : MediaIndex.FromStoredNames(map);
     }
 
     private static async Task<Dictionary<long, NoteRow>> ReadNotesAsync(SqliteConnection connection, CancellationToken cancellationToken)
@@ -461,7 +465,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         string html,
         string side,
         string tempDirectory,
-        IReadOnlyDictionary<string, string> mediaMap,
+        MediaIndex media,
         ICollection<string> warnings,
         CancellationToken cancellationToken)
     {
@@ -495,7 +499,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 if (string.IsNullOrWhiteSpace(src))
                     continue;
 
-                var resolvedMediaPath = ResolveMediaPath(src, tempDirectory, mediaMap);
+                var resolvedMediaPath = ResolveMediaPath(src, tempDirectory, media);
                 if (resolvedMediaPath == null)
                 {
                     warnings.Add($"Referenced media '{src}' was not found in package.");
@@ -510,7 +514,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     continue;
                 }
 
-                var displayName = Path.GetFileName(src);
+                var displayName = Path.GetFileName(WebUtility.HtmlDecode(src));
                 if (string.IsNullOrWhiteSpace(displayName))
                     displayName = Path.GetFileName(copied.Value!);
 
@@ -606,21 +610,70 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return spans;
     }
 
-    private static string? ResolveMediaPath(string src, string tempDirectory, IReadOnlyDictionary<string, string> mediaMap)
+    private static string? ResolveMediaPath(string src, string tempDirectory, MediaIndex media)
     {
-        var directPath = Path.Combine(tempDirectory, src);
-        if (File.Exists(directPath))
-            return directPath;
-
-        var mediaNumber = mediaMap.FirstOrDefault(kv => string.Equals(kv.Value, src, StringComparison.OrdinalIgnoreCase)).Key;
-        if (!string.IsNullOrWhiteSpace(mediaNumber))
+        foreach (var name in CandidateMediaNames(src))
         {
-            var mappedPath = Path.Combine(tempDirectory, mediaNumber);
-            if (File.Exists(mappedPath))
-                return mappedPath;
+            if (ResolveContainedFile(tempDirectory, name) is { } direct)
+                return direct;
+
+            if (media.TryGetStoredName(name, out var stored) && ResolveContainedFile(tempDirectory, stored) is { } mapped)
+                return mapped;
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Full path of <paramref name="relativeName"/> inside the extracted package, or null when it
+    /// does not exist or resolves outside the package directory.
+    /// </summary>
+    /// <remarks>
+    /// The name comes from untrusted note HTML. An absolute path makes <see cref="Path.Combine"/>
+    /// discard the package directory outright, and a relative one can climb out with "..", so the
+    /// resolved path is checked for containment instead of being trusted.
+    /// </remarks>
+    private static string? ResolveContainedFile(string tempDirectory, string relativeName)
+    {
+        if (string.IsNullOrWhiteSpace(relativeName))
+            return null;
+
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(Path.Combine(tempDirectory, relativeName));
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            return null;
+        }
+
+        if (!MnemoAppPaths.IsPathUnder(fullPath, tempDirectory))
+            return null;
+
+        return File.Exists(fullPath) ? fullPath : null;
+    }
+
+    /// <summary>Spellings of one <c>src</c> worth trying, since Anki fields carry both HTML entities and percent escapes.</summary>
+    private static IEnumerable<string> CandidateMediaNames(string src)
+    {
+        yield return src;
+
+        var decoded = WebUtility.HtmlDecode(src);
+        if (!string.Equals(decoded, src, StringComparison.Ordinal))
+            yield return decoded;
+
+        string? unescaped = null;
+        try
+        {
+            unescaped = Uri.UnescapeDataString(decoded);
+        }
+        catch (UriFormatException)
+        {
+        }
+
+        if (unescaped is not null && !string.Equals(unescaped, decoded, StringComparison.Ordinal))
+            yield return unescaped;
     }
 
     private static string NormalizeHtmlLineBreaks(string html)
@@ -1190,6 +1243,39 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         string Text,
         IReadOnlyList<Block> Blocks,
         IReadOnlyList<FlashcardAttachment> Attachments);
+
+    /// <summary>
+    /// The package's media table: which file inside the package backs each referenced filename.
+    /// Anki stores media under numbered names with the real names in a side table, so an
+    /// <c>&lt;img src="diagram.png"&gt;</c> resolves only through here.
+    /// </summary>
+    private sealed class MediaIndex
+    {
+        public static readonly MediaIndex Empty = new(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
+        private readonly Dictionary<string, string> _storedNameByName;
+
+        private MediaIndex(Dictionary<string, string> storedNameByName) => _storedNameByName = storedNameByName;
+
+        /// <summary>
+        /// Inverts a stored-name to original-name table once. Resolving per image against the raw
+        /// table is a scan of the whole collection's media for every picture on every card.
+        /// </summary>
+        public static MediaIndex FromStoredNames(IEnumerable<KeyValuePair<string, string>> namesByStoredName)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (storedName, originalName) in namesByStoredName)
+            {
+                if (!string.IsNullOrWhiteSpace(originalName))
+                    map.TryAdd(originalName, storedName);
+            }
+
+            return new MediaIndex(map);
+        }
+
+        public bool TryGetStoredName(string originalName, [MaybeNullWhen(false)] out string storedName) =>
+            _storedNameByName.TryGetValue(originalName, out storedName);
+    }
 
     private sealed record CollectionInfo(
         DateTimeOffset CollectionCreatedAt,

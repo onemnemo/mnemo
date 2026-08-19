@@ -40,7 +40,7 @@ public sealed class FlashcardAnkiImportTests
             deckName: "Biology",
             frontHtml: "What is this? <img src=\"diagram.png\">",
             backHtml: "A cell",
-            media: new Dictionary<string, byte[]> { ["diagram.png"] = new byte[128] });
+            media: new Dictionary<string, byte[]> { ["diagram.png"] = PngBytes() });
 
         try
         {
@@ -56,6 +56,14 @@ public sealed class FlashcardAnkiImportTests
             Assert.Equal("diagram.png", attachment.DisplayName);
             Assert.True(attachment.SizeBytes > 0);
             Assert.True(File.Exists(attachment.FilePath));
+
+            // Anki stores media under numbered names, so the stored copy has to take its
+            // extension from the bytes. Without one the file is not a servable asset id and
+            // every imported image renders as a broken placeholder.
+            var storedName = Path.GetFileName(attachment.FilePath);
+            Assert.Equal(".png", Path.GetExtension(storedName));
+            Assert.Equal(storedName, Path.GetFileName(storedName));
+            Assert.DoesNotContain("..", storedName, StringComparison.Ordinal);
 
             // No image blocks anywhere — the block pipeline is text-only now.
             var allBlocks = (card.FrontBlocks ?? Array.Empty<Block>())
@@ -84,10 +92,10 @@ public sealed class FlashcardAnkiImportTests
             backHtml: "back",
             media: new Dictionary<string, byte[]>
             {
-                ["a.png"] = new byte[16],
-                ["b.png"] = new byte[16],
-                ["c.png"] = new byte[16],
-                ["d.png"] = new byte[16]
+                ["a.png"] = PngBytes(),
+                ["b.png"] = PngBytes(),
+                ["c.png"] = PngBytes(),
+                ["d.png"] = PngBytes()
             });
 
         try
@@ -144,7 +152,122 @@ public sealed class FlashcardAnkiImportTests
         }
     }
 
+    [Fact]
+    public async Task Import_MediaNamedAsTheWrongType_StoresTheTypeTheBytesCarry()
+    {
+        await using var h = new FlashcardStoreHarness();
+        await h.Store.InitializeAsync();
+        var library = NewLibrary(h);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
+
+        var apkg = await BuildApkgAsync(
+            deckName: "Mislabelled",
+            frontHtml: "<img src=\"photo.png\">",
+            backHtml: "back",
+            media: new Dictionary<string, byte[]> { ["photo.png"] = JpegBytes() });
+
+        try
+        {
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+
+            Assert.True(result.Success, result.ErrorMessage);
+            var deck = Assert.Single(await library.ListDecksAsync());
+            var page = await cardSvc.ListCardsAsync(new FlashcardCardQuery(deck.Id));
+            var attachment = Assert.Single(Assert.Single(page.Items).Card.Attachments);
+
+            Assert.Equal(".jpg", Path.GetExtension(attachment.FilePath));
+            Assert.Equal("photo.png", attachment.DisplayName);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task Import_NonImageMedia_IsRefusedWithAWarning()
+    {
+        await using var h = new FlashcardStoreHarness();
+        await h.Store.InitializeAsync();
+        var library = NewLibrary(h);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
+
+        var apkg = await BuildApkgAsync(
+            deckName: "NotAnImage",
+            frontHtml: "<img src=\"report.pdf\">",
+            backHtml: "back",
+            media: new Dictionary<string, byte[]> { ["report.pdf"] = "%PDF-1.4 not an image"u8.ToArray() });
+
+        try
+        {
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+
+            var deck = Assert.Single(await library.ListDecksAsync());
+            var page = await cardSvc.ListCardsAsync(new FlashcardCardQuery(deck.Id));
+            Assert.Empty(Assert.Single(page.Items).Card.Attachments);
+            Assert.Contains(result.Warnings, w => w.Contains("report.pdf", StringComparison.Ordinal));
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Import_SrcPointingOutsideThePackage_CopiesNothing(bool absolute)
+    {
+        await using var h = new FlashcardStoreHarness();
+        await h.Store.InitializeAsync();
+        var library = NewLibrary(h);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
+
+        // A real image outside the package, so only the containment check can stop it being
+        // copied. A non-image would be refused for the wrong reason and prove nothing.
+        var outsideName = $"mnemo_anki_outside_{Guid.NewGuid():N}.png";
+        var outsidePath = Path.Combine(Path.GetTempPath(), outsideName);
+        await File.WriteAllBytesAsync(outsidePath, PngBytes());
+
+        var src = absolute ? outsidePath : "../" + outsideName;
+        var apkg = await BuildApkgAsync(
+            deckName: "Traversal",
+            frontHtml: $"<img src=\"{src.Replace("\\", "/", StringComparison.Ordinal)}\">",
+            backHtml: "back",
+            media: new Dictionary<string, byte[]>());
+
+        try
+        {
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+
+            var deck = Assert.Single(await library.ListDecksAsync());
+            var page = await cardSvc.ListCardsAsync(new FlashcardCardQuery(deck.Id));
+            Assert.Empty(Assert.Single(page.Items).Card.Attachments);
+            Assert.Contains(result.Warnings, w => w.Contains("was not found in package", StringComparison.Ordinal));
+            Assert.True(File.Exists(outsidePath));
+        }
+        finally
+        {
+            File.Delete(apkg);
+            File.Delete(outsidePath);
+        }
+    }
+
     // --- helpers ---
+
+    /// <summary>A real 1x1 PNG, so the import stores what the bytes actually are.</summary>
+    private static byte[] PngBytes() => Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+
+    /// <summary>A real 1x1 JPEG.</summary>
+    private static byte[] JpegBytes() => Convert.FromBase64String(
+        "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==");
 
     private static HashSet<string> LeftoverImportDirectories() =>
         new(Directory.GetDirectories(Path.GetTempPath(), "mnemo-anki-import-*"), StringComparer.OrdinalIgnoreCase);
