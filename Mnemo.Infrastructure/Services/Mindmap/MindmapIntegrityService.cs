@@ -13,8 +13,9 @@ namespace Mnemo.Infrastructure.Services.Mindmap;
 /// <summary>
 /// Loads a map and reports its dangling references (see <see cref="IMindmapIntegrityService"/>). Note and
 /// flashcard refs are checked with the cheapest existence lookup on their services; image assets resolve by
-/// the same rule the editor uses — a bare asset id lives under the images directory, a rooted path is used
-/// as-is. Cancellation is honored between element lookups.
+/// the same rule the editor uses, a bare asset id in the mindmap assets directory and then in the shared
+/// images directory that holds everything uploaded before it, a rooted path as-is. Cancellation is honored
+/// between element lookups.
 /// </summary>
 public sealed class MindmapIntegrityService : IMindmapIntegrityService
 {
@@ -44,6 +45,7 @@ public sealed class MindmapIntegrityService : IMindmapIntegrityService
                 return Result<MindmapIntegrityReport>.Failure(loaded.ErrorMessage ?? $"Mindmap '{mapId}' was not found.");
 
             var document = loaded.Value;
+            var mindmapAssetsDirectory = MnemoAppPaths.GetMindmapAssetsDirectory();
             var imagesDirectory = MnemoAppPaths.GetImagesDirectory();
             var issues = new List<MindmapIntegrityIssue>();
 
@@ -63,12 +65,12 @@ public sealed class MindmapIntegrityService : IMindmapIntegrityService
                         break;
 
                     case ImageContent image when !string.IsNullOrWhiteSpace(image.AssetId):
-                        if (!AssetExists(imagesDirectory, image.AssetId))
+                        if (!AssetExists(mindmapAssetsDirectory, imagesDirectory, image.AssetId))
                             issues.Add(Issue(element, MindmapIntegrityIssueKind.MissingImageAsset, image.AssetId));
                         break;
 
                     case CanvasImageContent canvas when !string.IsNullOrWhiteSpace(canvas.AssetId):
-                        if (!AssetExists(imagesDirectory, canvas.AssetId))
+                        if (!AssetExists(mindmapAssetsDirectory, imagesDirectory, canvas.AssetId))
                             issues.Add(Issue(element, MindmapIntegrityIssueKind.MissingImageAsset, canvas.AssetId));
                         break;
                 }
@@ -100,9 +102,12 @@ public sealed class MindmapIntegrityService : IMindmapIntegrityService
         ElementText = MindmapSearchText.Extract(element),
     };
 
-    private static bool AssetExists(string imagesDirectory, string assetId)
+    private static bool AssetExists(string mindmapAssetsDirectory, string imagesDirectory, string assetId)
     {
-        var path = Path.IsPathRooted(assetId) ? assetId : Path.Combine(imagesDirectory, assetId);
-        return File.Exists(path);
+        if (Path.IsPathRooted(assetId))
+            return File.Exists(assetId);
+
+        return File.Exists(Path.Combine(mindmapAssetsDirectory, assetId))
+            || File.Exists(Path.Combine(imagesDirectory, assetId));
     }
 }

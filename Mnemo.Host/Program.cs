@@ -211,6 +211,9 @@ public static class Program
         // behind. Backgrounded so startup never waits on it; the sweeper defers itself the
         // moment an editing session opens.
         app.Services.GetRequiredService<Notes.NoteAssets>().Sweeper.SweepInBackground();
+        // Maps have no session to close, so this is their only sweep: no client has loaded yet,
+        // which is the one moment nothing can undo a delete back into a reference.
+        app.Services.GetRequiredService<Mindmap.MindmapAssets>().Sweeper.SweepInBackground();
 
         var apiBaseUrl = ResolveBoundAddress(app);
         logger.Info(CrashLog.Category, $"API listening on {apiBaseUrl}");
