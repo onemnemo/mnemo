@@ -49,7 +49,10 @@ public sealed class CardRepository : ICardRepository
 {
     private const string SelectColumns =
         "c.Id, c.DeckId, c.Type, c.Front, c.Back, c.TagsJson, c.State, c.IsFlagged, c.AttachmentsJson, " +
-        "c.SourceType, c.SourceId, c.SourceLabel, c.CreatedAt, c.UpdatedAt";
+        "c.SourceType, c.SourceId, c.SourceLabel, c.CreatedAt, c.UpdatedAt, c.FactId, c.LayoutKey";
+
+    /// <summary>How many columns <see cref="SelectColumns"/> reads, for callers that select more.</summary>
+    private const int CardColumnCount = 16;
 
     private const string ScheduleColumns =
         "s.CardId, s.DueDate, s.Stability, s.Difficulty, s.Reps, s.Lapses, s.FsrsState, s.LearningStepIndex, s.LastReviewedAt";
@@ -176,7 +179,7 @@ public sealed class CardRepository : ICardRepository
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 var card = ReadCard(reader, 0);
-                var schedule = ReadSchedule(reader, 14);
+                var schedule = ReadSchedule(reader, CardColumnCount);
                 items.Add(new FlashcardView(card, schedule));
             }
         }
@@ -207,7 +210,7 @@ public sealed class CardRepository : ICardRepository
         var list = new List<FlashcardView>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            list.Add(new FlashcardView(ReadCard(reader, 0), ReadSchedule(reader, 14)));
+            list.Add(new FlashcardView(ReadCard(reader, 0), ReadSchedule(reader, CardColumnCount)));
         return list;
     }
 
@@ -243,9 +246,9 @@ public sealed class CardRepository : ICardRepository
         cmd.CommandText = """
             INSERT INTO FlashcardCards
                 (Id, DeckId, Type, Front, Back, FrontRich, BackRich, TagsJson, State, IsFlagged,
-                 AttachmentsJson, SourceType, SourceId, SourceLabel, CreatedAt, UpdatedAt)
+                 AttachmentsJson, SourceType, SourceId, SourceLabel, CreatedAt, UpdatedAt, FactId, LayoutKey)
             VALUES ($id, $deck, $type, $front, $back, NULL, NULL, $tags, $state, $flagged,
-                 $attach, $srcType, $srcId, $srcLabel, $created, $updated);
+                 $attach, $srcType, $srcId, $srcLabel, $created, $updated, $fact, $key);
             """;
         BindCard(cmd, card);
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -258,13 +261,14 @@ public sealed class CardRepository : ICardRepository
         cmd.CommandText = """
             INSERT INTO FlashcardCards
                 (Id, DeckId, Type, Front, Back, FrontRich, BackRich, TagsJson, State, IsFlagged,
-                 AttachmentsJson, SourceType, SourceId, SourceLabel, CreatedAt, UpdatedAt)
+                 AttachmentsJson, SourceType, SourceId, SourceLabel, CreatedAt, UpdatedAt, FactId, LayoutKey)
             VALUES ($id, $deck, $type, $front, $back, NULL, NULL, $tags, $state, $flagged,
-                 $attach, $srcType, $srcId, $srcLabel, $created, $updated)
+                 $attach, $srcType, $srcId, $srcLabel, $created, $updated, $fact, $key)
             ON CONFLICT(Id) DO UPDATE SET
                 DeckId = $deck, Type = $type, Front = $front, Back = $back, TagsJson = $tags,
                 State = $state, IsFlagged = $flagged, AttachmentsJson = $attach,
-                SourceType = $srcType, SourceId = $srcId, SourceLabel = $srcLabel, UpdatedAt = $updated;
+                SourceType = $srcType, SourceId = $srcId, SourceLabel = $srcLabel, UpdatedAt = $updated,
+                FactId = $fact, LayoutKey = $key;
             """;
         BindCard(cmd, card);
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -274,6 +278,9 @@ public sealed class CardRepository : ICardRepository
     {
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
+        // FactId and LayoutKey are not in the SET list: which material a card came from is not
+        // something a content edit gets to change, and leaving them out means a caller holding an
+        // older copy of the record cannot blank them by accident.
         cmd.CommandText = """
             UPDATE FlashcardCards SET
                 DeckId = $deck, Type = $type, Front = $front, Back = $back, TagsJson = $tags,
@@ -365,6 +372,8 @@ public sealed class CardRepository : ICardRepository
         cmd.Parameters.AddWithValue("$srcLabel", (object?)card.SourceInfo?.DisplayLabel ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$created", FlashcardSqlMap.Ts(card.CreatedAt == default ? now : card.CreatedAt));
         cmd.Parameters.AddWithValue("$updated", FlashcardSqlMap.Ts(now));
+        cmd.Parameters.AddWithValue("$fact", (object?)card.FactId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$key", (object?)card.LayoutKey ?? DBNull.Value);
     }
 
     private static Flashcard ReadCard(SqliteDataReader reader, int offset)
@@ -390,7 +399,9 @@ public sealed class CardRepository : ICardRepository
             FrontBlocks: null,
             BackBlocks: null,
             CreatedAt: FlashcardSqlMap.ReadTs(reader, offset + 12),
-            UpdatedAt: FlashcardSqlMap.ReadTs(reader, offset + 13));
+            UpdatedAt: FlashcardSqlMap.ReadTs(reader, offset + 13),
+            FactId: FlashcardSqlMap.ReadStringN(reader, offset + 14),
+            LayoutKey: FlashcardSqlMap.ReadStringN(reader, offset + 15));
     }
 
     private static FlashcardSchedule ReadSchedule(SqliteDataReader reader, int offset) => new(
