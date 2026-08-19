@@ -14,6 +14,7 @@ import { isModalOpen } from "@/lib/modal"
 import { useCardEditor } from "../editor/store"
 import { fetchCard } from "../session/api"
 import { Kbd } from "../session/components/KeyHints"
+import { StudyAnnouncer, useStudyAnnouncer } from "../study-announcer"
 import { ScorePanel } from "./components/ScorePanel"
 import { TestCard } from "./components/TestCard"
 import { TestGradeRow } from "./components/TestGradeRow"
@@ -34,7 +35,7 @@ const GRADE_ACTIONS: Record<string, TestGrade> = {
  */
 export function TestPage({ deckId }: { deckId?: string }) {
   const t = useT()
-  const fc = (key: string) => t("Flashcards", key)
+  const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
 
   const status = useTest((s) => s.status)
   const deckName = useTest((s) => s.deckName)
@@ -51,9 +52,22 @@ export function TestPage({ deckId }: { deckId?: string }) {
   const openEdit = useCardEditor((s) => s.openEdit)
   const flagCards = useFlagCards(deckId ?? "")
   const actionFor = useLocalActions("flashcards-test")
+  const { message: announcement, announce } = useStudyAnnouncer()
 
   const card = queue[index] ?? null
   const active = status === "active" && card !== null
+
+  // The card flips, or the queue moves on to the next one, silently otherwise:
+  // nothing else on screen tells a screen reader user either just happened. Reads
+  // `t` directly rather than through `fc`, which is a new function every render.
+  useEffect(() => {
+    if (revealed) announce(t("Flashcards", "StudyAnswerRevealedAnnouncement"))
+  }, [revealed, announce, t])
+
+  useEffect(() => {
+    if (!card) return
+    announce(t("Flashcards", "StudyCardProgressAnnouncementFormat", { 0: index + 1, 1: queue.length }))
+  }, [card, index, queue.length, announce, t])
 
   const backToDeck = () => (deckId ? navigate("flashcard-deck", deckId) : navigate("flashcards"))
 
@@ -182,6 +196,7 @@ export function TestPage({ deckId }: { deckId?: string }) {
   // clicks meant for close and settings.
   return (
     <div className="flex h-full min-h-0 flex-col bg-canvas">
+      <StudyAnnouncer message={announcement} />
       <TestTopbar
         deckId={deckId}
         deckName={deckName}
