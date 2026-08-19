@@ -33,8 +33,8 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
-        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
         var apkg = await BuildApkgAsync(
@@ -83,8 +83,8 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
-        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
         var apkg = await BuildApkgAsync(
@@ -126,8 +126,8 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
-        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
         // A .apkg with no collection.anki21/anki2 fails after the temp directory is already
@@ -159,8 +159,8 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
-        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
         var apkg = await BuildApkgAsync(
@@ -193,8 +193,8 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
-        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
         var apkg = await BuildApkgAsync(
@@ -226,8 +226,8 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
-        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
         // A real image outside the package, so only the containment check can stop it being
@@ -266,8 +266,8 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
-        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
         var apkg = await BuildApkgAsync("Escape", "front", "back", new Dictionary<string, byte[]>());
@@ -328,7 +328,7 @@ public sealed class FlashcardAnkiImportTests
     }
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
-        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets);
+        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
     /// <summary>Writes a minimal single-note, single-card package in the older layout.</summary>
     private static Task<string> BuildApkgAsync(

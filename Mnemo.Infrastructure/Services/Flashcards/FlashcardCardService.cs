@@ -17,18 +17,20 @@ public sealed class FlashcardCardService : IFlashcardCardService
     private readonly IFlashcardStore _store;
     private readonly ICardRepository _cards;
     private readonly IScheduleRepository _schedules;
+    private readonly FlashcardClock _clock;
 
-    public FlashcardCardService(IFlashcardStore store, ICardRepository cards, IScheduleRepository schedules)
+    public FlashcardCardService(IFlashcardStore store, ICardRepository cards, IScheduleRepository schedules, FlashcardClock clock)
     {
         _store = store;
         _cards = cards;
         _schedules = schedules;
+        _clock = clock;
     }
 
     public Task<FlashcardCardPage> ListCardsAsync(FlashcardCardQuery query, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
-        return _store.ReadAsync((conn, ct) => _cards.GetPageAsync(conn, query, DateTimeOffset.UtcNow, ct), cancellationToken);
+        return _store.ReadAsync((conn, ct) => _cards.GetPageAsync(conn, query, _clock.Now, ct), cancellationToken);
     }
 
     public Task<Flashcard?> GetCardAsync(string cardId, CancellationToken cancellationToken = default) =>
@@ -37,7 +39,7 @@ public sealed class FlashcardCardService : IFlashcardCardService
     public async Task<Flashcard> CreateCardAsync(FlashcardCardDraft draft, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.Now;
         var card = FromDraft(draft, now);
         await _store.WriteAsync(async (conn, tx, ct) =>
         {
@@ -50,7 +52,7 @@ public sealed class FlashcardCardService : IFlashcardCardService
     public async Task<IReadOnlyList<Flashcard>> CreateCardsAsync(string deckId, IReadOnlyList<FlashcardCardDraft> drafts, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(drafts);
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.Now;
         var prepared = drafts
             .Select(d => d with { DeckId = deckId })
             .Select(d => (Draft: d, Card: FromDraft(d, now)))
@@ -78,7 +80,7 @@ public sealed class FlashcardCardService : IFlashcardCardService
     {
         ArgumentNullException.ThrowIfNull(card);
         ValidateAttachments(card.Attachments);
-        var updated = card with { UpdatedAt = DateTimeOffset.UtcNow };
+        var updated = card with { UpdatedAt = _clock.Now };
         return _store.WriteAsync((conn, tx, ct) => _cards.UpdateAsync(conn, tx, updated, ct), cancellationToken);
     }
 
@@ -86,20 +88,20 @@ public sealed class FlashcardCardService : IFlashcardCardService
         _store.WriteAsync((conn, tx, ct) => _cards.DeleteManyAsync(conn, tx, cardIds, ct), cancellationToken);
 
     public Task MoveCardsAsync(IReadOnlyList<string> cardIds, string targetDeckId, CancellationToken cancellationToken = default) =>
-        _store.WriteAsync((conn, tx, ct) => _cards.MoveManyAsync(conn, tx, cardIds, targetDeckId, DateTimeOffset.UtcNow, ct), cancellationToken);
+        _store.WriteAsync((conn, tx, ct) => _cards.MoveManyAsync(conn, tx, cardIds, targetDeckId, _clock.Now, ct), cancellationToken);
 
     public Task SetSuspendedAsync(IReadOnlyList<string> cardIds, bool suspended, CancellationToken cancellationToken = default) =>
-        _store.WriteAsync((conn, tx, ct) => _cards.SetSuspendedAsync(conn, tx, cardIds, suspended, DateTimeOffset.UtcNow, ct), cancellationToken);
+        _store.WriteAsync((conn, tx, ct) => _cards.SetSuspendedAsync(conn, tx, cardIds, suspended, _clock.Now, ct), cancellationToken);
 
     public Task SetFlaggedAsync(IReadOnlyList<string> cardIds, bool flagged, CancellationToken cancellationToken = default) =>
-        _store.WriteAsync((conn, tx, ct) => _cards.SetFlaggedAsync(conn, tx, cardIds, flagged, DateTimeOffset.UtcNow, ct), cancellationToken);
+        _store.WriteAsync((conn, tx, ct) => _cards.SetFlaggedAsync(conn, tx, cardIds, flagged, _clock.Now, ct), cancellationToken);
 
     public Task AddTagAsync(IReadOnlyList<string> cardIds, string tag, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(tag) || cardIds.Count == 0)
             return Task.CompletedTask;
         var trimmed = tag.Trim();
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.Now;
         return _store.WriteAsync(async (conn, tx, ct) =>
         {
             foreach (var id in cardIds)

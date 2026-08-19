@@ -19,6 +19,7 @@ internal sealed class FlashcardStudySession : IFlashcardSession
 
     private readonly IFlashcardStudyService _service;
     private readonly IFsrsScheduler _scheduler;
+    private readonly FlashcardClock _clock;
     private readonly FlashcardPreset _preset;
     private readonly string _sessionId = Guid.NewGuid().ToString("N");
     private readonly List<FlashcardView> _queue;
@@ -29,6 +30,7 @@ internal sealed class FlashcardStudySession : IFlashcardSession
     public FlashcardStudySession(
         IFlashcardStudyService service,
         IFsrsScheduler scheduler,
+        FlashcardClock clock,
         FlashcardPreset preset,
         FlashcardSessionMode mode,
         string deckId,
@@ -36,6 +38,7 @@ internal sealed class FlashcardStudySession : IFlashcardSession
     {
         _service = service;
         _scheduler = scheduler;
+        _clock = clock;
         _preset = preset;
         Mode = mode;
         DeckId = deckId;
@@ -59,7 +62,7 @@ internal sealed class FlashcardStudySession : IFlashcardSession
     public string DescribeInterval(FlashcardReviewGrade grade)
     {
         var current = Current;
-        return current is null ? string.Empty : _scheduler.DescribeInterval(current.Schedule, grade, DateTimeOffset.UtcNow, _preset);
+        return current is null ? string.Empty : _scheduler.DescribeInterval(current.Schedule, grade, _clock.Now, _preset);
     }
 
     public async Task GradeAsync(FlashcardReviewGrade grade, CancellationToken cancellationToken = default)
@@ -68,12 +71,12 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         if (current is null)
             return;
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.Now;
         var updatedSchedule = _scheduler.ApplyGrade(current.Schedule, grade, now, _preset);
         var wasNew = current.Schedule.FsrsState == FlashcardFsrsState.New;
 
         long reviewId = 0;
-        var localDay = FlashcardLocalDay.For(now);
+        var localDay = _clock.KeyFor(now);
         if (WritesSchedule)
         {
             // A card with no prior review has no elapsed interval to log, so this is 0 rather than

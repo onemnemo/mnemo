@@ -35,7 +35,7 @@ public sealed class FlashcardAnkiDeckStructureTests
             await using var h = new FlashcardStoreHarness();
             await h.Store.InitializeAsync();
             var library = NewLibrary(h);
-            var adapter = NewAdapter(h, library, new FlashcardCardService(h.Store, h.Cards, h.Schedules));
+            var adapter = NewAdapter(h, library, new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock));
 
             var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
             Assert.True(result.Success, result.ErrorMessage);
@@ -78,7 +78,7 @@ public sealed class FlashcardAnkiDeckStructureTests
             await using var h = new FlashcardStoreHarness();
             await h.Store.InitializeAsync();
             var library = NewLibrary(h);
-            var adapter = NewAdapter(h, library, new FlashcardCardService(h.Store, h.Cards, h.Schedules));
+            var adapter = NewAdapter(h, library, new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock));
 
             Assert.True((await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg })).Success);
             Assert.True((await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg })).Success);
@@ -107,7 +107,7 @@ public sealed class FlashcardAnkiDeckStructureTests
             {
                 await source.Store.InitializeAsync();
                 var library = NewLibrary(source);
-                var cards = new FlashcardCardService(source.Store, source.Cards, source.Schedules);
+                var cards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Clock);
 
                 await library.SaveFolderAsync(new FlashcardFolder("f-root", "Medicine", null, 0));
                 await library.SaveFolderAsync(new FlashcardFolder("f-leaf", "Cardiology", "f-root", 1));
@@ -127,7 +127,7 @@ public sealed class FlashcardAnkiDeckStructureTests
             await using var target = new FlashcardStoreHarness();
             await target.Store.InitializeAsync();
             var targetLibrary = NewLibrary(target);
-            var targetAdapter = NewAdapter(target, targetLibrary, new FlashcardCardService(target.Store, target.Cards, target.Schedules));
+            var targetAdapter = NewAdapter(target, targetLibrary, new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Clock));
 
             var import = await targetAdapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
             Assert.True(import.Success, import.ErrorMessage);
@@ -164,7 +164,7 @@ public sealed class FlashcardAnkiDeckStructureTests
             await using var h = new FlashcardStoreHarness();
             await h.Store.InitializeAsync();
             var library = NewLibrary(h);
-            var cards = new FailingCardService(new FlashcardCardService(h.Store, h.Cards, h.Schedules));
+            var cards = new FailingCardService(new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock));
             var adapter = NewAdapter(h, library, cards);
 
             var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
@@ -203,7 +203,7 @@ public sealed class FlashcardAnkiDeckStructureTests
             await using var h = new FlashcardStoreHarness();
             await h.Store.InitializeAsync();
             var library = NewLibrary(h);
-            var adapter = NewAdapter(h, library, new FlashcardCardService(h.Store, h.Cards, h.Schedules));
+            var adapter = NewAdapter(h, library, new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock));
 
             var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
             Assert.True(result.Success, result.ErrorMessage);
@@ -235,7 +235,7 @@ public sealed class FlashcardAnkiDeckStructureTests
             await using var h = new FlashcardStoreHarness();
             await h.Store.InitializeAsync();
             var library = NewLibrary(h);
-            var adapter = NewAdapter(h, library, new FlashcardCardService(h.Store, h.Cards, h.Schedules));
+            var adapter = NewAdapter(h, library, new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock));
 
             var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
             Assert.True(result.Success, result.ErrorMessage);
@@ -269,7 +269,7 @@ public sealed class FlashcardAnkiDeckStructureTests
             await using var h = new FlashcardStoreHarness();
             await h.Store.InitializeAsync();
             var library = NewLibrary(h);
-            var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+            var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
             var adapter = NewAdapter(h, library, cardService);
 
             Assert.True((await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg })).Success);
@@ -291,10 +291,10 @@ public sealed class FlashcardAnkiDeckStructureTests
         FlashcardStoreHarness h,
         FlashcardLibraryService library,
         IFlashcardCardService cardSvc) =>
-        new(library, cardSvc, new FlashcardPresetService(h.Store, h.Presets, h.Decks), new ImageAssetService());
+        new(library, cardSvc, new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock), new ImageAssetService());
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
-        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets);
+        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
     /// <summary>
     /// Refuses one deck's worth of cards so a package can be partly broken. A real package fails the

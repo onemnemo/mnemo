@@ -20,7 +20,7 @@ public sealed class FlashcardServiceTests
     public async Task GetOrCreateStandard_IsIdempotent()
     {
         await using var h = new FlashcardStoreHarness();
-        var svc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var svc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
 
         var a = await svc.GetOrCreateStandardAsync();
         var b = await svc.GetOrCreateStandardAsync();
@@ -35,7 +35,7 @@ public sealed class FlashcardServiceTests
     public async Task DeletePreset_Blocked_WhileDeckReferencesIt()
     {
         await using var h = new FlashcardStoreHarness();
-        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var lib = NewLibrary(h);
         await presetSvc.GetOrCreateStandardAsync();
         await lib.CreateDeckAsync("Geology");
@@ -53,7 +53,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
 
         var card = await svc.CreateCardAsync(Draft(deckId, "Q", "A"));
 
@@ -68,7 +68,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
 
         var attachments = Enumerable.Range(0, 4)
             .Select(i => new FlashcardAttachment($"a{i}", FlashcardAttachment.FrontSide, $"/img/{i}.png", $"{i}.png", 10))
@@ -83,7 +83,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
 
         var drafts = Enumerable.Range(0, 10).Select(i => Draft(deckId, $"Q{i}", $"A{i}")).ToArray();
         var created = await svc.CreateCardsAsync(deckId, drafts);
@@ -98,7 +98,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var svc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
         var card = await svc.CreateCardAsync(Draft(deckId, "Q", "A"));
 
         await svc.AddTagAsync(new[] { card.Id }, "plates");
@@ -114,9 +114,9 @@ public sealed class FlashcardServiceTests
     public async Task GetDueCounts_CapsNewCardsByPresetLimit()
     {
         await using var h = new FlashcardStoreHarness();
-        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var lib = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
         var study = NewStudy(h);
 
         var preset = await presetSvc.SavePresetAsync(FlashcardPreset.CreateStandard(DateTimeOffset.UtcNow)
@@ -134,7 +134,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
         var study = NewStudy(h);
         var card = await cardSvc.CreateCardAsync(Draft(deckId, "Q", "A"));
         var now = DateTimeOffset.UtcNow;
@@ -162,12 +162,12 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
         var card = await cardSvc.CreateCardAsync(Draft(deckId, "Q", "A"));
         var now = DateTimeOffset.UtcNow;
 
         // Study service whose daily-stats write throws after the schedule + review writes.
-        var study = new FlashcardStudyService(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, new ThrowingDailyStats(), h.Cards, new FsrsScheduler());
+        var study = new FlashcardStudyService(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, new ThrowingDailyStats(), h.Cards, new FsrsScheduler(), h.Clock);
         var entry = new FlashcardReviewEntry(
             new FlashcardSchedule(card.Id, now.AddDays(3), 6, 5, 1, 0, FlashcardFsrsState.Review, 0, now),
             new FlashcardReviewLog(FlashcardReviewLog.Unassigned, card.Id, deckId, "s1", FlashcardReviewGrade.Good, now, 0, 3, 6, 5, FlashcardFsrsState.Review),
@@ -186,7 +186,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
         var study = NewStudy(h);
         var card = await cardSvc.CreateCardAsync(Draft(deckId, "Q", "A"));
         var now = DateTimeOffset.UtcNow;
@@ -216,7 +216,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts);
+        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts, h.Clock);
         var now = DateTimeOffset.UtcNow;
 
         // 3 passed (Good/Hard/Easy) + 1 failed (Again), all in Review state.
@@ -240,7 +240,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var deckId = await h.SeedDeckAsync();
-        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts);
+        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts, h.Clock);
         var now = DateTimeOffset.UtcNow;
 
         await stats.RecordTestAttemptAsync(new FlashcardTestAttempt("t1", deckId, now.AddHours(-2), now.AddHours(-2), 10, 6, 2, 2, 70));
@@ -262,7 +262,7 @@ public sealed class FlashcardServiceTests
     {
         await using var h = new FlashcardStoreHarness();
         var lib = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
 
         var deck = await lib.CreateDeckAsync("Geology");
         await cardSvc.CreateCardsAsync(deck.Id, new[] { Draft(deck.Id, "Q1", "A"), Draft(deck.Id, "Q2", "A") });
@@ -280,10 +280,10 @@ public sealed class FlashcardServiceTests
         new(deckId, FlashcardType.Classic, front, back, Array.Empty<string>(), Array.Empty<FlashcardAttachment>());
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
-        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets);
+        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
     private static FlashcardStudyService NewStudy(FlashcardStoreHarness h) =>
-        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler());
+        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler(), h.Clock);
 
     private sealed class ThrowingDailyStats : IDailyStatsRepository
     {

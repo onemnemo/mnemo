@@ -15,18 +15,20 @@ public sealed class FlashcardStatsService : IFlashcardStatsService
     private readonly IFlashcardStore _store;
     private readonly IReviewRepository _reviews;
     private readonly ITestAttemptRepository _tests;
+    private readonly FlashcardClock _clock;
 
-    public FlashcardStatsService(IFlashcardStore store, IReviewRepository reviews, ITestAttemptRepository tests)
+    public FlashcardStatsService(IFlashcardStore store, IReviewRepository reviews, ITestAttemptRepository tests, FlashcardClock clock)
     {
         _store = store;
         _reviews = reviews;
         _tests = tests;
+        _clock = clock;
     }
 
     public async Task<int> GetTrueRetentionAsync(string deckId, int windowDays = 30, CancellationToken cancellationToken = default)
     {
         windowDays = Math.Clamp(windowDays, 1, 365);
-        var since = DateTimeOffset.UtcNow.AddDays(-windowDays);
+        var since = _clock.Now.AddDays(-windowDays);
         var sample = await _store.ReadAsync((conn, ct) => _reviews.GetRetentionSampleAsync(conn, deckId, since, ct), cancellationToken).ConfigureAwait(false);
         return sample.Total == 0 ? 0 : (int)Math.Round(100.0 * sample.Passed / sample.Total, MidpointRounding.AwayFromZero);
     }
@@ -34,7 +36,7 @@ public sealed class FlashcardStatsService : IFlashcardStatsService
     public async Task<IReadOnlyList<FlashcardRetentionTrendPoint>> GetRetentionTrendAsync(string deckId, int days = 14, CancellationToken cancellationToken = default)
     {
         days = Math.Clamp(days, 1, 90);
-        var since = DateTimeOffset.UtcNow.AddDays(-(days - 1));
+        var since = _clock.Now.AddDays(-(days - 1));
         var rows = await _store.ReadAsync((conn, ct) => _reviews.GetDailyRetentionAsync(conn, deckId, since, ct), cancellationToken).ConfigureAwait(false);
         var byDay = rows.ToDictionary(r => r.Day);
 
