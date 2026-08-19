@@ -25,6 +25,21 @@ internal enum AnkiFixtureLayout
 }
 
 /// <summary>
+/// One card row's scheduling, in the columns Anki keeps it in. <paramref name="Due"/> is whole days
+/// since the collection was made for a review card, and an absolute second for one mid-session.
+/// </summary>
+/// <param name="OriginalDeckId">Non-zero when the card is parked in a filtered deck.</param>
+internal sealed record AnkiFixtureScheduling(
+    int Type = 0,
+    int Queue = 0,
+    long Due = 0,
+    int Interval = 0,
+    int Reps = 0,
+    int Lapses = 0,
+    long OriginalDue = 0,
+    long OriginalDeckId = 0);
+
+/// <summary>
 /// One note in a fixture package, and the deck it belongs to. <paramref name="ExtraFields"/> stands
 /// in for a note type that carries more than the two sides a card here has room for.
 /// </summary>
@@ -33,7 +48,8 @@ internal sealed record AnkiFixtureCard(
     string FrontHtml,
     string BackHtml,
     string Tags = "",
-    IReadOnlyList<string>? ExtraFields = null);
+    IReadOnlyList<string>? ExtraFields = null,
+    AnkiFixtureScheduling? Scheduling = null);
 
 /// <summary>
 /// Writes representative Anki packages for import tests. Real packages are not checked in, so
@@ -49,8 +65,33 @@ internal static class AnkiPackageFixture
     /// </summary>
     public const string TestCollection = "Anki packages";
 
+    /// <summary>
+    /// When the fixture collection was made, in the seconds Anki's <c>col.crt</c> holds. A review
+    /// card's due value is counted in whole days from here, so tests need the same anchor.
+    /// </summary>
+    public const long CollectionCreatedAtUnixSeconds = 1_600_000_000L;
+
+    public static DateTimeOffset CollectionCreatedAt => DateTimeOffset.FromUnixTimeSeconds(CollectionCreatedAtUnixSeconds);
+
+    private const long FirstDeckId = 1500000000001L;
     private const long BasicNotetypeId = 1608194021001L;
     private const string BasicNotetypeName = "Basic";
+
+    /// <summary>The id a fixture gives a deck, so a card can point at one it is not filed under.</summary>
+    public static long DeckIdFor(IReadOnlyList<AnkiFixtureCard> cards, string deckName)
+    {
+        var seen = new List<string>();
+        foreach (var card in cards)
+        {
+            if (!seen.Contains(card.DeckName, StringComparer.Ordinal))
+                seen.Add(card.DeckName);
+        }
+
+        var index = seen.IndexOf(deckName);
+        if (index < 0)
+            throw new ArgumentException($"No fixture deck named '{deckName}'.", nameof(deckName));
+        return FirstDeckId + index;
+    }
 
     public static async Task<string> WriteAsync(
         AnkiFixtureLayout layout,
@@ -208,7 +249,7 @@ internal static class AnkiPackageFixture
         foreach (var card in cards)
         {
             if (!deckIds.ContainsKey(card.DeckName))
-                deckIds[card.DeckName] = 1500000000001L + deckIds.Count;
+                deckIds[card.DeckName] = FirstDeckId + deckIds.Count;
         }
 
         if (layout == AnkiFixtureLayout.Legacy)
@@ -238,13 +279,22 @@ internal static class AnkiPackageFixture
                 ("@tags", card.Tags),
                 ("@flds", fields)).ConfigureAwait(false);
 
+            var scheduling = card.Scheduling ?? new AnkiFixtureScheduling();
             await ExecAsync(
                 connection,
                 "INSERT INTO cards(id,nid,did,ord,mod,usn,type,queue,due,ivl,factor,reps,lapses,left,odue,odid,flags,data) " +
-                "VALUES(@id, @nid, @did, 0, 0, 0, 0, 0, 0, 0, 2500, 0, 0, 0, 0, 0, 0, '');",
+                "VALUES(@id, @nid, @did, 0, 0, 0, @type, @queue, @due, @ivl, 2500, @reps, @lapses, 0, @odue, @odid, 0, '');",
                 ("@id", cardId),
                 ("@nid", noteId),
-                ("@did", deckIds[card.DeckName])).ConfigureAwait(false);
+                ("@did", deckIds[card.DeckName]),
+                ("@type", scheduling.Type),
+                ("@queue", scheduling.Queue),
+                ("@due", scheduling.Due),
+                ("@ivl", scheduling.Interval),
+                ("@reps", scheduling.Reps),
+                ("@lapses", scheduling.Lapses),
+                ("@odue", scheduling.OriginalDue),
+                ("@odid", scheduling.OriginalDeckId)).ConfigureAwait(false);
 
             noteId++;
             cardId++;
@@ -266,7 +316,8 @@ internal static class AnkiPackageFixture
         await ExecAsync(
             connection,
             "INSERT INTO col(id,crt,mod,scm,ver,dty,usn,ls,conf,models,decks,dconf,tags) " +
-            "VALUES(1, 0, 0, 0, 11, 0, 0, 0, '{}', @models, @decks, '{}', '{}');",
+            "VALUES(1, @crt, 0, 0, 11, 0, 0, 0, '{}', @models, @decks, '{}', '{}');",
+            ("@crt", CollectionCreatedAtUnixSeconds),
             ("@models", JsonSerializer.Serialize(models)),
             ("@decks", JsonSerializer.Serialize(decks))).ConfigureAwait(false);
     }
@@ -287,7 +338,8 @@ internal static class AnkiPackageFixture
         await ExecAsync(
             connection,
             "INSERT INTO col(id,crt,mod,scm,ver,dty,usn,ls,conf,models,decks,dconf,tags) " +
-            "VALUES(1, 0, 0, 0, 18, 0, 0, 0, '{}', '', '', '{}', '{}');").ConfigureAwait(false);
+            "VALUES(1, @crt, 0, 0, 18, 0, 0, 0, '{}', '', '', '{}', '{}');",
+            ("@crt", CollectionCreatedAtUnixSeconds)).ConfigureAwait(false);
 
         foreach (var (name, id) in deckIds)
         {

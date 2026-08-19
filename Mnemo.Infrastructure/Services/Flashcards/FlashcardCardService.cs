@@ -42,7 +42,7 @@ public sealed class FlashcardCardService : IFlashcardCardService
         await _store.WriteAsync(async (conn, tx, ct) =>
         {
             await _cards.InsertAsync(conn, tx, card, ct).ConfigureAwait(false);
-            await _schedules.UpsertAsync(conn, tx, FlashcardSchedule.NewFor(card.Id, now), ct).ConfigureAwait(false);
+            await _schedules.UpsertAsync(conn, tx, ScheduleFor(draft, card.Id, now), ct).ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
         return card;
     }
@@ -51,17 +51,28 @@ public sealed class FlashcardCardService : IFlashcardCardService
     {
         ArgumentNullException.ThrowIfNull(drafts);
         var now = DateTimeOffset.UtcNow;
-        var cards = drafts.Select(d => FromDraft(d with { DeckId = deckId }, now)).ToArray();
+        var prepared = drafts
+            .Select(d => d with { DeckId = deckId })
+            .Select(d => (Draft: d, Card: FromDraft(d, now)))
+            .ToArray();
         await _store.WriteAsync(async (conn, tx, ct) =>
         {
-            foreach (var card in cards)
+            foreach (var (draft, card) in prepared)
             {
                 await _cards.InsertAsync(conn, tx, card, ct).ConfigureAwait(false);
-                await _schedules.UpsertAsync(conn, tx, FlashcardSchedule.NewFor(card.Id, now), ct).ConfigureAwait(false);
+                await _schedules.UpsertAsync(conn, tx, ScheduleFor(draft, card.Id, now), ct).ConfigureAwait(false);
             }
         }, cancellationToken).ConfigureAwait(false);
-        return cards;
+        return prepared.Select(p => p.Card).ToArray();
     }
+
+    /// <summary>
+    /// The schedule a new card starts on: whatever an import carried in, or New and due now.
+    /// A carried schedule keeps its due date rather than being reset, so importing a studied
+    /// collection does not make every card in it due at once.
+    /// </summary>
+    private static FlashcardSchedule ScheduleFor(FlashcardCardDraft draft, string cardId, DateTimeOffset now) =>
+        draft.Schedule?.ToSchedule(cardId) ?? FlashcardSchedule.NewFor(cardId, now);
 
     public Task UpdateCardAsync(Flashcard card, CancellationToken cancellationToken = default)
     {
@@ -115,7 +126,7 @@ public sealed class FlashcardCardService : IFlashcardCardService
             Front: draft.Front,
             Back: draft.Back,
             Tags: draft.Tags ?? Array.Empty<string>(),
-            State: FlashcardCardState.Active,
+            State: draft.State,
             IsFlagged: false,
             Attachments: draft.Attachments ?? Array.Empty<FlashcardAttachment>(),
             SourceInfo: draft.SourceInfo,
