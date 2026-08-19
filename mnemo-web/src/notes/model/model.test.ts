@@ -183,14 +183,23 @@ describe('malformed input degrades instead of throwing', () => {
     expect(parseBlock(null).type).toBe('Text');
   });
 
-  it('defaults an unknown block type rather than dropping the block', () => {
-    expect(parseBlock({ id: 'x', type: 'Hologram' }).type).toBe('Text');
+  // Both of these used to read as the nearest known shape, which is what made a
+  // note written by a newer version openable as plain paragraphs and then saved
+  // back that way. The token survives parsing so the mapper can refuse the note.
+  it('keeps an unknown block type rather than reading it as text', () => {
+    expect(parseBlock({ id: 'x', type: 'Hologram' }).type).toBe('Hologram');
   });
 
-  it('empties an unknown payload kind rather than dropping the block', () => {
+  it('keeps an unknown payload kind rather than reading it as empty', () => {
     const block = parseBlock({ id: 'x', type: 'Text', payload: { kind: 'quantum' } });
-    expect(block.payload).toEqual({ kind: 'empty' });
+    expect(block.payload).toEqual({ kind: 'quantum' });
     expect(block.id).toBe('x');
+  });
+
+  it('still reads a missing or non-string type as text', () => {
+    expect(parseBlock({ id: 'x' }).type).toBe('Text');
+    expect(parseBlock({ id: 'x', type: '' }).type).toBe('Text');
+    expect(parseBlock({ id: 'x', type: {} }).type).toBe('Text');
   });
 
   it('clamps a non-positive fraction denominator', () => {
