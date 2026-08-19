@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Mnemo.Infrastructure.Services.Mindmap;
 using Mnemo.Infrastructure.Services.Mindmap.Persistence;
 using Mnemo.Infrastructure.Tests.Widgets;
@@ -18,6 +19,23 @@ internal sealed class MindmapTestHarness : IAsyncDisposable
     public MindmapStore Store { get; }
 
     public MindmapDocumentService Service { get; }
+
+    /// <summary>The database file, so a test can put a row in it that no write path would produce.</summary>
+    public string DatabasePath => _dbPath;
+
+    /// <summary>
+    /// Runs one statement against the database directly, for tests that need a row no write path
+    /// would produce. The statement may name the map as <c>$id</c>.
+    /// </summary>
+    public async Task DamageAsync(string sql, string mapId)
+    {
+        await using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.Parameters.AddWithValue("$id", mapId);
+        await command.ExecuteNonQueryAsync();
+    }
 
     public MindmapTestHarness(MindmapShortIdGenerator? idGenerator = null)
     {

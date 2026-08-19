@@ -118,6 +118,32 @@ internal sealed class MindmapWorkingDocument
         _clusters.Remove(id);
     }
 
+    /// <summary>
+    /// Removes many elements in one pass. A cascade delete names every node under the one the user picked,
+    /// and taking them out one at a time would rescan the order list once per id.
+    /// </summary>
+    public void RemoveElements(IReadOnlySet<string> ids)
+    {
+        var removedAny = false;
+        foreach (var id in ids)
+        {
+            if (!_elements.Remove(id))
+                continue;
+
+            removedAny = true;
+            _allIds.Remove(id);
+            _touched.Remove(id);
+            _removed.Add(id);
+            _changeTouched.Add(id);
+            _clusters.Remove(id);
+        }
+
+        // Compacting once against what survived keeps order and dictionary in step without caring which
+        // of the requested ids were actually present.
+        if (removedAny)
+            _elementOrder.RemoveAll(id => !_elements.ContainsKey(id));
+    }
+
     public void AddEdge(MindmapEdge edge, string? insertAfterEdgeId)
     {
         _edges[edge.Id] = edge;
@@ -145,6 +171,24 @@ internal sealed class MindmapWorkingDocument
         _edgeOrder.Remove(id);
         _allIds.Remove(id);
         _changeTouched.Add(id);
+    }
+
+    /// <summary>Removes many edges in one pass, for the same reason <see cref="RemoveElements"/> exists.</summary>
+    public void RemoveEdges(IReadOnlySet<string> ids)
+    {
+        var removedAny = false;
+        foreach (var id in ids)
+        {
+            if (!_edges.Remove(id))
+                continue;
+
+            removedAny = true;
+            _allIds.Remove(id);
+            _changeTouched.Add(id);
+        }
+
+        if (removedAny)
+            _edgeOrder.RemoveAll(id => !_edges.ContainsKey(id));
     }
 
     /// <summary>Replaces an existing edge in place (same id, preserved order), marking it changed.</summary>

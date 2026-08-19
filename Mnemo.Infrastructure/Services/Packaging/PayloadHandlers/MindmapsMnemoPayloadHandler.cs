@@ -28,6 +28,9 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
     private const string DatabaseFileName = "mindmaps.db";
     private const string AssetPrefix = "assets/images/";
 
+    /// <summary>The payload layout this build writes, and the newest one it knows how to read.</summary>
+    private const int PayloadSchemaVersion = 1;
+
     private readonly IMindmapService _mindmaps;
     private readonly IMindmapStore _store;
     private readonly ILoggerService _logger;
@@ -85,17 +88,47 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
         return new MnemoPayloadExportData
         {
             ItemCount = maps.Count,
-            SchemaVersion = 1,
+            SchemaVersion = PayloadSchemaVersion,
             Files = files,
         };
     }
 
     public async Task<MnemoPayloadImportResult> ImportAsync(MnemoPayloadImportContext context, CancellationToken cancellationToken = default)
     {
+        // A payload from a newer build can hold tables and columns this one has never seen. Reading it as
+        // if it were the format below would import whatever happens to line up and quietly drop the rest,
+        // which is worse than not importing it: the user would end up with maps that look restored and are
+        // not. Refusing leaves the package intact for a build that understands it.
+        if (context.Entry.SchemaVersion > PayloadSchemaVersion)
+        {
+            var version = context.Entry.SchemaVersion;
+            _logger.Warning("Mindmap", $"Refused a mindmaps payload in format {version}; this build reads up to {PayloadSchemaVersion}.");
+            return new MnemoPayloadImportResult
+            {
+                Warnings = { $"Mindmaps were not imported: the package was made by a newer version of Mnemo (format {version}, this one reads up to {PayloadSchemaVersion})." },
+            };
+        }
+
         if (!context.Files.TryGetValue(DatabaseFileName, out var bytes))
             return new MnemoPayloadImportResult { Warnings = { "Mindmaps payload missing mindmaps.db file." } };
 
-        var snapshot = ReadSqlite(bytes);
+        // The payload database comes from a file the user was handed, so it can be truncated, half
+        // downloaded or not a database at all. That is a reason to skip the mindmaps in the package, not a
+        // reason to fail the package: the decks and notes beside them are still perfectly readable.
+        MindmapSnapshot snapshot;
+        try
+        {
+            snapshot = ReadSqlite(bytes);
+        }
+        catch (Exception ex) when (ex is SqliteException or JsonException or InvalidDataException or IOException)
+        {
+            _logger.Warning("Mindmap", $"Mindmaps payload could not be read: {ex.Message}");
+            return new MnemoPayloadImportResult
+            {
+                Warnings = { "Mindmaps were not imported: the mindmaps part of the package could not be read." },
+            };
+        }
+
         var result = new MnemoPayloadImportResult();
         var policy = context.Options.ConflictPolicy;
 
@@ -115,7 +148,18 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
         foreach (var map in snapshot.Maps)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var document = MindmapDocumentSerializer.Deserialize(map.Json);
+            // One unreadable row costs the package that map, not the maps after it.
+            MindmapDocument? document;
+            try
+            {
+                document = MindmapDocumentSerializer.Deserialize(map.Json);
+            }
+            catch (Exception ex) when (ex is JsonException or NotSupportedException)
+            {
+                _logger.Warning("Mindmap", $"Mindmap '{map.Id}' in the package could not be read: {ex.Message}");
+                document = null;
+            }
+
             if (document is null)
             {
                 result.Warnings.Add("Skipped a mindmap that failed to deserialize.");
@@ -224,13 +268,12 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
 
     private void AddImageAssets(IDictionary<string, byte[]> files, IReadOnlyList<MindmapLibraryEntry> chosen)
     {
-        var imagesDirectory = MnemoAppPaths.GetImagesDirectory();
         foreach (var entry in chosen)
         {
             foreach (var assetId in ReferencedAssetIds(entry.Document))
             {
-                var path = Path.IsPathRooted(assetId) ? assetId : Path.Combine(imagesDirectory, assetId);
-                var fileName = Path.GetFileName(path);
+                var path = LocateAsset(assetId);
+                var fileName = Path.GetFileName(path ?? assetId);
                 if (string.IsNullOrWhiteSpace(fileName))
                     continue;
 
@@ -238,7 +281,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
                 if (files.ContainsKey(key))
                     continue;
 
-                if (!File.Exists(path))
+                if (path is null)
                 {
                     // A gone asset must never fail the export; warn and continue.
                     _logger.Warning("Mindmap", $"Skipping missing image asset '{assetId}' while exporting map '{entry.Document.Id}'.");
@@ -248,6 +291,28 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
                 files[key] = File.ReadAllBytes(path);
             }
         }
+    }
+
+    /// <summary>
+    /// The file an asset reference names, or null when nothing on disk answers to it. The mindmap
+    /// directory first, then the shared one that holds every image uploaded before it existed.
+    /// </summary>
+    private static string? LocateAsset(string assetId)
+    {
+        if (Path.IsPathRooted(assetId))
+            return File.Exists(assetId) ? assetId : null;
+
+        // A managed id is one path segment. Anything else would let a hand-edited document name a
+        // file outside these directories and have the export pack it.
+        if (!string.Equals(assetId, Path.GetFileName(assetId), StringComparison.Ordinal))
+            return null;
+
+        var owned = Path.Combine(MnemoAppPaths.GetMindmapAssetsDirectory(), assetId);
+        if (File.Exists(owned))
+            return owned;
+
+        var legacy = Path.Combine(MnemoAppPaths.GetImagesDirectory(), assetId);
+        return File.Exists(legacy) ? legacy : null;
     }
 
     private static IEnumerable<string> ReferencedAssetIds(MindmapDocument document)
@@ -302,7 +367,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             existingResult.IsSuccess && existingResult.Value is not null ? existingResult.Value.Select(f => f.Id) : Enumerable.Empty<string>(),
             StringComparer.Ordinal);
 
-        foreach (var folder in folders)
+        foreach (var folder in InAncestorOrder(folders))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var id = folder.Id;
@@ -325,6 +390,15 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             if (!string.IsNullOrWhiteSpace(parentId) && folderIdMap.TryGetValue(parentId, out var remappedParent))
                 parentId = remappedParent;
 
+            // A parent that is in neither the package nor the library is a hole in the tree the package
+            // describes, and the folder table refuses a row pointing at one. Landing the folder at the
+            // library root keeps the rest of the import, and its maps, rather than failing all of it.
+            if (!string.IsNullOrWhiteSpace(parentId) && !existingIds.Contains(parentId))
+            {
+                result.Warnings.Add($"Folder '{folder.Name}' was restored at the library root because its parent folder was not in the package.");
+                parentId = null;
+            }
+
             folderIdMap[folder.Id] = id;
             existingIds.Add(id);
             await _mindmaps.SaveFolderAsync(new MindmapFolder(id, folder.Name, parentId, folder.Order), cancellationToken).ConfigureAwait(false);
@@ -333,9 +407,66 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
         return folderIdMap;
     }
 
+    /// <summary>
+    /// The same folders, reordered so a folder never comes before the folder it sits in.
+    /// </summary>
+    /// <remarks>
+    /// Restoring a folder does two things that need the parent already done: it points the new row at the
+    /// parent's row, which the folder table requires to exist, and it looks the parent up in the id map so
+    /// a nested copy lands under the copy of its parent rather than under the user's original. Neither
+    /// order the packages actually carry gives that. A selective export walks each map's folder upward, so
+    /// it stores children first, and a full export stores whatever order the user sorted the library into.
+    /// A parent chain that loops stops where it started, since a package can be edited by hand.
+    /// </remarks>
+    private static List<FolderSnapshotDto> InAncestorOrder(IReadOnlyList<FolderSnapshotDto> folders)
+    {
+        var byId = new Dictionary<string, FolderSnapshotDto>(StringComparer.Ordinal);
+        foreach (var folder in folders)
+        {
+            if (!string.IsNullOrWhiteSpace(folder.Id))
+                byId.TryAdd(folder.Id, folder);
+        }
+
+        var ordered = new List<FolderSnapshotDto>(byId.Count);
+        var emitted = new HashSet<string>(StringComparer.Ordinal);
+        var chain = new List<FolderSnapshotDto>();
+        var onChain = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var folder in folders)
+        {
+            if (string.IsNullOrWhiteSpace(folder.Id) || emitted.Contains(folder.Id))
+                continue;
+
+            chain.Clear();
+            onChain.Clear();
+            var current = folder;
+            while (onChain.Add(current.Id))
+            {
+                chain.Add(current);
+                var parentId = current.ParentId;
+                if (string.IsNullOrWhiteSpace(parentId)
+                    || emitted.Contains(parentId)
+                    || !byId.TryGetValue(parentId, out var parent))
+                {
+                    break;
+                }
+
+                current = parent;
+            }
+
+            for (var i = chain.Count - 1; i >= 0; i--)
+            {
+                if (emitted.Add(chain[i].Id))
+                    ordered.Add(chain[i]);
+            }
+        }
+
+        return ordered;
+    }
+
     private void RestoreImageAssets(IReadOnlyDictionary<string, byte[]> files)
     {
-        string? imagesDirectory = null;
+        string? assetsDirectory = null;
         foreach (var pair in files)
         {
             if (!pair.Key.StartsWith(AssetPrefix, StringComparison.OrdinalIgnoreCase))
@@ -345,17 +476,19 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             if (string.IsNullOrWhiteSpace(fileName))
                 continue;
 
-            if (imagesDirectory is null)
+            // A file the user already has under this name is the same file: ids are guids, so two
+            // of them colliding means the package came from here. Restoring into the mindmap
+            // directory rather than the shared one puts it where the sweep can reclaim it later.
+            if (LocateAsset(fileName) is not null)
+                continue;
+
+            if (assetsDirectory is null)
             {
-                imagesDirectory = MnemoAppPaths.GetImagesDirectory();
-                Directory.CreateDirectory(imagesDirectory);
+                assetsDirectory = MnemoAppPaths.GetMindmapAssetsDirectory();
+                Directory.CreateDirectory(assetsDirectory);
             }
 
-            var destination = Path.Combine(imagesDirectory, fileName);
-            if (File.Exists(destination))
-                continue; // never clobber a local asset
-
-            File.WriteAllBytes(destination, pair.Value);
+            File.WriteAllBytes(Path.Combine(assetsDirectory, fileName), pair.Value);
         }
     }
 

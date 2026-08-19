@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Mnemo.Core.Enums;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Mindmap;
@@ -197,6 +199,105 @@ public sealed class MindmapsMnemoPayloadHandlerTests
         Assert.Equal(new[] { "Keep" }, titles);
     }
 
+    [Fact]
+    public async Task RoundTrip_SelectedMapInANestedFolder_RestoresTheWholeChain()
+    {
+        await using var source = new MindmapTestHarness();
+        await using var target = new MindmapTestHarness();
+        await source.Service.SaveFolderAsync(new MindmapFolder("f1", "Geology", null, 0));
+        await source.Service.SaveFolderAsync(new MindmapFolder("f2", "Rocks", "f1", 0));
+        await source.Service.SaveFolderAsync(new MindmapFolder("f3", "Igneous", "f2", 0));
+        var map = (await source.Service.CreateAsync("Alpha", folderId: "f3")).Value!;
+
+        // A selective export walks each map's folder upward, so the package lists the chain child first.
+        var options = new MnemoPackageExportOptions();
+        options.PayloadOptions["mindmaps.mapIds"] = new[] { map.Id };
+        var export = await ExportHandler(source).ExportAsync(new MnemoPayloadExportContext { Options = options });
+        await ImportAsync(target, export.Files);
+
+        var folders = (await target.Service.GetFoldersAsync()).Value!;
+        Assert.Equal("f2", folders.Single(f => f.Id == "f3").ParentId);
+        Assert.Equal("f1", folders.Single(f => f.Id == "f2").ParentId);
+        Assert.Null(folders.Single(f => f.Id == "f1").ParentId);
+    }
+
+    [Fact]
+    public async Task Import_NestedFoldersCollideUnderKeepBoth_NestsTheCopiesTheSameWay()
+    {
+        await using var source = new MindmapTestHarness();
+        await using var target = new MindmapTestHarness();
+        await source.Service.SaveFolderAsync(new MindmapFolder("f1", "Geology", null, 0));
+        await source.Service.SaveFolderAsync(new MindmapFolder("f2", "Rocks", "f1", 0));
+        var map = (await source.Service.CreateAsync("Alpha", folderId: "f2")).Value!;
+        var files = (await ExportHandler(source).ExportAsync(Context())).Files;
+
+        await ImportAsync(target, files);
+        await ImportAsync(target, files); // same folder ids as the first import, so every one collides
+
+        var folders = (await target.Service.GetFoldersAsync()).Value!;
+        Assert.Equal(4, folders.Count);
+
+        // The second copy of the subfolder sits under the second copy of its parent, not under the first.
+        var copiedChild = folders.Single(f => f.Name == "Rocks" && f.Id != "f2");
+        var copiedParent = folders.Single(f => f.Name == "Geology" && f.Id != "f1");
+        Assert.Equal(copiedParent.Id, copiedChild.ParentId);
+
+        // And the map that came with it is in the copy rather than in the user's original.
+        var copiedMap = (await target.Service.ListAsync()).Value!.Single(m => m.Id != map.Id);
+        var entry = (await target.Service.GetLibraryAsync()).Value!.Single(e => e.Document.Id == copiedMap.Id);
+        Assert.Equal(copiedChild.Id, entry.FolderId);
+    }
+
+    [Fact]
+    public async Task Import_PayloadFromANewerBuild_IsRefusedRatherThanReadAnyway()
+    {
+        await using var source = new MindmapTestHarness();
+        await using var target = new MindmapTestHarness();
+        await source.Service.CreateAsync("Alpha");
+        var files = (await ExportHandler(source).ExportAsync(Context())).Files;
+
+        var result = await ImportAsync(target, files, schemaVersion: 2);
+
+        // Reading a layout this build has never seen imports whatever happens to line up and drops the
+        // rest, which leaves the user with maps that look restored and are not.
+        Assert.Equal(0, result.ImportedCount);
+        Assert.Empty((await target.Service.ListAsync()).Value!);
+        Assert.Contains(result.Warnings, w => w.Contains("newer version", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Import_UnreadablePayloadDatabase_WarnsInsteadOfThrowing()
+    {
+        await using var target = new MindmapTestHarness();
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["mindmaps.db"] = "this is not a database"u8.ToArray(),
+        };
+
+        var result = await ImportAsync(target, files);
+
+        // The package holds decks and notes beside the mindmaps, and they are still perfectly readable.
+        Assert.Equal(0, result.ImportedCount);
+        Assert.NotEmpty(result.Warnings);
+    }
+
+    [Fact]
+    public async Task Import_OneUnreadableMapRow_StillImportsTheRest()
+    {
+        await using var source = new MindmapTestHarness();
+        await using var target = new MindmapTestHarness();
+        await source.Service.CreateAsync("Alpha");
+        var good = (await source.Service.CreateAsync("Beta")).Value!;
+        var files = (await ExportHandler(source).ExportAsync(Context())).Files;
+        files["mindmaps.db"] = DamageOneMap(files["mindmaps.db"], keepId: good.Id);
+
+        var result = await ImportAsync(target, files);
+
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Equal("Beta", (await target.Service.ListAsync()).Value!.Single().Title);
+        Assert.NotEmpty(result.Warnings);
+    }
+
     private static MindmapsMnemoPayloadHandler ExportHandler(MindmapTestHarness h) =>
         new(h.Service, h.Store, new TestLogger());
 
@@ -204,13 +305,40 @@ public sealed class MindmapsMnemoPayloadHandlerTests
         new() { Options = new MnemoPackageExportOptions() };
 
     private static Task<MnemoPayloadImportResult> ImportAsync(
-        MindmapTestHarness target, IReadOnlyDictionary<string, byte[]> files, ImportConflictPolicy policy = ImportConflictPolicy.KeepBoth) =>
+        MindmapTestHarness target,
+        IReadOnlyDictionary<string, byte[]> files,
+        ImportConflictPolicy policy = ImportConflictPolicy.KeepBoth,
+        int schemaVersion = 1) =>
         new MindmapsMnemoPayloadHandler(target.Service, target.Store, new TestLogger()).ImportAsync(new MnemoPayloadImportContext
         {
-            Entry = new MnemoPackageEntry { PayloadType = "mindmaps", Path = "payloads/mindmaps" },
+            Entry = new MnemoPackageEntry { PayloadType = "mindmaps", Path = "payloads/mindmaps", SchemaVersion = schemaVersion },
             Options = new MnemoPackageImportOptions { ConflictPolicy = policy },
             Files = files,
         });
+
+    /// <summary>Replaces every stored document except one with json that does not parse.</summary>
+    private static byte[] DamageOneMap(byte[] database, string keepId)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"mnemo-mm-damage-{Guid.NewGuid():N}.db");
+        try
+        {
+            File.WriteAllBytes(path, database);
+            using (var connection = new SqliteConnection($"Data Source={path};Pooling=False"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = "UPDATE Maps SET Json = '{\"schemaVersion\":2,' WHERE MapId <> $keep";
+                command.Parameters.AddWithValue("$keep", keepId);
+                command.ExecuteNonQuery();
+            }
+
+            return File.ReadAllBytes(path);
+        }
+        finally
+        {
+            try { File.Delete(path); } catch (IOException) { }
+        }
+    }
 
     private static async Task<MnemoPayloadImportResult> RoundTripAsync(
         MindmapTestHarness source, MindmapTestHarness target, ImportConflictPolicy policy = ImportConflictPolicy.KeepBoth)
