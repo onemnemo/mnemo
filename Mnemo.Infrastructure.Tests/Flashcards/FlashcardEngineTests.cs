@@ -203,6 +203,37 @@ public sealed class FlashcardEngineTests
     }
 
     [Fact]
+    public async Task Review_NewCard_LogsZeroElapsedDays_OnFirstReview()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var deckId = await h.SeedDeckAsync();
+        var study = Study(h);
+        // The card was created six days ago but never reviewed; its age is not a review gap.
+        var createdAt = DateTimeOffset.UtcNow.AddDays(-6);
+        await h.AddCardAsync(FlashcardStoreHarness.Card("a", deckId, "Front a", "Back a"), FlashcardSchedule.NewFor("a", createdAt));
+
+        var session = await study.StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+        await session.GradeAsync(FlashcardReviewGrade.Good);
+
+        Assert.Equal(0d, await ReadLatestElapsedDaysAsync(h, "a"));
+    }
+
+    [Fact]
+    public async Task Review_PreviouslyReviewedCard_LogsActualElapsedDays()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var deckId = await h.SeedDeckAsync();
+        var study = Study(h);
+        await AddReviewCardAsync(h, deckId, "a"); // LastReviewedAt = 8 days ago
+
+        var session = await study.StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+        await session.GradeAsync(FlashcardReviewGrade.Good);
+
+        var elapsed = await ReadLatestElapsedDaysAsync(h, "a");
+        Assert.True(elapsed is >= 7.9 and <= 8.1, $"expected roughly 8 elapsed days, got {elapsed}");
+    }
+
+    [Fact]
     public async Task StudyService_RejectsTestMode()
     {
         await using var h = new FlashcardStoreHarness();
@@ -290,4 +321,14 @@ public sealed class FlashcardEngineTests
         var schedule = new FlashcardSchedule(id, now.AddDays(-1), 10, 5, 3, 0, FlashcardFsrsState.Review, 0, now.AddDays(-8));
         return h.AddCardAsync(card, schedule);
     }
+
+    private static Task<double> ReadLatestElapsedDaysAsync(FlashcardStoreHarness h, string cardId) =>
+        h.Store.ReadAsync(async (conn, ct) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT ElapsedDays FROM FlashcardReviews WHERE CardId = $card ORDER BY Id DESC LIMIT 1;";
+            cmd.Parameters.AddWithValue("$card", cardId);
+            var value = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            return Convert.ToDouble(value);
+        });
 }

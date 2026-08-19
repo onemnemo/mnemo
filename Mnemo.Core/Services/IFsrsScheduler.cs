@@ -13,4 +13,11 @@ public interface IFsrsScheduler
 
     /// <summary>Human-readable next-interval preview for a grade button (e.g. "10m", "1d", "8d").</summary>
     string DescribeInterval(FlashcardSchedule current, FlashcardReviewGrade grade, DateTimeOffset now, FlashcardPreset preset);
+
+    /// <summary>
+    /// Days since the card was last reviewed, floored at zero. The single source of this
+    /// calculation: callers that log a review must use it rather than re-deriving it, so a
+    /// logged value can never drift from the one the scheduler graded against.
+    /// </summary>
+    double ElapsedDays(FlashcardSchedule current, DateTimeOffset now);
 }
