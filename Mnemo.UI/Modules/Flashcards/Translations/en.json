@@ -204,7 +204,7 @@
     "ReviewSettingsSessionLabel": "SESSION",
     "ReviewSettingsShuffleTitle": "Shuffle card order",
     "ReviewSettingsBuryTitle": "Bury related cards until tomorrow",
-    "ReviewSettingsBuryComingSoon": "Coming soon",
+    "ReviewSettingsBuryHint": "Answering one card holds the rest of its material back until the next day.",
     "ReviewSettingsAutoRevealTitle": "Auto-reveal answer",
     "ReviewSettingsAutoRevealOff": "Off",
     "ReviewSettingsAutoReveal5s": "5s",

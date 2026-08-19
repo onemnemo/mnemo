@@ -132,5 +132,5 @@ public sealed class FlashcardSessionQueueTests
             new FlashcardSchedule(cardId, Now.AddMinutes(-1), 6d, 5d, 3, 0, state, stepIndex, Now.AddMinutes(-11)));
 
     private static FlashcardStudyService Study(FlashcardStoreHarness h) =>
-        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, new FsrsScheduler(h.Clock), h.Clock);
+        new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, h.Facts, new FsrsScheduler(h.Clock), h.Clock);
 }

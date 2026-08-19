@@ -204,7 +204,7 @@
     "ReviewSettingsSessionLabel": "ØKT",
     "ReviewSettingsShuffleTitle": "Bland kortrekkefølgen",
     "ReviewSettingsBuryTitle": "Utsett relaterte kort til i morgen",
-    "ReviewSettingsBuryComingSoon": "Kommer snart",
+    "ReviewSettingsBuryHint": "Når du svarer på ett kort, venter resten av materialet til neste dag.",
     "ReviewSettingsAutoRevealTitle": "Vis svar automatisk",
     "ReviewSettingsAutoRevealOff": "Av",
     "ReviewSettingsAutoReveal5s": "5 s",

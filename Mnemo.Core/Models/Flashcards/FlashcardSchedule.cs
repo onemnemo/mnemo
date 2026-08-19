@@ -13,9 +13,13 @@ public sealed record FlashcardSchedule(
     int Lapses,
     FlashcardFsrsState FsrsState,
     int LearningStepIndex,
-    DateTimeOffset? LastReviewedAt)
+    DateTimeOffset? LastReviewedAt,
+    DateTimeOffset? BuriedUntil = null)
 {
     /// <summary>Creates the initial schedule for a freshly created card (New, due now).</summary>
     public static FlashcardSchedule NewFor(string cardId, DateTimeOffset now) =>
         new(cardId, now, null, null, 0, 0, FlashcardFsrsState.New, 0, null);
+
+    /// <summary>Whether the card is currently held back for another card off the same material.</summary>
+    public bool IsBuriedAt(DateTimeOffset instant) => BuriedUntil is { } until && until > instant;
 }

@@ -16,8 +16,16 @@ public interface IScheduleRepository
     Task UpsertAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardSchedule schedule, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Holds cards back until <paramref name="until"/>, or lets them straight back in when it is null.
+    /// Burying is per card rather than per material so a fact can have one card in the queue and the
+    /// rest waiting.
+    /// </summary>
+    Task SetBuriedAsync(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<string> cardIds, DateTimeOffset? until, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Raw new/learning/due bucket counts for a deck's active cards at <paramref name="now"/>, before
     /// any daily-cap logic (which the study service applies). New cards are counted regardless of due date.
+    /// Buried cards are left out of every bucket, so the banner promises what the session will show.
     /// </summary>
     Task<FlashcardDueCounts> GetRawDueCountsAsync(SqliteConnection conn, string deckId, DateTimeOffset now, CancellationToken cancellationToken);
 
@@ -47,7 +55,7 @@ public sealed class ScheduleRepository : IScheduleRepository
     {
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT CardId, DueDate, Stability, Difficulty, Reps, Lapses, FsrsState, LearningStepIndex, LastReviewedAt
+            SELECT CardId, DueDate, Stability, Difficulty, Reps, Lapses, FsrsState, LearningStepIndex, LastReviewedAt, BuriedUntil
             FROM FlashcardScheduling WHERE CardId = $id LIMIT 1;
             """;
         cmd.Parameters.AddWithValue("$id", cardId);
@@ -61,11 +69,11 @@ public sealed class ScheduleRepository : IScheduleRepository
         cmd.Transaction = tx;
         cmd.CommandText = """
             INSERT INTO FlashcardScheduling
-                (CardId, DueDate, Stability, Difficulty, Reps, Lapses, FsrsState, LearningStepIndex, LastReviewedAt)
-            VALUES ($id, $due, $stab, $diff, $reps, $lapses, $state, $step, $last)
+                (CardId, DueDate, Stability, Difficulty, Reps, Lapses, FsrsState, LearningStepIndex, LastReviewedAt, BuriedUntil)
+            VALUES ($id, $due, $stab, $diff, $reps, $lapses, $state, $step, $last, $buried)
             ON CONFLICT(CardId) DO UPDATE SET
                 DueDate = $due, Stability = $stab, Difficulty = $diff, Reps = $reps, Lapses = $lapses,
-                FsrsState = $state, LearningStepIndex = $step, LastReviewedAt = $last;
+                FsrsState = $state, LearningStepIndex = $step, LastReviewedAt = $last, BuriedUntil = $buried;
             """;
         cmd.Parameters.AddWithValue("$id", schedule.CardId);
         cmd.Parameters.AddWithValue("$due", FlashcardSqlMap.Ts(schedule.DueDate));
@@ -76,6 +84,26 @@ public sealed class ScheduleRepository : IScheduleRepository
         cmd.Parameters.AddWithValue("$state", (int)schedule.FsrsState);
         cmd.Parameters.AddWithValue("$step", schedule.LearningStepIndex);
         cmd.Parameters.AddWithValue("$last", (object?)FlashcardSqlMap.TsN(schedule.LastReviewedAt) ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$buried", (object?)FlashcardSqlMap.TsN(schedule.BuriedUntil) ?? DBNull.Value);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task SetBuriedAsync(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<string> cardIds, DateTimeOffset? until, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(cardIds);
+        if (cardIds.Count == 0)
+            return;
+
+        await using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        var names = new string[cardIds.Count];
+        for (var i = 0; i < cardIds.Count; i++)
+        {
+            names[i] = "$c" + i.ToString(CultureInfo.InvariantCulture);
+            cmd.Parameters.AddWithValue(names[i], cardIds[i]);
+        }
+        cmd.CommandText = $"UPDATE FlashcardScheduling SET BuriedUntil = $until WHERE CardId IN ({string.Join(", ", names)});";
+        cmd.Parameters.AddWithValue("$until", (object?)FlashcardSqlMap.TsN(until) ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -89,7 +117,8 @@ public sealed class ScheduleRepository : IScheduleRepository
                 SUM(CASE WHEN s.FsrsState = 2 AND s.DueDate <= $now THEN 1 ELSE 0 END)
             FROM FlashcardScheduling s
             JOIN FlashcardCards c ON c.Id = s.CardId
-            WHERE c.DeckId = $deck AND c.State = 0;
+            WHERE c.DeckId = $deck AND c.State = 0
+              AND (s.BuriedUntil IS NULL OR s.BuriedUntil <= $now);
             """;
         cmd.Parameters.AddWithValue("$deck", deckId);
         cmd.Parameters.AddWithValue("$now", FlashcardSqlMap.Ts(now));
@@ -155,5 +184,6 @@ public sealed class ScheduleRepository : IScheduleRepository
         Lapses: reader.GetInt32(5),
         FsrsState: (FlashcardFsrsState)reader.GetInt32(6),
         LearningStepIndex: reader.GetInt32(7),
-        LastReviewedAt: FlashcardSqlMap.ReadTsN(reader, 8));
+        LastReviewedAt: FlashcardSqlMap.ReadTsN(reader, 8),
+        BuriedUntil: FlashcardSqlMap.ReadTsN(reader, 9));
 }

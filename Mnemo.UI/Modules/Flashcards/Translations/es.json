@@ -204,7 +204,7 @@
     "ReviewSettingsSessionLabel": "SESIÓN",
     "ReviewSettingsShuffleTitle": "Mezclar el orden de las tarjetas",
     "ReviewSettingsBuryTitle": "Posponer tarjetas relacionadas hasta mañana",
-    "ReviewSettingsBuryComingSoon": "Próximamente",
+    "ReviewSettingsBuryHint": "Al responder una tarjeta, el resto de su material espera hasta el día siguiente.",
     "ReviewSettingsAutoRevealTitle": "Revelar respuesta automáticamente",
     "ReviewSettingsAutoRevealOff": "Desactivado",
     "ReviewSettingsAutoReveal5s": "5 s",
