@@ -629,28 +629,9 @@ public partial class FlashcardsViewModel : ViewModelBase, INavigationAware
         if (folder is null)
             return;
 
-        // Direct children are lifted to root when the parent folder is deleted (matches notes behavior).
-        var rootOrderStart = _loadedFolders
-            .Where(f => f.ParentId is null && !string.Equals(f.Id, folderId, StringComparison.Ordinal))
-            .Select(f => f.Order)
-            .DefaultIfEmpty(-1)
-            .Max() + 1;
-        var childFolders = _loadedFolders
-            .Where(f => string.Equals(f.ParentId, folderId, StringComparison.Ordinal))
-            .OrderBy(f => f.Order)
-            .ThenBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ToArray();
-        for (var index = 0; index < childFolders.Length; index++)
-        {
-            await _library.SaveFolderAsync(
-                childFolders[index] with { ParentId = null, Order = rootOrderStart + index }).ConfigureAwait(false);
-        }
-
-        // Decks in the deleted folder are re-parented to root before the folder row is removed.
-        var directDecks = _loadedDecks.Where(d => string.Equals(d.Header.FolderId, folderId, StringComparison.Ordinal)).ToArray();
-        foreach (var deck in directDecks)
-            await _library.SaveDeckAsync(deck.Header with { FolderId = null }).ConfigureAwait(false);
-
+        // The service lifts direct child folders and decks to the root and deletes the folder in
+        // one transaction (matches notes behavior for the reparenting, and cannot leave either
+        // half done if it fails partway through).
         await _library.DeleteFolderAsync(folderId).ConfigureAwait(false);
         await LoadDecksAsync().ConfigureAwait(false);
     }
