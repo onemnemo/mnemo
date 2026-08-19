@@ -68,6 +68,42 @@ public static class CardEndpoints
             return CardPageDto.FromModel(page);
         });
 
+        // Collection-wide counterpart to the deck-scoped query above: the same filter set with
+        // no deck pinned, for the browser that lists cards across every deck at once.
+        endpoints.MapGet("/api/cards", async (
+            string? deckId,
+            string? text,
+            string? state,
+            string? tag,
+            string? sort,
+            bool? desc,
+            int? offset,
+            int? limit,
+            string? type,
+            int? minLapses,
+            int? maxLapses,
+            string? cardTypeId,
+            IFlashcardCardService cards,
+            CancellationToken cancellationToken) =>
+        {
+            var query = new FlashcardCardQuery(
+                string.IsNullOrWhiteSpace(deckId) ? null : deckId,
+                text,
+                FlashcardWire.ParseStateFilter(state),
+                tag,
+                FlashcardWire.ParseSort(sort),
+                desc ?? false,
+                Math.Max(0, offset ?? 0),
+                Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize),
+                FlashcardWire.ParseTypeOrNull(type),
+                minLapses is { } min ? Math.Max(0, min) : null,
+                maxLapses is { } max ? Math.Max(0, max) : null,
+                string.IsNullOrWhiteSpace(cardTypeId) ? null : cardTypeId);
+
+            var page = await cards.ListCardsAsync(query, cancellationToken).ConfigureAwait(false);
+            return CardPageDto.FromModel(page);
+        });
+
         // Backs the deck page's tag filter menu. The card service has no tag-projection
         // query, so the list is assembled by sweeping the deck - the same thing the desktop
         // does, moved to the server so opening the menu costs one request instead of one
@@ -76,26 +112,36 @@ public static class CardEndpoints
             string deckId,
             IFlashcardCardService cards,
             CancellationToken cancellationToken) =>
+            await SweepTagsAsync(cards, deckId, cancellationToken).ConfigureAwait(false));
+
+        // Collection-wide counterpart: the browser's tag filter menu has no deck to sweep, so
+        // it sweeps the whole library.
+        endpoints.MapGet("/api/card-tags", async (
+            IFlashcardCardService cards,
+            CancellationToken cancellationToken) =>
+            await SweepTagsAsync(cards, null, cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<List<string>> SweepTagsAsync(IFlashcardCardService cards, string? deckId, CancellationToken cancellationToken)
+    {
+        var tags = new SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
+        for (var offset = 0; ; offset += TagScanPageSize)
         {
-            var tags = new SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
-            for (var offset = 0; ; offset += TagScanPageSize)
+            var page = await cards
+                .ListCardsAsync(new FlashcardCardQuery(deckId, Offset: offset, Limit: TagScanPageSize), cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (var view in page.Items)
             {
-                var page = await cards
-                    .ListCardsAsync(new FlashcardCardQuery(deckId, Offset: offset, Limit: TagScanPageSize), cancellationToken)
-                    .ConfigureAwait(false);
-
-                foreach (var view in page.Items)
-                {
-                    foreach (var tag in view.Card.Tags)
-                        tags.Add(tag);
-                }
-
-                if (offset + TagScanPageSize >= page.TotalCount)
-                    break;
+                foreach (var tag in view.Card.Tags)
+                    tags.Add(tag);
             }
 
-            return tags.ToList();
-        });
+            if (offset + TagScanPageSize >= page.TotalCount)
+                break;
+        }
+
+        return tags.ToList();
     }
 
     private static void MapCardCrud(IEndpointRouteBuilder endpoints)

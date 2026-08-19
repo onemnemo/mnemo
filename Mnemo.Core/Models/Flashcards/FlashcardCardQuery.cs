@@ -23,11 +23,13 @@ public enum FlashcardCardSort
 }
 
 /// <summary>
-/// A paginated, filtered query over a single deck's cards. Backs the deck view (10b), which is
-/// always paged (e.g. "1–50 of 58") and never loads a whole deck at once.
+/// A paginated, filtered query over cards. Backs the deck view, which is always paged
+/// (e.g. "1 to 50 of 58") and never loads a whole deck at once, and the collection-wide browser,
+/// which runs the same query with <see cref="DeckId"/> left null.
 /// </summary>
 public sealed record FlashcardCardQuery(
-    string DeckId,
+    /// <summary>Restricts to one deck; null searches every deck in the library.</summary>
+    string? DeckId,
     string? Text = null,
     FlashcardCardStateFilter State = FlashcardCardStateFilter.All,
     string? Tag = null,
@@ -43,7 +45,12 @@ public sealed record FlashcardCardQuery(
     /// which finds the cards worth rewriting, and "never forgotten", which is Max 0.
     /// </summary>
     int? MinLapses = null,
-    int? MaxLapses = null);
+    int? MaxLapses = null,
+    /// <summary>
+    /// Restricts to facts authored under one <see cref="FlashcardCardType"/>; null leaves every
+    /// card type in. Distinct from <see cref="Type"/>, which is the classic/cloze rendering shape.
+    /// </summary>
+    string? CardTypeId = null);
 
 /// <summary>One page of cards (content + schedule) plus the total row count for the query.</summary>
 public sealed record FlashcardCardPage(

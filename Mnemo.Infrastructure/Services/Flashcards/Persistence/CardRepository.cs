@@ -104,22 +104,28 @@ public sealed class CardRepository : ICardRepository
 
     public async Task<FlashcardCardPage> GetPageAsync(SqliteConnection conn, FlashcardCardQuery query, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var where = new StringBuilder("WHERE c.DeckId = $deck");
+        var where = new StringBuilder("WHERE 1 = 1");
         void Bind(SqliteCommand c)
         {
-            c.Parameters.AddWithValue("$deck", query.DeckId);
             c.Parameters.AddWithValue("$now", FlashcardSqlMap.Ts(now));
+            if (!string.IsNullOrWhiteSpace(query.DeckId))
+                c.Parameters.AddWithValue("$deck", query.DeckId);
             if (!string.IsNullOrWhiteSpace(query.Text))
-                c.Parameters.AddWithValue("$text", "%" + query.Text.Trim() + "%");
+                c.Parameters.AddWithValue("$text", BuildFtsQuery(query.Text));
             if (!string.IsNullOrWhiteSpace(query.Tag))
                 c.Parameters.AddWithValue("$tag", query.Tag);
             if (query.Type is { } type)
                 c.Parameters.AddWithValue("$type", (int)type);
+            if (!string.IsNullOrWhiteSpace(query.CardTypeId))
+                c.Parameters.AddWithValue("$cardType", query.CardTypeId);
             if (query.MinLapses is { } min)
                 c.Parameters.AddWithValue("$minLapses", min);
             if (query.MaxLapses is { } max)
                 c.Parameters.AddWithValue("$maxLapses", max);
         }
+
+        if (!string.IsNullOrWhiteSpace(query.DeckId))
+            where.Append(" AND c.DeckId = $deck");
 
         switch (query.State)
         {
@@ -141,11 +147,13 @@ public sealed class CardRepository : ICardRepository
         }
 
         if (!string.IsNullOrWhiteSpace(query.Text))
-            where.Append(" AND (c.Front LIKE $text OR c.Back LIKE $text)");
+            where.Append(" AND c.rowid IN (SELECT rowid FROM FlashcardCardsFts WHERE FlashcardCardsFts MATCH $text)");
         if (!string.IsNullOrWhiteSpace(query.Tag))
             where.Append(" AND EXISTS (SELECT 1 FROM json_each(c.TagsJson) WHERE json_each.value = $tag)");
         if (query.Type is not null)
             where.Append(" AND c.Type = $type");
+        if (!string.IsNullOrWhiteSpace(query.CardTypeId))
+            where.Append(" AND EXISTS (SELECT 1 FROM FlashcardFacts f WHERE f.Id = c.FactId AND f.TypeId = $cardType)");
         if (query.MinLapses is not null)
             where.Append(" AND s.Lapses >= $minLapses");
         if (query.MaxLapses is not null)
