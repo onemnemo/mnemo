@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -126,22 +127,42 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
     public Task MoveDeckAsync(string deckId, string? folderId, int sortOrder, CancellationToken cancellationToken = default) =>
         _store.WriteAsync((conn, tx, ct) => _decks.MoveAsync(conn, tx, deckId, folderId, sortOrder, _clock.Now, ct), cancellationToken);
 
-    public Task ReorderAsync(IReadOnlyList<FlashcardOrderEntry> entries, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(entries);
-        var now = _clock.Now;
-        return _store.WriteAsync(async (conn, tx, ct) =>
-        {
-            foreach (var e in entries)
-                await _decks.MoveAsync(conn, tx, e.DeckId, e.FolderId, e.SortOrder, now, ct).ConfigureAwait(false);
-        }, cancellationToken);
-    }
-
     public Task<bool> DeleteDeckAsync(string deckId, CancellationToken cancellationToken = default) =>
         _store.WriteAsync((conn, tx, ct) => _decks.DeleteAsync(conn, tx, deckId, ct), cancellationToken);
 
+    /// <summary>
+    /// Deletes a folder. Its direct child folders and decks are lifted to the root rather than
+    /// cascading, and that reparenting happens in the same transaction as the delete, so a failure
+    /// partway through cannot leave some of the folder's contents reparented, or any of them still
+    /// pointing at a folder that is about to stop existing.
+    /// </summary>
     public Task<bool> DeleteFolderAsync(string folderId, CancellationToken cancellationToken = default) =>
-        _store.WriteAsync((conn, tx, ct) => _folders.DeleteAsync(conn, tx, folderId, ct), cancellationToken);
+        _store.WriteAsync(async (conn, tx, ct) =>
+        {
+            var folders = await _folders.ListAsync(conn, ct).ConfigureAwait(false);
+            if (!folders.Any(f => f.Id == folderId))
+                return false;
+
+            var now = _clock.Now;
+            var nextRootOrder = folders.Where(f => f.ParentId is null).Select(f => f.Order).DefaultIfEmpty(-1).Max() + 1;
+            var orphanedFolders = folders
+                .Where(f => f.ParentId == folderId)
+                .OrderBy(f => f.Order)
+                .ThenBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            for (var i = 0; i < orphanedFolders.Count; i++)
+            {
+                await _folders.UpsertAsync(conn, tx, orphanedFolders[i] with { ParentId = null, Order = nextRootOrder + i }, now, ct)
+                    .ConfigureAwait(false);
+            }
+
+            var decks = await _decks.ListHeadersAsync(conn, ct).ConfigureAwait(false);
+            foreach (var deck in decks.Where(d => d.FolderId == folderId))
+                await _decks.MoveAsync(conn, tx, deck.Id, null, deck.SortOrder, now, ct).ConfigureAwait(false);
+
+            return await _folders.DeleteAsync(conn, tx, folderId, ct).ConfigureAwait(false);
+        }, cancellationToken);
 
     private async Task<FlashcardDeckSummary> BuildSummaryAsync(
         SqliteConnection conn, FlashcardDeckHeader header, FlashcardPreset preset,
