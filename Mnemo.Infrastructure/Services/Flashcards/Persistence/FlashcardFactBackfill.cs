@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Flashcards;
@@ -272,7 +273,7 @@ internal static class FlashcardFactBackfill
     /// </remarks>
     private static string MediaJson(string attachmentsJson, string frontFieldId, string backFieldId)
     {
-        if (JsonNode.Parse(attachmentsJson) is not JsonArray attachments || attachments.Count == 0)
+        if (TryReadAttachments(attachmentsJson) is not { Count: > 0 } attachments)
             return "{}";
 
         var front = new JsonArray();
@@ -291,6 +292,30 @@ internal static class FlashcardFactBackfill
         if (back.Count > 0)
             media[backFieldId] = back;
         return media.ToJsonString();
+    }
+
+    /// <summary>
+    /// The attachments the card was stored with, or null when the column holds something this
+    /// build cannot read.
+    /// </summary>
+    /// <remarks>
+    /// Every runtime read of this column falls back to no attachments rather than throwing, and the
+    /// upgrade has to hold the same line. It runs inside the transaction that stamps the version,
+    /// before anything else can touch the collection, so a throw here rolls the stamp back with it
+    /// and the same row fails the same way on the next launch, taking the whole module down for one
+    /// unreadable card. The raw text is left on the card either way, so nothing that could not be
+    /// read is thrown away.
+    /// </remarks>
+    private static JsonArray? TryReadAttachments(string attachmentsJson)
+    {
+        try
+        {
+            return JsonNode.Parse(attachmentsJson) as JsonArray;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static bool IsBackSide(JsonObject attachment)
