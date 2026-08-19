@@ -34,13 +34,14 @@ public enum ShutdownVerdict
 /// already been served by a Kestrel that was still running.
 /// </para>
 /// <para>
-/// The grace period is the subtlety. It was sized for a save, not for a person
-/// reading a dialog, so a client that intends to ask something first says so
-/// through <see cref="SignalHolding"/> and the deadline stops applying. That
-/// trades a bounded delay for an unbounded one, which is safe only because the
-/// drain is claimed once: a second press of the close button finds
-/// <see cref="TryBeginDrain"/> already claimed and goes straight through. There
-/// is always a way out of a prompt that never resolves.
+/// The grace period is the subtlety. It was sized for one small commit against a
+/// local file, not for a person reading a dialog nor for a document large enough
+/// to be slow to serialize, and it starts before the SPA has serialized anything.
+/// So a client with either to do says so through <see cref="SignalHolding"/> and
+/// the deadline stops applying. That trades a bounded delay for an unbounded one,
+/// which is safe only because the drain is claimed once: a second press of the
+/// close button finds <see cref="TryBeginDrain"/> already claimed and goes
+/// straight through. There is always a way out of a wait that never resolves.
 /// </para>
 /// <para>
 /// <see cref="WaitForVerdictAsync"/> is asynchronous by construction, because the
@@ -79,8 +80,8 @@ public sealed class ShutdownGate
     }
 
     /// <summary>
-    /// Reports that a person is being asked something, so the grace period should
-    /// stop counting. Ignored once a verdict has been given.
+    /// Reports that there is a person to ask or work to write, so the grace period
+    /// should stop counting. Ignored once a verdict has been given.
     /// </summary>
     public void SignalHolding()
     {
