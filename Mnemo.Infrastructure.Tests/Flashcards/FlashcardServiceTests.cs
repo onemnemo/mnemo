@@ -158,6 +158,33 @@ public sealed class FlashcardServiceTests
     }
 
     [Fact]
+    public async Task RecordReview_StampsLastStudiedOnTheDeck()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var deckId = await h.SeedDeckAsync();
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+        var lib = NewLibrary(h);
+        var study = NewStudy(h);
+        var card = await cardSvc.CreateCardAsync(Draft(deckId, "Q", "A"));
+        var now = DateTimeOffset.UtcNow;
+
+        var before = await lib.GetDeckAsync(deckId);
+        Assert.Null(before!.Header.LastStudied);
+
+        var entry = new FlashcardReviewEntry(
+            new FlashcardSchedule(card.Id, now.AddDays(3), 6, 5, 1, 0, FlashcardFsrsState.Review, 0, now),
+            new FlashcardReviewLog(FlashcardReviewLog.Unassigned, card.Id, deckId, "s1",
+                FlashcardReviewGrade.Good, now, 0, 3, 6, 5, FlashcardFsrsState.Review, FlashcardFsrsState.Review),
+            IntroducedNewCard: true,
+            LocalDay: "2026-07-06");
+        await study.RecordReviewAsync(entry);
+
+        var after = await lib.GetDeckAsync(deckId);
+        Assert.NotNull(after!.Header.LastStudied);
+        Assert.Equal(now, after.Header.LastStudied!.Value, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
     public async Task RecordReview_IsAtomic_RollsBackWhenDailyStatFails()
     {
         await using var h = new FlashcardStoreHarness();
