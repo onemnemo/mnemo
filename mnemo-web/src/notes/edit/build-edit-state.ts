@@ -96,10 +96,13 @@ export type NoteEditState =
  *    takes the whole document in one press) must never be reached.
  *  - `inputTriggerPlugin` runs on text input, not on a key chord, so it sits
  *    before the keymaps without competing with them.
- *  - `structureKeymap` must precede `baseKeymap`: both bind Enter and Backspace,
- *    and ours has to win so a split lands our block shapes. It declines
- *    (returns false) for the cases it does not own, a mid-line Backspace, a
- *    cross-block selection, and those fall through to the base behaviour.
+ *  - `structureKeymap` must precede `baseKeymap`: both bind Enter, Backspace
+ *    and Delete, and ours has to win so a split or a join lands our block
+ *    shapes instead of `baseKeymap`'s generic `joinForward`, which does not
+ *    know this schema's line/block split and re-parents instead of merging.
+ *    It declines (returns false) for the cases it does not own, a mid-line
+ *    Backspace or Delete, a cross-block selection, and those fall through to
+ *    the base behaviour.
  *  - `editorKeymap` carries the formatting chords, which collide with nothing
  *    structural; its place before `baseKeymap` is for tidiness, not correctness.
  *  - `baseKeymap` is the ProseMirror default of last resort.

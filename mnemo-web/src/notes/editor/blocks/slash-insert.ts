@@ -17,11 +17,11 @@
  * that carries no text of its own.
  */
 
-import type { NodeType } from 'prosemirror-model';
 import { TextSelection } from 'prosemirror-state';
 import { blockContext, convertBlockType } from '../commands/structure';
 import type { SlashContribution } from '../registry/types';
 import { createTable } from '../table/model';
+import { lineIsCaretTarget } from './shared';
 
 /**
  * The page row: create the nested note first, then put a card in front of it.
@@ -154,11 +154,6 @@ export function convertHere(
   };
 }
 
-/** A block whose line the caret can sit in; the schema knows, so nothing lists them. */
-function holdsCaret(type: NodeType): boolean {
-  return type.spec.holdsCaret !== false;
-}
-
 /**
  * The same conversion, for a block that draws itself and has no line to type in.
  *
@@ -194,7 +189,7 @@ export function insertAtomicBlock(
     const below = ctx.blockPos + (converted?.nodeSize ?? ctx.block.nodeSize);
     const next = tr.doc.resolve(below).nodeAfter;
 
-    if (!next || !holdsCaret(next.type)) {
+    if (!next || !lineIsCaretTarget(next.type)) {
       tr.insert(below, paragraph.create(null, line.create()));
     }
     tr.setSelection(TextSelection.create(tr.doc, below + 2));
