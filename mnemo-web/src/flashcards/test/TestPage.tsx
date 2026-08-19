@@ -5,6 +5,7 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 import { isEditableTarget, isMac } from "@/keybinds/chord"
+import { useLocalActions } from "@/keybinds/local"
 import { dialog } from "@/stores/dialog"
 
 import { useFlagCards } from "../deck/api"
@@ -20,7 +21,11 @@ import { TestTopbar } from "./components/TestTopbar"
 import { useTest } from "./store"
 import { type TestGrade, tested } from "./test"
 
-const GRADE_KEYS: Record<string, TestGrade> = { "1": "missed", "2": "close", "3": "gotIt" }
+const GRADE_ACTIONS: Record<string, TestGrade> = {
+  "flashcards-test.grade-missed": "missed",
+  "flashcards-test.grade-close": "close",
+  "flashcards-test.grade-got-it": "gotIt",
+}
 
 /**
  * The test screen. Everything it runs on is client-side - Test scores itself and writes no
@@ -45,6 +50,7 @@ export function TestPage({ deckId }: { deckId?: string }) {
   const editorTarget = useCardEditor((s) => s.target)
   const openEdit = useCardEditor((s) => s.openEdit)
   const flagCards = useFlagCards(deckId ?? "")
+  const actionFor = useLocalActions("flashcards-test")
 
   const card = queue[index] ?? null
   const active = status === "active" && card !== null
@@ -127,11 +133,11 @@ export function TestPage({ deckId }: { deckId?: string }) {
       // behind the app's own "leave test?" confirm, where Enter would grade the card it asks about.
       if (isModalOpen()) return
 
-      const bare = !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+      const hit = actionFor(event)
 
       // Checked before the answer box, because Escape leaves the test from anywhere - including
       // mid-sentence - exactly as it does on the desktop.
-      if (event.key === "Escape" && bare) {
+      if (hit?.actionId === "flashcards-test.close") {
         event.preventDefault()
         void actions.current.close()
         return
@@ -142,7 +148,7 @@ export function TestPage({ deckId }: { deckId?: string }) {
 
       const state = useTest.getState()
 
-      if ((isMac ? event.metaKey : event.ctrlKey) && event.key.toLowerCase() === "z") {
+      if (hit?.actionId === "flashcards-test.undo") {
         event.preventDefault()
         state.undo()
         return
@@ -150,21 +156,15 @@ export function TestPage({ deckId }: { deckId?: string }) {
 
       // Before the answer is revealed nothing here is bound - the box owns the keyboard, and
       // grading a card the reader has not answered yet would be nonsense.
-      if (!bare || !state.revealed) return
+      if (!hit || !state.revealed) return
 
-      if (event.key === "Enter") {
-        event.preventDefault()
-        state.grade("gotIt")
-        return
-      }
-
-      if (event.key === "e" || event.key === "E") {
+      if (hit.actionId === "flashcards-test.edit") {
         event.preventDefault()
         actions.current.editCurrent()
         return
       }
 
-      const grade = GRADE_KEYS[event.key]
+      const grade = GRADE_ACTIONS[hit.actionId]
       if (grade) {
         event.preventDefault()
         state.grade(grade)
@@ -173,7 +173,7 @@ export function TestPage({ deckId }: { deckId?: string }) {
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [])
+  }, [actionFor])
 
   const missed = queue.filter((_, i) => grades[i] === "missed")
 

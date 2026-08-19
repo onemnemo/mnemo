@@ -1,4 +1,24 @@
 {
+  "Keybinds": {
+    "module.flashcards-session": "Sesión",
+    "category.flashcards-session": "Sesión",
+    "flashcards-session.close": "Salir de la sesión",
+    "flashcards-session.undo": "Deshacer calificación",
+    "flashcards-session.reveal": "Mostrar respuesta / calificar bien",
+    "flashcards-session.edit": "Editar tarjeta",
+    "flashcards-session.grade-again": "Calificar otra vez",
+    "flashcards-session.grade-hard": "Calificar difícil",
+    "flashcards-session.grade-good": "Calificar bien",
+    "flashcards-session.grade-easy": "Calificar fácil",
+    "module.flashcards-test": "Test",
+    "category.flashcards-test": "Test",
+    "flashcards-test.close": "Salir del test",
+    "flashcards-test.undo": "Deshacer calificación",
+    "flashcards-test.edit": "Editar tarjeta",
+    "flashcards-test.grade-missed": "Calificar fallada",
+    "flashcards-test.grade-close": "Calificar casi",
+    "flashcards-test.grade-got-it": "Calificar lo tengo"
+  },
   "Flashcards": {
     "Title": "Tarjetas",
     "Import": "Importar",

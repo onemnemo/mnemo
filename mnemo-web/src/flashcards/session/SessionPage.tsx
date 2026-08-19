@@ -3,7 +3,8 @@ import { useEffect, useRef } from "react"
 import type { ReviewGrade, SessionMode, SessionScope } from "@/api/types"
 import { navigate } from "@/app/router"
 import { useT } from "@/i18n/useT"
-import { isEditableTarget, isMac } from "@/keybinds/chord"
+import { isEditableTarget } from "@/keybinds/chord"
+import { useLocalActions } from "@/keybinds/local"
 import { dialog } from "@/stores/dialog"
 
 import { useFlagCards } from "../deck/api"
@@ -21,7 +22,12 @@ import { SessionTopbar } from "./components/SessionTopbar"
 
 const AUTO_REVEAL_SECONDS: Record<string, number> = { "five-seconds": 5, "ten-seconds": 10 }
 
-const GRADE_KEYS: Record<string, ReviewGrade> = { "1": "again", "2": "hard", "3": "good", "4": "easy" }
+const GRADE_ACTIONS: Record<string, ReviewGrade> = {
+  "flashcards-session.grade-again": "again",
+  "flashcards-session.grade-hard": "hard",
+  "flashcards-session.grade-good": "good",
+  "flashcards-session.grade-easy": "easy",
+}
 
 /**
  * The review and cram study screen. The queue, the scheduling and the undo stack all live in the
@@ -39,6 +45,7 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
   const editorTarget = useCardEditor((s) => s.target)
   const openEdit = useCardEditor((s) => s.openEdit)
   const flagCards = useFlagCards(deckId ?? "")
+  const actionFor = useLocalActions("flashcards-session")
 
   const card = overlaid ?? session?.current ?? null
   const active = isActive(session)
@@ -132,38 +139,39 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
       if (isModalOpen()) return
       if (isEditableTarget(event.target)) return
 
+      const hit = actionFor(event)
+      if (!hit) return
+
       const state = useSession.getState()
 
-      // Checked before the bare-key gate, and works on the completion screen too: undo there
-      // pulls the last card back rather than being a no-op.
-      if ((isMac ? event.metaKey : event.ctrlKey) && event.key.toLowerCase() === "z") {
+      // Works on the completion screen too: undo there pulls the last card back rather than
+      // being a no-op.
+      if (hit.actionId === "flashcards-session.undo") {
         event.preventDefault()
         void state.undo()
         return
       }
 
-      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
-
-      if (event.key === "Escape") {
+      if (hit.actionId === "flashcards-session.close") {
         event.preventDefault()
         void actions.current.close()
         return
       }
 
-      if (event.key === " ") {
+      if (hit.actionId === "flashcards-session.reveal") {
         event.preventDefault()
         if (state.session?.current && !state.revealed) state.reveal()
         else void state.grade("good")
         return
       }
 
-      if (event.key === "e" || event.key === "E") {
+      if (hit.actionId === "flashcards-session.edit") {
         event.preventDefault()
         actions.current.editCurrent()
         return
       }
 
-      const grade = GRADE_KEYS[event.key]
+      const grade = GRADE_ACTIONS[hit.actionId]
       if (grade) {
         event.preventDefault()
         void state.grade(grade)
@@ -172,7 +180,7 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [])
+  }, [actionFor])
 
   // Fills the module canvas rather than taking over the whole window: an overlay pinned to the
   // window would sit its own bar on top of the OS titlebar's drag region, which swallows the

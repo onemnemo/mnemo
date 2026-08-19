@@ -1,4 +1,24 @@
 {
+  "Keybinds": {
+    "module.flashcards-session": "Økt",
+    "category.flashcards-session": "Økt",
+    "flashcards-session.close": "Forlat økten",
+    "flashcards-session.undo": "Angre vurdering",
+    "flashcards-session.reveal": "Vis svar / vurder som bra",
+    "flashcards-session.edit": "Rediger kort",
+    "flashcards-session.grade-again": "Vurder som igjen",
+    "flashcards-session.grade-hard": "Vurder som vanskelig",
+    "flashcards-session.grade-good": "Vurder som bra",
+    "flashcards-session.grade-easy": "Vurder som lett",
+    "module.flashcards-test": "Test",
+    "category.flashcards-test": "Test",
+    "flashcards-test.close": "Forlat testen",
+    "flashcards-test.undo": "Angre vurdering",
+    "flashcards-test.edit": "Rediger kort",
+    "flashcards-test.grade-missed": "Vurder som bommet",
+    "flashcards-test.grade-close": "Vurder som nære",
+    "flashcards-test.grade-got-it": "Vurder som klarte det"
+  },
   "Flashcards": {
     "Title": "Flashcards",
     "Import": "Importer",
