@@ -217,8 +217,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             try
             {
                 var dbPath = Path.Combine(tempRoot, "collection.anki2");
-                var mediaMap = new Dictionary<string, string>(StringComparer.Ordinal);
-                var mediaCounter = 0;
+                var media = new MediaExportState();
                 var exportedCards = 0;
                 var now = DateTimeOffset.UtcNow;
                 var nowMs = now.ToUnixTimeMilliseconds();
@@ -249,8 +248,10 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                             var mod = nowSec;
                             var tags = card.Tags.Count > 0 ? $" {string.Join(' ', card.Tags)} " : string.Empty;
 
-                            var frontHtml = BuildFieldHtml(card.Front, card.FrontBlocks, tempRoot, mediaMap, ref mediaCounter, warnings);
-                            var backHtml = BuildFieldHtml(card.Back, card.BackBlocks, tempRoot, mediaMap, ref mediaCounter, warnings);
+                            var frontHtml = BuildFieldHtml(
+                                card.Front, card.FrontBlocks, card.Attachments, FlashcardAttachment.FrontSide, tempRoot, media, warnings);
+                            var backHtml = BuildFieldHtml(
+                                card.Back, card.BackBlocks, card.Attachments, FlashcardAttachment.BackSide, tempRoot, media, warnings);
                             var flds = $"{frontHtml}{UnitSeparator}{backHtml}";
                             var sfld = card.Front;
                             var csum = ComputeChecksum(card.Front);
@@ -265,7 +266,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 }
 
                 var mediaJsonPath = Path.Combine(tempRoot, "media");
-                await File.WriteAllTextAsync(mediaJsonPath, JsonSerializer.Serialize(mediaMap), Utf8WithoutBom, cancellationToken).ConfigureAwait(false);
+                await File.WriteAllTextAsync(mediaJsonPath, JsonSerializer.Serialize(media.Map), Utf8WithoutBom, cancellationToken).ConfigureAwait(false);
 
                 if (File.Exists(request.FilePath))
                     File.Delete(request.FilePath);
@@ -786,7 +787,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             foreach (var view in page.Items)
             {
                 var card = view.Card;
-                cards.Add(new AnkiExportCard(card.Id, card.Front, card.Back, card.Tags, card.FrontBlocks, card.BackBlocks));
+                cards.Add(new AnkiExportCard(
+                    card.Id, card.Front, card.Back, card.Tags, card.Attachments, card.FrontBlocks, card.BackBlocks));
             }
 
             offset += page.Items.Count;
@@ -1122,30 +1124,47 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// One card side as Anki field HTML: the card's text followed by an <c>&lt;img&gt;</c> for each
+    /// image on that side.
+    /// </summary>
+    /// <remarks>
+    /// Images live on the card as attachments. Reading them off the rich blocks instead, as the
+    /// export used to, found nothing, because the block pipeline stopped emitting image blocks; a
+    /// deck full of pictures exported as a deck of bare text.
+    /// </remarks>
     private static string BuildFieldHtml(
         string plain,
         IReadOnlyList<Block>? blocks,
+        IReadOnlyList<FlashcardAttachment>? attachments,
+        string side,
         string tempRoot,
-        IDictionary<string, string> mediaMap,
-        ref int mediaCounter,
+        MediaExportState media,
         ICollection<string> warnings)
     {
-        if (blocks is null || blocks.Count == 0)
-            return WebUtility.HtmlEncode(plain ?? string.Empty);
-
-        var fragments = new List<string>(blocks.Count);
-        foreach (var block in blocks.OrderBy(b => b.Order))
+        var fragments = new List<string>();
+        if (blocks is { Count: > 0 })
         {
-            if (block.Type == BlockType.Image && block.Payload is ImagePayload imagePayload)
+            foreach (var block in blocks.OrderBy(b => b.Order))
             {
-                var copiedFilename = TryCopyMedia(imagePayload.Path, tempRoot, mediaMap, ref mediaCounter, warnings);
-                if (copiedFilename != null)
-                    fragments.Add($"<img src=\"{WebUtility.HtmlEncode(copiedFilename)}\">");
-                continue;
+                var text = block.Spans is { Count: > 0 } ? SerializeSpansToHtml(block.Spans) : WebUtility.HtmlEncode(block.Content);
+                fragments.Add(text);
             }
+        }
+        else
+        {
+            // Anki collapses a raw newline to a space, so a multi-line card would arrive as one run-on line.
+            fragments.Add(WebUtility.HtmlEncode(plain ?? string.Empty).Replace("\n", "<br>", StringComparison.Ordinal));
+        }
 
-            var text = block.Spans is { Count: > 0 } ? SerializeSpansToHtml(block.Spans) : WebUtility.HtmlEncode(block.Content);
-            fragments.Add(text);
+        foreach (var attachment in attachments ?? Array.Empty<FlashcardAttachment>())
+        {
+            if (!string.Equals(attachment.Side, side, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var exportedName = TryCopyMedia(attachment.FilePath, tempRoot, media, warnings);
+            if (exportedName != null)
+                fragments.Add($"<img src=\"{WebUtility.HtmlEncode(exportedName)}\">");
         }
 
         return string.Join("<br>", fragments.Where(f => !string.IsNullOrWhiteSpace(f)));
@@ -1154,8 +1173,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     private static string? TryCopyMedia(
         string sourcePath,
         string tempRoot,
-        IDictionary<string, string> mediaMap,
-        ref int mediaCounter,
+        MediaExportState media,
         ICollection<string> warnings)
     {
         if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
@@ -1164,17 +1182,14 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             return null;
         }
 
-        var originalName = Path.GetFileName(sourcePath);
-        var existing = mediaMap.FirstOrDefault(kv => string.Equals(kv.Value, originalName, StringComparison.OrdinalIgnoreCase));
-        if (!string.IsNullOrWhiteSpace(existing.Key))
-            return originalName;
+        if (media.TryGetExportedName(sourcePath, out var already))
+            return already;
 
-        var slot = mediaCounter.ToString(CultureInfo.InvariantCulture);
-        mediaCounter++;
-        var dest = Path.Combine(tempRoot, slot);
-        File.Copy(sourcePath, dest, overwrite: true);
-        mediaMap[slot] = originalName;
-        return originalName;
+        var exportedName = media.ReserveName(Path.GetFileName(sourcePath));
+        var slot = media.NextSlot();
+        File.Copy(sourcePath, Path.Combine(tempRoot, slot), overwrite: true);
+        media.Record(sourcePath, slot, exportedName);
+        return exportedName;
     }
 
     private static string SerializeSpansToHtml(IReadOnlyList<InlineSpan> spans)
@@ -1365,6 +1380,55 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         string Front,
         string Back,
         IReadOnlyList<string> Tags,
+        IReadOnlyList<FlashcardAttachment>? Attachments,
         IReadOnlyList<Block>? FrontBlocks,
         IReadOnlyList<Block>? BackBlocks);
+
+    /// <summary>
+    /// The media table being assembled for an export: which numbered file each image was copied to,
+    /// and the filename it is referenced by.
+    /// </summary>
+    /// <remarks>
+    /// Two images can share a filename while being different pictures, since the name a card shows
+    /// is the one the file had wherever it came from. Keying by that name alone made the second one
+    /// resolve to the first, so a card silently displayed someone else's picture. Identity is the
+    /// stored file, and a name already taken is given a suffix.
+    /// </remarks>
+    private sealed class MediaExportState
+    {
+        private readonly Dictionary<string, string> _nameBySourcePath = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _usedNames = new(StringComparer.OrdinalIgnoreCase);
+        private int _counter;
+
+        /// <summary>Slot inside the package to the filename cards reference it by.</summary>
+        public Dictionary<string, string> Map { get; } = new(StringComparer.Ordinal);
+
+        public bool TryGetExportedName(string sourcePath, [MaybeNullWhen(false)] out string exportedName) =>
+            _nameBySourcePath.TryGetValue(sourcePath, out exportedName);
+
+        public string ReserveName(string preferredName)
+        {
+            var name = string.IsNullOrWhiteSpace(preferredName) ? "image" : preferredName;
+            if (!_usedNames.Contains(name))
+                return name;
+
+            var stem = Path.GetFileNameWithoutExtension(name);
+            var extension = Path.GetExtension(name);
+            for (var suffix = 2; ; suffix++)
+            {
+                var candidate = $"{stem}_{suffix.ToString(CultureInfo.InvariantCulture)}{extension}";
+                if (!_usedNames.Contains(candidate))
+                    return candidate;
+            }
+        }
+
+        public string NextSlot() => (_counter++).ToString(CultureInfo.InvariantCulture);
+
+        public void Record(string sourcePath, string slot, string exportedName)
+        {
+            Map[slot] = exportedName;
+            _usedNames.Add(exportedName);
+            _nameBySourcePath[sourcePath] = exportedName;
+        }
+    }
 }
