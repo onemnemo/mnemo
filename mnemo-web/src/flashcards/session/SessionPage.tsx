@@ -11,6 +11,7 @@ import { useFlagCards } from "../deck/api"
 import { isModalOpen } from "@/lib/modal"
 
 import { useCardEditor } from "../editor/store"
+import { StudyAnnouncer, useStudyAnnouncer } from "../study-announcer"
 import { fetchCard } from "./api"
 import { isActive, isAllCaughtUp } from "./session"
 import { useSession } from "./store"
@@ -46,6 +47,7 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
   const openEdit = useCardEditor((s) => s.openEdit)
   const flagCards = useFlagCards(deckId ?? "")
   const actionFor = useLocalActions("flashcards-session")
+  const { message: announcement, announce } = useStudyAnnouncer()
 
   const card = overlaid ?? session?.current ?? null
   const active = isActive(session)
@@ -82,6 +84,26 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
     const timer = window.setTimeout(() => useSession.getState().reveal(), seconds * 1000)
     return () => window.clearTimeout(timer)
   }, [currentId, revealed, session])
+
+  // The card flips silently otherwise: nothing else on screen tells a screen reader
+  // user the answer just appeared.
+  useEffect(() => {
+    if (revealed) announce(t("Flashcards", "StudyAnswerRevealedAnnouncement"))
+  }, [revealed, announce, t])
+
+  // Same for the queue moving on to the next card after a grade or an undo. Read
+  // off the store directly rather than subscribing to `session`, which gets a new
+  // reference on every field it holds, not only when the card changes.
+  useEffect(() => {
+    const current = useSession.getState().session
+    if (!currentId || !current) return
+    announce(
+      t("Flashcards", "StudyCardProgressAnnouncementFormat", {
+        0: current.progress.completed + 1,
+        1: current.progress.total,
+      }),
+    )
+  }, [currentId, announce, t])
 
   // The editor has no close event, so a target going back to null is the signal that an edit
   // finished and the card on screen may no longer say what it said.
@@ -187,6 +209,7 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
   // clicks meant for close and settings.
   return (
     <div className="flex h-full min-h-0 flex-col bg-canvas">
+      <StudyAnnouncer message={announcement} />
       <SessionTopbar session={session} active={active} onClose={() => void close()} />
 
       {status === "loading" && (
