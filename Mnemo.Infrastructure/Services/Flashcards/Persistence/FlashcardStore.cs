@@ -18,6 +18,7 @@ public sealed class FlashcardStore : IFlashcardStore, IAsyncDisposable
 {
     private readonly string _connectionString;
     private readonly ILoggerService _logger;
+    private readonly TimeProvider _time;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
     private readonly SemaphoreSlim _initGate = new(1, 1);
 
@@ -25,9 +26,11 @@ public sealed class FlashcardStore : IFlashcardStore, IAsyncDisposable
     private bool _initialized;
 
     /// <param name="databasePath">Optional absolute DB path (tests). Defaults to app user data <c>mnemo.db</c>.</param>
-    public FlashcardStore(ILoggerService logger, string? databasePath = null)
+    /// <param name="time">Clock the migrations stamp from. Defaults to the system clock.</param>
+    public FlashcardStore(ILoggerService logger, string? databasePath = null, TimeProvider? time = null)
     {
         _logger = logger;
+        _time = time ?? TimeProvider.System;
         var dbPath = databasePath ?? MnemoAppPaths.GetLocalUserDataFile("mnemo.db");
         var dbDir = Path.GetDirectoryName(dbPath);
         if (!string.IsNullOrWhiteSpace(dbDir))
@@ -137,7 +140,17 @@ public sealed class FlashcardStore : IFlashcardStore, IAsyncDisposable
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task EnsureSchemaVersionAsync(SqliteConnection writer, CancellationToken cancellationToken)
+    /// <summary>
+    /// Brings a database up to <see cref="FlashcardStoreSchema.TargetVersion"/>, from whatever
+    /// version it is actually on.
+    /// </summary>
+    /// <remarks>
+    /// The whole upgrade runs inside one transaction: a build interrupted halfway leaves the
+    /// database on the version it started on rather than on a half-migrated shape no version
+    /// number describes. Steps run in ascending order and only those above the stored version,
+    /// so a database that skipped several releases gets each one in turn.
+    /// </remarks>
+    private async Task EnsureSchemaVersionAsync(SqliteConnection writer, CancellationToken cancellationToken)
     {
         await using var check = writer.CreateCommand();
         check.CommandText = "SELECT MAX(Version) FROM FlashcardSchemaVersion;";
@@ -146,27 +159,59 @@ public sealed class FlashcardStore : IFlashcardStore, IAsyncDisposable
         if (version >= FlashcardStoreSchema.TargetVersion)
             return;
 
-        foreach (var (table, column, definition) in FlashcardStoreSchema.AddedColumns)
+        await using var tx = (SqliteTransaction)await writer.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            if (await ColumnExistsAsync(writer, table, column, cancellationToken).ConfigureAwait(false))
-                continue;
+            foreach (var (table, column, definition) in FlashcardStoreSchema.AddedColumns)
+            {
+                if (await ColumnExistsAsync(writer, tx, table, column, cancellationToken).ConfigureAwait(false))
+                    continue;
 
-            await using var alter = writer.CreateCommand();
-            // Names come from a constant in this assembly, never from a caller.
-            alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
-            await alter.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                await using var alter = writer.CreateCommand();
+                alter.Transaction = tx;
+                // Names come from a constant in this assembly, never from a caller.
+                alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
+                await alter.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            await using (var indexes = writer.CreateCommand())
+            {
+                indexes.Transaction = tx;
+                indexes.CommandText = FlashcardStoreSchema.CreateIndexesOverAddedColumnsSql;
+                await indexes.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            var context = new FlashcardMigrationContext(writer, tx, _time, cancellationToken);
+            foreach (var step in FlashcardStoreDataMigrations.Steps)
+            {
+                if (step.Version <= version)
+                    continue;
+                await step.ApplyAsync(context).ConfigureAwait(false);
+            }
+
+            await using (var insert = writer.CreateCommand())
+            {
+                insert.Transaction = tx;
+                insert.CommandText = "INSERT OR IGNORE INTO FlashcardSchemaVersion (Version, AppliedAt) VALUES ($v, $at);";
+                insert.Parameters.AddWithValue("$v", FlashcardStoreSchema.TargetVersion);
+                insert.Parameters.AddWithValue("$at", FlashcardSqlMap.Ts(_time.GetUtcNow()));
+                await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
-
-        await using var insert = writer.CreateCommand();
-        insert.CommandText = "INSERT OR IGNORE INTO FlashcardSchemaVersion (Version, AppliedAt) VALUES ($v, $at);";
-        insert.Parameters.AddWithValue("$v", FlashcardStoreSchema.TargetVersion);
-        insert.Parameters.AddWithValue("$at", DateTimeOffset.UtcNow.ToString("O"));
-        await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        catch
+        {
+            await tx.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
     }
 
-    private static async Task<bool> ColumnExistsAsync(SqliteConnection writer, string table, string column, CancellationToken cancellationToken)
+    private static async Task<bool> ColumnExistsAsync(
+        SqliteConnection writer, SqliteTransaction tx, string table, string column, CancellationToken cancellationToken)
     {
         await using var cmd = writer.CreateCommand();
+        cmd.Transaction = tx;
         cmd.CommandText = $"SELECT 1 FROM pragma_table_info('{table}') WHERE name = $column LIMIT 1;";
         cmd.Parameters.AddWithValue("$column", column);
         return await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not null;

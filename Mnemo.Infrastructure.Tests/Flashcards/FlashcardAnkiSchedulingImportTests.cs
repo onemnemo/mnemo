@@ -161,7 +161,7 @@ public sealed class FlashcardAnkiSchedulingImportTests
             await using var h = new FlashcardStoreHarness();
             await h.Store.InitializeAsync();
             var library = NewLibrary(h);
-            var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+            var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
             var result = await NewAdapter(h, library, cardService).ImportAsync(new ImportExportRequest { FilePath = apkg });
             Assert.True(result.Success, result.ErrorMessage);
@@ -236,7 +236,7 @@ public sealed class FlashcardAnkiSchedulingImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
         var result = await NewAdapter(h, library, cardService).ImportAsync(new ImportExportRequest { FilePath = apkg });
         Assert.True(result.Success, result.ErrorMessage);

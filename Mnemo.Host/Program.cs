@@ -164,6 +164,7 @@ public static class Program
         app.MapAi();
         app.MapFlashcardLibrary();
         app.MapFlashcardCards();
+        app.MapFlashcardFacts();
         app.MapFlashcardAssets();
         app.MapFlashcardStudySessions();
         app.MapFlashcardTests();

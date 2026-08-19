@@ -33,7 +33,7 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
@@ -83,7 +83,7 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
@@ -126,7 +126,7 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
@@ -159,7 +159,7 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
@@ -193,7 +193,7 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
@@ -226,7 +226,7 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 
@@ -266,7 +266,7 @@ public sealed class FlashcardAnkiImportTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
 

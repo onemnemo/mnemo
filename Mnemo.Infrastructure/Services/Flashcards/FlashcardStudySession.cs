@@ -30,7 +30,7 @@ internal sealed class FlashcardStudySession : IFlashcardSession
     private readonly string _sessionId = Guid.NewGuid().ToString("N");
     private readonly List<FlashcardView> _queue;
     private readonly Stack<UndoRecord> _undo = new();
-    private readonly int _total;
+    private int _total;
     private int _completed;
 
     public FlashcardStudySession(
@@ -87,6 +87,13 @@ internal sealed class FlashcardStudySession : IFlashcardSession
             ? FlashcardLeech.Evaluate(current.Card, current.Schedule, updatedSchedule, _preset, now)
             : null;
 
+        // Answering one card off a piece of material is enough for one day: the rest of it would
+        // only be answered from memory of this card rather than from memory of the material. Cram
+        // writes nothing, so it neither buries nor is bound by a bury.
+        var buryUntil = WritesSchedule && _preset.BuryRelated
+            ? _clock.DueAfterDays(now, 1, _preset.DayStartHour)
+            : (DateTimeOffset?)null;
+
         long reviewId = 0;
         var localDay = _clock.KeyFor(now, _preset.DayStartHour);
         if (WritesSchedule)
@@ -99,10 +106,13 @@ internal sealed class FlashcardStudySession : IFlashcardSession
             var log = new FlashcardReviewLog(FlashcardReviewLog.Unassigned, current.Card.Id, DeckId, _sessionId,
                 grade, now, elapsedDays, scheduledDays, updatedSchedule.Stability, updatedSchedule.Difficulty,
                 current.Schedule.FsrsState, updatedSchedule.FsrsState);
-            reviewId = await _service.RecordReviewAsync(new FlashcardReviewEntry(updatedSchedule, log, wasNew, localDay, leeched), cancellationToken).ConfigureAwait(false);
+            reviewId = await _service.RecordReviewAsync(new FlashcardReviewEntry(updatedSchedule, log, wasNew, localDay, leeched, buryUntil), cancellationToken).ConfigureAwait(false);
         }
 
         _queue.RemoveAt(0);
+        // The store holds the rest of the material back from later sittings; this sitting is
+        // already holding it in memory, so it comes out of the queue here.
+        var buried = buryUntil is null ? Array.Empty<BuriedCard>() : TakeSiblingsOut(current.Card.FactId);
         var stepping = updatedSchedule.FsrsState is FlashcardFsrsState.Learning or FlashcardFsrsState.Relearning;
         // A card just suspended for lapsing too often does not come back on its relearning step:
         // the whole point of suspending it was that another repetition is not the answer.
@@ -114,7 +124,35 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         else
             _completed++;
 
-        _undo.Push(new UndoRecord(current, reviewId, wasNew, localDay, requeued, leeched is not null));
+        // A buried card is not one the reader got through, so the sitting is that much shorter
+        // rather than one that can never finish.
+        _total -= buried.Length;
+
+        _undo.Push(new UndoRecord(current, reviewId, wasNew, localDay, requeued, leeched is not null, buried));
+    }
+
+    /// <summary>
+    /// Pulls every other card off one piece of material out of the queue, remembering where each
+    /// sat so undo can put it back where the reader would have met it.
+    /// </summary>
+    private BuriedCard[] TakeSiblingsOut(string? factId)
+    {
+        if (string.IsNullOrEmpty(factId))
+            return Array.Empty<BuriedCard>();
+
+        var taken = new List<BuriedCard>();
+        for (var i = _queue.Count - 1; i >= 0; i--)
+        {
+            if (!string.Equals(_queue[i].Card.FactId, factId, StringComparison.Ordinal))
+                continue;
+            taken.Add(new BuriedCard(i, _queue[i]));
+            _queue.RemoveAt(i);
+        }
+
+        // Walking backwards keeps the indexes valid while removing; putting them back needs the
+        // other order.
+        taken.Reverse();
+        return taken.ToArray();
     }
 
     /// <summary>
@@ -143,7 +181,7 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         var record = _undo.Pop();
         if (WritesSchedule && record.ReviewId > 0)
             await _service.UndoReviewAsync(DeckId, record.Before.Schedule, record.ReviewId, record.LocalDay, record.WasNew,
-                record.Leeched ? record.Before.Card : null, cancellationToken).ConfigureAwait(false);
+                record.Leeched ? record.Before.Card : null, record.Buried.Length > 0, cancellationToken).ConfigureAwait(false);
 
         // Remove the post-grade copy of the card (if it was requeued) and restore the pre-grade card to the front.
         var idx = _queue.FindIndex(v => string.Equals(v.Card.Id, record.Before.Card.Id, StringComparison.Ordinal));
@@ -152,9 +190,18 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         else if (!record.Requeued)
             _completed = Math.Max(0, _completed - 1);
 
+        // The queue is back to the shape it had the moment the siblings came out, so each one
+        // goes back where it was, lowest first.
+        foreach (var (position, view) in record.Buried)
+            _queue.Insert(Math.Min(position, _queue.Count), view);
+        _total += record.Buried.Length;
+
         _queue.Insert(0, record.Before);
         return true;
     }
 
-    private sealed record UndoRecord(FlashcardView Before, long ReviewId, bool WasNew, string LocalDay, bool Requeued, bool Leeched);
+    /// <summary>A card taken out of the queue for its material, and the place it came out of.</summary>
+    private readonly record struct BuriedCard(int Position, FlashcardView View);
+
+    private sealed record UndoRecord(FlashcardView Before, long ReviewId, bool WasNew, string LocalDay, bool Requeued, bool Leeched, BuriedCard[] Buried);
 }

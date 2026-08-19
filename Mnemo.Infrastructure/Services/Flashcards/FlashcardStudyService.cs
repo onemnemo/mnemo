@@ -28,6 +28,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
     private readonly IReviewRepository _reviews;
     private readonly IDailyStatsRepository _dailyStats;
     private readonly ICardRepository _cards;
+    private readonly IFactRepository _facts;
     private readonly IFsrsScheduler _scheduler;
     private readonly FlashcardClock _clock;
 
@@ -39,6 +40,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
         IReviewRepository reviews,
         IDailyStatsRepository dailyStats,
         ICardRepository cards,
+        IFactRepository facts,
         IFsrsScheduler scheduler,
         FlashcardClock clock)
     {
@@ -49,6 +51,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
         _reviews = reviews;
         _dailyStats = dailyStats;
         _cards = cards;
+        _facts = facts;
         _scheduler = scheduler;
         _clock = clock;
     }
@@ -146,14 +149,16 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
                 var newBudget = Math.Max(0, deckPreset.NewPerDay - stat.NewIntroduced);
                 var reviewBudget = Math.Max(0, deckPreset.MaxReviewsPerDay - stat.ReviewsDone);
 
-                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 1, 3 }, now, int.MaxValue, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
-                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 2 }, now, reviewBudget, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
-                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 0 }, null, newBudget, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
+                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 1, 3 }, now, int.MaxValue, now, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
+                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 2 }, now, reviewBudget, now, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
+                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, new[] { 0 }, null, newBudget, now, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
             }
             else // Cram
             {
+                // Burying is a scheduling courtesy, and cram is a deliberate walk through the deck.
+                // Someone who asked for the whole deck gets the whole deck.
                 var due = request.Scope == FlashcardSessionScope.Due ? (DateTimeOffset?)now : null;
-                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, null, due, int.MaxValue, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
+                AddBand(items, await _cards.GetActiveViewsAsync(conn, request.DeckId, null, due, int.MaxValue, null, ct).ConfigureAwait(false), deckPreset.ShuffleOrder);
             }
 
             return (deckPreset, items);
@@ -194,17 +199,21 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
                 entry.IntroducedNewCard ? 1 : 0, ChargesReviewCap(entry.Review.StateBefore) ? 1 : 0, ct).ConfigureAwait(false);
             if (entry.LeechedCard is { } leeched)
                 await _cards.UpdateAsync(conn, tx, leeched, ct).ConfigureAwait(false);
+            if (entry.BurySiblingsUntil is { } until)
+                await SetSiblingsBuriedAsync(conn, tx, entry.Review.CardId, until, ct).ConfigureAwait(false);
             return reviewId;
         }, cancellationToken);
     }
 
-    public Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, Flashcard? restoredCard = null, CancellationToken cancellationToken = default)
+    public Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, Flashcard? restoredCard = null, bool unburySiblings = false, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(restoredSchedule);
         return _store.WriteAsync(async (conn, tx, ct) =>
         {
             await _schedules.UpsertAsync(conn, tx, restoredSchedule, ct).ConfigureAwait(false);
             await _reviews.DeleteAsync(conn, tx, reviewId, ct).ConfigureAwait(false);
+            if (unburySiblings)
+                await SetSiblingsBuriedAsync(conn, tx, restoredSchedule.CardId, null, ct).ConfigureAwait(false);
             // restoredSchedule is the card as it was before the grade, so its state is the same
             // one the grade was charged against.
             await _dailyStats.IncrementAsync(conn, tx, deckId, localDay,
@@ -212,6 +221,17 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             if (restoredCard is not null)
                 await _cards.UpdateAsync(conn, tx, restoredCard, ct).ConfigureAwait(false);
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Puts the rest of a card's material on hold, or lets it back in when <paramref name="until"/>
+    /// is null. A card with no material has no siblings and nothing happens.
+    /// </summary>
+    private async Task SetSiblingsBuriedAsync(SqliteConnection conn, SqliteTransaction tx, string cardId, DateTimeOffset? until, CancellationToken ct)
+    {
+        var siblings = await _facts.GetSiblingIdsAsync(conn, cardId, ct).ConfigureAwait(false);
+        if (siblings.Count > 0)
+            await _schedules.SetBuriedAsync(conn, tx, siblings, until, ct).ConfigureAwait(false);
     }
 
     /// <summary>

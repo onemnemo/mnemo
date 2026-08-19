@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards;
+using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Tests.Widgets;
 
@@ -22,6 +23,8 @@ internal sealed class FlashcardStoreHarness : IAsyncDisposable
     public PresetRepository Presets { get; } = new();
     public DeckRepository Decks { get; } = new();
     public CardRepository Cards { get; } = new();
+    public CardTypeRepository CardTypes { get; } = new();
+    public FactRepository Facts { get; } = new();
     public ScheduleRepository Schedules { get; } = new();
     public ReviewRepository Reviews { get; } = new();
     public TestAttemptRepository TestAttempts { get; } = new();
@@ -31,6 +34,12 @@ internal sealed class FlashcardStoreHarness : IAsyncDisposable
     public TestTimeProvider Time { get; }
     public FlashcardClock Clock { get; }
 
+    /// <summary>Turns a fact into the cards it makes, the way saving one does.</summary>
+    public FlashcardCardMaterializer Materializer { get; }
+
+    /// <summary>The material surface, wired over this store.</summary>
+    public FlashcardFactService FactService { get; }
+
     /// <param name="now">The instant the services see. Defaults to the real one for tests that do not care.</param>
     /// <param name="zone">The study day's time zone. Defaults to UTC so a day key does not depend on the build machine.</param>
     public FlashcardStoreHarness(DateTimeOffset? now = null, TimeZoneInfo? zone = null)
@@ -38,7 +47,9 @@ internal sealed class FlashcardStoreHarness : IAsyncDisposable
         Time = new TestTimeProvider(now ?? DateTimeOffset.UtcNow, zone);
         Clock = new FlashcardClock(Time);
         _dbPath = Path.Combine(Path.GetTempPath(), $"mnemo_fc_{Guid.NewGuid():N}.db");
-        Store = new FlashcardStore(new TestLogger(), _dbPath);
+        Store = new FlashcardStore(new TestLogger(), _dbPath, Time);
+        Materializer = new FlashcardCardMaterializer(Cards, Schedules, Facts);
+        FactService = new FlashcardFactService(Store, Facts, CardTypes, Cards, Materializer, Clock);
     }
 
     /// <summary>Seeds a preset + deck so cards satisfy the foreign keys, and returns the deck id.</summary>
