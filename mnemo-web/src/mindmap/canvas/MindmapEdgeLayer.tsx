@@ -1,4 +1,4 @@
-import { memo, useRef } from "react"
+import { memo, useEffect, useRef } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -190,6 +190,10 @@ function EdgeLabelEditor({
 }) {
   // A cancel blurs the field, and the blur must not then commit what the cancel just threw away.
   const done = useRef(false)
+  // Tracked alongside the uncontrolled field so an unmount before Enter, Escape, or a blur closed it
+  // (navigating away, or the scene rebuilding under an open field) has something to flush. A blur
+  // never fires for an element that is simply removed from the DOM.
+  const latest = useRef(edge.label ?? "")
 
   const finish = (value: string | null): void => {
     if (done.current) {
@@ -198,6 +202,11 @@ function EdgeLabelEditor({
     done.current = true
     onEditEnd?.(edge.id, value)
   }
+
+  useEffect(() => {
+    return () => finish(latest.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <input
@@ -211,8 +220,15 @@ function EdgeLabelEditor({
       // select-text against the pane's select-none, or the caret cannot select what it is editing.
       className={cn(LABEL_PILL, "field-sizing-content w-[56px] min-w-[56px] select-text text-ink outline-none")}
       style={place}
+      onChange={(event) => {
+        latest.current = event.currentTarget.value
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
+          // A composing Enter confirms the IME's candidate, not the label; let the IME answer it.
+          if (event.nativeEvent.isComposing) {
+            return
+          }
           event.preventDefault()
           event.stopPropagation()
           finish(event.currentTarget.value)

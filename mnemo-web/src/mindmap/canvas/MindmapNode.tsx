@@ -599,6 +599,10 @@ function FrameTitle({
   onEditEnd?: (id: string, text: string | null) => void
 }) {
   const done = useRef(false)
+  // Tracked alongside the uncontrolled field so an unmount before Enter, Escape, or a blur closed it
+  // (navigating away, or the scene rebuilding under an open field) has something to flush. A blur
+  // never fires for an element that is simply removed from the DOM.
+  const latest = useRef(title)
 
   const finish = (value: string | null): void => {
     if (done.current) {
@@ -608,6 +612,11 @@ function FrameTitle({
     onEditEnd?.(element.id, value)
   }
 
+  useEffect(() => {
+    return () => finish(latest.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <input
       ref={(node) => node?.select()}
@@ -615,8 +624,15 @@ function FrameTitle({
       className="mm-editor pointer-events-auto absolute left-3 top-[3px] w-[60%] select-text bg-transparent text-[11px] font-medium tracking-[0.01em] text-ink outline-none"
       defaultValue={title}
       spellCheck={false}
+      onChange={(event) => {
+        latest.current = event.currentTarget.value
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
+          // A composing Enter confirms the IME's candidate, not the title; let the IME answer it.
+          if (event.nativeEvent.isComposing) {
+            return
+          }
           event.preventDefault()
           event.stopPropagation()
           finish(event.currentTarget.value)
@@ -694,6 +710,10 @@ function NodeEditor({
   const body = bodyOf(element.content)
   // A cancel blurs the field, and the blur must not then commit what the cancel just threw away.
   const done = useRef(false)
+  // Tracked alongside the uncontrolled field so an unmount before Enter, Escape, or a blur closed it
+  // (navigating away, or the scene rebuilding under an open field) has something to flush. A blur
+  // never fires for an element that is simply removed from the DOM.
+  const latest = useRef(plainText(element))
 
   const mount = useCallback((node: HTMLTextAreaElement | null) => {
     if (!node) {
@@ -711,6 +731,11 @@ function NodeEditor({
     done.current = true
     onEditEnd?.(element.id, value)
   }
+
+  useEffect(() => {
+    return () => finish(latest.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <textarea
@@ -736,9 +761,16 @@ function NodeEditor({
         height: text.lines.length * text.lineHeight,
         textAlign: isRoot ? "center" : undefined,
       }}
-      onInput={(event) => grow(event.currentTarget)}
+      onInput={(event) => {
+        grow(event.currentTarget)
+        latest.current = event.currentTarget.value
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter" && !event.shiftKey) {
+          // A composing Enter confirms the IME's candidate, not the label; let the IME answer it.
+          if (event.nativeEvent.isComposing) {
+            return
+          }
           // Source is lines by definition, so Enter opens one rather than finishing the edit. A code
           // node is left with the modifier, with Escape, or by clicking away.
           if (body === "code" && !(event.ctrlKey || event.metaKey)) {
