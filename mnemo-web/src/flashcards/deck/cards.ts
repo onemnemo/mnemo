@@ -63,9 +63,6 @@ export function dueLabel(
   return days === 1 ? { text: t("DueTomorrow"), isDue: false } : { text: t("DueInDaysLongFormat", { 0: days }), isDue: false }
 }
 
-/** At and above this many lapses a card is worth calling out: it keeps being forgotten. */
-export const LEECH_LAPSES = 3
-
 /**
  * Tri-state for the select-all box. Indeterminate whenever the page is partly
  * selected; the desktop resolves that to "select all" on click rather than

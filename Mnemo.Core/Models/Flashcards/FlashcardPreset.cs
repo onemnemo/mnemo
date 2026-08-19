@@ -22,7 +22,10 @@ public sealed record FlashcardPreset(
     DateTimeOffset UpdatedAt = default,
     // The local hour a study day rolls over at. Late-night studying belongs to the day the user
     // thinks they are still in, so the day ends here rather than at midnight.
-    int NextDayStartsAtHour = FlashcardPreset.DefaultNextDayStartsAtHour)
+    int NextDayStartsAtHour = FlashcardPreset.DefaultNextDayStartsAtHour,
+    // How many lapses make a card a lost cause, and what to do about it.
+    int LeechThreshold = FlashcardPreset.DefaultLeechThreshold,
+    FlashcardLeechAction LeechAction = FlashcardLeechAction.Tag)
 {
     /// <summary>Id of the seeded default preset that every legacy deck is attached to on migration.</summary>
     public const string StandardPresetId = "preset-standard";
@@ -30,8 +33,26 @@ public sealed record FlashcardPreset(
     /// <summary>Four in the morning: late enough to be after a long evening, early enough to be before a normal start.</summary>
     public const int DefaultNextDayStartsAtHour = 4;
 
+    /// <summary>
+    /// Eight lapses, the count Anki settled on. Fewer catches cards that are merely hard, and by
+    /// this many the card has cost more time than rewriting it would.
+    /// </summary>
+    public const int DefaultLeechThreshold = 8;
+
+    /// <summary>The tag a leech is marked with. A literal, so a deck exported to Anki keeps it.</summary>
+    public const string LeechTag = "leech";
+
     /// <summary>The hour clamped to something a day can actually start at.</summary>
     public int DayStartHour => Math.Clamp(NextDayStartsAtHour, 0, 23);
+
+    /// <summary>The lapse count clamped to something a card can actually reach.</summary>
+    public int LeechLapses => Math.Clamp(LeechThreshold, 1, MaxLeechThreshold);
+
+    /// <summary>
+    /// High enough to mean "never" for any real card, low enough that the repeat rule below it
+    /// still divides into something sane.
+    /// </summary>
+    public const int MaxLeechThreshold = 999;
 
     /// <summary>Builds the default "Standard" preset with FSRS-6 defaults.</summary>
     public static FlashcardPreset CreateStandard(DateTimeOffset now) => new(

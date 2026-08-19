@@ -1,11 +1,5 @@
 import type { CardViewDto } from "@/api/types"
-
-/**
- * How many lapses make a card worth naming. Two is the first count that says "this keeps
- * happening" rather than "this went wrong once", which is the difference between a widget that is
- * useful and one that lists everything you have ever failed.
- */
-export const LEECH_THRESHOLD = 2
+import { LEECH_LAPSES } from "@/flashcards/leeches"
 
 export interface LeechRow {
   cardId: string
@@ -34,7 +28,7 @@ export function rankLeeches(
   const rows: LeechRow[] = []
   for (const deck of perDeck) {
     for (const view of deck.cards) {
-      if (view.schedule.lapses < LEECH_THRESHOLD) continue
+      if (view.schedule.lapses < LEECH_LAPSES) continue
       rows.push({
         cardId: view.card.id,
         deckId: deck.deckId,

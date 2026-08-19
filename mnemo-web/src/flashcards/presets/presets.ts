@@ -1,4 +1,4 @@
-import type { AutoReveal, PresetDto, SavePresetDto } from "@/api/types"
+import type { AutoReveal, LeechAction, PresetDto, SavePresetDto } from "@/api/types"
 
 /** The bounds the dialog offers, mirrored from PresetEndpoints so the two agree. */
 export const MIN_RETENTION_PCT = 80
@@ -6,6 +6,7 @@ export const MAX_RETENTION_PCT = 97
 export const MAX_NEW_PER_DAY = 999
 export const MAX_REVIEWS_PER_DAY = 9999
 export const MAX_LEARNING_STEPS = 5
+export const MAX_LEECH_LAPSES = 999
 
 /** A year, in minutes. Matches the server's cap so an absurd step reads as an error inline. */
 export const MAX_STEP_MINUTES = 525_600
@@ -34,6 +35,9 @@ export interface PresetDraft {
   autoReveal: AutoReveal
   /** The local hour a study day rolls over at, 0 to 23. */
   nextDayStartsAtHour: number
+  /** How many lapses a card is allowed before the action below applies to it. */
+  leechThreshold: number
+  leechAction: LeechAction
   deckCount: number
   isStandard: boolean
   dirty: boolean
@@ -52,6 +56,8 @@ const STANDARD_VALUES = {
   buryRelated: true,
   autoReveal: "off",
   nextDayStartsAtHour: 4,
+  leechThreshold: 8,
+  leechAction: "tag",
 } as const
 
 export function draftFromPreset(preset: PresetDto): PresetDraft {
@@ -67,6 +73,8 @@ export function draftFromPreset(preset: PresetDto): PresetDraft {
     buryRelated: preset.buryRelated,
     autoReveal: preset.autoReveal,
     nextDayStartsAtHour: preset.nextDayStartsAtHour,
+    leechThreshold: preset.leechThreshold,
+    leechAction: preset.leechAction,
     deckCount: preset.deckCount,
     isStandard: preset.isStandard,
     dirty: false,
@@ -108,6 +116,8 @@ export function toSaveDto(draft: PresetDraft): SavePresetDto {
     buryRelated: draft.buryRelated,
     autoReveal: draft.autoReveal,
     nextDayStartsAtHour: draft.nextDayStartsAtHour,
+    leechThreshold: draft.leechThreshold,
+    leechAction: draft.leechAction,
   }
 }
 

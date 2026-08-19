@@ -192,11 +192,13 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             var reviewId = await _reviews.AppendAsync(conn, tx, entry.Review, ct).ConfigureAwait(false);
             await _dailyStats.IncrementAsync(conn, tx, entry.Review.DeckId, entry.LocalDay,
                 entry.IntroducedNewCard ? 1 : 0, ChargesReviewCap(entry.Review.StateBefore) ? 1 : 0, ct).ConfigureAwait(false);
+            if (entry.LeechedCard is { } leeched)
+                await _cards.UpdateAsync(conn, tx, leeched, ct).ConfigureAwait(false);
             return reviewId;
         }, cancellationToken);
     }
 
-    public Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, CancellationToken cancellationToken = default)
+    public Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, Flashcard? restoredCard = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(restoredSchedule);
         return _store.WriteAsync(async (conn, tx, ct) =>
@@ -207,6 +209,8 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             // one the grade was charged against.
             await _dailyStats.IncrementAsync(conn, tx, deckId, localDay,
                 wasNewIntroduction ? -1 : 0, ChargesReviewCap(restoredSchedule.FsrsState) ? -1 : 0, ct).ConfigureAwait(false);
+            if (restoredCard is not null)
+                await _cards.UpdateAsync(conn, tx, restoredCard, ct).ConfigureAwait(false);
         }, cancellationToken);
     }
 

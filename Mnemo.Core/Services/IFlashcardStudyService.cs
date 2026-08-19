@@ -38,5 +38,10 @@ public interface IFlashcardStudyService
     /// Reverses a review: restores the prior schedule, deletes the review-log row and decrements the
     /// daily-stats counters. Exact inverse of <see cref="RecordReviewAsync"/>.
     /// </summary>
-    Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, CancellationToken cancellationToken = default);
+    /// <param name="restoredCard">
+    /// The card as it was before the grade, passed only when that grade marked it a leech. Undo has
+    /// to take the tag and the suspension back with the lapse, or the card stays punished for a
+    /// review that no longer exists.
+    /// </param>
+    Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, Flashcard? restoredCard = null, CancellationToken cancellationToken = default);
 }

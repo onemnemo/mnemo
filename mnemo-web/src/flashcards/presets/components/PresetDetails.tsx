@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 
-import type { AutoReveal } from "@/api/types"
+import type { AutoReveal, LeechAction } from "@/api/types"
 import { useT } from "@/i18n/useT"
 import { SettingRowShell } from "@/settings/components/SettingRowShell"
 import { SelectControl } from "@/settings/components/controls/SelectControl"
@@ -11,6 +11,7 @@ import { RetentionSlider } from "../controls/RetentionSlider"
 import { StepsField } from "../controls/StepsField"
 import {
   DAY_START_HOURS,
+  MAX_LEECH_LAPSES,
   MAX_NEW_PER_DAY,
   MAX_REVIEWS_PER_DAY,
   retentionPercent,
@@ -40,6 +41,12 @@ export function PresetDetails({
     value: String(hour),
     label: `${String(hour).padStart(2, "0")}:00`,
   }))
+
+  const lapseActionChoices: { value: LeechAction; label: string }[] = [
+    { value: "none", label: fc("ReviewSettingsLapseActionNone") },
+    { value: "tag", label: fc("ReviewSettingsLapseActionTag") },
+    { value: "suspend", label: fc("ReviewSettingsLapseActionSuspend") },
+  ]
 
   const autoRevealChoices: { value: AutoReveal; label: string }[] = [
     { value: "off", label: fc("ReviewSettingsAutoRevealOff") },
@@ -107,13 +114,34 @@ export function PresetDetails({
         <SettingRowShell
           title={fc("ReviewSettingsDayStartTitle")}
           description={fc("ReviewSettingsDayStartDescription")}
-          divider={false}
         >
           <SelectControl
             value={String(draft.nextDayStartsAtHour)}
             choices={dayStartChoices}
             onChange={(value) => onPatch({ nextDayStartsAtHour: Number(value) })}
             label={fc("ReviewSettingsDayStartTitle")}
+          />
+        </SettingRowShell>
+
+        <SettingRowShell
+          title={fc("ReviewSettingsLapseLimitTitle")}
+          description={fc("ReviewSettingsLapseLimitDescription")}
+        >
+          <NumberStepper
+            value={draft.leechThreshold}
+            min={1}
+            max={MAX_LEECH_LAPSES}
+            onChange={(leechThreshold) => onPatch({ leechThreshold })}
+            label={fc("ReviewSettingsLapseLimitTitle")}
+          />
+        </SettingRowShell>
+
+        <SettingRowShell title={fc("ReviewSettingsLapseActionTitle")} divider={false}>
+          <SelectControl
+            value={draft.leechAction}
+            choices={lapseActionChoices}
+            onChange={(value) => onPatch({ leechAction: value as LeechAction })}
+            label={fc("ReviewSettingsLapseActionTitle")}
           />
         </SettingRowShell>
       </Section>

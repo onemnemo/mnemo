@@ -63,6 +63,36 @@ public static class FlashcardWire
         _ => "due",
     };
 
+    public static string LeechAction(FlashcardLeechAction value) => value switch
+    {
+        FlashcardLeechAction.None => "none",
+        FlashcardLeechAction.Suspend => "suspend",
+        _ => "tag",
+    };
+
+    /// <summary>
+    /// Strict, for the same reason as auto-reveal: this one crosses on the write path, and reading
+    /// an unrecognized token as <c>none</c> would turn a typo into a silently disabled setting.
+    /// </summary>
+    public static bool TryParseLeechAction(string? value, out FlashcardLeechAction action)
+    {
+        switch (value?.ToLowerInvariant())
+        {
+            case "none":
+                action = FlashcardLeechAction.None;
+                return true;
+            case "tag":
+                action = FlashcardLeechAction.Tag;
+                return true;
+            case "suspend":
+                action = FlashcardLeechAction.Suspend;
+                return true;
+            default:
+                action = FlashcardLeechAction.Tag;
+                return false;
+        }
+    }
+
     public static string AutoReveal(FlashcardAutoReveal value) => value switch
     {
         FlashcardAutoReveal.FiveSeconds => "five-seconds",
