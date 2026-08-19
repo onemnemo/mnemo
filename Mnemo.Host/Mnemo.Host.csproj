@@ -32,6 +32,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Mnemo.Host.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Pinned; PhotinoX.Native comes in transitively - do not reference it directly.
          5.0 preview is deliberate: BeginWindowDrag/BeginWindowResize and the Linux drag region
          are what the chromeless titlebar is built on, and they exist in no 4.x release. -->
