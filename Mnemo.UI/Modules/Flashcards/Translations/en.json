@@ -357,6 +357,9 @@
     "LibraryLoadFailedHint": "Check that Mnemo is running, then try again.",
     "DeckLoadFailedTitle": "This deck could not be loaded",
     "DeckLoadFailedHint": "Check that Mnemo is running, then try again.",
-    "Retry": "Try again"
+    "Retry": "Try again",
+    "BrowseTitle": "Browse cards",
+    "BrowseEmptyDescription": "Add cards to a deck to see them here.",
+    "PeekCard": "Peek"
   }
 }

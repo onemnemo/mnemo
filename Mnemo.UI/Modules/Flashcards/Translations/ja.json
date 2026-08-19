@@ -357,6 +357,9 @@
     "LibraryLoadFailedHint": "Mnemoが起動しているか確認して、もう一度お試しください。",
     "DeckLoadFailedTitle": "このデッキを読み込めませんでした",
     "DeckLoadFailedHint": "Mnemoが起動しているか確認して、もう一度お試しください。",
-    "Retry": "再試行"
+    "Retry": "再試行",
+    "BrowseTitle": "カードを閲覧",
+    "BrowseEmptyDescription": "デッキにカードを追加すると、ここに表示されます。",
+    "PeekCard": "プレビュー"
   }
 }
