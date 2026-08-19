@@ -255,6 +255,7 @@
     "StudyEdit": "カードを編集",
     "StudyFlag": "カードにフラグ",
     "StudyUndo": "直前の復習を元に戻す",
+    "StudyMathUnreadable": "この数式を読み取れませんでした",
     "StudyAllCaughtUpTitle": "すべて完了",
     "StudyAllCaughtUpDesc": "現在予定されているカードはありません。デッキの集中学習で練習を続けられます。",
     "StudyCompleteTitle": "セッション完了",

@@ -1,5 +1,7 @@
 import type { CardViewDto } from "@/api/types"
 
+import { stripMath } from "../math"
+
 /** Cards per page. Offset paging, matching the desktop's fixed page size. */
 export const PAGE_SIZE = 50
 
@@ -21,11 +23,12 @@ export function oneLine(text: string): string {
 
 /**
  * Collapses a card's front into a single line for the table: cloze answers become
- * an ellipsis marker and all whitespace runs become single spaces. Visual
- * truncation is left to CSS so it follows the column's real width.
+ * an ellipsis marker, maths reads out flat rather than rendering a fraction into a
+ * 13px row, and all whitespace runs become single spaces. Visual truncation is
+ * left to CSS so it follows the column's real width.
  */
 export function frontPreview(front: string): string {
-  return oneLine(front.replace(CLOZE_MARKER, "[…]"))
+  return oneLine(stripMath(front.replace(CLOZE_MARKER, "[…]")))
 }
 
 export interface DueLabel {
