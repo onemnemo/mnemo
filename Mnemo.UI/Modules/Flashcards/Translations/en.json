@@ -175,6 +175,7 @@
     "TransferExportTitle": "Export flashcards",
     "TransferExportDeckTitle": "Export deck",
     "TransferConflictQuestion": "If a deck already exists",
+    "TransferConflictNotApplicable": "These files carry no card ids, so everything in them is imported as new.",
     "TransferNounSingular": "card",
     "TransferNounPlural": "cards",
     "TransferFromFormat": "From {0}",
