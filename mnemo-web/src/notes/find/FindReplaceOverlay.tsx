@@ -13,6 +13,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import type { EditorView } from 'prosemirror-view';
 import { AppIcon } from '@/components/icon/AppIcon';
 import { IconButton } from '@/components/ui/icon-button';
+import { useT } from '@/i18n/useT';
 import type { BlockRegistry } from '../editor/registry/build';
 import { useNoteFind } from './useNoteFind';
 
@@ -58,6 +59,7 @@ function ToggleChip({ active, label, title, onClick }: ToggleChipProps) {
 }
 
 export function FindReplaceOverlay({ view, registry }: { view: EditorView; registry: BlockRegistry }) {
+  const t = useT();
   const find = useNoteFind(view, registry);
   const anchor = useAnchor(view);
   const findInputRef = useRef<HTMLInputElement>(null);
@@ -113,7 +115,7 @@ export function FindReplaceOverlay({ view, registry }: { view: EditorView; regis
       className="notes-find-replace"
       style={{ top: anchor.top, left: anchor.left, width: PANEL_WIDTH }}
       role="dialog"
-      aria-label="Find and replace"
+      aria-label={t('NotesEditor', 'FindAndReplaceLabel')}
     >
       <div className="notes-find-row">
         <div className="notes-find-field">
@@ -122,13 +124,13 @@ export function FindReplaceOverlay({ view, registry }: { view: EditorView; regis
             ref={findInputRef}
             className="notes-find-input"
             type="text"
-            placeholder="Find text"
+            placeholder={t('NotesEditor', 'FindTextPlaceholder')}
             value={find.query}
             onChange={(event) => find.setQuery(event.target.value)}
             onKeyDown={onFindKeyDown}
           />
         </div>
-        <IconButton icon="common/x" iconSize={16} label="Close" onClick={find.close} />
+        <IconButton icon="common/x" iconSize={16} label={t('NotesEditor', 'FindClose')} onClick={find.close} />
       </div>
 
       <div className="notes-find-band">
@@ -139,14 +141,14 @@ export function FindReplaceOverlay({ view, registry }: { view: EditorView; regis
           <IconButton
             icon="common/chevron-up"
             iconSize={16}
-            label="Previous match"
+            label={t('NotesEditor', 'FindPreviousMatch')}
             disabled={find.count === 0}
             onClick={find.previous}
           />
           <IconButton
             icon="common/chevron-down"
             iconSize={16}
-            label="Next match"
+            label={t('NotesEditor', 'FindNextMatch')}
             disabled={find.count === 0}
             onClick={find.next}
           />
@@ -159,7 +161,7 @@ export function FindReplaceOverlay({ view, registry }: { view: EditorView; regis
           onClick={find.toggleReplaceOpen}
         >
           <AppIcon name="common/repeat" size={14} />
-          <span>Replace</span>
+          <span>{t('NotesEditor', find.replaceOpen ? 'FindReplaceToggleOn' : 'FindReplaceToggleOff')}</span>
         </button>
       </div>
 
@@ -167,14 +169,14 @@ export function FindReplaceOverlay({ view, registry }: { view: EditorView; regis
         <div className="notes-find-options">
           <ToggleChip
             active={find.caseSensitive}
-            label="Aa"
-            title="Match case"
+            label={t('NotesEditor', 'FindMatchCaseLabel')}
+            title={t('NotesEditor', 'FindMatchCaseTitle')}
             onClick={find.toggleCaseSensitive}
           />
           <ToggleChip
             active={find.wholeWord}
-            label="Word"
-            title="Match whole word"
+            label={t('NotesEditor', 'FindWholeWordLabel')}
+            title={t('NotesEditor', 'FindWholeWordTitle')}
             onClick={find.toggleWholeWord}
           />
         </div>
@@ -183,7 +185,7 @@ export function FindReplaceOverlay({ view, registry }: { view: EditorView; regis
           <input
             className="notes-find-input notes-find-replace-input"
             type="text"
-            placeholder="Replace with"
+            placeholder={t('NotesEditor', 'ReplaceWithPlaceholder')}
             value={find.replaceText}
             onChange={(event) => find.setReplaceText(event.target.value)}
             onKeyDown={onReplaceKeyDown}
@@ -191,14 +193,14 @@ export function FindReplaceOverlay({ view, registry }: { view: EditorView; regis
           <div className="notes-find-replace-actions">
             <ToggleChip
               active={find.caseSensitive}
-              label="Aa"
-              title="Match case"
+              label={t('NotesEditor', 'FindMatchCaseLabel')}
+              title={t('NotesEditor', 'FindMatchCaseTitle')}
               onClick={find.toggleCaseSensitive}
             />
             <ToggleChip
               active={find.wholeWord}
-              label="Word"
-              title="Match whole word"
+              label={t('NotesEditor', 'FindWholeWordLabel')}
+              title={t('NotesEditor', 'FindWholeWordTitle')}
               onClick={find.toggleWholeWord}
             />
             <div className="notes-find-spacer" />
@@ -208,7 +210,7 @@ export function FindReplaceOverlay({ view, registry }: { view: EditorView; regis
               disabled={find.count === 0}
               onClick={find.replaceAll}
             >
-              All
+              {t('NotesEditor', 'FindReplaceAll')}
             </button>
             <button
               type="button"
@@ -216,7 +218,7 @@ export function FindReplaceOverlay({ view, registry }: { view: EditorView; regis
               disabled={find.count === 0}
               onClick={find.replaceCurrent}
             >
-              Replace
+              {t('NotesEditor', 'FindReplaceCurrent')}
             </button>
           </div>
         </div>
