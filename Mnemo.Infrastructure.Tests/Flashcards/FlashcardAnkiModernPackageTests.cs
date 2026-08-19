@@ -30,7 +30,7 @@ public sealed class FlashcardAnkiModernPackageTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var adapter = NewAdapter(h, library, cardSvc);
 
         var apkg = await AnkiPackageFixture.WriteAsync(
@@ -66,7 +66,7 @@ public sealed class FlashcardAnkiModernPackageTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var adapter = NewAdapter(h, library, cardSvc);
 
         var apkg = await AnkiPackageFixture.WriteAsync(
@@ -96,7 +96,7 @@ public sealed class FlashcardAnkiModernPackageTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var adapter = NewAdapter(h, library, cardSvc);
 
         var apkg = await AnkiPackageFixture.WriteAsync(
@@ -132,7 +132,7 @@ public sealed class FlashcardAnkiModernPackageTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var adapter = NewAdapter(h, library, cardSvc);
 
         var apkg = await AnkiPackageFixture.WriteAsync(

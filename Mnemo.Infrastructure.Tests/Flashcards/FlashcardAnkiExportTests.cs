@@ -37,7 +37,7 @@ public sealed class FlashcardAnkiExportTests
             {
                 await source.Store.InitializeAsync();
                 var library = NewLibrary(source);
-                var cards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Clock);
+                var cards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Facts, source.Clock);
                 var adapter = NewAdapter(source, library, cards);
 
                 var deck = await library.CreateDeckAsync("Histology");
@@ -59,7 +59,7 @@ public sealed class FlashcardAnkiExportTests
             await using var target = new FlashcardStoreHarness();
             await target.Store.InitializeAsync();
             var targetLibrary = NewLibrary(target);
-            var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Clock);
+            var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Facts, target.Clock);
             var targetAdapter = NewAdapter(target, targetLibrary, targetCards);
 
             var import = await targetAdapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
@@ -108,7 +108,7 @@ public sealed class FlashcardAnkiExportTests
             {
                 await source.Store.InitializeAsync();
                 var library = NewLibrary(source);
-                var cards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Clock);
+                var cards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Facts, source.Clock);
                 var adapter = NewAdapter(source, library, cards);
 
                 var deck = await library.CreateDeckAsync("Collisions");
@@ -129,7 +129,7 @@ public sealed class FlashcardAnkiExportTests
             await using var target = new FlashcardStoreHarness();
             await target.Store.InitializeAsync();
             var targetLibrary = NewLibrary(target);
-            var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Clock);
+            var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Facts, target.Clock);
             var targetAdapter = NewAdapter(target, targetLibrary, targetCards);
 
             var import = await targetAdapter.ImportAsync(new ImportExportRequest { FilePath = apkg });

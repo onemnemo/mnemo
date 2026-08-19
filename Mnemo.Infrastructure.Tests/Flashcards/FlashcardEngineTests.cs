@@ -108,7 +108,7 @@ public sealed class FlashcardEngineTests
         await using var h = new FlashcardStoreHarness();
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var lib = new FlashcardLibraryService(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var study = Study(h);
 
         var preset = await presetSvc.SavePresetAsync(FlashcardPreset.CreateStandard(DateTimeOffset.UtcNow)

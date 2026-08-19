@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
 namespace Mnemo.Infrastructure.Services.Flashcards;
@@ -17,13 +18,20 @@ public sealed class FlashcardCardService : IFlashcardCardService
     private readonly IFlashcardStore _store;
     private readonly ICardRepository _cards;
     private readonly IScheduleRepository _schedules;
+    private readonly IFactRepository _facts;
     private readonly FlashcardClock _clock;
 
-    public FlashcardCardService(IFlashcardStore store, ICardRepository cards, IScheduleRepository schedules, FlashcardClock clock)
+    public FlashcardCardService(
+        IFlashcardStore store,
+        ICardRepository cards,
+        IScheduleRepository schedules,
+        IFactRepository facts,
+        FlashcardClock clock)
     {
         _store = store;
         _cards = cards;
         _schedules = schedules;
+        _facts = facts;
         _clock = clock;
     }
 
@@ -40,9 +48,10 @@ public sealed class FlashcardCardService : IFlashcardCardService
     {
         ArgumentNullException.ThrowIfNull(draft);
         var now = _clock.Now;
-        var card = FromDraft(draft, now);
+        var (fact, card) = FlashcardCardMaterial.For(FromDraft(draft, now), now);
         await _store.WriteAsync(async (conn, tx, ct) =>
         {
+            await _facts.UpsertAsync(conn, tx, fact, ct).ConfigureAwait(false);
             await _cards.InsertAsync(conn, tx, card, ct).ConfigureAwait(false);
             await _schedules.UpsertAsync(conn, tx, ScheduleFor(draft, card.Id, now), ct).ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
@@ -55,12 +64,17 @@ public sealed class FlashcardCardService : IFlashcardCardService
         var now = _clock.Now;
         var prepared = drafts
             .Select(d => d with { DeckId = deckId })
-            .Select(d => (Draft: d, Card: FromDraft(d, now)))
+            .Select(d =>
+            {
+                var (fact, card) = FlashcardCardMaterial.For(FromDraft(d, now), now);
+                return (Draft: d, Fact: fact, Card: card);
+            })
             .ToArray();
         await _store.WriteAsync(async (conn, tx, ct) =>
         {
-            foreach (var (draft, card) in prepared)
+            foreach (var (draft, fact, card) in prepared)
             {
+                await _facts.UpsertAsync(conn, tx, fact, ct).ConfigureAwait(false);
                 await _cards.InsertAsync(conn, tx, card, ct).ConfigureAwait(false);
                 await _schedules.UpsertAsync(conn, tx, ScheduleFor(draft, card.Id, now), ct).ConfigureAwait(false);
             }
