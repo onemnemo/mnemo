@@ -6,6 +6,7 @@ import { AppShell } from "@/components/shell/AppShell"
 import { DialogHost } from "@/components/shell/DialogHost"
 import { CommandPalette } from "@/components/shell/palette/CommandPalette"
 import { TooltipHost } from "@/components/ui/tooltip"
+import { CardTypeOverlay } from "@/flashcards/cardtypes/CardTypeOverlay"
 import { FactEditorOverlay } from "@/flashcards/facts/FactEditorOverlay"
 import { ReviewSettingsOverlay } from "@/flashcards/presets/ReviewSettingsOverlay"
 import { TransferOverlay } from "@/flashcards/transfer/TransferOverlay"
@@ -59,6 +60,7 @@ function App() {
       <CommandPalette />
       <DialogHost />
       <FactEditorOverlay />
+      <CardTypeOverlay />
       <ReviewSettingsOverlay />
       <TransferOverlay />
       <OnboardingWizard />
