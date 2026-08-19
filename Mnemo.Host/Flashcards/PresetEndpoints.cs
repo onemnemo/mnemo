@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
+using Mnemo.Infrastructure.Services.Flashcards.Optimizer;
 
 namespace Mnemo.Host.Flashcards;
 
@@ -45,6 +46,8 @@ public static class PresetEndpoints
         endpoints.MapPost("/api/presets", CreateAsync);
         endpoints.MapPut("/api/presets/{presetId}", UpdateAsync);
         endpoints.MapDelete("/api/presets/{presetId}", DeleteAsync);
+        endpoints.MapPost("/api/presets/{presetId}/optimize", OptimizeAsync);
+        endpoints.MapPut("/api/presets/{presetId}/weights", SaveWeightsAsync);
         endpoints.MapPost("/api/decks/{deckId}/preset", AssignAsync);
     }
 
@@ -185,6 +188,58 @@ public static class PresetEndpoints
                 statusCode: StatusCodes.Status409Conflict);
 
         return Results.NoContent();
+    }
+
+    /// <summary>
+    /// Fits FSRS weights to the review history of every deck bound to this preset.
+    /// </summary>
+    /// <remarks>
+    /// Stores nothing. The fit is CPU bound and runs for seconds on a large collection, so the
+    /// client is expected to show it working and the request token is what stops it.
+    /// </remarks>
+    private static async Task<IResult> OptimizeAsync(
+        string presetId,
+        IFlashcardOptimizerService optimizer,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(presetId))
+            return Results.BadRequest(new ErrorDto("preset_required", "A preset must be named."));
+
+        var result = await optimizer.OptimizePresetAsync(presetId, cancellationToken).ConfigureAwait(false);
+        if (result is null)
+            return Results.NotFound(new ErrorDto("unknown_preset", $"No preset '{presetId}'."));
+
+        return Results.Ok(OptimizeWeightsDto.FromModel(result));
+    }
+
+    /// <summary>
+    /// Puts a preset onto a weight vector, or back onto the published defaults when none is sent.
+    /// </summary>
+    /// <remarks>
+    /// The vector is checked here so a refusal reads as a bad request rather than as a failure. The
+    /// preset service checks it again on the way to the store, because this is not the only caller.
+    /// </remarks>
+    private static async Task<IResult> SaveWeightsAsync(
+        string presetId,
+        SaveWeightsDto body,
+        IFlashcardPresetService presets,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(presetId))
+            return Results.BadRequest(new ErrorDto("preset_required", "A preset must be named."));
+
+        if (!FsrsWeightRules.TryValidate(body.Weights, out var weightError))
+            return Results.BadRequest(new ErrorDto("invalid_weights", weightError!));
+
+        var stored = await presets.GetPresetAsync(presetId, cancellationToken).ConfigureAwait(false);
+        if (stored is null)
+            return Results.NotFound(new ErrorDto("unknown_preset", $"No preset '{presetId}'."));
+
+        var saved = await presets.SavePresetAsync(
+            stored with { Weights = body.Weights }, cancellationToken).ConfigureAwait(false);
+
+        var count = await presets.CountDecksUsingAsync(presetId, cancellationToken).ConfigureAwait(false);
+        return Results.Ok(PresetDto.FromModel(saved, count));
     }
 
     /// <summary>
