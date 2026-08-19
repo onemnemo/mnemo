@@ -326,23 +326,33 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"mnemo-anki-import-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDirectory);
-        ZipFile.ExtractToDirectory(apkgPath, tempDirectory);
-
-        var dbPath = Path.Combine(tempDirectory, "collection.anki21");
-        if (!File.Exists(dbPath))
-            dbPath = Path.Combine(tempDirectory, "collection.anki2");
-        if (!File.Exists(dbPath))
-            throw new InvalidOperationException("Package does not contain collection.anki21 or collection.anki2.");
-
-        var connectionString = new SqliteConnectionStringBuilder
+        try
         {
-            DataSource = dbPath,
-            Mode = SqliteOpenMode.ReadOnly,
-            Pooling = false
-        }.ToString();
-        var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        return new OpenedApkg(tempDirectory, connection);
+            ZipFile.ExtractToDirectory(apkgPath, tempDirectory);
+
+            var dbPath = Path.Combine(tempDirectory, "collection.anki21");
+            if (!File.Exists(dbPath))
+                dbPath = Path.Combine(tempDirectory, "collection.anki2");
+            if (!File.Exists(dbPath))
+                throw new InvalidOperationException("Package does not contain collection.anki21 or collection.anki2.");
+
+            var connectionString = new SqliteConnectionStringBuilder
+            {
+                DataSource = dbPath,
+                Mode = SqliteOpenMode.ReadOnly,
+                Pooling = false
+            }.ToString();
+            var connection = new SqliteConnection(connectionString);
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            return new OpenedApkg(tempDirectory, connection);
+        }
+        catch
+        {
+            // The failure happened before the OpenedApkg wrapper exists, so no caller-side
+            // "await using" will ever run its cleanup. Delete the extracted files ourselves.
+            await TryDeleteDirectoryWithRetriesAsync(tempDirectory).ConfigureAwait(false);
+            throw;
+        }
     }
 
     private static async Task<int> CountAsync(SqliteConnection connection, string tableName, CancellationToken cancellationToken)

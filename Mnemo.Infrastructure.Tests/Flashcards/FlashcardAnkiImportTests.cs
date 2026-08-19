@@ -111,7 +111,56 @@ public sealed class FlashcardAnkiImportTests
         }
     }
 
+    [Fact]
+    public async Task Import_MissingCollectionDatabase_CleansUpExtractedTempDirectory()
+    {
+        await using var h = new FlashcardStoreHarness();
+        await h.Store.InitializeAsync();
+        var library = NewLibrary(h);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks);
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, presetSvc, new ImageAssetService());
+
+        // A .apkg with no collection.anki21/anki2 fails after the temp directory is already
+        // extracted; both call sites must still remove it rather than leaking it in %TEMP%.
+        var apkg = await BuildBrokenApkgAsync();
+
+        try
+        {
+            var before = LeftoverImportDirectories();
+
+            var preview = await adapter.PreviewImportAsync(new ImportExportRequest { FilePath = apkg });
+            Assert.False(preview.CanImport);
+
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+            Assert.False(result.Success);
+
+            var after = LeftoverImportDirectories();
+            Assert.Equal(before, after);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
     // --- helpers ---
+
+    private static HashSet<string> LeftoverImportDirectories() =>
+        new(Directory.GetDirectories(Path.GetTempPath(), "mnemo-anki-import-*"), StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Writes a .apkg zip containing no collection.anki21/anki2, for temp-cleanup coverage.</summary>
+    private static async Task<string> BuildBrokenApkgAsync()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"mnemo_anki_broken_fixture_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        await File.WriteAllTextAsync(Path.Combine(tempRoot, "not-a-collection.txt"), "no database here");
+
+        var apkgPath = Path.Combine(Path.GetTempPath(), $"mnemo_anki_broken_{Guid.NewGuid():N}.apkg");
+        ZipFile.CreateFromDirectory(tempRoot, apkgPath, CompressionLevel.Optimal, includeBaseDirectory: false);
+        try { Directory.Delete(tempRoot, recursive: true); } catch (IOException) { }
+        return apkgPath;
+    }
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
         new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets);
