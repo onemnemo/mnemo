@@ -476,6 +476,8 @@ export interface PresetDto {
   leechAction: LeechAction
   deckCount: number
   isStandard: boolean
+  /** The fitted memory weights, or null while the preset schedules on the published defaults. */
+  weights: number[] | null
   createdAt: string
   updatedAt: string
 }
@@ -497,6 +499,32 @@ export interface SavePresetDto {
   nextDayStartsAtHour: number
   leechThreshold: number
   leechAction: LeechAction
+}
+
+/** Whether a fit had enough history to learn from. Mirrors OptimizeWeightsDto's status tokens. */
+export type OptimizationStatus = "fitted" | "not-enough-reviews"
+
+/**
+ * Mirrors Mnemo.Host/Contracts/FlashcardOptimizerDto.cs OptimizeWeightsDto. The result of a fit,
+ * which stores nothing: the vector is offered, and applying it is a second request.
+ */
+export interface OptimizeWeightsDto {
+  status: OptimizationStatus
+  /** What the preset schedules on today, so a fit can be undone without knowing the defaults. */
+  currentWeights: number[]
+  weights: number[]
+  reviewsAvailable: number
+  reviewsUsed: number
+  reviewsScored: number
+  minimumReviews: number
+  /** Null when there was too little history to score anything. */
+  lossBefore: number | null
+  lossAfter: number | null
+}
+
+/** Mirrors Mnemo.Host/Contracts/FlashcardOptimizerDto.cs SaveWeightsDto. Null means the defaults. */
+export interface SaveWeightsDto {
+  weights: number[] | null
 }
 
 // --- Import / export -------------------------------------------------------

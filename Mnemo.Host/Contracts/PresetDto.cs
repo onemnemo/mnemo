@@ -28,7 +28,10 @@ public sealed record PresetDto(
     int DeckCount,
     bool IsStandard,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt)
+    DateTimeOffset UpdatedAt,
+    // Null when the preset schedules on the published FSRS defaults, which is how every preset
+    // starts. Read-only here: weights are written through their own endpoint.
+    IReadOnlyList<double>? Weights = null)
 {
     public static PresetDto FromModel(FlashcardPreset model, int deckCount)
         => new(
@@ -48,7 +51,8 @@ public sealed record PresetDto(
             deckCount,
             string.Equals(model.Id, FlashcardPreset.StandardPresetId, StringComparison.Ordinal),
             model.CreatedAt,
-            model.UpdatedAt);
+            model.UpdatedAt,
+            model.Weights);
 }
 
 /// <summary>

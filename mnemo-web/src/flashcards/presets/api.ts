@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { apiFetch, apiSend, ApiError } from "@/api/client"
-import type { DeckSummaryDto, PresetDto, SavePresetDto } from "@/api/types"
+import type { DeckSummaryDto, OptimizeWeightsDto, PresetDto, SavePresetDto } from "@/api/types"
 
 import { deckKey } from "../deck/api"
 
@@ -48,6 +48,23 @@ export function updatePreset(presetId: string, body: SavePresetDto): Promise<Pre
 
 export function deletePreset(presetId: string): Promise<void> {
   return apiSend(`/presets/${presetId}`, { method: "DELETE" })
+}
+
+/**
+ * Fits weights to the review history of every deck on this preset. Stores nothing, so the caller
+ * decides whether to keep the result. Runs for seconds on a large collection, which is what the
+ * signal is for: closing the dialog aborts the request and the server stops the fit with it.
+ */
+export function optimizePreset(presetId: string, signal?: AbortSignal): Promise<OptimizeWeightsDto> {
+  return apiFetch<OptimizeWeightsDto>(`/presets/${presetId}/optimize`, { method: "POST", signal })
+}
+
+/** Puts a preset onto a fitted vector, or back onto the published defaults when given null. */
+export function applyPresetWeights(presetId: string, weights: number[] | null): Promise<PresetDto> {
+  return apiFetch<PresetDto>(`/presets/${presetId}/weights`, {
+    ...json({ weights }),
+    method: "PUT",
+  })
 }
 
 export function assignDeckPreset(deckId: string, presetId: string): Promise<void> {
