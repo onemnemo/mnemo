@@ -248,6 +248,35 @@ public sealed class FlashcardFactMigrationTests
         Assert.Equal("{}", fact.MediaJson);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("not json")]
+    [InlineData("""{"Id":"a1"}""")]
+    public async Task A_card_whose_media_column_cannot_be_read_still_lets_the_collection_open(string attachmentsJson)
+    {
+        // Every runtime read of this column falls back to no attachments rather than throwing,
+        // because a row written by a build that no longer exists still has to open. The upgrade
+        // has to hold to that too: it runs before anything else can, and a throw here would leave
+        // the version unstamped, so the same row would fail the same way on every later launch and
+        // take the whole module down with it.
+        await using var db = new LegacyDatabase(5);
+        await db.AddCardAsync("card-1", FlashcardType.Classic, "Question", "Answer", attachmentsJson: attachmentsJson);
+        await db.AddCardAsync("card-2", FlashcardType.Classic, "Second", "Card");
+
+        await db.OpenAsync();
+
+        var broken = await db.CardAsync("card-1");
+        Assert.Equal("{}", (await db.FactAsync(broken.FactId!)).MediaJson);
+        // The unreadable text is left on the card rather than rewritten, so nothing the upgrade
+        // could not read is thrown away.
+        Assert.Equal(attachmentsJson, broken.AttachmentsJson);
+
+        // The rest of the collection migrated normally.
+        var healthy = await db.CardAsync("card-2");
+        Assert.Equal(FlashcardCardType.BasicId, (await db.FactAsync(healthy.FactId!)).TypeId);
+    }
+
     [Fact]
     public async Task The_built_in_card_types_arrive_with_the_upgrade()
     {
