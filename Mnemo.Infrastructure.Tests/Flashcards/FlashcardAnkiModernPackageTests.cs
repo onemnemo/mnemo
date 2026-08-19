@@ -30,7 +30,7 @@ public sealed class FlashcardAnkiModernPackageTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
         var adapter = NewAdapter(h, library, cardSvc);
 
         var apkg = await AnkiPackageFixture.WriteAsync(
@@ -66,7 +66,7 @@ public sealed class FlashcardAnkiModernPackageTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
         var adapter = NewAdapter(h, library, cardSvc);
 
         var apkg = await AnkiPackageFixture.WriteAsync(
@@ -96,7 +96,7 @@ public sealed class FlashcardAnkiModernPackageTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
         var adapter = NewAdapter(h, library, cardSvc);
 
         var apkg = await AnkiPackageFixture.WriteAsync(
@@ -132,7 +132,7 @@ public sealed class FlashcardAnkiModernPackageTests
         await using var h = new FlashcardStoreHarness();
         await h.Store.InitializeAsync();
         var library = NewLibrary(h);
-        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Clock);
         var adapter = NewAdapter(h, library, cardSvc);
 
         var apkg = await AnkiPackageFixture.WriteAsync(
@@ -199,10 +199,10 @@ public sealed class FlashcardAnkiModernPackageTests
         FlashcardStoreHarness h,
         FlashcardLibraryService library,
         FlashcardCardService cardSvc) =>
-        new(library, cardSvc, new FlashcardPresetService(h.Store, h.Presets, h.Decks), new ImageAssetService());
+        new(library, cardSvc, new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock), new ImageAssetService());
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
-        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets);
+        new(h.Store, h.Folders, h.Decks, h.Cards, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
     /// <summary>A real 1x1 PNG, so the import stores what the bytes actually are.</summary>
     private static byte[] PngBytes() => Convert.FromBase64String(

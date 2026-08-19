@@ -73,6 +73,42 @@ public sealed class FlashcardStoreUpgradeTests
         }
     }
 
+    [Fact]
+    public async Task A_preset_saved_before_the_scheduling_columns_reads_back_with_their_defaults()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"mnemo_fc_v1_{Guid.NewGuid():N}.db");
+        try
+        {
+            await WriteVersionOneAsync(path);
+            await InsertVersionOneDeckAsync(path, "deck-1", "Antiarrhythmics");
+
+            var presets = new PresetRepository();
+            await using var store = new FlashcardStore(new TestLogger(), path);
+            await store.InitializeAsync();
+
+            // Each column arrives with a default rather than a null, so a collection that predates
+            // the setting keeps the day it always had instead of quietly moving to midnight, and
+            // gets the same lapse handling a fresh install would.
+            var before = await store.ReadAsync((conn, ct) => presets.GetAsync(conn, FlashcardPreset.StandardPresetId, ct));
+            Assert.NotNull(before);
+            Assert.Equal(FlashcardPreset.DefaultNextDayStartsAtHour, before!.NextDayStartsAtHour);
+            Assert.Equal(FlashcardPreset.DefaultLeechThreshold, before.LeechThreshold);
+            Assert.Equal(FlashcardLeechAction.Tag, before.LeechAction);
+
+            await store.WriteAsync((conn, tx, ct) => presets.UpsertAsync(
+                conn, tx, before with { NextDayStartsAtHour = 2, LeechThreshold = 5, LeechAction = FlashcardLeechAction.Suspend }, ct));
+
+            var after = await store.ReadAsync((conn, ct) => presets.GetAsync(conn, FlashcardPreset.StandardPresetId, ct));
+            Assert.Equal(2, after!.NextDayStartsAtHour);
+            Assert.Equal(5, after.LeechThreshold);
+            Assert.Equal(FlashcardLeechAction.Suspend, after.LeechAction);
+        }
+        finally
+        {
+            Delete(path);
+        }
+    }
+
     /// <summary>
     /// The v1 shape, written by hand: the decks table without Icon, plus the version stamp
     /// that stops a plain version check from doing any work.

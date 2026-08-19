@@ -14,12 +14,14 @@ public sealed class FlashcardPresetService : IFlashcardPresetService
     private readonly IFlashcardStore _store;
     private readonly IPresetRepository _presets;
     private readonly IDeckRepository _decks;
+    private readonly FlashcardClock _clock;
 
-    public FlashcardPresetService(IFlashcardStore store, IPresetRepository presets, IDeckRepository decks)
+    public FlashcardPresetService(IFlashcardStore store, IPresetRepository presets, IDeckRepository decks, FlashcardClock clock)
     {
         _store = store;
         _presets = presets;
         _decks = decks;
+        _clock = clock;
     }
 
     public Task<IReadOnlyList<FlashcardPreset>> ListPresetsAsync(CancellationToken cancellationToken = default) =>
@@ -34,7 +36,7 @@ public sealed class FlashcardPresetService : IFlashcardPresetService
         if (existing is not null)
             return existing;
 
-        var standard = FlashcardPreset.CreateStandard(DateTimeOffset.UtcNow);
+        var standard = FlashcardPreset.CreateStandard(_clock.Now);
         await _store.WriteAsync((conn, tx, ct) => _presets.UpsertAsync(conn, tx, standard, ct), cancellationToken).ConfigureAwait(false);
         return standard;
     }
@@ -42,7 +44,7 @@ public sealed class FlashcardPresetService : IFlashcardPresetService
     public async Task<FlashcardPreset> SavePresetAsync(FlashcardPreset preset, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(preset);
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.Now;
         var toSave = preset with
         {
             CreatedAt = preset.CreatedAt == default ? now : preset.CreatedAt,
@@ -53,7 +55,7 @@ public sealed class FlashcardPresetService : IFlashcardPresetService
     }
 
     public Task AssignDeckPresetAsync(string deckId, string presetId, CancellationToken cancellationToken = default) =>
-        _store.WriteAsync((conn, tx, ct) => _decks.SetPresetAsync(conn, tx, deckId, presetId, DateTimeOffset.UtcNow, ct), cancellationToken);
+        _store.WriteAsync((conn, tx, ct) => _decks.SetPresetAsync(conn, tx, deckId, presetId, _clock.Now, ct), cancellationToken);
 
     public Task<int> CountDecksUsingAsync(string presetId, CancellationToken cancellationToken = default) =>
         _store.ReadAsync((conn, ct) => _presets.CountDecksUsingAsync(conn, presetId, ct), cancellationToken);

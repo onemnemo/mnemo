@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -21,15 +22,22 @@ public interface IScheduleRepository
     Task<FlashcardDueCounts> GetRawDueCountsAsync(SqliteConnection conn, string deckId, DateTimeOffset now, CancellationToken cancellationToken);
 
     /// <summary>
-    /// How many scheduled cards fall on each UTC day in <c>[from, to)</c>, across every deck. Days
-    /// with nothing scheduled are absent from the result rather than present as zero.
+    /// How many scheduled cards fall inside each of the windows described by
+    /// <paramref name="boundaries"/>, across every deck. Window i runs from boundaries[i] up to
+    /// boundaries[i + 1], so N + 1 boundaries describe N windows and the result holds one count
+    /// per window, in order.
     /// </summary>
     /// <remarks>
+    /// The caller passes instants rather than a day to group by, because a study day starts at a
+    /// local hour whose offset from UTC moves with daylight saving. That cannot be recovered from
+    /// the stored timestamps in SQL, but the caller knows the calendar and can say exactly where
+    /// each day begins.
+    ///
     /// New cards are excluded: their due date is an artefact of when the row was created, not a
     /// plan to show them, so counting them would put a spike on whichever day a deck was imported.
     /// </remarks>
-    Task<IReadOnlyDictionary<DateOnly, int>> GetScheduledCountsByUtcDayAsync(
-        SqliteConnection conn, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
+    Task<IReadOnlyList<int>> GetScheduledCountsByWindowAsync(
+        SqliteConnection conn, IReadOnlyList<DateTimeOffset> boundaries, CancellationToken cancellationToken);
 }
 
 /// <inheritdoc />
@@ -94,30 +102,46 @@ public sealed class ScheduleRepository : IScheduleRepository
         return new FlashcardDueCounts(newCount, learning, due);
     }
 
-    public async Task<IReadOnlyDictionary<DateOnly, int>> GetScheduledCountsByUtcDayAsync(
-        SqliteConnection conn, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<int>> GetScheduledCountsByWindowAsync(
+        SqliteConnection conn, IReadOnlyList<DateTimeOffset> boundaries, CancellationToken cancellationToken)
     {
-        await using var cmd = conn.CreateCommand();
-        // substr rather than SQLite's date(): timestamps are written by FlashcardSqlMap.Ts, which is
-        // always round-trip UTC, so the first ten characters are exactly the UTC calendar day. date()
-        // would have to reparse a seven-digit fractional second it does not document support for.
-        // The range predicate still runs against the whole column, so IX_Sched_Due is usable.
-        cmd.CommandText = """
-            SELECT substr(s.DueDate, 1, 10) AS Day, COUNT(*)
-            FROM FlashcardScheduling s
-            JOIN FlashcardCards c ON c.Id = s.CardId
-            WHERE c.State = 0 AND s.FsrsState <> 0 AND s.DueDate >= $from AND s.DueDate < $to
-            GROUP BY Day;
-            """;
-        cmd.Parameters.AddWithValue("$from", FlashcardSqlMap.Ts(from));
-        cmd.Parameters.AddWithValue("$to", FlashcardSqlMap.Ts(to));
+        ArgumentNullException.ThrowIfNull(boundaries);
+        var windows = boundaries.Count - 1;
+        if (windows <= 0)
+            return Array.Empty<int>();
 
-        var counts = new Dictionary<DateOnly, int>();
+        await using var cmd = conn.CreateCommand();
+        var values = new StringBuilder();
+        for (var i = 0; i < windows; i++)
+        {
+            if (i > 0)
+                values.Append(", ");
+            values.Append(CultureInfo.InvariantCulture, $"({i}, $s{i}, $e{i})");
+            cmd.Parameters.AddWithValue($"$s{i}", FlashcardSqlMap.Ts(boundaries[i]));
+            cmd.Parameters.AddWithValue($"$e{i}", FlashcardSqlMap.Ts(boundaries[i + 1]));
+        }
+
+        // Timestamps are written by FlashcardSqlMap.Ts, which normalises to UTC, so comparing the
+        // stored text against a bound is the same as comparing the instants. Counting stays in the
+        // database, and the range predicate still reaches IX_Sched_Due. Only the loop counter goes
+        // into the statement text; the bounds themselves are parameters.
+        cmd.CommandText = $"""
+            WITH windows(Idx, Start, Stop) AS (VALUES {values})
+            SELECT w.Idx, COUNT(*)
+            FROM windows w
+            JOIN FlashcardScheduling s ON s.DueDate >= w.Start AND s.DueDate < w.Stop
+            JOIN FlashcardCards c ON c.Id = s.CardId
+            WHERE c.State = 0 AND s.FsrsState <> 0
+            GROUP BY w.Idx;
+            """;
+
+        var counts = new int[windows];
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            if (DateOnly.TryParse(reader.GetString(0), CultureInfo.InvariantCulture, DateTimeStyles.None, out var day))
-                counts[day] = reader.GetInt32(1);
+            var idx = reader.GetInt32(0);
+            if (idx >= 0 && idx < windows)
+                counts[idx] = reader.GetInt32(1);
         }
         return counts;
     }

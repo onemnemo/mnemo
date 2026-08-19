@@ -9,12 +9,13 @@ import {
   ContextMenuSubMenu,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import { LEECH_LAPSES } from "@/flashcards/leeches"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import { StateTag, cardStateKind } from "../../bits"
 import { stripMath } from "../../math"
-import { LEECH_LAPSES, dueLabel, frontPreview, oneLine } from "../cards"
+import { dueLabel, frontPreview, oneLine } from "../cards"
 import { BACK_CELL, ROW_GRID } from "./rowLayout"
 
 export interface CardRowActions {

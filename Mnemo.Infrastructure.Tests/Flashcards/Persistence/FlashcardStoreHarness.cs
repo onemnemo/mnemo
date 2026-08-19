@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Tests.Widgets;
 
@@ -26,8 +27,16 @@ internal sealed class FlashcardStoreHarness : IAsyncDisposable
     public TestAttemptRepository TestAttempts { get; } = new();
     public DailyStatsRepository DailyStats { get; } = new();
 
-    public FlashcardStoreHarness()
+    /// <summary>The clock the wired services read. Move it to test a day boundary.</summary>
+    public TestTimeProvider Time { get; }
+    public FlashcardClock Clock { get; }
+
+    /// <param name="now">The instant the services see. Defaults to the real one for tests that do not care.</param>
+    /// <param name="zone">The study day's time zone. Defaults to UTC so a day key does not depend on the build machine.</param>
+    public FlashcardStoreHarness(DateTimeOffset? now = null, TimeZoneInfo? zone = null)
     {
+        Time = new TestTimeProvider(now ?? DateTimeOffset.UtcNow, zone);
+        Clock = new FlashcardClock(Time);
         _dbPath = Path.Combine(Path.GetTempPath(), $"mnemo_fc_{Guid.NewGuid():N}.db");
         Store = new FlashcardStore(new TestLogger(), _dbPath);
     }
