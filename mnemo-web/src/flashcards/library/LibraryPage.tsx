@@ -154,6 +154,13 @@ export function LibraryPage() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          <Button
+            variant="ghost"
+            icon={<AppIcon name="table" size={14} />}
+            onClick={() => navigate("flashcard-browse")}
+          >
+            {fc("BrowseTitle")}
+          </Button>
           <Button variant="ghost" icon={<AppIcon name="common/download" size={14} />} onClick={openTransfer}>
             {fc("Import")}
           </Button>
