@@ -132,7 +132,7 @@ enumerated individually here; see "What this does not cover" below.
     Microsoft.Extensions.Http, Microsoft.ML.OnnxRuntime, Microsoft.ML.OnnxRuntime.Managed,
     SkiaSharp, SkiaSharp.NativeAssets.Linux, Svg.Skia,
     TextMateSharp, TextMateSharp.Grammars, Tmds.DBus.Protocol, Velopack,
-    DocumentFormat.OpenXml
+    DocumentFormat.OpenXml, ZstdSharp.Port
 
   Apache License, Version 2.0
     Google.Apis.Auth, ModelContextProtocol.AspNetCore, PhotinoX (and its native
