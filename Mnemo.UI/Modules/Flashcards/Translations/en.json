@@ -262,6 +262,8 @@
     "StudyLeaveTitle": "Leave session?",
     "StudyLeaveMessage": "Your progress so far is saved. You can pick up the rest later.",
     "StudyLeaveConfirm": "Leave",
+    "StudyGradeErrorTitle": "Couldn't save that grade",
+    "StudyUndoErrorTitle": "Couldn't undo that review",
     "TestModeChip": "Test · practice only",
     "TestGradeMissed": "Missed",
     "TestGradeClose": "Close",

@@ -262,6 +262,8 @@
     "StudyLeaveTitle": "¿Salir de la sesión?",
     "StudyLeaveMessage": "Tu progreso hasta ahora está guardado. Puedes continuar más tarde.",
     "StudyLeaveConfirm": "Salir",
+    "StudyGradeErrorTitle": "No se pudo guardar esa calificación",
+    "StudyUndoErrorTitle": "No se pudo deshacer esa revisión",
     "TestModeChip": "Test · solo práctica",
     "TestGradeMissed": "Fallada",
     "TestGradeClose": "Casi",

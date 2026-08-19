@@ -2,6 +2,9 @@ import { create } from "zustand"
 
 import { ApiError } from "@/api/client"
 import type { CardDto, ReviewGrade, SessionMode, SessionScope, StudySessionDto } from "@/api/types"
+import { useI18nStore } from "@/i18n/store"
+import { createTranslate } from "@/i18n/translate"
+import { toast } from "@/stores/toast"
 
 import { endSession, gradeCard, startSession, undoGrade } from "./api"
 
@@ -84,8 +87,11 @@ export const useSession = create<SessionState>((set, get) => ({
       const next = await gradeCard(session.sessionId, { cardId: current.id, grade })
       set({ session: next, busy: false, ...PRESENTED })
     } catch (error) {
-      set({ busy: false, revealed: false })
-      failed(error, set)
+      // The card stays revealed. The server commits a grade before it answers, so a failed
+      // request can mean the grade landed anyway; un-revealing the card would tell the reader
+      // nothing happened when it might have, and could let them grade it a second time.
+      set({ busy: false })
+      failed(error, "StudyGradeErrorTitle", () => void get().grade(grade), set)
     }
   },
 
@@ -99,7 +105,7 @@ export const useSession = create<SessionState>((set, get) => ({
       set({ session: next, busy: false, ...PRESENTED })
     } catch (error) {
       set({ busy: false })
-      failed(error, set)
+      failed(error, "StudyUndoErrorTitle", () => void get().undo(), set)
     }
   },
 
@@ -122,11 +128,24 @@ export const useSession = create<SessionState>((set, get) => ({
 /**
  * A session the server no longer has - swept after an idle hour, or lost to a host restart -
  * cannot be resumed, so the screen gives up and the page sends the reader back to the deck.
- * Anything else is left alone: the desktop loses the grade with no message, and the card is
- * simply back at its unrevealed front to be graded again.
+ *
+ * Anything else surfaces as a toast with a retry. Retrying the same grade or undo is always
+ * safe even if the first attempt actually committed: gradeCard treats a stale-card 409 as the
+ * session's real state rather than an error, so a repeat lands on the current card either way.
  */
-function failed(error: unknown, set: (partial: Partial<SessionState>) => void) {
+function failed(
+  error: unknown,
+  titleKey: string,
+  retry: () => void,
+  set: (partial: Partial<SessionState>) => void,
+) {
   if (error instanceof ApiError && error.status === 404) {
     set({ status: "gone", session: null })
+    return
   }
+  const t = createTranslate(useI18nStore.getState().bundle)
+  toast.warning(t("Flashcards", titleKey), {
+    description: error instanceof Error ? error.message : undefined,
+    primary: { label: t("Flashcards", "Retry"), onClick: retry },
+  })
 }
