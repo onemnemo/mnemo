@@ -148,7 +148,7 @@ function matchRoute(hash: string): { key: string; params: readonly string[] } {
   const segments = hash.replace(/^#\/?/, "").split("/").filter(Boolean)
   const raw = segments[0] ?? DEFAULT_ROUTE
   const key = ALIASES[raw] ?? raw
-  if (!PAGES[key]) return { key: DEFAULT_ROUTE, params: [] }
+  if (!Object.hasOwn(PAGES, key)) return { key: DEFAULT_ROUTE, params: [] }
   return { key, params: segments.slice(1) }
 }
 
@@ -167,6 +167,7 @@ export function resolveRoute(hash: string): ResolvedRoute {
  */
 export function warmRoute(hash: string): void {
   const { key, params } = matchRoute(hash)
+  if (!Object.hasOwn(CHUNKS, key)) return
   void CHUNKS[key]?.(params)?.catch(() => {
     // A warm that fails is not a failure: the route retries the import when it renders,
     // and that attempt is the one that gets to show the user an error.
