@@ -66,7 +66,11 @@ export function useNoteSession(options: UseNoteSessionOptions): UseNoteSessionRe
     const session = createNoteSession({ mount: element, ...latest.current });
     sessionRef.current = session;
     setView(session.view);
-    setSaveState(session.authority.snapshot().saveState);
+    // The doc-free read, deliberately. A snapshot here would pull the whole
+    // document out of a mount that has only just started rendering it in
+    // chunks, and finish that load synchronously, on the open path of every
+    // large note.
+    setSaveState(session.authority.status().saveState);
     const unsubscribe = session.subscribe((snapshot) => {
       setSaveState(snapshot.saveState);
     });
