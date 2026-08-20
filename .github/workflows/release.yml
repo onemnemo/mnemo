@@ -253,6 +253,14 @@ jobs:
 
       # One pack per channel, all into the same directory: Velopack puts the channel in
       # every file name it writes, so the tracks sit side by side without colliding.
+      #
+      # macOS signing is not configured yet. vpk pack accepts --signAppIdentity,
+      # --entitlements, --keychain and --notaryProfile on that platform (this Velopack
+      # version has codesign and notarytool support built in); that is where they would
+      # slot into the invocation below, gated on runner.os == 'macOS'. No certificate,
+      # keychain profile or secret is wired up here. Until one is, the macOS build
+      # stays unsigned, and Gatekeeper refuses to open it on a clean machine by default;
+      # see the macOS section of README.md for the right-click-Open workaround.
       - name: Pack (Velopack)
         shell: bash
         env:
