@@ -2,6 +2,7 @@ import { useEffect } from "react"
 
 import { installExitConfirm } from "@/app/exit-confirm"
 import { checkLegacyInstallWarning } from "@/app/legacy-install-warning"
+import { startRoutePrefetch } from "@/app/prefetch"
 import { useRouteNormalization } from "@/app/router"
 import { AppShell } from "@/components/shell/AppShell"
 import { DialogHost } from "@/components/shell/DialogHost"
@@ -41,6 +42,11 @@ function App() {
   // Runs on every boot; the host answers true at most once ever, so this never repeats
   // the warning once it has been shown.
   useEffect(() => checkLegacyInstallWarning(), [])
+
+  // Mounted rather than called at import time on purpose: the code the pages need is worth
+  // fetching with time the window is not otherwise using, and never at the expense of the
+  // paint. Cancelled on unmount, so it cannot outlive the shell that wanted it.
+  useEffect(() => startRoutePrefetch(), [])
 
   // global.assistant toggles the dock rather than navigating: the point of Soma is
   // that it comes to the work, and a shortcut that throws away the page you were

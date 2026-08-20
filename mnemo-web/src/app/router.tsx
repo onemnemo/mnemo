@@ -70,13 +70,23 @@ function landingRoute(): string {
   const preference = getSettingValue("App.OpenTo", "last")
   if (preference !== "last") return preference
 
-  try {
-    // Stored as a full hash ("#/notes/abc"), so resuming keeps the note that was open
-    // and not merely the module it was in.
-    const stored = localStorage.getItem(LAST_ROUTE_KEY)
-    if (stored) return stored.replace(/^#\/?/, "")
-  } catch {
-    // Non-fatal.
-  }
+  const stored = readLastRoute()
+  if (stored) return stored.replace(/^#\/?/, "")
   return DEFAULT_ROUTE
+}
+
+/**
+ * The hash this window was last on ("#/notes/abc"), or null when nothing is remembered.
+ *
+ * A whole hash rather than a route key, so resuming keeps the note that was open and not
+ * merely the module it was in. Exported for the prefetch, which warms that route's code
+ * before the shell gets around to asking for it.
+ */
+export function readLastRoute(): string | null {
+  try {
+    return localStorage.getItem(LAST_ROUTE_KEY)
+  } catch {
+    // Non-fatal: the caller falls back to the default route.
+    return null
+  }
 }
