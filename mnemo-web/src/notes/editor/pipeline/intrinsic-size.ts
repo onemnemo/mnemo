@@ -39,12 +39,13 @@
  * a reserved height there would be ignored.
  */
 
-import { Plugin, PluginKey, type Transaction } from 'prosemirror-state';
+import { Plugin, PluginKey } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import type { BlockRegistry } from '../registry/build';
 import type { EstimateContext } from '../registry/types';
-import { changedRanges, type DocRange } from './invariants';
+import type { DocRange } from './invariants';
+import { spansToRebuild, staleIn } from './rebuild-spans';
 
 const intrinsicSizeKey = new PluginKey<DecorationSet>('notes-intrinsic-size');
 
@@ -82,65 +83,6 @@ function heightEstimator(registry: BlockRegistry, availableWidth: number): (node
     return Math.round(estimator(node, context));
   }
   return estimate;
-}
-
-/**
- * Widens a changed range to the whole top-level blocks it touches.
- *
- * A node decoration has to cover a node exactly, so a range that starts inside
- * one block and ends inside another has to be grown outwards before anything is
- * rebuilt from it.
- */
-function topLevelSpan(doc: PMNode, range: DocRange): DocRange | null {
-  if (doc.childCount === 0) return null;
-  const size = doc.content.size;
-  const from = Math.max(0, Math.min(range.from, size));
-  const to = Math.max(from, Math.min(range.to, size));
-
-  let offset = 0;
-  let start: number | null = null;
-  let end = 0;
-  for (let i = 0; i < doc.childCount; i++) {
-    const childEnd = offset + doc.child(i).nodeSize;
-    // Touching, not merely overlapping: an edit at a block boundary belongs to
-    // the block on both sides of it.
-    if (childEnd >= from && offset <= to) {
-      if (start === null) start = offset;
-      end = childEnd;
-    }
-    offset = childEnd;
-    if (offset > to) break;
-  }
-  return start === null ? null : { from: start, to: end };
-}
-
-/**
- * The changed ranges as whole-block spans, with touching spans joined.
- *
- * One transaction can report several ranges inside one block, and widening them
- * separately would rebuild that block once per range.
- */
-function spansToRebuild(doc: PMNode, tr: Transaction): DocRange[] {
-  const spans: { from: number; to: number }[] = [];
-  for (const range of changedRanges([tr])) {
-    const span = topLevelSpan(doc, range);
-    if (!span) continue;
-    const last = spans[spans.length - 1];
-    if (last && span.from <= last.to) last.to = Math.max(last.to, span.to);
-    else spans.push({ from: span.from, to: span.to });
-  }
-  return spans;
-}
-
-/**
- * The decorations a span replaces.
- *
- * `find` also reports a decoration that merely touches the span's edge, which is
- * the neighbouring block's and is not being rebuilt. Dropping it there would
- * leave that block with no reserved height at all.
- */
-function staleIn(set: DecorationSet, span: DocRange): Decoration[] {
-  return set.find(span.from, span.to).filter((deco) => deco.to > span.from && deco.from < span.to);
 }
 
 /**
