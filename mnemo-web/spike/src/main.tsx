@@ -231,7 +231,7 @@ function parseRunConfig(params: URLSearchParams): RunConfig {
     )
   }
 
-  const modeParam = params.get('mode') ?? 'a1'
+  const modeParam = params.get('mode') ?? 'a2'
   const armId = ARM_ALIASES[modeParam]
   if (!armId) {
     throw new Error(
@@ -280,10 +280,6 @@ async function postProbe(path: string, body: Record<string, unknown>): Promise<v
  * would produce numbers and numbers get quoted.
  */
 async function loadArm(id: ArmId): Promise<ArmModule> {
-  if (id === 'a1-reactflow') {
-    const imported = await import('./arms/a1')
-    return imported.a1Module
-  }
   if (id === 'a2-dom') {
     const imported = await import('./arms/a2')
     return imported.a2Module
