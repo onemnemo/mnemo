@@ -529,9 +529,13 @@ public sealed class FlashcardFactMigrationTests
         }
 
         /// <summary>
-        /// The pre-fact shape, written by hand, stamped at the version under test. The columns a
-        /// later release added are left off on purpose: the upgrade has to put them back, and a
-        /// database that skipped releases is exactly the case worth covering.
+        /// The pre-fact shape, written by hand, stamped at the version under test. Genuinely
+        /// version-accurate: only the columns a release up to and including <paramref name="version"/>
+        /// had actually landed are present (see <see cref="AddVersionColumns"/>), so a v1 fixture and
+        /// a v5 fixture are structurally different databases, not the same file under five labels.
+        /// Everything from v6 (the fact backfill this class tests) onward is left off on purpose in
+        /// every case: the upgrade has to put it back, and a database that skipped releases is
+        /// exactly the case worth covering.
         /// </summary>
         private void Write(int version)
         {
@@ -594,10 +598,37 @@ public sealed class FlashcardFactMigrationTests
                 """;
             cmd.ExecuteNonQuery();
 
+            AddVersionColumns(conn, version);
+
             using var stamp = conn.CreateCommand();
             stamp.CommandText = "INSERT INTO FlashcardSchemaVersion (Version, AppliedAt) VALUES ($v, '2026-01-01T00:00:00.0000000+00:00');";
             stamp.Parameters.AddWithValue("$v", version);
             stamp.ExecuteNonQuery();
+        }
+
+        /// <summary>
+        /// Adds exactly the columns a real database at <paramref name="version"/> would already have,
+        /// one release's worth at a time (v2 added Icon, v3 StateBefore, v4 NextDayStartsAtHour, v5
+        /// LeechThreshold and LeechAction; verified against the commit that introduced each). A v1
+        /// fixture adds none of these, matching a database that predates all five.
+        /// </summary>
+        private static void AddVersionColumns(SqliteConnection conn, int version)
+        {
+            using var cmd = conn.CreateCommand();
+            var statements = new List<string>();
+            if (version >= 2) statements.Add("ALTER TABLE FlashcardDecks ADD COLUMN Icon TEXT NULL;");
+            if (version >= 3) statements.Add("ALTER TABLE FlashcardReviews ADD COLUMN StateBefore INTEGER NULL;");
+            if (version >= 4) statements.Add("ALTER TABLE FlashcardPresets ADD COLUMN NextDayStartsAtHour INTEGER NOT NULL DEFAULT 4;");
+            if (version >= 5)
+            {
+                statements.Add("ALTER TABLE FlashcardPresets ADD COLUMN LeechThreshold INTEGER NOT NULL DEFAULT 8;");
+                statements.Add("ALTER TABLE FlashcardPresets ADD COLUMN LeechAction INTEGER NOT NULL DEFAULT 1;");
+            }
+            if (statements.Count == 0)
+                return;
+
+            cmd.CommandText = string.Join('\n', statements);
+            cmd.ExecuteNonQuery();
         }
 
         private static string Ts(DateTimeOffset value) =>
