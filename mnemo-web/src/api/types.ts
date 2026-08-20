@@ -570,6 +570,39 @@ export interface TransferUploadDto {
   /** Null when the format cannot say how many cards it holds until it is imported (.mnemo). */
   cardCount: number | null
   warnings: TransferWarningDto[]
+  /**
+   * What importing the file would mean, worked out before anything is written. Only the package
+   * format can say; every other format leaves it absent.
+   */
+  evidence?: PackageEvidenceDto | null
+}
+
+/** Mirrors Mnemo.Host/Contracts/TransferDto.cs PackageEvidenceDto. */
+export interface PackageEvidenceDto {
+  /** "backup" for a whole collection, "export" for a chosen part of one. */
+  kind: string
+  collectionId: string | null
+  /** Whether this installation wrote the file. It informs the reader; it decides nothing. */
+  fromThisCollection: boolean
+  createdAtUtc: string | null
+  createdByAppVersion: string | null
+  /** False when the file was written by a newer version than this one can read. */
+  canRead: boolean
+  payloads: PayloadEvidenceDto[]
+}
+
+/** Mirrors Mnemo.Host/Contracts/TransferDto.cs PayloadEvidenceDto. */
+export interface PayloadEvidenceDto {
+  payloadType: string
+  payloadVersion: number
+  supportedPayloadVersion: number
+  canRead: boolean
+  inPackage: number
+  alreadyHere: number
+  newHere: number
+  missingFromPackage: number
+  /** Cards a replace would destroy: content in the decks it covers that the file does not carry. */
+  replaceWouldDiscard: number
 }
 
 /** Mirrors Mnemo.Host/Contracts/TransferDto.cs TransferImportDto. */
@@ -591,6 +624,11 @@ export interface TransferImportResultDto {
 export interface TransferExportDto {
   formatId: string
   deckIds: string[]
+  /**
+   * "backup" when the request covers the whole collection, "export" when it covers a chosen part.
+   * Both go out as a list of deck ids, so only the caller knows which one was asked for.
+   */
+  kind?: string
 }
 
 /** Mirrors Mnemo.Host/Contracts/NoteTransferDto.cs NoteTransferUploadDto. */

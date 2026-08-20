@@ -1,4 +1,12 @@
-import type { TransferFormatDto, TransferUploadDto, TransferWarningDto } from "@/api/types"
+import type {
+  ConflictPolicy,
+  PackageEvidenceDto,
+  PayloadEvidenceDto,
+  TransferFormatDto,
+  TransferImportResultDto,
+  TransferUploadDto,
+  TransferWarningDto,
+} from "@/api/types"
 import type { TranslateFn } from "@/i18n/types"
 
 // Pure rules behind the transfer dialog: what a file is allowed to be, which formats an export
@@ -32,6 +40,8 @@ export interface QueuedFile {
   cardCount?: number | null
   /** Why the file was rejected, or what the server warned about after reading it. */
   notes?: FileNote[]
+  /** What importing this file would mean. Only a package can say; every other format leaves it out. */
+  evidence?: PackageEvidenceDto
 }
 
 /**
@@ -58,6 +68,121 @@ export function queuedFromUpload(key: string, upload: TransferUploadDto): Queued
     formatName: upload.formatName,
     cardCount: upload.cardCount,
     notes: upload.warnings.length > 0 ? upload.warnings : undefined,
+    evidence: upload.evidence ?? undefined,
+  }
+}
+
+/** The flashcards part of a package's evidence, or null when the package carries none. */
+export function flashcardEvidence(evidence: PackageEvidenceDto): PayloadEvidenceDto | null {
+  return evidence.payloads.find((payload) => payload.payloadType === "flashcards") ?? null
+}
+
+/** What kind of file the package says it is, and where it came from, as one line. */
+export function evidenceHeadline(t: TranslateFn, evidence: PackageEvidenceDto): string {
+  const backup = evidence.kind === "backup"
+  const here = evidence.fromThisCollection
+  if (backup) return t("Common", here ? "TransferEvidenceBackupHere" : "TransferEvidenceBackupElsewhere")
+  return t("Common", here ? "TransferEvidenceExportHere" : "TransferEvidenceExportElsewhere")
+}
+
+/**
+ * What the file holds against what is already here, one statement per line: how much of it this
+ * collection already has, what this collection has that the file does not, and what replacing
+ * would destroy. A line only appears when it has something to say, so a package that adds nothing
+ * but new decks does not read as a warning.
+ */
+export function evidenceLines(t: TranslateFn, evidence: PackageEvidenceDto): string[] {
+  const payload = flashcardEvidence(evidence)
+  if (!payload) return []
+  if (!payload.canRead) return [t("Common", "TransferEvidenceTooNew")]
+
+  const lines = [t("Common", "TransferEvidenceDecksFormat", { 0: payload.inPackage })]
+  if (payload.alreadyHere > 0) {
+    lines.push(
+      t("Common", "TransferEvidenceAlreadyHereFormat", { 0: payload.alreadyHere, 1: payload.newHere }),
+    )
+  }
+  if (payload.missingFromPackage > 0) {
+    lines.push(t("Common", "TransferEvidenceMissingFormat", { 0: payload.missingFromPackage }))
+  }
+  if (payload.replaceWouldDiscard > 0) {
+    lines.push(t("Common", "TransferEvidenceReplaceDiscardsFormat", { 0: payload.replaceWouldDiscard }))
+  }
+  return lines
+}
+
+/**
+ * Whether replacing would destroy something, so the dialog has to ask outright before it runs.
+ * Measured on decks the file also carries rather than on the card count it would discard: a
+ * replace that happens to match card for card still takes what is here and puts the file in its
+ * place, and that is the thing being consented to.
+ */
+export function replaceNeedsConfirmation(
+  queue: readonly QueuedFile[],
+  policy: ConflictPolicy,
+): boolean {
+  if (policy !== "Replace") return false
+  return queue.some((file) => {
+    if (file.status !== "ready" || !file.evidence) return false
+    const payload = flashcardEvidence(file.evidence)
+    return payload !== null && payload.canRead && payload.alreadyHere > 0
+  })
+}
+
+/** What an export of this scope produces: a backup of the collection, or a package of its parts. */
+export function exportKind(wholeCollection: boolean | undefined): string {
+  return wholeCollection === true ? "backup" : "export"
+}
+
+/** Which caption the package format's tile carries, which depends on what it would contain. */
+export function packageCaptionKey(wholeCollection: boolean | undefined): string {
+  return wholeCollection === true ? "TransferFormatCaptionBackup" : "TransferFormatCaptionSelection"
+}
+
+/** How a finished import reads: which toast, and every line it has to say. */
+export interface ImportNotice {
+  tone: "success" | "warning"
+  titleKey: "ImportCompleteTitle" | "ImportFailedTitle"
+  description: string
+}
+
+/**
+ * What to tell the user about a finished import. Warnings are part of the answer rather than
+ * something only the errors get to say: an import that lands but refuses a payload it could not
+ * read has succeeded and has something the reader needs to know, so it reports as a warning with
+ * the reason attached instead of a silent success.
+ */
+export function importResultNotice(
+  t: TranslateFn,
+  result: TransferImportResultDto,
+  importedPhrase: string,
+): ImportNotice {
+  const warnings = result.warnings.map((warning) => fileNoteText(t, warning))
+  const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join("\n")
+
+  if (result.succeededFiles === 0) {
+    return {
+      tone: "warning",
+      titleKey: "ImportFailedTitle",
+      description: join(result.errors.join("\n"), ...warnings),
+    }
+  }
+
+  if (result.failedFiles > 0) {
+    return {
+      tone: "warning",
+      titleKey: "ImportCompleteTitle",
+      description: join(
+        t("Common", "TransferImportPartialFormat", { 0: importedPhrase, 1: result.errors.join("\n") }),
+        ...warnings,
+      ),
+    }
+  }
+
+  return {
+    tone: warnings.length > 0 ? "warning" : "success",
+    titleKey: "ImportCompleteTitle",
+    description: join(t("Common", "TransferImportFinishedFormat", { 0: importedPhrase }), ...warnings),
   }
 }
 
