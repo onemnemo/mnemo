@@ -10,10 +10,17 @@
 
 import { act, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useCardEditor } from "../editor/store"
 import { FactEditorOverlay } from "./FactEditorOverlay"
+
+// Transforming the editor's chunk for the first time can outrun the default test timeout on a
+// busy machine running the whole suite at once, so that cost is paid here, once, on its own
+// generous budget, rather than inside whichever test happens to run first.
+beforeAll(async () => {
+  await import("./FactEditor")
+}, 30000)
 
 const mocks = vi.hoisted(() => ({
   confirm: vi.fn(async () => false),
@@ -90,10 +97,14 @@ function mount(node: ReactNode): void {
 
 /**
  * Two steps for the same reason FolderRow's tests need them: the confirm promise resolves on a
- * microtask, and the close it gates runs after that, so a single flush is not enough.
+ * microtask, and the close it gates runs after that, so a single flush is not enough. The first
+ * step also has to wait on the editor's own chunk: it is a lazy import behind the gate's Suspense
+ * boundary, not a synchronous part of the render tree.
  */
 async function settle(): Promise<void> {
-  await act(async () => {})
+  await act(async () => {
+    await import("./FactEditor")
+  })
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
@@ -129,6 +140,15 @@ function closeButton(): HTMLButtonElement {
   expect(button, "the footer Close button is not on screen").not.toBeUndefined()
   return button as HTMLButtonElement
 }
+
+describe("FactEditorOverlay gate", () => {
+  it("renders nothing until a target is set", () => {
+    mount(<FactEditorOverlay />)
+
+    expect(container.innerHTML).toBe("")
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+})
 
 describe("FactEditorOverlay discard guard", () => {
   it("closes immediately on Escape when nothing has been typed", async () => {

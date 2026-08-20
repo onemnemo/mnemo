@@ -1,0 +1,389 @@
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { Dialog } from "radix-ui"
+
+import { ApiError } from "@/api/client"
+import type { ConflictPolicy } from "@/api/types"
+import { AppIcon } from "@/components/icon/AppIcon"
+import { Button } from "@/components/ui/button"
+import { IconButton } from "@/components/ui/icon-button"
+import { useT } from "@/i18n/useT"
+import { isMac } from "@/keybinds/chord"
+import { toast } from "@/stores/toast"
+
+import { discardUpload, runExport, runImport, uploadTransferFile, useTransferFormatsQuery } from "./api"
+import { ExportPanel } from "./components/ExportPanel"
+import { ImportPanel } from "./components/ImportPanel"
+import { Segmented } from "./components/Segmented"
+import type { TransferTarget } from "./store"
+import {
+  canImport as queueCanImport,
+  exportFormats,
+  exportKind,
+  importResultNotice,
+  isImportable,
+  MAX_FILES,
+  queuedFromUpload,
+  readyCardCount,
+  readyUploadIds,
+  replaceNeedsConfirmation,
+  type QueuedFile,
+} from "./transfer"
+
+const SHORTCUT_HINT = isMac ? "⌘⏎" : "Ctrl+⏎"
+
+type Direction = "import" | "export"
+
+// Named TransferDialog rather than Transfer: this file sits beside transfer.ts, and the two names
+// differ only in case, which Windows checkouts cannot tell apart.
+export function TransferDialog({ target, onClose }: { target: TransferTarget; onClose: () => void }) {
+  const t = useT()
+  const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
+  const common = (key: string, params?: Record<string, string | number>) => t("Common", key, params)
+
+  const client = useQueryClient()
+  const formats = useTransferFormatsQuery(true)
+  // The query's own array is stable, but the empty fallback is not - and both feed an effect
+  // dependency below, so the placeholder has to hold still while the fetch is in flight.
+  const formatList = useMemo(() => formats.data ?? [], [formats.data])
+
+  const [direction, setDirection] = useState<Direction>(target.direction === "export" ? "export" : "import")
+  const [queue, setQueue] = useState<QueuedFile[]>([])
+  const [rejected, setRejected] = useState<string[]>([])
+  const [conflict, setConflict] = useState<ConflictPolicy>("KeepBoth")
+  const [replaceConfirmed, setReplaceConfirmed] = useState(false)
+  const [exportFormat, setExportFormat] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  // Consent is to one queue under one policy. Changing either changes what would be destroyed, so
+  // the answer to a question about the old pair is not an answer about the new one.
+  const changeConflict = (policy: ConflictPolicy) => {
+    setConflict(policy)
+    setReplaceConfirmed(false)
+  }
+
+  const scope = target.scope
+  const deckCount = scope?.deckIds.length ?? 0
+  // Memoized because it is an effect dependency: rebuilding the array every render would re-run
+  // the default-format effect on every keystroke elsewhere in the dialog.
+  const available = useMemo(() => exportFormats(formatList, deckCount), [formatList, deckCount])
+
+  // Default to the first offered format once the list arrives, and correct a selection the format
+  // list no longer contains rather than leaving Confirm pointing at nothing.
+  useEffect(() => {
+    if (available.length === 0) return
+    setExportFormat((current) =>
+      current && available.some((format) => format.formatId === current) ? current : available[0].formatId,
+    )
+  }, [available])
+
+  // Without the format list every file looks unsupported, so the import side stays shut until it
+  // lands. A failure is said out loud rather than left as a dialog that silently refuses
+  // everything the user drops on it.
+  const formatsReady = formats.isSuccess
+  useEffect(() => {
+    if (formats.isError) {
+      toast.warning(common("ImportFailedTitle"), { description: formats.error.message })
+    }
+    // Keyed on the error alone: `common` is a new function every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formats.isError])
+
+  // The cleanup below runs once, so it reads the queue through a ref rather than the closure it
+  // was created in - which would still be holding the empty first render.
+  const queueRef = useRef(queue)
+  queueRef.current = queue
+
+  /** One controller per upload, so cancelling a row cannot take the other rows down with it. */
+  const uploads = useRef(new Map<string, AbortController>())
+  const unmounted = useRef(false)
+
+  useEffect(() => {
+    // Cleared on the way in, not just set on the way out: an effect that only ever sets this true
+    // stays true through a remount, and every upload after it would resolve straight into the
+    // "nobody wants these bytes" branch and discard itself. React's dev double-invoke makes that
+    // every upload, but a real remount would do it too.
+    unmounted.current = false
+    const inFlight = uploads.current
+    return () => {
+      unmounted.current = true
+      for (const controller of inFlight.values()) controller.abort()
+      // Anything staged and never confirmed is handed back now. The server sweeps abandoned
+      // uploads eventually; this is just not making it wait to reclaim a 200 MB package.
+      for (const file of queueRef.current) {
+        if (file.uploadId) void discardUpload(file.uploadId)
+      }
+    }
+  }, [])
+
+  const addFiles = (files: File[]) => {
+    if (busy || !formatsReady) return
+
+    const refused: string[] = []
+    const accepted: File[] = []
+    for (const file of files) {
+      if (isImportable(file.name, formatList)) accepted.push(file)
+      else refused.push(file.name)
+    }
+
+    setRejected(refused)
+    if (accepted.length > 0) setReplaceConfirmed(false)
+
+    for (const file of accepted) {
+      // Both tests read the ref, which the loop keeps current, so they see this batch's own
+      // earlier files too - two same-named files dropped together are still one import, and the
+      // cap counts what has already been queued rather than only what was queued last render.
+      if (queueRef.current.length >= MAX_FILES) break
+      const duplicate = queueRef.current.some(
+        (queued) => queued.name === file.name && queued.sizeBytes === file.size,
+      )
+      if (duplicate) continue
+
+      const key = crypto.randomUUID()
+      const placeholder: QueuedFile = { key, name: file.name, sizeBytes: file.size, status: "uploading" }
+      queueRef.current = [...queueRef.current, placeholder]
+      setQueue((current) => [...current, placeholder])
+
+      const controller = new AbortController()
+      uploads.current.set(key, controller)
+
+      void uploadTransferFile(file, controller.signal)
+        .then((upload) => {
+          uploads.current.delete(key)
+          // The row can be gone by now - removed, or the whole dialog closed - while its bytes
+          // were still going up. The server has them and nobody will ask for them again, so they
+          // go straight back instead of waiting on a sweep that only runs when somebody else
+          // uploads.
+          if (unmounted.current || !queueRef.current.some((queued) => queued.key === key)) {
+            void discardUpload(upload.uploadId)
+            return
+          }
+          const settled = queuedFromUpload(key, upload)
+          queueRef.current = queueRef.current.map((queued) => (queued.key === key ? settled : queued))
+          setQueue((current) => current.map((queued) => (queued.key === key ? settled : queued)))
+        })
+        .catch((error: unknown) => {
+          uploads.current.delete(key)
+          if (controller.signal.aborted) return
+          const failed: Partial<QueuedFile> = {
+            status: "rejected",
+            notes: [{ text: error instanceof Error ? error.message : common("TransferUnreadableFile", { 0: file.name }) }],
+          }
+          queueRef.current = queueRef.current.map((queued) =>
+            queued.key === key ? { ...queued, ...failed } : queued,
+          )
+          setQueue((current) => current.map((queued) => (queued.key === key ? { ...queued, ...failed } : queued)))
+        })
+    }
+  }
+
+  const removeFile = (key: string) => {
+    // Withheld mid-import: the id is inside a request the server is working through, and handing
+    // it back now would have the import report the file as missing instead of importing it.
+    if (busy) return
+
+    const file = queueRef.current.find((queued) => queued.key === key)
+    // Aborting first means the resolve handler sees the row already gone and discards the staged
+    // bytes itself, which is what covers an upload that lands after the row disappears.
+    uploads.current.get(key)?.abort()
+    uploads.current.delete(key)
+    if (file?.uploadId) void discardUpload(file.uploadId)
+
+    queueRef.current = queueRef.current.filter((queued) => queued.key !== key)
+    setQueue((current) => current.filter((queued) => queued.key !== key))
+    setReplaceConfirmed(false)
+  }
+
+  const cardCount = readyCardCount(queue)
+  const itemPhrase = (count: number) => {
+    const noun = fc(count === 1 ? "TransferNounSingular" : "TransferNounPlural")
+    return count === 1
+      ? common("TransferOneItemFormat", { 0: noun })
+      : common("TransferManyItemsFormat", { 0: count, 1: noun })
+  }
+
+  const doImport = async () => {
+    const uploadIds = readyUploadIds(queue)
+    if (uploadIds.length === 0 || busy) return
+
+    setBusy(true)
+    try {
+      const result = await runImport({ uploadIds, conflictPolicy: conflict })
+      // The server consumed the staged files, so the queue is emptied before closing to keep the
+      // unmount cleanup from asking it to discard ids that no longer exist. The ref is cleared
+      // by hand because closing unmounts this component in the same batch - there is no further
+      // render for the assignment during render to happen in.
+      queueRef.current = []
+      setQueue([])
+      // An import can create folders, decks and cards at once - everything under the root key
+      // is potentially stale, and picking through it would be guesswork.
+      await client.invalidateQueries({ queryKey: ["flashcards"] })
+
+      // Warnings are part of what the import has to say, not only the errors. A package refused
+      // for being newer than this build lands as a success with nothing imported otherwise.
+      const notice = importResultNotice(t, result, itemPhrase(result.importedCards))
+      const report = notice.tone === "success" ? toast.success : toast.warning
+      report(common(notice.titleKey), { description: notice.description || undefined })
+      onClose()
+    } catch (error) {
+      toast.warning(common("ImportFailedTitle"), {
+        description: error instanceof Error ? error.message : undefined,
+      })
+      // Only a rejected request leaves the staged files untouched; every 400 here is refused
+      // before the server opens anything. Any other failure may have consumed them part-way, so
+      // the queue is dropped rather than left offering a Confirm that would report each file as
+      // missing - and possibly import a second copy of what already landed.
+      if (!(error instanceof ApiError && error.status === 400)) {
+        queueRef.current = []
+        setQueue([])
+        await client.invalidateQueries({ queryKey: ["flashcards"] })
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const doExport = async () => {
+    if (!exportFormat || !scope || scope.deckIds.length === 0 || busy) return
+
+    setBusy(true)
+    try {
+      await runExport({
+        formatId: exportFormat,
+        deckIds: scope.deckIds,
+        kind: exportKind(scope.wholeCollection),
+      })
+      toast.success(common("ExportCompleteTitle"), { description: common("TransferExportFinished") })
+      onClose()
+    } catch (error) {
+      toast.warning(common("ExportFailedTitle"), {
+        description: error instanceof Error ? error.message : common("TransferExportFailed"),
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const importing = direction === "import"
+  const emptyScope = !scope || scope.deckIds.length === 0
+  const awaitingReplaceConsent = replaceNeedsConfirmation(queue, conflict) && !replaceConfirmed
+  const confirmEnabled = importing
+    ? queueCanImport(queue) && !busy && !awaitingReplaceConsent
+    : !emptyScope && exportFormat !== null && !busy
+
+  const confirm = () => void (importing ? doImport() : doExport())
+
+  const selectedExtension = available.find((format) => format.formatId === exportFormat)?.extensions[0] ?? ""
+  const confirmLabel = !importing
+    ? common("TransferExportButtonFormat", { 0: selectedExtension })
+    : // "Import 42 cards" when the queue can say how many, a plain "Import" when it cannot -
+      // never a figure the import is not going to honour.
+      cardCount === null
+      ? fc("Import")
+      : common("TransferImportButtonFormat", { 0: itemPhrase(cardCount) })
+
+  const fileSummary =
+    queue.length === 1 ? common("TransferOneFile") : common("TransferManyFilesFormat", { 0: queue.length })
+  const summary = importing
+    ? [fileSummary, cardCount === null ? null : itemPhrase(cardCount)].filter(Boolean).join(" · ")
+    : common("TransferOneFile")
+
+  const title = importing
+    ? fc("TransferImportTitle")
+    : scope && scope.deckIds.length === 1
+      ? fc("TransferExportDeckTitle")
+      : fc("TransferExportTitle")
+
+  return (
+    <Dialog.Root open onOpenChange={(next) => !next && !busy && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
+        <Dialog.Content
+          aria-describedby={undefined}
+          onKeyDown={(event) => {
+            if ((isMac ? event.metaKey : event.ctrlKey) && event.key === "Enter" && confirmEnabled) {
+              event.preventDefault()
+              confirm()
+            }
+          }}
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[86vh] w-[520px] max-w-[calc(100vw-3rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-line bg-[var(--overlay-background)] shadow-[0_16px_40px_0_rgba(0,0,0,0.22)] focus:outline-none"
+        >
+          <div className="flex items-center gap-3 border-b border-divider-subtle px-5 py-3.5">
+            {target.direction === "both" ? null : (
+              <AppIcon
+                name={importing ? "common/download" : "common/upload"}
+                size={16}
+                className="shrink-0 text-brand"
+              />
+            )}
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <Dialog.Title className="text-body-small font-semibold text-text-primary">{title}</Dialog.Title>
+              {!importing && scope ? (
+                <div className="truncate text-body-extra-small text-text-tertiary">{scope.label}</div>
+              ) : null}
+            </div>
+
+            {target.direction === "both" ? (
+              <Segmented
+                className="w-[176px] shrink-0"
+                // Named after both sides, not after the panel that happens to be open.
+                label={`${common("TransferImportTab")} / ${common("TransferExportTab")}`}
+                value={direction}
+                onChange={setDirection}
+                options={[
+                  { value: "import", label: common("TransferImportTab"), icon: "common/download", disabled: busy },
+                  { value: "export", label: common("TransferExportTab"), icon: "common/upload", disabled: busy },
+                ]}
+              />
+            ) : null}
+
+            <Dialog.Close asChild>
+              <IconButton icon="common/x" iconSize={14} label={t("Common", "Close")} disabled={busy} />
+            </Dialog.Close>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-[18px]">
+            {importing ? (
+              <ImportPanel
+                queue={queue}
+                formats={formatList}
+                rejected={rejected}
+                conflict={conflict}
+                busy={busy}
+                ready={formatsReady}
+                replaceConfirmed={replaceConfirmed}
+                onAddFiles={addFiles}
+                onRemove={removeFile}
+                onConflictChange={changeConflict}
+                onReplaceConfirmedChange={setReplaceConfirmed}
+              />
+            ) : emptyScope ? (
+              <p className="py-6 text-center text-body-extra-small text-text-tertiary">
+                {fc("ExportFlashcardsNoDecksMessage")}
+              </p>
+            ) : (
+              <ExportPanel
+                formats={available}
+                selected={exportFormat}
+                scope={scope}
+                busy={busy}
+                onSelect={setExportFormat}
+              />
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 border-t border-divider-subtle bg-surface-subtle px-5 py-3.5">
+            <span className="min-w-0 flex-1 truncate text-caption text-text-tertiary">{summary}</span>
+            <Button variant="outline" className="h-[34px] px-4" disabled={busy} onClick={onClose}>
+              {t("Common", "Cancel")}
+            </Button>
+            <Button className="h-[34px] gap-2 px-[18px]" disabled={!confirmEnabled} onClick={confirm}>
+              {confirmLabel}
+              <span className="font-mono text-caption opacity-60">{SHORTCUT_HINT}</span>
+            </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
