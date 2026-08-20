@@ -86,7 +86,7 @@ jobs:
           - rid: win-x64
             os: windows-latest
             mainexe: Mnemo.Host.exe
-            packIcon: Mnemo.UI/Assets/AppIcons/AppIconDawn.ico
+            packIcon: mnemo-web/public/app-icons/AppIconDawn.ico
           - rid: osx-arm64
             os: macos-latest
             mainexe: Mnemo.Host
