@@ -6,7 +6,9 @@
 import { describe, expect, it } from "vitest"
 
 import type { MindmapDocument, MindmapEdge, MindmapElement, StyleTemplate } from "../model/document"
+import type { Scene, SceneElement } from "../model/scene"
 
+import type { RefInfo } from "./content"
 import { estimateWidth, measurersFrom } from "./measure"
 import { projectScene, type ProjectOptions } from "./project"
 
@@ -303,5 +305,214 @@ describe("frames", () => {
     const scene = projectScene(withFrame(["s1", "s2"]), options())
 
     expect(scene.elements[0].id).toBe("f")
+  })
+})
+
+/**
+ * What an edit costs the renderer.
+ *
+ * Every committed edit folds into a whole new document and reprojects it, and the canvas is a
+ * memoized component per element. So whether an edit costs one render or five thousand comes down
+ * entirely to whether the elements nobody touched come back as the objects they already were. Both
+ * directions are the assertion: shared where nothing changed, and fresh wherever anything did,
+ * including the several things that change an element without touching the element.
+ *
+ * Every test here holds one measurer set across its calls, because a different set is a different
+ * box for the same words and is treated as a change like any other. The fixtures are built per test
+ * rather than shared at module scope, so nothing depends on the order the file runs in.
+ */
+describe("projecting the same element twice", () => {
+  const shared = (over: Partial<ProjectOptions> = {}): ProjectOptions =>
+    options({ measurers: measurersFrom(estimateWidth), ...over })
+
+  /** Root, two branches, one grandchild under the second, in objects nobody else has seen. */
+  const fresh = (): MindmapDocument => ({
+    id: "m",
+    elements: [node("r"), node("a"), node("b"), node("deep")],
+    edges: [branch("r", "a"), branch("r", "b"), branch("b", "deep")],
+  })
+
+  /** One committed edit, folded the way `applyDelta` folds one: touched ids replaced, the rest left. */
+  const edit = (document: MindmapDocument, id: string, over: Partial<MindmapElement>): MindmapDocument => ({
+    ...document,
+    elements: document.elements!.map((element) => (element.id === id ? { ...element, ...over } : element)),
+  })
+
+  const find = (scene: Scene, id: string): SceneElement => scene.elements.find((element) => element.id === id)!
+
+  it("hands back the very same object when nothing about it changed", () => {
+    const document = fresh()
+    const opts = shared()
+
+    const before = projectScene(document, opts)
+    const after = projectScene(edit(document, "a", { content: { $type: "text", text: "renamed" } }), opts)
+
+    expect(find(after, "r")).toBe(find(before, "r"))
+    expect(find(after, "b")).toBe(find(before, "b"))
+    expect(find(after, "deep")).toBe(find(before, "deep"))
+  })
+
+  it("hands back a new object for the one that was edited", () => {
+    const document = fresh()
+    const opts = shared()
+
+    const before = projectScene(document, opts)
+    const after = projectScene(edit(document, "a", { content: { $type: "text", text: "renamed" } }), opts)
+
+    expect(find(after, "a")).not.toBe(find(before, "a"))
+    expect(find(after, "a").text.lines).toEqual(["renamed"])
+  })
+
+  it("hands back what a projection with nothing cached would have produced", () => {
+    // The whole risk of a memo is that it is right about identity and wrong about content, which no
+    // identity assertion can catch. A second measurer set misses every entry, so this is the same
+    // document projected with the memo cold.
+    const document = fresh()
+    const opts = shared()
+
+    projectScene(document, opts)
+    const next = edit(document, "a", { content: { $type: "text", text: "renamed" } })
+
+    expect(projectScene(next, opts)).toEqual(projectScene(next, shared()))
+  })
+
+  it("refreshes an element the document restyled without touching it", () => {
+    const document = fresh()
+    const opts = shared()
+
+    const before = projectScene(document, opts)
+    // The elements are the same objects; only the template the map resolves against changed.
+    const after = projectScene({ ...document, canvas: { defaultTemplateId: RAINBOW.id } }, opts)
+
+    expect(find(after, "a")).not.toBe(find(before, "a"))
+    expect(find(after, "a").branchColor).toBe("var(--branch-1)")
+    expect(find(after, "deep")).not.toBe(find(before, "deep"))
+  })
+
+  it("refreshes an element whose own template object was rewritten under it", () => {
+    const document = fresh()
+    const templates = measurersFrom(estimateWidth)
+    const before = projectScene(document, options({ measurers: templates }))
+    const after = projectScene(
+      document,
+      options({
+        measurers: templates,
+        templates: [{ ...DAWN, rootStyle: { ...DAWN.rootStyle, fill: "surfaceAlt" } }, RAINBOW],
+      }),
+    )
+
+    expect(find(before, "r").fill).toBe("var(--accent)")
+    expect(find(after, "r")).not.toBe(find(before, "r"))
+    expect(find(after, "r").fill).toBe("var(--canvas-sunken)")
+  })
+
+  it("refreshes a node whose child count changed, which its own object cannot show", () => {
+    const document = fresh()
+    const opts = shared()
+
+    const before = projectScene(document, opts)
+    const after = projectScene(
+      { ...document, elements: [...document.elements!, node("new")], edges: [...document.edges!, branch("a", "new")] },
+      opts,
+    )
+
+    expect(find(after, "a")).not.toBe(find(before, "a"))
+    expect(find(after, "a").childCount).toBe(1)
+    // Its sibling gained nothing and is the object it already was.
+    expect(find(after, "b")).toBe(find(before, "b"))
+  })
+
+  it("refreshes a node a reparent moved to another depth, which its own object cannot show", () => {
+    const document = fresh()
+    const opts = shared()
+
+    const before = projectScene(document, opts)
+    const after = projectScene(
+      { ...document, edges: [branch("r", "a"), branch("r", "b"), branch("r", "deep")] },
+      opts,
+    )
+
+    expect(before.elements.find((element) => element.id === "deep")!.nodeShape).toBe("plain")
+    expect(find(after, "deep")).not.toBe(find(before, "deep"))
+    expect(find(after, "deep").nodeShape).toBe("card")
+  })
+
+  it("refreshes a collapse, and leaves the branch beside it alone", () => {
+    const document = fresh()
+    const opts = shared()
+
+    const before = projectScene(document, opts)
+    const after = projectScene(edit(document, "b", { collapsed: true }), opts)
+
+    expect(find(after, "b")).not.toBe(find(before, "b"))
+    expect(find(after, "b").hiddenCount).toBe(1)
+    expect(after.elements.map((element) => element.id)).toEqual(["r", "a", "b"])
+    expect(find(after, "a")).toBe(find(before, "a"))
+    expect(find(after, "r")).toBe(find(before, "r"))
+  })
+
+  it("refreshes a reference whose title arrived, and not one that only came back the same", () => {
+    const document: MindmapDocument = {
+      id: "m",
+      elements: [node("n", { content: { $type: "note", noteId: "n1" } })],
+    }
+    const opts = (refs: ReadonlyMap<string, RefInfo> | undefined, measurers: ProjectOptions["measurers"]) =>
+      options({ measurers, refs })
+    const measurers = measurersFrom(estimateWidth)
+
+    const pending = projectScene(document, opts(undefined, measurers))
+    const arrived = projectScene(document, opts(new Map([["note:n1", { label: "Kidneys" }]]), measurers))
+    // The resolution map is rebuilt on every document change, so this is a different object saying
+    // the same thing, which is what a reference node sees on every unrelated edit.
+    const again = projectScene(document, opts(new Map([["note:n1", { label: "Kidneys" }]]), measurers))
+
+    expect(find(arrived, "n")).not.toBe(find(pending, "n"))
+    expect(find(arrived, "n").text.lines).toEqual(["Kidneys"])
+    expect(find(again, "n")).toBe(find(arrived, "n"))
+  })
+
+  it("shares a frame whose members stayed put, and rebuilds one whose members moved", () => {
+    const shape = (id: string, x: number): MindmapElement => ({
+      id,
+      kind: "shape",
+      content: { $type: "shape", shape: "rectangle" },
+      x,
+      y: 100,
+      width: 100,
+      height: 50,
+    })
+    const document: MindmapDocument = {
+      id: "m",
+      elements: [
+        shape("s1", 100),
+        shape("s2", 300),
+        { id: "f", kind: "frame", content: { $type: "frame", title: "Group", childIds: ["s1", "s2"] } },
+      ],
+    }
+    const opts = shared()
+
+    const before = projectScene(document, opts)
+    const still = projectScene({ ...document }, opts)
+    const moved = projectScene(edit(document, "s1", { x: 40 }), opts)
+
+    expect(find(still, "f")).toBe(find(before, "f"))
+    expect(find(moved, "f")).not.toBe(find(before, "f"))
+    expect(find(moved, "f").x).toBe(22)
+    expect(find(moved, "s2")).toBe(find(before, "s2"))
+  })
+
+  it("shares nothing at all across a reload, which parses a whole new document", () => {
+    // A reload and an import both replace every element object, identical content or not. Sharing
+    // across one would mean a scene element outliving the document it was projected from.
+    const document = fresh()
+    const opts = shared()
+
+    const before = projectScene(document, opts)
+    const reloaded = projectScene(JSON.parse(JSON.stringify(document)) as MindmapDocument, opts)
+
+    for (const element of reloaded.elements) {
+      expect(element).not.toBe(find(before, element.id))
+    }
+    expect(reloaded).toEqual(before)
   })
 })
