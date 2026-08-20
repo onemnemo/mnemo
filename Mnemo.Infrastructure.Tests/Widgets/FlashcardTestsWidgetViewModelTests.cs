@@ -1,5 +1,6 @@
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Models.Widgets;
+using Mnemo.Infrastructure.Modules.Overview;
 using Mnemo.UI.Modules.Overview.Widgets.FlashcardTests;
 
 namespace Mnemo.Infrastructure.Tests.Widgets;
@@ -12,7 +13,7 @@ namespace Mnemo.Infrastructure.Tests.Widgets;
 /// </summary>
 public class FlashcardTestsWidgetViewModelTests
 {
-    private static readonly WidgetManifest Manifest = new FlashcardTestsWidgetDescriptor().Manifest;
+    private static readonly WidgetManifest Manifest = OverviewWidgetManifests.FlashcardTests;
 
     private static FlashcardDeckSummary MakeDeck(string id, string name) => new(
         new FlashcardDeckHeader(id, null, "preset", name, null, [], 0, null),
