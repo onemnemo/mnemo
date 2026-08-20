@@ -39,6 +39,20 @@ export function draftFromFact(fact: FactDto): FactDraft {
   }
 }
 
+/**
+ * The deck an edit should file its material under.
+ *
+ * Material goes on naming the deck it was written in after a card it made has been moved to another
+ * one, so that name can outlive the deck itself and reach the editor pointing at a deck the
+ * collection no longer has. The deck the card being edited is filed in is the one to fall back to,
+ * which is what the desktop editor has always started from.
+ *
+ * No decks at all means they have not loaded yet, which is not the same as the named one being gone.
+ */
+export function resolveDraftDeck(deckId: string, deckIds: readonly string[], cardDeckId: string): string {
+  return deckIds.length === 0 || deckIds.includes(deckId) ? deckId : cardDeckId
+}
+
 /** The view the generator wants, still holding the attachments this edit has not saved yet. */
 export function asFactLike(draft: FactDraft): FactLike<DraftAttachment> {
   return { values: draft.values, media: draft.media }

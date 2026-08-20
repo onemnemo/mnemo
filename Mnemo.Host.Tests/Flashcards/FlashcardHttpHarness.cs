@@ -154,6 +154,12 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
     /// <summary>The trash coordinator the delete routes run through.</summary>
     public ITrashService Trash => _app.Services.GetRequiredService<ITrashService>();
 
+    /// <summary>
+    /// The library service behind the deck routes, for reaching the outright delete the desktop app
+    /// uses. The HTTP delete route only ever moves a deck to the trash.
+    /// </summary>
+    public IFlashcardLibraryService Library => _app.Services.GetRequiredService<IFlashcardLibraryService>();
+
     public async ValueTask DisposeAsync()
     {
         _client?.Dispose();
