@@ -54,7 +54,7 @@ internal static class FatalDialog
         if (!Environment.UserInteractive)
             return;
 
-        var message = Compose(error, title);
+        var message = ComposeMessage(error, title, SafeLogsDirectory());
 
         try
         {
@@ -154,15 +154,20 @@ internal static class FatalDialog
         }
     }
 
-    private static string Compose(Exception error, string title)
+    /// <summary>
+    /// Builds the text a person sees. Kept pure of the environment it usually
+    /// draws on: <see cref="Show"/> passes in the result of <see cref="SafeLogsDirectory"/>
+    /// rather than this method resolving it, so the wording can be unit tested without
+    /// needing a real data root to resolve against.
+    /// </summary>
+    internal static string ComposeMessage(Exception error, string title, string? logsDirectory)
     {
         var detail = $"{error.GetType().Name}: {error.Message}";
-        var logs = SafeLogsDirectory();
 
-        return logs is null
+        return logsDirectory is null
             ? $"{title}.{Environment.NewLine}{Environment.NewLine}{detail}"
             : $"{title}.{Environment.NewLine}{Environment.NewLine}{detail}"
-              + $"{Environment.NewLine}{Environment.NewLine}The full details were written to:{Environment.NewLine}{logs}";
+              + $"{Environment.NewLine}{Environment.NewLine}The full details were written to:{Environment.NewLine}{logsDirectory}";
     }
 
     private static string? SafeLogsDirectory()
