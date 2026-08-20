@@ -164,10 +164,9 @@ public sealed class MnemoPackageService : IMnemoPackageService
 
                 if (!_handlers.TryGetValue(entry.PayloadType, out var handler))
                 {
-                    var unknownMessage = $"Unknown payload type '{entry.PayloadType}' was skipped.";
-                    result.Warnings.Add(unknownMessage);
+                    result.Warnings.Add(TransferWarning.Of("PackageUnknownPayloadSkipped", ("payloadType", entry.PayloadType)));
                     if (options.StrictUnknownPayloads)
-                        return Result<MnemoPackageResult>.Failure(unknownMessage);
+                        return Result<MnemoPackageResult>.Failure($"Unknown payload type '{entry.PayloadType}' was skipped.");
                     continue;
                 }
 
@@ -217,7 +216,7 @@ public sealed class MnemoPackageService : IMnemoPackageService
             {
                 preview.DiscoveredCounts[entry.PayloadType] = entry.ItemCount;
                 if (!_handlers.ContainsKey(entry.PayloadType))
-                    preview.Warnings.Add($"Unknown payload type '{entry.PayloadType}' will be skipped.");
+                    preview.Warnings.Add(TransferWarning.Of("PackagePreviewUnknownPayload", ("payloadType", entry.PayloadType)));
             }
 
             return Result<ImportExportPreview>.Success(preview);

@@ -100,9 +100,10 @@ describe("queuedFromUpload", () => {
   }
 
   it("keeps a file the server could not read, with the reason attached", () => {
-    const row = queuedFromUpload("k", { ...upload, canImport: false, mapCount: null, warnings: ["Corrupt archive."] })
+    const warning = { key: "MindmapPayloadUnreadable", params: {} }
+    const row = queuedFromUpload("k", { ...upload, canImport: false, mapCount: null, warnings: [warning] })
     expect(row.status).toBe("rejected")
-    expect(row.notes).toEqual(["Corrupt archive."])
+    expect(row.notes).toEqual([warning])
     expect(row.uploadId).toBe("u1")
   })
 

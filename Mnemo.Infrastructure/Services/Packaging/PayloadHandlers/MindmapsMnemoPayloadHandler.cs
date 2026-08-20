@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Mnemo.Core.Enums;
@@ -105,12 +106,15 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             _logger.Warning("Mindmap", $"Refused a mindmaps payload in format {version}; this build reads up to {PayloadSchemaVersion}.");
             return new MnemoPayloadImportResult
             {
-                Warnings = { $"Mindmaps were not imported: the package was made by a newer version of Mnemo (format {version}, this one reads up to {PayloadSchemaVersion})." },
+                Warnings = { TransferWarning.Of(
+                    "MindmapPackageTooNew",
+                    ("packageVersion", version.ToString(CultureInfo.InvariantCulture)),
+                    ("supportedVersion", PayloadSchemaVersion.ToString(CultureInfo.InvariantCulture))) },
             };
         }
 
         if (!context.Files.TryGetValue(DatabaseFileName, out var bytes))
-            return new MnemoPayloadImportResult { Warnings = { "Mindmaps payload missing mindmaps.db file." } };
+            return new MnemoPayloadImportResult { Warnings = { TransferWarning.Of("MindmapPayloadMissingFile") } };
 
         // The payload database comes from a file the user was handed, so it can be truncated, half
         // downloaded or not a database at all. That is a reason to skip the mindmaps in the package, not a
@@ -125,7 +129,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             _logger.Warning("Mindmap", $"Mindmaps payload could not be read: {ex.Message}");
             return new MnemoPayloadImportResult
             {
-                Warnings = { "Mindmaps were not imported: the mindmaps part of the package could not be read." },
+                Warnings = { TransferWarning.Of("MindmapPayloadUnreadable") },
             };
         }
 
@@ -162,7 +166,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
 
             if (document is null)
             {
-                result.Warnings.Add("Skipped a mindmap that failed to deserialize.");
+                result.Warnings.Add(TransferWarning.Of("MindmapDeserializeFailed"));
                 continue;
             }
 
@@ -201,13 +205,17 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             var stored = await _mindmaps.ReplaceAsync(document, cancellationToken).ConfigureAwait(false);
             if (!stored.IsSuccess || stored.Value is null)
             {
-                result.Warnings.Add($"Skipped mindmap '{document.Title}': {stored.ErrorMessage ?? "it could not be stored."}");
+                result.Warnings.Add(stored.ErrorMessage is { } storeError
+                    ? TransferWarning.Of("MindmapImportFailed", ("mapTitle", document.Title), ("error", storeError))
+                    : TransferWarning.Of("MindmapStoreFailedGeneric", ("mapTitle", document.Title)));
                 continue;
             }
 
             if (!stored.Value.Success)
             {
-                result.Warnings.Add($"Skipped mindmap '{document.Title}': {stored.Value.Error?.Message ?? "it failed validation."}");
+                result.Warnings.Add(stored.Value.Error?.Message is { } validationError
+                    ? TransferWarning.Of("MindmapImportFailed", ("mapTitle", document.Title), ("error", validationError))
+                    : TransferWarning.Of("MindmapValidationFailedGeneric", ("mapTitle", document.Title)));
                 continue;
             }
 
@@ -395,7 +403,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             // library root keeps the rest of the import, and its maps, rather than failing all of it.
             if (!string.IsNullOrWhiteSpace(parentId) && !existingIds.Contains(parentId))
             {
-                result.Warnings.Add($"Folder '{folder.Name}' was restored at the library root because its parent folder was not in the package.");
+                result.Warnings.Add(TransferWarning.Of("MindmapFolderRestoredAtRoot", ("folderName", folder.Name)));
                 parentId = null;
             }
 

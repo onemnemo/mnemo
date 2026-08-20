@@ -48,7 +48,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
     public async Task<MnemoPayloadImportResult> ImportAsync(MnemoPayloadImportContext context, CancellationToken cancellationToken = default)
     {
         if (!context.Files.TryGetValue("notes.db", out var bytes))
-            return new MnemoPayloadImportResult { Warnings = { "Notes payload missing notes.db file." } };
+            return new MnemoPayloadImportResult { Warnings = { TransferWarning.Of("NotesPayloadMissingFile") } };
 
         var snapshot = ReadNotesSqlite(bytes);
         var existingNotes = (await _noteService.GetAllNotesAsync().ConfigureAwait(false)).ToDictionary(n => n.NoteId, StringComparer.Ordinal);
@@ -84,7 +84,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
 
             var save = await _folderService.SaveFolderAsync(imported).ConfigureAwait(false);
             if (!save.IsSuccess)
-                result.Warnings.Add($"Failed to import folder '{folder.Name}': {save.ErrorMessage}");
+                result.Warnings.Add(TransferWarning.Of("NoteFolderImportFailed", ("folderName", folder.Name), ("error", save.ErrorMessage ?? string.Empty)));
         }
 
         foreach (var note in snapshot.Notes)
@@ -114,7 +114,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
             var save = await _noteService.SaveNoteAsync(imported).ConfigureAwait(false);
             if (!save.IsSuccess)
             {
-                result.Warnings.Add($"Failed to import note '{note.Title}': {save.ErrorMessage}");
+                result.Warnings.Add(TransferWarning.Of("NoteImportFailed", ("noteTitle", note.Title), ("error", save.ErrorMessage ?? string.Empty)));
                 continue;
             }
 

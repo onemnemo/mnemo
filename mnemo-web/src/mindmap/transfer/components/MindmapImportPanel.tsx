@@ -6,7 +6,7 @@ import { Segmented } from "@/flashcards/transfer/components/Segmented"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
-import { formatFileSize, importExtensions, MAX_FILES, type QueuedFile } from "../transfer"
+import { fileNoteText, formatFileSize, importExtensions, MAX_FILES, type QueuedFile } from "../transfer"
 
 const CONFLICT_OPTIONS: { value: ConflictPolicy; labelKey: string; captionKey: string }[] = [
   { value: "KeepBoth", labelKey: "TransferConflictKeepBoth", captionKey: "TransferConflictKeepBothCaption" },
@@ -201,6 +201,7 @@ function FileRow({
   busy: boolean
   onRemove: () => void
 }) {
+  const t = useT()
   const rejected = file.status === "rejected"
   const uploading = file.status === "uploading"
 
@@ -221,7 +222,7 @@ function FileRow({
           {file.name}
         </div>
         <div className={cn("truncate text-[11px]", rejected ? "text-danger" : "text-ink-3")}>
-          {rejected ? (file.notes?.join(" ") ?? detail) : detail}
+          {rejected ? (file.notes?.map((note) => fileNoteText(t, note)).join(" ") ?? detail) : detail}
         </div>
       </div>
 

@@ -138,14 +138,14 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 CanImport = false,
                 ContentType = ContentType,
                 FormatId = FormatId,
-                Warnings = { $"Unable to read Anki package: {ex.Message}" }
+                Warnings = { TransferWarning.Of("AnkiPackageUnreadable", ("error", ex.Message)) }
             };
         }
     }
 
     public async Task<ImportExportResult> ImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
-        var warnings = new List<string>();
+        var warnings = new List<TransferWarning>();
         var importedDecks = 0;
         var importedCards = 0;
 
@@ -252,7 +252,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     failedDecks++;
-                    warnings.Add($"Deck '{deckPath}' could not be imported: {ex.Message}");
+                    warnings.Add(TransferWarning.Of("AnkiDeckImportFailed", ("deckName", deckPath), ("error", ex.Message)));
                     if (createdDeckId is not null)
                         await TryDeleteDeckAsync(createdDeckId, cancellationToken).ConfigureAwait(false);
                 }
@@ -261,18 +261,29 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             // One failed deck used to discard the count of every deck that already landed, so a
             // retry produced duplicates of everything that had worked.
             if (failedDecks > 0)
-                warnings.Add($"{failedDecks} of {decksByDid.Length} deck(s) in the package could not be imported.");
+            {
+                warnings.Add(TransferWarning.Of(
+                    "AnkiDecksImportFailedCount",
+                    ("failedCount", failedDecks.ToString(CultureInfo.InvariantCulture)),
+                    ("totalCount", decksByDid.Length.ToString(CultureInfo.InvariantCulture))));
+            }
 
             if (noteTypesWithExtraFields.Count > 0)
-                warnings.Add($"Only the first two fields were imported from these note types: {string.Join(", ", noteTypesWithExtraFields)}.");
+            {
+                warnings.Add(TransferWarning.Of(
+                    "AnkiExtraFieldsDropped", ("noteTypes", string.Join(", ", noteTypesWithExtraFields))));
+            }
 
             if (cardsWithAudio > 0)
-                warnings.Add($"{cardsWithAudio} card(s) reference audio, which cards here cannot hold yet. The reference is left in the text and the sound file was not imported.");
+            {
+                warnings.Add(TransferWarning.Of(
+                    "AnkiAudioNotImported", ("count", cardsWithAudio.ToString(CultureInfo.InvariantCulture))));
+            }
 
             // The first few intervals will not match what the other app would have given, and a user
             // who is not told that reads it as the import having got the schedule wrong.
             if (importedCards > 0 && cards.Any(c => c.Type != 0))
-                warnings.Add("Cards kept the dates they were next due. How well each one is known is measured again from your next few reviews, so early intervals may differ from the other app's.");
+                warnings.Add(TransferWarning.Of("AnkiScheduleCarriedOver"));
 
             return new ImportExportResult
             {
@@ -303,7 +314,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
     public async Task<ImportExportResult> ExportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
-        var warnings = new List<string>();
+        var warnings = new List<TransferWarning>();
         try
         {
             var decksToExport = await ResolveDecksToExportAsync(request, cancellationToken).ConfigureAwait(false);
@@ -798,7 +809,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         string side,
         string tempDirectory,
         MediaIndex media,
-        ICollection<string> warnings,
+        ICollection<TransferWarning> warnings,
         CancellationToken cancellationToken)
     {
         var blocks = new List<Block>();
@@ -834,7 +845,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 var resolvedMediaPath = ResolveMediaPath(src, tempDirectory, media);
                 if (resolvedMediaPath == null)
                 {
-                    warnings.Add($"Referenced media '{src}' was not found in package.");
+                    warnings.Add(TransferWarning.Of("AnkiMediaNotFound", ("mediaName", src)));
                     continue;
                 }
 
@@ -842,7 +853,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 var copied = await _imageAssetService.ImportAndCopyAsync(resolvedMediaPath, attachmentId, cancellationToken).ConfigureAwait(false);
                 if (!copied.IsSuccess || string.IsNullOrWhiteSpace(copied.Value))
                 {
-                    warnings.Add($"Failed to import media '{src}': {copied.ErrorMessage ?? "unknown error"}");
+                    warnings.Add(copied.ErrorMessage is { } mediaError
+                        ? TransferWarning.Of("AnkiMediaImportFailed", ("mediaName", src), ("error", mediaError))
+                        : TransferWarning.Of("AnkiMediaImportFailedUnknown", ("mediaName", src)));
                     continue;
                 }
 
@@ -868,7 +881,10 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     // Beyond the 3-per-side cap: keep the image visible as an inline markdown token
                     // rather than dropping it. Warn so the user knows overflow landed in the text.
                     overflowTokens.Add($"![{displayName}]({copied.Value})");
-                    warnings.Add($"Card side '{side}' exceeded {IFlashcardCardService.MaxAttachmentsPerSide} images; '{displayName}' was appended to the text as an inline token.");
+                    var max = IFlashcardCardService.MaxAttachmentsPerSide.ToString(CultureInfo.InvariantCulture);
+                    warnings.Add(side == FlashcardAttachment.FrontSide
+                        ? TransferWarning.Of("AnkiFrontOverflowToken", ("max", max), ("fileName", displayName))
+                        : TransferWarning.Of("AnkiBackOverflowToken", ("max", max), ("fileName", displayName)));
                 }
             }
         }
@@ -1472,7 +1488,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         string side,
         string tempRoot,
         MediaExportState media,
-        ICollection<string> warnings)
+        ICollection<TransferWarning> warnings)
     {
         var fragments = new List<string>();
         if (blocks is { Count: > 0 })
@@ -1506,11 +1522,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         string sourcePath,
         string tempRoot,
         MediaExportState media,
-        ICollection<string> warnings)
+        ICollection<TransferWarning> warnings)
     {
         if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
         {
-            warnings.Add($"Image asset not found for export: {sourcePath}");
+            warnings.Add(TransferWarning.Of("AnkiExportImageMissing", ("filePath", sourcePath)));
             return null;
         }
 
@@ -1754,7 +1770,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         string TempDirectory,
         SqliteConnection Connection,
         MediaIndex Media,
-        IReadOnlyList<string> Warnings) : IAsyncDisposable
+        IReadOnlyList<TransferWarning> Warnings) : IAsyncDisposable
     {
         public async ValueTask DisposeAsync()
         {

@@ -50,7 +50,7 @@ public sealed class SettingsMnemoPayloadHandler : IMnemoPayloadHandler
     public async Task<MnemoPayloadImportResult> ImportAsync(MnemoPayloadImportContext context, CancellationToken cancellationToken = default)
     {
         if (!context.Files.TryGetValue("settings.json", out var bytes))
-            return new MnemoPayloadImportResult { Warnings = { "Settings payload missing settings.json file." } };
+            return new MnemoPayloadImportResult { Warnings = { TransferWarning.Of("SettingsPayloadMissingFile") } };
 
         var entries = JsonSerializer.Deserialize<Dictionary<string, string>>(bytes, JsonOptions)
             ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -66,7 +66,7 @@ public sealed class SettingsMnemoPayloadHandler : IMnemoPayloadHandler
             cancellationToken.ThrowIfCancellationRequested();
             if (!allowedKeys.Contains(pair.Key))
             {
-                result.Warnings.Add($"Skipped settings key '{pair.Key}' because it is not allowed.");
+                result.Warnings.Add(TransferWarning.Of("SettingsKeyNotAllowed", ("settingKey", pair.Key)));
                 continue;
             }
 

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using Mnemo.Core.Models;
 using Mnemo.Infrastructure.Common;
 using Mnemo.Infrastructure.Services.Packaging;
 using ZstdSharp;
@@ -32,7 +33,7 @@ internal sealed record AnkiPackageContents(
     AnkiPackageVersion Version,
     string CollectionPath,
     IReadOnlyDictionary<string, string> MediaNamesByStoredName,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<TransferWarning> Warnings);
 
 /// <summary>
 /// Unpacks an <c>.apkg</c> or <c>.colpkg</c> file into a working directory, handling all three
@@ -71,7 +72,7 @@ internal static class AnkiPackageReader
         MnemoPackageService.PackageReadLimits limits,
         CancellationToken cancellationToken)
     {
-        var warnings = new List<string>();
+        var warnings = new List<TransferWarning>();
 
         using var archive = ZipFile.OpenRead(packagePath);
         var version = await ReadVersionAsync(archive, warnings, cancellationToken).ConfigureAwait(false);
@@ -113,7 +114,7 @@ internal static class AnkiPackageReader
             {
                 // One unreadable media file should cost that one picture, not the whole deck. The
                 // card that referenced it reports the miss when its src fails to resolve.
-                warnings.Add($"Package entry '{entry.FullName}' could not be unpacked: {ex.Message}");
+                warnings.Add(TransferWarning.Of("AnkiEntryUnpackFailed", ("entryName", entry.FullName), ("error", ex.Message)));
                 TryDeleteFile(destinationPath);
             }
         }
@@ -133,7 +134,7 @@ internal static class AnkiPackageReader
     /// </summary>
     private static async Task<AnkiPackageVersion> ReadVersionAsync(
         ZipArchive archive,
-        ICollection<string> warnings,
+        ICollection<TransferWarning> warnings,
         CancellationToken cancellationToken)
     {
         var meta = archive.GetEntry(MetaEntryName);
@@ -149,7 +150,7 @@ internal static class AnkiPackageReader
                 if (declared is >= 1 and <= 3)
                     return (AnkiPackageVersion)declared;
 
-                warnings.Add($"Package declares format version {declared}, which is newer than this build knows; it was read as the latest known format.");
+                warnings.Add(TransferWarning.Of("AnkiNewerFormatVersion", ("declaredVersion", declared.ToString(CultureInfo.InvariantCulture))));
                 return AnkiPackageVersion.Latest;
             }
         }
@@ -286,7 +287,7 @@ internal static class AnkiPackageReader
     private static async Task<IReadOnlyDictionary<string, string>> ReadMediaTableAsync(
         string destinationDirectory,
         AnkiPackageVersion version,
-        ICollection<string> warnings,
+        ICollection<TransferWarning> warnings,
         CancellationToken cancellationToken)
     {
         var empty = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -307,7 +308,7 @@ internal static class AnkiPackageReader
         }
         catch (Exception ex) when (ex is JsonException or InvalidDataException or IOException)
         {
-            warnings.Add($"The package's media table could not be read, so images may be missing: {ex.Message}");
+            warnings.Add(TransferWarning.Of("AnkiMediaTableUnreadable", ("error", ex.Message)));
             return empty;
         }
     }

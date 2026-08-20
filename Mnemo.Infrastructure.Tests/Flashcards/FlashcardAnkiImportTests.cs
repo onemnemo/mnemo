@@ -112,7 +112,7 @@ public sealed class FlashcardAnkiImportTests
             Assert.All(card.Attachments, a => Assert.Equal(FlashcardAttachment.FrontSide, a.Side));
             // The 4th image is kept visible as an inline markdown token, never dropped.
             Assert.Contains("![d.png](", card.Front, StringComparison.Ordinal);
-            Assert.Contains(result.Warnings, w => w.Contains("exceeded", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(result.Warnings, w => w.Key == "AnkiFrontOverflowToken");
         }
         finally
         {
@@ -210,7 +210,9 @@ public sealed class FlashcardAnkiImportTests
             var deck = Assert.Single(await library.ListDecksAsync());
             var page = await cardSvc.ListCardsAsync(new FlashcardCardQuery(deck.Id));
             Assert.Empty(Assert.Single(page.Items).Card.Attachments);
-            Assert.Contains(result.Warnings, w => w.Contains("report.pdf", StringComparison.Ordinal));
+            Assert.Contains(result.Warnings, w =>
+                (w.Key == "AnkiMediaImportFailed" || w.Key == "AnkiMediaImportFailedUnknown") &&
+                w.Params["mediaName"] == "report.pdf");
         }
         finally
         {
@@ -250,7 +252,7 @@ public sealed class FlashcardAnkiImportTests
             var deck = Assert.Single(await library.ListDecksAsync());
             var page = await cardSvc.ListCardsAsync(new FlashcardCardQuery(deck.Id));
             Assert.Empty(Assert.Single(page.Items).Card.Attachments);
-            Assert.Contains(result.Warnings, w => w.Contains("was not found in package", StringComparison.Ordinal));
+            Assert.Contains(result.Warnings, w => w.Key == "AnkiMediaNotFound");
             Assert.True(File.Exists(outsidePath));
         }
         finally
