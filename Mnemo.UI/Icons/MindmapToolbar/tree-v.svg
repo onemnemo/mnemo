@@ -1,7 +1,0 @@
-<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
-  <rect x="5" y="3" width="4" height="3" rx="0.8"/>
-  <rect x="1" y="9" width="4" height="3" rx="0.8"/>
-  <rect x="9" y="9" width="4" height="3" rx="0.8"/>
-  <path d="M7 6 L7 8 L3 8 L3 9" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="round"/>
-  <path d="M7 6 L7 8 L11 8 L11 9" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="round"/>
-</svg>
