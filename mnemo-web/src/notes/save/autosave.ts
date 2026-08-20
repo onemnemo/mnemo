@@ -145,8 +145,11 @@ export function startAutosave(options: AutosaveOptions): Autosave {
       return;
     }
 
-    const snapshot = authority.snapshot();
-    if (!snapshot.dirty) {
+    // `status`, not `snapshot`: nothing here reads the document, and asking for
+    // one is what would force a chunked mount to finish loading before the
+    // first background frame ever runs.
+    const status = authority.status();
+    if (!status.dirty) {
       cancel();
       dirtySince = null;
       failures = 0;
@@ -155,7 +158,7 @@ export function startAutosave(options: AutosaveOptions): Autosave {
     }
 
     if (exhaustedAt !== null) {
-      if (snapshot.rev === exhaustedAt) return;
+      if (status.rev === exhaustedAt) return;
       exhaustedAt = null;
       failures = 0;
     }
@@ -197,7 +200,7 @@ export function startAutosave(options: AutosaveOptions): Autosave {
         const delay = retryDelaysMs[failures];
         failures += 1;
         if (delay === undefined) {
-          exhaustedAt = authority.snapshot().rev;
+          exhaustedAt = authority.status().rev;
           cancel();
           return;
         }
@@ -235,7 +238,7 @@ export function startAutosave(options: AutosaveOptions): Autosave {
       // Conflict is not overridden by urgency. The authority has adopted the
       // server's version, so this write would land, over content it never saw.
       if (destroyed || conflicted) return { status: 'skipped' };
-      if (!authority.snapshot().dirty) return { status: 'skipped' };
+      if (!authority.status().dirty) return { status: 'skipped' };
       return run();
     },
 
