@@ -151,7 +151,13 @@ public sealed class NoteSummaryResponseTests
         public async ValueTask DisposeAsync()
         {
             await _store.DisposeAsync();
-            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+            // Only this harness's database. ClearAllPools() is process global: it disposes the
+            // native sqlite3 handle of any pooled connection whose owner the GC has collected,
+            // anywhere in the process, which under parallel test collections closes a handle
+            // another collection is mid-query on.
+            using (var scope = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_dbPath}"))
+                Microsoft.Data.Sqlite.SqliteConnection.ClearPool(scope);
 
             foreach (var suffix in new[] { "", "-wal", "-shm" })
             {

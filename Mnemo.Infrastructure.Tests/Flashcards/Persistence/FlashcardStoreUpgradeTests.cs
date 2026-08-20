@@ -275,7 +275,7 @@ public sealed class FlashcardStoreUpgradeTests
     private static async Task AddFactAsync(string path, string factId, string factDeckId, string? cardId, string? cardDeckId)
     {
         var stamp = DateTimeOffset.UtcNow.ToString("O");
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
 
@@ -308,7 +308,7 @@ public sealed class FlashcardStoreUpgradeTests
     /// </summary>
     private static async Task StripTheOriginAsync(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
@@ -321,7 +321,7 @@ public sealed class FlashcardStoreUpgradeTests
 
     internal static async Task SetVersionAsync(string path, int version)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
@@ -336,7 +336,7 @@ public sealed class FlashcardStoreUpgradeTests
     /// </summary>
     private static async Task StripTheTrashAsync(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
@@ -439,7 +439,7 @@ public sealed class FlashcardStoreUpgradeTests
 
     internal static void Delete(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         foreach (var file in new[] { path, path + "-wal", path + "-shm" })
         {
             try
