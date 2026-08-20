@@ -7,10 +7,11 @@
  * place in the other, and the whole point of giving every block a `positionOf`
  * was to make that class of bug unrepresentable.
  *
- * Everything here is a pure function of the document. Nothing caches, because
- * nothing yet knows what the invalidation key would be, the authority owns
- * document identity and this does not. Caching lands when a measurement says
- * where, not before.
+ * Everything here is a pure function of the document. `walkBlocks` and
+ * `projectDocument` each cache their own result by document identity: a
+ * ProseMirror doc is immutable, so the same doc object always walks to the
+ * same answer, and a caller that asks again before the next edit gets that
+ * answer back instead of walking every block over again.
  */
 
 import type { Node as PMNode } from 'prosemirror-model';
@@ -41,12 +42,23 @@ export interface BlockEntry {
 }
 
 /**
+ * Cached by document identity: a ProseMirror doc is immutable, so the same
+ * doc object always walks to the same blocks. The outline chip rebuilds its
+ * list against the doc on every scroll event, and between edits that is the
+ * same doc object each time.
+ */
+const blockWalkCache = new WeakMap<PMNode, BlockEntry[]>();
+
+/**
  * Every block in the document, in document order, parents before children.
  *
  * Document order is what makes this usable as an index: a caller can stop at
  * the first match, and the outline can render straight from it.
  */
 export function walkBlocks(doc: PMNode, registry: BlockRegistry): BlockEntry[] {
+  const cached = blockWalkCache.get(doc);
+  if (cached) return cached;
+
   const out: BlockEntry[] = [];
 
   const visit = (parent: PMNode, parentPos: number, parentSid: string | null, depth: number) => {
@@ -85,6 +97,7 @@ export function walkBlocks(doc: PMNode, registry: BlockRegistry): BlockEntry[] {
   };
 
   visit(doc, -1, null, 0);
+  blockWalkCache.set(doc, out);
   return out;
 }
 
@@ -113,6 +126,13 @@ export interface DocumentProjection {
 }
 
 /**
+ * Cached by document identity, for the same reason `walkBlocks` is: a
+ * ProseMirror doc is immutable, so re-projecting the same doc object between
+ * edits would only recompute what the first call already answered.
+ */
+const documentProjectionCache = new WeakMap<PMNode, DocumentProjection>();
+
+/**
  * Projects the whole document in a single pass.
  *
  * One pass rather than three functions a caller composes, because `text` and
@@ -121,6 +141,9 @@ export interface DocumentProjection {
  * instead of a property of how they are built.
  */
 export function projectDocument(doc: PMNode, registry: BlockRegistry): DocumentProjection {
+  const cached = documentProjectionCache.get(doc);
+  if (cached) return cached;
+
   const blocks = walkBlocks(doc, registry);
   const segments: DocumentSegment[] = [];
   const parts: string[] = [];
@@ -143,7 +166,13 @@ export function projectDocument(doc: PMNode, registry: BlockRegistry): DocumentP
     docOffset += text.length + 1;
   }
 
-  return { text: parts.length > 0 ? `${parts.join('\n')}\n` : '', segments, blocks };
+  const projection: DocumentProjection = {
+    text: parts.length > 0 ? `${parts.join('\n')}\n` : '',
+    segments,
+    blocks,
+  };
+  documentProjectionCache.set(doc, projection);
+  return projection;
 }
 
 /**
