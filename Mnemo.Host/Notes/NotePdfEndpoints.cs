@@ -16,10 +16,10 @@ namespace Mnemo.Host.Notes;
 /// so a settings change re-posts without re-sending the note.
 /// </summary>
 /// <remarks>
-/// The web host has no Avalonia, so inline color tokens resolve against the shared Dawn table rather
-/// than the live theme; that is the whole reason the swatch tables were lifted into Core. The request
-/// token is honored, so a preview the user superseded before it finished is cancelled and its Typst
-/// process killed rather than left running.
+/// The web host has no Avalonia, so inline color tokens resolve against the shared light palette
+/// rather than the live theme; that is the whole reason the swatch tables were lifted into Core. The
+/// request token is honored, so a preview the user superseded before it finished is cancelled and its
+/// Typst process killed rather than left running.
 /// </remarks>
 public static class NotePdfEndpoints
 {
@@ -227,9 +227,10 @@ public static class NotePdfEndpoints
                 ? await ResolveSubpageTitlesAsync(note, notes).ConfigureAwait(false)
                 : null,
             MissingSubpageTitle = Text(dto?.MissingSubpageTitle, defaults.MissingSubpageTitle),
-            // The web host resolves inline color tokens against Dawn directly; no theme is involved.
-            BackgroundSwatchHexByName = NotePdfDawnSwatches.Background,
-            ForegroundSwatchHexByName = NotePdfDawnSwatches.Foreground,
+            // The web host resolves inline color tokens against the light palette directly; no theme
+            // is involved.
+            BackgroundSwatchHexByName = NotePdfLightSwatches.Background,
+            ForegroundSwatchHexByName = NotePdfLightSwatches.Foreground,
         };
     }
 
