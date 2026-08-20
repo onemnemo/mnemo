@@ -24,7 +24,7 @@ internal sealed class NoteSidMigrationHarness : IAsyncDisposable
         Logger = new RecordingLogger();
         Storage = new SqliteStorageProvider(Logger, DatabasePath);
         Store = new NoteCommitStore(Logger, DatabasePath);
-        Notes = new NoteService(Storage, Store, Store);
+        Notes = new NoteService(Storage, Store, Store, Store);
         Folders = new NoteFolderService(Storage, Store, Store);
     }
 
