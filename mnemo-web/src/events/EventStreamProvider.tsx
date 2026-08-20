@@ -11,12 +11,23 @@ export function EventStreamProvider({ children }: { children: ReactNode }) {
   const setStatus = useEventStreamStore((s) => s.setStatus)
 
   useEffect(() => {
+    // StrictMode mounts this effect twice, so the connection opened here is
+    // torn down again before the surviving one even exists. A token captured
+    // per invocation, the same shape session/store.ts uses for its own
+    // StrictMode race, keeps a callback that still arrives from that discarded
+    // connection from being mistaken for one from the connection that replaced it.
+    let live = true
+
     const dispose = connectEventStream({
-      onEvent: dispatchAppEvent,
-      onOpen: () => setStatus("open"),
-      onClose: () => setStatus("closed"),
+      onEvent: (event) => { if (live) dispatchAppEvent(event) },
+      onOpen: () => { if (live) setStatus("open") },
+      onClose: () => { if (live) setStatus("closed") },
     })
-    return dispose
+
+    return () => {
+      live = false
+      dispose()
+    }
   }, [setStatus])
 
   return <>{children}</>
