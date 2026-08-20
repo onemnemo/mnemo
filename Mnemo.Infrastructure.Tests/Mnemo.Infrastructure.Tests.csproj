@@ -20,8 +20,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Mnemo.Infrastructure\Mnemo.Infrastructure.csproj" />
-    <!-- Widget ViewModels under test are Avalonia-free MVVM classes in the UI assembly. -->
-    <ProjectReference Include="..\Mnemo.UI\Mnemo.UI.csproj" />
   </ItemGroup>
 
 </Project>
