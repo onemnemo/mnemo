@@ -7,7 +7,7 @@ using Mnemo.Core.Services;
 namespace Mnemo.Infrastructure.Services.Widgets;
 
 /// <summary>
-/// Placement math for the overview board (pure — no UI types, no state). <see cref="Pack"/> is a
+/// Placement math for the overview board (pure, no UI types, no state). <see cref="Pack"/> is a
 /// dense flow packer (CSS <c>grid-auto-flow: dense</c> semantics) used to seed coordinates and to
 /// compact narrow breakpoints; <see cref="Resolve"/> honors each widget's stored coordinates,
 /// pushing overlaps down only (free-grid placement).
@@ -61,7 +61,7 @@ public sealed class WidgetLayoutEngine : IWidgetLayoutEngine
             else
             {
                 column = Math.Clamp(d.Column, 0, columnCount - columns);
-                // Push straight down until the desired column fits — never sideways, never up,
+                // Push straight down until the desired column fits (never sideways, never up),
                 // so an intentional gap above the widget survives.
                 row = Math.Max(0, d.Row);
                 while (!Fits(occupied, column, row, columns, rows))

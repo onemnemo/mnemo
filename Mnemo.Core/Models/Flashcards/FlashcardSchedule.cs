@@ -2,7 +2,7 @@ namespace Mnemo.Core.Models.Flashcards;
 
 /// <summary>
 /// FSRS scheduling state for a single card, held 1:1 with its <see cref="Flashcard"/> content.
-/// Deliberately holds no cross-algorithm union — only FSRS fields.
+/// Deliberately holds no cross-algorithm union, only FSRS fields.
 /// </summary>
 public sealed record FlashcardSchedule(
     string CardId,

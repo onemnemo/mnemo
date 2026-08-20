@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 
 // Mnemo.Host's dev-mode listen port, used until the host has written its
 // handshake file. The host honours MNEMO_DEV_API_PORT, which is how a second
@@ -91,5 +91,8 @@ export default defineConfig({
         },
       },
     },
+  },
+  test: {
+    setupFiles: ['./src/test/setup.ts'],
   },
 })

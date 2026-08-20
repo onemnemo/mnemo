@@ -218,7 +218,7 @@ public class KeyboardHandler
         }
         else if (viewModel.Type == BlockType.Image)
         {
-            // Caption: backspace at start of non-empty text — do not merge into previous block.
+            // Caption: backspace at start of non-empty text; do not merge into previous block.
             return;
         }
         else if (viewModel.Type != BlockType.Text)

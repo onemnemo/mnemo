@@ -17,7 +17,7 @@ namespace Mnemo.Infrastructure.Services.AI;
 ///   <item>The K most recent raw turns verbatim (for turn-level coherence).</item>
 /// </list>
 /// When no summary exists yet (early in a conversation), falls back to the standard raw
-/// sliding window — no regression for short conversations.
+/// sliding window. This causes no regression for short conversations.
 /// </summary>
 public sealed class ConversationMemoryInjector : IConversationMemoryInjector
 {
@@ -52,7 +52,7 @@ public sealed class ConversationMemoryInjector : IConversationMemoryInjector
     {
         var snapshot = _memoryStore.Get(conversationId);
 
-        // No summary yet — fall back to the standard raw window unchanged
+        // No summary yet, so fall back to the standard raw window unchanged
         if (snapshot?.LatestSummary == null)
         {
             _logger.Debug("Memory",
@@ -68,7 +68,7 @@ public sealed class ConversationMemoryInjector : IConversationMemoryInjector
             return allRawTurns;
         }
 
-        // Build the assistant half of the synthetic summary (user cue is separate — see class doc)
+        // Build the assistant half of the synthetic summary (user cue is separate, see class doc)
         var summaryContent = new StringBuilder();
         summaryContent.Append(SummaryTurnPrefix);
         summaryContent.AppendLine(summary.Summary);

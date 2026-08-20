@@ -502,7 +502,9 @@
     "CrashShowDetails": "詳細を表示",
     "CrashHideDetails": "詳細を隠す",
     "UnhandledFaultTitle": "問題が発生しました",
-    "MutationErrorTitle": "この変更を保存できませんでした"
+    "MutationErrorTitle": "この変更を保存できませんでした",
+    "LegacyInstallWarningTitle": "以前のMnemoがまだインストールされています",
+    "LegacyInstallWarningBody": "このパソコンには、以前のスタンドアロン版Mnemoもインストールされています。同じデータに両方からアクセスすると、ノート、フラッシュカード、マインドマップが破損するおそれがあります。安全に使い続けるために、以前のMnemoをアンインストールしてください。"
   },
   "Chat": {
     "AssistantNoResponse": "応答がありません。",

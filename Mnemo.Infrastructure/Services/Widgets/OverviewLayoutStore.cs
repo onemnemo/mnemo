@@ -29,7 +29,7 @@ public sealed class OverviewLayoutStore : IOverviewLayoutStore
     private const double RowHeight = 150;
     private const int MaxColumns = 4;
 
-    /// <summary>Maps v1 widget ids to the namespaced v2 ids. Frozen — v1 only ever shipped these five.</summary>
+    /// <summary>Maps v1 widget ids to the namespaced v2 ids. Frozen (v1 only ever shipped these five).</summary>
     private static readonly IReadOnlyDictionary<string, string> LegacyWidgetIdMap = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["flashcard-stats"] = "mnemo.flashcard-stats",
@@ -118,7 +118,7 @@ public sealed class OverviewLayoutStore : IOverviewLayoutStore
         }
 
         // Seed coordinates in the widgets' flow order so a pre-coords (schema ≤ 2) layout packs
-        // exactly as it did before free-grid placement shipped — the board looks identical on load.
+        // exactly as it did before free-grid placement shipped. The board looks identical on load.
         layout.Widgets = layout.Widgets.OrderBy(w => w.Order).ToList();
         SeedCoordinates(layout);
         NormalizeOrder(layout);

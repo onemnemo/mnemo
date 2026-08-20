@@ -21,7 +21,7 @@ namespace Mnemo.UI.Modules.Mindmap.Views;
 /// <summary>
 /// The virtualized mindmap canvas: a single custom-drawn control that renders every node and edge
 /// itself under the camera transform, culling to the visible rect and hit-testing through a
-/// <see cref="MindmapQuadtree"/> — so cost tracks what is on screen, not the size of the document. It
+/// <see cref="MindmapQuadtree"/>, so cost tracks what is on screen, not the size of the document. It
 /// replaces the earlier pair of <c>ItemsControl</c>s. Interaction (pan/zoom/drag/create) still lives in the
 /// view code-behind, which calls <see cref="HitTestNode"/> for topmost-node picking.
 /// </summary>
@@ -622,8 +622,8 @@ public sealed class MindmapCanvasControl : Control
             or ElementContentDiscriminators.Note
             or ElementContentDiscriminators.Flashcard;
 
-    // A reference node: a kind glyph on the left, then the resolved title — or a muted "missing" label when the
-    // target is gone, or nothing while it's still resolving — plus an optional trailing chip on the right.
+    // A reference node: a kind glyph on the left, then the resolved title, or a muted "missing" label when the
+    // target is gone, or nothing while it's still resolving, plus an optional trailing chip on the right.
     private void DrawRefContent(DrawingContext context, MindmapNodeItem node, Rect rect, IBrush? fill)
     {
         if (_paintChrome)
@@ -668,7 +668,7 @@ public sealed class MindmapCanvasControl : Control
         }
     }
 
-    // A diagonal arrow pointing up-right — the node opens something elsewhere.
+    // A diagonal arrow pointing up-right: the node opens something elsewhere.
     private static void DrawLinkGlyph(DrawingContext context, Pen pen, double x, double y, double size)
     {
         var tail = new Point(x + size * 0.22, y + size * 0.78);
@@ -1032,8 +1032,8 @@ public sealed class MindmapCanvasControl : Control
 
     // --- Math node rendering -----------------------------------------------
 
-    // Draws a math node's LaTeX as a rendered layout box centered in its content rect. Returns false — so the
-    // caller falls back to the italic raw-text label — when the engine is missing, the LaTeX is invalid, or the
+    // Draws a math node's LaTeX as a rendered layout box centered in its content rect. Returns false (so the
+    // caller falls back to the italic raw-text label) when the engine is missing, the LaTeX is invalid, or the
     // box hasn't been laid out yet (a fetch is kicked off and the node repaints when it lands).
     private bool TryDrawMath(DrawingContext context, MindmapNodeItem node, Rect rect)
     {

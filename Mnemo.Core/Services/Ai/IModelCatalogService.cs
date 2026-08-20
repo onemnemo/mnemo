@@ -13,7 +13,7 @@ public interface IModelCatalogService
 {
     /// <summary>
     /// Returns the curated shortlist for model pickers: strong, tool-capable models with the
-    /// pinned default first. Never throws — when the provider catalog is unreachable it falls
+    /// pinned default first. Never throws. When the provider catalog is unreachable it falls
     /// back to built-in descriptors, so pickers always have content.
     /// </summary>
     /// <param name="ct">Cancels the catalog fetch.</param>

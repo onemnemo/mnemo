@@ -6,7 +6,7 @@ namespace Mnemo.Core.Models;
 /// <summary>
 /// Structured output of the manager model's <c>convo_summarize</c> task.
 /// Contains a dense prose summary, all active entity IDs, key facts, and the most
-/// recently active skill — everything needed to reconstruct context for the next turn.
+/// recently active skill. Together these are everything needed to reconstruct context for the next turn.
 /// </summary>
 public sealed class ConversationSummary
 {

@@ -53,7 +53,7 @@ public static class MindmapBuiltInTemplates
         BranchColors = BranchColorMode.ByBranch,
     };
 
-    /// <summary>Neutral throughout — outline branches, no color.</summary>
+    /// <summary>Neutral throughout: outline branches, no color.</summary>
     public static StyleTemplate Monochrome { get; } = new()
     {
         Id = "monochrome",

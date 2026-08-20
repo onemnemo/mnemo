@@ -51,7 +51,7 @@ public partial class BlockEditor
     /// <summary>
     /// Scrolls so the given block sits at the top of the viewport (index navigation).
     /// Returns false when the block is missing or its row is not realized (virtualized
-    /// out) — callers can then scroll proportionally and retry.
+    /// out); callers can then scroll proportionally and retry.
     /// </summary>
     public bool ScrollToBlock(string blockId)
     {

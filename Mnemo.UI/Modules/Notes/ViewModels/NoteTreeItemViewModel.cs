@@ -84,7 +84,7 @@ public partial class NoteTreeItemViewModel : ObservableObject
     {
         IsFolder = false;
         Note = note;
-        IsExpanded = true; // leaf rows; binding exists on tree item — avoid collapsed chrome
+        IsExpanded = true; // leaf rows; binding exists on tree item, avoid collapsed chrome
     }
 
     /// <summary>

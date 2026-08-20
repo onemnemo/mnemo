@@ -9,7 +9,7 @@ namespace Mnemo.UI.Components.BlockEditor;
 /// <summary>
 /// Estimates block-row heights for ItemsRepeater virtualization. Tall rows (images, sketches)
 /// must not be estimated as average text height when virtualized out, or scroll extent and
-/// item positions drift — especially under camera zoom.
+/// item positions drift, especially under camera zoom.
 /// </summary>
 internal static class BlockRowLayoutHeights
 {

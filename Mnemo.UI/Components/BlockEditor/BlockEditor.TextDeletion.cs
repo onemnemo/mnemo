@@ -83,7 +83,7 @@ public partial class BlockEditor
         }
         else
         {
-            // Focus the block adjacent to the deleted range, not the first block in the document —
+            // Focus the block adjacent to the deleted range, not the first block in the document;
             // focusing the first block scrolls the viewport all the way to the top.
             var docAfter = BlockHierarchy.EnumerateInDocumentOrder(Blocks).ToList();
             var focusTarget = docAfter.Count > 0

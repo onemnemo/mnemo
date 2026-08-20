@@ -35,7 +35,7 @@ public static class ChatTurnPersistence
         }
 
         // Edit-and-resend / regenerate cut the replaced tail here, at persist time, so it is
-        // dropped atomically with appending the fresh pair — a failed turn never reaches this
+        // dropped atomically with appending the fresh pair; a failed turn never reaches this
         // method, leaving the messages it would have replaced intact.
         if (truncateFromIndex is int cut && cut >= 0 && cut < conversation.Messages.Count)
             conversation.Messages.RemoveRange(cut, conversation.Messages.Count - cut);

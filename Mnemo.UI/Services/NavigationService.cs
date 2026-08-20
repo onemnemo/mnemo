@@ -25,7 +25,7 @@ public class NavigationService : INavigationService, INotifyPropertyChanged
     private readonly Dictionary<string, string> _routeNames = new();
     private object? _currentViewModel;
     private readonly Stack<string> _history = new();
-    // Cached snapshot of AI.EnableAssistant — read on every NavigateTo. Refreshed via SettingChanged
+    // Cached snapshot of AI.EnableAssistant (read on every NavigateTo). Refreshed via SettingChanged
     // so we never block the UI thread on ISettingsService.GetAsync.
     private volatile bool _aiAssistantEnabled;
 

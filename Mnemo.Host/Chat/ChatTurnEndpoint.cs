@@ -20,8 +20,8 @@ namespace Mnemo.Host.Chat;
 /// The assistant turn stream: <c>POST /api/chat/conversations/{id}/turns</c> runs one
 /// agentic turn and streams the orchestrator's six signals as typed SSE events
 /// (<c>delta</c>, <c>status</c>, <c>tool</c>, <c>reasoning</c>, <c>narration</c>,
-/// <c>done</c>, <c>error</c>). Reveal pacing is dropped here — the SPA paces its own
-/// reveal — so raw tokens go out the moment the model produces them. Cancellation is a
+/// <c>done</c>, <c>error</c>). Reveal pacing is dropped here (the SPA paces its own
+/// reveal), so raw tokens go out the moment the model produces them. Cancellation is a
 /// separate <c>POST /api/chat/turns/{turnId}/cancel</c> keyed on the client-minted id.
 /// </summary>
 public static class ChatTurnEndpoint
@@ -140,7 +140,7 @@ public static class ChatTurnEndpoint
 
                 // Empty answer + no tools = a failed turn. Probe the model route so the SPA can show
                 // an actionable notice ("add your API key" / "no model bound") instead of a generic
-                // apology — the orchestrator degrades a bad key/binding to an empty stream rather than
+                // apology; the orchestrator degrades a bad key/binding to an empty stream rather than
                 // throwing, so this diagnosis (mirroring the desktop's post-failure route probe) is the
                 // only place that distinction is recovered.
                 string? failureKind = null;
@@ -196,7 +196,7 @@ public static class ChatTurnEndpoint
     /// <summary>
     /// Writes the finished turn back. A stopped turn keeps whatever it produced (falling back to the
     /// "generation stopped" line when empty). A hard error, or an empty answer that ran no tools, is a
-    /// failed turn and nothing is written — the whole (user, assistant) pair is dropped. That diverges
+    /// failed turn and nothing is written: the whole (user, assistant) pair is dropped. That diverges
     /// intentionally from the desktop, which keeps the lone user message: the host persists a turn
     /// lazily as one unit at completion, so a failed turn leaves no half-written state for the SPA to
     /// reconcile or double-append when it retries. The failed turn (with the user's text) stays in the
@@ -206,7 +206,7 @@ public static class ChatTurnEndpoint
     /// early returns). That keeps the host self-consistent: the memory turn counter tracks exactly the
     /// persisted [user, assistant] pairs, so the summarizer's turn slicing always lines up with the
     /// stored transcript. The desktop instead counts every attempt, so after a failed turn the two apps'
-    /// rolling-summary cadence drifts by one — a deliberate consequence of the lazy model, since counting
+    /// rolling-summary cadence drifts by one, a deliberate consequence of the lazy model, since counting
     /// a turn whose messages were never stored would eventually push the slice past the transcript.
     /// </summary>
     private static async Task PersistTurnAsync(

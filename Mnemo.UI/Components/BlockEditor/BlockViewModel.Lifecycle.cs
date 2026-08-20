@@ -361,7 +361,7 @@ public partial class BlockViewModel
     /// <summary>
     /// Reapplies payload-backed fields from a history snapshot to an existing view model.
     /// <see cref="ToBlock"/> serializes these into <see cref="Block.Payload"/>, but undo/redo
-    /// restores existing VMs in-place (SetSpans/Type/Meta) which never reads the payload back —
+    /// restores existing VMs in-place (SetSpans/Type/Meta) which never reads the payload back;
     /// without this, e.g. a Page block loses its <see cref="ReferenceNoteId"/> after undo/redo.
     /// Call after <see cref="Type"/> has been set to the snapshot's type.
     /// </summary>

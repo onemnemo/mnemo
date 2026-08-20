@@ -11,7 +11,7 @@
         CornerRadius="8"
         Padding="4">
         <StackPanel Orientation="Horizontal" Spacing="1">
-            <!-- Assist (placeholder — hidden until implemented) -->
+            <!-- Assist (placeholder, hidden until implemented) -->
             <Button
                 x:Name="AssistButton"
                 IsVisible="False"

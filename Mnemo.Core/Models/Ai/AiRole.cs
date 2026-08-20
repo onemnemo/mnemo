@@ -2,7 +2,7 @@ namespace Mnemo.Core.Models.Ai;
 
 /// <summary>
 /// The AI function a feature needs. Every feature declares a role and resolves it through
-/// the model router — nothing asks for "the model" — so individual roles can migrate
+/// the model router (nothing asks for "the model"), so individual roles can migrate
 /// between providers (cloud today, local later) without feature changes.
 /// </summary>
 public enum AiRole

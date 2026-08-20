@@ -9,7 +9,7 @@ namespace Mnemo.UI.Modules.Mindmap.Services;
 /// <summary>
 /// Builds scaled node/edge thumbnails for mindmap library cards from a schema v2 document. Because P2
 /// has no layout engine yet, positions are derived here from the hierarchy with a simple tidy-tree
-/// placement (root → right, children stacked), independent of stored coordinates — so previews look
+/// placement (root → right, children stacked), independent of stored coordinates, so previews look
 /// right even before any layout has run.
 /// </summary>
 public static class MindmapPreviewBuilder

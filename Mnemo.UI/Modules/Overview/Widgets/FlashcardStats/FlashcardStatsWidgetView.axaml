@@ -29,7 +29,7 @@
     </UserControl.Styles>
 
     <StackPanel Spacing="10">
-        <!-- Bucket label: this widget counts ALL study modes (Review, Cram, Test alike) — the
+        <!-- Bucket label: this widget counts ALL study modes (Review, Cram, Test alike). The
              three stat buckets (Memory / Test / Activity) must never be visually ambiguous. -->
         <TextBlock Text="{markup:T Ns=FlashcardStats, Key=Subtitle}"
                    FontSize="{DynamicResource FontSize.Caption}"

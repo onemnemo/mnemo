@@ -3,7 +3,7 @@ namespace Mnemo.UI.Modules.Overview;
 /// <summary>
 /// Presentation metrics for the overview widget board. The board is a responsive auto-flow
 /// grid: the column count derives from the available width, cells stretch horizontally, and
-/// rows have a fixed height. Packing math lives in <c>IWidgetLayoutEngine</c> — these are
+/// rows have a fixed height. Packing math lives in <c>IWidgetLayoutEngine</c>; these are
 /// only the pixel constants the panel feeds it.
 /// </summary>
 public static class OverviewBoardMetrics

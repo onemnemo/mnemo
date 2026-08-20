@@ -2,7 +2,7 @@ namespace Mnemo.UI.Components.BlockEditor;
 
 /// <summary>
 /// Single place for "empty paragraph" and legacy invisible-char handling. Empty blocks use
-/// virtual selection in <see cref="RichTextEditor"/> — no sentinel is stored in new content.
+/// virtual selection in <see cref="RichTextEditor"/>; no sentinel is stored in new content.
 /// </summary>
 internal static class BlockEditorContentPolicy
 {

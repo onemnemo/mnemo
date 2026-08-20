@@ -19,11 +19,8 @@ describe("isTyping", () => {
     expect(isTyping(document.createElement("textarea"))).toBe(true)
     expect(isTyping(document.createElement("select"))).toBe(true)
 
-    // jsdom does not implement contentEditable/isContentEditable at all, so the property is stood
-    // up by hand rather than through the attribute a real browser would compute it from. The guard
-    // only ever reads the property, so this still pins the branch it takes.
     const editable = document.createElement("div")
-    Object.defineProperty(editable, "isContentEditable", { value: true })
+    editable.setAttribute("contenteditable", "true")
     expect(isTyping(editable)).toBe(true)
   })
 

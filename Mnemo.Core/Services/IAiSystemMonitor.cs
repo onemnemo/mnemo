@@ -22,7 +22,7 @@ public interface IAiSystemMonitor
     /// <summary>
     /// Hints that the user is about to use the chat assistant, so the models
     /// behind it should start loading now. Fire-and-forget, throttled
-    /// internally, and never throws — callers may invoke it on every keystroke.
+    /// internally, and never throws. Callers may invoke it on every keystroke.
     /// </summary>
     void WarmChatModels();
 }

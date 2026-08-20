@@ -105,16 +105,8 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
   root = createRoot(container)
-  // jsdom has no ResizeObserver, and the board measures itself on mount. Never firing is the right
-  // stand-in: the hook is specified to hold its bucket until something reports a usable width.
-  vi.stubGlobal(
-    "ResizeObserver",
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  )
+  // The board measures itself on mount. The default no-op ResizeObserver never firing is the right
+  // stand-in here: the hook is specified to hold its bucket until something reports a usable width.
 })
 
 afterEach(() => {

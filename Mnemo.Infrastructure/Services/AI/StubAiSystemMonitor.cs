@@ -15,7 +15,7 @@ public sealed class StubAiSystemMonitor : IAiSystemMonitor
     public AiSystemState State => AiSystemState.Ready;
 
     /// <inheritdoc />
-    // Never raised — readiness is constant — so the accessors are intentionally empty.
+    // Never raised (readiness is constant), so the accessors are intentionally empty.
     public event EventHandler<AiSystemState>? StateChanged
     {
         add { }

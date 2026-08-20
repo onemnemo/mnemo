@@ -503,7 +503,7 @@ public partial class BlockViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Left column width fraction (0.1â€“0.9). Legacy: stored on the left block of a flat pair in <see cref="Meta"/>; nested splits use <see cref="TwoColumnBlockViewModel"/>.</summary>
+    /// <summary>Left column width fraction (0.1 to 0.9). Legacy: stored on the left block of a flat pair in <see cref="Meta"/>; nested splits use <see cref="TwoColumnBlockViewModel"/>.</summary>
     public virtual double ColumnSplitRatio
     {
         get

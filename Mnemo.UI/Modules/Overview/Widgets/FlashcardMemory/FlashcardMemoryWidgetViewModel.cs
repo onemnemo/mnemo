@@ -24,7 +24,7 @@ namespace Mnemo.UI.Modules.Overview.Widgets.FlashcardMemory;
 /// across all decks with at least one review in the window; decks with zero reviews are skipped
 /// entirely rather than dragging the mean toward 0. The trend line follows the single deck with
 /// the highest review volume in the window (labelled with its name) rather than aggregating every
-/// deck's daily trend into a weighted-per-day mean — the latter is disproportionate effort for a
+/// deck's daily trend into a weighted-per-day mean; the latter is disproportionate effort for a
 /// sparkline (would require re-deriving weights per day, per deck) and the highest-volume deck is
 /// the most representative single series available from the current stats surface.
 /// </remarks>

@@ -22,7 +22,7 @@ public partial class FlashcardStudySplitButton : UserControl
     public static readonly StyledProperty<string?> DeckIdProperty =
         AvaloniaProperty.Register<FlashcardStudySplitButton, string?>(nameof(DeckId));
 
-    /// <summary>New + Learning + Due for the deck (Cram's "Due cards" scope) — also decides the 0-due pre-highlight.</summary>
+    /// <summary>New + Learning + Due for the deck (Cram's "Due cards" scope); also decides the 0-due pre-highlight.</summary>
     public static readonly StyledProperty<int> DueCountProperty =
         AvaloniaProperty.Register<FlashcardStudySplitButton, int>(nameof(DueCount));
 
@@ -34,7 +34,7 @@ public partial class FlashcardStudySplitButton : UserControl
     public static readonly StyledProperty<bool> CompactProperty =
         AvaloniaProperty.Register<FlashcardStudySplitButton, bool>(nameof(Compact));
 
-    /// <summary>True when nothing is due — the flyout pre-highlight moves from Review to Cram (spec: "leads with Cram").</summary>
+    /// <summary>True when nothing is due; the flyout pre-highlight moves from Review to Cram (spec: "leads with Cram").</summary>
     public static readonly DirectProperty<FlashcardStudySplitButton, bool> IsCaughtUpProperty =
         AvaloniaProperty.RegisterDirect<FlashcardStudySplitButton, bool>(nameof(IsCaughtUp), o => o.IsCaughtUp);
 
@@ -101,7 +101,7 @@ public partial class FlashcardStudySplitButton : UserControl
         CramAllMenuItem.SetValue(MenuItemGestureHint.GestureHintProperty, AllCount.ToString(CultureInfo.CurrentCulture));
     }
 
-    // --- Flyout items (Click, not Command — cross-popup #root compiled bindings don't resolve here) ---
+    // --- Flyout items (Click, not Command; cross-popup #root compiled bindings don't resolve here) ---
 
     private void OnReviewClick(object? sender, RoutedEventArgs e) => StartReview();
 

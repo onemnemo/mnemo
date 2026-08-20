@@ -44,7 +44,7 @@ public partial class BlockViewModel
     /// <remarks>
     /// Important: does not raise <c>ContentChanged</c>, so it bypasses history tracking entirely.
     /// Use only for undo/redo restore, initial load, and programmatic resets.
-    /// For live user edits (typing, paste, inline delete) use <see cref="CommitSpansFromEditor"/> instead â€”
+    /// For live user edits (typing, paste, inline delete) use <see cref="CommitSpansFromEditor"/> instead;
     /// that path records the pre-edit snapshot so TrackTypingEdit can build a TextEditOperation.
     /// Mixing the two causes silent undo gaps or duplicate undo steps.
     /// </remarks>

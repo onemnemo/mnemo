@@ -18,7 +18,7 @@ namespace Mnemo.Infrastructure.Services.Notes.Persistence;
 /// Restart-safety comes from the data rather than from a checklist: a note is written atomically and
 /// only when it needs work, so an interrupted run leaves a mix of finished and untouched notes and
 /// resuming is just another pass. The persisted marker records that a backup was taken and that
-/// validation passed — it is not a cursor, and losing it costs a re-scan, not correctness.
+/// validation passed. It is not a cursor, and losing it costs a re-scan, not correctness.
 /// </summary>
 public sealed class NoteSidMigrator : INoteSidMigrator
 {
@@ -84,7 +84,7 @@ public sealed class NoteSidMigrator : INoteSidMigrator
             if (problems.Count > 0)
             {
                 // Left incomplete on purpose. Notes stay closed, the backup stays put, and the next
-                // start retries — which is the recoverable outcome. Exposing a corpus that failed its
+                // start retries, which is the recoverable outcome. Exposing a corpus that failed its
                 // own invariants would hand callers sids they cannot rely on.
                 _logger.Error("Notes", $"Sid migration validation failed with {problems.Count} problem(s); notes stay closed. First: {problems[0]}");
                 return;

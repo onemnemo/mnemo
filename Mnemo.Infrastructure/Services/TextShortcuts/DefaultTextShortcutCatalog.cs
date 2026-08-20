@@ -26,7 +26,7 @@ internal static class DefaultTextShortcutCatalog
         {
             // Typography and legal symbols
             // Keep divider markdown ("---") usable: only convert double hyphen after a trailing space.
-            new TextShortcut("-- ", "\u2013 "), // – 
+            new TextShortcut("-- ", "\u2013 "), // en dash
             new TextShortcut("...", "\u2026"), // …
             new TextShortcut("(c)",  "\u00A9"), // ©
             new TextShortcut("(r)",  "\u00AE"), // ®
@@ -43,7 +43,7 @@ internal static class DefaultTextShortcutCatalog
             new TextShortcut("<\u21D2", "\u21D4"), // <⇒ -> ⇔
             new TextShortcut("\u21D0>", "\u21D4"), // ⇐> -> ⇔
 
-            // Explicit \keyword triggers — math & symbols
+            // Explicit \keyword triggers: math & symbols
             new TextShortcut("\\sqrt",  "\u221A"), // √
             new TextShortcut("\\inf",   "\u221E"), // ∞
             new TextShortcut("\\tilde", "\u02DC"), // ˜
@@ -54,13 +54,13 @@ internal static class DefaultTextShortcutCatalog
             new TextShortcut("\\deg",   "\u00B0"), // °
             new TextShortcut("\\pm",    "\u00B1"), // ±
 
-            // Explicit \keyword triggers — currency
+            // Explicit \keyword triggers: currency
             new TextShortcut("\\EUR", "\u20AC"), // €
             new TextShortcut("\\GBP", "\u00A3"), // £
             new TextShortcut("\\USD", "$"),
             new TextShortcut("\\JPY", "\u00A5"), // ¥
 
-            // Explicit \keyword triggers — logic & math comparisons
+            // Explicit \keyword triggers: logic & math comparisons
             new TextShortcut("\\neq",     "\u2260"), // ≠
             new TextShortcut("\\leq",     "\u2264"), // ≤
             new TextShortcut("\\geq",     "\u2265"), // ≥

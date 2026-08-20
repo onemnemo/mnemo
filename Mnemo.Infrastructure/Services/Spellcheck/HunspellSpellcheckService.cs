@@ -66,7 +66,7 @@ public sealed class HunspellSpellcheckService : ISpellcheckService
                         if (IsCorrect(token, dictionaries, spellbooks))
                             continue;
 
-                        // Suggestions are deferred — computed on demand when the user right-clicks.
+                        // Suggestions are deferred, computed on demand when the user right-clicks.
                         // Building them here for every misspelled word (especially with a wrong-language
                         // dictionary where all words are incorrect) was the primary source of lag.
                         issues.Add(new SpellcheckIssue(offset + match.Index, match.Length, token, []));

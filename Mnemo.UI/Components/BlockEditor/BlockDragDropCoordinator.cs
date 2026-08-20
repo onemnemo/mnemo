@@ -533,7 +533,7 @@ internal sealed class BlockDragDropCoordinator
             tc = sp.TwoColumn;
             var splitView = rowHost.GetVisualDescendants().OfType<SplitBlockRowView>().FirstOrDefault();
             if (splitView == null) continue;
-            // Use full column grid cells (RootGrid columns 0 / 2), not ItemsControl bounds Ã¢â‚¬â€ when one column
+            // Use full column grid cells (RootGrid columns 0 / 2), not ItemsControl bounds; when one column
             // is shorter than the other, empty vertical space below the shorter stack still belongs to that column.
             var rootGrid = splitView.FindControl<Grid>("RootGrid");
             if (rootGrid == null) continue;
@@ -714,7 +714,7 @@ internal sealed class BlockDragDropCoordinator
     private static double GetSplitDropSideBandWidth(double contentWidth)
     {
         if (contentWidth <= 0) return 0;
-        // ~10% of content, clamped Ã¢â‚¬â€ keeps most width for vertical reorder only.
+        // ~10% of content, clamped; keeps most width for vertical reorder only.
         double band = contentWidth * 0.10;
         band = Math.Clamp(band, 52, 96);
         double maxHalf = Math.Max(0, (contentWidth - 24) * 0.5);
@@ -1033,7 +1033,7 @@ internal sealed class BlockDragDropCoordinator
 
     /// <summary>
     /// Returns the realized container for <paramref name="rowIndex"/> or null when virtualized out.
-    /// Cheap (O(1)) Ã¢â‚¬â€ uses <see cref="ItemsRepeater.TryGetElement(int)"/>.
+    /// Cheap (O(1)); uses <see cref="ItemsRepeater.TryGetElement(int)"/>.
     /// </summary>
     private Control? TryGetRealizedRowContainer(int rowIndex)
     {
@@ -1062,7 +1062,7 @@ internal sealed class BlockDragDropCoordinator
     {
         if (vm == null) return null;
 
-        // O(1) hot path Ã¢â‚¬â€ populated by EditableBlock.OnControlLoaded/Unloaded. Hot callers
+        // O(1) hot path; populated by EditableBlock.OnControlLoaded/Unloaded. Hot callers
         // (ClearTextSelectionInAllBlocksExcept, find/replace, cross-block selection) used to
         // walk the entire visual tree per block; with 1500 _host.Blocks that was O(NÃ‚Â²).
         if (_host._realizedBlocksByVm.TryGetValue(vm, out var cached))
@@ -1074,7 +1074,7 @@ internal sealed class BlockDragDropCoordinator
         }
 
         // Fallback (first-frame / nested column cells before Loaded fires): search only realized
-        // row roots (sparse list preserves document order among realized rows Ã¢â‚¬â€ index is NOT row id).
+        // row roots (sparse list preserves document order among realized rows; index is NOT row id).
         var containers = GetBlockContainersInOrder();
         if (containers == null) return null;
         for (var i = 0; i < containers.Count; i++)

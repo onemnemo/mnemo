@@ -5,7 +5,7 @@ namespace Mnemo.UI.Components;
 /// <summary>
 /// One rendered crumb in the topbar trail: the module label followed by any
 /// <see cref="Mnemo.UI.Services.TopbarTrailCrumb"/>s the current page published.
-/// Immutable — the topbar rebuilds the whole collection on every change.
+/// Immutable; the topbar rebuilds the whole collection on every change.
 /// </summary>
 public sealed class TopbarCrumbViewModel
 {

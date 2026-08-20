@@ -104,7 +104,7 @@ public sealed record ChatFeedbackDto(int Value);
 
 /// <summary>
 /// A message attachment as the browser sees it: kind, display name, and a served asset
-/// id. The absolute local path stored on disk never crosses to the client — the client
+/// id. The absolute local path stored on disk never crosses to the client; the client
 /// fetches the bytes via <c>GET /api/chat/assets/{assetId}</c>. AssetId is null for a
 /// path the host will not serve (e.g. a desktop-picked file outside the managed store).
 /// </summary>

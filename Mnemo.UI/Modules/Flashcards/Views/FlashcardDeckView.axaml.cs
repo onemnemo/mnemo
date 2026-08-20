@@ -151,7 +151,7 @@ public partial class FlashcardDeckView : UserControl
 
     // Row context-menu items (Edit/Flag/Suspend/Delete) carry the card id in Tag; commands resolve
     // the row from the VM's current page. Cross-popup #root bindings don't resolve, so we route via
-    // Click — the proven pattern from FlashcardDeckRow.
+    // Click, the proven pattern from FlashcardDeckRow.
     private FlashcardCardRowViewModel? RowFor(object? sender) =>
         sender is MenuItem { Tag: string cardId }
             ? _viewModel?.Cards.FirstOrDefault(c => string.Equals(c.Id, cardId, StringComparison.Ordinal))

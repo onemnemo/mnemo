@@ -37,14 +37,6 @@ vi.mock("@/trash/undo", () => ({
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-// The flyout positions itself with Popper, which measures its content.
-class StubResizeObserver {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-globalThis.ResizeObserver ??= StubResizeObserver as unknown as typeof ResizeObserver
-
 const drag: LibraryDrag = {
   sourceKey: null,
   handle: null,

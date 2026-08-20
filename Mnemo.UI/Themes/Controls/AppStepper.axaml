@@ -3,7 +3,7 @@
                     x:ClassModifier="internal"
                     x:CompileBindings="True">
     <!--
-        AppStepper — compact split +/- numeric stepper.
+        AppStepper: compact split +/- numeric stepper.
 
         Retemplates NumericUpDown into a bordered [−  value  +] row (decrease left,
         mono value centered, increase right) while keeping all of NumericUpDown's

@@ -221,7 +221,7 @@ public sealed class SketchParser
                 continue;
             }
 
-            // Unknown token — skip to next line
+            // Unknown token, skip to next line
             end = Advance().Span.End;
             SynchronizeToNextLine();
         }

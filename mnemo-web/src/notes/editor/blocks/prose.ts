@@ -1,8 +1,8 @@
 /**
  * The plain prose blocks: paragraph, quote, and the four heading levels.
  *
- * `heading` is the one module that owns more than one wire type. Heading1–4 are
- * four `BlockType` values but one PM node with a `level` attr, which is what
+ * `heading` is the one module that owns more than one wire type. Heading1 through
+ * Heading4 are four `BlockType` values but one PM node with a `level` attr, which is what
  * lets a level change be an `setNodeMarkup` rather than a delete-and-reinsert
  * that would take the block's `sid` with it.
  */

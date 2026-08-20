@@ -10,7 +10,7 @@ namespace Mnemo.Core.Services.Ai;
 /// </summary>
 /// <remarks>
 /// Implementations are provider adapters (cloud or local) and stay feature-agnostic:
-/// features never construct or select one directly — they receive a bound client from
+/// features never construct or select one directly. They receive a bound client from
 /// <see cref="IModelRouter"/> for their <see cref="AiRole"/>.
 /// </remarks>
 public interface IChatModelClient
@@ -19,7 +19,7 @@ public interface IChatModelClient
     /// Sends one model turn and streams response deltas as they arrive.
     /// </summary>
     /// <remarks>
-    /// Tool-call deltas are emitted fully assembled — implementations buffer provider
+    /// Tool-call deltas are emitted fully assembled. Implementations buffer provider
     /// fragments and yield one <see cref="ChatStreamDelta.ToolCall"/> per complete call.
     /// Terminal failures (invalid key, rate limit, network) throw <see cref="AiClientException"/>
     /// after any internal retries; cancellation surfaces as <see cref="System.OperationCanceledException"/>.

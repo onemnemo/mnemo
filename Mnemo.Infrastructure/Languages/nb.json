@@ -502,7 +502,9 @@
     "CrashShowDetails": "Vis detaljer",
     "CrashHideDetails": "Skjul detaljer",
     "UnhandledFaultTitle": "Noe gikk galt",
-    "MutationErrorTitle": "Denne endringen kunne ikke lagres"
+    "MutationErrorTitle": "Denne endringen kunne ikke lagres",
+    "LegacyInstallWarningTitle": "En eldre versjon av Mnemo er fortsatt installert",
+    "LegacyInstallWarningBody": "Denne datamaskinen har også den tidligere frittstående versjonen av Mnemo installert. Hvis begge bruker de samme dataene samtidig, kan notatene, flashkortene og tankekartene dine bli skadet. Avinstaller den eldre Mnemo for å fortsette å bruke denne trygt."
   },
   "Chat": {
     "AssistantNoResponse": "Ingen respons.",

@@ -11,7 +11,7 @@ namespace Mnemo.UI.Modules.Flashcards.ViewModels;
 /// <summary>
 /// One card side's framed image figures for the study shell. Holds up to the first three
 /// <see cref="FlashcardAttachment"/>s for a side; a single attachment renders as one framed figure,
-/// several as a compact prev/next carousel. Purely presentation state — the study VM re-<see cref="Set"/>s
+/// several as a compact prev/next carousel. Purely presentation state; the study VM re-<see cref="Set"/>s
 /// it each time the card changes or is edited.
 /// </summary>
 public partial class FlashcardAttachmentCarousel : ObservableObject

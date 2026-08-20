@@ -28,8 +28,8 @@ public partial class SettingsCategoryViewModel : ViewModelBase
     public ObservableCollection<SettingsGroupViewModel> Groups { get; } = new();
 
     // Proxied through the owning SettingsViewModel (rather than the nav item template binding
-    // "$parent[UserControl].DataContext.X") so navigating away from Settings — which briefly nulls
-    // the ambient DataContext while the view is torn down — never logs a null binding error.
+    // "$parent[UserControl].DataContext.X") so navigating away from Settings (which briefly nulls
+    // the ambient DataContext while the view is torn down) never logs a null binding error.
     public ICommand? SelectCommand => _owner?.SelectCategoryCommand;
 
     public string? ProfilePicturePath => _owner?.ProfilePicturePath;

@@ -22,14 +22,6 @@ import { calloutIconRequest, closeCalloutIcon, openCalloutIcon } from './callout
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-// Radix positions its layers with Popper, which measures the content it floats.
-class StubResizeObserver {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-globalThis.ResizeObserver ??= StubResizeObserver as unknown as typeof ResizeObserver;
-
 type Blocks = Parameters<typeof buildNoteEditState>[0];
 
 const note: Blocks = [

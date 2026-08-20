@@ -145,7 +145,7 @@ public partial class EditableBlock
 
         // Toolbar checks are suppressed while IsPointerSelecting (includes the _crossBlockArmed
         // flag set on every text press), and releasing the pointer fires no selection-change
-        // notification — so without this re-check a mouse drag selection never shows the toolbar.
+        // notification. Without this re-check a mouse drag selection never shows the toolbar.
         // Post so it runs after BlockEditor's release handlers have cleared the armed flags.
         Dispatcher.UIThread.Post(() => _toolbar?.CheckAndToggle(), DispatcherPriority.Input);
     }

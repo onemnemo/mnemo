@@ -96,7 +96,7 @@
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
 
-                    <!-- ItemContainerTheme (not a child-combinator style) — the generated
+                    <!-- ItemContainerTheme (not a child-combinator style): the generated
                          ContentPresenter is not a direct visual child of the ItemsControl. -->
                     <ItemsControl.ItemContainerTheme>
                         <ControlTheme TargetType="ContentPresenter" x:DataType="vm:WidgetHostViewModel">

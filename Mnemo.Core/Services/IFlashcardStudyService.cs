@@ -4,7 +4,7 @@ namespace Mnemo.Core.Services;
 
 /// <summary>
 /// Due-count queries and the atomic Review write. The session engine (start/requeue/caps) layers on
-/// top of this separately. Only Review persists here — Cram and Test never call
+/// top of this separately. Only Review persists here. Cram and Test never call
 /// <see cref="RecordReviewAsync"/>, keeping FSRS structurally immune to off-schedule practice.
 /// </summary>
 public interface IFlashcardStudyService

@@ -9,7 +9,7 @@ namespace Mnemo.Core.Models.Mindmap;
 /// <summary>
 /// Renders a <see cref="MindmapDocument"/> as a plain Markdown outline: the title as an H1, each hierarchy
 /// tree as a nested bullet list, free elements and frames under trailing sections, and link edges as
-/// footnotes. Pure and deterministic — a given document always produces the same text. Collapse state and
+/// footnotes. Pure and deterministic. A given document always produces the same text. Collapse state and
 /// styling are ignored (the whole map is exported). It doubles as a flat export and an AI-cheap "read the
 /// whole map as text" path.
 /// </summary>
