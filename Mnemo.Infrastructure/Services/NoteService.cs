@@ -13,13 +13,19 @@ public class NoteService : INoteService
     private readonly IStorageProvider _storage;
     private readonly INoteCommitStore _commits;
     private readonly INoteTrashStore _trash;
+    private readonly INoteSummaryStore _summaries;
     private const string IndexKey = "notes_index";
 
-    public NoteService(IStorageProvider storage, INoteCommitStore commits, INoteTrashStore trash)
+    public NoteService(
+        IStorageProvider storage,
+        INoteCommitStore commits,
+        INoteTrashStore trash,
+        INoteSummaryStore summaries)
     {
         _storage = storage;
         _commits = commits;
         _trash = trash;
+        _summaries = summaries;
     }
 
     // A note the trash holds stays in the index, because the asset sweep reads that index to decide
@@ -45,6 +51,33 @@ public class NoteService : INoteService
         }
 
         return notes.OrderByDescending(n => n.ModifiedAt);
+    }
+
+    // The same library, assembled the same way, with the bodies left where they are. The two-step
+    // stays: the index says what exists, the trash map says what is invisible, and only then is
+    // anything read out of storage.
+    public async Task<IReadOnlyList<NoteSummary>> GetAllNoteSummariesAsync()
+    {
+        var indexResult = await _storage.LoadAsync<List<string>>(IndexKey);
+        if (!indexResult.IsSuccess || indexResult.Value == null)
+            return [];
+
+        var held = await _trash.HeldNoteIdsAsync();
+
+        var live = new List<string>(indexResult.Value.Count);
+        foreach (var id in indexResult.Value)
+        {
+            if (!held.ContainsKey(id))
+                live.Add(id);
+        }
+
+        var summaries = await _summaries.ReadSummariesAsync(live);
+
+        // Sorted here and never by the database. The stored timestamp is text whose shape follows the
+        // kind it was written with, so ordering the text would sort the corpus by how each row
+        // happened to be stamped rather than by when it changed. This sort is also stable, which is
+        // what keeps notes sharing an instant in the order the index holds them.
+        return [.. summaries.OrderByDescending(n => n.ModifiedAt)];
     }
 
     public async Task<Note?> GetNoteAsync(string noteId)
