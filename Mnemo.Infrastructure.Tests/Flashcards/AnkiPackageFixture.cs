@@ -61,15 +61,32 @@ internal sealed record AnkiFixtureNoteType(
     bool IsCloze = false);
 
 /// <summary>
+/// One answer in a collection's review log, in the columns Anki keeps it in.
+/// </summary>
+/// <param name="At">When it was answered. The row's key is this instant in milliseconds.</param>
+/// <param name="Ease">The button pressed, one to four. Zero is a reschedule rather than an answer.</param>
+/// <param name="Interval">The interval it set, positive in whole days and negative in seconds.</param>
+/// <param name="LastInterval">The interval the card had waited, spelled the same way.</param>
+/// <param name="Type">Which queue it came from: learn, review, relearn, or a filtered deck.</param>
+internal sealed record AnkiFixtureReview(
+    DateTimeOffset At,
+    int Ease,
+    int Interval,
+    int LastInterval = 0,
+    int Type = 1);
+
+/// <summary>
 /// One card row of a note, for a note whose rows are not simply one per template. A cloze note
 /// makes a row per deletion, numbered from zero for the deletion written as <c>c1</c>, and each of
 /// them carries its own history.
 /// </summary>
 /// <param name="DeckName">Which deck this one row sits in, or null for the note's own deck.</param>
+/// <param name="Reviews">What the collection's review log holds against this one row.</param>
 internal sealed record AnkiFixtureCardRow(
     int Ord,
     AnkiFixtureScheduling? Scheduling = null,
-    string? DeckName = null);
+    string? DeckName = null,
+    IReadOnlyList<AnkiFixtureReview>? Reviews = null);
 
 /// <summary>
 /// One note in a fixture package, and the deck it belongs to. <paramref name="ExtraFields"/> stands
@@ -85,7 +102,8 @@ internal sealed record AnkiFixtureCard(
     IReadOnlyList<string>? ExtraFields = null,
     AnkiFixtureScheduling? Scheduling = null,
     AnkiFixtureNoteType? NoteType = null,
-    IReadOnlyList<AnkiFixtureCardRow>? CardRows = null);
+    IReadOnlyList<AnkiFixtureCardRow>? CardRows = null,
+    IReadOnlyList<AnkiFixtureReview>? Reviews = null);
 
 /// <summary>
 /// Writes representative Anki packages for import tests. Real packages are not checked in, so
@@ -289,6 +307,8 @@ internal static class AnkiPackageFixture
             CREATE TABLE cards (id INTEGER PRIMARY KEY, nid INTEGER, did INTEGER, ord INTEGER, mod INTEGER,
                 usn INTEGER, type INTEGER, queue INTEGER, due INTEGER, ivl INTEGER, factor INTEGER,
                 reps INTEGER, lapses INTEGER, left INTEGER, odue INTEGER, odid INTEGER, flags INTEGER, data TEXT);
+            CREATE TABLE revlog (id INTEGER PRIMARY KEY, cid INTEGER, usn INTEGER, ease INTEGER,
+                ivl INTEGER, lastIvl INTEGER, factor INTEGER, time INTEGER, type INTEGER);
             """).ConfigureAwait(false);
 
         var deckIds = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -306,6 +326,7 @@ internal static class AnkiPackageFixture
 
         var noteId = 100L;
         var cardId = 200L;
+        var usedReviewIds = new HashSet<long>();
         foreach (var card in cards)
         {
             var fields = $"{card.FrontHtml}{UnitSeparator}{card.BackHtml}";
@@ -350,11 +371,42 @@ internal static class AnkiPackageFixture
                     ("@lapses", scheduling.Lapses),
                     ("@odue", scheduling.OriginalDue),
                     ("@odid", scheduling.OriginalDeckId)).ConfigureAwait(false);
+
+                // A note that lists its rows carries its history per row, because each deletion was
+                // answered separately. One written the short way carries the note's own list.
+                var reviews = row.Reviews ?? (card.CardRows is { Count: > 0 } ? null : card.Reviews);
+                foreach (var review in reviews ?? [])
+                    await WriteReviewAsync(connection, usedReviewIds, cardId, review).ConfigureAwait(false);
+
                 cardId++;
             }
 
             noteId++;
         }
+    }
+
+    /// <summary>
+    /// Writes one answer into the collection's review log. The row's key is the instant it was
+    /// given, which is what the real table uses, so a second answer in the same millisecond takes
+    /// the next free key rather than replacing the first.
+    /// </summary>
+    private static async Task WriteReviewAsync(
+        SqliteConnection connection, HashSet<long> usedIds, long cardId, AnkiFixtureReview review)
+    {
+        var id = review.At.ToUnixTimeMilliseconds();
+        while (!usedIds.Add(id))
+            id++;
+
+        await ExecAsync(
+            connection,
+            "INSERT INTO revlog(id,cid,usn,ease,ivl,lastIvl,factor,time,type) " +
+            "VALUES(@id, @cid, 0, @ease, @ivl, @lastIvl, 2500, 8000, @type);",
+            ("@id", id),
+            ("@cid", cardId),
+            ("@ease", review.Ease),
+            ("@ivl", review.Interval),
+            ("@lastIvl", review.LastInterval),
+            ("@type", review.Type)).ConfigureAwait(false);
     }
 
     /// <summary>The note types a set of fixture notes is written under, first use winning.</summary>

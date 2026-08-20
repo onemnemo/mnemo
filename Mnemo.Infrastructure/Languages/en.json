@@ -1349,6 +1349,7 @@
     "AnkiAudioNotImported": "{count} card(s) reference audio, which cards here cannot hold yet. The reference is left in the text and the sound file was not imported.",
     "AnkiScheduleCarriedOver": "Cards kept the dates they were next due. How well each one is known is measured again from your next few reviews, so early intervals may differ from the other app's.",
     "AnkiClozeSiblingsFiledTogether": "{count} note(s) had their cloze cards spread across several decks. All the cards of each note were filed in the deck holding most of them, because one note is one piece of material.",
+    "AnkiReviewHistoryImported": "{count} past review(s) came across with the cards. They count towards retention and train the scheduler, so a freshly imported deck already shows numbers.",
     "AnkiMediaNotFound": "Referenced media '{mediaName}' was not found in the package.",
     "AnkiMediaImportFailed": "Failed to import media '{mediaName}': {error}",
     "AnkiMediaImportFailedUnknown": "Failed to import media '{mediaName}'; the reason is unknown.",
