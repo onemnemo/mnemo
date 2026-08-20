@@ -1,0 +1,218 @@
+# Fingerprint of the translation bundle the host serves, one block per culture.
+# Namespaces are ordinal sorted; the number after each is how many keys it serves.
+# The hash covers every namespace, key and value, so a changed string moves it too.
+
+culture en
+sha256 cd926fd0b706761a7450bfb72c985972fbeed49a6f623ae443de3a8ff627a9a1
+namespaces 38
+keys 2109
+  App 10
+  Chat 132
+  Common 86
+  EmojiPicker 14
+  FlashcardMemory 8
+  FlashcardStats 8
+  FlashcardTests 8
+  Flashcards 382
+  GlobalSearch 15
+  Hardware 2
+  Keybinds 102
+  Mindmap 331
+  Notes 194
+  NotesEditor 168
+  Onboarding 55
+  Overview 31
+  Permissions 6
+  RecentDecks 8
+  RecentNotes 9
+  Settings 279
+  Sidebar 14
+  StudyGoals 11
+  Topbar 28
+  TransferWarnings 40
+  Trash 47
+  UsageSummary 22
+  WidgetActivity 6
+  WidgetConfig 4
+  WidgetDeck 10
+  WidgetForecast 4
+  WidgetGoals 14
+  WidgetLeeches 4
+  WidgetLibrary 28
+  WidgetRecent 5
+  WidgetRetention 4
+  WidgetSoma 6
+  WidgetStreak 5
+  WidgetToday 9
+
+culture de
+sha256 442b0a90462b3eacd48f0a67259805fc907facee4f32c5705faa4a0d90f374a0
+namespaces 38
+keys 2109
+  App 10
+  Chat 132
+  Common 86
+  EmojiPicker 14
+  FlashcardMemory 8
+  FlashcardStats 8
+  FlashcardTests 8
+  Flashcards 382
+  GlobalSearch 15
+  Hardware 2
+  Keybinds 102
+  Mindmap 331
+  Notes 194
+  NotesEditor 168
+  Onboarding 55
+  Overview 31
+  Permissions 6
+  RecentDecks 8
+  RecentNotes 9
+  Settings 279
+  Sidebar 14
+  StudyGoals 11
+  Topbar 28
+  TransferWarnings 40
+  Trash 47
+  UsageSummary 22
+  WidgetActivity 6
+  WidgetConfig 4
+  WidgetDeck 10
+  WidgetForecast 4
+  WidgetGoals 14
+  WidgetLeeches 4
+  WidgetLibrary 28
+  WidgetRecent 5
+  WidgetRetention 4
+  WidgetSoma 6
+  WidgetStreak 5
+  WidgetToday 9
+
+culture es
+sha256 68ea56c5d4870f0b069653e81160d4eaccae06cad8224aa199b79bfa77e09edc
+namespaces 38
+keys 2109
+  App 10
+  Chat 132
+  Common 86
+  EmojiPicker 14
+  FlashcardMemory 8
+  FlashcardStats 8
+  FlashcardTests 8
+  Flashcards 382
+  GlobalSearch 15
+  Hardware 2
+  Keybinds 102
+  Mindmap 331
+  Notes 194
+  NotesEditor 168
+  Onboarding 55
+  Overview 31
+  Permissions 6
+  RecentDecks 8
+  RecentNotes 9
+  Settings 279
+  Sidebar 14
+  StudyGoals 11
+  Topbar 28
+  TransferWarnings 40
+  Trash 47
+  UsageSummary 22
+  WidgetActivity 6
+  WidgetConfig 4
+  WidgetDeck 10
+  WidgetForecast 4
+  WidgetGoals 14
+  WidgetLeeches 4
+  WidgetLibrary 28
+  WidgetRecent 5
+  WidgetRetention 4
+  WidgetSoma 6
+  WidgetStreak 5
+  WidgetToday 9
+
+culture ja
+sha256 3fb0422fdb2a0c62076bd91b8010d392bf9bd749f19b07d59a18dedeed62c644
+namespaces 38
+keys 2109
+  App 10
+  Chat 132
+  Common 86
+  EmojiPicker 14
+  FlashcardMemory 8
+  FlashcardStats 8
+  FlashcardTests 8
+  Flashcards 382
+  GlobalSearch 15
+  Hardware 2
+  Keybinds 102
+  Mindmap 331
+  Notes 194
+  NotesEditor 168
+  Onboarding 55
+  Overview 31
+  Permissions 6
+  RecentDecks 8
+  RecentNotes 9
+  Settings 279
+  Sidebar 14
+  StudyGoals 11
+  Topbar 28
+  TransferWarnings 40
+  Trash 47
+  UsageSummary 22
+  WidgetActivity 6
+  WidgetConfig 4
+  WidgetDeck 10
+  WidgetForecast 4
+  WidgetGoals 14
+  WidgetLeeches 4
+  WidgetLibrary 28
+  WidgetRecent 5
+  WidgetRetention 4
+  WidgetSoma 6
+  WidgetStreak 5
+  WidgetToday 9
+
+culture nb
+sha256 3a86fc823e335758594461172a1b637fc314461d86fafde04b38eca121b479ad
+namespaces 38
+keys 2109
+  App 10
+  Chat 132
+  Common 86
+  EmojiPicker 14
+  FlashcardMemory 8
+  FlashcardStats 8
+  FlashcardTests 8
+  Flashcards 382
+  GlobalSearch 15
+  Hardware 2
+  Keybinds 102
+  Mindmap 331
+  Notes 194
+  NotesEditor 168
+  Onboarding 55
+  Overview 31
+  Permissions 6
+  RecentDecks 8
+  RecentNotes 9
+  Settings 279
+  Sidebar 14
+  StudyGoals 11
+  Topbar 28
+  TransferWarnings 40
+  Trash 47
+  UsageSummary 22
+  WidgetActivity 6
+  WidgetConfig 4
+  WidgetDeck 10
+  WidgetForecast 4
+  WidgetGoals 14
+  WidgetLeeches 4
+  WidgetLibrary 28
+  WidgetRecent 5
+  WidgetRetention 4
+  WidgetSoma 6
+  WidgetStreak 5
+  WidgetToday 9
