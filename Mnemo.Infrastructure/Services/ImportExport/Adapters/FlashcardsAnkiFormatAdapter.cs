@@ -78,6 +78,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     private readonly IFlashcardPresetService _presets;
     private readonly IFlashcardReviewHistoryService _history;
     private readonly IImageAssetService _imageAssetService;
+    private readonly string _importTempDirectory;
 
     public FlashcardsAnkiFormatAdapter(
         IFlashcardLibraryService library,
@@ -85,7 +86,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         IFlashcardFactService facts,
         IFlashcardPresetService presets,
         IFlashcardReviewHistoryService history,
-        IImageAssetService imageAssetService)
+        IImageAssetService imageAssetService,
+        string? importTempDirectory = null)
     {
         _library = library;
         _cards = cards;
@@ -93,6 +95,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         _presets = presets;
         _history = history;
         _imageAssetService = imageAssetService;
+        _importTempDirectory = importTempDirectory ?? Path.GetTempPath();
     }
 
     public string ContentType => "flashcards";
@@ -495,9 +498,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// <summary>Anki scheduling for a fresh "new" card, the only state a content-only export emits.</summary>
     private static AnkiDueData NewCardScheduling => new(Type: 0, Queue: 0, Due: 0, Interval: 0, Factor: 2500, Reps: 0, Lapses: 0);
 
-    private static async Task<OpenedApkg> OpenApkgAsync(string apkgPath, CancellationToken cancellationToken)
+    private async Task<OpenedApkg> OpenApkgAsync(string apkgPath, CancellationToken cancellationToken)
     {
-        var tempDirectory = Path.Combine(Path.GetTempPath(), $"mnemo-anki-import-{Guid.NewGuid():N}");
+        var tempDirectory = Path.Combine(_importTempDirectory, $"mnemo-anki-import-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDirectory);
         try
         {
