@@ -15,6 +15,7 @@ using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using Mnemo.Core.Models.Markdown;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Services;
 using Mnemo.UI.Controls;
 using Mnemo.UI.Services.LaTeX.Layout.Boxes;
 
