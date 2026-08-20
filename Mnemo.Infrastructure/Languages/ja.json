@@ -1114,7 +1114,10 @@
     "HintOpen": "開く",
     "ScopeActions": "アクション",
     "ScopeTags": "タグ",
-    "AskSoma": "Soma に質問:"
+    "AskSoma": "Soma に質問:",
+    "ActionToggleTheme": "テーマ切り替え",
+    "ActionToggleThemeContext": "ライトとダーク",
+    "ActionToggleSidebar": "サイドバーの表示/非表示"
   },
   "Topbar": {
     "NotificationsTitle": "通知",

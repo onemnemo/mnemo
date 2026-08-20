@@ -1114,7 +1114,10 @@
     "HintOpen": "Åpne",
     "ScopeActions": "Handlinger",
     "ScopeTags": "Etikett",
-    "AskSoma": "Spør Soma om"
+    "AskSoma": "Spør Soma om",
+    "ActionToggleTheme": "Bytt tema",
+    "ActionToggleThemeContext": "Lyst og mørkt",
+    "ActionToggleSidebar": "Vis/skjul sidepanel"
   },
   "Topbar": {
     "NotificationsTitle": "Varsler",
