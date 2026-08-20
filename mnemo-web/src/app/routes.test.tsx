@@ -17,7 +17,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { DEFAULT_ROUTE, ROUTE_KEYS, resolveRoute } from "./routes"
+import { DEFAULT_ROUTE, ROUTE_KEYS, resolveRoute, warmRoute } from "./routes"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -148,6 +148,36 @@ describe("resolveRoute", () => {
     // Dropped rather than carried across: they were addressed to a different page.
     expect(resolved.params).toEqual([])
   })
+
+  // `PAGES` is a plain object, so a segment naming an inherited Object.prototype
+  // property (`constructor`, `__proto__`, `toString`, ...) reads as present through
+  // a bare `PAGES[key]` lookup even though nobody ever registered that route. The
+  // guard has to ask whether the key is the table's own, not merely truthy.
+  it.each(["#/constructor", "#/__proto__", "#/toString"])(
+    "falls back to the landing route for the inherited property %s",
+    (hash) => {
+      const resolved = resolveRoute(hash)
+      expect(resolved.key).toBe(DEFAULT_ROUTE)
+      expect(resolved.params).toEqual([])
+    },
+  )
+})
+
+describe("warmRoute", () => {
+  // The same inherited-property keys, through the idle prefetch. `warmRoute` asks
+  // `Object.hasOwn(CHUNKS, key)` itself rather than only trusting that whatever
+  // `matchRoute` returned is already safe to index with, so the prefetch stays
+  // correct on its own terms. An inherited key that reached an unguarded
+  // `CHUNKS[key]` would resolve to a builtin such as `Object` or
+  // `Object.prototype.toString`, which is callable but returns something with no
+  // `.catch`, so the following optional chain would throw a TypeError
+  // synchronously, inside the idle callback, the moment such a key got that far.
+  it.each(["#/constructor", "#/__proto__", "#/toString"])(
+    "prefetches nothing for the inherited property %s",
+    (hash) => {
+      expect(() => warmRoute(hash)).not.toThrow()
+    },
+  )
 })
 
 describe("loading", () => {
