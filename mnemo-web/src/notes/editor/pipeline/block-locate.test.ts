@@ -134,3 +134,65 @@ describe('deepestBlockAt inside a table', () => {
     expect(deepestBlockAt(doc, registry, posOf(doc, 's1') + 2)?.node.type.name).toBe('paragraph');
   });
 });
+
+/**
+ * The O(position) computation `deepestBlockAt` used for `topPos`/`topIndex`
+ * before it started reusing `$pos.before(1)`. Kept independent of the function
+ * under test, so the sweep below proves the fast path against the slow one
+ * rather than against itself.
+ */
+function oldTopPosAndIndex(doc: PMNode, pos: number): { topPos: number; topIndex: number } {
+  const clamped = Math.max(0, Math.min(pos, doc.content.size));
+  const $pos = doc.resolve(clamped);
+  const topIndex = Math.min($pos.index(0), doc.childCount - 1);
+  let topPos = 0;
+  for (let i = 0; i < topIndex; i++) topPos += doc.child(i).nodeSize;
+  return { topPos, topIndex };
+}
+
+/** 200+ top-level blocks, alternating type, with text length varying block to block. */
+function manyVariedBlocksDoc(): PMNode {
+  const kids: PMNode[] = [];
+  for (let i = 0; i < 220; i++) {
+    const sid = `v${String(i)}`;
+    const body = 'x'.repeat((i * 37) % 61);
+    kids.push(i % 5 === 0 ? schema.nodes.quote.create({ sid, id: sid }, line(body)) : para(body, sid));
+  }
+  return schema.nodes.doc.create(null, kids);
+}
+
+/**
+ * `topPos`/`topIndex` now come from `$pos.before(1)`, the position `$pos`
+ * already resolved, instead of a fresh sum of every earlier sibling's
+ * `nodeSize`. Past the last child that position has nothing to name at depth
+ * 0 and answers with the clamped position rather than the last block's start,
+ * which is why the clamped branch keeps the walk. This sweeps every position
+ * so that boundary stays proven, not just asserted.
+ */
+describe('deepestBlockAt: topPos/topIndex against the old computation', () => {
+  function sweep(doc: PMNode): { swept: number; mismatches: unknown[] } {
+    const max = doc.content.size + 3;
+    const mismatches: Array<{ pos: number; expected: { topPos: number; topIndex: number }; actual: unknown }> = [];
+    for (let pos = 0; pos <= max; pos++) {
+      const expected = oldTopPosAndIndex(doc, pos);
+      const located = deepestBlockAt(doc, registry, pos);
+      const actual = located && { topPos: located.topPos, topIndex: located.topIndex };
+      if (!actual || actual.topPos !== expected.topPos || actual.topIndex !== expected.topIndex) {
+        mismatches.push({ pos, expected, actual });
+      }
+    }
+    return { swept: max + 1, mismatches };
+  }
+
+  it('matches on every position from 0 to content.size + 3, small mixed doc', () => {
+    const { swept, mismatches } = sweep(mixedDoc());
+    expect(mismatches, `${String(mismatches.length)} of ${String(swept)} swept positions mismatched`).toEqual([]);
+  });
+
+  it('matches on every position from 0 to content.size + 3, 200+ blocks of varied size', () => {
+    const doc = manyVariedBlocksDoc();
+    expect(doc.childCount).toBeGreaterThanOrEqual(200);
+    const { swept, mismatches } = sweep(doc);
+    expect(mismatches, `${String(mismatches.length)} of ${String(swept)} swept positions mismatched`).toEqual([]);
+  });
+});
