@@ -31,4 +31,12 @@ public interface IMnemoPackageService
     Task<Result<ImportExportPreview>> PreviewAsync(
         string packageFilePath,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Works out what importing the package would mean, comparing it against what this collection
+    /// already holds. Writes nothing. Payloads whose handler cannot compare are left out.
+    /// </summary>
+    Task<Result<MnemoPackageEvidence>> InspectAsync(
+        string packageFilePath,
+        CancellationToken cancellationToken = default);
 }

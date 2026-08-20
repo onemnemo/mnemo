@@ -34,6 +34,22 @@ public sealed class MnemoPackageManifest
     public string? PackageKind { get; set; }
 
     /// <summary>
+    /// What the package is for: <c>backup</c> or <c>export</c>. See <see cref="MnemoPackageKinds"/>.
+    /// A package written before this field existed has none, and reads as an export.
+    /// </summary>
+    public string? Kind { get; set; }
+
+    /// <summary>
+    /// The collection that wrote the package. Lets a reader say whether the file came from here or
+    /// from somewhere else, which is the first thing anybody restoring one needs to know.
+    /// </summary>
+    /// <remarks>
+    /// A settings value rather than a database column, so no store gains a schema version for it.
+    /// Null on a package written before it existed, and on one whose writer had no id yet.
+    /// </remarks>
+    public string? CollectionId { get; set; }
+
+    /// <summary>
     /// Payload entries included in the package.
     /// </summary>
     public List<MnemoPackageEntry> Entries { get; set; } = new();

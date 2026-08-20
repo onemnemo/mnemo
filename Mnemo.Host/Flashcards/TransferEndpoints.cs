@@ -134,7 +134,8 @@ public static class TransferEndpoints
                 }
 
                 return Results.Ok(Described(uploadId, path, file.Length, format,
-                    preview.Value.CanImport, cardCount, preview.Value.Warnings.Select(TransferWarningDto.FromModel).ToList()));
+                    preview.Value.CanImport, cardCount, preview.Value.Warnings.Select(TransferWarningDto.FromModel).ToList(),
+                    preview.Value.Evidence is { } evidence ? PackageEvidenceDto.FromModel(evidence) : null));
             }
             catch (Exception)
             {
@@ -323,16 +324,17 @@ public static class TransferEndpoints
             var path = TransferStagingStore.CreateExportPath(extension);
             try
             {
-                var result = await transfer.ExportAsync(
-                        new ImportExportRequest
-                        {
-                            ContentType = FlashcardsContentType,
-                            FormatId = format.FormatId,
-                            FilePath = path,
-                            Payload = deckIds,
-                        },
-                        cancellationToken)
-                    .ConfigureAwait(false);
+                var request = new ImportExportRequest
+                {
+                    ContentType = FlashcardsContentType,
+                    FormatId = format.FormatId,
+                    FilePath = path,
+                    Payload = deckIds,
+                };
+                if (!string.IsNullOrWhiteSpace(body.Kind))
+                    request.Options[ImportExportOptionKeys.PackageKind] = body.Kind;
+
+                var result = await transfer.ExportAsync(request, cancellationToken).ConfigureAwait(false);
 
                 if (!result.IsSuccess || result.Value is null || !result.Value.Success)
                 {
@@ -367,8 +369,9 @@ public static class TransferEndpoints
         ImportExportCapability format,
         bool canImport,
         int? cardCount,
-        IReadOnlyList<TransferWarningDto> warnings) =>
-        new(uploadId, Path.GetFileName(path), sizeBytes, format.FormatId, format.DisplayName, canImport, cardCount, warnings);
+        IReadOnlyList<TransferWarningDto> warnings,
+        PackageEvidenceDto? evidence = null) =>
+        new(uploadId, Path.GetFileName(path), sizeBytes, format.FormatId, format.DisplayName, canImport, cardCount, warnings, evidence);
 
     /// <summary>The import format an extension belongs to, or null when nothing claims it.</summary>
     private static ImportExportCapability? ResolveImportFormat(IImportExportCoordinator transfer, string? extension)

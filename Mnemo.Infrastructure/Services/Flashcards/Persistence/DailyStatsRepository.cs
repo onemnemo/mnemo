@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -21,6 +22,22 @@ public interface IDailyStatsRepository
     /// and inflating tomorrow's budget.
     /// </summary>
     Task IncrementAsync(SqliteConnection conn, SqliteTransaction tx, string deckId, string localDay, int newDelta, int reviewsDelta, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Every day a deck has a row for, oldest first. Deliberately all rows: this table has no trash
+    /// column, and a backup carries the whole counter history rather than a window of it.
+    /// </summary>
+    Task<IReadOnlyList<FlashcardDailyStat>> ListAllForDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Writes a day's counters as absolute values, for a backup being restored. Unlike
+    /// <see cref="IncrementAsync"/> this replaces what is there rather than adding to it, because a
+    /// restore is putting a recorded day back, not recording another review in it.
+    /// </summary>
+    Task RestoreAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardDailyStat stat, CancellationToken cancellationToken);
+
+    /// <summary>Clears a deck's counters, for a replace that is putting a recorded history back.</summary>
+    Task DeleteForDeckAsync(SqliteConnection conn, SqliteTransaction tx, string deckId, CancellationToken cancellationToken);
 }
 
 /// <inheritdoc />
@@ -53,6 +70,45 @@ public sealed class DailyStatsRepository : IDailyStatsRepository
         cmd.Parameters.AddWithValue("$day", localDay);
         cmd.Parameters.AddWithValue("$new", newDelta);
         cmd.Parameters.AddWithValue("$reviews", reviewsDelta);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<FlashcardDailyStat>> ListAllForDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT Date, NewIntroduced, ReviewsDone FROM FlashcardDailyStats WHERE DeckId = $deck ORDER BY Date;";
+        cmd.Parameters.AddWithValue("$deck", deckId);
+        var stats = new List<FlashcardDailyStat>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            stats.Add(new FlashcardDailyStat(deckId, reader.GetString(0), reader.GetInt32(1), reader.GetInt32(2)));
+        return stats;
+    }
+
+    public async Task RestoreAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardDailyStat stat, CancellationToken cancellationToken)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = """
+            INSERT INTO FlashcardDailyStats (DeckId, Date, NewIntroduced, ReviewsDone)
+            VALUES ($deck, $day, $new, $reviews)
+            ON CONFLICT(DeckId, Date) DO UPDATE SET
+                NewIntroduced = $new,
+                ReviewsDone   = $reviews;
+            """;
+        cmd.Parameters.AddWithValue("$deck", stat.DeckId);
+        cmd.Parameters.AddWithValue("$day", stat.Date);
+        cmd.Parameters.AddWithValue("$new", Math.Max(0, stat.NewIntroduced));
+        cmd.Parameters.AddWithValue("$reviews", Math.Max(0, stat.ReviewsDone));
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task DeleteForDeckAsync(SqliteConnection conn, SqliteTransaction tx, string deckId, CancellationToken cancellationToken)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = "DELETE FROM FlashcardDailyStats WHERE DeckId = $deck;";
+        cmd.Parameters.AddWithValue("$deck", deckId);
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }
