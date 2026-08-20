@@ -225,6 +225,7 @@ public static class HostComposition
         services.AddSingleton<ITestAttemptRepository, TestAttemptRepository>();
         services.AddSingleton<IDailyStatsRepository, DailyStatsRepository>();
         services.AddSingleton<IFlashcardStoreMigrator, FlashcardStoreMigrator>();
+        services.AddSingleton<IFlashcardFactlessCardRepair, FlashcardFactlessCardRepair>();
 
         // Scheduling reads the time through this rather than the static properties, so day
         // boundaries stay one decision the tests can drive.
@@ -428,6 +429,18 @@ public static class HostComposition
             // Same policy as the Avalonia app: a failed migration must not brick
             // startup; the store still self-initializes a valid (empty) schema.
             logger.Error("Mnemo.Host", "Flashcard store migration failed during startup.", ex);
+        }
+
+        try
+        {
+            // After the import, because on the launch that imports it is the import that leaves the
+            // evidence this reads. It is a single stored-key check on every later start.
+            await services.GetRequiredService<IFlashcardFactlessCardRepair>()
+                .RepairAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.Error("Mnemo.Host", "Repair of flashcards without material failed during startup.", ex);
         }
 
         // Resolved for its constructor: it subscribes to the mindmap service there, and a bridge nobody
