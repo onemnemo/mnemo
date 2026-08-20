@@ -88,25 +88,12 @@
   </Target>
 
   <!--
-    SkiaSharp and HarfBuzz ship native symbol files worth about 100 MB, which nobody can act on
-    from an installed build.
-  -->
-  <Target Name="TrimPublishSymbols" AfterTargets="ComputeFilesToPublish">
-    <ItemGroup>
-      <ResolvedFileToPublish
-        Remove="@(ResolvedFileToPublish)"
-        Condition="'%(Filename)%(Extension)' == 'libSkiaSharp.pdb'
-                Or '%(Filename)%(Extension)' == 'libHarfBuzzSharp.pdb'" />
-    </ItemGroup>
-  </Target>
-
-  <!--
-    The Hunspell dictionaries back ISpellcheckService, which only the Avalonia rich text editor
-    ever resolves; nothing in the packaged Photino app calls it, so shipping them bought nothing
-    and carried a real cost, en, es and nb are of unverified license, and de is GPL-licensed with
-    no GPL text bundled to satisfy it. The packaged app relies on the WebView2 profile's own
-    spell checking instead. The files and the service registration stay in the tree for the
-    in-house implementation planned to replace both.
+    The Hunspell dictionaries back ISpellcheckService, which nothing resolves any more. They
+    arrive in the publish output through Mnemo.Infrastructure regardless, so shipping them
+    buys nothing and carries a real cost, en, es and nb are of unverified license, and de is
+    GPL-licensed with no GPL text bundled to satisfy it. The packaged app relies on the
+    WebView2 profile's own spell checking instead. The files and the service registration stay
+    in the tree for the in-house implementation planned to replace both.
   -->
   <Target Name="TrimPublishDictionaries" AfterTargets="ComputeFilesToPublish">
     <ItemGroup>

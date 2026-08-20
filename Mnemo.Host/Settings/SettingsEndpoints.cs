@@ -9,13 +9,13 @@ using Mnemo.Host.Contracts;
 namespace Mnemo.Host.Settings;
 
 /// <summary>
-/// The app-preferences surface the SPA reads at startup and writes on change.
-/// Backed by the same services and setting keys the desktop app uses, so the two
-/// UIs stay in sync against one database during the parallel phase.
+/// The app-preferences surface the SPA reads at startup and writes on change,
+/// backed by the settings service and the same stored keys the rest of the app
+/// reads, so a preference set here is the one every other reader sees.
 /// </summary>
 public static class SettingsEndpoints
 {
-    // Mirrors Mnemo.UI's Bootstrapper.LoadSavedLanguageAsync / LanguageSettingViewModel.
+    // The stored key holding the chosen UI language.
     private const string LanguageSettingKey = "App.Language";
     private const string DefaultLanguage = "en";
 
