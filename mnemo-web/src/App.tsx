@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 
 import { installExitConfirm } from "@/app/exit-confirm"
+import { checkLegacyInstallWarning } from "@/app/legacy-install-warning"
 import { useRouteNormalization } from "@/app/router"
 import { AppShell } from "@/components/shell/AppShell"
 import { DialogHost } from "@/components/shell/DialogHost"
@@ -36,6 +37,10 @@ function App() {
   // or not anyone opens settings, and the download it may start has to keep reporting
   // once they navigate away from it.
   useEffect(() => startUpdateWatch(), [])
+
+  // Runs on every boot; the host answers true at most once ever, so this never repeats
+  // the warning once it has been shown.
+  useEffect(() => checkLegacyInstallWarning(), [])
 
   // global.assistant toggles the dock rather than navigating: the point of Soma is
   // that it comes to the work, and a shortcut that throws away the page you were

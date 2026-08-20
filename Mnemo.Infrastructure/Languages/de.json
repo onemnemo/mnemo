@@ -502,7 +502,9 @@
     "CrashShowDetails": "Details anzeigen",
     "CrashHideDetails": "Details ausblenden",
     "UnhandledFaultTitle": "Es ist ein Fehler aufgetreten",
-    "MutationErrorTitle": "Diese Änderung konnte nicht gespeichert werden"
+    "MutationErrorTitle": "Diese Änderung konnte nicht gespeichert werden",
+    "LegacyInstallWarningTitle": "Ein älteres Mnemo ist noch installiert",
+    "LegacyInstallWarningBody": "Auf diesem Computer ist noch die frühere eigenständige Version von Mnemo installiert. Wenn beide auf dieselben Daten zugreifen, können deine Notizen, Karteikarten und Mindmaps beschädigt werden. Deinstalliere das ältere Mnemo, um dieses hier weiterhin sicher zu nutzen."
   },
   "Chat": {
     "AssistantNoResponse": "Keine Antwort.",
