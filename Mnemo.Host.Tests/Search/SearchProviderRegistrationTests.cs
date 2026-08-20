@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Services.Search;
 using Mnemo.Host.Composition;
+using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Search;
-using Mnemo.UI.Services;
 
 namespace Mnemo.Host.Tests.Search;
 
