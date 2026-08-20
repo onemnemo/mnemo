@@ -262,7 +262,7 @@ public sealed class MindmapsMnemoPayloadHandlerTests
         // rest, which leaves the user with maps that look restored and are not.
         Assert.Equal(0, result.ImportedCount);
         Assert.Empty((await target.Service.ListAsync()).Value!);
-        Assert.Contains(result.Warnings, w => w.Contains("newer version", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Warnings, w => w.Key == "MindmapPackageTooNew");
     }
 
     [Fact]

@@ -17,7 +17,7 @@ public sealed record MindmapTransferUploadDto(
     string FormatName,
     bool CanImport,
     int? MapCount,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<TransferWarningDto> Warnings);
 
 /// <summary>
 /// Import body. Several uploads run as one batch so the client reports a single outcome for what the
@@ -42,7 +42,7 @@ public sealed record MindmapTransferImportResultDto(
     int SucceededFiles,
     int FailedFiles,
     int ImportedMaps,
-    IReadOnlyList<string> Warnings,
+    IReadOnlyList<TransferWarningDto> Warnings,
     IReadOnlyList<string> Errors);
 
 /// <summary>

@@ -114,7 +114,7 @@ public static class MindmapTransferEndpoints
                 if (!preview.IsSuccess || preview.Value is null)
                 {
                     return Results.Ok(Described(uploadId, path, file.Length, format, canImport: false, mapCount: null,
-                        warnings: [preview.ErrorMessage ?? "The file could not be read."]));
+                        warnings: [TransferWarningDto.UploadPreviewFailed(preview.ErrorMessage)]));
                 }
 
                 int? mapCount = preview.Value.DiscoveredCounts.TryGetValue(MindmapsContentType, out var counted)
@@ -122,7 +122,7 @@ public static class MindmapTransferEndpoints
                     : null;
 
                 return Results.Ok(Described(uploadId, path, file.Length, format,
-                    preview.Value.CanImport, mapCount, preview.Value.Warnings));
+                    preview.Value.CanImport, mapCount, preview.Value.Warnings.Select(TransferWarningDto.FromModel).ToList()));
             }
             catch (Exception)
             {
@@ -172,7 +172,7 @@ public static class MindmapTransferEndpoints
 
             var succeeded = 0;
             var importedMaps = 0;
-            var warnings = new List<string>();
+            var warnings = new List<TransferWarningDto>();
             var errors = new List<string>();
 
             // Every id is accounted for even if the loop leaves early: a staged file whose import
@@ -227,8 +227,10 @@ public static class MindmapTransferEndpoints
                             importedMaps += maps;
 
                         // Attributed, because a batch that all warn about the same missing image
-                        // would otherwise collapse to one line naming no file.
-                        warnings.AddRange(value.Warnings.Select(warning => $"\"{name}\": {warning}"));
+                        // would otherwise be indistinguishable from one another. The file name
+                        // travels as a parameter rather than being spliced into the text, so it
+                        // still resolves to a real sentence once translated.
+                        warnings.AddRange(value.Warnings.Select(warning => TransferWarningDto.FromModel(warning).WithFileName(name)));
                     }
                     catch (Exception ex)
                     {
@@ -336,7 +338,7 @@ public static class MindmapTransferEndpoints
         ImportExportCapability format,
         bool canImport,
         int? mapCount,
-        IReadOnlyList<string> warnings) =>
+        IReadOnlyList<TransferWarningDto> warnings) =>
         new(uploadId, Path.GetFileName(path), sizeBytes, format.FormatId, format.DisplayName, canImport, mapCount, warnings);
 
     /// <summary>The import format an extension belongs to, or null when nothing claims it.</summary>

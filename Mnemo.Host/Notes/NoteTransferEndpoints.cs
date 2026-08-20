@@ -116,7 +116,7 @@ public static class NoteTransferEndpoints
                     if (!preview.IsSuccess || preview.Value is null)
                     {
                         return Results.Ok(Described(uploadId, path, file.Length, format, canImport: false, noteCount: null,
-                            warnings: [preview.ErrorMessage ?? "The file could not be read."]));
+                            warnings: [TransferWarningDto.UploadPreviewFailed(preview.ErrorMessage)]));
                     }
 
                     // Both note previews report a count that means what it says (a package reads its
@@ -126,7 +126,7 @@ public static class NoteTransferEndpoints
                         : null;
 
                     return Results.Ok(Described(uploadId, path, file.Length, format,
-                        preview.Value.CanImport, noteCount, preview.Value.Warnings));
+                        preview.Value.CanImport, noteCount, preview.Value.Warnings.Select(TransferWarningDto.FromModel).ToList()));
                 }
                 catch (Exception)
                 {
@@ -180,7 +180,7 @@ public static class NoteTransferEndpoints
 
                 var succeeded = 0;
                 var importedNotes = 0;
-                var warnings = new List<string>();
+                var warnings = new List<TransferWarningDto>();
                 var errors = new List<string>();
 
                 // Every id is accounted for even if the loop leaves early: a staged file whose
@@ -240,8 +240,10 @@ public static class NoteTransferEndpoints
                                 importedNotes += notes;
 
                             // Attributed, because a batch that all warn about the same missing image
-                            // would otherwise collapse to one line naming no file.
-                            warnings.AddRange(value.Warnings.Select(warning => $"\"{name}\": {warning}"));
+                            // would otherwise be indistinguishable from one another. The file name
+                            // travels as a parameter rather than being spliced into the text, so it
+                            // still resolves to a real sentence once translated.
+                            warnings.AddRange(value.Warnings.Select(warning => TransferWarningDto.FromModel(warning).WithFileName(name)));
                         }
                         catch (Exception ex)
                         {
@@ -368,7 +370,7 @@ public static class NoteTransferEndpoints
         ImportExportCapability format,
         bool canImport,
         int? noteCount,
-        IReadOnlyList<string> warnings) =>
+        IReadOnlyList<TransferWarningDto> warnings) =>
         new(uploadId, Path.GetFileName(path), sizeBytes, format.FormatId, format.DisplayName, canImport, noteCount, warnings);
 
     /// <summary>The import format an extension belongs to, or null when nothing claims it.</summary>
