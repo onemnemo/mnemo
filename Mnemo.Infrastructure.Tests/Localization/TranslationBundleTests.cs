@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Mnemo.Infrastructure.Services;
-using Mnemo.UI.Modules.Overview.Widgets.FlashcardStats;
 
 namespace Mnemo.Infrastructure.Tests.Localization;
 
@@ -198,31 +197,25 @@ public class TranslationBundleTests
 
     private static List<Bundle> Discover()
     {
-        var assemblies = new[]
-        {
-            typeof(EmbeddedBuiltInTranslationSource).Assembly,
-            typeof(FlashcardStatsWidgetDescriptor).Assembly,
-        };
+        // Both the built-in bundle and every module and widget bundle are embedded here.
+        var assembly = typeof(EmbeddedBuiltInTranslationSource).Assembly;
 
         var bundles = new List<Bundle>();
-        foreach (var assembly in assemblies)
+        foreach (var resource in assembly.GetManifestResourceNames())
         {
-            foreach (var resource in assembly.GetManifestResourceNames())
-            {
-                if (!resource.EndsWith(".json", StringComparison.Ordinal))
-                    continue;
-                if (!resource.Contains(".Languages.", StringComparison.Ordinal)
-                    && !resource.Contains(".Translations.", StringComparison.Ordinal))
-                    continue;
+            if (!resource.EndsWith(".json", StringComparison.Ordinal))
+                continue;
+            if (!resource.Contains(".Languages.", StringComparison.Ordinal)
+                && !resource.Contains(".Translations.", StringComparison.Ordinal))
+                continue;
 
-                // Both loaders build the name as family + "." + culture + ".json".
-                var stem = resource[..^".json".Length];
-                var split = stem.LastIndexOf('.');
-                if (split <= 0)
-                    continue;
+            // Both loaders build the name as family + "." + culture + ".json".
+            var stem = resource[..^".json".Length];
+            var split = stem.LastIndexOf('.');
+            if (split <= 0)
+                continue;
 
-                bundles.Add(new Bundle(stem[..split], stem[(split + 1)..], resource, assembly));
-            }
+            bundles.Add(new Bundle(stem[..split], stem[(split + 1)..], resource, assembly));
         }
 
         Assert.NotEmpty(bundles);

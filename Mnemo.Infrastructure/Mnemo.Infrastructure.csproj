@@ -35,6 +35,7 @@
     <EmbeddedResource Include="Modules\Flashcards\Translations\*.json" />
     <EmbeddedResource Include="Modules\Mindmap\Translations\*.json" />
     <EmbeddedResource Include="Modules\Notes\Translations\*.json" />
+    <EmbeddedResource Include="Modules\Overview\Widgets\**\Translations\*.json" />
     <EmbeddedResource Include="Seed\WelcomeNote.json" />
     <EmbeddedResource Include="Seed\welcome-mitochondrion.png" />
     <Content Include="Dictionaries\Spellcheck\**\*">

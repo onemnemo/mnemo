@@ -1,6 +1,7 @@
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Widgets;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Modules.Overview;
 using Mnemo.UI.Modules.Overview.Widgets.RecentNotes;
 
 namespace Mnemo.Infrastructure.Tests.Widgets;
@@ -12,7 +13,7 @@ namespace Mnemo.Infrastructure.Tests.Widgets;
 /// </summary>
 public class WidgetConfigRefreshTests
 {
-    private static readonly WidgetManifest Manifest = new RecentNotesWidgetDescriptor().Manifest;
+    private static readonly WidgetManifest Manifest = OverviewWidgetManifests.RecentNotes;
 
     private static Note MakeNote(string id, DateTime createdUtc, DateTime modifiedUtc) => new()
     {
