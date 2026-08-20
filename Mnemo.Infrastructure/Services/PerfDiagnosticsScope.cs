@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using Mnemo.Core.Services;
 
-namespace Mnemo.UI.Services;
+namespace Mnemo.Infrastructure.Services;
 
 public readonly struct PerfDiagnosticsScope : IDisposable
 {
