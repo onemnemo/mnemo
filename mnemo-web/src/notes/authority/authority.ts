@@ -69,18 +69,22 @@ export type SaveState =
   | 'invalid_document';
 
 /**
- * A consistent read of everything the authority owns.
+ * Everything a snapshot carries except the document.
  *
- * Reading the document and the version has to be one operation. It is not
- * enough for each getter to be correct on its own: a caller that reads the doc,
- * awaits anything, then reads the version has read two different moments and
- * will commit one document under another's version. There is no separate `doc`
- * or `ver` accessor for exactly that reason, the torn read is not expressible.
+ * This is what a scheduler reads. Autosave decides whether to arm a timer from
+ * `dirty` and `rev` alone and never looks at the document, so handing it one
+ * costs whatever producing the document costs. That is not hypothetical: a
+ * chunked mount keeps a large note's remaining blocks out of the view and
+ * finishes the load synchronously the moment anything reads the document, so a
+ * status question asked as a snapshot drains the entire note before the first
+ * background frame can run, and the chunking buys nothing at all.
+ *
+ * There is deliberately no `doc` here and no separate `doc` accessor anywhere,
+ * see {@link NoteSnapshot}.
  */
-export interface NoteSnapshot {
+export interface NoteStatus {
   readonly noteId: string;
   readonly sid: string;
-  readonly doc: PMNode;
   /** The persisted version this document is based on. */
   readonly ver: number;
   /** The local revision of this document. */
@@ -88,6 +92,22 @@ export interface NoteSnapshot {
   readonly saveState: SaveState;
   /** Whether this document differs from what was last persisted. */
   readonly dirty: boolean;
+}
+
+/**
+ * A consistent read of everything the authority owns.
+ *
+ * Reading the document and the version has to be one operation. It is not
+ * enough for each getter to be correct on its own: a caller that reads the doc,
+ * awaits anything, then reads the version has read two different moments and
+ * will commit one document under another's version. There is no separate `doc`
+ * accessor for exactly that reason, the torn read is not expressible: the only
+ * way to obtain the document is to obtain the version that goes with it, in the
+ * same read. {@link NoteStatus} is the other half and is safe precisely because
+ * it carries no document to tear away from.
+ */
+export interface NoteSnapshot extends NoteStatus {
+  readonly doc: PMNode;
 }
 
 /** What one dispatch did. */
@@ -136,6 +156,12 @@ export type Persist = (snapshot: NoteSnapshot) => Promise<CommitOutcome>;
 export interface NoteAuthority {
   readonly noteId: string;
   snapshot(): NoteSnapshot;
+  /**
+   * The snapshot's bookkeeping without its document, for callers that only ask
+   * about state. Cheap where `snapshot` is not, and it is the read to reach for
+   * unless the document is genuinely wanted.
+   */
+  status(): NoteStatus;
   /** Applies one transaction, serialized against everything else. */
   dispatch(tr: Transaction): Promise<DispatchResult>;
   /**
@@ -191,6 +217,10 @@ export function createNoteAuthority(options: AuthorityOptions): NoteAuthority {
   let saveState: SaveState = 'loaded';
   let destroyed = false;
 
+  function status(): NoteStatus {
+    return { noteId, sid, ver, rev, saveState, dirty: rev > savedRev };
+  }
+
   function snapshot(): NoteSnapshot {
     return { noteId, sid, doc: handle.state.doc, ver, rev, saveState, dirty: rev > savedRev };
   }
@@ -240,6 +270,7 @@ export function createNoteAuthority(options: AuthorityOptions): NoteAuthority {
   return {
     noteId,
     snapshot,
+    status,
 
     // These are `async` so that a call on a destroyed authority rejects rather
     // than throwing synchronously. A promise-returning function with two
