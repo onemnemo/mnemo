@@ -4,12 +4,13 @@ import { act, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { installControllableResizeObserver, type ResizeObserverController } from "@/test/setup"
+
 import { useMeasuredWidth } from "./useMeasuredWidth"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-/** The observers currently attached, so a test can report a width the way the browser would. */
-let observers: ((width: number) => void)[]
+let resizeObserver: ResizeObserverController
 let container: HTMLElement
 let root: Root
 let reported: number[]
@@ -25,12 +26,11 @@ function Probe({ ready }: { ready: boolean }): ReactNode {
 
 function resizeTo(width: number): void {
   act(() => {
-    for (const notify of observers) notify(width)
+    resizeObserver.trigger(width)
   })
 }
 
 beforeEach(() => {
-  observers = []
   reported = []
   attachedWidth = 0
   container = document.createElement("div")
@@ -42,24 +42,7 @@ beforeEach(() => {
     get: () => attachedWidth,
   })
 
-  vi.stubGlobal(
-    "ResizeObserver",
-    class {
-      callback: ResizeObserverCallback
-      constructor(callback: ResizeObserverCallback) {
-        this.callback = callback
-      }
-      observe() {
-        observers.push((width) => {
-          this.callback([{ contentRect: { width } } as ResizeObserverEntry], this as never)
-        })
-      }
-      unobserve() {}
-      disconnect() {
-        observers = []
-      }
-    },
-  )
+  resizeObserver = installControllableResizeObserver()
 })
 
 afterEach(() => {
@@ -109,6 +92,6 @@ describe("useMeasuredWidth", () => {
     act(() => root.render(<Probe ready={true} />))
     act(() => root.render(<Probe ready={false} />))
 
-    expect(observers).toHaveLength(0)
+    expect(resizeObserver.observedCount).toBe(0)
   })
 })

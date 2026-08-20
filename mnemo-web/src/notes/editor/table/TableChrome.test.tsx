@@ -37,13 +37,6 @@ import { cellAtPos, cellCaretPos } from './model';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-class StubResizeObserver {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-globalThis.ResizeObserver ??= StubResizeObserver as unknown as typeof ResizeObserver;
-
 /** The stubbed cell size, so the measured grid is not all zeros. */
 const CELL_W = 160;
 const CELL_H = 40;

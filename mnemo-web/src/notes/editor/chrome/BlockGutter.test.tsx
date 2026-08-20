@@ -28,14 +28,6 @@ import { calloutIconRequest, closeCalloutIcon } from './callout-icon-request';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-// Radix positions its layers with Popper, which measures the content it floats.
-class StubResizeObserver {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-globalThis.ResizeObserver ??= StubResizeObserver as unknown as typeof ResizeObserver;
-
 /**
  * The document column pads itself by this much, and the chrome is drawn in that
  * padding. Restated here rather than imported: the point of the test is that the

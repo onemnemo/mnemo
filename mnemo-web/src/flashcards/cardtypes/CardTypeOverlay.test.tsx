@@ -56,14 +56,6 @@ vi.mock("@/stores/toast", () => ({
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-// Radix measures its popper content (the condition select) with a ResizeObserver.
-class StubResizeObserver {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-globalThis.ResizeObserver ??= StubResizeObserver as unknown as typeof ResizeObserver
-
 let container: HTMLElement
 let root: Root
 

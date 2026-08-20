@@ -5,15 +5,6 @@ import { describe, expect, it } from "vitest"
 import { backgroundStep, createCanvasRuntime, type CanvasElements, type CanvasRuntimeOptions } from "./runtime"
 import { MAX_SCALE, MIN_SCALE, type Scene, type SceneElement } from "../model/scene"
 
-// jsdom implements neither of these. The runtime only reaches for them to know when to re-measure
-// the pane and to repaint on a theme flip, and no test below drives either, so a no-op stands in.
-class NoopResizeObserver {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-;(globalThis as { ResizeObserver?: unknown }).ResizeObserver = NoopResizeObserver
-
 function element(id: string, over: Partial<SceneElement> = {}): SceneElement {
   return {
     id,
