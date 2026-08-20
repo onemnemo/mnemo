@@ -8,8 +8,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <!-- One icon for both shells while they coexist, rather than a second copy to keep in sync. -->
-    <ApplicationIcon>..\Mnemo.UI\Assets\AppIcons\AppIconDawn.ico</ApplicationIcon>
+    <!-- Icon now lives under mnemo-web, a single cross-platform home the other release legs already read from. -->
+    <ApplicationIcon>..\mnemo-web\public\app-icons\AppIconDawn.ico</ApplicationIcon>
 
     <!-- Explorer reads these off the exe; the version fields come from Directory.Build.props.
          The five the SDK maps into the Win32 version resource, AssemblyTitle as its
