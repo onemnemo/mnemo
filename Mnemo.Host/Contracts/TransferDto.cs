@@ -40,6 +40,10 @@ public sealed record TransferFormatDto(
 /// or a hardcoded 1 under the same name. Rather than print one of those beside the word "cards"
 /// the way the desktop does, those rows show their size and format and no figure at all.
 /// </param>
+/// <param name="Evidence">
+/// What importing this file would mean, for a format that can work it out before writing anything.
+/// Null for every format that reads no manifest, which is all of them but the package.
+/// </param>
 public sealed record TransferUploadDto(
     string UploadId,
     string FileName,
@@ -48,7 +52,62 @@ public sealed record TransferUploadDto(
     string FormatName,
     bool CanImport,
     int? CardCount,
-    IReadOnlyList<TransferWarningDto> Warnings);
+    IReadOnlyList<TransferWarningDto> Warnings,
+    PackageEvidenceDto? Evidence = null);
+
+/// <summary>
+/// What opening a package would mean. Hand-mirrored in <c>mnemo-web/src/api/types.ts</c>; the C#
+/// side is authoritative.
+/// </summary>
+/// <param name="FromThisCollection">
+/// Whether the package was written by this installation. It informs the reader, it never decides
+/// anything on its own: a package from elsewhere is not wrong, and one from here is not safe.
+/// </param>
+public sealed record PackageEvidenceDto(
+    string Kind,
+    string? CollectionId,
+    bool FromThisCollection,
+    DateTimeOffset? CreatedAtUtc,
+    string? CreatedByAppVersion,
+    bool CanRead,
+    IReadOnlyList<PayloadEvidenceDto> Payloads)
+{
+    public static PackageEvidenceDto FromModel(MnemoPackageEvidence model) => new(
+        model.Kind,
+        model.CollectionId,
+        model.FromThisCollection,
+        model.CreatedAtUtc,
+        model.CreatedByAppVersion,
+        model.CanRead,
+        model.Payloads.Select(PayloadEvidenceDto.FromModel).ToList());
+}
+
+/// <param name="ReplaceWouldDiscard">
+/// User visible content a replace would destroy: what sits inside the items the package also
+/// carries and that the package itself does not contain. For flashcards, a card count.
+/// </param>
+public sealed record PayloadEvidenceDto(
+    string PayloadType,
+    int PayloadVersion,
+    int SupportedPayloadVersion,
+    bool CanRead,
+    int InPackage,
+    int AlreadyHere,
+    int NewHere,
+    int MissingFromPackage,
+    int ReplaceWouldDiscard)
+{
+    public static PayloadEvidenceDto FromModel(MnemoPayloadEvidence model) => new(
+        model.PayloadType,
+        model.PayloadVersion,
+        model.SupportedPayloadVersion,
+        model.CanRead,
+        model.InPackage,
+        model.AlreadyHere,
+        model.NewHere,
+        model.MissingFromPackage,
+        model.ReplaceWouldDiscard);
+}
 
 /// <summary>
 /// Import body. Several uploads run as one batch so the client reports a single outcome for what
@@ -81,4 +140,9 @@ public sealed record TransferImportResultDto(
 /// the adapters read an empty selection as "export the whole library", which is not a thing any
 /// caller here means.
 /// </summary>
-public sealed record TransferExportDto(string FormatId, IReadOnlyList<string> DeckIds);
+/// <param name="Kind">
+/// <c>backup</c> when the request covers the whole collection, <c>export</c> when it covers a
+/// chosen part of it, null to let the adapter work it out. Both arrive here as a list of deck ids
+/// and only the caller knows which one the user asked for.
+/// </param>
+public sealed record TransferExportDto(string FormatId, IReadOnlyList<string> DeckIds, string? Kind = null);

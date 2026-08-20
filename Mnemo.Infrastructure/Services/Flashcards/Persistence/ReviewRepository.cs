@@ -18,8 +18,25 @@ public interface IReviewRepository
     /// <summary>Appends a review row and returns its assigned autoincrement id (for exact undo).</summary>
     Task<long> AppendAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardReviewLog log, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Writes a review row back with the id it had, for a backup being restored. Falls back to
+    /// appending under a fresh id when that id is already taken, so history is never dropped for
+    /// the sake of a number nothing outside this table refers to.
+    /// </summary>
+    Task<long> RestoreAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardReviewLog log, CancellationToken cancellationToken);
+
     /// <summary>Removes a review row by id (undo path).</summary>
     Task<bool> DeleteAsync(SqliteConnection conn, SqliteTransaction tx, long reviewId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Every review answered in a deck, oldest first. Deliberately all rows: the table carries no
+    /// trash column, and how somebody remembered a card is history of the deck rather than a
+    /// picture of what is in it today.
+    /// </summary>
+    Task<IReadOnlyList<FlashcardReviewLog>> ListAllForDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
+
+    /// <summary>Removes every review row of a deck, for a replace that is putting its history back.</summary>
+    Task DeleteForDeckAsync(SqliteConnection conn, SqliteTransaction tx, string deckId, CancellationToken cancellationToken);
 
     /// <summary>Count of review rows for a deck (test hook / diagnostics).</summary>
     Task<int> CountForDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
@@ -67,6 +84,13 @@ public sealed class ReviewRepository : IReviewRepository
             VALUES ($card, $deck, $session, $grade, $at, $elapsed, $scheduled, $stab, $diff, $before, $state);
             SELECT last_insert_rowid();
             """;
+        BindReview(cmd, log);
+        var id = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt64(id);
+    }
+
+    private static void BindReview(SqliteCommand cmd, FlashcardReviewLog log)
+    {
         cmd.Parameters.AddWithValue("$card", log.CardId);
         cmd.Parameters.AddWithValue("$deck", log.DeckId);
         cmd.Parameters.AddWithValue("$session", log.SessionId);
@@ -78,8 +102,70 @@ public sealed class ReviewRepository : IReviewRepository
         cmd.Parameters.AddWithValue("$diff", (object?)log.DifficultyAfter ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$before", log.StateBefore is { } before ? (int)before : DBNull.Value);
         cmd.Parameters.AddWithValue("$state", (int)log.StateAfter);
-        var id = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-        return Convert.ToInt64(id);
+    }
+
+    public async Task<long> RestoreAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardReviewLog log, CancellationToken cancellationToken)
+    {
+        if (log.Id != FlashcardReviewLog.Unassigned)
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = """
+                INSERT INTO FlashcardReviews
+                    (Id, CardId, DeckId, SessionId, Grade, ReviewedAt, ElapsedDays, ScheduledDays, StabilityAfter, DifficultyAfter, StateBefore, StateAfter)
+                VALUES ($id, $card, $deck, $session, $grade, $at, $elapsed, $scheduled, $stab, $diff, $before, $state)
+                ON CONFLICT(Id) DO NOTHING;
+                """;
+            cmd.Parameters.AddWithValue("$id", log.Id);
+            BindReview(cmd, log);
+            var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            if (rows > 0)
+                return log.Id;
+        }
+
+        return await AppendAsync(conn, tx, log, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<FlashcardReviewLog>> ListAllForDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT Id, CardId, DeckId, SessionId, Grade, ReviewedAt, ElapsedDays, ScheduledDays,
+                   StabilityAfter, DifficultyAfter, StateBefore, StateAfter
+            FROM FlashcardReviews
+            WHERE DeckId = $deck
+            ORDER BY Id;
+            """;
+        cmd.Parameters.AddWithValue("$deck", deckId);
+        var logs = new List<FlashcardReviewLog>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            logs.Add(new FlashcardReviewLog(
+                Id: reader.GetInt64(0),
+                CardId: reader.GetString(1),
+                DeckId: reader.GetString(2),
+                SessionId: reader.GetString(3),
+                Grade: (FlashcardReviewGrade)reader.GetInt32(4),
+                ReviewedAt: FlashcardSqlMap.ReadTs(reader, 5),
+                ElapsedDays: reader.GetDouble(6),
+                ScheduledDays: reader.GetDouble(7),
+                StabilityAfter: FlashcardSqlMap.ReadDoubleN(reader, 8),
+                DifficultyAfter: FlashcardSqlMap.ReadDoubleN(reader, 9),
+                StateBefore: reader.IsDBNull(10) ? null : (FlashcardFsrsState)reader.GetInt32(10),
+                StateAfter: (FlashcardFsrsState)reader.GetInt32(11)));
+        }
+
+        return logs;
+    }
+
+    public async Task DeleteForDeckAsync(SqliteConnection conn, SqliteTransaction tx, string deckId, CancellationToken cancellationToken)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = "DELETE FROM FlashcardReviews WHERE DeckId = $deck;";
+        cmd.Parameters.AddWithValue("$deck", deckId);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> DeleteAsync(SqliteConnection conn, SqliteTransaction tx, long reviewId, CancellationToken cancellationToken)

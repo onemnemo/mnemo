@@ -71,31 +71,13 @@ public sealed class FlashcardTrashPackagingTests
 
     // ---- Plumbing ----------------------------------------------------------------------------
 
-    private static FlashcardsMnemoPayloadHandler Handler(FlashcardStoreHarness h)
-    {
-        var logger = new TestLogger();
-        var library = new FlashcardLibraryService(
-            h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
-        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
-        var presets = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
-        return new FlashcardsMnemoPayloadHandler(library, cards, presets, h.Store, h.Schedules, logger);
-    }
+    private static FlashcardsMnemoPayloadHandler Handler(FlashcardStoreHarness h) =>
+        FlashcardPackageFixture.Handler(h);
 
-    private static MnemoPayloadExportContext ExportContext() =>
-        new() { Options = new MnemoPackageExportOptions() };
+    private static MnemoPayloadExportContext ExportContext() => FlashcardPackageFixture.ExportContext();
 
-    private static MnemoPayloadImportContext ImportContext(MnemoPayloadExportData exported) => new()
-    {
-        Entry = new MnemoPackageEntry
-        {
-            PayloadType = "flashcards",
-            ItemCount = exported.ItemCount,
-            SchemaVersion = exported.SchemaVersion,
-            Path = "payloads/flashcards",
-        },
-        Options = new MnemoPackageImportOptions(),
-        Files = exported.Files,
-    };
+    private static MnemoPayloadImportContext ImportContext(MnemoPayloadExportData exported) =>
+        FlashcardPackageFixture.ImportContext(exported);
 
     /// <summary>Reads a package back into an empty collection, so its contents can be counted.</summary>
     private static async Task<(int Decks, int Cards)> ImportIntoFreshCollectionAsync(MnemoPayloadExportData exported)
