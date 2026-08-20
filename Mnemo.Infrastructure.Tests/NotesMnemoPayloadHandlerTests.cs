@@ -172,7 +172,10 @@ public sealed class NotesMnemoPayloadHandlerTests
         var tempPath = Path.Combine(Path.GetTempPath(), $"test-notes-{Guid.NewGuid():N}.db");
         try
         {
-            using (var connection = new SqliteConnection($"Data Source={tempPath}"))
+            // Pooling is off so disposing the connection releases the temp file for the read and
+            // delete below, without a process wide pool clear that would disrupt other
+            // collections' live connections.
+            using (var connection = new SqliteConnection($"Data Source={tempPath};Pooling=False"))
             {
                 connection.Open();
                 using var create = connection.CreateCommand();
@@ -201,7 +204,6 @@ public sealed class NotesMnemoPayloadHandlerTests
                 }
             }
 
-            SqliteConnection.ClearAllPools();
             return File.ReadAllBytes(tempPath);
         }
         finally

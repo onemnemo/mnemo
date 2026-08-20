@@ -380,12 +380,14 @@ public sealed class FlashcardImportExportTests
         try
         {
             File.WriteAllBytes(tempPath, dbBytes);
-            using var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tempPath}");
+            // Pooling is off so disposing the connection releases the temp file for the delete
+            // below, without a process wide pool clear that would disrupt other collections'
+            // live connections.
+            using var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tempPath};Pooling=False");
             conn.Open();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT Json FROM Decks LIMIT 1";
             var json = (string)cmd.ExecuteScalar()!;
-            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             return System.Text.Encoding.UTF8.GetBytes(json);
         }
         finally

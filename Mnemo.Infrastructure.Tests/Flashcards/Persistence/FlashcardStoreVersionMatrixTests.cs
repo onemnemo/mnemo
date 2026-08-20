@@ -263,7 +263,7 @@ public sealed class FlashcardStoreVersionMatrixTests
 
     private static async Task ExecuteAsync(string path, string sql)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
@@ -273,7 +273,7 @@ public sealed class FlashcardStoreVersionMatrixTests
 
     private static async Task<int> ReadStoredVersionAsync(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
