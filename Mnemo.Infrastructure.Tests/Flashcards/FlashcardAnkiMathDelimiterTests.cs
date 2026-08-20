@@ -98,7 +98,8 @@ public sealed class FlashcardAnkiMathDelimiterTests
             h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
         var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(
-            library, cardService, new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock), new ImageAssetService());
+            library, cardService, h.FactService,
+            new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock), new ImageAssetService());
 
         var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
         Assert.True(result.Success, result.ErrorMessage);

@@ -1348,6 +1348,7 @@
     "AnkiExtraFieldsDropped": "Solo se importaron los dos primeros campos de estos tipos de nota: {noteTypes}.",
     "AnkiAudioNotImported": "{count} tarjeta(s) hacen referencia a audio, que las tarjetas de aquí todavía no pueden contener. La referencia queda en el texto y el archivo de sonido no se importó.",
     "AnkiScheduleCarriedOver": "Las tarjetas conservaron las fechas en las que vencían a continuación. Qué tan bien se conoce cada una se vuelve a medir a partir de tus próximos repasos, así que los primeros intervalos pueden diferir de los de la otra aplicación.",
+    "AnkiClozeSiblingsFiledTogether": "{count} nota(s) tenían sus tarjetas de rellenar huecos repartidas entre varios mazos. Todas las tarjetas de cada nota se archivaron en el mazo que contenía la mayoría, porque una nota es una sola pieza de material.",
     "AnkiMediaNotFound": "No se encontró en el paquete el archivo multimedia referenciado «{mediaName}».",
     "AnkiMediaImportFailed": "No se pudo importar el archivo multimedia «{mediaName}»: {error}",
     "AnkiMediaImportFailedUnknown": "No se pudo importar el archivo multimedia «{mediaName}»; se desconoce el motivo.",
