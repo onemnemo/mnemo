@@ -60,9 +60,6 @@
 
     <!-- Module translation resources -->
     <EmbeddedResource Include="Modules\Overview\Widgets\**\Translations\*.json" />
-    <EmbeddedResource Include="Modules\Flashcards\Translations\*.json" />
-    <EmbeddedResource Include="Modules\Notes\Translations\*.json" />
-    <EmbeddedResource Include="Modules\Mindmap\Translations\*.json" />
   </ItemGroup>
 
   <ItemGroup>
