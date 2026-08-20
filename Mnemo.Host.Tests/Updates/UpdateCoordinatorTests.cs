@@ -430,6 +430,145 @@ public sealed class UpdateCoordinatorTests
         Assert.Null(await world.Coordinator.BeginLaunchAsync());
     }
 
+    [Fact]
+    public async Task AFoundUpdateIsPersistedSoARestartCanResumeIt()
+    {
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", "Fixed the thing.", null, false);
+
+        await world.Coordinator.CheckAsync(automatic: false);
+
+        var stored = await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson);
+        Assert.NotNull(stored);
+
+        var offer = AppUpdateInfoPersistence.Deserialize(stored!);
+        Assert.NotNull(offer);
+        Assert.Equal("0.9.0", offer!.Version);
+        Assert.Equal("Fixed the thing.", offer.ReleaseNotesMarkdown);
+    }
+
+    [Fact]
+    public async Task AFreshProcessInsideTheCooldownResumesThePersistedOffer()
+    {
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", "Fixed the thing.", null, false);
+        await world.Coordinator.CheckAsync(automatic: false);
+
+        // Stands in for closing the app and reopening it well inside the six hour window:
+        // a new process, over the same settings, that has never checked anything itself.
+        var status = await world.NextLaunch().CheckAsync(automatic: true);
+
+        Assert.Equal(UpdateStage.Available, status.Stage);
+        Assert.Equal("0.9.0", status.AvailableVersion);
+        Assert.Equal("Fixed the thing.", status.ReleaseNotesMarkdown);
+        Assert.True(status.ShouldPrompt);
+        Assert.False(status.Skipped);
+        // Resuming from disk answers the question; it does not spend a second network check.
+        Assert.Equal(1, world.Updates.Checks);
+    }
+
+    [Fact]
+    public async Task AResumedOfferThatWasSkippedDoesNotPrompt()
+    {
+        var world = new World();
+        await world.Settings.SetAsync<string?>(
+            UpdateSettingsKeys.PendingOfferJson,
+            AppUpdateInfoPersistence.Serialize(new AppUpdateInfo("0.9.0", null, null, false)));
+        await world.Settings.SetAsync(UpdateSettingsKeys.SkippedVersion, "0.9.0");
+        await world.Settings.SetAsync<DateTime?>(UpdateSettingsKeys.LastCheckedUtc, DateTime.UtcNow - TimeSpan.FromMinutes(5));
+
+        var status = await world.Coordinator.CheckAsync(automatic: true);
+
+        // Resumed and reported, same as a freshly found offer would be, but the skip
+        // recorded before this process ever started still holds.
+        Assert.Equal(UpdateStage.Available, status.Stage);
+        Assert.Equal("0.9.0", status.AvailableVersion);
+        Assert.True(status.Skipped);
+        Assert.False(status.ShouldPrompt);
+        Assert.Equal(0, world.Updates.Checks);
+    }
+
+    [Fact]
+    public async Task AResumedOfferUnderAnActiveSnoozeDoesNotPrompt()
+    {
+        var world = new World();
+        await world.Settings.SetAsync<string?>(
+            UpdateSettingsKeys.PendingOfferJson,
+            AppUpdateInfoPersistence.Serialize(new AppUpdateInfo("0.9.0", null, null, false)));
+        await world.Settings.SetAsync<DateTime?>(UpdateSettingsKeys.RemindAtUtc, DateTime.UtcNow + UpdateCoordinator.SnoozeDuration);
+        await world.Settings.SetAsync(UpdateSettingsKeys.SnoozeLaunchesRemaining, UpdateCoordinator.SnoozeLaunches);
+        await world.Settings.SetAsync<DateTime?>(UpdateSettingsKeys.LastCheckedUtc, DateTime.UtcNow - TimeSpan.FromMinutes(5));
+
+        var status = await world.Coordinator.CheckAsync(automatic: true);
+
+        Assert.Equal(UpdateStage.Available, status.Stage);
+        Assert.Equal("0.9.0", status.AvailableVersion);
+        Assert.False(status.ShouldPrompt);
+        Assert.False(status.Skipped);
+        Assert.Equal(0, world.Updates.Checks);
+    }
+
+    [Fact]
+    public async Task ACorruptPersistedOfferIsTreatedAsAbsent()
+    {
+        var world = new World();
+        await world.Settings.SetAsync<string?>(UpdateSettingsKeys.PendingOfferJson, "{ not valid json");
+        await world.Settings.SetAsync<DateTime?>(UpdateSettingsKeys.LastCheckedUtc, DateTime.UtcNow - TimeSpan.FromMinutes(5));
+
+        // Must not throw, and must not be mistaken for a real offer.
+        var status = await world.Coordinator.CheckAsync(automatic: true);
+
+        Assert.Equal(UpdateStage.Idle, status.Stage);
+        Assert.Null(status.AvailableVersion);
+        Assert.False(status.ShouldPrompt);
+        Assert.Equal(0, world.Updates.Checks);
+    }
+
+    [Fact]
+    public async Task ALaterCheckThatFindsNothingClearsThePersistedOffer()
+    {
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: false);
+        Assert.NotNull(await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson));
+
+        world.Updates.Available = null;
+        await world.Coordinator.CheckAsync(automatic: false);
+
+        // Otherwise a restart inside the next cooldown would resume a version that is no
+        // longer the answer to "is anything available".
+        Assert.Null(await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson));
+    }
+
+    [Fact]
+    public async Task SkippingClearsThePersistedOfferButNotTheInMemoryRow()
+    {
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: true);
+
+        var status = await world.Coordinator.SkipAvailableVersionAsync();
+
+        // Settings keeps offering it for this process, same as ever; only a later restart
+        // should stop hearing about a version the user asked to stop hearing about.
+        Assert.Equal(UpdateStage.Available, status.Stage);
+        Assert.Equal("0.9.0", status.AvailableVersion);
+        Assert.Null(await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson));
+    }
+
+    [Fact]
+    public async Task ApplyingClearsThePersistedOffer()
+    {
+        var world = new World();
+        await world.ReachReady();
+
+        await world.Coordinator.ApplyAsync();
+
+        // Otherwise the build it restarts into would resume its own version as if it were
+        // still waiting to be installed.
+        Assert.Null(await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson));
+    }
+
     /// <summary>The coordinator and the four things it talks to.</summary>
     private sealed class World
     {
