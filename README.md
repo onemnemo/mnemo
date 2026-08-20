@@ -84,7 +84,7 @@ Mnemo is currently **0.8.0-beta**.
 
 **Windows** is the only platform with a tested packaged release today. It is available as a normal `.exe` installer or portable zip.
 
-**macOS and Linux** compile, but neither has been packaged and tested end to end yet, so downloads are not published for them.
+**macOS and Linux** are now built and packaged by the release pipeline, but neither has been tested end to end yet, so downloads are not published for them.
 
 Windows builds are also **not code signed yet**, which means SmartScreen will warn when opening Mnemo for the first time. Releases are built from the tagged source through public GitHub Actions workflows and published with checksums, keeping the build process transparent and verifiable.
 
@@ -100,7 +100,11 @@ Mnemo is stable in daily use, but it is still pre-release software. Keep backups
 
 For a full walkthrough, see the [installation documentation](https://www.mnemo.one/docs/students/installing).
 
-macOS and Linux packages are planned, but are not published yet.
+### macOS and Linux
+
+Packages are built by the release pipeline (see [Project status](#project-status) above) but are not published as a download yet.
+
+macOS builds are not code signed or notarized, so Gatekeeper blocks them by default once one is available. Right-click (or Control-click) `Mnemo.app` in Finder, choose **Open**, then confirm **Open** in the dialog that appears. This is only needed the first time.
 
 ## Soma
 
