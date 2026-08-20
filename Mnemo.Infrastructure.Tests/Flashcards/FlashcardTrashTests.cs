@@ -166,6 +166,58 @@ public sealed class FlashcardTrashTests
         Assert.Equal("card-entry", Assert.Single(purge.BlockingEntryIds));
     }
 
+    [Fact]
+    public async Task A_held_deck_takes_material_whose_only_card_had_been_moved_into_it()
+    {
+        await using var h = await OpenAsync();
+        await h.SeedDeckAsync("deck-2");
+        var saved = await SaveMaterialAsync(h, "Q", "A");
+        await Cards(h).MoveCardsAsync([saved.Cards.Single().Id], "deck-2");
+
+        await Sources(h).Decks.CaptureAsync("deck-2", "e1");
+
+        // The material is filed under deck-1 and has never been near deck-2, but the only card it
+        // makes went in there and has just been taken. There is nothing left of it to show.
+        Assert.Null(await h.FactService.GetFactAsync(saved.Fact.Id));
+    }
+
+    [Fact]
+    public async Task Restoring_the_deck_gives_back_material_it_took_that_way()
+    {
+        await using var h = await OpenAsync();
+        await h.SeedDeckAsync("deck-2");
+        var saved = await SaveMaterialAsync(h, "Q", "A");
+        var cardId = saved.Cards.Single().Id;
+        await Cards(h).MoveCardsAsync([cardId], "deck-2");
+        var decks = Sources(h).Decks;
+
+        await decks.CaptureAsync("deck-2", "e1");
+        Assert.Equal(TrashRestoreOutcome.Restored, (await decks.RestoreAsync("e1")).Outcome);
+
+        var fact = await h.FactService.GetFactAsync(saved.Fact.Id);
+        Assert.NotNull(fact);
+        Assert.Equal("deck-1", fact!.DeckId);
+        var card = await h.Store.ReadAsync((conn, ct) => h.Cards.GetAsync(conn, cardId, ct));
+        Assert.Equal("deck-2", card!.DeckId);
+    }
+
+    [Fact]
+    public async Task Purging_a_deck_destroys_material_whose_only_card_had_been_moved_into_it()
+    {
+        await using var h = await OpenAsync();
+        await h.SeedDeckAsync("deck-2");
+        var path = ManagedPath("moved-in.png");
+        var saved = await SaveMaterialAsync(h, "Q", "A", path);
+        await Cards(h).MoveCardsAsync([saved.Cards.Single().Id], "deck-2");
+        var decks = Sources(h).Decks;
+
+        await decks.CaptureAsync("deck-2", "e1");
+        Assert.True((await decks.PurgeAsync("e1")).Completed);
+
+        Assert.Equal(0, await CountAsync(h, "SELECT COUNT(*) FROM FlashcardFacts WHERE Id = $p;", saved.Fact.Id));
+        Assert.Contains(path, await QueuedAsync(h));
+    }
+
     // ---- Deck folders ------------------------------------------------------------------------
 
     [Fact]

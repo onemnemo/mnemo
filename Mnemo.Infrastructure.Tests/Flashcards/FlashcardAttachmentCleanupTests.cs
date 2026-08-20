@@ -203,8 +203,43 @@ public sealed class FlashcardAttachmentCleanupTests
 
         Assert.True(deleted);
         Assert.DoesNotContain(path, await QueuedAsync(h));
-        Assert.NotNull(await factSvc.GetFactAsync(saved.Fact.Id));
         Assert.NotNull(await h.Store.ReadAsync((conn, ct) => h.Cards.GetAsync(conn, card.Id, ct)));
+
+        // The home it named is gone, so it is refiled under the deck its card is really in. Left
+        // naming a deck row nobody can reach, it would drop out of every read that starts from a
+        // deck, the editor's own deck picker included.
+        var survivor = await factSvc.GetFactAsync(saved.Fact.Id);
+        Assert.NotNull(survivor);
+        Assert.Equal("deck-2", survivor!.DeckId);
+    }
+
+    [Fact]
+    public async Task Deleting_a_deck_takes_material_whose_only_card_had_been_moved_into_it()
+    {
+        // The mirror of the case above, and the one that leaks: material stays filed under the deck
+        // it was written in when a card it made is moved out, so a delete that looks for a deck's
+        // material by that filing never sees this piece and leaves it behind with no cards at all,
+        // holding its picture down forever.
+        await using var h = await OpenAsync();
+        await h.SeedDeckAsync("deck-2");
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
+        var lib = new FlashcardLibraryService(
+            h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+
+        var path = ManagedPath("moved-in.png");
+        var saved = await factSvc.SaveFactAsync(Draft(FlashcardCardType.BasicId, new()
+        {
+            ["front"] = "Q",
+            ["back"] = "A",
+        }, media: MediaOn("front", "m1", path)));
+
+        await cardSvc.MoveCardsAsync([saved.Cards.Single().Id], "deck-2");
+
+        Assert.True(await lib.DeleteDeckAsync("deck-2"));
+
+        Assert.Null(await factSvc.GetFactAsync(saved.Fact.Id));
+        Assert.Contains(path, await QueuedAsync(h));
     }
 
     // ---- Plumbing ----------------------------------------------------------------------------
