@@ -15,7 +15,7 @@ come before profit. It is built by one person, and it is meant to genuinely help
 craftsmanship matters more than shipping something quickly.
 
 Stack: .NET 10, a loopback HTTP host, a React and TypeScript single page app in `mnemo-web`
-as the primary interface, an Avalonia app in `Mnemo.UI`, SQLite for runtime data.
+served through a PhotinoX window, SQLite for runtime data.
 
 ## The standard
 
@@ -24,7 +24,7 @@ as the primary interface, an Avalonia app in `Mnemo.UI`, SQLite for runtime data
 - `standards/00-principles.md` engineering philosophy
 - `standards/01-architecture.md` layers, DI, modules, persisted data, security invariants
 - `standards/02-naming-and-structure.md` folder layout and the naming table
-- `standards/03-dotnet.md` C#, async, errors, Avalonia
+- `standards/03-dotnet.md` C#, async, errors
 - `standards/04-web.md` React, tokens, internationalization
 - `standards/05-testing-and-verification.md` tests, and what a performance claim requires
 - `standards/06-comments-and-copy.md` comments and user-facing copy
@@ -72,5 +72,5 @@ npx tsc -b && npx oxlint src && npx vitest run
 ```
 
 .NET tests run from PowerShell (git bash mangles the `/p:` argument form), and need a scratch
-`OutDir` when a debugger or the running app holds a lock on `Mnemo.UI/bin`. Details in
+`OutDir` when a debugger or the running app holds a lock on `Mnemo.Host/bin`. Details in
 `standards/05-testing-and-verification.md`.
