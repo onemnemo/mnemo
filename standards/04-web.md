@@ -1,6 +1,6 @@
 # mnemo-web (React and TypeScript)
 
-`mnemo-web` is the primary user interface: a React and TypeScript single page app built with
+`mnemo-web` is the user interface: a React and TypeScript single page app built with
 Vite and styled with Tailwind. It reaches the backend through the Host HTTP API.
 
 ## Structure
@@ -30,8 +30,8 @@ through the `@theme` block in `src/index.css`.
 ## Components and libraries
 
 - Icons come from the `AppIcon` wrapper in `src/components/icon`, never from a direct
-  `lucide-react` import, so the icon set stays one file's decision. In surfaces ported from
-  the Avalonia app, the real Mnemo SVGs are the correct art, not a lucide lookalike.
+  `lucide-react` import, so the icon set stays one file's decision. Some surfaces use the real
+  Mnemo SVGs; keep that art rather than substituting a lucide lookalike.
 - Popovers, dropdowns, and context menus use Radix. Do not hand-roll portals, anchoring, or
   flip logic.
 - Server state goes through React Query. The library key and a single entity's key are
@@ -45,7 +45,7 @@ Every user-facing string is a translation key, present in all five shipped langu
 `en`, `de`, `es`, `ja`, `nb`.
 
 - Shared strings: `Mnemo.Infrastructure/Languages/<lang>.json`.
-- Module strings: `Mnemo.UI/Modules/<Module>/Translations/<lang>.json`.
+- Module strings: `Mnemo.Infrastructure/Modules/<Module>/Translations/<lang>.json`.
 - `mnemo-web` fetches these through its `src/i18n` layer rather than bundling its own copies.
 - Translate inside components with the `useT()` hook.
 - **Read the target JSON and confirm the namespace before adding a key.** Do not assume the

@@ -9,7 +9,6 @@ able to predict the shape of the next one.
 Mnemo.Core/            Models/  Services/ (interfaces)  Enums/  Identity/
 Mnemo.Infrastructure/  Services/ (implementations)  Storage/  AI/  Languages/
 Mnemo.Host/            the loopback HTTP API, endpoints per feature, the desktop shell
-Mnemo.UI/              Modules/  Components/  Controls/  Services/  Themes/  Views/  ViewModels/
 mnemo-web/src/         one folder per feature, plus components/ lib/ styles/ i18n/
 standards/             this document set
 ```
@@ -28,8 +27,7 @@ src/<feature>/
 Rules:
 
 - Namespaces stay focused and shallow, typically no deeper than four levels:
-  `Mnemo.Core.Services`, `Mnemo.Core.Models`, `Mnemo.Infrastructure.Storage`,
-  `Mnemo.UI.Components.*`.
+  `Mnemo.Core.Services`, `Mnemo.Core.Models`, `Mnemo.Infrastructure.Storage`.
 - One class or interface per file unless there is a strong reason. One React component per
   file, always.
 - Prefer a new file over a growing one. Roughly 400 lines is the point at which a file that

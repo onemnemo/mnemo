@@ -35,7 +35,7 @@ dotnet test MnemoApp.sln
 ```
 
 - Run .NET tests from PowerShell. Git bash mangles the `/p:` argument form.
-- A debugger or a running app often locks `Mnemo.UI/bin`, which fails the copy step even
+- A debugger or a running app often locks `Mnemo.Host/bin`, which fails the copy step even
   though compilation succeeded. Redirect the whole build with a scratch `OutDir`, keeping the
   trailing backslash and using a path without spaces. Passing `-o` on the test project alone
   is not enough, because referenced projects still build into their own `bin`.

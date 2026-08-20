@@ -95,8 +95,8 @@ decision.
 
 ## 6. Fidelity to intent, not to the old implementation
 
-The React port matches the design intent of the Avalonia app, not its warts. Where the
-existing solution is flimsy, make the port better or write the finding down. Never faithfully
+A rewrite matches the design intent of what it replaces, not its warts. Where the existing
+solution is flimsy, make the rewrite better or write the finding down. Never faithfully
 reproduce something bad because it is what the reference does.
 
 ## 7. One rule everywhere

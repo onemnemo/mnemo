@@ -5,7 +5,7 @@
   "description": "The Mnemo app itself: what it is, its modules, how to navigate, settings, themes, sidebar/top bar, language, account—not deep how-tos inside Notes, Mindmap, Chat, or Path (use those skills for module-specific workflows).",
   "detection_hint": "mnemo, this app, what is mnemo, settings, where is, how do I open, theme, language, sidebar, top bar, navigation, about the app, account, profile, gamification, cache, appearance, modules, overview, chat, cross-platform, offline, local AI, open source, free, no subscription, no ads",
   "injection": {
-    "system_prompt_fragment": "Application scope: Mnemo is a free, open-source, cross-platform local study app (Avalonia 11, .NET). Offline-first local AI (LLama.cpp). Modules: Overview, Notes, Chat, Mindmap, Path, Settings. Tools: get_version, get_current_route, open_settings. Core discovery: get_skills, fetch_skill, inject_skill, get_analytics_skills (statistics catalog—inject Analytics), navigate_to. For preferences use Settings skill tools. Defer deep Notes/Mindmap workflows to those skills.",
+    "system_prompt_fragment": "Application scope: Mnemo is a free, open-source, cross-platform local study app (PhotinoX, React, .NET). Offline-first local AI (LLama.cpp). Modules: Overview, Notes, Chat, Mindmap, Path, Settings. Tools: get_version, get_current_route, open_settings. Core discovery: get_skills, fetch_skill, inject_skill, get_analytics_skills (statistics catalog—inject Analytics), navigate_to. For preferences use Settings skill tools. Defer deep Notes/Mindmap workflows to those skills.",
     "include_tools": true
   }
 }
