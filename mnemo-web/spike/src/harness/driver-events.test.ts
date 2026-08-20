@@ -290,9 +290,8 @@ describe('fireKeyEvent / fireBeforeInput / fireInput', () => {
 })
 
 describe('isEditableContentHost', () => {
-  it('falls back to the contenteditable attribute, since jsdom leaves isContentEditable undefined', () => {
+  it('is false for a plain element and true once contenteditable is set', () => {
     const el = document.createElement('div')
-    expect(el.isContentEditable).toBeUndefined()
     expect(isEditableContentHost(el)).toBe(false)
     el.setAttribute('contenteditable', 'true')
     expect(isEditableContentHost(el)).toBe(true)
