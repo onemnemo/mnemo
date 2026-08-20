@@ -4,12 +4,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Tools;
 
-namespace Mnemo.UI.Services;
+namespace Mnemo.Infrastructure.Services.AI;
 
 /// <summary>
-/// Defers module tool registration and skill disk loading until <see cref="NavigationService.AiAssistantEnabledKey"/> is true.
+/// Defers module tool registration and skill disk loading until <see cref="IAiAssistantToolHost.EnabledSettingKey"/> is true.
 /// Unloads both when the setting is turned off.
 /// </summary>
 public sealed class AiAssistantToolHost : IAiAssistantToolHost
@@ -107,7 +108,7 @@ public sealed class AiAssistantToolHost : IAiAssistantToolHost
         try
         {
             var enabled = await _settingsService
-                .GetAsync(NavigationService.AiAssistantEnabledKey, false)
+                .GetAsync(IAiAssistantToolHost.EnabledSettingKey, false)
                 .ConfigureAwait(false);
             if (enabled)
                 await EnsureLoadedAsync().ConfigureAwait(false);
@@ -120,13 +121,13 @@ public sealed class AiAssistantToolHost : IAiAssistantToolHost
 
     private async void OnSettingChanged(object? sender, string key)
     {
-        if (!string.Equals(key, NavigationService.AiAssistantEnabledKey, StringComparison.Ordinal))
+        if (!string.Equals(key, IAiAssistantToolHost.EnabledSettingKey, StringComparison.Ordinal))
             return;
 
         try
         {
             var enabled = await _settingsService
-                .GetAsync(NavigationService.AiAssistantEnabledKey, false)
+                .GetAsync(IAiAssistantToolHost.EnabledSettingKey, false)
                 .ConfigureAwait(false);
             if (enabled)
                 await EnsureLoadedAsync().ConfigureAwait(false);

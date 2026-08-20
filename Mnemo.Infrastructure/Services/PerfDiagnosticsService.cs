@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 
-namespace Mnemo.UI.Services;
+namespace Mnemo.Infrastructure.Services;
 
 public sealed class PerfDiagnosticsService : IPerfDiagnostics
 {
