@@ -36,6 +36,10 @@ public static class LifecycleEndpoints
     /// <param name="Path">The chosen folder, or null if the chooser was dismissed.</param>
     public sealed record PickedFolderDto(string? Path);
 
+    /// <param name="ShouldWarn">True the first time this is asked while the old, unsupported
+    /// Avalonia install is found sharing this profile's data. False on every later call.</param>
+    public sealed record LegacyInstallCheckDto(bool ShouldWarn);
+
     /// <summary>What a folder request resolved to.</summary>
     public enum OpenFolderOutcome
     {
@@ -189,5 +193,11 @@ public static class LifecycleEndpoints
             // than a status the caller has to tell apart from a real error.
             return Results.Ok(new PickedFolderDto(chosen));
         });
+
+        // Asked once at boot. A POST because it spends the one-shot flag, mirroring
+        // /api/updates/launch: true only the first time the old install is found, so a reload
+        // or the next launch never repeats the warning.
+        endpoints.MapPost("/api/app/legacy-install-check", async (LegacyInstallWarning warning, CancellationToken ct) =>
+            new LegacyInstallCheckDto(await warning.ShouldWarnAsync(ct).ConfigureAwait(false)));
     }
 }

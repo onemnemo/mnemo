@@ -502,7 +502,9 @@
     "CrashShowDetails": "Mostrar detalles",
     "CrashHideDetails": "Ocultar detalles",
     "UnhandledFaultTitle": "Algo salió mal",
-    "MutationErrorTitle": "No se ha podido guardar ese cambio"
+    "MutationErrorTitle": "No se ha podido guardar ese cambio",
+    "LegacyInstallWarningTitle": "Todavía tienes instalada una versión anterior de Mnemo",
+    "LegacyInstallWarningBody": "Este equipo también tiene instalada la versión anterior independiente de Mnemo. Si ambas acceden a los mismos datos, tus notas, tarjetas de estudio y mapas mentales pueden dañarse. Desinstala la versión anterior de Mnemo para seguir usando esta con seguridad."
   },
   "Chat": {
     "AssistantNoResponse": "Sin respuesta.",

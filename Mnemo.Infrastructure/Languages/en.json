@@ -502,7 +502,9 @@
     "CrashShowDetails": "Show details",
     "CrashHideDetails": "Hide details",
     "UnhandledFaultTitle": "Something went wrong",
-    "MutationErrorTitle": "That change could not be saved"
+    "MutationErrorTitle": "That change could not be saved",
+    "LegacyInstallWarningTitle": "An older Mnemo is still installed",
+    "LegacyInstallWarningBody": "This computer also has the earlier standalone version of Mnemo installed. Running both against the same data can corrupt your notes, flashcards and mind maps. Uninstall the older Mnemo to keep using this one safely."
   },
   "Chat": {
     "AssistantNoResponse": "No response.",
