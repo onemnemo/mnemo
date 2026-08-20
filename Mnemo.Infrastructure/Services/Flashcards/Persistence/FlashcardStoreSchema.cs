@@ -7,7 +7,7 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 internal static class FlashcardStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 8;
+    public const int TargetVersion = 9;
 
     /// <summary>
     /// Columns added after v1, for databases that already exist.
@@ -33,6 +33,9 @@ internal static class FlashcardStoreSchema
         ("FlashcardDecks", "TrashId", "TEXT NULL"),
         ("FlashcardFacts", "TrashId", "TEXT NULL"),
         ("FlashcardCards", "TrashId", "TEXT NULL"),
+        // Where the answer came from. Zero is answered here, which is what every row written
+        // before the column existed was, so the default needs no backfill.
+        ("FlashcardReviews", "Origin", "INTEGER NOT NULL DEFAULT 0"),
     ];
 
     /// <summary>
@@ -179,6 +182,11 @@ internal static class FlashcardStoreSchema
             BuriedUntil       TEXT NULL
         );
 
+        -- Origin is zero for an answer given here and one for history an import carried in.
+        -- Imported rows count towards retention and train the scheduler like any other; the marker
+        -- exists so analytics can separate them later. Kept out of the table body deliberately: a
+        -- comment sitting against the last column makes ALTER TABLE DROP COLUMN leave behind text
+        -- SQLite can no longer parse.
         CREATE TABLE IF NOT EXISTS FlashcardReviews (
             Id              INTEGER PRIMARY KEY AUTOINCREMENT,
             CardId          TEXT NOT NULL,
@@ -193,7 +201,8 @@ internal static class FlashcardStoreSchema
             StateAfter      INTEGER NOT NULL,
             -- Null on rows written before the column existed: those reviews genuinely have no
             -- recorded starting state, and guessing one would be worse than admitting it.
-            StateBefore     INTEGER NULL
+            StateBefore     INTEGER NULL,
+            Origin          INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS FlashcardTestAttempts (
