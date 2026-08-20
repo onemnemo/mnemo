@@ -93,6 +93,101 @@ public sealed class FlashcardStoreMigratorTests
     }
 
     [Fact]
+    public async Task Migrate_GivesEveryImportedCard_TheMaterialItCameFrom()
+    {
+        // The import used to run after the upgrade step that gives a card its fact, so an imported
+        // collection stayed without material for good: nothing to bury a sibling of, and nothing for
+        // the material editor to open.
+        await using var h = new FlashcardStoreHarness();
+        var storage = new InMemoryStorageProvider();
+        await storage.SaveAsync(LegacyKey, BuildLegacyBlob(DateTimeOffset.UtcNow));
+
+        await CreateMigrator(h, storage).MigrateAsync();
+
+        foreach (var cardId in new[] { "c1", "c2", "c3" })
+        {
+            var card = await h.Store.ReadAsync((c, ct) => h.Cards.GetAsync(c, cardId, ct));
+            Assert.NotNull(card);
+            Assert.NotNull(card!.FactId);
+            Assert.Equal(FlashcardCardType.RecognitionLayoutId, card.LayoutKey);
+
+            var fact = await h.Store.ReadAsync((c, ct) => h.Facts.GetAsync(c, card.FactId!, ct));
+            Assert.NotNull(fact);
+            Assert.Equal(FlashcardCardType.BasicId, fact!.TypeId);
+            Assert.Equal(card.DeckId, fact.DeckId);
+            Assert.Equal(card.Front, fact.Value(FlashcardCardType.BasicFrontFieldId));
+            Assert.Equal(card.Back, fact.Value(FlashcardCardType.BasicBackFieldId));
+        }
+    }
+
+    [Fact]
+    public async Task Migrate_SplitsAnImportedClozeCard_IntoOneCardPerDeletion()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var storage = new InMemoryStorageProvider();
+        await storage.SaveAsync(LegacyKey, BuildLegacyClozeBlob(DateTimeOffset.UtcNow));
+
+        await CreateMigrator(h, storage).MigrateAsync();
+
+        var cards = await h.Store.ReadAsync((c, ct) => h.Cards.ListByDeckAsync(c, "d1", ct));
+        Assert.Equal(2, cards.Count);
+
+        var first = cards.Single(c => c.LayoutKey == "c1");
+        var second = cards.Single(c => c.LayoutKey == "c2");
+        Assert.Equal("card-1", first.Id); // the one that was already there keeps its schedule
+        Assert.Equal(first.FactId, second.FactId);
+        Assert.Equal("[…] is a class III antiarrhythmic.", first.Front);
+
+        var fact = await h.Store.ReadAsync((c, ct) => h.Facts.GetAsync(c, first.FactId!, ct));
+        Assert.Equal(FlashcardCardType.ClozeId, fact!.TypeId);
+        Assert.Equal(
+            "{{c1::Amiodarone}} is a class {{c2::III}} antiarrhythmic.",
+            fact.Value(FlashcardCardType.ClozeTextFieldId));
+    }
+
+    [Fact]
+    public async Task Migrate_RunTwice_LeavesTheImportedMaterialExactlyAsItWas()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var storage = new InMemoryStorageProvider();
+        await storage.SaveAsync(LegacyKey, BuildLegacyClozeBlob(DateTimeOffset.UtcNow));
+
+        var migrator = CreateMigrator(h, storage);
+        await migrator.MigrateAsync();
+        var first = await MaterialShapeAsync(h);
+
+        await migrator.MigrateAsync();
+
+        Assert.Equal(first, await MaterialShapeAsync(h));
+    }
+
+    [Fact]
+    public async Task Applying_the_material_step_again_after_an_import_adds_nothing()
+    {
+        // The import invokes the step inside its own write, and the repair invokes the same step on
+        // a collection that may already be part-way healed, so being safe to reapply is not an
+        // assumption either of them is allowed to make.
+        await using var h = new FlashcardStoreHarness();
+        var storage = new InMemoryStorageProvider();
+        await storage.SaveAsync(LegacyKey, BuildLegacyClozeBlob(DateTimeOffset.UtcNow));
+
+        await CreateMigrator(h, storage).MigrateAsync();
+        var before = await MaterialShapeAsync(h);
+
+        await h.Store.WriteAsync((conn, tx, ct) =>
+            FlashcardFactBackfill.ApplyAsync(new FlashcardMigrationContext(conn, tx, h.Time, ct)));
+
+        Assert.Equal(before, await MaterialShapeAsync(h));
+    }
+
+    /// <summary>Every card in the imported deck with the material and layout it ended up on.</summary>
+    private static async Task<IReadOnlyList<string>> MaterialShapeAsync(FlashcardStoreHarness h)
+    {
+        var cards = await h.Store.ReadAsync((c, ct) => h.Cards.ListByDeckAsync(c, "d1", ct));
+        return cards.Select(c => $"{c.Id}|{c.FactId}|{c.LayoutKey}").Order().ToList();
+    }
+
+    [Fact]
     public async Task Migrate_NoOp_WhenNoLegacyBlob()
     {
         await using var h = new FlashcardStoreHarness();
@@ -144,6 +239,35 @@ public sealed class FlashcardStoreMigratorTests
         {
             try { Directory.Delete(tempDir, recursive: true); } catch { /* best effort */ }
         }
+    }
+
+    // One deck holding one cloze card with two deletions, which is the shape that has to become two
+    // cards rather than stay one.
+    private static object BuildLegacyClozeBlob(DateTimeOffset now)
+    {
+        var card = new
+        {
+            Id = "card-1", DeckId = "d1",
+            Front = "{{c1::Amiodarone}} is a class {{c2::III}} antiarrhythmic.",
+            Back = "Blocks potassium channels.",
+            Type = 1, Tags = Array.Empty<string>(),
+            DueDate = now, Stability = (double?)null, Difficulty = (double?)null,
+            ReviewCount = (int?)null, LapseCount = (int?)null, LastReviewedAt = (DateTimeOffset?)null,
+            FsrsState = (int?)null
+        };
+        var deck = new
+        {
+            Id = "d1", Name = "Antiarrhythmics", FolderId = (string?)null, Description = (string?)null,
+            Tags = Array.Empty<string>(), LastStudied = (DateTimeOffset?)null, Cards = new[] { card },
+            SchedulingAlgorithm = 1
+        };
+
+        return new
+        {
+            Folders = Array.Empty<object>(),
+            Decks = new object[] { deck },
+            SessionHistory = Array.Empty<object>()
+        };
     }
 
     private static object BuildLegacyBlobWithImageTokens(DateTimeOffset now, string imagePath, string missingPath)

@@ -36,7 +36,9 @@ public sealed class FlashcardStoreMigrator : IFlashcardStoreMigrator
     private readonly IScheduleRepository _schedules;
     private readonly IReviewRepository _reviews;
     private readonly ILoggerService _logger;
+    private readonly TimeProvider _time;
 
+    /// <param name="time">Clock the imported rows are stamped from. Defaults to the system clock.</param>
     public FlashcardStoreMigrator(
         IFlashcardStore store,
         IStorageProvider storage,
@@ -46,7 +48,8 @@ public sealed class FlashcardStoreMigrator : IFlashcardStoreMigrator
         ICardRepository cards,
         IScheduleRepository schedules,
         IReviewRepository reviews,
-        ILoggerService logger)
+        ILoggerService logger,
+        TimeProvider? time = null)
     {
         _store = store;
         _storage = storage;
@@ -57,6 +60,7 @@ public sealed class FlashcardStoreMigrator : IFlashcardStoreMigrator
         _schedules = schedules;
         _reviews = reviews;
         _logger = logger;
+        _time = time ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -73,7 +77,7 @@ public sealed class FlashcardStoreMigrator : IFlashcardStoreMigrator
             return; // fresh install or nothing to import
 
         var legacy = load.Value;
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
 
         try
         {
@@ -142,6 +146,15 @@ public sealed class FlashcardStoreMigrator : IFlashcardStoreMigrator
                         await _schedules.UpsertAsync(conn, tx, schedule, ct).ConfigureAwait(false);
                     }
                 }
+
+                // The imported cards arrive with no material behind them, and the upgrade step that
+                // gives a card its fact runs on a version crossing the store had already made before
+                // the first of them was written. Without this the whole imported collection stays
+                // factless for good, which leaves burying inert and editing a card's material
+                // answering that there is none.
+                await FlashcardFactBackfill
+                    .ApplyAsync(new FlashcardMigrationContext(conn, tx, _time, ct))
+                    .ConfigureAwait(false);
 
                 foreach (var session in legacy.SessionHistory ?? new List<LegacySession>())
                 {
