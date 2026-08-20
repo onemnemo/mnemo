@@ -105,7 +105,7 @@ public static class Program
         }
     }
 
-    private sealed record ServerHandle(WebApplication App, string ApiBaseUrl, string WindowUrl);
+    private sealed record ServerHandle(WebApplication App, string ApiBaseUrl, string WindowUrl, string SpellcheckLanguage);
 
     private static async Task<ServerHandle> StartServerAsync(HostOptions options)
     {
@@ -209,6 +209,16 @@ public static class Program
         // Migration and storage warm-up complete before Kestrel accepts a request,
         // preserving the ordering guarantee the Avalonia app enforces at startup.
         await HostComposition.InitializeBackendAsync(app.Services, discoveryFailures).ConfigureAwait(false);
+
+        // Resolved here, on the async startup path: this used to be bridged onto
+        // Photino's STA thread with a Task.Run/GetResult in RunWindow, blocking
+        // window creation on a settings read. The service provider is already
+        // live at this point, so the resolved value can just ride along on
+        // ServerHandle instead.
+        var language = await app.Services.GetRequiredService<ISettingsService>()
+            .GetAsync("Editor.SpellCheckLanguages", "en").ConfigureAwait(false);
+        var spellcheckLanguage = string.IsNullOrWhiteSpace(language) ? "en" : language;
+
         await app.StartAsync().ConfigureAwait(false);
 
         // A quit or crash skips the on-close cleanup, so every launch collects what got left
@@ -240,7 +250,7 @@ public static class Program
         var windowUrl = options.DevMode ? options.DevServerUrl : apiBaseUrl + "/";
         logger.Info(CrashLog.Category,
             $"MODE={(options.DevMode ? "DEV" : "PROD")} API_BASE={apiBaseUrl} WINDOW_URL={windowUrl}");
-        return new ServerHandle(app, apiBaseUrl, windowUrl);
+        return new ServerHandle(app, apiBaseUrl, windowUrl, spellcheckLanguage);
     }
 
     /// <summary>
@@ -271,7 +281,7 @@ public static class Program
             // MNEMO_DATA_DIR) instead of PhotinoX's default %LOCALAPPDATA%\Photino.
             var userDataFolder = Path.Combine(MnemoAppPaths.GetLocalUserDataRoot(), "webview");
             window.SetUserDataFolder(userDataFolder);
-            ApplySpellcheckLanguage(userDataFolder, server.App.Services);
+            WebViewSpellcheck.Apply(userDataFolder, server.SpellcheckLanguage, logger);
         }
 
         WindowChrome.Configure(window, logger);
@@ -285,23 +295,6 @@ public static class Program
         // both double-create and, on Windows, trip Run's refusal to move an already
         // initialized window onto the STA thread it spins up.
         app.Run(window);
-    }
-
-    /// <summary>
-    /// Configures the WebView profile's spell checker from the saved editor
-    /// setting, before the window (and the WebView) is created.
-    /// </summary>
-    /// <remarks>
-    /// The settings read is bridged here for the same reason the server startup
-    /// is: this is Photino's STA thread and the window may not be created off it.
-    /// </remarks>
-    private static void ApplySpellcheckLanguage(string userDataFolder, IServiceProvider services)
-    {
-        var settings = services.GetRequiredService<ISettingsService>();
-        var logger = services.GetRequiredService<ILoggerService>();
-        var language = Task.Run(() => settings.GetAsync("Editor.SpellCheckLanguages", "en"))
-            .GetAwaiter().GetResult();
-        WebViewSpellcheck.Apply(userDataFolder, string.IsNullOrWhiteSpace(language) ? "en" : language, logger);
     }
 
     /// <summary>
