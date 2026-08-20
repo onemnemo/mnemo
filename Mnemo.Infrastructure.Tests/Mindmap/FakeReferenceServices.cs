@@ -20,6 +20,9 @@ internal sealed class FakeNoteService : INoteService
     public Task<IEnumerable<Note>> GetAllNotesAsync() =>
         Task.FromResult<IEnumerable<Note>>(_ids.Select(id => new Note { NoteId = id }).ToArray());
 
+    public Task<IReadOnlyList<NoteSummary>> GetAllNoteSummariesAsync() =>
+        Task.FromResult<IReadOnlyList<NoteSummary>>([.. _ids.Select(id => NoteSummary.FromNote(new Note { NoteId = id }))]);
+
     public Task<Note?> GetNoteAsync(string noteId) =>
         Task.FromResult(_ids.Contains(noteId) ? new Note { NoteId = noteId } : null);
 

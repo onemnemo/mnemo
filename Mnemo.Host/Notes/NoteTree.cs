@@ -46,7 +46,7 @@ internal static class NoteTree
     }
 
     /// <summary>Appends after the last note in a folder.</summary>
-    public static int NextNoteOrder(IEnumerable<Note> notes, string? folderId)
+    public static int NextNoteOrder(IEnumerable<NoteSummary> notes, string? folderId)
         => notes.Where(n => SameFolder(n.FolderId, folderId)).Select(n => n.Order).DefaultIfEmpty(-1).Max() + 1;
 
     /// <summary>Appends after the last folder under a parent.</summary>

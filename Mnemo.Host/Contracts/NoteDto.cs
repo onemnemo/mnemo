@@ -21,7 +21,7 @@ public sealed record NoteSummaryDto(
     string? Cover,
     IReadOnlyList<string> Tags)
 {
-    public static NoteSummaryDto FromModel(Note model) => new(
+    public static NoteSummaryDto FromSummary(NoteSummary model) => new(
         model.NoteId,
         model.Sid,
         model.Ver,

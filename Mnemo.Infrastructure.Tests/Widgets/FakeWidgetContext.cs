@@ -63,6 +63,7 @@ internal sealed class FakeWidgetContext : IWidgetContext
         public List<Note> NotesToReturn { get; } = new();
 
         public Task<IEnumerable<Note>> GetAllNotesAsync() => Task.FromResult<IEnumerable<Note>>(NotesToReturn);
+        public Task<IReadOnlyList<NoteSummary>> GetAllNoteSummariesAsync() => Task.FromResult<IReadOnlyList<NoteSummary>>([.. NotesToReturn.Select(NoteSummary.FromNote)]);
         public Task<Note?> GetNoteAsync(string noteId) => Task.FromResult(NotesToReturn.FirstOrDefault(n => n.NoteId == noteId));
         public Task<Result> SaveNoteAsync(Note note) => Task.FromResult(Result.Success());
         public Task<Result> DeleteNoteAsync(string noteId) => Task.FromResult(Result.Success());

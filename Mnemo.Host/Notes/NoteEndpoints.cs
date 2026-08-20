@@ -38,11 +38,12 @@ public static class NoteEndpoints
     public static void MapNotes(this IEndpointRouteBuilder endpoints)
     {
         // Ordered newest-first by the service. The sidebar re-sorts into tree order
-        // itself, and reads the body of nothing it lists.
+        // itself, and reads the body of nothing it lists, which is why this asks for
+        // summaries: the bodies would be parsed out of storage and then dropped.
         endpoints.MapGet("/api/notes", async (INoteService notes) =>
         {
-            var all = await notes.GetAllNotesAsync().ConfigureAwait(false);
-            return all.Select(NoteSummaryDto.FromModel).ToList();
+            var all = await notes.GetAllNoteSummariesAsync().ConfigureAwait(false);
+            return all.Select(NoteSummaryDto.FromSummary).ToList();
         }).RequireNotesMigrated();
 
         endpoints.MapGet("/api/notes/{id}", async (string id, INoteService notes) =>
@@ -67,7 +68,9 @@ public static class NoteEndpoints
             if (parentNoteId is not null && await notes.GetNoteAsync(parentNoteId).ConfigureAwait(false) is null)
                 return Results.BadRequest(new ErrorDto("unknown_note", $"No note '{parentNoteId}'."));
 
-            var existing = (await notes.GetAllNotesAsync().ConfigureAwait(false)).ToList();
+            // Placement needs the folder each note is filed in and the position it holds there,
+            // and nothing else, so this reads summaries rather than the whole library.
+            var existing = await notes.GetAllNoteSummariesAsync().ConfigureAwait(false);
             var note = new Note
             {
                 Title = Blank(body.Title) ?? DefaultTitle,
