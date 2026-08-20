@@ -169,8 +169,9 @@ internal static class AnkiPackageFixture
         try
         {
             var collectionPath = Path.Combine(workRoot, "collection.db");
+            // No pool to clear: WriteCollectionAsync opens the collection with Pooling=False, so
+            // disposing its connection has already released the file this is about to zip.
             await WriteCollectionAsync(collectionPath, layout, cards).ConfigureAwait(false);
-            SqliteConnection.ClearAllPools();
 
             if (layout == AnkiFixtureLayout.Legacy)
                 WriteLegacyPackage(packagePath, collectionPath, media);
@@ -181,7 +182,6 @@ internal static class AnkiPackageFixture
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
             try { Directory.Delete(workRoot, recursive: true); } catch (IOException) { }
         }
     }
@@ -214,7 +214,6 @@ internal static class AnkiPackageFixture
     {
         var stubPath = Path.Combine(workRoot, "stub.db");
         await WriteCollectionAsync(stubPath, AnkiFixtureLayout.Legacy, Array.Empty<AnkiFixtureCard>()).ConfigureAwait(false);
-        SqliteConnection.ClearAllPools();
 
         using var file = File.Create(packagePath);
         using var archive = new ZipArchive(file, ZipArchiveMode.Create);

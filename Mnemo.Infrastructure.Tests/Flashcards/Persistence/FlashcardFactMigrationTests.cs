@@ -636,7 +636,7 @@ public sealed class FlashcardFactMigrationTests
 
         public ValueTask DisposeAsync()
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPools.ClearPoolFor(_path);
             foreach (var file in new[] { _path, _path + "-wal", _path + "-shm" })
             {
                 try
