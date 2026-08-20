@@ -10,7 +10,7 @@ using Xunit;
 namespace Mnemo.Infrastructure.Tests.Flashcards.Persistence;
 
 /// <summary>
-/// Every schema version from 1 through <see cref="FlashcardStoreSchema.TargetVersion"/> (9), opened
+/// Every schema version from 1 through <see cref="FlashcardStoreSchema.TargetVersion"/> (10), opened
 /// from a real per-version fixture and checked against a column list this file owns rather than
 /// reads from production.
 /// </summary>
@@ -69,6 +69,7 @@ public sealed class FlashcardStoreVersionMatrixTests
     [InlineData(7)]
     [InlineData(8)]
     [InlineData(9)]
+    [InlineData(10)]
     public async Task Opening_a_database_from_any_version_reaches_current_with_every_column_present(int fromVersion)
     {
         var path = Path.Combine(Path.GetTempPath(), $"mnemo_fc_matrix_v{fromVersion}_{Guid.NewGuid():N}.db");
@@ -87,6 +88,13 @@ public sealed class FlashcardStoreVersionMatrixTests
                 Assert.True(
                     await FlashcardStoreUpgradeTests.ColumnExistsAsync(store, table, column),
                     $"{table}.{column} is missing after opening a v{fromVersion} database.");
+
+            Assert.True(
+                await FlashcardStoreUpgradeTests.IndexExistsAsync(store, "IX_Decks_Live"),
+                $"IX_Decks_Live is missing after opening a v{fromVersion} database.");
+            Assert.True(
+                await FlashcardStoreUpgradeTests.IndexExistsAsync(store, "IX_Folders_Live"),
+                $"IX_Folders_Live is missing after opening a v{fromVersion} database.");
 
             // The fixture's own content survived the round trip rather than being lost by a strip
             // step reaching further than the column or table it was meant to remove.
@@ -123,6 +131,7 @@ public sealed class FlashcardStoreVersionMatrixTests
     {
         await FlashcardStoreUpgradeTests.WriteRealCollectionAsync(path, deckId, cardId);
 
+        if (targetVersion < 10) await StripLiveIndexesAsync(path);
         if (targetVersion < 9) await StripOriginAsync(path);
         if (targetVersion < 8) await StripTrashAsync(path);
         if (targetVersion < 7) await StripBuriedUntilAsync(path);
@@ -139,6 +148,15 @@ public sealed class FlashcardStoreVersionMatrixTests
     // Each removes exactly what the commit introducing that version added to
     // FlashcardStoreSchema (verified against git history), nothing more.
 
+    /// <summary>v10 added IX_Decks_Live and IX_Folders_Live.</summary>
+    private static Task StripLiveIndexesAsync(string path) =>
+        ExecuteAsync(
+            path,
+            """
+            DROP INDEX IF EXISTS IX_Decks_Live;
+            DROP INDEX IF EXISTS IX_Folders_Live;
+            """);
+
     /// <summary>v9 added FlashcardReviews.Origin.</summary>
     private static Task StripOriginAsync(string path) =>
         ExecuteAsync(path, "ALTER TABLE FlashcardReviews DROP COLUMN Origin;");
@@ -146,6 +164,10 @@ public sealed class FlashcardStoreVersionMatrixTests
     /// <summary>
     /// v8 added TrashId to four tables, the FlashcardTrashFactHomes table and six indexes. Dropping
     /// FlashcardTrashFactHomes takes its own indexes with it; the rest are dropped explicitly.
+    /// IX_Decks_Live and IX_Folders_Live are the later v10 addition, not part of what v8 added, but
+    /// they index TrashId too, so they come out here as well: SQLite refuses to drop a column that
+    /// an index still references, and by the time this runs StripLiveIndexesAsync has usually
+    /// already removed them, so this is a defensive repeat rather than the only place it happens.
     /// </summary>
     private static Task StripTrashAsync(string path) =>
         ExecuteAsync(
@@ -157,6 +179,8 @@ public sealed class FlashcardStoreVersionMatrixTests
             DROP INDEX IF EXISTS IX_Cards_Trash;
             DROP INDEX IF EXISTS IX_Cards_Live_Deck;
             DROP INDEX IF EXISTS IX_Facts_Live_Deck;
+            DROP INDEX IF EXISTS IX_Decks_Live;
+            DROP INDEX IF EXISTS IX_Folders_Live;
             DROP TABLE IF EXISTS FlashcardTrashFactHomes;
             ALTER TABLE FlashcardFolders DROP COLUMN TrashId;
             ALTER TABLE FlashcardDecks   DROP COLUMN TrashId;

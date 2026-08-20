@@ -7,7 +7,7 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 internal static class FlashcardStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 9;
+    public const int TargetVersion = 10;
 
     /// <summary>
     /// Columns added after v1, for databases that already exist.
@@ -59,6 +59,11 @@ internal static class FlashcardStoreSchema
 
         CREATE INDEX IF NOT EXISTS IX_Cards_Live_Deck ON FlashcardCards(DeckId, TrashId);
         CREATE INDEX IF NOT EXISTS IX_Facts_Live_Deck ON FlashcardFacts(DeckId, TrashId);
+
+        -- The trash indexes above cover TrashId IS NOT NULL only; the ordinary deck and folder
+        -- listings filter IS NULL and sort by SortOrder, Name, so they need their own composite.
+        CREATE INDEX IF NOT EXISTS IX_Decks_Live   ON FlashcardDecks(TrashId, SortOrder, Name);
+        CREATE INDEX IF NOT EXISTS IX_Folders_Live ON FlashcardFolders(TrashId, SortOrder, Name);
         """;
 
     /// <summary>Every table, index, FTS virtual table and trigger, created if absent.</summary>
