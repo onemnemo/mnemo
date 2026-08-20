@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 
-namespace Mnemo.UI.Services;
+namespace Mnemo.Infrastructure.Services.AI;
 
 public class FunctionRegistry : IFunctionRegistry
 {
