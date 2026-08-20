@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 cd926fd0b706761a7450bfb72c985972fbeed49a6f623ae443de3a8ff627a9a1
+sha256 7456b44f69b357fa0975e9717ff8abd90f0e0dd0bd6ba7a727ee1e3be4056e8e
 namespaces 38
-keys 2109
+keys 2112
   App 10
   Chat 132
   Common 86
@@ -14,7 +14,7 @@ keys 2109
   FlashcardStats 8
   FlashcardTests 8
   Flashcards 382
-  GlobalSearch 15
+  GlobalSearch 18
   Hardware 2
   Keybinds 102
   Mindmap 331
@@ -46,9 +46,9 @@ keys 2109
   WidgetToday 9
 
 culture de
-sha256 442b0a90462b3eacd48f0a67259805fc907facee4f32c5705faa4a0d90f374a0
+sha256 6ddf130c417d1405a9902711148979eea942bb42a30f7a45ee38c771549083d9
 namespaces 38
-keys 2109
+keys 2112
   App 10
   Chat 132
   Common 86
@@ -57,7 +57,7 @@ keys 2109
   FlashcardStats 8
   FlashcardTests 8
   Flashcards 382
-  GlobalSearch 15
+  GlobalSearch 18
   Hardware 2
   Keybinds 102
   Mindmap 331
@@ -89,9 +89,9 @@ keys 2109
   WidgetToday 9
 
 culture es
-sha256 68ea56c5d4870f0b069653e81160d4eaccae06cad8224aa199b79bfa77e09edc
+sha256 e9b8043f8e6dd834f5a2a81810287f702ffbdc768e48ea2ca0b3a1b6b065516c
 namespaces 38
-keys 2109
+keys 2112
   App 10
   Chat 132
   Common 86
@@ -100,7 +100,7 @@ keys 2109
   FlashcardStats 8
   FlashcardTests 8
   Flashcards 382
-  GlobalSearch 15
+  GlobalSearch 18
   Hardware 2
   Keybinds 102
   Mindmap 331
@@ -132,9 +132,9 @@ keys 2109
   WidgetToday 9
 
 culture ja
-sha256 3fb0422fdb2a0c62076bd91b8010d392bf9bd749f19b07d59a18dedeed62c644
+sha256 79a74f913b49c79b46d3642c80674d05f572e2e52476ba209897a5275d7b5a16
 namespaces 38
-keys 2109
+keys 2112
   App 10
   Chat 132
   Common 86
@@ -143,7 +143,7 @@ keys 2109
   FlashcardStats 8
   FlashcardTests 8
   Flashcards 382
-  GlobalSearch 15
+  GlobalSearch 18
   Hardware 2
   Keybinds 102
   Mindmap 331
@@ -175,9 +175,9 @@ keys 2109
   WidgetToday 9
 
 culture nb
-sha256 3a86fc823e335758594461172a1b637fc314461d86fafde04b38eca121b479ad
+sha256 4c8afe136d41b876412234d40e14a744592fe9343a751719a3fa5b11be60a651
 namespaces 38
-keys 2109
+keys 2112
   App 10
   Chat 132
   Common 86
@@ -186,7 +186,7 @@ keys 2109
   FlashcardStats 8
   FlashcardTests 8
   Flashcards 382
-  GlobalSearch 15
+  GlobalSearch 18
   Hardware 2
   Keybinds 102
   Mindmap 331
