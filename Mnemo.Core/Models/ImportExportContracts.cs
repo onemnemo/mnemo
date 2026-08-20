@@ -12,6 +12,12 @@ public static class ImportExportOptionKeys
 
     public const string TargetFolderId = "TargetFolderId";
 
+    /// <summary>
+    /// What an export is for: <c>backup</c> or <c>export</c>. See <see cref="MnemoPackageKinds"/>.
+    /// A caller that does not say leaves the adapter to work it out from what was selected.
+    /// </summary>
+    public const string PackageKind = "PackageKind";
+
     public static ImportConflictPolicy GetConflictPolicy(IReadOnlyDictionary<string, object?> options)
     {
         if (options.TryGetValue(ConflictPolicy, out var value))
@@ -72,6 +78,12 @@ public sealed class ImportExportPreview
     public string FormatId { get; set; } = string.Empty;
 
     public Dictionary<string, int> DiscoveredCounts { get; set; } = new(System.StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// What importing this file would mean, for a format that can work it out ahead of time. Null
+    /// for a format that reads no manifest and can say nothing beyond its counts.
+    /// </summary>
+    public MnemoPackageEvidence? Evidence { get; set; }
 
     public List<TransferWarning> Warnings { get; set; } = new();
 }

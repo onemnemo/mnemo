@@ -12,26 +12,64 @@ public sealed class MnemoPackageService : IMnemoPackageService
 {
     private const string ManifestPath = "manifest.json";
 
+    /// <summary>
+    /// Settings key holding this installation's collection id. A setting rather than a column so no
+    /// store gains a schema version for it; it is minted the first time a package is written.
+    /// </summary>
+    public const string CollectionIdSettingKey = "Collection.Id";
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true
     };
 
     private readonly IReadOnlyDictionary<string, IMnemoPayloadHandler> _handlers;
+    private readonly ISettingsService _settings;
     private readonly ILoggerService _logger;
     private readonly PackageReadLimits _limits;
 
-    public MnemoPackageService(IEnumerable<IMnemoPayloadHandler> handlers, ILoggerService logger)
-        : this(handlers, logger, PackageReadLimits.Default)
+    public MnemoPackageService(IEnumerable<IMnemoPayloadHandler> handlers, ISettingsService settings, ILoggerService logger)
+        : this(handlers, settings, logger, PackageReadLimits.Default)
     {
     }
 
     /// <summary>Test seam: the same service with smaller caps so a limit can be exercised cheaply.</summary>
-    internal MnemoPackageService(IEnumerable<IMnemoPayloadHandler> handlers, ILoggerService logger, PackageReadLimits limits)
+    internal MnemoPackageService(
+        IEnumerable<IMnemoPayloadHandler> handlers,
+        ISettingsService settings,
+        ILoggerService logger,
+        PackageReadLimits limits)
     {
+        _settings = settings;
         _logger = logger;
         _limits = limits;
         _handlers = handlers.ToDictionary(h => h.PayloadType, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// This installation's collection id, minted and stored the first time it is asked for.
+    /// </summary>
+    /// <remarks>
+    /// A package written by a build that could not reach its settings still has to be written, so a
+    /// failure here costs the manifest its id rather than costing the user their export.
+    /// </remarks>
+    private async Task<string?> ResolveCollectionIdAsync()
+    {
+        try
+        {
+            var existing = await _settings.GetAsync<string>(CollectionIdSettingKey, string.Empty).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(existing))
+                return existing;
+
+            var minted = Guid.NewGuid().ToString("N");
+            await _settings.SetAsync(CollectionIdSettingKey, minted).ConfigureAwait(false);
+            return minted;
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning("MnemoPackageService", $"Could not resolve the collection id: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>
@@ -83,7 +121,9 @@ public sealed class MnemoPackageService : IMnemoPackageService
                 Format = "mnemo-package",
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 CreatedByAppVersion = options.AppVersion,
-                PackageKind = options.PackageKind
+                PackageKind = options.PackageKind,
+                Kind = MnemoPackageKinds.Normalize(options.Kind),
+                CollectionId = await ResolveCollectionIdAsync().ConfigureAwait(false)
             };
 
             await using var output = File.Create(outputFilePath);
@@ -170,15 +210,12 @@ public sealed class MnemoPackageService : IMnemoPackageService
                     continue;
                 }
 
-                var files = archiveEntries
-                    .Where(kvp => IsUnderPath(kvp.Key, entry.Path))
-                    .ToDictionary(kvp => kvp.Key[(entry.Path.TrimEnd('/') + "/").Length..], kvp => kvp.Value, StringComparer.OrdinalIgnoreCase);
-
                 var importResult = await handler.ImportAsync(new MnemoPayloadImportContext
                 {
                     Entry = entry,
                     Options = options,
-                    Files = files
+                    Files = FilesUnder(archiveEntries, entry),
+                    Manifest = manifest
                 }, cancellationToken).ConfigureAwait(false);
 
                 result.ImportedCountsByPayload[entry.PayloadType] = importResult.ImportedCount;
@@ -226,6 +263,65 @@ public sealed class MnemoPackageService : IMnemoPackageService
             _logger.Error("MnemoPackageService", "Failed to preview package.", ex);
             return Result<ImportExportPreview>.Failure("Failed to preview .mnemo package.", ex);
         }
+    }
+
+    public async Task<Result<MnemoPackageEvidence>> InspectAsync(string packageFilePath, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var read = await ReadPackageManifestAsync(packageFilePath, cancellationToken).ConfigureAwait(false);
+            if (!read.IsSuccess)
+                return Result<MnemoPackageEvidence>.Failure(read.ErrorMessage ?? "Failed to read package manifest.", read.Exception);
+
+            var (manifest, archiveEntries) = read.Value;
+            var localCollectionId = await ResolveCollectionIdAsync().ConfigureAwait(false);
+            var evidence = new MnemoPackageEvidence
+            {
+                Kind = MnemoPackageKinds.Normalize(manifest.Kind),
+                CollectionId = manifest.CollectionId,
+                FromThisCollection = !string.IsNullOrWhiteSpace(manifest.CollectionId)
+                    && string.Equals(manifest.CollectionId, localCollectionId, StringComparison.OrdinalIgnoreCase),
+                CreatedAtUtc = manifest.CreatedAtUtc,
+                CreatedByAppVersion = manifest.CreatedByAppVersion
+            };
+
+            foreach (var entry in manifest.Entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!_handlers.TryGetValue(entry.PayloadType, out var handler) || handler is not IMnemoPayloadInspector inspector)
+                    continue;
+
+                var payload = await inspector.InspectAsync(new MnemoPayloadImportContext
+                {
+                    Entry = entry,
+                    Options = new MnemoPackageImportOptions { PreviewOnly = true },
+                    Files = FilesUnder(archiveEntries, entry),
+                    Manifest = manifest
+                }, cancellationToken).ConfigureAwait(false);
+
+                evidence.Payloads.Add(payload);
+                if (!payload.CanRead)
+                    evidence.CanRead = false;
+            }
+
+            return Result<MnemoPackageEvidence>.Success(evidence);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("MnemoPackageService", "Failed to inspect package.", ex);
+            return Result<MnemoPackageEvidence>.Failure("Failed to inspect .mnemo package.", ex);
+        }
+    }
+
+    /// <summary>The archive entries belonging to one payload, keyed by their path inside it.</summary>
+    private static Dictionary<string, byte[]> FilesUnder(
+        IReadOnlyDictionary<string, byte[]> archiveEntries,
+        MnemoPackageEntry entry)
+    {
+        var prefixLength = (entry.Path.TrimEnd('/') + "/").Length;
+        return archiveEntries
+            .Where(kvp => IsUnderPath(kvp.Key, entry.Path))
+            .ToDictionary(kvp => kvp.Key[prefixLength..], kvp => kvp.Value, StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task<Result<(MnemoPackageManifest Manifest, Dictionary<string, byte[]> Entries)>> ReadPackageManifestAsync(

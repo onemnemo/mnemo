@@ -10,6 +10,12 @@ public sealed class MnemoPackageExportOptions
 
     public string? PackageKind { get; set; }
 
+    /// <summary>
+    /// What the package is for: <c>backup</c> or <c>export</c>. See <see cref="MnemoPackageKinds"/>.
+    /// A backup carries everything a handler can restore; an export carries the chosen part.
+    /// </summary>
+    public string Kind { get; set; } = MnemoPackageKinds.Export;
+
     public string? AppVersion { get; set; }
 
     public Dictionary<string, object?> PayloadOptions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -77,4 +83,10 @@ public sealed class MnemoPayloadImportContext
     public required MnemoPackageImportOptions Options { get; init; }
 
     public required IReadOnlyDictionary<string, byte[]> Files { get; init; }
+
+    /// <summary>
+    /// The manifest the payload arrived in, so a handler can tell a backup from an export. Defaults
+    /// to a manifest declaring neither, which is what a package written before kinds existed says.
+    /// </summary>
+    public MnemoPackageManifest Manifest { get; init; } = new();
 }
