@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Flashcards.Generation;
@@ -73,7 +74,11 @@ public sealed class FlashcardFactService : IFlashcardFactService
             if (previous is not null)
             {
                 foreach (var fact in await _facts.ListByTypeAsync(conn, saved.Id, ct).ConfigureAwait(false))
-                    await _materializer.ApplyAsync(conn, tx, saved, fact, fact.DeckId, now, ct).ConfigureAwait(false);
+                {
+                    await _materializer
+                        .ApplyAsync(conn, tx, saved, fact, fact.DeckId, importedCards: null, now, ct)
+                        .ConfigureAwait(false);
+                }
             }
 
             return saved;
@@ -98,49 +103,83 @@ public sealed class FlashcardFactService : IFlashcardFactService
     public async Task<FlashcardFactSaved> SaveFactAsync(FlashcardFactDraft draft, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
-        var now = _clock.Now;
+        var saved = await SaveFactsAsync([draft], cancellationToken).ConfigureAwait(false);
+        return saved[0];
+    }
 
+    public async Task<IReadOnlyList<FlashcardFactSaved>> SaveFactsAsync(
+        IReadOnlyList<FlashcardFactDraft> drafts, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(drafts);
+        if (drafts.Count == 0)
+            return [];
+
+        var now = _clock.Now;
         return await _store.WriteAsync(async (conn, tx, ct) =>
         {
-            var type = await _types.GetAsync(conn, draft.TypeId, ct).ConfigureAwait(false)
-                ?? throw new ArgumentException($"There is no card type '{draft.TypeId}'.", nameof(draft));
+            // A package imports under a handful of types across thousands of notes, so the type is
+            // read once rather than once per draft.
+            var types = new Dictionary<string, FlashcardCardType>(StringComparer.Ordinal);
+            var saved = new List<FlashcardFactSaved>(drafts.Count);
+            foreach (var draft in drafts)
+                saved.Add(await SaveOneAsync(conn, tx, draft, types, now, ct).ConfigureAwait(false));
 
-            var existing = draft.Id is null
-                ? null
-                : await _facts.GetAsync(conn, draft.Id, ct).ConfigureAwait(false);
-
-            var fact = new FlashcardFact(
-                Id: existing?.Id ?? Guid.NewGuid().ToString("N"),
-                DeckId: draft.DeckId,
-                TypeId: draft.TypeId,
-                Values: draft.Values,
-                Media: draft.Media,
-                Tags: draft.Tags,
-                IsFlagged: existing?.IsFlagged ?? false,
-                SourceInfo: existing?.SourceInfo,
-                CreatedAt: existing?.CreatedAt ?? now,
-                UpdatedAt: now);
-
-            if (!FlashcardCardMaterializer.WouldMakeCards(type, fact))
-                throw new ArgumentException("This would make no cards. Fill in a field a card uses.", nameof(draft));
-
-            await _facts.UpsertAsync(conn, tx, fact, ct).ConfigureAwait(false);
-            var result = await _materializer.ApplyAsync(conn, tx, type, fact, existing?.DeckId, now, ct).ConfigureAwait(false);
-
-            var keys = await _facts.GetCardKeysAsync(conn, fact.Id, ct).ConfigureAwait(false);
-            var cards = new List<Flashcard>(keys.Count);
-            foreach (var key in keys)
-            {
-                if (await _cards.GetAsync(conn, key.CardId, ct).ConfigureAwait(false) is { } card)
-                    cards.Add(card);
-            }
-
-            await AssetCleanupQueue
-                .EnqueueAsync(conn, tx, FlashcardAssetReferences.AssetOwner, DroppedMediaPaths(existing, fact), now, ct)
-                .ConfigureAwait(false);
-
-            return new FlashcardFactSaved(fact, cards, result.Added, result.Removed);
+            return (IReadOnlyList<FlashcardFactSaved>)saved;
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<FlashcardFactSaved> SaveOneAsync(
+        SqliteConnection conn,
+        SqliteTransaction tx,
+        FlashcardFactDraft draft,
+        Dictionary<string, FlashcardCardType> types,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
+        if (!types.TryGetValue(draft.TypeId, out var type))
+        {
+            type = await _types.GetAsync(conn, draft.TypeId, ct).ConfigureAwait(false)
+                ?? throw new ArgumentException($"There is no card type '{draft.TypeId}'.", nameof(draft));
+            types[draft.TypeId] = type;
+        }
+
+        var existing = draft.Id is null
+            ? null
+            : await _facts.GetAsync(conn, draft.Id, ct).ConfigureAwait(false);
+
+        var fact = new FlashcardFact(
+            Id: existing?.Id ?? Guid.NewGuid().ToString("N"),
+            DeckId: draft.DeckId,
+            TypeId: draft.TypeId,
+            Values: draft.Values,
+            Media: draft.Media,
+            Tags: draft.Tags,
+            IsFlagged: existing?.IsFlagged ?? false,
+            SourceInfo: existing?.SourceInfo,
+            CreatedAt: existing?.CreatedAt ?? now,
+            UpdatedAt: now);
+
+        if (!FlashcardCardMaterializer.WouldMakeCards(type, fact))
+            throw new ArgumentException("This would make no cards. Fill in a field a card uses.", nameof(draft));
+
+        await _facts.UpsertAsync(conn, tx, fact, ct).ConfigureAwait(false);
+        var result = await _materializer
+            .ApplyAsync(conn, tx, type, fact, existing?.DeckId, draft.Cards, now, ct)
+            .ConfigureAwait(false);
+
+        var keys = await _facts.GetCardKeysAsync(conn, fact.Id, ct).ConfigureAwait(false);
+        var cards = new List<Flashcard>(keys.Count);
+        foreach (var key in keys)
+        {
+            if (await _cards.GetAsync(conn, key.CardId, ct).ConfigureAwait(false) is { } card)
+                cards.Add(card);
+        }
+
+        await AssetCleanupQueue
+            .EnqueueAsync(conn, tx, FlashcardAssetReferences.AssetOwner, DroppedMediaPaths(existing, fact), now, ct)
+            .ConfigureAwait(false);
+
+        return new FlashcardFactSaved(fact, cards, result.Added, result.Removed);
     }
 
     /// <summary>

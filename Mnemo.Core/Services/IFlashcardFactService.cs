@@ -29,5 +29,13 @@ public interface IFlashcardFactService
     Task<FlashcardFact?> GetFactForCardAsync(string cardId, CancellationToken cancellationToken = default);
 
     Task<FlashcardFactSaved> SaveFactAsync(FlashcardFactDraft draft, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves several pieces of material at once, each rebuilding its own cards, all in one write.
+    /// What an import calls: a collection arrives whole, and a write per note would cost a commit
+    /// per note. A draft that would make no cards fails the whole call, exactly as it would alone.
+    /// </summary>
+    Task<IReadOnlyList<FlashcardFactSaved>> SaveFactsAsync(
+        IReadOnlyList<FlashcardFactDraft> drafts, CancellationToken cancellationToken = default);
     Task DeleteFactsAsync(IReadOnlyList<string> factIds, CancellationToken cancellationToken = default);
 }
