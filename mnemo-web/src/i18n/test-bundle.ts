@@ -28,9 +28,9 @@ function readJsonBundle(file: string): Bundle {
   return JSON.parse(readFileSync(file, "utf8")) as Bundle
 }
 
-/** Every Translations/en.json under Mnemo.UI/Modules, found by walking the tree. */
-function findModuleEnglishBundles(): string[] {
-  const modulesDir = repoFile("Mnemo.UI", "Modules")
+/** Every Translations/en.json under Mnemo.Infrastructure/Modules, found by walking the tree. */
+export function findModuleEnglishBundles(): string[] {
+  const modulesDir = repoFile("Mnemo.Infrastructure", "Modules")
   const found: string[] = []
 
   const walk = (dir: string) => {
