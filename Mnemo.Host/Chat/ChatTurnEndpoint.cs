@@ -12,6 +12,7 @@ using Mnemo.Core.Services.Ai;
 using Mnemo.Host.Ai;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Events;
+using Mnemo.Infrastructure.Services.AI;
 using Mnemo.UI.Services;
 
 namespace Mnemo.Host.Chat;
