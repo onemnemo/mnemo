@@ -210,6 +210,13 @@ internal sealed class ReviewSnapshotDto
     public double? DifficultyAfter { get; set; }
     public int? StateBefore { get; set; }
     public int StateAfter { get; set; }
+
+    /// <summary>
+    /// Whether the answer was given here or carried in from another app. Absent from a package
+    /// written before the distinction was recorded, which reads back as zero, and zero is answered
+    /// here: exactly what every review in such a package was.
+    /// </summary>
+    public int Origin { get; set; }
 }
 
 /// <summary>One study day's counters for a deck, which is what the activity and streak read.</summary>
