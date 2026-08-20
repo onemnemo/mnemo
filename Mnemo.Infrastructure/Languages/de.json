@@ -1362,6 +1362,7 @@
     "AnkiAudioNotImported": "{count} Karte(n) verweisen auf Audio, das Karten hier noch nicht enthalten können. Der Verweis bleibt im Text stehen, die Audiodatei wurde nicht importiert.",
     "AnkiScheduleCarriedOver": "Die Karten behielten die Termine, zu denen sie als Nächstes fällig waren. Wie gut jede einzelne bekannt ist, wird ab den nächsten Wiederholungen neu gemessen, daher können die ersten Intervalle von denen der anderen App abweichen.",
     "AnkiClozeSiblingsFiledTogether": "Bei {count} Notiz(en) waren die Lückentextkarten über mehrere Stapel verteilt. Alle Karten einer Notiz wurden in dem Stapel abgelegt, der die meisten davon enthielt, denn eine Notiz ist ein Materialstück.",
+    "AnkiReviewHistoryImported": "{count} frühere Wiederholung(en) sind mit den Karten übernommen worden. Sie zählen für die Behaltensrate und trainieren den Planer, daher zeigt ein frisch importierter Stapel bereits Zahlen an.",
     "AnkiMediaNotFound": "Das referenzierte Medium „{mediaName}“ wurde im Paket nicht gefunden.",
     "AnkiMediaImportFailed": "Import des Mediums „{mediaName}“ fehlgeschlagen: {error}",
     "AnkiMediaImportFailedUnknown": "Import des Mediums „{mediaName}“ fehlgeschlagen, der Grund ist unbekannt.",

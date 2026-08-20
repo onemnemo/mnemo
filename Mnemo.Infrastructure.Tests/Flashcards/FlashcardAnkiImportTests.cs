@@ -35,7 +35,8 @@ public sealed class FlashcardAnkiImportTests
         var library = NewLibrary(h);
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
-        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc, new ImageAssetService());
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
 
         var apkg = await BuildApkgAsync(
             deckName: "Biology",
@@ -85,7 +86,8 @@ public sealed class FlashcardAnkiImportTests
         var library = NewLibrary(h);
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
-        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc, new ImageAssetService());
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
 
         var apkg = await BuildApkgAsync(
             deckName: "Overflow",
@@ -128,7 +130,8 @@ public sealed class FlashcardAnkiImportTests
         var library = NewLibrary(h);
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
-        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc, new ImageAssetService());
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
 
         // A .apkg with no collection.anki21/anki2 fails after the temp directory is already
         // extracted; both call sites must still remove it rather than leaking it in %TEMP%.
@@ -161,7 +164,8 @@ public sealed class FlashcardAnkiImportTests
         var library = NewLibrary(h);
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
-        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc, new ImageAssetService());
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
 
         var apkg = await BuildApkgAsync(
             deckName: "Mislabelled",
@@ -195,7 +199,8 @@ public sealed class FlashcardAnkiImportTests
         var library = NewLibrary(h);
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
-        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc, new ImageAssetService());
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
 
         var apkg = await BuildApkgAsync(
             deckName: "NotAnImage",
@@ -230,7 +235,8 @@ public sealed class FlashcardAnkiImportTests
         var library = NewLibrary(h);
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
-        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc, new ImageAssetService());
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
 
         // A real image outside the package, so only the containment check can stop it being
         // copied. A non-image would be refused for the wrong reason and prove nothing.
@@ -270,7 +276,8 @@ public sealed class FlashcardAnkiImportTests
         var library = NewLibrary(h);
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
-        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc, new ImageAssetService());
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
 
         var apkg = await BuildApkgAsync("Escape", "front", "back", new Dictionary<string, byte[]>());
         var escapeName = $"mnemo_anki_escape_{Guid.NewGuid():N}.png";
