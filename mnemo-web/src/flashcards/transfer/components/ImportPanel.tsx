@@ -5,7 +5,14 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import type { ConflictPolicy, TransferFormatDto } from "@/api/types"
-import { conflictPolicyApplies, formatFileSize, importExtensions, MAX_FILES, type QueuedFile } from "../transfer"
+import {
+  conflictPolicyApplies,
+  fileNoteText,
+  formatFileSize,
+  importExtensions,
+  MAX_FILES,
+  type QueuedFile,
+} from "../transfer"
 import { Segmented } from "./Segmented"
 
 const CONFLICT_OPTIONS: { value: ConflictPolicy; labelKey: string; captionKey: string }[] = [
@@ -223,6 +230,7 @@ function FileRow({
   busy: boolean
   onRemove: () => void
 }) {
+  const t = useT()
   const rejected = file.status === "rejected"
   const uploading = file.status === "uploading"
 
@@ -249,7 +257,7 @@ function FileRow({
         <div className={cn("truncate text-caption", rejected ? "text-[var(--toast-accent-warning)]" : "text-text-tertiary")}>
           {/* The reason a file was refused replaces its stats - they are not the useful thing
               about a file that is not going to import. */}
-          {rejected ? (file.notes?.join(" ") ?? detail) : detail}
+          {rejected ? (file.notes?.map((note) => fileNoteText(t, note)).join(" ") ?? detail) : detail}
         </div>
       </div>
 
