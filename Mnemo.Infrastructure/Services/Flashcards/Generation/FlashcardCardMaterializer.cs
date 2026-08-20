@@ -50,12 +50,20 @@ public sealed class FlashcardCardMaterializer
     /// created. Passing the fact's own current deck here (rather than null) tells this call that
     /// the material is not moving, so a card someone filed elsewhere on its own is left there.
     /// </param>
+    /// <param name="importedCards">
+    /// What another app knew about the cards this material makes, keyed by layout, or null outside
+    /// an import. A card whose layout is listed starts on the history it arrived with rather than
+    /// New; one that is not listed starts New, so a deletion the package had no card for is not
+    /// handed somebody else's schedule. Only an insert reads this: a card that already exists keeps
+    /// the schedule it has been building.
+    /// </param>
     public async Task<FlashcardMaterializeResult> ApplyAsync(
         SqliteConnection conn,
         SqliteTransaction tx,
         FlashcardCardType type,
         FlashcardFact fact,
         string? previousDeckId,
+        IReadOnlyDictionary<string, FlashcardImportedCard>? importedCards,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -103,7 +111,8 @@ public sealed class FlashcardCardMaterializer
                 continue;
             }
 
-            await InsertAsync(conn, tx, fact, card, cardType, now, cancellationToken).ConfigureAwait(false);
+            await InsertAsync(
+                conn, tx, fact, card, cardType, Carried(importedCards, card.Key), now, cancellationToken).ConfigureAwait(false);
             added++;
         }
 
@@ -143,7 +152,8 @@ public sealed class FlashcardCardMaterializer
 
     private async Task InsertAsync(
         SqliteConnection conn, SqliteTransaction tx, FlashcardFact fact,
-        FlashcardGeneratedCard generated, FlashcardType cardType, DateTimeOffset now, CancellationToken cancellationToken)
+        FlashcardGeneratedCard generated, FlashcardType cardType, FlashcardImportedCard? carried,
+        DateTimeOffset now, CancellationToken cancellationToken)
     {
         var card = new Flashcard(
             Id: Guid.NewGuid().ToString("N"),
@@ -152,7 +162,7 @@ public sealed class FlashcardCardMaterializer
             Front: generated.Front,
             Back: generated.Back,
             Tags: fact.Tags,
-            State: FlashcardCardState.Active,
+            State: carried?.State ?? FlashcardCardState.Active,
             IsFlagged: fact.IsFlagged,
             Attachments: Sided(generated),
             SourceInfo: fact.SourceInfo,
@@ -163,9 +173,18 @@ public sealed class FlashcardCardMaterializer
             FactId: fact.Id,
             LayoutKey: generated.Key);
 
+        // Landing a studied collection as new cards makes every one of them due at once, which is
+        // the opposite of what carrying a schedule across is for.
+        var schedule = carried?.Schedule?.ToSchedule(card.Id) ?? FlashcardSchedule.NewFor(card.Id, now);
+
         await _cards.InsertAsync(conn, tx, card, cancellationToken).ConfigureAwait(false);
-        await _schedules.UpsertAsync(conn, tx, FlashcardSchedule.NewFor(card.Id, now), cancellationToken).ConfigureAwait(false);
+        await _schedules.UpsertAsync(conn, tx, schedule, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>What an import knew about the card one layout makes, or null when nothing did.</summary>
+    private static FlashcardImportedCard? Carried(
+        IReadOnlyDictionary<string, FlashcardImportedCard>? importedCards, string layoutKey) =>
+        importedCards is not null && importedCards.TryGetValue(layoutKey, out var carried) ? carried : null;
 
     /// <summary>
     /// The media a generated card carries, tagged with the side it is shown on. The fact keeps

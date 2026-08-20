@@ -1348,6 +1348,7 @@
     "AnkiExtraFieldsDropped": "Bare de to første feltene ble importert fra disse notattypene: {noteTypes}.",
     "AnkiAudioNotImported": "{count} kort viser til lyd, som kortene her ikke kan inneholde ennå. Referansen blir stående i teksten, og lydfilen ble ikke importert.",
     "AnkiScheduleCarriedOver": "Kortene beholdt datoene de skulle repeteres neste gang. Hvor godt hvert av dem er innlært, måles på nytt fra de neste repetisjonene dine, så de første intervallene kan avvike fra den andre appens.",
+    "AnkiClozeSiblingsFiledTogether": "{count} notat(er) hadde lukekortene sine spredt over flere kortstokker. Alle kortene til hvert notat ble lagt i kortstokken som hadde flest av dem, fordi ett notat er ett stykke materiale.",
     "AnkiMediaNotFound": "Det refererte mediet «{mediaName}» ble ikke funnet i pakken.",
     "AnkiMediaImportFailed": "Kunne ikke importere mediet «{mediaName}»: {error}",
     "AnkiMediaImportFailedUnknown": "Kunne ikke importere mediet «{mediaName}»; årsaken er ukjent.",
