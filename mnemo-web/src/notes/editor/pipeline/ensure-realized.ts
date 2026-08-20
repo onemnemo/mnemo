@@ -64,10 +64,21 @@ export function topLevelBlockAt(view: EditorView, pos: number): { pos: number; i
   const $pos = doc.resolve(clamped);
   // index(0) is the child the position sits in, or the child after it when the
   // position is between blocks; clamp so the tail boundary maps to the last block.
-  const index = Math.min($pos.index(0), doc.childCount - 1);
+  const childIndex = $pos.index(0);
+  const index = Math.min(childIndex, doc.childCount - 1);
 
-  let before = 0;
-  for (let i = 0; i < index; i++) before += doc.child(i).nodeSize;
+  // `$pos` already resolved the child at `index`, so `before(1)` is that work
+  // reused rather than redone. Past the last child there is no child left to
+  // resolve into, depth 0 has nothing for `before(1)` to name there, and it
+  // answers with the clamped position itself rather than the last block's
+  // start, so that one case keeps the walk.
+  let before: number;
+  if (childIndex >= doc.childCount) {
+    before = 0;
+    for (let i = 0; i < index; i++) before += doc.child(i).nodeSize;
+  } else {
+    before = $pos.before(1);
+  }
   return { pos: before, index, node: doc.child(index) };
 }
 
