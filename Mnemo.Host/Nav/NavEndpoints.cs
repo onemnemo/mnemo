@@ -8,13 +8,13 @@ using Mnemo.Host.HeadlessShell;
 namespace Mnemo.Host.Nav;
 
 /// <summary>
-/// Serves the sidebar model the SPA renders, built from the same module
-/// registrations the desktop app uses (via <see cref="ISidebarService"/>) rather
-/// than a list hardcoded in the frontend.
+/// Serves the sidebar model the SPA renders, built from the module registrations
+/// themselves (via <see cref="ISidebarService"/>) rather than a list hardcoded in
+/// the frontend.
 /// </summary>
 public static class NavEndpoints
 {
-    // Mirrors Mnemo.UI SidebarService.AiAssistantEnabledKey.
+    // The setting that decides whether the assistant entry appears in the nav model.
     private const string AiAssistantEnabledKey = "AI.EnableAssistant";
 
     public static void MapNav(this IEndpointRouteBuilder endpoints)

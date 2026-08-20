@@ -8,8 +8,9 @@ namespace Mnemo.Host.HeadlessShell;
 /// Collects the module sidebar registrations and exposes them as an ordered nav
 /// model for the SPA (served by the nav endpoint). The SPA owns rendering and
 /// localization, so labels stay as translation keys here - nothing is resolved to
-/// a string server-side. Category order and footer placement mirror Mnemo.UI's
-/// SidebarService. <see cref="Categories"/> and <see cref="SetItemBadge"/> are not
+/// a string server-side. Category order and footer placement are defined by
+/// <see cref="DefaultCategoryOrder"/> and <see cref="FooterCategoryKeys"/> below.
+/// <see cref="Categories"/> and <see cref="SetItemBadge"/> are not
 /// used server-side (the SPA renders from the nav model); badges land with the UI
 /// that needs them.
 /// </summary>

@@ -22,8 +22,7 @@ full license text ships as LICENSES/OFL-1.1.txt, and again as OFL.txt directly b
 each set of font files so the notice travels with the packaged app.
 
   Inter
-    Files:     mnemo-web/public/fonts/inter-*.woff2 (8 files); also embedded in the
-               compiled Avalonia.Fonts.Inter NuGet package used by Mnemo.UI
+    Files:     mnemo-web/public/fonts/inter-*.woff2 (8 files)
     Copyright: (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
     License:   SIL Open Font License 1.1
 
@@ -75,10 +74,10 @@ SPELLCHECK DICTIONARIES
 
 Mnemo.Infrastructure/Dictionaries/Spellcheck/ holds Hunspell dictionary files
 (.aff/.dic pairs) for en, de, es, and nb, used by the WeCantSpell.Hunspell package
-(see below) through ISpellcheckService. That service backs the Avalonia rich text
-editor only; the packaged app relies on the operating system's own web view for
-spell checking instead, and its publish step excludes the dictionary folder, so
-none of these files are redistributed in a built copy of Mnemo.
+(see below) through ISpellcheckService. Nothing resolves that service any more; the
+packaged app relies on the operating system's own web view for spell checking
+instead, and its publish step excludes the dictionary folder, so none of these
+files are redistributed in a built copy of Mnemo.
 
 They remain in the repository for a planned in-house spellchecker. Before that
 ships with its own bundled dictionaries, their licenses need clearing: de.aff
@@ -120,24 +119,22 @@ project's own source code uses; see LICENSE at the repository root for its full 
 
 BACKEND (.NET) NUGET DEPENDENCIES
 
-Direct PackageReferences across Mnemo.Core, Mnemo.Infrastructure, Mnemo.Host, and
-Mnemo.UI, the assemblies that ship in a built app. Test-project-only packages
+Direct PackageReferences across Mnemo.Core, Mnemo.Infrastructure and Mnemo.Host, the
+assemblies that ship in a built app. Test-project-only packages
 (coverlet.collector, Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) are
 omitted; they never leave the test binaries. Transitive package dependencies are not
 enumerated individually here; see "What this does not cover" below.
 
   MIT License
-    Avalonia, Avalonia.Controls.ItemsRepeater, Avalonia.Desktop, Avalonia.Fonts.Inter,
     CommunityToolkit.Mvvm, Microsoft.Data.Sqlite, Microsoft.Extensions.DependencyInjection,
     Microsoft.Extensions.Http, Microsoft.ML.OnnxRuntime, Microsoft.ML.OnnxRuntime.Managed,
-    SkiaSharp, SkiaSharp.NativeAssets.Linux, Svg.Skia,
-    TextMateSharp, TextMateSharp.Grammars, Tmds.DBus.Protocol, Velopack,
-    DocumentFormat.OpenXml, ZstdSharp.Port
+    Velopack, ZstdSharp.Port
+    (Microsoft.Extensions.DependencyInjection is no longer referenced directly, but
+    still reaches a built app through Mnemo.Infrastructure's package graph.)
 
   Apache License, Version 2.0
-    Google.Apis.Auth, ModelContextProtocol.AspNetCore, PhotinoX (and its native
-    counterpart PhotinoX.Native, pulled in transitively; do not reference it directly,
-    see Mnemo.Host.csproj)
+    Google.Apis.Auth, PhotinoX (and its native counterpart PhotinoX.Native, pulled in
+    transitively; do not reference it directly, see Mnemo.Host.csproj)
 
   BSD 2-Clause License
     Markdig
@@ -145,13 +142,6 @@ enumerated individually here; see "What this does not cover" below.
   MPL-1.1 / GPL-2.0 / LGPL-2.1 (tri-licensed, choose one)
     WeCantSpell.Hunspell. The package is a C# port of the original Hunspell project
     and inherits its license; a copy ships with the package's own NuGet metadata.
-
-  License not declared by the publisher
-    AvaloniaUI.DiagnosticsSupport. Its NuGet package metadata carries no license
-    expression, license file, or license URL, and none could be confirmed from the
-    AvaloniaUI project pages at the time of writing. It is part of the same AvaloniaUI
-    organization's toolset as the MIT-licensed Avalonia packages above, but that is
-    not the same as a confirmed license and should not be treated as one.
 
   Custom fork, upstream license Apache-2.0
     UglyToad.PdfPig, restored from a private feed at version 1.7.0-custom-5. That
