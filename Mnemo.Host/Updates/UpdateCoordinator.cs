@@ -199,6 +199,39 @@ public sealed class UpdateCoordinator
     }
 
     /// <summary>
+    /// Restores an offer a previous process found, for a process that has none of its own.
+    /// </summary>
+    /// <remarks>
+    /// Only reached once an automatic check has just declined to run because the cooldown
+    /// has not passed: the answer from the last real check is still the newest one there
+    /// is, and it is on disk because <see cref="CheckAsync"/> writes it there the moment
+    /// one is found. A process that already knows about an offer, including one that is
+    /// mid-download, is left alone. Routed through <see cref="RefreshPromptGateAsync"/>
+    /// rather than a separate check, so a resumed offer honours snooze and skip exactly as
+    /// a freshly found one does.
+    /// </remarks>
+    private async Task ResumePendingOfferAsync()
+    {
+        if (_available is not null)
+            return;
+
+        var json = await _settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson).ConfigureAwait(false);
+        if (string.IsNullOrEmpty(json))
+            return;
+
+        // A value from an older build, or a corrupt write, is treated as no offer at all
+        // rather than something worth failing over.
+        var offer = AppUpdateInfoPersistence.Deserialize(json);
+        if (offer is null)
+            return;
+
+        _available = offer;
+        _error = null;
+        _stage = UpdateStage.Available;
+        await RefreshPromptGateAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Once per process: spends a launch of any active snooze, and hands back the version
     /// this launch was updated into, if it was.
     /// </summary>
@@ -251,6 +284,7 @@ public sealed class UpdateCoordinator
         if (_available is not null)
         {
             await _settings.SetAsync(UpdateSettingsKeys.SkippedVersion, _available.Version).ConfigureAwait(false);
+            await _settings.SetAsync<string?>(UpdateSettingsKeys.PendingOfferJson, null).ConfigureAwait(false);
             _skipped = true;
             _shouldPrompt = false;
         }
@@ -278,7 +312,10 @@ public sealed class UpdateCoordinator
                 return BuildStatus(channel, lastChecked);
 
             if (lastChecked.HasValue && DateTime.UtcNow - lastChecked.Value < AutoCheckCooldown)
+            {
+                await ResumePendingOfferAsync().ConfigureAwait(false);
                 return BuildStatus(channel, lastChecked);
+            }
         }
 
         // A download already in flight or staged is the more advanced state; re-checking
@@ -308,6 +345,9 @@ public sealed class UpdateCoordinator
 
             _error = null;
             _available = result.Value;
+            await _settings.SetAsync<string?>(
+                UpdateSettingsKeys.PendingOfferJson,
+                _available is null ? null : AppUpdateInfoPersistence.Serialize(_available)).ConfigureAwait(false);
             await RefreshPromptGateAsync().ConfigureAwait(false);
             SetStage(_available is null ? UpdateStage.UpToDate : UpdateStage.Available, channel, lastChecked);
             return BuildStatus(channel, lastChecked);
@@ -406,6 +446,7 @@ public sealed class UpdateCoordinator
             await _settings
                 .SetAsync(UpdateSettingsKeys.PendingPostUpdateToastVersion, _available.Version)
                 .ConfigureAwait(false);
+            await _settings.SetAsync<string?>(UpdateSettingsKeys.PendingOfferJson, null).ConfigureAwait(false);
         }
 
         _updates.ApplyUpdatesAndRestart();
