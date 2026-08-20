@@ -9,6 +9,12 @@
  *
  * Pure. Given the same document, templates and measurer it returns the same scene, which is what lets
  * the interesting parts be tested without a canvas, a viewport or a server.
+ *
+ * Pure, and structurally shared. An edit produces a whole new document, but one whose untouched
+ * elements are the very objects the previous one held, so this returns the very scene elements the
+ * previous scene held for them. That is not an optimisation of this module: it is what lets the
+ * renderer's `memo` do its job at all, since a fresh object per element per edit is a prop change
+ * for every node on the canvas whether or not anything about it moved.
  */
 
 import { branchWidth } from "./branch-width"
@@ -123,7 +129,7 @@ export function projectScene(document: MindmapDocument, options: ProjectOptions)
   }
 
   const elements: SceneElement[] = []
-  const frames: SceneElement[] = []
+  const frames: { element: MindmapElement; base: SceneElement }[] = []
   const drawn = new Map<string, SceneElement>()
 
   for (const element of document.elements ?? []) {
@@ -138,14 +144,14 @@ export function projectScene(document: MindmapDocument, options: ProjectOptions)
     // Frames wait for a second pass: one is wherever its members are, and none of them have been
     // measured yet at this point in the walk.
     if (projected.kind === "frame") {
-      frames.push(projected)
+      frames.push({ element, base: projected })
       continue
     }
     elements.push(projected)
     drawn.set(projected.id, projected)
   }
 
-  const sized = frames.map((frame) => sizeFrame(frame, drawn))
+  const sized = frames.map(({ element, base }) => sizeFrame(element, base, drawn))
   for (const frame of sized) {
     drawn.set(frame.id, frame)
   }
@@ -203,9 +209,13 @@ export function projectScene(document: MindmapDocument, options: ProjectOptions)
  * everything. A frame whose members are all gone or all under a collapse keeps its stored box, since
  * a group with no area is one nobody could see to drop anything into.
  */
-function sizeFrame(frame: SceneElement, drawn: ReadonlyMap<string, SceneElement>): SceneElement {
+function sizeFrame(
+  element: MindmapElement,
+  base: SceneElement,
+  drawn: ReadonlyMap<string, SceneElement>,
+): SceneElement {
   const members: SceneElement[] = []
-  for (const id of (frame.content as FrameContent).childIds ?? []) {
+  for (const id of (base.content as FrameContent).childIds ?? []) {
     const member = drawn.get(id)
     if (member) {
       members.push(member)
@@ -215,7 +225,30 @@ function sizeFrame(frame: SceneElement, drawn: ReadonlyMap<string, SceneElement>
   const box = frameBox(members)
   // The count is the live membership rather than the stored list, so a member that was deleted is off
   // the badge as well as out of the box.
-  return box ? { ...frame, ...box, childCount: members.length } : { ...frame, childCount: members.length }
+  const count = members.length
+  /** The box this call is going to end up with, whether it derived one or kept the stored one. */
+  const target = box ?? base
+
+  // Sized frames get their own memo rather than riding the one below, because a frame's box is the
+  // one thing in the scene that is not a function of its own element: it moves when its members do.
+  // A base that is the same object settles every other field, so only the box and the count are left
+  // to compare.
+  const cached = sizedFrames.get(element)
+  if (
+    cached &&
+    cached.base === base &&
+    cached.result.childCount === count &&
+    cached.result.x === target.x &&
+    cached.result.y === target.y &&
+    cached.result.width === target.width &&
+    cached.result.height === target.height
+  ) {
+    return cached.result
+  }
+
+  const result = box ? { ...base, ...box, childCount: count } : { ...base, childCount: count }
+  sizedFrames.set(element, { base, result })
+  return result
 }
 
 /** A document naming a template nobody has: no rules, so every node falls through to the theme. */
@@ -223,6 +256,79 @@ const EMPTY_TEMPLATE: StyleTemplate = { id: "", name: "" }
 
 function contextOf(node: { depth: number; branch: number }): StyleContext {
   return { depth: node.depth, branchIndex: node.branch, isRoot: node.depth === 0 }
+}
+
+const NO_CHAIN: readonly StyleTemplate[] = []
+
+/**
+ * Everything a projected element depends on that is not the element itself.
+ *
+ * Named exhaustively and compared per call, because the element's own identity is the tempting key
+ * and the wrong one: a node whose object nobody touched still has to be reprojected when the
+ * template under it changed, when its title finished resolving, when a collapse somewhere above
+ * moved it down a level, or when a child was added to it. Each of those is a field here, and adding
+ * a projected field that reads anything else means adding it here too.
+ *
+ * The reference is held by value rather than by object identity on purpose: the resolution map is
+ * rebuilt on every document change, so an entry that says the same thing as before is a new object
+ * every time and comparing it by reference would refresh every reference node on every edit.
+ */
+interface ProjectInputs {
+  readonly depth: number
+  readonly branchIndex: number
+  readonly isRoot: boolean
+  /** The cluster's templates, most specific first. Compared member by member; it is one or two long. */
+  readonly chain: readonly StyleTemplate[]
+  /** How text is sized. A different set is a different box for the same words. */
+  readonly measurers: Measurers
+  readonly refLabel: string | undefined
+  readonly refBadge: string | undefined
+  readonly refMissing: boolean | undefined
+  readonly childCount: number
+  readonly hiddenCount: number
+}
+
+interface Projected {
+  readonly inputs: ProjectInputs
+  readonly result: SceneElement
+}
+
+/**
+ * The last projection of each element, so an untouched one comes back as the same object.
+ *
+ * Weak, and keyed on the stored element rather than on its id, which is what makes it right in both
+ * directions at once. An edit rebuilds the elements it touched and leaves the rest as they were, so
+ * reference identity is already exactly "nobody changed this". A reload or an import parses a whole
+ * new document, so every key misses and every element comes back fresh, with no way for one map's
+ * projection to be handed to another. Nothing has to be invalidated, and nothing outlives the
+ * document it belongs to.
+ */
+const projected = new WeakMap<MindmapElement, Projected>()
+
+/** The same, for the second pass: a frame's box comes from its members and not from itself. */
+const sizedFrames = new WeakMap<MindmapElement, { base: SceneElement; result: SceneElement }>()
+
+function sameInputs(a: ProjectInputs, b: ProjectInputs): boolean {
+  if (
+    a.depth !== b.depth ||
+    a.branchIndex !== b.branchIndex ||
+    a.isRoot !== b.isRoot ||
+    a.measurers !== b.measurers ||
+    a.refLabel !== b.refLabel ||
+    a.refBadge !== b.refBadge ||
+    a.refMissing !== b.refMissing ||
+    a.childCount !== b.childCount ||
+    a.hiddenCount !== b.hiddenCount ||
+    a.chain.length !== b.chain.length
+  ) {
+    return false
+  }
+  for (let i = 0; i < a.chain.length; i++) {
+    if (a.chain[i] !== b.chain[i]) {
+      return false
+    }
+  }
+  return true
 }
 
 function projectElement(
@@ -233,15 +339,48 @@ function projectElement(
   chainFor: (rootId: string) => readonly StyleTemplate[],
   options: ProjectOptions,
 ): SceneElement {
-  const kind = elementKind(element)
   // Templates describe trees. A shape, a caption or a frame is not in one, and gets its own style over
   // the theme and nothing in between.
-  const chain = node ? chainFor(node.rootId) : []
-  const style = resolveStyle(element.style, context, chain)
-
-  const isRoot = context.isRoot
+  const chain = node ? chainFor(node.rootId) : NO_CHAIN
   const key = refKey(element.content)
   const ref = key ? options.refs?.get(key) : undefined
+
+  const inputs: ProjectInputs = {
+    depth: context.depth,
+    branchIndex: context.branchIndex,
+    isRoot: context.isRoot,
+    chain,
+    measurers: options.measurers,
+    refLabel: ref?.label,
+    refBadge: ref?.badge,
+    refMissing: ref?.missing,
+    childCount: node ? childrenIds(hierarchy, node.id).length : 0,
+    hiddenCount: element.collapsed && node ? hiddenDescendantCount(hierarchy, node.id) : 0,
+  }
+
+  // Everything gathered above was going to be read anyway; what the hit skips is the cascade, the
+  // measurement and the four objects they come wrapped in, which is all of the cost.
+  const cached = projected.get(element)
+  if (cached && sameInputs(cached.inputs, inputs)) {
+    return cached.result
+  }
+
+  const result = buildElement(element, context, ref, inputs, options)
+  projected.set(element, { inputs, result })
+  return result
+}
+
+function buildElement(
+  element: MindmapElement,
+  context: StyleContext,
+  ref: RefInfo | undefined,
+  inputs: ProjectInputs,
+  options: ProjectOptions,
+): SceneElement {
+  const kind = elementKind(element)
+  const style = resolveStyle(element.style, context, inputs.chain)
+
+  const isRoot = context.isRoot
   // A reference reads as whatever it points at, so its label replaces the content's own text rather
   // than sitting beside it. Nothing while the lookup is out, which is a node with only its mark.
   const text = ref?.label ?? displayText(element.content)
@@ -259,8 +398,6 @@ function projectElement(
     },
     options.measurers,
   )
-
-  const childCount = node ? childrenIds(hierarchy, node.id).length : 0
 
   return {
     id: element.id,
@@ -287,8 +424,8 @@ function projectElement(
     },
     padding: measured.padding,
     isRoot,
-    childCount,
-    hiddenCount: element.collapsed && node ? hiddenDescendantCount(hierarchy, node.id) : 0,
+    childCount: inputs.childCount,
+    hiddenCount: inputs.hiddenCount,
     branchColor: cssColor(style.branchColor),
     // Only a plain node has a rule for a branch to meet. Every other shape has a box.
     underline: kind === "node" && style.nodeShape === "plain" ? branchWidth(context.depth) : undefined,
