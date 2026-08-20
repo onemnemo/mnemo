@@ -844,6 +844,17 @@ export interface StatValueDto {
   value: string
 }
 
+/**
+ * Mirrors Mnemo.Host/Contracts/StudyDayDto.cs. The boundary every day-keyed statistic is written
+ * under, so a reader asks for the row the host wrote rather than the one a UTC date would name.
+ */
+export interface StudyDayDto {
+  /** The local hour a day rolls over at, 0 to 23. */
+  dayStartHour: number
+  /** The day key now falls under, `yyyy-MM-dd`. */
+  today: string
+}
+
 /** Mirrors Mnemo.Host/Contracts/SearchDto.cs SearchWire.ResultType's wire tokens. */
 export type SearchResultType =
   | "deck"

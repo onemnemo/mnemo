@@ -72,7 +72,12 @@ export interface MindmapEditError {
   suggestions: string[] | null
 }
 
-/** What an edit came back as. `conflict` is the only one the caller recovers from by refetching. */
+/**
+ * What an edit came back as. Both refusals are recovered from the same way, by refetching: the
+ * caller paints optimistically, so anything the server did not apply has to come off the screen.
+ * They stay separate tags because only a conflict means the document moved rather than the batch
+ * being wrong.
+ */
 export type EditOutcome =
   | { status: "applied"; result: MindmapOpsResult }
   | { status: "conflict"; error: MindmapEditError }

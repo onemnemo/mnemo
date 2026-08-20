@@ -227,13 +227,14 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
           if (outcome.status !== "applied") {
             if (open) {
               liveRef.current = endWrite(liveRef.current, outcome.error.revision)
-              // Both are told, not just the refusal. A conflict costs the user their undo stack, and
+              // Both are told, not just the refusal. A refusal costs the user their undo stack, and
               // a reload that says nothing is indistinguishable from the editor having quietly
               // forgotten.
               setRejected(outcome.error)
-              if (outcome.status === "conflict") {
-                reload(mapId)
-              }
+              // Every refusal refetches, not only a conflict. The canvas has already painted the
+              // batch optimistically, so leaving a rejected one on screen shows the user a document
+              // the server does not have, and the next write composes against it.
+              reload(mapId)
             }
             return null
           }

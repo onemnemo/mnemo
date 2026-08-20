@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Statistics;
 using Mnemo.Core.Services;
@@ -15,19 +14,21 @@ namespace Mnemo.Infrastructure.Services.Statistics;
 public static class StatisticsRecorder
 {
     /// <summary>
-    /// Records one finished study session into the <b>Activity</b> stat bucket (reps / minutes /
-    /// streak) — the daily summary, per-deck rolling summary and lifetime totals the overview widgets
+    /// Records one finished study session into the <b>Activity</b> stat bucket (reps, minutes,
+    /// streak): the daily summary, per-deck rolling summary and lifetime totals the overview widgets
     /// and topbar read. This is mode-agnostic effort tracking: Review, Cram and Test all feed it,
     /// labelled by <paramref name="mode"/>. It deliberately writes <i>nothing</i> to the Memory bucket
-    /// (FSRS/retention) — that comes only from the append-only review log written by the engine, so
-    /// off-schedule practice can never poison the model.
+    /// (FSRS and retention), which comes only from the append-only review log written by the engine,
+    /// so off-schedule practice can never poison the model.
     /// </summary>
+    /// <param name="studyDay">Decides which day the session is filed under.</param>
     /// <param name="cardsReviewed">Number of cards graded this session (distinct grading actions).</param>
     /// <param name="minutes">Minutes spent, floored to at least 1 for any non-empty session.</param>
     /// <param name="completedAt">When the session ended (drives the daily key and streak day).</param>
     public static async Task RecordFlashcardActivityAsync(
         IStatisticsManager stats,
         ILoggerService logger,
+        IStudyDayService studyDay,
         string deckId,
         string? deckName,
         string mode,
@@ -35,13 +36,20 @@ public static class StatisticsRecorder
         int minutes,
         DateTimeOffset completedAt)
     {
-        if (stats == null || cardsReviewed <= 0 || string.IsNullOrEmpty(deckId))
+        if (stats == null || studyDay == null || cardsReviewed <= 0 || string.IsNullOrEmpty(deckId))
             return;
 
         try
         {
             var ns = StatisticsNamespaces.Flashcards;
-            var dayKey = completedAt.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+            // The day a session is filed under is the study day, the same boundary the study screen
+            // schedules and caps against, so an evening that runs past midnight is reported as one
+            // day rather than split in two. Rows written before this changed are keyed by the UTC
+            // date instead and are left as they are: history is not recomputed, so a window
+            // spanning the change can hold one day recorded under each rule.
+            var day = await studyDay.DayOfAsync(completedAt).ConfigureAwait(false);
+            var dayKey = IStudyDayService.KeyOf(day);
             var safeMinutes = Math.Max(1, minutes);
 
             // Daily aggregate: merge counters (the StudyGoals / UsageSummary / FlashcardStats widgets
@@ -85,8 +93,7 @@ public static class StatisticsRecorder
             // Lifetime totals + streak (FlashcardStats widget + topbar read total_cards_practiced +
             // current_streak_days).
             var totals = (await stats.GetAsync(ns, FlashcardStatKinds.LifetimeTotals, "all").ConfigureAwait(false)).Value;
-            var todayUtc = completedAt.UtcDateTime.Date;
-            var streak = ComputeUpdatedStreak(totals, todayUtc);
+            var streak = ComputeUpdatedStreak(totals, day);
             await stats.UpsertAsync(new StatisticsRecordWrite
             {
                 Namespace = ns,
@@ -99,7 +106,7 @@ public static class StatisticsRecorder
                     ["total_sessions"] = StatValue.FromInt(GetIntField(totals, "total_sessions") + 1),
                     ["current_streak_days"] = StatValue.FromInt(streak),
                     ["longest_streak_days"] = StatValue.FromInt(Math.Max(streak, GetIntField(totals, "longest_streak_days"))),
-                    ["last_practiced_utc_day"] = StatValue.FromDateTime(new DateTimeOffset(todayUtc, TimeSpan.Zero))
+                    [LastPracticedDayField] = StatValue.FromDateTime(new DateTimeOffset(day, TimeOnly.MinValue, TimeSpan.Zero))
                 }
             }).ConfigureAwait(false);
         }
@@ -115,39 +122,60 @@ public static class StatisticsRecorder
         return record.Fields.TryGetValue(field, out var v) && v.Type == StatValueType.Integer ? v.AsInt() : 0L;
     }
 
+    /// <summary>The study day the last session was filed under, on the lifetime totals record.</summary>
+    private const string LastPracticedDayField = "last_practiced_day";
+
     /// <summary>
-    /// Advances the current streak: same day → unchanged (min 1); yesterday → +1; any other gap → reset
-    /// to 1. Uses the last-practiced UTC day recorded on the lifetime totals record.
+    /// What the field was called while the day was a UTC date. Still read, so a streak running when
+    /// the boundary changed carries on instead of restarting at one.
     /// </summary>
-    private static int ComputeUpdatedStreak(StatisticsRecord? totals, DateTime todayUtc)
+    private const string LegacyLastPracticedDayField = "last_practiced_utc_day";
+
+    /// <summary>
+    /// Advances the current streak: same day, unchanged (min 1); the day before, plus one; any other
+    /// gap resets to 1. Days are study days, so a streak is not broken by an evening session that
+    /// ran past midnight.
+    /// </summary>
+    private static int ComputeUpdatedStreak(StatisticsRecord? totals, DateOnly today)
     {
-        DateTime? lastDay = null;
-        if (totals != null && totals.Fields.TryGetValue("last_practiced_utc_day", out var v) && v.Type == StatValueType.DateTime)
-            lastDay = v.AsDateTime().UtcDateTime.Date;
+        var lastDay = ReadDay(totals, LastPracticedDayField) ?? ReadDay(totals, LegacyLastPracticedDayField);
 
         var current = (int)GetIntField(totals, "current_streak_days");
         if (lastDay == null || current <= 0)
             return 1;
-        if (lastDay.Value == todayUtc)
+        if (lastDay.Value == today)
             return Math.Max(current, 1);
-        if (lastDay.Value == todayUtc.AddDays(-1))
+        if (lastDay.Value == today.AddDays(-1))
             return current + 1;
         return 1;
     }
 
-    /// <summary>Increments the requested counter on today's daily summary for the given namespace.</summary>
+    /// <summary>The day part of a stored instant field, or null when the field is absent or another type.</summary>
+    private static DateOnly? ReadDay(StatisticsRecord? record, string field)
+    {
+        if (record == null || !record.Fields.TryGetValue(field, out var value) || value.Type != StatValueType.DateTime)
+            return null;
+        return DateOnly.FromDateTime(value.AsDateTime().UtcDateTime);
+    }
+
+    /// <summary>
+    /// Increments the requested counter on today's daily summary for the given namespace. Today is
+    /// the study day, so every day-keyed kind lines up on one boundary and the overview can read a
+    /// day across namespaces without asking which of them meant which day.
+    /// </summary>
     public static async Task IncrementDailyCounterAsync(
         IStatisticsManager stats,
         ILoggerService logger,
+        IStudyDayService studyDay,
         string ns,
         string kind,
         string fieldName,
         long delta = 1)
     {
-        if (stats == null) return;
+        if (stats == null || studyDay == null) return;
         try
         {
-            var dayKey = DateTimeOffset.UtcNow.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var dayKey = await studyDay.TodayKeyAsync().ConfigureAwait(false);
             await stats.IncrementAsync(ns, kind, dayKey, fieldName, delta, ns).ConfigureAwait(false);
         }
         catch (Exception ex)

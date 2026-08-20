@@ -42,7 +42,7 @@ public class FlashcardStatsWidgetViewModelTests
     public async Task Initialize_WithRecordedActivity_ReadsAllFourCounters()
     {
         var context = new FakeWidgetContext();
-        var dayKey = DateTimeOffset.UtcNow.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var dayKey = context.StudyDayService.TodayKey;
         context.StatisticsManager.Seed(StatisticsNamespaces.Flashcards, FlashcardStatKinds.DailySummary, dayKey, new Dictionary<string, StatValue>(StringComparer.Ordinal)
         {
             ["cards_reviewed"] = StatValue.FromInt(12),

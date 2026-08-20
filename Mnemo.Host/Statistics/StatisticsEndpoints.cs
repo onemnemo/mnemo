@@ -43,6 +43,15 @@ public static class StatisticsEndpoints
             CancellationToken cancellationToken) =>
             (await StatisticsHandler.QueryDailyAsync(statistics, ns, kind, from, to, cancellationToken).ConfigureAwait(false))
                 .ToHttpResult());
+
+        // Which day a client is looking at is not the client's to decide: the keys above are
+        // written against the collection's own boundary, so it is served rather than guessed.
+        endpoints.MapGet("/api/stats/day", async (
+            IStudyDayService studyDay,
+            CancellationToken cancellationToken) =>
+            Results.Ok(new StudyDayDto(
+                await studyDay.GetDayStartHourAsync(cancellationToken).ConfigureAwait(false),
+                await studyDay.TodayKeyAsync(cancellationToken).ConfigureAwait(false))));
     }
 
     /// <summary>

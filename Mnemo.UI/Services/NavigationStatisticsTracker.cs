@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Statistics;
 using Mnemo.Core.Services;
@@ -12,12 +11,18 @@ namespace Mnemo.UI.Services;
 public sealed class NavigationStatisticsTracker
 {
     private readonly IStatisticsManager _statistics;
+    private readonly IStudyDayService _studyDay;
     private readonly ILoggerService _logger;
     private DateTimeOffset _segmentStartedUtc = DateTimeOffset.UtcNow;
 
-    public NavigationStatisticsTracker(INavigationService navigation, IStatisticsManager statistics, ILoggerService logger)
+    public NavigationStatisticsTracker(
+        INavigationService navigation,
+        IStatisticsManager statistics,
+        IStudyDayService studyDay,
+        ILoggerService logger)
     {
         _statistics = statistics ?? throw new ArgumentNullException(nameof(statistics));
+        _studyDay = studyDay ?? throw new ArgumentNullException(nameof(studyDay));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         navigation.Navigated += OnNavigated;
     }
@@ -39,7 +44,7 @@ public sealed class NavigationStatisticsTracker
     {
         try
         {
-            var dayKey = DateTimeOffset.UtcNow.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var dayKey = await _studyDay.TodayKeyAsync().ConfigureAwait(false);
             MapRoute(route, seconds, out var practice, out var notes, out var flashMod);
 
             if (practice > 0)

@@ -10,6 +10,12 @@ public interface IWidgetContext
     /// <summary>Read access to recorded statistics (practice activity, usage).</summary>
     IStatisticsManager Statistics { get; }
 
+    /// <summary>
+    /// The day boundary those statistics are keyed by. A widget that asks for "today" resolves it
+    /// here, so it reads the row the study screen wrote rather than a UTC day beside it.
+    /// </summary>
+    IStudyDayService StudyDay { get; }
+
     /// <summary>Read access to flashcard deck summaries (counts only, never full card lists).</summary>
     IFlashcardLibraryService Decks { get; }
 
