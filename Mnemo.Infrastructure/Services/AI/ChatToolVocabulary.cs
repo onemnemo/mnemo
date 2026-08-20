@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 
-namespace Mnemo.UI.Services;
+namespace Mnemo.Infrastructure.Services.AI;
 
 /// <summary>
 /// Translates raw tool ids (e.g. <c>list_settings</c>, <c>set_setting</c>) into the student-facing
