@@ -11,8 +11,10 @@ import {
   formatFileSize,
   importExtensions,
   MAX_FILES,
+  replaceNeedsConfirmation,
   type QueuedFile,
 } from "../transfer"
+import { PackageEvidenceNote } from "./PackageEvidenceNote"
 import { Segmented } from "./Segmented"
 
 const CONFLICT_OPTIONS: { value: ConflictPolicy; labelKey: string; captionKey: string }[] = [
@@ -29,9 +31,11 @@ export function ImportPanel({
   conflict,
   busy,
   ready,
+  replaceConfirmed,
   onAddFiles,
   onRemove,
   onConflictChange,
+  onReplaceConfirmedChange,
 }: {
   queue: QueuedFile[]
   formats: TransferFormatDto[]
@@ -41,9 +45,12 @@ export function ImportPanel({
   busy: boolean
   /** False until the format list lands; picking before then would refuse every file. */
   ready: boolean
+  /** Whether the user has said outright that replacing may destroy what is here. */
+  replaceConfirmed: boolean
   onAddFiles: (files: File[]) => void
   onRemove: (key: string) => void
   onConflictChange: (policy: ConflictPolicy) => void
+  onReplaceConfirmedChange: (confirmed: boolean) => void
 }) {
   const t = useT()
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
@@ -112,14 +119,18 @@ export function ImportPanel({
 
           <div className="max-h-[216px] space-y-1 overflow-y-auto">
             {queue.map((file) => (
-              <FileRow
-                key={file.key}
-                file={file}
-                detail={describe(file)}
-                removeLabel={t("Common", "Delete")}
-                busy={busy}
-                onRemove={() => onRemove(file.key)}
-              />
+              <div key={file.key} className="space-y-1">
+                <FileRow
+                  file={file}
+                  detail={describe(file)}
+                  removeLabel={t("Common", "Delete")}
+                  busy={busy}
+                  onRemove={() => onRemove(file.key)}
+                />
+                {/* Shown beside the file it describes rather than as one summary for the batch:
+                    two packages in a queue can say very different things about this collection. */}
+                {file.evidence ? <PackageEvidenceNote evidence={file.evidence} /> : null}
+              </div>
             ))}
           </div>
 
@@ -166,6 +177,27 @@ export function ImportPanel({
           <p className="text-caption text-text-tertiary">
             {common(CONFLICT_OPTIONS.find((option) => option.value === conflict)?.captionKey ?? "")}
           </p>
+          {/* Replacing is the one choice here that destroys something, so it is not enough to have
+              been picked: it has to be said out loud, against the count the evidence above gives. */}
+          {replaceNeedsConfirmation(queue, conflict) ? (
+            <label className="flex items-start gap-2 rounded-md border border-[var(--toast-accent-warning)] bg-[var(--toast-icon-badge-warning)] px-2.5 py-2">
+              <input
+                type="checkbox"
+                checked={replaceConfirmed}
+                disabled={busy}
+                onChange={(event) => onReplaceConfirmedChange(event.target.checked)}
+                className="mt-0.5 size-3.5 shrink-0 accent-[var(--toast-accent-warning)]"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-body-extra-small font-medium text-[var(--toast-accent-warning)]">
+                  {common("TransferReplaceConfirmTitle")}
+                </span>
+                <span className="block text-caption text-text-tertiary">
+                  {common("TransferReplaceConfirmCheckbox")}
+                </span>
+              </span>
+            </label>
+          ) : null}
         </div>
       ) : (
         <p className="text-caption text-text-tertiary">{fc("TransferConflictNotApplicable")}</p>

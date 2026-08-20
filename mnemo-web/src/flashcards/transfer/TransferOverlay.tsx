@@ -19,11 +19,14 @@ import { useTransfer, type TransferTarget } from "./store"
 import {
   canImport as queueCanImport,
   exportFormats,
+  exportKind,
+  importResultNotice,
   isImportable,
   MAX_FILES,
   queuedFromUpload,
   readyCardCount,
   readyUploadIds,
+  replaceNeedsConfirmation,
   type QueuedFile,
 } from "./transfer"
 
@@ -55,8 +58,16 @@ function Transfer({ target, onClose }: { target: TransferTarget; onClose: () => 
   const [queue, setQueue] = useState<QueuedFile[]>([])
   const [rejected, setRejected] = useState<string[]>([])
   const [conflict, setConflict] = useState<ConflictPolicy>("KeepBoth")
+  const [replaceConfirmed, setReplaceConfirmed] = useState(false)
   const [exportFormat, setExportFormat] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // Consent is to one queue under one policy. Changing either changes what would be destroyed, so
+  // the answer to a question about the old pair is not an answer about the new one.
+  const changeConflict = (policy: ConflictPolicy) => {
+    setConflict(policy)
+    setReplaceConfirmed(false)
+  }
 
   const scope = target.scope
   const deckCount = scope?.deckIds.length ?? 0
@@ -123,6 +134,7 @@ function Transfer({ target, onClose }: { target: TransferTarget; onClose: () => 
     }
 
     setRejected(refused)
+    if (accepted.length > 0) setReplaceConfirmed(false)
 
     for (const file of accepted) {
       // Both tests read the ref, which the loop keeps current, so they see this batch's own
@@ -186,6 +198,7 @@ function Transfer({ target, onClose }: { target: TransferTarget; onClose: () => 
 
     queueRef.current = queueRef.current.filter((queued) => queued.key !== key)
     setQueue((current) => current.filter((queued) => queued.key !== key))
+    setReplaceConfirmed(false)
   }
 
   const cardCount = readyCardCount(queue)
@@ -213,20 +226,11 @@ function Transfer({ target, onClose }: { target: TransferTarget; onClose: () => 
       // is potentially stale, and picking through it would be guesswork.
       await client.invalidateQueries({ queryKey: ["flashcards"] })
 
-      if (result.succeededFiles === 0) {
-        toast.warning(common("ImportFailedTitle"), { description: result.errors.join("\n") })
-      } else if (result.failedFiles > 0) {
-        toast.warning(common("ImportCompleteTitle"), {
-          description: common("TransferImportPartialFormat", {
-            0: itemPhrase(result.importedCards),
-            1: result.errors.join("\n"),
-          }),
-        })
-      } else {
-        toast.success(common("ImportCompleteTitle"), {
-          description: common("TransferImportFinishedFormat", { 0: itemPhrase(result.importedCards) }),
-        })
-      }
+      // Warnings are part of what the import has to say, not only the errors. A package refused
+      // for being newer than this build lands as a success with nothing imported otherwise.
+      const notice = importResultNotice(t, result, itemPhrase(result.importedCards))
+      const report = notice.tone === "success" ? toast.success : toast.warning
+      report(common(notice.titleKey), { description: notice.description || undefined })
       onClose()
     } catch (error) {
       toast.warning(common("ImportFailedTitle"), {
@@ -251,7 +255,11 @@ function Transfer({ target, onClose }: { target: TransferTarget; onClose: () => 
 
     setBusy(true)
     try {
-      await runExport({ formatId: exportFormat, deckIds: scope.deckIds })
+      await runExport({
+        formatId: exportFormat,
+        deckIds: scope.deckIds,
+        kind: exportKind(scope.wholeCollection),
+      })
       toast.success(common("ExportCompleteTitle"), { description: common("TransferExportFinished") })
       onClose()
     } catch (error) {
@@ -265,8 +273,9 @@ function Transfer({ target, onClose }: { target: TransferTarget; onClose: () => 
 
   const importing = direction === "import"
   const emptyScope = !scope || scope.deckIds.length === 0
+  const awaitingReplaceConsent = replaceNeedsConfirmation(queue, conflict) && !replaceConfirmed
   const confirmEnabled = importing
-    ? queueCanImport(queue) && !busy
+    ? queueCanImport(queue) && !busy && !awaitingReplaceConsent
     : !emptyScope && exportFormat !== null && !busy
 
   const confirm = () => void (importing ? doImport() : doExport())
@@ -349,9 +358,11 @@ function Transfer({ target, onClose }: { target: TransferTarget; onClose: () => 
                 conflict={conflict}
                 busy={busy}
                 ready={formatsReady}
+                replaceConfirmed={replaceConfirmed}
                 onAddFiles={addFiles}
                 onRemove={removeFile}
-                onConflictChange={setConflict}
+                onConflictChange={changeConflict}
+                onReplaceConfirmedChange={setReplaceConfirmed}
               />
             ) : emptyScope ? (
               <p className="py-6 text-center text-body-extra-small text-text-tertiary">
