@@ -123,7 +123,7 @@ public static class TransferEndpoints
                 if (!preview.IsSuccess || preview.Value is null)
                 {
                     return Results.Ok(Described(uploadId, path, file.Length, format, canImport: false, cardCount: null,
-                        warnings: [preview.ErrorMessage ?? "The file could not be read."]));
+                        warnings: [TransferWarningDto.UploadPreviewFailed(preview.ErrorMessage)]));
                 }
 
                 int? cardCount = null;
@@ -134,7 +134,7 @@ public static class TransferEndpoints
                 }
 
                 return Results.Ok(Described(uploadId, path, file.Length, format,
-                    preview.Value.CanImport, cardCount, preview.Value.Warnings));
+                    preview.Value.CanImport, cardCount, preview.Value.Warnings.Select(TransferWarningDto.FromModel).ToList()));
             }
             catch (Exception)
             {
@@ -186,7 +186,7 @@ public static class TransferEndpoints
             var succeeded = 0;
             var importedCards = 0;
             var measure = false;
-            var warnings = new List<string>();
+            var warnings = new List<TransferWarningDto>();
             var errors = new List<string>();
 
             // Every id is accounted for even if the loop leaves early: a staged file whose import
@@ -256,8 +256,10 @@ public static class TransferEndpoints
                         }
 
                         // Attributed, because a batch of five packages that all warn about the same
-                        // missing image would otherwise collapse to one line naming no file.
-                        warnings.AddRange(value.Warnings.Select(warning => $"\"{name}\": {warning}"));
+                        // missing image would otherwise be indistinguishable from one another. The
+                        // file name travels as a parameter rather than being spliced into the text,
+                        // so it still resolves to a real sentence once translated.
+                        warnings.AddRange(value.Warnings.Select(warning => TransferWarningDto.FromModel(warning).WithFileName(name)));
                     }
                     catch (Exception ex)
                     {
@@ -365,7 +367,7 @@ public static class TransferEndpoints
         ImportExportCapability format,
         bool canImport,
         int? cardCount,
-        IReadOnlyList<string> warnings) =>
+        IReadOnlyList<TransferWarningDto> warnings) =>
         new(uploadId, Path.GetFileName(path), sizeBytes, format.FormatId, format.DisplayName, canImport, cardCount, warnings);
 
     /// <summary>The import format an extension belongs to, or null when nothing claims it.</summary>

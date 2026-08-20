@@ -1,4 +1,5 @@
-import type { NoteTransferUploadDto, TransferFormatDto } from "@/api/types"
+import type { NoteTransferUploadDto, TransferFormatDto, TransferWarningDto } from "@/api/types"
+import type { TranslateFn } from "@/i18n/types"
 
 // Pure rules behind the note transfer dialog: what a file is allowed to be, which formats an export
 // can offer, and how the queue reads. Kept clear of React so the parts that are easy to get subtly
@@ -31,7 +32,20 @@ export interface QueuedFile {
   /** Notes the file will yield, or null if a preview could not read it. */
   noteCount?: number | null
   /** Why the file was rejected, or what the server warned about after reading it. */
-  notes?: string[]
+  notes?: FileNote[]
+}
+
+/**
+ * A file row's note: either a server warning key to resolve through `useT()`, or text already
+ * settled on the client (a network failure has no translation key of its own). Rendered with
+ * {@link fileNoteText} rather than displayed as `key` or read directly, so both shapes end up as
+ * words the reader's locale actually uses.
+ */
+export type FileNote = TransferWarningDto | { text: string }
+
+/** Resolves one {@link FileNote} to display text, translating a server warning through `t`. */
+export function fileNoteText(t: TranslateFn, note: FileNote): string {
+  return "text" in note ? note.text : t("TransferWarnings", note.key, note.params)
 }
 
 export function queuedFromUpload(key: string, upload: NoteTransferUploadDto): QueuedFile {

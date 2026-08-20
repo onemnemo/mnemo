@@ -73,7 +73,7 @@ public sealed class ImportExportPreview
 
     public Dictionary<string, int> DiscoveredCounts { get; set; } = new(System.StringComparer.OrdinalIgnoreCase);
 
-    public List<string> Warnings { get; set; } = new();
+    public List<TransferWarning> Warnings { get; set; } = new();
 }
 
 public sealed class ImportExportResult
@@ -86,7 +86,7 @@ public sealed class ImportExportResult
 
     public Dictionary<string, int> ProcessedCounts { get; set; } = new(System.StringComparer.OrdinalIgnoreCase);
 
-    public List<string> Warnings { get; set; } = new();
+    public List<TransferWarning> Warnings { get; set; } = new();
 
     public string? ErrorMessage { get; set; }
 }

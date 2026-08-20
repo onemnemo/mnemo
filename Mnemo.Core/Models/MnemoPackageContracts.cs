@@ -40,7 +40,7 @@ public sealed class MnemoPackageResult
 
     public Dictionary<string, int> SkippedCountsByPayload { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    public List<string> Warnings { get; set; } = new();
+    public List<TransferWarning> Warnings { get; set; } = new();
 
     public string? ErrorMessage { get; set; }
 }
@@ -62,7 +62,7 @@ public sealed class MnemoPayloadImportResult
 
     public int SkippedCount { get; set; }
 
-    public List<string> Warnings { get; set; } = new();
+    public List<TransferWarning> Warnings { get; set; } = new();
 }
 
 public sealed class MnemoPayloadExportContext

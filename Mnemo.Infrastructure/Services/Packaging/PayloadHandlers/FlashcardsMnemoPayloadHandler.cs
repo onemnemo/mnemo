@@ -159,7 +159,7 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler
     public async Task<MnemoPayloadImportResult> ImportAsync(MnemoPayloadImportContext context, CancellationToken cancellationToken = default)
     {
         if (!context.Files.TryGetValue("flashcards.db", out var bytes))
-            return new MnemoPayloadImportResult { Warnings = { "Flashcards payload missing flashcards.db file." } };
+            return new MnemoPayloadImportResult { Warnings = { TransferWarning.Of("FlashcardsPayloadMissingFile") } };
 
         var snapshot = ReadFlashcardsSqlite(bytes);
         RestoreImageAssets(context.Files);
