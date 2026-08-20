@@ -43,14 +43,32 @@ export function readDateTime(fields: Record<string, StatValueDto> | undefined, k
 }
 
 /**
- * The day key of a day-keyed statistics record: a UTC calendar day, never a local one.
- *
- * The desktop writes and reads these in UTC, so a user studying late in the evening sees today's
- * counters reset at UTC midnight rather than at their own. Deriving the key from the local date
- * instead would read the wrong row for part of every day in most of the world.
+ * The rollover hour to assume until the host has said what it is. It is the seeded default, so a
+ * first paint that guesses reads the right row for almost every profile, and the wrong one only
+ * for the few hours a changed setting moves.
  */
-export function utcDayKey(instant: Date): string {
-  return instant.toISOString().slice(0, 10)
+export const DEFAULT_DAY_START_HOUR = 4
+
+/**
+ * The day key of a day-keyed statistics record: a local day that ends at the rollover hour, not a
+ * UTC one.
+ *
+ * The host writes these keys against the collection's own boundary, the same one the study screen
+ * caps against, so a session that runs past midnight is one day rather than two. Deriving the key
+ * from the UTC date instead reads the wrong row for part of every evening west of Greenwich.
+ */
+export function studyDayKey(instant: Date, dayStartHour: number): string {
+  // Wall clock arithmetic, matching the host: step the local time of day back to the hour the day
+  // began and read off the date that lands on. The subtraction happens on a UTC-anchored copy of
+  // the local fields, so a daylight saving jump between here and there cannot move the answer.
+  const shifted = Date.UTC(
+    instant.getFullYear(),
+    instant.getMonth(),
+    instant.getDate(),
+    instant.getHours() - clampDayStartHour(dayStartHour),
+    instant.getMinutes(),
+  )
+  return new Date(shifted).toISOString().slice(0, 10)
 }
 
 /**
@@ -60,13 +78,24 @@ export function utcDayKey(instant: Date): string {
  * offsets 0 through N-1 back from today. Asking for `today - N` instead pulls one extra day and
  * inflates every windowed total by a day's worth of activity, silently and permanently.
  */
-export function utcDayWindow(days: number, now: Date): { from: string; to: string } {
+export function studyDayWindow(days: number, now: Date, dayStartHour: number): { from: string; to: string } {
   // A stored setting can hold anything, and a window of zero days would ask the endpoint for a
   // range that ends before it starts. The desktop floors it at one for the same reason.
   const span = Math.max(1, Math.trunc(days))
+  const to = studyDayKey(now, dayStartHour)
 
-  const start = new Date(now)
-  start.setUTCDate(start.getUTCDate() - (span - 1))
+  return { from: dayKeyBefore(to, span - 1), to }
+}
 
-  return { from: utcDayKey(start), to: utcDayKey(now) }
+/** The key `daysBack` days earlier than one already computed. Pure date arithmetic, no zone in it. */
+export function dayKeyBefore(dayKey: string, daysBack: number): string {
+  const day = new Date(`${dayKey}T00:00:00Z`)
+  day.setUTCDate(day.getUTCDate() - daysBack)
+  return day.toISOString().slice(0, 10)
+}
+
+/** The hour clamped to something a day can actually start at, matching the host's own clamp. */
+function clampDayStartHour(hour: number): number {
+  if (!Number.isFinite(hour)) return DEFAULT_DAY_START_HOUR
+  return Math.min(23, Math.max(0, Math.trunc(hour)))
 }

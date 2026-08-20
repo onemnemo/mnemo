@@ -31,6 +31,7 @@ public partial class FlashcardSessionViewModel : ViewModelBase, INavigationAware
     private readonly IOverlayService _overlay;
     private readonly ILocalizationService _localization;
     private readonly IStatisticsManager _statistics;
+    private readonly IStudyDayService _studyDay;
     private readonly ILoggerService _logger;
 
     private IFlashcardSession? _session;
@@ -62,6 +63,7 @@ public partial class FlashcardSessionViewModel : ViewModelBase, INavigationAware
         IOverlayService overlay,
         ILocalizationService localization,
         IStatisticsManager statistics,
+        IStudyDayService studyDay,
         ILoggerService logger)
     {
         _study = study;
@@ -72,6 +74,7 @@ public partial class FlashcardSessionViewModel : ViewModelBase, INavigationAware
         _overlay = overlay;
         _localization = localization;
         _statistics = statistics;
+        _studyDay = studyDay;
         _logger = logger;
 
         CloseCommand = new AsyncRelayCommand(CloseAsync);
@@ -595,7 +598,7 @@ public partial class FlashcardSessionViewModel : ViewModelBase, INavigationAware
         var minutes = (int)Math.Max(1, Math.Round((completedAt - _startedAt).TotalMinutes, MidpointRounding.AwayFromZero));
         var mode = IsCram ? "cram" : "review";
         await StatisticsRecorder.RecordFlashcardActivityAsync(
-            _statistics, _logger, deckId, DeckName, mode, _cardsGraded, minutes, completedAt).ConfigureAwait(false);
+            _statistics, _logger, _studyDay, deckId, DeckName, mode, _cardsGraded, minutes, completedAt).ConfigureAwait(false);
     }
 
     // --- Command notify ----------------------------------------------------

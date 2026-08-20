@@ -10,6 +10,7 @@ namespace Mnemo.Infrastructure.Services.Widgets;
 public sealed class WidgetContext : IWidgetContext
 {
     public IStatisticsManager Statistics { get; }
+    public IStudyDayService StudyDay { get; }
     public IFlashcardLibraryService Decks { get; }
     public IFlashcardStatsService Stats { get; }
     public INoteService Notes { get; }
@@ -21,6 +22,7 @@ public sealed class WidgetContext : IWidgetContext
 
     public WidgetContext(
         IStatisticsManager statistics,
+        IStudyDayService studyDay,
         IFlashcardLibraryService decks,
         IFlashcardStatsService stats,
         INoteService notes,
@@ -31,6 +33,7 @@ public sealed class WidgetContext : IWidgetContext
         ILoggerService logger)
     {
         Statistics = statistics ?? throw new ArgumentNullException(nameof(statistics));
+        StudyDay = studyDay ?? throw new ArgumentNullException(nameof(studyDay));
         Decks = decks ?? throw new ArgumentNullException(nameof(decks));
         Stats = stats ?? throw new ArgumentNullException(nameof(stats));
         Notes = notes ?? throw new ArgumentNullException(nameof(notes));

@@ -35,10 +35,11 @@ public static class StudySessionEndpoints
         IFlashcardLibraryService library,
         IFlashcardPresetService presets,
         IStatisticsManager statistics,
+        IStudyDayService studyDay,
         ILoggerService logger,
         CancellationToken cancellationToken)
     {
-        await SweepAsync(registry, statistics, logger).ConfigureAwait(false);
+        await SweepAsync(registry, statistics, studyDay, logger).ConfigureAwait(false);
 
         if (!FlashcardWire.TryParseSessionMode(body.Mode, out var mode))
             return Results.BadRequest(new ErrorDto("invalid_mode", $"Unknown study mode '{body.Mode}'."));
@@ -69,7 +70,7 @@ public static class StudySessionEndpoints
         {
             // Re-entering a deck supersedes whatever was left running on it.
             foreach (var superseded in registry.RemoveForDeck(body.DeckId))
-                await EndEntryAsync(superseded, DateTimeOffset.UtcNow, statistics, logger).ConfigureAwait(false);
+                await EndEntryAsync(superseded, DateTimeOffset.UtcNow, statistics, studyDay, logger).ConfigureAwait(false);
 
             var session = await study
                 .StartSessionAsync(new FlashcardSessionRequest(body.DeckId, mode, scope), cancellationToken)
@@ -90,10 +91,11 @@ public static class StudySessionEndpoints
         string sessionId,
         StudySessionRegistry registry,
         IStatisticsManager statistics,
+        IStudyDayService studyDay,
         ILoggerService logger,
         CancellationToken cancellationToken)
     {
-        await SweepAsync(registry, statistics, logger).ConfigureAwait(false);
+        await SweepAsync(registry, statistics, studyDay, logger).ConfigureAwait(false);
         var entry = registry.Get(sessionId, DateTimeOffset.UtcNow);
         if (entry is null)
             return UnknownSession(sessionId);
@@ -186,13 +188,14 @@ public static class StudySessionEndpoints
         string sessionId,
         StudySessionRegistry registry,
         IStatisticsManager statistics,
+        IStudyDayService studyDay,
         ILoggerService logger)
     {
         var entry = registry.Remove(sessionId);
         if (entry is null)
             return Results.NoContent();
 
-        await EndEntryAsync(entry, DateTimeOffset.UtcNow, statistics, logger).ConfigureAwait(false);
+        await EndEntryAsync(entry, DateTimeOffset.UtcNow, statistics, studyDay, logger).ConfigureAwait(false);
         return Results.NoContent();
     }
 
@@ -209,9 +212,10 @@ public static class StudySessionEndpoints
         StudySessionEntry entry,
         DateTimeOffset endedAt,
         IStatisticsManager statistics,
+        IStudyDayService studyDay,
         ILoggerService logger) =>
         entry.MutateAsync(
-            () => RecordActivityAsync(entry, endedAt, statistics, logger),
+            () => RecordActivityAsync(entry, endedAt, statistics, studyDay, logger),
             CancellationToken.None);
 
     /// <summary>
@@ -226,20 +230,23 @@ public static class StudySessionEndpoints
     private static async Task SweepAsync(
         StudySessionRegistry registry,
         IStatisticsManager statistics,
+        IStudyDayService studyDay,
         ILoggerService logger)
     {
         foreach (var entry in registry.TakeExpired(DateTimeOffset.UtcNow))
-            await EndEntryAsync(entry, entry.LastTouched, statistics, logger).ConfigureAwait(false);
+            await EndEntryAsync(entry, entry.LastTouched, statistics, studyDay, logger).ConfigureAwait(false);
     }
 
     private static Task RecordActivityAsync(
         StudySessionEntry entry,
         DateTimeOffset endedAt,
         IStatisticsManager statistics,
+        IStudyDayService studyDay,
         ILoggerService logger) =>
         StatisticsRecorder.RecordFlashcardActivityAsync(
             statistics,
             logger,
+            studyDay,
             entry.Session.DeckId,
             entry.DeckName,
             FlashcardWire.SessionMode(entry.Session.Mode),

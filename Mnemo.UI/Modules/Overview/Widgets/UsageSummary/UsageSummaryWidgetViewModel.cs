@@ -64,7 +64,7 @@ public partial class UsageSummaryWidgetViewModel : WidgetViewModelBase
 
         try
         {
-            var cutoffUtc = DateTimeOffset.UtcNow.UtcDateTime.Date.AddDays(-(periodDays - 1));
+            var cutoff = (await _context.StudyDay.TodayAsync(cancellationToken)).AddDays(-(periodDays - 1));
 
             var appTotals = (await _context.Statistics.GetAsync(
                 StatisticsNamespaces.App,
@@ -90,7 +90,7 @@ public partial class UsageSummaryWidgetViewModel : WidgetViewModelBase
             {
                 foreach (var record in appDaily.Value)
                 {
-                    if (!IsDayInWindow(record.Key, cutoffUtc))
+                    if (!IsDayInWindow(record.Key, cutoff))
                         continue;
                     practiceSeconds += ReadInt(record, "practice_seconds");
                     notesSeconds += ReadInt(record, "notes_editor_seconds");
@@ -113,7 +113,7 @@ public partial class UsageSummaryWidgetViewModel : WidgetViewModelBase
                 {
                     foreach (var record in flashcardDaily.Value)
                     {
-                        if (IsDayInWindow(record.Key, cutoffUtc))
+                        if (IsDayInWindow(record.Key, cutoff))
                             cardsReviewed += ReadInt(record, "cards_reviewed");
                     }
                 }
@@ -155,9 +155,9 @@ public partial class UsageSummaryWidgetViewModel : WidgetViewModelBase
         FlashcardsLabel = WithPeriod("FlashcardsArea");
     }
 
-    private static bool IsDayInWindow(string dayKey, DateTime cutoffUtc)
-        => DateTime.TryParseExact(dayKey, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day)
-           && day >= cutoffUtc;
+    private static bool IsDayInWindow(string dayKey, DateOnly cutoff)
+        => DateOnly.TryParseExact(dayKey, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day)
+           && day >= cutoff;
 
     private static string FormatCount(long v)
         => v.ToString("N0", CultureInfo.CurrentCulture);

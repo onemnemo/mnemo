@@ -17,6 +17,8 @@ internal sealed class FakeWidgetContext : IWidgetContext
 
     public FakeStatisticsManager StatisticsManager { get; } = new();
     public IStatisticsManager Statistics => StatisticsManager;
+    public FakeStudyDayService StudyDayService { get; } = new();
+    public IStudyDayService StudyDay => StudyDayService;
     public FakeDeckLibraryService DeckLibraryService { get; } = new();
     public IFlashcardLibraryService Decks => DeckLibraryService;
     public FakeFlashcardStatsService StatsService { get; } = new();
@@ -27,6 +29,34 @@ internal sealed class FakeWidgetContext : IWidgetContext
     public ILocalizationService Localization { get; } = new EchoLocalizationService();
     public IDateDisplayService DateDisplay { get; } = new InvariantDateDisplayService();
     public ILoggerService Logger { get; } = new TestLogger();
+
+    /// <summary>
+    /// A study day the test picks. <see cref="Today"/> is what a widget asking for today gets, and
+    /// <see cref="TodayKey"/> is the key a test seeds a day-keyed record under.
+    /// </summary>
+    internal sealed class FakeStudyDayService : IStudyDayService
+    {
+        public DateOnly Today { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        public int DayStartHour { get; set; } = 4;
+
+        public string TodayKey => IStudyDayService.KeyOf(Today);
+
+        public ValueTask<int> GetDayStartHourAsync(CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(DayStartHour);
+
+        public ValueTask<DateOnly> DayOfAsync(DateTimeOffset instant, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(DateOnly.FromDateTime(instant.UtcDateTime.AddHours(-DayStartHour)));
+
+        public ValueTask<DateOnly> TodayAsync(CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(Today);
+
+        public async ValueTask<string> KeyForAsync(DateTimeOffset instant, CancellationToken cancellationToken = default)
+            => IStudyDayService.KeyOf(await DayOfAsync(instant, cancellationToken));
+
+        public ValueTask<string> TodayKeyAsync(CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(TodayKey);
+    }
 
     internal sealed class FakeNoteService : INoteService
     {

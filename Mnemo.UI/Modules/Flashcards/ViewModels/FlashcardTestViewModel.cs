@@ -47,6 +47,7 @@ public partial class FlashcardTestViewModel : ViewModelBase, INavigationAware, I
     private readonly IOverlayService _overlay;
     private readonly ILocalizationService _localization;
     private readonly IStatisticsManager _statistics;
+    private readonly IStudyDayService _studyDay;
     private readonly ILoggerService _logger;
 
     /// <summary>Cancels an in-flight start/grade/record, and is signalled on dispose.</summary>
@@ -82,6 +83,7 @@ public partial class FlashcardTestViewModel : ViewModelBase, INavigationAware, I
         IOverlayService overlay,
         ILocalizationService localization,
         IStatisticsManager statistics,
+        IStudyDayService studyDay,
         ILoggerService logger)
     {
         _cards = cards;
@@ -92,6 +94,7 @@ public partial class FlashcardTestViewModel : ViewModelBase, INavigationAware, I
         _overlay = overlay;
         _localization = localization;
         _statistics = statistics;
+        _studyDay = studyDay;
         _logger = logger;
 
         CloseCommand = new AsyncRelayCommand(CloseAsync);
@@ -647,7 +650,7 @@ public partial class FlashcardTestViewModel : ViewModelBase, INavigationAware, I
         var completedAt = DateTimeOffset.UtcNow;
         var minutes = (int)Math.Max(1, Math.Round((completedAt - _startedAt).TotalMinutes, MidpointRounding.AwayFromZero));
         await StatisticsRecorder.RecordFlashcardActivityAsync(
-            _statistics, _logger, _deckId, DeckName, "test", tested, minutes, completedAt).ConfigureAwait(false);
+            _statistics, _logger, _studyDay, _deckId, DeckName, "test", tested, minutes, completedAt).ConfigureAwait(false);
     }
 
     // --- Command notify ----------------------------------------------------
