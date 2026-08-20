@@ -43,23 +43,41 @@ public sealed partial class NoteCommitStore : INoteSummaryStore
     private const string SummarySql =
         """
         SELECT
-            Key                                             AS RowKey,
-            COALESCE(json_extract(Value, '$.NoteId'), '')   AS NoteId,
-            COALESCE(json_extract(Value, '$.Sid'), '')      AS Sid,
-            COALESCE(json_extract(Value, '$.Ver'), 0)       AS Ver,
-            COALESCE(json_extract(Value, '$.Title'), '')    AS Title,
-            json_extract(Value, '$.FolderId')               AS FolderId,
-            json_extract(Value, '$.ParentNoteId')           AS ParentNoteId,
-            COALESCE(json_extract(Value, '$.Order'), 0)     AS NoteOrder,
+            Key AS RowKey,
+            COALESCE(json_extract(Value, '$.NoteId'), '') AS NoteId,
+            COALESCE(json_extract(Value, '$.Sid'), '') AS Sid,
+            COALESCE(json_extract(Value, '$.Ver'), 0) AS Ver,
+            COALESCE(json_extract(Value, '$.Title'), '') AS Title,
+            json_extract(Value, '$.FolderId') AS FolderId,
+            json_extract(Value, '$.ParentNoteId') AS ParentNoteId,
+            COALESCE(json_extract(Value, '$.Order'), 0) AS NoteOrder,
             COALESCE(json_extract(Value, '$.IsFavorite'), 0) AS IsFavorite,
-            json_extract(Value, '$.CreatedAt')              AS CreatedAt,
-            json_extract(Value, '$.ModifiedAt')             AS ModifiedAt,
-            json_extract(Value, '$.Emoji')                  AS Emoji,
-            json_extract(Value, '$.Cover')                  AS Cover,
-            json_extract(Value, '$.Tags')                   AS Tags
+            json_extract(Value, '$.CreatedAt') AS CreatedAt,
+            json_extract(Value, '$.ModifiedAt') AS ModifiedAt,
+            json_extract(Value, '$.Emoji') AS Emoji,
+            json_extract(Value, '$.Cover') AS Cover,
+            json_extract(Value, '$.Tags') AS Tags
         FROM Storage
         WHERE Key IN (SELECT value FROM json_each($keys))
         """;
+
+    // The columns of SummarySql, in the order it selects them. Named rather than counted at each use,
+    // because the one way this projection can go wrong quietly is reading a field out of the slot
+    // next to it.
+    private const int RowKeyColumn = 0;
+    private const int NoteIdColumn = 1;
+    private const int SidColumn = 2;
+    private const int VerColumn = 3;
+    private const int TitleColumn = 4;
+    private const int FolderIdColumn = 5;
+    private const int ParentNoteIdColumn = 6;
+    private const int OrderColumn = 7;
+    private const int IsFavoriteColumn = 8;
+    private const int CreatedAtColumn = 9;
+    private const int ModifiedAtColumn = 10;
+    private const int EmojiColumn = 11;
+    private const int CoverColumn = 12;
+    private const int TagsColumn = 13;
 
     public async Task<IReadOnlyList<NoteSummary>> ReadSummariesAsync(
         IReadOnlyList<string> noteIds,
@@ -101,7 +119,7 @@ public sealed partial class NoteCommitStore : INoteSummaryStore
                 // naming another still comes back for the id it was asked for, naming the other,
                 // which is what loading the row whole does.
                 if (ReadSummary(reader) is { } summary)
-                    byKey[reader.GetString(0)] = summary;
+                    byKey[reader.GetString(RowKeyColumn)] = summary;
             }
         }
 
@@ -125,24 +143,31 @@ public sealed partial class NoteCommitStore : INoteSummaryStore
     /// </summary>
     private static NoteSummary? ReadSummary(SqliteDataReader reader)
     {
-        if (!TryReadTimestamp(reader, 9, out var createdAt) || !TryReadTimestamp(reader, 10, out var modifiedAt))
+        if (!TryReadTimestamp(reader, CreatedAtColumn, out var createdAt) ||
+            !TryReadTimestamp(reader, ModifiedAtColumn, out var modifiedAt))
+        {
             return null;
+        }
 
         return new NoteSummary(
-            reader.GetString(1),
-            reader.GetString(2),
-            reader.GetInt64(3),
-            reader.GetString(4),
-            reader.IsDBNull(5) ? null : reader.GetString(5),
-            reader.IsDBNull(6) ? null : reader.GetString(6),
-            reader.GetInt32(7),
-            reader.GetBoolean(8),
+            reader.GetString(NoteIdColumn),
+            reader.GetString(SidColumn),
+            reader.GetInt64(VerColumn),
+            reader.GetString(TitleColumn),
+            ReadOptional(reader, FolderIdColumn),
+            ReadOptional(reader, ParentNoteIdColumn),
+            reader.GetInt32(OrderColumn),
+            reader.GetBoolean(IsFavoriteColumn),
             createdAt,
             modifiedAt,
-            reader.IsDBNull(11) ? null : reader.GetString(11),
-            reader.IsDBNull(12) ? null : reader.GetString(12),
-            ReadTags(reader, 13));
+            ReadOptional(reader, EmojiColumn),
+            ReadOptional(reader, CoverColumn),
+            ReadTags(reader, TagsColumn));
     }
+
+    /// <summary>A field a note leaves out when it is unset, which reads back as no value at all.</summary>
+    private static string? ReadOptional(SqliteDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
 
     /// <summary>
     /// A stored timestamp, carrying the kind it was written with. A row written as UTC comes back as
