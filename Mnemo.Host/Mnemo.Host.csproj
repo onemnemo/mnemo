@@ -101,21 +101,6 @@
   </Target>
 
   <!--
-    Mnemo.UI is referenced as a library but is a WinExe in its own right, so the publish lands its
-    apphost next to ours. Double-clicking it starts a second, broken copy of the app, which is
-    exactly what a person poking around an install folder does. It arrives as a copy-local asset
-    rather than through ResolvedFileToPublish, so the publish list cannot filter it and this runs
-    after the copy instead. The .dll stays: module discovery loads it.
-
-    Both spellings are listed because the apphost is named for the target, not the build machine:
-    a linux or osx publish writes an extensionless Mnemo.UI beside Mnemo.Host. Deleting a path
-    that was never created is a no-op, so each leg only removes the one it actually produced.
-  -->
-  <Target Name="RemoveStrayAppHost" AfterTargets="Publish">
-    <Delete Files="$(PublishDir)Mnemo.UI.exe;$(PublishDir)Mnemo.UI" ContinueOnError="true" />
-  </Target>
-
-  <!--
     The Hunspell dictionaries back ISpellcheckService, which only the Avalonia rich text editor
     ever resolves; nothing in the packaged Photino app calls it, so shipping them bought nothing
     and carried a real cost, en, es and nb are of unverified license, and de is GPL-licensed with
@@ -152,8 +137,5 @@
   <ItemGroup>
     <ProjectReference Include="..\Mnemo.Core\Mnemo.Core.csproj" />
     <ProjectReference Include="..\Mnemo.Infrastructure\Mnemo.Infrastructure.csproj" />
-    <!-- Referenced only for IModule discovery and backend-side module registrations
-         while both UIs coexist; severed at cutover. -->
-    <ProjectReference Include="..\Mnemo.UI\Mnemo.UI.csproj" />
   </ItemGroup>
 </Project>
