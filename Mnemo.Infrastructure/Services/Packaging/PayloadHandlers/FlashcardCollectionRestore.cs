@@ -3,7 +3,9 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
+using Mnemo.Infrastructure.Services.Trash;
 
 namespace Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 
@@ -228,7 +230,7 @@ internal sealed class FlashcardCollectionRestore
                 }
                 else
                 {
-                    await ClearDeckAsync(conn, tx, deckId, cancellationToken).ConfigureAwait(false);
+                    await ClearDeckAsync(conn, tx, deckId, now, cancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -274,30 +276,68 @@ internal sealed class FlashcardCollectionRestore
     /// material nothing renders any more: deleting material cascades to its cards, and a card the
     /// user moved to another deck is not this deck's to destroy.
     /// </summary>
+    /// <remarks>
+    /// Cards are deleted by id rather than left to the cascade behind their material, because the
+    /// search index is kept in step by a delete trigger and a foreign key action does not fire one.
+    /// The files the destroyed rows named are queued in the same transaction, never deleted here: a
+    /// picture is shared between material and every card that material makes, and a restore about
+    /// to write those rows back names the same files again, so only the cleanup pass can tell an
+    /// orphan from a file something still shows.
+    /// </remarks>
     private async Task ClearDeckAsync(
         Microsoft.Data.Sqlite.SqliteConnection conn,
         Microsoft.Data.Sqlite.SqliteTransaction tx,
         string deckId,
+        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        var droppedPaths = new HashSet<string>(FlashcardAssetPaths.Comparer);
+
         var cards = await _cards.ListByDeckAsync(conn, deckId, cancellationToken).ConfigureAwait(false);
         if (cards.Count > 0)
+        {
+            foreach (var card in cards)
+            {
+                foreach (var attachment in card.Attachments ?? Array.Empty<FlashcardAttachment>())
+                    FlashcardAssetPaths.Add(droppedPaths, attachment.FilePath);
+            }
+
             await _cards.DeleteManyAsync(conn, tx, cards.Select(c => c.Id).ToArray(), cancellationToken).ConfigureAwait(false);
+        }
 
         var facts = await _facts.ListByDeckAsync(conn, deckId, cancellationToken).ConfigureAwait(false);
-        var orphaned = new List<string>();
+        var orphaned = new List<FlashcardFact>();
         foreach (var fact in facts)
         {
             var keys = await _facts.GetCardKeysAsync(conn, fact.Id, cancellationToken).ConfigureAwait(false);
             if (keys.Count == 0)
-                orphaned.Add(fact.Id);
+                orphaned.Add(fact);
         }
 
         if (orphaned.Count > 0)
-            await _facts.DeleteManyAsync(conn, tx, orphaned, cancellationToken).ConfigureAwait(false);
+        {
+            foreach (var fact in orphaned)
+            {
+                foreach (var group in fact.Media.Values)
+                {
+                    foreach (var attachment in group)
+                        FlashcardAssetPaths.Add(droppedPaths, attachment.FilePath);
+                }
+            }
+
+            await _facts.DeleteManyAsync(conn, tx, orphaned.Select(f => f.Id).ToArray(), cancellationToken).ConfigureAwait(false);
+        }
 
         await _reviews.DeleteForDeckAsync(conn, tx, deckId, cancellationToken).ConfigureAwait(false);
         await _dailyStats.DeleteForDeckAsync(conn, tx, deckId, cancellationToken).ConfigureAwait(false);
+
+        await AssetCleanupQueue.EnqueueAsync(
+            conn,
+            tx,
+            FlashcardAssetReferences.AssetOwner,
+            droppedPaths,
+            now,
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<string> ResolvePresetIdAsync(
@@ -411,9 +451,17 @@ internal sealed class FlashcardCollectionRestore
                         cardId = NewId();
                 }
 
+                // Material and the layout it was rendered through travel together or not at all.
+                // Every other writer of the pair guarantees that, and a card naming material with
+                // no layout would sit outside the unique index that reserves one card per layout,
+                // and would be invisible to the material's own count of the cards it has made.
                 string? factId = null;
-                if (!string.IsNullOrWhiteSpace(card.FactId) && factMap.TryGetValue(card.FactId, out var mappedFact))
+                if (!string.IsNullOrWhiteSpace(card.FactId)
+                    && !string.IsNullOrWhiteSpace(card.LayoutKey)
+                    && factMap.TryGetValue(card.FactId, out var mappedFact))
+                {
                     factId = mappedFact;
+                }
 
                 var restored = ToCard(card, cardId, targetDeckId, factId, imagesDirectory, now);
                 await _cards.UpsertAsync(conn, tx, restored, cancellationToken).ConfigureAwait(false);

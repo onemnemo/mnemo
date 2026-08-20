@@ -11,6 +11,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
+using Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 using Mnemo.Infrastructure.Tests.Flashcards.Persistence;
 using Xunit;
 
@@ -269,6 +270,54 @@ public sealed class FlashcardBackupPackageTests
         var view = Assert.Single(page.Items);
         Assert.Equal("Old question", view.Card.Front);
         Assert.Equal(FlashcardFsrsState.Review, view.Schedule.FsrsState);
+    }
+
+    /// <summary>
+    /// Material and the layout it was rendered through are one fact about a card, and a package is
+    /// a file somebody can edit. A card naming material with no layout would sit outside the unique
+    /// index that reserves one card per layout, and the material would not count it among the cards
+    /// it has made, which is what decides whether that material is an orphan worth destroying.
+    /// </summary>
+    [Fact]
+    public async Task A_card_naming_material_with_no_layout_lands_as_a_card_of_its_own()
+    {
+        var snapshot = new FlashcardPayloadSnapshot();
+        snapshot.Facts.Add(new FactSnapshotDto
+        {
+            Id = "fact-1",
+            DeckId = "deck-9",
+            TypeId = FlashcardCardType.BasicId,
+            Values = new Dictionary<string, string> { ["front"] = "Q", ["back"] = "A" },
+        });
+        snapshot.Decks.Add(new DeckSnapshotDto
+        {
+            Id = "deck-9",
+            Name = "Hand edited",
+            Cards =
+            [
+                new CardSnapshotDto { Id = "card-1", DeckId = "deck-9", Front = "Q", Back = "A", FactId = "fact-1" },
+            ],
+        });
+
+        var exported = new MnemoPayloadExportData
+        {
+            ItemCount = 1,
+            SchemaVersion = 3,
+            Files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["flashcards.db"] = FlashcardPayloadDatabase.Write(snapshot),
+            },
+        };
+
+        await using var target = new FlashcardStoreHarness(Now);
+        await target.Store.InitializeAsync();
+        var result = await FlashcardPackageFixture.Handler(target).ImportAsync(FlashcardPackageFixture.ImportContext(exported));
+
+        Assert.Equal(1, result.ImportedCount);
+        var card = await target.Store.ReadAsync((conn, ct) => target.Cards.GetAsync(conn, "card-1", ct));
+        Assert.NotNull(card);
+        Assert.Null(card!.FactId);
+        Assert.Null(card.LayoutKey);
     }
 
     [Fact]
