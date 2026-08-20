@@ -3,6 +3,7 @@ import { createEditorSchema } from '../schema';
 import { createDocumentMapper } from '../mapper/document';
 import { defaultTextStyle, type Block, type InlineSpan } from '../../model/types';
 import { documentPositionOf, projectDocument, walkBlocks } from './document';
+import { documentHeadings } from './headings';
 
 const { schema, registry } = createEditorSchema();
 const mapper = createDocumentMapper(schema, registry);
@@ -206,5 +207,45 @@ describe('documentPositionOf', () => {
   it('returns null past the end rather than clamping into the last block', () => {
     const projection = projectDocument(docOf([blockOf({ spans: [text('alpha')] })]), registry);
     expect(documentPositionOf(projection, 999)).toBeNull();
+  });
+});
+
+describe('document identity caching', () => {
+  it('walkBlocks returns the same array for a repeated doc and a fresh one for a changed doc', () => {
+    const doc = docOf([blockOf({ spans: [text('alpha')] }), blockOf({ spans: [text('beta')] })]);
+    const first = walkBlocks(doc, registry);
+    const second = walkBlocks(doc, registry);
+    expect(second).toBe(first);
+
+    const onlyBlock = blockOf({ spans: [text('gamma')] });
+    const changed = docOf([onlyBlock]);
+    const third = walkBlocks(changed, registry);
+    expect(third).not.toBe(first);
+    expect(third.map((b) => b.sid)).toEqual([onlyBlock.sid]);
+  });
+
+  it('projectDocument returns the same projection for a repeated doc and a fresh one for a changed doc', () => {
+    const doc = docOf([blockOf({ spans: [text('alpha')] }), blockOf({ spans: [text('beta')] })]);
+    const first = projectDocument(doc, registry);
+    const second = projectDocument(doc, registry);
+    expect(second).toBe(first);
+    expect(second.text).toBe('alpha\nbeta\n');
+
+    const changed = docOf([blockOf({ spans: [text('gamma')] })]);
+    const third = projectDocument(changed, registry);
+    expect(third).not.toBe(first);
+    expect(third.text).toBe('gamma\n');
+  });
+
+  it('does not change documentHeadings output between a cold call and a cached one', () => {
+    const doc = docOf([
+      blockOf({ type: 'Heading1', spans: [text('one')] }),
+      blockOf({ spans: [text('body')] }),
+      blockOf({ type: 'Heading2', spans: [text('two')] }),
+    ]);
+    const cold = documentHeadings(doc, registry);
+    const warm = documentHeadings(doc, registry);
+    expect(warm).toEqual(cold);
+    expect(cold.map((h) => h.text)).toEqual(['one', 'two']);
   });
 });
