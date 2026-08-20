@@ -36,7 +36,6 @@ public class SqlitePoolScopeTests
         "Mnemo.Core",
         "Mnemo.Infrastructure",
         "Mnemo.Infrastructure.Tests",
-        "Mnemo.UI",
         "Mnemo.Host",
         "Mnemo.Host.Tests",
         "Mnemo.SpanFixtureGen"
