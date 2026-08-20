@@ -203,16 +203,7 @@ public sealed class ChatProcessThreadTracker
     }
 
     /// <summary>Formats a turn duration the way the collapsed trace shows it: "20s", or "1m 5s" past a minute.</summary>
-    public static string FormatShortDuration(TimeSpan elapsed)
-    {
-        if (elapsed.TotalSeconds < 1)
-            return "0s";
-        if (elapsed.TotalSeconds < 60)
-            return string.Create(CultureInfo.InvariantCulture, $"{(int)elapsed.TotalSeconds}s");
-        var minutes = (int)elapsed.TotalMinutes;
-        var seconds = elapsed.Seconds;
-        return string.Create(CultureInfo.InvariantCulture, $"{minutes}m {seconds}s");
-    }
+    public static string FormatShortDuration(TimeSpan elapsed) => ChatTurnDuration.FormatShort(elapsed);
 
     /// <summary>Formats the live running timer as a mono clock, e.g. "00:09".</summary>
     public static string FormatRunningTimer(TimeSpan elapsed) =>
