@@ -8,10 +8,17 @@
 
 import { act, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { CardTypeOverlay } from "./CardTypeOverlay"
 import { useCardTypeManager } from "./store"
+
+// Transforming the manager's chunk for the first time can outrun the default test timeout on a
+// busy machine running the whole suite at once, so that cost is paid here, once, on its own
+// generous budget, rather than inside whichever test happens to run first.
+beforeAll(async () => {
+  await import("./CardTypeManager")
+}, 30000)
 
 const mocks = vi.hoisted(() => ({
   saveCardType: vi.fn(async (_body: unknown) => ({ id: "vocab" })),
@@ -77,7 +84,11 @@ function mount(node: ReactNode): void {
 }
 
 async function settle(): Promise<void> {
-  await act(async () => {})
+  // The manager is a lazy import behind the gate's own Suspense boundary, so the first flush
+  // after opening has to wait on that chunk rather than assume a synchronous render tree.
+  await act(async () => {
+    await import("./CardTypeManager")
+  })
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
@@ -103,6 +114,15 @@ function typeInto(el: HTMLInputElement, value: string): void {
     el.dispatchEvent(new Event("input", { bubbles: true }))
   })
 }
+
+describe("CardTypeOverlay gate", () => {
+  it("renders nothing until the manager is opened", () => {
+    mount(<CardTypeOverlay />)
+
+    expect(container.innerHTML).toBe("")
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+})
 
 describe("CardTypeOverlay", () => {
   it("shows the stored type's fields and cards", async () => {
