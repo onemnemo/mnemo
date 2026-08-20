@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using Mnemo.Core.Models;
+using Mnemo.Infrastructure.Services.AI;
 using Mnemo.UI.ViewModels;
 
 namespace Mnemo.UI.Services;

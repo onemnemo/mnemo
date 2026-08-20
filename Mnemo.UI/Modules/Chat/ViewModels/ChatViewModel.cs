@@ -18,6 +18,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Models.Ai;
 using Mnemo.Core.Services;
 using Mnemo.Core.Services.Ai;
+using Mnemo.Infrastructure.Services.AI;
 using Mnemo.UI.Components.Overlays;
 using Mnemo.UI.Services;
 using Mnemo.UI.ViewModels;

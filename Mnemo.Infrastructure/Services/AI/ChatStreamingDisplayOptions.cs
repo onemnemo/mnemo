@@ -1,4 +1,4 @@
-namespace Mnemo.UI.Services;
+namespace Mnemo.Infrastructure.Services.AI;
 
 /// <summary>Controls reveal pacing for chat streaming (see <c>Chat.StreamingReveal</c>).</summary>
 public readonly record struct ChatStreamingDisplayOptions(int TickMs, int CharsPerTick, bool IsInstant)
