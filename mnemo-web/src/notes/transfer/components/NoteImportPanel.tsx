@@ -6,7 +6,7 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import type { ConflictPolicy, TransferFormatDto } from "@/api/types"
-import { formatFileSize, importExtensions, MAX_FILES, type QueuedFile } from "../transfer"
+import { fileNoteText, formatFileSize, importExtensions, MAX_FILES, type QueuedFile } from "../transfer"
 
 const CONFLICT_OPTIONS: { value: ConflictPolicy; labelKey: string; captionKey: string }[] = [
   { value: "KeepBoth", labelKey: "TransferConflictKeepBoth", captionKey: "TransferConflictKeepBothCaption" },
@@ -215,6 +215,7 @@ function FileRow({
   busy: boolean
   onRemove: () => void
 }) {
+  const t = useT()
   const rejected = file.status === "rejected"
   const uploading = file.status === "uploading"
 
@@ -237,7 +238,7 @@ function FileRow({
           {file.name}
         </div>
         <div className={cn("truncate text-caption", rejected ? "text-[var(--toast-accent-warning)]" : "text-text-tertiary")}>
-          {rejected ? (file.notes?.join(" ") ?? detail) : detail}
+          {rejected ? (file.notes?.map((note) => fileNoteText(t, note)).join(" ") ?? detail) : detail}
         </div>
       </div>
 

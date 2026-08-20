@@ -155,7 +155,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
           if (controller.signal.aborted) return
           const failed: Partial<QueuedFile> = {
             status: "rejected",
-            notes: [error instanceof Error ? error.message : common("TransferUnreadableFile", { 0: file.name })],
+            notes: [{ text: error instanceof Error ? error.message : common("TransferUnreadableFile", { 0: file.name }) }],
           }
           queueRef.current = queueRef.current.map((queued) =>
             queued.key === key ? { ...queued, ...failed } : queued,

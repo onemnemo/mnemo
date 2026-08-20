@@ -532,6 +532,16 @@ export interface SaveWeightsDto {
 /** How an import resolves an item that already exists. Only .mnemo packages carry ids to collide on. */
 export type ConflictPolicy = "KeepBoth" | "Skip" | "Replace"
 
+/**
+ * Mirrors Mnemo.Host/Contracts/TransferWarningDto.cs. One warning from a transfer operation, as a
+ * translation key resolved against the `TransferWarnings` namespace plus the values it needs.
+ * Never English prose on its own: render it with `useT()` rather than displaying `key` directly.
+ */
+export interface TransferWarningDto {
+  key: string
+  params: Record<string, string>
+}
+
 /** Mirrors Mnemo.Host/Contracts/TransferDto.cs TransferFormatDto. */
 export interface TransferFormatDto {
   formatId: string
@@ -559,7 +569,7 @@ export interface TransferUploadDto {
   canImport: boolean
   /** Null when the format cannot say how many cards it holds until it is imported (.mnemo). */
   cardCount: number | null
-  warnings: string[]
+  warnings: TransferWarningDto[]
 }
 
 /** Mirrors Mnemo.Host/Contracts/TransferDto.cs TransferImportDto. */
@@ -573,7 +583,7 @@ export interface TransferImportResultDto {
   succeededFiles: number
   failedFiles: number
   importedCards: number
-  warnings: string[]
+  warnings: TransferWarningDto[]
   errors: string[]
 }
 
@@ -594,7 +604,7 @@ export interface NoteTransferUploadDto {
   canImport: boolean
   /** Notes the file will yield. A package reads its manifest; a markdown file is always one. */
   noteCount: number | null
-  warnings: string[]
+  warnings: TransferWarningDto[]
 }
 
 /** Mirrors Mnemo.Host/Contracts/NoteTransferDto.cs NoteTransferImportDto. */
@@ -610,7 +620,7 @@ export interface NoteTransferImportResultDto {
   succeededFiles: number
   failedFiles: number
   importedNotes: number
-  warnings: string[]
+  warnings: TransferWarningDto[]
   errors: string[]
 }
 
@@ -631,7 +641,7 @@ export interface MindmapTransferUploadDto {
   canImport: boolean
   /** Maps the file will yield, read from the package manifest. */
   mapCount: number | null
-  warnings: string[]
+  warnings: TransferWarningDto[]
 }
 
 /**
@@ -648,7 +658,7 @@ export interface MindmapTransferImportResultDto {
   succeededFiles: number
   failedFiles: number
   importedMaps: number
-  warnings: string[]
+  warnings: TransferWarningDto[]
   errors: string[]
 }
 
