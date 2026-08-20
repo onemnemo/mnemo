@@ -111,7 +111,9 @@ public sealed class SqliteStorageProviderSchemaTests
 
     private static void Delete(string path)
     {
-        SqliteConnection.ClearAllPools();
+        // Only this database's pool: the provider under test opens it pooled, and a process wide
+        // clear would reach into databases other collections are reading right now.
+        SqliteTestPools.ClearPoolFor(path);
         try
         {
             if (File.Exists(path))
