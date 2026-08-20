@@ -46,10 +46,6 @@ public sealed class MindmapBackendModule : IModule
         registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.Infrastructure.Modules.Mindmap.Translations"));
     }
 
-    public void RegisterRoutes(INavigationRegistry registry)
-    {
-    }
-
     public void RegisterSidebarItems(ISidebarService sidebarService)
     {
         sidebarService.RegisterItem("Mindmap", "mindmap", "avares://Mnemo.UI/Icons/Sidebar/mindmap.svg", "Modules", 1, 50, childRoutes: ["mindmap-detail"]);

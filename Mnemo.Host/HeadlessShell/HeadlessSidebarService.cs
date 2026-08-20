@@ -10,9 +10,8 @@ namespace Mnemo.Host.HeadlessShell;
 /// localization, so labels stay as translation keys here - nothing is resolved to
 /// a string server-side. Category order and footer placement are defined by
 /// <see cref="DefaultCategoryOrder"/> and <see cref="FooterCategoryKeys"/> below.
-/// <see cref="Categories"/> and <see cref="SetItemBadge"/> are not
-/// used server-side (the SPA renders from the nav model); badges land with the UI
-/// that needs them.
+/// <see cref="Categories"/> is not used server-side; the SPA renders from the nav
+/// model.
 /// </summary>
 public sealed class HeadlessSidebarService : ISidebarService
 {
@@ -44,9 +43,7 @@ public sealed class HeadlessSidebarService : ISidebarService
             childRoutes ?? []));
     }
 
-    public void SetItemBadge(string route, string? badgeText) { }
-
-    /// <summary>The registered items grouped into ordered categories, mirroring SidebarService.</summary>
+    /// <summary>The registered items grouped into ordered categories.</summary>
     public IReadOnlyList<NavCategoryModel> BuildNavModel()
     {
         var categories = new List<CategoryAccumulator>();

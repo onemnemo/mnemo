@@ -28,10 +28,6 @@ public sealed class OverviewBackendModule : IModule
         registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.Infrastructure.Modules.Overview.Widgets.UsageSummary.Translations"));
     }
 
-    public void RegisterRoutes(INavigationRegistry registry)
-    {
-    }
-
     public void RegisterSidebarItems(ISidebarService sidebarService)
     {
         sidebarService.RegisterItem("Overview", "overview", "avares://Mnemo.UI/Icons/Sidebar/overview.svg", "MainHub", 0, 0);

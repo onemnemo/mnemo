@@ -3,7 +3,7 @@ using System;
 namespace Mnemo.Core.Services;
 
 /// <summary>
-/// Defines a module that can register services, routes, widgets, and AI tools.
+/// Defines a module that can register services, widgets, and AI tools.
 /// </summary>
 public interface IModule
 {
@@ -12,7 +12,6 @@ public interface IModule
     /// Registers translation sources for this module. Called before the service provider is built.
     /// </summary>
     void RegisterTranslationSources(ITranslationSourceRegistry registry);
-    void RegisterRoutes(INavigationRegistry registry);
     void RegisterSidebarItems(ISidebarService sidebarService);
     /// <summary>
     /// Registers AI tools. <paramref name="services"/> provides access to resolved services

@@ -101,10 +101,4 @@ public sealed class HeadlessThemeService : IThemeService
         ];
         return Task.FromResult(themes);
     }
-
-    // Rendering-side operations stay inert; the SPA applies themes itself.
-    public void StartWatching() { }
-    public void StopWatching() { }
-    public Task<bool> ImportAsync(string path) => Task.FromResult(false);
-    public Task ExportAsync(string themeName, string path) => Task.CompletedTask;
 }

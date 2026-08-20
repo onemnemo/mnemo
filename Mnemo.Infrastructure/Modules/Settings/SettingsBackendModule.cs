@@ -23,10 +23,6 @@ public sealed class SettingsBackendModule : IModule
     {
     }
 
-    public void RegisterRoutes(INavigationRegistry registry)
-    {
-    }
-
     public void RegisterSidebarItems(ISidebarService sidebarService)
     {
         sidebarService.RegisterItem("Settings", "settings", "avares://Mnemo.UI/Icons/Sidebar/settings.svg", "Ecosystem", 2, int.MaxValue);
