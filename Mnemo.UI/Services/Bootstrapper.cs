@@ -140,6 +140,7 @@ public static class Bootstrapper
         services.AddSingleton<ITestAttemptRepository, TestAttemptRepository>();
         services.AddSingleton<IDailyStatsRepository, DailyStatsRepository>();
         services.AddSingleton<IFlashcardStoreMigrator, FlashcardStoreMigrator>();
+        services.AddSingleton<IFlashcardFactlessCardRepair, FlashcardFactlessCardRepair>();
 
         // Scheduling reads the time through this rather than the static properties, so day
         // boundaries stay one decision the tests can drive.
@@ -265,6 +266,24 @@ public static class Bootstrapper
             catch (Exception ex)
             {
                 logger.Error("Bootstrapper", "Flashcard store migration failed during startup.", ex);
+            }
+        }
+
+        // One-shot sweep for collections an earlier build imported without giving their cards any
+        // material. It runs after the import, because on the launch that imports it is the import
+        // that leaves the evidence the sweep reads, and before the first read for the same reason
+        // the import is: a card with no material cannot be buried and has nothing to edit. Every
+        // later start is a single stored-key check.
+        using (perf.Measure("Startup", "FlashcardFactlessCardRepair"))
+        {
+            try
+            {
+                serviceProvider.GetRequiredService<IFlashcardFactlessCardRepair>()
+                    .RepairAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                logger.Error("Bootstrapper", "Repair of flashcards without material failed during startup.", ex);
             }
         }
 
