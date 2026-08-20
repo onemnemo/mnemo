@@ -38,22 +38,18 @@ using Mnemo.Infrastructure.Services.Tools;
 using Mnemo.Infrastructure.Services.Trash;
 using Mnemo.Infrastructure.Services.Updates;
 using Mnemo.Infrastructure.Services.Widgets;
-using Mnemo.UI.Services;
 
 namespace Mnemo.Host.Composition;
 
 /// <summary>
-/// The host's composition root. Mirrors the backend half of the Avalonia app's
-/// <c>Bootstrapper.Build()</c> (Mnemo.UI/Services/Bootstrapper.cs) and must be kept
-/// in lockstep with it until cutover consolidates the two; UI-only registrations are
-/// replaced by the HeadlessShell bindings or deliberately left unbound (each delta
-/// is commented inline at the spot where Bootstrapper registers the UI variant).
+/// The host's composition root. Builds the Core and Infrastructure service graph, the
+/// headless shell bindings, and the backend-side module registrations.
 /// </summary>
 public static class HostComposition
 {
     /// <summary>
-    /// Finds every <see cref="IModule"/> the same way the Avalonia app does, but
-    /// collects discovery failures for logging instead of silently swallowing them.
+    /// Finds every <see cref="IModule"/>, collecting discovery failures for logging
+    /// instead of silently swallowing them.
     /// </summary>
     public static IReadOnlyList<IModule> DiscoverModules(out IReadOnlyList<string> failures)
     {
@@ -70,11 +66,6 @@ public static class HostComposition
         // The backend half of every module lives in Mnemo.Infrastructure; anchor on it rather
         // than trusting that something else has already pulled the assembly in.
         assemblies.Add(typeof(CoreBackendModule).Assembly);
-
-        // The Avalonia halves are still in Mnemo.UI during the parallel phases; make sure that
-        // assembly is loaded too, even though the host never initializes Avalonia. Nothing the
-        // host consumes comes from them any more, so this line goes at cutover.
-        assemblies.Add(typeof(Bootstrapper).Assembly);
 
         foreach (var assembly in assemblies)
         {
@@ -119,7 +110,7 @@ public static class HostComposition
     /// </summary>
     public static void AddMnemoBackend(IServiceCollection services, IReadOnlyList<IModule> modules)
     {
-        // 1. Core/Infrastructure services (Bootstrapper section 1)
+        // 1. Core/Infrastructure services
         services.AddSingleton<IHistoryManager, HistoryManager>();
         services.AddSingleton<ILoggerService, LoggerService>();
         services.AddSingleton<IStorageProvider, SqliteStorageProvider>();
@@ -128,12 +119,12 @@ public static class HostComposition
         services.AddSingleton<ISettingsService, SettingsService>();
         services.AddSingleton<IPerfDiagnostics, PerfDiagnosticsService>();
         services.AddSingleton<IUpdateService, VelopackUpdateService>();
-        // ILaTeXEngine: unbound. It renders through Avalonia; the SPA's math is KaTeX,
-        // and PDF export renders real math through Typst.
+        // ILaTeXEngine: unbound. The SPA's math is KaTeX, and PDF export renders real
+        // math through Typst.
         services.AddSingleton<IMarkdownProcessor, MarkdownProcessor>();
         // IMarkdownRenderer / ITextMateSyntaxHighlighter / INoteClipboardPlatformService:
-        // unbound. Implementations are Avalonia-side and nothing outside Mnemo.UI
-        // consumes them.
+        // unbound. Nothing in the host consumes them; the browser owns rendering,
+        // highlighting and clipboard handling.
         services.AddSingleton<INoteClipboardPayloadCodec, NoteClipboardPayloadCodec>();
         services.AddSingleton<IImageAssetService, ImageAssetService>();
         services.AddSingleton<ITextShortcutService, TextShortcutService>();
@@ -145,7 +136,6 @@ public static class HostComposition
         services.AddSingleton<ISkillRegistry, SkillRegistry>();
         services.AddSingleton<ISkillSystemPromptComposer, SkillSystemPromptComposer>();
         services.AddSingleton<IToolResultFormatter, ToolResultFormatter>();
-        // Headless substitution: the Avalonia app binds AvaloniaMainThreadDispatcher.
         services.AddSingleton<IMainThreadDispatcher, HeadlessMainThreadDispatcher>();
         services.AddSingleton(sp => new NotesToolService(
             sp.GetRequiredService<INoteService>(),
@@ -170,9 +160,6 @@ public static class HostComposition
         services.AddSingleton<IConversationSummarizer>(sp =>
             new ConversationSummarizer(sp.GetRequiredService<IAIOrchestrator>()));
         services.AddSingleton<IConversationMemoryInjector, ConversationMemoryInjector>();
-
-        // MnemoMcpOptions / MnemoMcpServer: unbound. The MCP server keeps running
-        // inside the Avalonia app until its scheduled relocation into this host.
 
         // Mnemo AI stack: orchestrator + tool gateway over the v2 contracts.
         // Chat responses can stream for minutes, so the shared HttpClient must not impose
@@ -256,7 +243,7 @@ public static class HostComposition
         // resolves it.
         services.AddSingleton<IStudyDayService, StudyDayService>();
 
-        // Holds live study sessions, which the desktop kept in the study screen's ViewModel.
+        // Holds live study sessions, which outlive any single request.
         services.AddSingleton<Flashcards.StudySessionRegistry>();
         services.AddSingleton<IMnemoPackageService, MnemoPackageService>();
         services.AddSingleton<IMnemoPayloadHandler, NotesMnemoPayloadHandler>();
@@ -307,7 +294,7 @@ public static class HostComposition
         // because the channel is.
         services.AddSingleton<Mindmap.MindmapChangeBridge>();
 
-        // 2. Shell services: headless substitutions for the Avalonia-bound set.
+        // 2. Shell services.
         // App-events channel: the fan-out the headless shell pushes toasts (and
         // later theme/navigation changes) through to reach the SPA over SSE.
         services.AddSingleton<AppEventHub>();
@@ -356,7 +343,7 @@ public static class HostComposition
         services.AddSingleton<IGlobalSearchService, GlobalSearchService>();
         services.AddSingleton<ISearchProvider, NavigationSearchProvider>();
 
-        // 3. Modules: backend-side registrations only, same ordering as the Avalonia app.
+        // 3. Modules: backend-side registrations only.
         services.AddSingleton<IReadOnlyList<IModule>>(modules);
         services.AddSingleton<IAiAssistantToolHost, AiAssistantToolHost>();
         var translationRegistry = new TranslationSourceRegistry();
@@ -371,7 +358,7 @@ public static class HostComposition
             sp.GetRequiredService<ILoggerService>(),
             "en"));
         // Expose the ordered sources so the i18n endpoints can serve the SPA the
-        // same merged bundle the desktop app builds.
+        // merged bundle in the same precedence order the registry built.
         services.AddSingleton<IReadOnlyList<ITranslationSource>>(translationRegistry.Sources);
         services.AddSingleton<TranslationBundleService>();
         services.AddSingleton<IDateDisplayService, DateDisplayService>();
@@ -399,10 +386,9 @@ public static class HostComposition
     }
 
     /// <summary>
-    /// Post-build startup work, mirroring the Avalonia app's ordering guarantee:
-    /// the flashcard migration completes (or fails logged) before any endpoint can
-    /// serve a read, and both SQLite stores are warmed so the first request never
-    /// races schema creation.
+    /// Post-build startup work, with one ordering guarantee: the flashcard migration
+    /// completes (or fails logged) before any endpoint can serve a read, and both
+    /// SQLite stores are warmed so the first request never races schema creation.
     /// </summary>
     public static async Task InitializeBackendAsync(IServiceProvider services, IReadOnlyList<string> moduleDiscoveryFailures)
     {
@@ -414,9 +400,9 @@ public static class HostComposition
         }
 
         // Replay the module sidebar registrations against the headless sidebar
-        // service so the nav endpoint serves the same items the desktop builds.
-        // These registrations are pure metadata (labels, routes, icons), so unlike
-        // the other UI-side module hooks they are safe to run in the host.
+        // service so the nav endpoint can serve them. These registrations are pure
+        // metadata (labels, routes, icons), so unlike the other UI-side module hooks
+        // they are safe to run in the host.
         var modules = services.GetRequiredService<IReadOnlyList<IModule>>();
         var sidebar = services.GetRequiredService<ISidebarService>();
         foreach (var module in modules)
@@ -427,7 +413,7 @@ public static class HostComposition
         RegisterModuleWidgets(modules, services.GetRequiredService<IWidgetRegistry>(), services);
 
         // Load the saved UI language so server-emitted strings (e.g. the persisted chat trace)
-        // resolve to the same text the desktop would write. Mirrors Bootstrapper.LoadSavedLanguageAsync.
+        // resolve in the language the user chose rather than the default.
         var settings = services.GetRequiredService<ISettingsService>();
         var localization = services.GetRequiredService<ILocalizationService>();
         var savedLanguage = await settings.GetAsync<string>("App.Language", "en").ConfigureAwait(false);
@@ -441,8 +427,8 @@ public static class HostComposition
         }
         catch (Exception ex)
         {
-            // Same policy as the Avalonia app: a failed migration must not brick
-            // startup; the store still self-initializes a valid (empty) schema.
+            // A failed migration must not brick startup; the store still
+            // self-initializes a valid (empty) schema.
             logger.Error("Mnemo.Host", "Flashcard store migration failed during startup.", ex);
         }
 
@@ -499,8 +485,7 @@ public static class HostComposition
     }
 
     /// <summary>
-    /// Replays the module widget registrations against the host's registry, the same pass the
-    /// Avalonia app runs from Bootstrapper.
+    /// Replays the module widget registrations against the host's registry.
     /// </summary>
     /// <remarks>
     /// Like the sidebar items, descriptors are safe here: they are stateless, and the manifests
@@ -511,8 +496,8 @@ public static class HostComposition
     /// overview store migrates a legacy v1 board on first read and looks up each widget's manifest
     /// to seed its default settings and snap the rescaled size, then writes the migrated board
     /// back under the v2 key. A profile whose first v2 read happened in a host with no descriptors
-    /// would keep settingless, unsnapped widgets for good, because the desktop app afterwards
-    /// finds a v2 board and never migrates again.
+    /// would keep settingless, unsnapped widgets for good, because every later read finds a v2
+    /// board and never migrates again.
     /// </para>
     /// <para>
     /// Separate from <see cref="InitializeBackendAsync"/> so a test can build the registry exactly

@@ -7,8 +7,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mnemo.Core", "Mnemo.Core\Mn
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mnemo.Infrastructure", "Mnemo.Infrastructure\Mnemo.Infrastructure.csproj", "{22787FC0-1D37-4CD5-8801-A479C46A2FF4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mnemo.UI", "Mnemo.UI\Mnemo.UI.csproj", "{E14B73B1-290D-4289-B382-D6190592261F}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mnemo.Infrastructure.Tests", "Mnemo.Infrastructure.Tests\Mnemo.Infrastructure.Tests.csproj", "{21EBB4D8-A945-471F-92F2-5E7399025967}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mnemo.Host", "Mnemo.Host\Mnemo.Host.csproj", "{0FECB951-4D04-4C3A-B40D-8820A24014D5}"
@@ -51,18 +49,6 @@ Global
 		{22787FC0-1D37-4CD5-8801-A479C46A2FF4}.Release|x64.Build.0 = Release|Any CPU
 		{22787FC0-1D37-4CD5-8801-A479C46A2FF4}.Release|x86.ActiveCfg = Release|Any CPU
 		{22787FC0-1D37-4CD5-8801-A479C46A2FF4}.Release|x86.Build.0 = Release|Any CPU
-		{E14B73B1-290D-4289-B382-D6190592261F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E14B73B1-290D-4289-B382-D6190592261F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E14B73B1-290D-4289-B382-D6190592261F}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{E14B73B1-290D-4289-B382-D6190592261F}.Debug|x64.Build.0 = Debug|Any CPU
-		{E14B73B1-290D-4289-B382-D6190592261F}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{E14B73B1-290D-4289-B382-D6190592261F}.Debug|x86.Build.0 = Debug|Any CPU
-		{E14B73B1-290D-4289-B382-D6190592261F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E14B73B1-290D-4289-B382-D6190592261F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{E14B73B1-290D-4289-B382-D6190592261F}.Release|x64.ActiveCfg = Release|Any CPU
-		{E14B73B1-290D-4289-B382-D6190592261F}.Release|x64.Build.0 = Release|Any CPU
-		{E14B73B1-290D-4289-B382-D6190592261F}.Release|x86.ActiveCfg = Release|Any CPU
-		{E14B73B1-290D-4289-B382-D6190592261F}.Release|x86.Build.0 = Release|Any CPU
 		{21EBB4D8-A945-471F-92F2-5E7399025967}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{21EBB4D8-A945-471F-92F2-5E7399025967}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{21EBB4D8-A945-471F-92F2-5E7399025967}.Debug|x64.ActiveCfg = Debug|Any CPU
