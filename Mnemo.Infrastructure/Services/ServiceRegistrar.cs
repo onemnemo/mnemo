@@ -1,8 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Services;
 
-namespace Mnemo.UI.Services;
+namespace Mnemo.Infrastructure.Services;
 
+/// <summary>
+/// The narrow registration surface modules see, over the real service collection. Modules take
+/// this rather than <see cref="IServiceCollection"/> so a module cannot reach past registering
+/// its own services, and so both composition roots can hand them the same thing.
+/// </summary>
 public class ServiceRegistrar : IServiceRegistrar
 {
     private readonly IServiceCollection _services;

@@ -1,19 +1,18 @@
 using System;
 using Mnemo.Core.Services;
-using Mnemo.Core.Services.Search;
-using Microsoft.Extensions.DependencyInjection;
-using Mnemo.Infrastructure.Services.Search;
-using Mnemo.Infrastructure.Services.Tools;
 using Mnemo.UI.Modules.Settings.ViewModels;
 
 namespace Mnemo.UI.Modules.Settings;
 
+/// <summary>
+/// The settings screen. Navigation, search and the settings tools are registered by
+/// <c>SettingsBackendModule</c>, which runs in both shells.
+/// </summary>
 public class SettingsModule : IModule
 {
     public void ConfigureServices(IServiceRegistrar services)
     {
         services.AddTransient<SettingsViewModel>();
-        services.AddSingleton<ISearchProvider, SettingsSearchProvider>();
     }
 
     public void RegisterTranslationSources(ITranslationSourceRegistry registry)
@@ -27,13 +26,10 @@ public class SettingsModule : IModule
 
     public void RegisterSidebarItems(ISidebarService sidebarService)
     {
-        sidebarService.RegisterItem("Settings", "settings", "avares://Mnemo.UI/Icons/Sidebar/settings.svg", "Ecosystem", 2, int.MaxValue);
     }
 
     public void RegisterTools(IFunctionRegistry registry, IServiceProvider services)
     {
-        var svc = services.GetRequiredService<SettingsToolService>();
-        SettingsToolRegistrar.Register(registry, svc);
     }
 
     public void RegisterWidgets(IWidgetRegistry registry, IServiceProvider services)

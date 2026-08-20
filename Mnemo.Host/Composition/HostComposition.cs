@@ -10,6 +10,7 @@ using Mnemo.Host.I18n;
 using Mnemo.Host.Lifecycle;
 using Mnemo.Host.Trash;
 using Mnemo.Infrastructure.History;
+using Mnemo.Infrastructure.Modules.Core;
 using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.AI;
 using Mnemo.Infrastructure.Services.Flashcards;
@@ -66,8 +67,13 @@ public static class HostComposition
                 assemblies.Add(assembly);
         }
 
-        // All modules live in Mnemo.UI during the parallel phases; make sure that
-        // assembly is loaded even though the host never initializes Avalonia.
+        // The backend half of every module lives in Mnemo.Infrastructure; anchor on it rather
+        // than trusting that something else has already pulled the assembly in.
+        assemblies.Add(typeof(CoreBackendModule).Assembly);
+
+        // The Avalonia halves are still in Mnemo.UI during the parallel phases; make sure that
+        // assembly is loaded too, even though the host never initializes Avalonia. Nothing the
+        // host consumes comes from them any more, so this line goes at cutover.
         assemblies.Add(typeof(Bootstrapper).Assembly);
 
         foreach (var assembly in assemblies)
