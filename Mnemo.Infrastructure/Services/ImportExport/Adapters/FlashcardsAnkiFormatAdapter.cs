@@ -70,21 +70,13 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// <summary>How Anki references an audio clip inside a field. Cards here hold images only.</summary>
     private static readonly Regex SoundTagRegex = new(@"\[sound:[^\]]+\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    // Both delimiter pairs must be present for a rewrite. A lone backslash-paren in ordinary prose
-    // is text, and turning it into an opening dollar would put the rest of the card inside a formula.
-    // Inline maths may not span a line the way a displayed block may.
-    private static readonly Regex InlineMathRegex = new(@"\\\((?<body>[^\n]+?)\\\)", RegexOptions.Compiled);
-    private static readonly Regex DisplayMathRegex = new(@"\\\[(?<body>.+?)\\\]", RegexOptions.Compiled | RegexOptions.Singleline);
-
-    // Anki's own field syntax for the same two things.
-    private static readonly Regex BracketInlineMathRegex = new(@"\[\$\](?<body>.+?)\[/\$\]", RegexOptions.Compiled | RegexOptions.Singleline);
-    private static readonly Regex BracketDisplayMathRegex = new(@"\[\$\$\](?<body>.+?)\[/\$\$\]", RegexOptions.Compiled | RegexOptions.Singleline);
     private static readonly Regex InlineTagRegex = new(@"</?(b|strong|i|em|u|s|strike)>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly IFlashcardLibraryService _library;
     private readonly IFlashcardCardService _cards;
     private readonly IFlashcardFactService _facts;
     private readonly IFlashcardPresetService _presets;
+    private readonly IFlashcardReviewHistoryService _history;
     private readonly IImageAssetService _imageAssetService;
 
     public FlashcardsAnkiFormatAdapter(
@@ -92,12 +84,14 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         IFlashcardCardService cards,
         IFlashcardFactService facts,
         IFlashcardPresetService presets,
+        IFlashcardReviewHistoryService history,
         IImageAssetService imageAssetService)
     {
         _library = library;
         _cards = cards;
         _facts = facts;
         _presets = presets;
+        _history = history;
         _imageAssetService = imageAssetService;
     }
 
@@ -167,12 +161,15 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             }
 
             var plan = PlanDecks(cards, notes, collectionInfo.NoteTypes);
+            var revlog = await ReadRevlogAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
 
             var now = DateTimeOffset.UtcNow;
             var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
             var folders = await DeckFolderResolver.CreateAsync(_library, cancellationToken).ConfigureAwait(false);
             var tally = new ImportTally();
             var failedDecks = 0;
+            var importSessionId = FlashcardImportedReviews.NewSessionId();
+            var importedReviews = 0;
 
             foreach (var deckPlan in plan.Decks)
             {
@@ -182,7 +179,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     ? n
                     : $"Imported Deck {deckPlan.DeckId}";
                 var drafts = new List<FlashcardCardDraft>();
+                // Which package row each draft came from, so the history that row carried can be
+                // attached once the card it becomes has an id.
+                var draftRows = new List<CardRow>();
                 var material = new List<FlashcardFactDraft>();
+                var materialNotes = new List<AnkiClozeNote>();
 
                 foreach (var cardRow in deckPlan.Rows)
                 {
@@ -192,6 +193,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     var sides = await ReadSidesAsync(
                         note, cardRow.Ord, rowCount: 1, collectionInfo, opened, warnings, tally, cancellationToken).ConfigureAwait(false);
                     drafts.Add(DraftFor(note, cardRow, sides, collectionInfo, now));
+                    draftRows.Add(cardRow);
                 }
 
                 foreach (var clozeNote in deckPlan.ClozeNotes)
@@ -203,6 +205,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     if (MaterialFor(clozeNote, sides, collectionInfo, now) is { } fact)
                     {
                         material.Add(fact);
+                        materialNotes.Add(clozeNote);
                         continue;
                     }
 
@@ -210,7 +213,10 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     // standing for themselves rather than losing their cards to a classification
                     // nobody typed.
                     foreach (var row in clozeNote.Rows.Values)
+                    {
                         drafts.Add(DraftFor(clozeNote.Note, row, sides, collectionInfo, now));
+                        draftRows.Add(row);
+                    }
                 }
 
                 if (drafts.Count == 0 && material.Count == 0)
@@ -228,10 +234,18 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                         deck with { Description = "Imported from Anki package" },
                         cancellationToken).ConfigureAwait(false);
 
+                    // Which package card row each card that just landed came from. The history in
+                    // the package is keyed by that row, and a note's deletions each have one of
+                    // their own, so this is what keeps a deletion's answers on its own card.
+                    var landed = new List<(long PackageCardId, string CardId)>();
+
                     if (drafts.Count > 0)
                     {
                         var created = await _cards.CreateCardsAsync(deck.Id, drafts, cancellationToken).ConfigureAwait(false);
                         importedCards += created.Count;
+                        // Cards come back in draft order, which is the order the rows were read in.
+                        for (var i = 0; i < created.Count && i < draftRows.Count; i++)
+                            landed.Add((draftRows[i].Id, created[i].Id));
                     }
 
                     if (material.Count > 0)
@@ -239,7 +253,12 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                         var saved = await _facts.SaveFactsAsync(
                             [.. material.Select(m => m with { DeckId = deck.Id })], cancellationToken).ConfigureAwait(false);
                         importedCards += saved.Sum(s => s.Cards.Count);
+                        for (var i = 0; i < saved.Count && i < materialNotes.Count; i++)
+                            landed.AddRange(PairDeletions(saved[i], materialNotes[i]));
                     }
+
+                    importedReviews += await AttachHistoryAsync(
+                        deck.Id, landed, revlog, importSessionId, cancellationToken).ConfigureAwait(false);
 
                     importedDecks++;
                 }
@@ -287,6 +306,15 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             // who is not told that reads it as the import having got the schedule wrong.
             if (importedCards > 0 && cards.Any(c => c.Type != 0))
                 warnings.Add(TransferWarning.Of("AnkiScheduleCarriedOver"));
+
+            // Retention and the deck's own numbers move the moment this lands, and someone who
+            // opens a freshly imported deck to a filled in retention figure deserves to know why.
+            if (importedReviews > 0)
+            {
+                warnings.Add(TransferWarning.Of(
+                    "AnkiReviewHistoryImported",
+                    ("count", importedReviews.ToString(CultureInfo.InvariantCulture))));
+            }
 
             return new ImportExportResult
             {
@@ -355,35 +383,48 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     var modelJson = BuildModelJson(nowMs);
                     await InsertColAsync(connection, crt, nowSec, nowSec, deckJson, dconfJson, modelJson, cancellationToken).ConfigureAwait(false);
 
+                    // Which package card row each exported card became, so the history it carries can
+                    // be written against the right one once every note is in.
+                    var exported = new List<(string CardId, long PackageCardId)>();
+
                     foreach (var deck in decksToExport)
                     {
                         var did = StableAnkiId($"deck:{deck.Id}:{deck.Name}");
-                        foreach (var card in deck.Cards)
+                        foreach (var note in deck.Notes)
                         {
                             cancellationToken.ThrowIfCancellationRequested();
 
-                            var nid = StableAnkiId($"note:{card.Id}");
-                            var cid = StableAnkiId($"card:{card.Id}");
-                            var guid = BuildGuid(card.Id);
-                            var modelId = BasicModelId;
                             var mod = nowSec;
-                            var tags = card.Tags.Count > 0 ? $" {string.Join(' ', card.Tags)} " : string.Empty;
+                            var tags = note.Tags.Count > 0 ? $" {string.Join(' ', note.Tags)} " : string.Empty;
 
                             var frontHtml = BuildFieldHtml(
-                                card.Front, card.FrontBlocks, card.Attachments, FlashcardAttachment.FrontSide, tempRoot, media, warnings);
+                                note.FirstFieldText, note.FirstFieldBlocks, note.Attachments,
+                                FlashcardAttachment.FrontSide, tempRoot, media, warnings);
                             var backHtml = BuildFieldHtml(
-                                card.Back, card.BackBlocks, card.Attachments, FlashcardAttachment.BackSide, tempRoot, media, warnings);
+                                note.SecondFieldText, note.SecondFieldBlocks, note.Attachments,
+                                FlashcardAttachment.BackSide, tempRoot, media, warnings);
                             var flds = $"{frontHtml}{UnitSeparator}{backHtml}";
-                            var sfld = card.Front;
-                            var csum = ComputeChecksum(card.Front);
-                            // Content-only export: no scheduling round-trip. Every card ships as an Anki "new" card.
-                            var dueData = NewCardScheduling;
+                            var csum = ComputeChecksum(note.SortField);
 
-                            await InsertNoteAsync(connection, nid, guid, modelId, mod, tags, flds, sfld, csum, cancellationToken).ConfigureAwait(false);
-                            await InsertCardAsync(connection, cid, nid, did, mod, dueData, cancellationToken).ConfigureAwait(false);
-                            exportedCards++;
+                            await InsertNoteAsync(
+                                connection, note.NoteId, note.Guid, note.ModelId, mod, tags, flds, note.SortField, csum,
+                                cancellationToken).ConfigureAwait(false);
+
+                            foreach (var row in note.Rows)
+                            {
+                                var cid = StableAnkiId($"card:{row.CardId}");
+                                // Content-only export: no scheduling round-trip. Every card ships as
+                                // an Anki "new" card, whatever its history says.
+                                await InsertCardAsync(
+                                    connection, cid, note.NoteId, did, mod, row.Ord, NewCardScheduling,
+                                    cancellationToken).ConfigureAwait(false);
+                                exported.Add((row.CardId, cid));
+                                exportedCards++;
+                            }
                         }
                     }
+
+                    await WriteReviewHistoryAsync(connection, exported, cancellationToken).ConfigureAwait(false);
                 }
 
                 var mediaJsonPath = Path.Combine(tempRoot, "media");
@@ -444,7 +485,14 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
     private static long BasicModelId => 1_608_194_021_001L;
 
-    /// <summary>Anki scheduling for a fresh "new" card — the only state a content-only export emits.</summary>
+    /// <summary>
+    /// The note type material whose cards are its deletions is written out under. Its own id rather
+    /// than a shared one, because a cloze note type makes one card per deletion and a basic one
+    /// makes one card, and a note filed under the wrong one arrives with the wrong cards.
+    /// </summary>
+    private static long ClozeModelId => 1_608_194_021_002L;
+
+    /// <summary>Anki scheduling for a fresh "new" card, the only state a content-only export emits.</summary>
     private static AnkiDueData NewCardScheduling => new(Type: 0, Queue: 0, Due: 0, Interval: 0, Factor: 2500, Reps: 0, Lapses: 0);
 
     private static async Task<OpenedApkg> OpenApkgAsync(string apkgPath, CancellationToken cancellationToken)
@@ -958,6 +1006,87 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return result;
     }
 
+    /// <summary>
+    /// The package's review log, grouped by the card row each answer was given against.
+    /// </summary>
+    /// <remarks>
+    /// A package assembled by something other than Anki may have no such table at all, and losing
+    /// the history is a far smaller thing than losing the import.
+    /// </remarks>
+    private static async Task<Dictionary<long, List<AnkiRevlogRow>>> ReadRevlogAsync(
+        SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var byCard = new Dictionary<long, List<AnkiRevlogRow>>();
+        if (!await TableExistsAsync(connection, "revlog", cancellationToken).ConfigureAwait(false))
+            return byCard;
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id, cid, ease, ivl, lastIvl, type FROM revlog";
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var row = new AnkiRevlogRow(
+                reader.IsDBNull(0) ? 0 : reader.GetInt64(0),
+                reader.IsDBNull(1) ? 0 : reader.GetInt64(1),
+                reader.IsDBNull(2) ? 0 : reader.GetInt32(2),
+                reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
+                reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+                reader.IsDBNull(5) ? 0 : reader.GetInt32(5));
+
+            if (!AnkiRevlog.IsAnswer(row))
+                continue;
+
+            if (!byCard.TryGetValue(row.CardId, out var rows))
+                byCard[row.CardId] = rows = [];
+            rows.Add(row);
+        }
+
+        return byCard;
+    }
+
+    /// <summary>
+    /// Which card each of a note's deletions became, paired with the package row that deletion had.
+    /// </summary>
+    /// <remarks>
+    /// A deletion is named the same way on both sides, by its number, which is what lets a card
+    /// keep the answers that were given to that deletion rather than to one of its siblings.
+    /// </remarks>
+    private static IEnumerable<(long PackageCardId, string CardId)> PairDeletions(
+        FlashcardFactSaved saved, AnkiClozeNote note)
+    {
+        foreach (var card in saved.Cards)
+        {
+            if (FlashcardGeneration.ClozeOrdinalFromKey(card.LayoutKey) is not { } ordinal)
+                continue;
+            if (note.Rows.TryGetValue(ordinal, out var row))
+                yield return (row.Id, card.Id);
+        }
+    }
+
+    /// <summary>
+    /// Writes the answers the package recorded against the cards that just landed.
+    /// </summary>
+    /// <returns>How many answers were written.</returns>
+    private async Task<int> AttachHistoryAsync(
+        string deckId,
+        IReadOnlyList<(long PackageCardId, string CardId)> landed,
+        IReadOnlyDictionary<long, List<AnkiRevlogRow>> revlog,
+        string sessionId,
+        CancellationToken cancellationToken)
+    {
+        if (revlog.Count == 0 || landed.Count == 0)
+            return 0;
+
+        var logs = new List<FlashcardReviewLog>();
+        foreach (var (packageCardId, cardId) in landed)
+        {
+            if (revlog.TryGetValue(packageCardId, out var rows))
+                logs.AddRange(AnkiRevlog.ToReviewLogs(cardId, deckId, sessionId, rows));
+        }
+
+        return await _history.AddImportedAsync(logs, cancellationToken).ConfigureAwait(false);
+    }
+
     private static async Task<List<CardRow>> ReadCardsAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
         var cards = new List<CardRow>();
@@ -994,7 +1123,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// <see cref="FlashcardAttachment"/>s (files copied via <see cref="IImageAssetService"/>); any
     /// overflow images are appended to the text as inline <c>![alt](path)</c> markdown tokens (kept
     /// visible by the persistence-layer converter, never silently dropped) with a logged warning.
-    /// The block pipeline no longer emits image blocks — attachments are the model for card media.
+    /// The block pipeline no longer emits image blocks; attachments are the model for card media.
     /// </summary>
     private async Task<SideContent> BuildSideAsync(
         string html,
@@ -1008,7 +1137,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         var attachments = new List<FlashcardAttachment>();
         var overflowTokens = new List<string>();
 
-        var normalized = NormalizeMathDelimiters(NormalizeHtmlLineBreaks(html));
+        var normalized = AnkiMathDelimiters.ToCardText(NormalizeHtmlLineBreaks(html));
         foreach (var line in normalized.Split('\n'))
         {
             var trimmed = line.Trim();
@@ -1227,29 +1356,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return normalized;
     }
 
-    /// <summary>
-    /// Rewrites the maths delimiters Anki fields use into the single dialect the card renderer
-    /// reads. A formula that arrives in any other spelling is drawn as its own source text, so the
-    /// card shows backslashes and braces where it should show the equation.
-    /// </summary>
-    private static string NormalizeMathDelimiters(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-            return text;
-
-        // The bracket forms first: their bodies can contain the backslash forms' characters.
-        var normalized = BracketDisplayMathRegex.Replace(text, "$$$$${body}$$$$");
-        normalized = BracketInlineMathRegex.Replace(normalized, "$$${body}$$");
-        normalized = DisplayMathRegex.Replace(normalized, "$$$$${body}$$$$");
-        normalized = InlineMathRegex.Replace(normalized, "$$${body}$$");
-        return normalized;
-    }
-
     private static string ToPlainText(string html)
     {
         if (string.IsNullOrWhiteSpace(html))
             return string.Empty;
-        var normalized = NormalizeMathDelimiters(NormalizeHtmlLineBreaks(html));
+        var normalized = AnkiMathDelimiters.ToCardText(NormalizeHtmlLineBreaks(html));
         var stripped = AllTagsRegex.Replace(normalized, string.Empty);
         return WebUtility.HtmlDecode(stripped).Trim();
     }
@@ -1284,10 +1395,117 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         foreach (var summary in selected)
         {
             var cards = await LoadExportCardsAsync(summary.Id, cancellationToken).ConfigureAwait(false);
-            result.Add(new AnkiExportDeck(summary.Id, QualifiedDeckName(summary, folderPaths), summary.Header.Description, cards));
+            var material = await LoadClozeMaterialAsync(cards, cancellationToken).ConfigureAwait(false);
+            result.Add(new AnkiExportDeck(
+                summary.Id,
+                QualifiedDeckName(summary, folderPaths),
+                summary.Header.Description,
+                PlanExportNotes(cards, material)));
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The material behind the cards being exported whose cards are its deletions, keyed by id.
+    /// </summary>
+    /// <remarks>
+    /// A card renders one deletion of its material with the rest of the sentence showing, which is
+    /// not what the note the receiving app wants holds. The note holds the text as it was written,
+    /// deletions and all, so it is read from the material rather than reassembled from the cards.
+    /// </remarks>
+    private async Task<Dictionary<string, AnkiClozeMaterial>> LoadClozeMaterialAsync(
+        IReadOnlyList<AnkiExportCard> cards, CancellationToken cancellationToken)
+    {
+        var byFact = new Dictionary<string, AnkiClozeMaterial>(StringComparer.Ordinal);
+        var considered = new HashSet<string>(StringComparer.Ordinal);
+        var types = new Dictionary<string, FlashcardCardType?>(StringComparer.Ordinal);
+
+        foreach (var card in cards)
+        {
+            if (card.FactId is not { } factId || !considered.Add(factId))
+                continue;
+            if (FlashcardGeneration.ClozeOrdinalFromKey(card.LayoutKey) is null)
+                continue;
+
+            var fact = await _facts.GetFactAsync(factId, cancellationToken).ConfigureAwait(false);
+            if (fact is null)
+                continue;
+
+            if (!types.TryGetValue(fact.TypeId, out var type))
+            {
+                type = await _facts.GetCardTypeAsync(fact.TypeId, cancellationToken).ConfigureAwait(false);
+                types[fact.TypeId] = type;
+            }
+
+            // The generator is what decides that this material's cards are deletions. A key that
+            // merely looks like one is not enough: a card type could name a layout the same way.
+            if (type is null || !string.Equals(type.Generator, FlashcardGenerators.Cloze, StringComparison.Ordinal))
+                continue;
+
+            var source = type.EffectiveGenerateFrom;
+            var extra = type.Fields.FirstOrDefault(f => !string.Equals(f.Id, source, StringComparison.Ordinal));
+            byFact[factId] = new AnkiClozeMaterial(
+                fact.Value(source),
+                extra is null ? string.Empty : fact.Value(extra.Id),
+                fact.Tags);
+        }
+
+        return byFact;
+    }
+
+    /// <summary>
+    /// Divides a deck's cards into the notes they are written out as, in the order they were read.
+    /// </summary>
+    private static List<AnkiExportNote> PlanExportNotes(
+        IReadOnlyList<AnkiExportCard> cards, IReadOnlyDictionary<string, AnkiClozeMaterial> clozeMaterial)
+    {
+        var notes = new List<AnkiExportNote>();
+        var noteByFact = new Dictionary<string, AnkiExportNote>(StringComparer.Ordinal);
+
+        foreach (var card in cards)
+        {
+            if (card.FactId is { } factId
+                && clozeMaterial.TryGetValue(factId, out var material)
+                && FlashcardGeneration.ClozeOrdinalFromKey(card.LayoutKey) is { } ordinal)
+            {
+                if (!noteByFact.TryGetValue(factId, out var note))
+                {
+                    note = new AnkiExportNote(
+                        ClozeModelId,
+                        StableAnkiId($"note:fact:{factId}"),
+                        BuildGuid($"fact:{factId}"),
+                        material.Text,
+                        FirstFieldBlocks: null,
+                        material.Extra,
+                        SecondFieldBlocks: null,
+                        card.Attachments,
+                        material.Tags,
+                        material.Text,
+                        []);
+                    noteByFact[factId] = note;
+                    notes.Add(note);
+                }
+
+                note.Rows.Add(new AnkiExportRow(card.Id, ordinal - 1));
+                continue;
+            }
+
+            notes.Add(new AnkiExportNote(
+                BasicModelId,
+                StableAnkiId($"note:{card.Id}"),
+                BuildGuid(card.Id),
+                card.Front,
+                card.FrontBlocks,
+                card.Back,
+                card.BackBlocks,
+                card.Attachments,
+                card.Tags,
+                card.Front,
+                [new AnkiExportRow(card.Id, 0)]));
+        }
+
+        return notes;
     }
 
     /// <summary>
@@ -1328,7 +1546,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             {
                 var card = view.Card;
                 cards.Add(new AnkiExportCard(
-                    card.Id, card.Front, card.Back, card.Tags, card.Attachments, card.FrontBlocks, card.BackBlocks));
+                    card.Id, card.Front, card.Back, card.Tags, card.Attachments, card.FrontBlocks, card.BackBlocks,
+                    card.FactId, card.LayoutKey));
             }
 
             offset += page.Items.Count;
@@ -1520,6 +1739,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         var mod = nowMs / 1000;
         var model = new Dictionary<string, object?>
         {
+            [ClozeModelId.ToString(CultureInfo.InvariantCulture)] = BuildClozeModel(mod),
             [BasicModelId.ToString(CultureInfo.InvariantCulture)] = new Dictionary<string, object?>
             {
                 ["id"] = BasicModelId,
@@ -1584,6 +1804,63 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return JsonSerializer.Serialize(model);
     }
 
+    /// <summary>
+    /// The cloze note type a package is written with: two fields, one template, and the kind marker
+    /// that tells the receiving app to make a card per deletion off it.
+    /// </summary>
+    private static Dictionary<string, object?> BuildClozeModel(long mod) => new()
+    {
+        ["id"] = ClozeModelId,
+        ["name"] = "Mnemo Cloze",
+        ["type"] = AnkiClozeModelType,
+        ["mod"] = mod,
+        ["usn"] = 0,
+        ["vers"] = Array.Empty<object>(),
+        ["tags"] = Array.Empty<object>(),
+        ["sortf"] = 0,
+        ["did"] = 1,
+        ["req"] = new object[]
+        {
+            new object[] { 0, "any", new object[] { 0 } }
+        },
+        ["flds"] = new[]
+        {
+            ClozeField("Text", 0),
+            ClozeField("Extra", 1),
+        },
+        ["tmpls"] = new[]
+        {
+            new Dictionary<string, object?>
+            {
+                ["name"] = "Cloze",
+                ["ord"] = 0,
+                ["qfmt"] = "{{cloze:Text}}",
+                ["afmt"] = "{{cloze:Text}}<br>{{Extra}}",
+                ["bqfmt"] = string.Empty,
+                ["bafmt"] = string.Empty,
+                ["did"] = null,
+                ["bfont"] = "Arial",
+                ["bsize"] = 20
+            }
+        },
+        ["css"] = ".card { font-family: arial; font-size: 20px; text-align: center; color: black; background-color: white; }"
+            + " .cloze { font-weight: bold; color: blue; }",
+        ["latexPre"] = "\\documentclass[12pt]{article}\n\\special{papersize=3in,5in}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amssymb,amsmath}\n\\pagestyle{empty}\n\\setlength{\\parindent}{0in}\n\\begin{document}\n",
+        ["latexPost"] = "\\end{document}"
+    };
+
+    private static Dictionary<string, object?> ClozeField(string name, int ord) => new()
+    {
+        ["name"] = name,
+        ["ord"] = ord,
+        ["media"] = Array.Empty<object>(),
+        ["sticky"] = false,
+        ["rtl"] = false,
+        ["font"] = "Arial",
+        ["size"] = 20,
+        ["description"] = string.Empty
+    };
+
     private static async Task InsertColAsync(
         SqliteConnection connection,
         long crt,
@@ -1642,17 +1919,19 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         long noteId,
         long deckId,
         long mod,
+        int ord,
         AnkiDueData dueData,
         CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = """
                               INSERT INTO cards(id, nid, did, ord, mod, usn, type, queue, due, ivl, factor, reps, lapses, left, odue, odid, flags, data)
-                              VALUES(@id, @nid, @did, 0, @mod, 0, @type, @queue, @due, @ivl, @factor, @reps, @lapses, 0, 0, 0, 0, '')
+                              VALUES(@id, @nid, @did, @ord, @mod, 0, @type, @queue, @due, @ivl, @factor, @reps, @lapses, 0, 0, 0, 0, '')
                               """;
         command.Parameters.AddWithValue("@id", id);
         command.Parameters.AddWithValue("@nid", noteId);
         command.Parameters.AddWithValue("@did", deckId);
+        command.Parameters.AddWithValue("@ord", ord);
         command.Parameters.AddWithValue("@mod", mod);
         command.Parameters.AddWithValue("@type", dueData.Type);
         command.Parameters.AddWithValue("@queue", dueData.Queue);
@@ -1665,13 +1944,88 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     }
 
     /// <summary>
+    /// Writes the answers recorded against the exported cards into the package's review log.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Without this, leaving costs a user everything they have already answered. The other app can
+    /// read a history it did not record, so there is no reason for one to be thrown away at the door.
+    /// </para>
+    /// <para>
+    /// Only the cards actually written out are asked about, and those came from the library's own
+    /// listing, so a card the trash is holding contributes nothing: its history is kept and comes
+    /// back with it, and a package of a deck does not quietly carry away what somebody deleted.
+    /// </para>
+    /// </remarks>
+    private async Task WriteReviewHistoryAsync(
+        SqliteConnection connection,
+        IReadOnlyList<(string CardId, long PackageCardId)> exported,
+        CancellationToken cancellationToken)
+    {
+        if (exported.Count == 0)
+            return;
+
+        var packageIdByCard = new Dictionary<string, long>(StringComparer.Ordinal);
+        foreach (var (cardId, packageCardId) in exported)
+            packageIdByCard[cardId] = packageCardId;
+
+        // The row's key is the instant it was answered, and two answers can share a millisecond.
+        // A collision would silently drop one of them, so a taken key is stepped past.
+        var usedIds = new HashSet<long>();
+
+        foreach (var page in exported.Select(e => e.CardId).Chunk(CardPageSize))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var history = await _history.ListForCardsAsync(page, cancellationToken).ConfigureAwait(false);
+            foreach (var log in history)
+            {
+                if (!packageIdByCard.TryGetValue(log.CardId, out var packageCardId))
+                    continue;
+
+                var id = log.ReviewedAt.ToUnixTimeMilliseconds();
+                while (!usedIds.Add(id))
+                    id++;
+
+                var row = AnkiRevlog.FromReviewLog(log, id);
+                await InsertRevlogAsync(connection, row, packageCardId, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static async Task InsertRevlogAsync(
+        SqliteConnection connection, AnkiRevlogRow row, long cardId, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        // How long the answer took is not recorded here, so the column stays at zero rather than
+        // carrying a number nobody measured.
+        command.CommandText = """
+                              INSERT INTO revlog(id, cid, usn, ease, ivl, lastIvl, factor, time, type)
+                              VALUES(@id, @cid, 0, @ease, @ivl, @lastIvl, @factor, 0, @type)
+                              """;
+        command.Parameters.AddWithValue("@id", row.Id);
+        command.Parameters.AddWithValue("@cid", cardId);
+        command.Parameters.AddWithValue("@ease", row.Ease);
+        command.Parameters.AddWithValue("@ivl", row.Interval);
+        command.Parameters.AddWithValue("@lastIvl", row.LastInterval);
+        command.Parameters.AddWithValue("@factor", AnkiRevlog.ExportFactor);
+        command.Parameters.AddWithValue("@type", row.Type);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// One card side as Anki field HTML: the card's text followed by an <c>&lt;img&gt;</c> for each
     /// image on that side.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Images live on the card as attachments. Reading them off the rich blocks instead, as the
     /// export used to, found nothing, because the block pipeline stopped emitting image blocks; a
     /// deck full of pictures exported as a deck of bare text.
+    /// </para>
+    /// <para>
+    /// Maths goes back into the delimiters the receiving app draws. Text is rewritten before the
+    /// pictures are appended, so a filename that happens to hold a dollar is never read as a formula.
+    /// </para>
     /// </remarks>
     private static string BuildFieldHtml(
         string plain,
@@ -1688,13 +2042,14 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             foreach (var block in blocks.OrderBy(b => b.Order))
             {
                 var text = block.Spans is { Count: > 0 } ? SerializeSpansToHtml(block.Spans) : WebUtility.HtmlEncode(block.Content);
-                fragments.Add(text);
+                fragments.Add(AnkiMathDelimiters.ToAnkiField(text));
             }
         }
         else
         {
             // Anki collapses a raw newline to a space, so a multi-line card would arrive as one run-on line.
-            fragments.Add(WebUtility.HtmlEncode(plain ?? string.Empty).Replace("\n", "<br>", StringComparison.Ordinal));
+            fragments.Add(AnkiMathDelimiters.ToAnkiField(
+                WebUtility.HtmlEncode(plain ?? string.Empty).Replace("\n", "<br>", StringComparison.Ordinal)));
         }
 
         foreach (var attachment in attachments ?? Array.Empty<FlashcardAttachment>())
@@ -2135,7 +2490,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         int Lapses);
 
     /// <summary>Content-only projection of a deck assembled from the relational store for export.</summary>
-    private sealed record AnkiExportDeck(string Id, string Name, string? Description, IReadOnlyList<AnkiExportCard> Cards);
+    private sealed record AnkiExportDeck(string Id, string Name, string? Description, IReadOnlyList<AnkiExportNote> Notes);
 
     /// <summary>Content-only projection of a card for export (no scheduling fields).</summary>
     private sealed record AnkiExportCard(
@@ -2145,7 +2500,44 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         IReadOnlyList<string> Tags,
         IReadOnlyList<FlashcardAttachment>? Attachments,
         IReadOnlyList<Block>? FrontBlocks,
-        IReadOnlyList<Block>? BackBlocks);
+        IReadOnlyList<Block>? BackBlocks,
+        string? FactId,
+        string? LayoutKey);
+
+    /// <summary>
+    /// Material whose cards are its deletions, as the receiving app's note type wants it: the text
+    /// with every deletion still written into it, and what every card off it also shows.
+    /// </summary>
+    private sealed record AnkiClozeMaterial(string Text, string Extra, IReadOnlyList<string> Tags);
+
+    /// <summary>
+    /// One note being written out, and the card rows it makes.
+    /// </summary>
+    /// <remarks>
+    /// A card that stands for itself is one note with one row. A piece of material whose cards are
+    /// its deletions is one note with a row per deletion, which is the only shape in which the
+    /// receiving app understands them as siblings: exported a note each, they arrive as unrelated
+    /// cards that all show the same sentence and never hold one another back.
+    /// </remarks>
+    private sealed record AnkiExportNote(
+        long ModelId,
+        long NoteId,
+        string Guid,
+        string FirstFieldText,
+        IReadOnlyList<Block>? FirstFieldBlocks,
+        string SecondFieldText,
+        IReadOnlyList<Block>? SecondFieldBlocks,
+        IReadOnlyList<FlashcardAttachment>? Attachments,
+        IReadOnlyList<string> Tags,
+        string SortField,
+        List<AnkiExportRow> Rows);
+
+    /// <summary>One card row of a note being written out.</summary>
+    /// <param name="Ord">
+    /// Which of the note's cards this is. A deletion written as <c>c2</c> is row one, because the
+    /// receiving app numbers them from zero while the deletion is written from one.
+    /// </param>
+    private sealed record AnkiExportRow(string CardId, int Ord);
 
     /// <summary>
     /// The media table being assembled for an export: which numbered file each image was copied to,

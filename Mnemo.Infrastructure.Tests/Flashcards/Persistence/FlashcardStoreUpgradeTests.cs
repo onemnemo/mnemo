@@ -144,6 +144,90 @@ public sealed class FlashcardStoreUpgradeTests
         }
     }
 
+    [Fact]
+    public async Task A_collection_written_before_the_origin_marker_reads_its_reviews_back_as_answered_here()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"mnemo_fc_v8_{Guid.NewGuid():N}.db");
+        try
+        {
+            await WriteRealCollectionAsync(path, "deck-1", "c1");
+            await AddReviewAsync(path, "deck-1", "c1");
+            await StripTheOriginAsync(path);
+
+            var reviews = new ReviewRepository();
+            await using var store = new FlashcardStore(new TestLogger(), path);
+            await store.InitializeAsync();
+
+            Assert.True(
+                await ColumnExistsAsync(store, "FlashcardReviews", "Origin"),
+                "FlashcardReviews.Origin is missing after opening a collection written before it.");
+
+            // A review already in the file was answered here, which is what the column's default
+            // says, so no backfill is needed and none is done. Reading one back as imported would
+            // put somebody's own study under another app's name.
+            var review = Assert.Single(await store.ReadAsync((conn, ct) => reviews.ListForCardsAsync(conn, ["c1"], ct)));
+            Assert.Equal(FlashcardReviewOrigin.Studied, review.Origin);
+            Assert.Equal(FlashcardReviewGrade.Good, review.Grade);
+        }
+        finally
+        {
+            Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Material_left_naming_a_deck_that_is_gone_is_refiled_where_its_cards_are()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"mnemo_fc_v8_{Guid.NewGuid():N}.db");
+        try
+        {
+            await WriteRealCollectionAsync(path, "deck-1", "c1");
+            await AddSecondDeckAsync(path, "deck-2");
+            // A profile written before deck deletion refiled its material: the fact still names the
+            // deck that was deleted, while the card it makes was moved somewhere else and survived.
+            await AddFactAsync(path, "fact-1", factDeckId: "deck-gone", cardId: "c1", cardDeckId: "deck-2");
+            await SetVersionAsync(path, 8);
+
+            var facts = new FactRepository();
+            await using var store = new FlashcardStore(new TestLogger(), path);
+            await store.InitializeAsync();
+
+            var fact = await store.ReadAsync((conn, ct) => facts.GetAsync(conn, "fact-1", ct));
+            Assert.NotNull(fact);
+            Assert.Equal("deck-2", fact!.DeckId);
+        }
+        finally
+        {
+            Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Material_with_no_cards_left_keeps_the_deck_it_names_rather_than_being_guessed_at()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"mnemo_fc_v8_{Guid.NewGuid():N}.db");
+        try
+        {
+            await WriteRealCollectionAsync(path, "deck-1", "c1");
+            await AddFactAsync(path, "fact-1", factDeckId: "deck-gone", cardId: null, cardDeckId: null);
+            await SetVersionAsync(path, 8);
+
+            var facts = new FactRepository();
+            await using var store = new FlashcardStore(new TestLogger(), path);
+            await store.InitializeAsync();
+
+            // There is nothing to point it at. A row that is honestly stranded is better than one
+            // filed somewhere nobody chose.
+            var fact = await store.ReadAsync((conn, ct) => facts.GetAsync(conn, "fact-1", ct));
+            Assert.NotNull(fact);
+            Assert.Equal("deck-gone", fact!.DeckId);
+        }
+        finally
+        {
+            Delete(path);
+        }
+    }
+
     /// <summary>Writes a collection with the current build, so the file has the full real shape.</summary>
     private static async Task WriteRealCollectionAsync(string path, string deckId, string cardId)
     {
@@ -160,6 +244,88 @@ public sealed class FlashcardStoreUpgradeTests
                 cardId, deckId, FlashcardType.Classic, "Q", "A", Array.Empty<string>(),
                 FlashcardCardState.Active, false, Array.Empty<FlashcardAttachment>(), null, null, null, now, now), ct);
         });
+    }
+
+    private static async Task AddSecondDeckAsync(string path, string deckId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await using var store = new FlashcardStore(new TestLogger(), path);
+        await store.InitializeAsync();
+        await store.WriteAsync((conn, tx, ct) => new DeckRepository().UpsertAsync(conn, tx, new FlashcardDeckHeader(
+            deckId, null, FlashcardPreset.StandardPresetId, "Other", null, Array.Empty<string>(),
+            0, null, null, now, now), ct));
+    }
+
+    private static async Task AddReviewAsync(string path, string deckId, string cardId)
+    {
+        await using var store = new FlashcardStore(new TestLogger(), path);
+        await store.InitializeAsync();
+        await store.WriteAsync((conn, tx, ct) => new ReviewRepository().AppendAsync(conn, tx, new FlashcardReviewLog(
+            FlashcardReviewLog.Unassigned, cardId, deckId, "s1", FlashcardReviewGrade.Good,
+            DateTimeOffset.UtcNow.AddDays(-1), 1, 3, null, null,
+            FlashcardFsrsState.Review, FlashcardFsrsState.Review), ct));
+    }
+
+    /// <summary>
+    /// Attaches a fact to the collection, optionally handing an existing card to it, so a database
+    /// carrying the shape an older deck delete left behind can be built by hand.
+    /// </summary>
+    private static async Task AddFactAsync(string path, string factId, string factDeckId, string? cardId, string? cardDeckId)
+    {
+        var stamp = DateTimeOffset.UtcNow.ToString("O");
+        SqliteConnection.ClearAllPools();
+        await using var conn = new SqliteConnection($"Data Source={path}");
+        await conn.OpenAsync();
+
+        await using (var fact = conn.CreateCommand())
+        {
+            fact.CommandText = """
+                INSERT INTO FlashcardFacts (Id, DeckId, TypeId, ValuesJson, MediaJson, TagsJson, IsFlagged, CreatedAt, UpdatedAt)
+                VALUES ($id, $deck, 'basic', '{}', '{}', '[]', 0, $at, $at);
+                """;
+            fact.Parameters.AddWithValue("$id", factId);
+            fact.Parameters.AddWithValue("$deck", factDeckId);
+            fact.Parameters.AddWithValue("$at", stamp);
+            await fact.ExecuteNonQueryAsync();
+        }
+
+        if (cardId is null || cardDeckId is null)
+            return;
+
+        await using var card = conn.CreateCommand();
+        card.CommandText = "UPDATE FlashcardCards SET FactId = $fact, LayoutKey = 'recognition', DeckId = $deck WHERE Id = $id;";
+        card.Parameters.AddWithValue("$fact", factId);
+        card.Parameters.AddWithValue("$deck", cardDeckId);
+        card.Parameters.AddWithValue("$id", cardId);
+        await card.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Takes the file back to what the build before the origin marker left behind: the column is
+    /// removed and the stamp is moved back, so reopening has real work to do.
+    /// </summary>
+    private static async Task StripTheOriginAsync(string path)
+    {
+        SqliteConnection.ClearAllPools();
+        await using var conn = new SqliteConnection($"Data Source={path}");
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            ALTER TABLE FlashcardReviews DROP COLUMN Origin;
+            UPDATE FlashcardSchemaVersion SET Version = 8;
+            """;
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    private static async Task SetVersionAsync(string path, int version)
+    {
+        SqliteConnection.ClearAllPools();
+        await using var conn = new SqliteConnection($"Data Source={path}");
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE FlashcardSchemaVersion SET Version = $v;";
+        cmd.Parameters.AddWithValue("$v", version);
+        await cmd.ExecuteNonQueryAsync();
     }
 
     /// <summary>

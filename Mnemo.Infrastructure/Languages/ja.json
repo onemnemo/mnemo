@@ -1362,6 +1362,7 @@
     "AnkiAudioNotImported": "{count}枚のカードが音声を参照していますが、ここのカードはまだ音声を保持できません。参照はテキストに残され、音声ファイルはインポートされませんでした。",
     "AnkiScheduleCarriedOver": "カードは次に復習予定だった日付を保持しました。各カードの習熟度は次回以降の復習で改めて測定されるため、最初の間隔は他のアプリと異なる場合があります。",
     "AnkiClozeSiblingsFiledTogether": "{count} 件のノートで、穴埋めカードが複数のデッキに分かれていました。1 つのノートは 1 つの素材なので、各ノートのカードはすべて、最も多くを保持していたデッキにまとめられました。",
+    "AnkiReviewHistoryImported": "過去の復習 {count} 件がカードとともに引き継がれました。これらは定着率に算入され、スケジューラーの学習にも使われるため、インポート直後のデッキにもすでに数値が表示されます。",
     "AnkiMediaNotFound": "参照されているメディア「{mediaName}」がパッケージ内に見つかりませんでした。",
     "AnkiMediaImportFailed": "メディア「{mediaName}」のインポートに失敗しました: {error}",
     "AnkiMediaImportFailedUnknown": "メディア「{mediaName}」のインポートに失敗しました。原因は不明です。",

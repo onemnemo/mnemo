@@ -90,6 +90,72 @@ public sealed class FlashcardAnkiMathDelimiterTests
         }
     }
 
+    [Theory]
+    // The dialect cards are written in here, back into the one the receiving app draws.
+    [InlineData("Solve $x^2 + 1$ now", @"Solve \(x^2 + 1\) now")]
+    [InlineData(@"Given $$\int_0^1 x\,dx$$ we get", @"Given \[\int_0^1 x\,dx\] we get")]
+    [InlineData("Two $a$ and $b$ formulas", @"Two \(a\) and \(b\) formulas")]
+    // Not maths and never was. A lone dollar is a price, and pairing it with the next one would
+    // put half a sentence inside a formula.
+    [InlineData("Costs 5 dollars", "Costs 5 dollars")]
+    [InlineData("A stray $ with no partner", "A stray $ with no partner")]
+    public async Task Export_MathInTheDialectCardsAreWrittenIn_ShipsInTheOneAnkiDraws(string cardText, string expected)
+    {
+        var apkg = Path.Combine(Path.GetTempPath(), $"mnemo_anki_math_{Guid.NewGuid():N}.apkg");
+        try
+        {
+            Assert.Equal(expected, await ExportFrontAsync(apkg, cardText));
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task ExportThenImport_MathComesBackInTheDialectTheRendererReads()
+    {
+        // Left in dollars a re-exported card stops rendering as maths in the other app; rewritten
+        // and then not read back it would come home as backslashes. Both halves or neither.
+        const string CardText = "Inline $x^2$ and block $$\\int_0^1 x\\,dx$$ together";
+        var apkg = Path.Combine(Path.GetTempPath(), $"mnemo_anki_math_{Guid.NewGuid():N}.apkg");
+        try
+        {
+            var exported = await ExportFrontAsync(apkg, CardText);
+            Assert.Equal(@"Inline \(x^2\) and block \[\int_0^1 x\,dx\] together", exported);
+            Assert.Equal(CardText, await ImportFrontAsync(apkg));
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    /// <summary>Writes one card out and returns the question field the package actually holds.</summary>
+    private static async Task<string> ExportFrontAsync(string apkg, string cardText)
+    {
+        await using var h = new FlashcardStoreHarness();
+        await h.Store.InitializeAsync();
+        var library = new FlashcardLibraryService(
+            h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+        var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+        var adapter = NewAdapter(h, library, cardService);
+
+        var deck = await library.CreateDeckAsync("Maths");
+        await cardService.CreateCardsAsync(deck.Id, new[]
+        {
+            new FlashcardCardDraft(
+                deck.Id, FlashcardType.Classic, cardText, "back",
+                Array.Empty<string>(), Array.Empty<FlashcardAttachment>()),
+        });
+
+        var export = await adapter.ExportAsync(new ImportExportRequest { FilePath = apkg });
+        Assert.True(export.Success, export.ErrorMessage);
+
+        var contents = await AnkiPackageInspector.ReadAsync(apkg);
+        return Assert.Single(contents.Notes).Fields[0];
+    }
+
     private static async Task<string> ImportFrontAsync(string apkg)
     {
         await using var h = new FlashcardStoreHarness();
@@ -97,9 +163,7 @@ public sealed class FlashcardAnkiMathDelimiterTests
         var library = new FlashcardLibraryService(
             h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
         var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
-        var adapter = new FlashcardsAnkiFormatAdapter(
-            library, cardService, h.FactService,
-            new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock), new ImageAssetService());
+        var adapter = NewAdapter(h, library, cardService);
 
         var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
         Assert.True(result.Success, result.ErrorMessage);
@@ -108,4 +172,12 @@ public sealed class FlashcardAnkiMathDelimiterTests
         var page = await cardService.ListCardsAsync(new FlashcardCardQuery(deck.Id));
         return Assert.Single(page.Items).Card.Front;
     }
+
+    private static FlashcardsAnkiFormatAdapter NewAdapter(
+        FlashcardStoreHarness h,
+        FlashcardLibraryService library,
+        FlashcardCardService cardSvc) =>
+        new(library, cardSvc, h.FactService,
+            new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock),
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
 }

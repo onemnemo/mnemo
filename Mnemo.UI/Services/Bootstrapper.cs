@@ -156,6 +156,7 @@ public static class Bootstrapper
         services.AddSingleton<IFlashcardLibraryService, FlashcardLibraryService>();
         services.AddSingleton<IFlashcardCardService, FlashcardCardService>();
         services.AddSingleton<IFlashcardStudyService, FlashcardStudyService>();
+        services.AddSingleton<IFlashcardReviewHistoryService, FlashcardReviewHistoryService>();
         services.AddSingleton<IFlashcardPresetService, FlashcardPresetService>();
         services.AddSingleton<IFlashcardStatsService, FlashcardStatsService>();
 
