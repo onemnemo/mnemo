@@ -1,5 +1,5 @@
 using System;
-using System.Globalization;
+using Mnemo.Core.Services;
 
 namespace Mnemo.Infrastructure.Services.Flashcards;
 
@@ -69,7 +69,7 @@ public sealed class FlashcardClock
         DayOf(to, startHour).DayNumber - DayOf(from, startHour).DayNumber;
 
     /// <summary>The stored form of a study day, used as the daily-stats key.</summary>
-    public static string KeyOf(DateOnly day) => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    public static string KeyOf(DateOnly day) => IStudyDayService.KeyOf(day);
 
     /// <summary>The stored form of the study day an instant belongs to.</summary>
     public string KeyFor(DateTimeOffset instant, int startHour) => KeyOf(DayOf(instant, startHour));

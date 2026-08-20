@@ -5,7 +5,8 @@ import type { StatRecordDto, WidgetInstanceDto } from "@/api/types"
 
 import { statDailyKey, statRecordKey, useStatDaily, useStatRecord } from "../../api"
 import { settingInt, settingString } from "../../config/encode"
-import { readInt, utcDayWindow } from "../../stats"
+import { useDayStartHour } from "../../data/useDayStartHour"
+import { readInt, studyDayWindow } from "../../stats"
 import type { WidgetManifest } from "../manifest"
 
 const APP = "app"
@@ -48,7 +49,7 @@ export function useUsageSummary(instance: WidgetInstanceDto, manifest: WidgetMan
   const periodDays = Math.max(1, settingInt(manifest, instance.settings, "period_days"))
   const reviewMetric = settingString(manifest, instance.settings, "metric") !== "time_spent"
 
-  const { from, to } = utcDayWindow(periodDays, new Date())
+  const { from, to } = studyDayWindow(periodDays, new Date(), useDayStartHour())
 
   const appTotals = useStatRecord(APP, TOTALS, "all")
   const notesTotals = useStatRecord(NOTES, TOTALS, "all")

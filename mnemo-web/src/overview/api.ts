@@ -13,7 +13,7 @@ import { useCallback } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { apiFetch, apiSend, ApiError } from "@/api/client"
-import type { OverviewLayoutDto, StatRecordDto } from "@/api/types"
+import type { OverviewLayoutDto, StatRecordDto, StudyDayDto } from "@/api/types"
 
 export const overviewKey = ["overview"] as const
 export const layoutKey = [...overviewKey, "layout"] as const
@@ -23,6 +23,7 @@ export const statRecordsKey = (ns: string, kind: string, limit: number, descendi
   [...overviewKey, "stats", ns, kind, limit, descending] as const
 export const statDailyKey = (ns: string, kind: string, from: string, to: string) =>
   [...overviewKey, "daily", ns, kind, from, to] as const
+export const studyDayKeyQuery = [...overviewKey, "study-day"] as const
 
 /**
  * Whole-library reads that fan out over every deck.
@@ -184,8 +185,8 @@ export function useStatRecords(ns: string, kind: string, limit: number, descendi
  * Every day-keyed record in an inclusive day range, ascending by day and sparse.
  *
  * Sparse because nothing writes a summary for a day the user did not study, so a caller sums what
- * arrived rather than expecting one row per day. Build the range with `utcDayWindow` instead of
- * subtracting days by hand; the endpoint's bounds are inclusive at both ends.
+ * arrived rather than expecting one row per day. Build the range with `useStudyDayWindow` instead
+ * of subtracting days by hand; the endpoint's bounds are inclusive at both ends.
  *
  * A disabled read stays pending forever rather than resolving empty, so a caller that turns one
  * off has to leave it out of its own loading rule as well.
@@ -198,6 +199,22 @@ export function useStatDaily(ns: string, kind: string, from: string, to: string,
       return apiFetch<StatRecordDto[]>(`/stats/daily?${query}`)
     },
     enabled,
+  })
+}
+
+/**
+ * The day boundary the statistics above are keyed by.
+ *
+ * Read once and shared by every widget that asks what today is, so a board cannot render two
+ * widgets that disagree. The setting lives on a scheduling profile the user can edit, so this is
+ * a query rather than a constant, and it holds still for a session because a boundary that moved
+ * mid-render would swap the rows under a chart.
+ */
+export function useStudyDay() {
+  return useQuery<StudyDayDto, ApiError>({
+    queryKey: studyDayKeyQuery,
+    queryFn: () => apiFetch<StudyDayDto>("/stats/day"),
+    staleTime: Infinity,
   })
 }
 

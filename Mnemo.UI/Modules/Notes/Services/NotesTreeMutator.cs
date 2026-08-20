@@ -15,6 +15,7 @@ public sealed class NotesTreeMutator
     private readonly INoteService _noteService;
     private readonly INoteFolderService _folderService;
     private readonly IStatisticsManager _statistics;
+    private readonly IStudyDayService _studyDay;
     private readonly ILocalizationService _localization;
     private readonly ILoggerService _logger;
 
@@ -23,6 +24,7 @@ public sealed class NotesTreeMutator
         INoteService noteService,
         INoteFolderService folderService,
         IStatisticsManager statistics,
+        IStudyDayService studyDay,
         ILocalizationService localization,
         ILoggerService logger)
     {
@@ -30,6 +32,7 @@ public sealed class NotesTreeMutator
         _noteService = noteService;
         _folderService = folderService;
         _statistics = statistics;
+        _studyDay = studyDay;
         _localization = localization;
         _logger = logger;
     }
@@ -64,7 +67,7 @@ public sealed class NotesTreeMutator
         var item = NotesLibrarySession.FindTreeItemByNoteId(_library.RootTreeItems, note.NoteId)
             ?? _library.AllNotesTreeItems.FirstOrDefault(i => i.Note?.NoteId == note.NoteId);
 
-        _ = StatisticsRecorder.IncrementDailyCounterAsync(_statistics, _logger,
+        _ = StatisticsRecorder.IncrementDailyCounterAsync(_statistics, _logger, _studyDay,
             StatisticsNamespaces.Notes, NoteStatKinds.DailySummary, "notes_created");
         _ = StatisticsRecorder.IncrementLifetimeAsync(_statistics, _logger,
             StatisticsNamespaces.Notes, NoteStatKinds.LifetimeTotals, "total_notes_created");
@@ -105,7 +108,7 @@ public sealed class NotesTreeMutator
         _library.Notes.Add(clone);
         await _noteService.SaveNoteAsync(clone);
 
-        _ = StatisticsRecorder.IncrementDailyCounterAsync(_statistics, _logger,
+        _ = StatisticsRecorder.IncrementDailyCounterAsync(_statistics, _logger, _studyDay,
             StatisticsNamespaces.Notes, NoteStatKinds.DailySummary, "notes_created");
         _ = StatisticsRecorder.IncrementLifetimeAsync(_statistics, _logger,
             StatisticsNamespaces.Notes, NoteStatKinds.LifetimeTotals, "total_notes_created");
@@ -136,7 +139,7 @@ public sealed class NotesTreeMutator
         NotesLibrarySession.RemoveNoteTreeItemFromRoot(_library.RootTreeItems, item);
         _library.RefreshFlattenedTreeItems();
 
-        _ = StatisticsRecorder.IncrementDailyCounterAsync(_statistics, _logger,
+        _ = StatisticsRecorder.IncrementDailyCounterAsync(_statistics, _logger, _studyDay,
             StatisticsNamespaces.Notes, NoteStatKinds.DailySummary, "notes_deleted");
         _ = StatisticsRecorder.IncrementLifetimeAsync(_statistics, _logger,
             StatisticsNamespaces.Notes, NoteStatKinds.LifetimeTotals, "total_notes_deleted");

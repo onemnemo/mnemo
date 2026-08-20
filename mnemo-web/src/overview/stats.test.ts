@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { StatValueDto } from "@/api/types"
 
-import { readDateTime, readInt, utcDayKey, utcDayWindow } from "./stats"
+import { readDateTime, readInt, studyDayKey, studyDayWindow } from "./stats"
 
 const fields = (entries: Record<string, StatValueDto>) => entries
 
@@ -60,40 +60,63 @@ describe("readDateTime", () => {
   })
 })
 
-describe("utcDayKey", () => {
-  it("keys the UTC day, not the local one", () => {
-    // 23:30 on the 8th in UTC+2 is still the 8th in UTC; the naive local-date answer would be the
-    // 9th and would read a row that does not exist yet.
-    expect(utcDayKey(new Date("2026-08-08T21:30:00Z"))).toBe("2026-08-08")
-    expect(utcDayKey(new Date("2026-08-08T23:30:00Z"))).toBe("2026-08-08")
-    expect(utcDayKey(new Date("2026-08-09T00:10:00Z"))).toBe("2026-08-09")
+/**
+ * Instants are built from local parts rather than parsed from a UTC string, because a study day is
+ * a local day: the expectations below have to mean the same thing whatever zone the suite runs in.
+ */
+const local = (year: number, month: number, day: number, hour: number, minute = 0) =>
+  new Date(year, month - 1, day, hour, minute)
+
+describe("studyDayKey", () => {
+  it("ends the day at the rollover hour, not at midnight", () => {
+    // Late on the 8th and the small hours of the 9th are one study day, which is what the study
+    // screen caps against. Keying by the calendar date instead splits that evening in two.
+    expect(studyDayKey(local(2026, 8, 8, 21, 30), 4)).toBe("2026-08-08")
+    expect(studyDayKey(local(2026, 8, 9, 0, 10), 4)).toBe("2026-08-08")
+    expect(studyDayKey(local(2026, 8, 9, 3, 59), 4)).toBe("2026-08-08")
+    expect(studyDayKey(local(2026, 8, 9, 4, 0), 4)).toBe("2026-08-09")
+  })
+
+  it("reads hour zero as plain midnight, which is what turning the setting down asks for", () => {
+    expect(studyDayKey(local(2026, 8, 9, 0, 10), 0)).toBe("2026-08-09")
+    expect(studyDayKey(local(2026, 8, 8, 23, 50), 0)).toBe("2026-08-08")
   })
 
   it("zero-pads to the format the records are keyed by", () => {
-    expect(utcDayKey(new Date("2026-01-05T12:00:00Z"))).toBe("2026-01-05")
+    expect(studyDayKey(local(2026, 1, 5, 12, 0), 4)).toBe("2026-01-05")
+  })
+
+  it("falls back to the default rather than to an invalid day for an unusable hour", () => {
+    expect(studyDayKey(local(2026, 8, 9, 2, 0), Number.NaN)).toBe("2026-08-08")
+    expect(studyDayKey(local(2026, 8, 9, 2, 0), -5)).toBe("2026-08-09")
+    expect(studyDayKey(local(2026, 8, 9, 2, 0), 99)).toBe("2026-08-08")
   })
 })
 
-describe("utcDayWindow", () => {
+describe("studyDayWindow", () => {
   it("counts today as one of the days", () => {
     // A weekly window is [today-6, today], seven keys. Asking for today-7 would pull an eighth day
     // and inflate every weekly total, which is exactly the off-by-one the desktop does not have.
-    expect(utcDayWindow(7, new Date("2026-08-08T10:00:00Z"))).toEqual({ from: "2026-08-02", to: "2026-08-08" })
+    expect(studyDayWindow(7, local(2026, 8, 8, 10, 0), 4)).toEqual({ from: "2026-08-02", to: "2026-08-08" })
   })
 
   it("reads a single day as today alone", () => {
-    expect(utcDayWindow(1, new Date("2026-08-08T10:00:00Z"))).toEqual({ from: "2026-08-08", to: "2026-08-08" })
+    expect(studyDayWindow(1, local(2026, 8, 8, 10, 0), 4)).toEqual({ from: "2026-08-08", to: "2026-08-08" })
+  })
+
+  it("moves the whole window when the instant is before the rollover hour", () => {
+    expect(studyDayWindow(7, local(2026, 8, 8, 1, 0), 4)).toEqual({ from: "2026-08-01", to: "2026-08-07" })
   })
 
   it("crosses a month and a year boundary by calendar, not by arithmetic on the key", () => {
-    expect(utcDayWindow(7, new Date("2026-03-03T10:00:00Z"))).toEqual({ from: "2026-02-25", to: "2026-03-03" })
-    expect(utcDayWindow(30, new Date("2026-01-10T10:00:00Z"))).toEqual({ from: "2025-12-12", to: "2026-01-10" })
+    expect(studyDayWindow(7, local(2026, 3, 3, 10, 0), 4)).toEqual({ from: "2026-02-25", to: "2026-03-03" })
+    expect(studyDayWindow(30, local(2026, 1, 10, 10, 0), 4)).toEqual({ from: "2025-12-12", to: "2026-01-10" })
   })
 
   it("floors a stored period of zero or less at one day", () => {
     // The bag can hold anything a past build wrote. A window of zero days would ask the endpoint
     // for a range ending before it starts, which is a 400 rather than an empty widget.
-    expect(utcDayWindow(0, new Date("2026-08-08T10:00:00Z"))).toEqual({ from: "2026-08-08", to: "2026-08-08" })
-    expect(utcDayWindow(-5, new Date("2026-08-08T10:00:00Z"))).toEqual({ from: "2026-08-08", to: "2026-08-08" })
+    expect(studyDayWindow(0, local(2026, 8, 8, 10, 0), 4)).toEqual({ from: "2026-08-08", to: "2026-08-08" })
+    expect(studyDayWindow(-5, local(2026, 8, 8, 10, 0), 4)).toEqual({ from: "2026-08-08", to: "2026-08-08" })
   })
 })

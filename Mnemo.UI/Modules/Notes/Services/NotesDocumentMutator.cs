@@ -11,17 +11,20 @@ public sealed class NotesDocumentMutator
     private readonly NotesLibrarySession _library;
     private readonly INoteService _noteService;
     private readonly IStatisticsManager _statistics;
+    private readonly IStudyDayService _studyDay;
     private readonly ILoggerService _logger;
 
     public NotesDocumentMutator(
         NotesLibrarySession library,
         INoteService noteService,
         IStatisticsManager statistics,
+        IStudyDayService studyDay,
         ILoggerService logger)
     {
         _library = library;
         _noteService = noteService;
         _statistics = statistics;
+        _studyDay = studyDay;
         _logger = logger;
     }
 
@@ -42,7 +45,7 @@ public sealed class NotesDocumentMutator
         await _noteService.SaveNoteAsync(note);
         if (blocks != null || title != null)
         {
-            _ = StatisticsRecorder.IncrementDailyCounterAsync(_statistics, _logger,
+            _ = StatisticsRecorder.IncrementDailyCounterAsync(_statistics, _logger, _studyDay,
                 StatisticsNamespaces.Notes, NoteStatKinds.DailySummary, "notes_edited");
             _ = StatisticsRecorder.IncrementLifetimeAsync(_statistics, _logger,
                 StatisticsNamespaces.Notes, NoteStatKinds.LifetimeTotals, "total_notes_edited");
@@ -67,7 +70,7 @@ public sealed class NotesDocumentMutator
         _library.Notes.Add(child);
         await _noteService.SaveNoteAsync(child);
 
-        _ = StatisticsRecorder.IncrementDailyCounterAsync(_statistics, _logger,
+        _ = StatisticsRecorder.IncrementDailyCounterAsync(_statistics, _logger, _studyDay,
             StatisticsNamespaces.Notes, NoteStatKinds.DailySummary, "notes_created");
         _ = StatisticsRecorder.IncrementLifetimeAsync(_statistics, _logger,
             StatisticsNamespaces.Notes, NoteStatKinds.LifetimeTotals, "total_notes_created");

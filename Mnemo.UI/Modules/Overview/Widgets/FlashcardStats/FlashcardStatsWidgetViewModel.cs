@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -52,7 +51,7 @@ public partial class FlashcardStatsWidgetViewModel : WidgetViewModelBase
 
             StudyStreak = (int)Math.Min(int.MaxValue, ReadInt(totals, "current_streak_days"));
 
-            var dayKey = DateTimeOffset.UtcNow.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var dayKey = await _context.StudyDay.TodayKeyAsync(cancellationToken);
             var today = (await _context.Statistics.GetAsync(
                 StatisticsNamespaces.Flashcards,
                 FlashcardStatKinds.DailySummary,

@@ -5,7 +5,8 @@ import type { WidgetInstanceDto } from "@/api/types"
 
 import { statDailyKey, useStatDaily } from "../../api"
 import { settingString } from "../../config/encode"
-import { readInt, utcDayWindow } from "../../stats"
+import { useDayStartHour } from "../../data/useDayStartHour"
+import { readInt, studyDayWindow } from "../../stats"
 import type { WidgetManifest } from "../manifest"
 import { buildStudyGoals, WEEK_DAYS, type StudyGoal } from "./goals"
 
@@ -29,9 +30,9 @@ export function useStudyGoals(instance: WidgetInstanceDto, manifest: WidgetManif
   const weekly = settingString(manifest, instance.settings, "goal_type") === "weekly"
   const minutesFirst = settingString(manifest, instance.settings, "metric") === "minutes"
 
-  // Derived on render rather than pinned at mount, so a board left open across UTC midnight moves
-  // to the new window instead of reporting yesterday's for as long as the page stays up.
-  const { from, to } = utcDayWindow(weekly ? WEEK_DAYS : 1, new Date())
+  // Derived on render rather than pinned at mount, so a board left open across the rollover hour
+  // moves to the new window instead of reporting yesterday's for as long as the page stays up.
+  const { from, to } = studyDayWindow(weekly ? WEEK_DAYS : 1, new Date(), useDayStartHour())
   const daily = useStatDaily(NS, DAILY, from, to)
 
   const client = useQueryClient()
