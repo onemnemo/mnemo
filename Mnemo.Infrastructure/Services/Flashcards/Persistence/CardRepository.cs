@@ -22,6 +22,26 @@ public interface ICardRepository
 {
     Task<Flashcard?> GetAsync(SqliteConnection conn, string cardId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Flashcard>> ListByDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The material behind the cards filed in one deck, whichever deck each piece of material itself
+    /// names. Material stays filed where it was written while a card it made is moved to another
+    /// deck, so asking the material where it lives finds neither the material a delete is about to
+    /// strip of its last card nor, on its own, the material that will be left untouched.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately all owned, held cards included: deleting the deck destroys those too, so their
+    /// material is left with just as little behind it as the live ones' is.
+    /// </remarks>
+    Task<IReadOnlyList<string>> ListFactIdsInDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Where a piece of material really sits: the deck its oldest card is filed in, or null when it
+    /// has no cards at all. A live card wins over one the trash is holding.
+    /// </summary>
+    /// <remarks>Deliberately all owned, for the same reason the card keys read is.</remarks>
+    Task<string?> GetFactDeckAsync(SqliteConnection conn, string factId, CancellationToken cancellationToken);
+
     Task<FlashcardDeckCardCounts> GetCountsAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
     Task<FlashcardCardPage> GetPageAsync(SqliteConnection conn, FlashcardCardQuery query, DateTimeOffset now, CancellationToken cancellationToken);
 
@@ -93,6 +113,31 @@ public sealed class CardRepository : ICardRepository
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             list.Add(ReadCard(reader, 0));
         return list;
+    }
+
+    public async Task<IReadOnlyList<string>> ListFactIdsInDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT DISTINCT FactId FROM FlashcardCards WHERE DeckId = $deck AND FactId IS NOT NULL;";
+        cmd.Parameters.AddWithValue("$deck", deckId);
+        var ids = new List<string>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            ids.Add(reader.GetString(0));
+        return ids;
+    }
+
+    public async Task<string?> GetFactDeckAsync(SqliteConnection conn, string factId, CancellationToken cancellationToken)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT DeckId FROM FlashcardCards
+            WHERE FactId = $fact
+            ORDER BY (TrashId IS NULL) DESC, CreatedAt, Id
+            LIMIT 1;
+            """;
+        cmd.Parameters.AddWithValue("$fact", factId);
+        return await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string;
     }
 
     public async Task<FlashcardDeckCardCounts> GetCountsAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken)
