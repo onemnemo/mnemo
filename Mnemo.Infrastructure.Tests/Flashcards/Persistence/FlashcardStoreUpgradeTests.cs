@@ -228,6 +228,38 @@ public sealed class FlashcardStoreUpgradeTests
         }
     }
 
+    [Fact]
+    public async Task A_collection_written_before_the_live_indexes_keeps_its_content_and_reads_back_live()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"mnemo_fc_v9_{Guid.NewGuid():N}.db");
+        try
+        {
+            await WriteRealCollectionAsync(path, "deck-1", "c1");
+            await AddFolderAsync(path, "folder-1", "Cardiology");
+            await StripTheLiveIndexesAsync(path);
+
+            var decks = new DeckRepository();
+            var folders = new FolderRepository();
+            await using var store = new FlashcardStore(new TestLogger(), path);
+            await store.InitializeAsync();
+
+            Assert.True(await IndexExistsAsync(store, "IX_Decks_Live"), "IX_Decks_Live is missing after opening a collection written before it.");
+            Assert.True(await IndexExistsAsync(store, "IX_Folders_Live"), "IX_Folders_Live is missing after opening a collection written before it.");
+
+            // Nothing in an existing collection was ever deleted, so the deck and the folder both
+            // come back exactly as they were before the index was added.
+            var deck = await store.ReadAsync((conn, ct) => decks.GetHeaderAsync(conn, "deck-1", ct));
+            Assert.NotNull(deck);
+            Assert.Equal("Deck", deck!.Name);
+            var folderList = await store.ReadAsync((conn, ct) => folders.ListAsync(conn, ct));
+            Assert.Contains(folderList, f => f.Id == "folder-1" && f.Name == "Cardiology");
+        }
+        finally
+        {
+            Delete(path);
+        }
+    }
+
     /// <summary>Writes a collection with the current build, so the file has the full real shape.</summary>
     /// <remarks>Internal rather than private: <see cref="FlashcardStoreVersionMatrixTests"/> composes
     /// with this rather than rebuilding its own copy of a real collection.</remarks>
@@ -256,6 +288,15 @@ public sealed class FlashcardStoreUpgradeTests
         await store.WriteAsync((conn, tx, ct) => new DeckRepository().UpsertAsync(conn, tx, new FlashcardDeckHeader(
             deckId, null, FlashcardPreset.StandardPresetId, "Other", null, Array.Empty<string>(),
             0, null, null, now, now), ct));
+    }
+
+    private static async Task AddFolderAsync(string path, string folderId, string name)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await using var store = new FlashcardStore(new TestLogger(), path);
+        await store.InitializeAsync();
+        await store.WriteAsync((conn, tx, ct) => new FolderRepository().UpsertAsync(
+            conn, tx, new FlashcardFolder(folderId, name, null, 0), now, ct));
     }
 
     private static async Task AddReviewAsync(string path, string deckId, string cardId)
@@ -331,9 +372,32 @@ public sealed class FlashcardStoreUpgradeTests
     }
 
     /// <summary>
+    /// Takes the file back to what the build before the live-row indexes left behind: the two
+    /// indexes are dropped and the stamp is moved back, so reopening has real work to do.
+    /// </summary>
+    private static async Task StripTheLiveIndexesAsync(string path)
+    {
+        SqliteConnection.ClearAllPools();
+        await using var conn = new SqliteConnection($"Data Source={path}");
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            DROP INDEX IF EXISTS IX_Decks_Live;
+            DROP INDEX IF EXISTS IX_Folders_Live;
+            UPDATE FlashcardSchemaVersion SET Version = 9;
+            """;
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Takes the file back to what the build before the trash left behind: the columns, indexes and
     /// table the trash added are removed and the stamp is moved back, so reopening has real work to do.
     /// </summary>
+    /// <remarks>
+    /// IX_Decks_Live and IX_Folders_Live are a later, v10 addition, but they index TrashId too, so
+    /// SQLite refuses to drop the column while either still references it; they come out here for
+    /// that reason, not because they are part of what v8 itself added.
+    /// </remarks>
     private static async Task StripTheTrashAsync(string path)
     {
         SqliteConnection.ClearAllPools();
@@ -347,6 +411,8 @@ public sealed class FlashcardStoreUpgradeTests
             DROP INDEX IF EXISTS IX_Cards_Trash;
             DROP INDEX IF EXISTS IX_Cards_Live_Deck;
             DROP INDEX IF EXISTS IX_Facts_Live_Deck;
+            DROP INDEX IF EXISTS IX_Decks_Live;
+            DROP INDEX IF EXISTS IX_Folders_Live;
             DROP TABLE IF EXISTS FlashcardTrashFactHomes;
             ALTER TABLE FlashcardFolders DROP COLUMN TrashId;
             ALTER TABLE FlashcardDecks   DROP COLUMN TrashId;
@@ -424,7 +490,7 @@ public sealed class FlashcardStoreUpgradeTests
     private static Task<bool> TableExistsAsync(FlashcardStore store, string table) =>
         ExistsInMasterAsync(store, "table", table);
 
-    private static Task<bool> IndexExistsAsync(FlashcardStore store, string index) =>
+    internal static Task<bool> IndexExistsAsync(FlashcardStore store, string index) =>
         ExistsInMasterAsync(store, "index", index);
 
     private static Task<bool> ExistsInMasterAsync(FlashcardStore store, string type, string name) =>
