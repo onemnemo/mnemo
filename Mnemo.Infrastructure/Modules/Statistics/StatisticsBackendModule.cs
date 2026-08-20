@@ -4,18 +4,18 @@ using Mnemo.Core.Models.Statistics;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Tools;
 
-namespace Mnemo.UI.Modules.Statistics;
+namespace Mnemo.Infrastructure.Modules.Statistics;
 
 /// <summary>
 /// Registers statistics-system tools and built-in schemas (flashcards/notes) so the
 /// <see cref="IStatisticsManager"/> validates writes from any caller, internal or extension.
 /// Has no UI surface of its own; widgets/data producers consume the manager directly via DI.
 /// </summary>
-public sealed class StatisticsModule : IModule
+public sealed class StatisticsBackendModule : IModule
 {
     public void ConfigureServices(IServiceRegistrar services)
     {
-        // No view models; service registration happens directly in Bootstrapper.
+        // No services of its own; the statistics manager is registered by the composition root.
     }
 
     public void RegisterTranslationSources(ITranslationSourceRegistry registry)

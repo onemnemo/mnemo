@@ -1,26 +1,24 @@
+using System;
 using Mnemo.Core.Services;
-using Mnemo.Infrastructure.Services;
 using Mnemo.UI.Modules.Overview.ViewModels;
 
 namespace Mnemo.UI.Modules.Overview;
 
+/// <summary>
+/// The overview board screen and the factory that draws its widgets. The widget manifests,
+/// their translations and the navigation entry are registered by <c>OverviewBackendModule</c>,
+/// which runs in both shells.
+/// </summary>
 public class OverviewModule : IModule
 {
     public void ConfigureServices(IServiceRegistrar services)
     {
         services.AddTransient<OverviewViewModel>();
+        services.AddSingleton<IWidgetViewModelFactory, OverviewWidgetViewModelFactory>();
     }
 
     public void RegisterTranslationSources(ITranslationSourceRegistry registry)
     {
-        var assembly = typeof(OverviewModule).Assembly;
-        registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.FlashcardStats.Translations"));
-        registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.FlashcardMemory.Translations"));
-        registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.FlashcardTests.Translations"));
-        registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.RecentDecks.Translations"));
-        registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.StudyGoals.Translations"));
-        registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.RecentNotes.Translations"));
-        registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.UI.Modules.Overview.Widgets.UsageSummary.Translations"));
     }
 
     public void RegisterRoutes(INavigationRegistry registry)
@@ -30,23 +28,13 @@ public class OverviewModule : IModule
 
     public void RegisterSidebarItems(ISidebarService sidebarService)
     {
-        sidebarService.RegisterItem("Overview", "overview", "avares://Mnemo.UI/Icons/Sidebar/overview.svg", "MainHub", 0, 0);
     }
 
     public void RegisterTools(IFunctionRegistry registry, IServiceProvider services)
     {
-        // No tools for overview yet
     }
 
     public void RegisterWidgets(IWidgetRegistry registry, IServiceProvider services)
     {
-        // Descriptors are stateless; widgets receive their services through IWidgetContext at creation time.
-        registry.Register(new Widgets.FlashcardStats.FlashcardStatsWidgetDescriptor());
-        registry.Register(new Widgets.FlashcardMemory.FlashcardMemoryWidgetDescriptor());
-        registry.Register(new Widgets.FlashcardTests.FlashcardTestsWidgetDescriptor());
-        registry.Register(new Widgets.RecentDecks.RecentDecksWidgetDescriptor());
-        registry.Register(new Widgets.RecentNotes.RecentNotesWidgetDescriptor());
-        registry.Register(new Widgets.StudyGoals.StudyGoalsWidgetDescriptor());
-        registry.Register(new Widgets.UsageSummary.UsageSummaryWidgetDescriptor());
     }
 }

@@ -2,7 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Statistics;
 using Mnemo.Core.Services;
-namespace Mnemo.UI.Services;
+namespace Mnemo.Infrastructure.Services.Statistics;
 
 /// <summary>
 /// When the shell navigates between routes, attributes dwell time to coarse buckets (practice vs notes vs flashcards UI)

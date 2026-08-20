@@ -1,6 +1,7 @@
 using System.Globalization;
 using Mnemo.Core.Models.Statistics;
 using Mnemo.Core.Models.Widgets;
+using Mnemo.Infrastructure.Modules.Overview;
 using Mnemo.UI.Modules.Overview.Widgets.FlashcardStats;
 
 namespace Mnemo.Infrastructure.Tests.Widgets;
@@ -11,7 +12,7 @@ namespace Mnemo.Infrastructure.Tests.Widgets;
 /// </summary>
 public class FlashcardStatsWidgetViewModelTests
 {
-    private static readonly WidgetManifest Manifest = new FlashcardStatsWidgetDescriptor().Manifest;
+    private static readonly WidgetManifest Manifest = OverviewWidgetManifests.FlashcardStats;
 
     private static FlashcardStatsWidgetViewModel CreateViewModel(FakeWidgetContext context)
     {

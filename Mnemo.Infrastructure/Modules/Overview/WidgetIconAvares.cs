@@ -1,8 +1,9 @@
-namespace Mnemo.UI.Modules.Overview.Widgets;
+namespace Mnemo.Infrastructure.Modules.Overview;
 
 /// <summary>
-/// Builds avares URIs for each widget's co-located <c>icon.svg</c>
-/// (<c>Modules/Overview/Widgets/&lt;WidgetFolder&gt;/icon.svg</c>).
+/// Builds the icon URI a widget manifest carries. The scheme is the desktop shell's resource
+/// scheme and each widget's <c>icon.svg</c> is bundled there; readers that are not that shell
+/// map the tail of the path onto their own asset registry rather than resolving the URI.
 /// </summary>
 public static class WidgetIconAvares
 {

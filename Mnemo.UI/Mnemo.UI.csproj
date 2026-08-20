@@ -57,12 +57,6 @@
 
     <!-- Overview widgets: header / picker (co-located icon.svg per widget folder) -->
     <AvaloniaResource Include="Modules\Overview\Widgets\**\icon.svg" />
-
-    <!-- Module translation resources -->
-    <EmbeddedResource Include="Modules\Overview\Widgets\**\Translations\*.json" />
-    <EmbeddedResource Include="Modules\Flashcards\Translations\*.json" />
-    <EmbeddedResource Include="Modules\Notes\Translations\*.json" />
-    <EmbeddedResource Include="Modules\Mindmap\Translations\*.json" />
   </ItemGroup>
 
   <ItemGroup>

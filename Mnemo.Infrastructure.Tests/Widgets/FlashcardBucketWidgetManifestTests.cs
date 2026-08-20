@@ -1,8 +1,6 @@
 using Mnemo.Core.Models.Widgets;
+using Mnemo.Infrastructure.Modules.Overview;
 using Mnemo.Infrastructure.Services.Widgets;
-using Mnemo.UI.Modules.Overview.Widgets.FlashcardMemory;
-using Mnemo.UI.Modules.Overview.Widgets.FlashcardStats;
-using Mnemo.UI.Modules.Overview.Widgets.FlashcardTests;
 
 namespace Mnemo.Infrastructure.Tests.Widgets;
 
@@ -16,14 +14,13 @@ public class FlashcardBucketWidgetManifestTests
     [Fact]
     public void ActivityWidget_KeepsLegacyManifestId()
     {
-        var manifest = new FlashcardStatsWidgetDescriptor().Manifest;
-        Assert.Equal("mnemo.flashcard-stats", manifest.WidgetId);
+        Assert.Equal("mnemo.flashcard-stats", OverviewWidgetManifests.FlashcardStats.WidgetId);
     }
 
     [Fact]
     public void MemoryWidget_HasDistinctIdAndTranslationNamespace()
     {
-        var manifest = new FlashcardMemoryWidgetDescriptor().Manifest;
+        var manifest = OverviewWidgetManifests.FlashcardMemory;
         Assert.Equal("mnemo.flashcard-memory", manifest.WidgetId);
         Assert.Equal("FlashcardMemory", manifest.TranslationNamespace);
         Assert.Contains(new WidgetSize(1, 1), manifest.SupportedSizes);
@@ -33,7 +30,7 @@ public class FlashcardBucketWidgetManifestTests
     [Fact]
     public void TestWidget_HasDistinctIdAndTranslationNamespace()
     {
-        var manifest = new FlashcardTestsWidgetDescriptor().Manifest;
+        var manifest = OverviewWidgetManifests.FlashcardTests;
         Assert.Equal("mnemo.flashcard-tests", manifest.WidgetId);
         Assert.Equal("FlashcardTests", manifest.TranslationNamespace);
         Assert.Contains(new WidgetSize(1, 1), manifest.SupportedSizes);
@@ -44,9 +41,9 @@ public class FlashcardBucketWidgetManifestTests
     public void AllThreeBucketWidgets_RegisterWithDistinctIds()
     {
         var registry = new WidgetRegistry();
-        registry.Register(new FlashcardStatsWidgetDescriptor());
-        registry.Register(new FlashcardMemoryWidgetDescriptor());
-        registry.Register(new FlashcardTestsWidgetDescriptor());
+        registry.Register(new BuiltInWidgetDescriptor(OverviewWidgetManifests.FlashcardStats, null));
+        registry.Register(new BuiltInWidgetDescriptor(OverviewWidgetManifests.FlashcardMemory, null));
+        registry.Register(new BuiltInWidgetDescriptor(OverviewWidgetManifests.FlashcardTests, null));
 
         Assert.NotNull(registry.GetDescriptor("mnemo.flashcard-stats"));
         Assert.NotNull(registry.GetDescriptor("mnemo.flashcard-memory"));

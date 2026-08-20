@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Modules.Core;
 using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Updates;
 
@@ -386,8 +387,10 @@ public static class Bootstrapper
                 assemblySet.Add(a);
         }
 
-        // Startup can run before every Mnemo.* assembly is in the AppDomain; UI modules always live here.
+        // Startup can run before every Mnemo.* assembly is in the AppDomain, so anchor on both
+        // halves: the Avalonia modules live here, their backend halves in Mnemo.Infrastructure.
         assemblySet.Add(typeof(Bootstrapper).Assembly);
+        assemblySet.Add(typeof(CoreBackendModule).Assembly);
 
         var moduleType = typeof(IModule);
         var foundModules = new List<IModule>(32);
