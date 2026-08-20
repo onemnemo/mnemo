@@ -135,7 +135,6 @@ Mnemo ships a web frontend and .NET backend together as one desktop application.
 * **`Mnemo.Host`** opens the PhotinoX window, runs the loopback-only local API and serves the frontend.
 * **`Mnemo.Core`** contains shared models, interfaces and contracts.
 * **`Mnemo.Infrastructure`** contains implementations for storage, notes, flashcards, mindmaps, import/export and the assistant stack.
-* **`Mnemo.UI`** is the previous Avalonia interface. It is no longer launched, but still contains some feature modules while they are relocated.
 
 The backend uses .NET 10, ASP.NET Core and SQLite. The frontend uses React 19, TypeScript and Vite, with ProseMirror for editing, KaTeX for math and Typst for PDF export.
 
