@@ -9,10 +9,9 @@ namespace Mnemo.Core.Services;
 /// Dawn rather than paint dark colors on white paper.
 /// </summary>
 /// <remarks>
-/// These live in Core so every host can reach them. The desktop reads the live values from
-/// <c>Colors.axaml</c> and falls back to this table when that read fails; the web host, which has no
-/// Avalonia resources, uses this table directly. Keep it in sync with the Dawn swatches in
-/// <c>Mnemo.UI/Themes/Core/Dawn/Colors.axaml</c>.
+/// Lives in Core so any host can reach it without a UI framework dependency. It is the palette
+/// used when painting inline swatch highlights into exported PDFs, and the only place those
+/// colors are defined.
 /// </remarks>
 public static class NotePdfDawnSwatches
 {
