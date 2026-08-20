@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
-using Mnemo.UI.Services;
+using Mnemo.Infrastructure.Services.AI;
 
 namespace Mnemo.Host.Chat;
 

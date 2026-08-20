@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Mnemo.Core.Models;
-using Mnemo.UI.Services;
+using Mnemo.Infrastructure.Services.AI;
 
 namespace Mnemo.Host.Chat;
 
