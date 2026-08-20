@@ -587,6 +587,10 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
         if (!await ColumnExistsAsync(writer, "MindmapFolders", "TrashId", cancellationToken).ConfigureAwait(false))
             await ExecuteAsync(writer, MindmapStoreSchema.AddFolderTrashIdColumnSql, cancellationToken).ConfigureAwait(false);
 
+        // v4 → v5: the folder listing's live-row index. No new column, so the statement's own IF
+        // NOT EXISTS is guard enough.
+        await ExecuteAsync(writer, MindmapStoreSchema.FoldersLiveIndexSql, cancellationToken).ConfigureAwait(false);
+
         await using var insert = writer.CreateCommand();
         insert.CommandText = "INSERT OR IGNORE INTO MindmapSchemaVersion (Version, AppliedAt) VALUES ($v, $at);";
         insert.Parameters.AddWithValue("$v", MindmapStoreSchema.TargetVersion);

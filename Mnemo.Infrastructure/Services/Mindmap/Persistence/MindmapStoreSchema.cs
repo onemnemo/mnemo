@@ -10,7 +10,7 @@ namespace Mnemo.Infrastructure.Services.Mindmap.Persistence;
 internal static class MindmapStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 4;
+    public const int TargetVersion = 5;
 
     /// <summary>Every table and the FTS virtual table, created if absent (fresh databases).</summary>
     public const string CreateSql = """
@@ -94,4 +94,12 @@ internal static class MindmapStoreSchema
         CREATE INDEX IF NOT EXISTS IX_Mindmaps_Trash ON Mindmaps(TrashId) WHERE TrashId IS NOT NULL;
         CREATE INDEX IF NOT EXISTS IX_MindmapFolders_Trash ON MindmapFolders(TrashId) WHERE TrashId IS NOT NULL;
         """;
+
+    /// <summary>
+    /// v4 to v5: live-row index for the folder listing, the same gap <see cref="TrashIndexSql"/>
+    /// already closed for maps. TrashId and SortOrder both exist on this table by v4, so the step
+    /// is index-only; GetFoldersAsync's only ORDER BY key is SortOrder, so the index carries it.
+    /// </summary>
+    public const string FoldersLiveIndexSql =
+        "CREATE INDEX IF NOT EXISTS IX_MindmapFolders_Live ON MindmapFolders(TrashId, SortOrder);";
 }
