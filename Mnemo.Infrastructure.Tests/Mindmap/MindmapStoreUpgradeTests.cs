@@ -61,7 +61,7 @@ public sealed class MindmapStoreUpgradeTests
     /// </summary>
     private static async Task StripTheFolderLiveIndexAsync(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
@@ -74,7 +74,7 @@ public sealed class MindmapStoreUpgradeTests
 
     private static async Task<bool> IndexExistsAsync(string path, string index)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
@@ -85,7 +85,7 @@ public sealed class MindmapStoreUpgradeTests
 
     private static void Delete(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         foreach (var file in new[] { path, path + "-wal", path + "-shm" })
         {
             try
