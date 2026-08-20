@@ -51,7 +51,7 @@ public sealed class StatisticsModule : IModule
         {
             Namespace = StatisticsNamespaces.Flashcards,
             Kind = FlashcardStatKinds.DailySummary,
-            Description = "Per-day flashcard activity (UTC day, key = yyyy-MM-dd).",
+            Description = "Per-day flashcard activity (study day, key = yyyy-MM-dd).",
             AllowAdditionalFields = true,
             MaxMetadataBytes = 4096,
             Fields = new[]
@@ -123,7 +123,7 @@ public sealed class StatisticsModule : IModule
                 IntField("total_sessions", required: false, defaultValue: 0, min: 0),
                 IntField("current_streak_days", required: false, defaultValue: 0, min: 0),
                 IntField("longest_streak_days", required: false, defaultValue: 0, min: 0),
-                DateTimeField("last_practiced_utc_day", required: false)
+                DateTimeField("last_practiced_day", required: false)
             }
         }).GetAwaiter().GetResult();
 
@@ -157,7 +157,7 @@ public sealed class StatisticsModule : IModule
             }
         }).GetAwaiter().GetResult();
 
-        // App: dwell time by route category (UTC day key)
+        // App: dwell time by route category (study day key)
         stats.RegisterSchemaAsync(new StatisticsSchema
         {
             Namespace = StatisticsNamespaces.App,

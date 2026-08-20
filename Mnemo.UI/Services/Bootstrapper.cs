@@ -156,6 +156,10 @@ public static class Bootstrapper
         services.AddSingleton<IFlashcardStudyService, FlashcardStudyService>();
         services.AddSingleton<IFlashcardPresetService, FlashcardPresetService>();
         services.AddSingleton<IFlashcardStatsService, FlashcardStatsService>();
+
+        // The day boundary analytics records and reads against, resolved the way the study screen
+        // resolves it.
+        services.AddSingleton<IStudyDayService, StudyDayService>();
         services.AddSingleton<IMnemoPackageService, MnemoPackageService>();
         services.AddSingleton<IMnemoPayloadHandler, NotesMnemoPayloadHandler>();
         services.AddSingleton<IMnemoPayloadHandler, SettingsMnemoPayloadHandler>();

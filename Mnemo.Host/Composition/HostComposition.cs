@@ -244,6 +244,10 @@ public static class HostComposition
         services.AddSingleton<IFlashcardOptimizerService, FlashcardOptimizerService>();
         services.AddSingleton<IFlashcardStatsService, FlashcardStatsService>();
 
+        // The day boundary analytics records and reads against, resolved the way the study screen
+        // resolves it.
+        services.AddSingleton<IStudyDayService, StudyDayService>();
+
         // Holds live study sessions, which the desktop kept in the study screen's ViewModel.
         services.AddSingleton<Flashcards.StudySessionRegistry>();
         services.AddSingleton<IMnemoPackageService, MnemoPackageService>();

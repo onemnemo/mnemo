@@ -14,7 +14,8 @@ import { useQueryClient } from "@tanstack/react-query"
 import type { StatRecordDto } from "@/api/types"
 
 import { statDailyKey, useStatDaily } from "../api"
-import { readInt, utcDayKey, utcDayWindow } from "../stats"
+import { dayKeyBefore, readInt, studyDayKey, studyDayWindow } from "../stats"
+import { useDayStartHour } from "./useDayStartHour"
 
 const NS = "flashcards"
 const DAILY = "daily.summary"
@@ -29,9 +30,9 @@ const DAILY = "daily.summary"
  */
 export const HISTORY_DAYS = 364
 
-/** One UTC day of effort. `reviews` is cards graded; `minutes` is time spent. */
+/** One study day of effort. `reviews` is cards graded; `minutes` is time spent. */
 export interface ActivityDay {
-  /** The UTC day key, `yyyy-MM-dd`. */
+  /** The study day key, `yyyy-MM-dd`. */
   day: string
   reviews: number
   minutes: number
@@ -57,6 +58,7 @@ export function fillActivityWindow(
   records: readonly Pick<StatRecordDto, "key" | "fields">[],
   days: number,
   now: Date,
+  dayStartHour: number,
 ): ActivityDay[] {
   const byDay = new Map<string, ActivityDay>()
   for (const record of records) {
@@ -69,24 +71,25 @@ export function fillActivityWindow(
   }
 
   const span = Math.max(1, Math.trunc(days))
+  const today = studyDayKey(now, dayStartHour)
   const filled: ActivityDay[] = []
   for (let offset = span - 1; offset >= 0; offset--) {
-    const date = new Date(now)
-    date.setUTCDate(date.getUTCDate() - offset)
-    const key = utcDayKey(date)
+    const key = dayKeyBefore(today, offset)
     filled.push(byDay.get(key) ?? EMPTY_DAY(key))
   }
   return filled
 }
 
 /**
- * The last `days` UTC days of study effort, oldest first and always exactly that many entries.
+ * The last `days` study days of effort, oldest first and always exactly that many entries.
  *
- * The window is derived on render rather than pinned at mount, so a board left open across UTC
- * midnight moves to the new window instead of reporting yesterday's until the page is reloaded.
+ * The window is derived on render rather than pinned at mount, so a board left open across the
+ * rollover hour moves to the new window instead of reporting yesterday's until the page is
+ * reloaded.
  */
 export function useDailyActivity(days: number): DailyActivityData {
-  const { from, to } = utcDayWindow(days, new Date())
+  const dayStartHour = useDayStartHour()
+  const { from, to } = studyDayWindow(days, new Date(), dayStartHour)
   const daily = useStatDaily(NS, DAILY, from, to)
 
   const client = useQueryClient()
@@ -97,8 +100,8 @@ export function useDailyActivity(days: number): DailyActivityData {
 
   const records = daily.data
   const filled = useMemo(
-    () => (records === undefined ? [] : fillActivityWindow(records, days, new Date())),
-    [records, days],
+    () => (records === undefined ? [] : fillActivityWindow(records, days, new Date(), dayStartHour)),
+    [records, days, dayStartHour],
   )
 
   return {

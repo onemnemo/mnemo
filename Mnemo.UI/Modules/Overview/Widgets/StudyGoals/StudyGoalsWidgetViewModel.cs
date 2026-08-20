@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -61,10 +60,10 @@ public partial class StudyGoalsWidgetViewModel : WidgetViewModelBase
         try
         {
             var days = weekly ? WeekDays : 1;
-            var todayUtc = DateTimeOffset.UtcNow.UtcDateTime.Date;
+            var today = await _context.StudyDay.TodayAsync(cancellationToken);
             for (var offset = 0; offset < days; offset++)
             {
-                var dayKey = todayUtc.AddDays(-offset).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                var dayKey = IStudyDayService.KeyOf(today.AddDays(-offset));
                 var record = (await _context.Statistics.GetAsync(
                     StatisticsNamespaces.Flashcards,
                     FlashcardStatKinds.DailySummary,

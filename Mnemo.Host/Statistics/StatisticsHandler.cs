@@ -69,7 +69,10 @@ public sealed record StatListResult(StatListStatus Status, IReadOnlyList<StatRec
 /// </remarks>
 public static class StatisticsHandler
 {
-    /// <summary>The key format of every day-keyed statistics kind. UTC days, never local ones.</summary>
+    /// <summary>
+    /// The key format of every day-keyed statistics kind. The window read only compares keys, so
+    /// what a day means is settled where the key is written and this stays a format.
+    /// </summary>
     private const string DayKeyFormat = "yyyy-MM-dd";
 
     /// <summary>

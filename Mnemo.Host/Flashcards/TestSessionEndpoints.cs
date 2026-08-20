@@ -234,6 +234,7 @@ public static class TestSessionEndpoints
         RecordTestActivityDto body,
         IFlashcardLibraryService library,
         IStatisticsManager statistics,
+        IStudyDayService studyDay,
         ILoggerService logger,
         CancellationToken cancellationToken)
     {
@@ -246,6 +247,7 @@ public static class TestSessionEndpoints
         await StatisticsRecorder.RecordFlashcardActivityAsync(
             statistics,
             logger,
+            studyDay,
             deckId,
             deck?.Name,
             FlashcardWire.SessionMode(FlashcardSessionMode.Test),
