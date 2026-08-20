@@ -223,7 +223,13 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
       options.onCameraChange?.(viewport)
     }
 
-    culler.update(viewport, elements.pane.clientWidth, elements.pane.clientHeight)
+    // Both read once, ahead of the level-of-detail write below: the culler and the edge canvas want
+    // the same two numbers, and asking the pane again after an attribute write would force a reflow
+    // in the middle of a frame that is already moving.
+    const paneWidth = elements.pane.clientWidth
+    const paneHeight = elements.pane.clientHeight
+
+    culler.update(viewport, paneWidth, paneHeight)
     lod.apply(viewport.zoom)
 
     const swapped = selector.update(viewport.zoom)
@@ -243,6 +249,13 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
     }
 
     if (mode === "canvas" && edgeRenderer) {
+      // The ratio is read here rather than trusted from the last resize, because the only thing that
+      // ever calls resize is the observer on the pane's CSS box, and the density can change without
+      // that box changing at all: dragging the window onto a second monitor is the ordinary way it
+      // happens, and the map stays blurred or wrongly scaled until something else resizes the pane.
+      // The renderer's own guard makes the unchanged case three comparisons and nothing else, which
+      // is what the minimap already relies on doing per camera change.
+      edgeRenderer.resize(paneWidth, paneHeight, window.devicePixelRatio || 1)
       edgeRenderer.draw(viewport, culler.renderedEdgeIds())
     }
 
