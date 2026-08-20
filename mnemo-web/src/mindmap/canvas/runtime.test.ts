@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
+import type { EdgeCanvasContext } from "./edge-canvas"
 import { backgroundStep, createCanvasRuntime, type CanvasElements, type CanvasRuntimeOptions } from "./runtime"
 import { MAX_SCALE, MIN_SCALE, type Scene, type SceneElement } from "../model/scene"
 
@@ -168,6 +169,136 @@ describe("fit", () => {
 
     expect(clamped).toBe(1)
     expect(runtime.viewport().zoom).toBe(MIN_SCALE)
+    dispose()
+  })
+})
+
+/**
+ * The device pixel ratio, on the substrate that has to be told about it.
+ *
+ * The SVG layer scales itself and never asks. The canvas one holds a backing store sized in device
+ * pixels, and the only thing that ever sized it was the observer on the pane's CSS box. A window
+ * dragged from a laptop panel to an external monitor changes the ratio and not that box, so the
+ * observer never fires and the map keeps drawing into a surface built for the density it left.
+ */
+describe("the device pixel ratio", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  /** Records only what these tests read back; jsdom ships no 2D context to record from. */
+  function recorder(): { context: EdgeCanvasContext; transforms: number[][] } {
+    const transforms: number[][] = []
+    const noop = () => {}
+    const context = {
+      strokeStyle: "",
+      fillStyle: "",
+      lineWidth: 0,
+      setTransform: (a: number, b: number, c: number, d: number, e: number, f: number) => {
+        transforms.push([a, b, c, d, e, f])
+      },
+      clearRect: noop,
+      setLineDash: noop,
+      beginPath: noop,
+      moveTo: noop,
+      lineTo: noop,
+      bezierCurveTo: noop,
+      closePath: noop,
+      stroke: noop,
+      fill: noop,
+    } satisfies EdgeCanvasContext
+
+    return { context, transforms }
+  }
+
+  const SCENE: Scene = {
+    id: "m",
+    elements: [element("a"), element("b", { x: 400 })],
+    edges: [{ id: "a-b", fromId: "a", toId: "b", kind: "hierarchy" }],
+    background: "dots",
+  }
+
+  /** A runtime pinned to the canvas substrate, over a pane whose CSS size never changes. */
+  function mountCanvas() {
+    const pane = document.createElement("div")
+    document.body.append(pane)
+    pane.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600)
+    Object.defineProperty(pane, "clientWidth", { value: 800, configurable: true })
+    Object.defineProperty(pane, "clientHeight", { value: 600, configurable: true })
+
+    const world = document.createElement("div")
+    pane.append(world)
+
+    const edgeCanvas = document.createElement("canvas")
+    pane.append(edgeCanvas)
+    const { context, transforms } = recorder()
+    edgeCanvas.getContext = (() => context) as unknown as HTMLCanvasElement["getContext"]
+
+    const elements: CanvasElements = { pane, world, background: null, edgeCamera: null, edgeCanvas }
+    const runtime = createCanvasRuntime({
+      scene: SCENE,
+      elements,
+      edgeMode: "canvas",
+      strategy: "canvas",
+    })
+
+    return {
+      runtime,
+      edgeCanvas,
+      transforms,
+      dispose: () => {
+        runtime.dispose()
+        pane.remove()
+      },
+    }
+  }
+
+  it("sizes the backing store for the density the map opened on", () => {
+    vi.stubGlobal("devicePixelRatio", 2)
+    const { edgeCanvas, dispose } = mountCanvas()
+
+    expect(edgeCanvas.width).toBe(1600)
+    expect(edgeCanvas.height).toBe(1200)
+    dispose()
+  })
+
+  it("picks up a density change on the next camera move, with no resize to prompt it", () => {
+    // The reported failure: a monitor-to-monitor move. The pane's CSS box is fixed above and the
+    // observer stubbed out for the whole suite never fires, so a camera change is the only thing
+    // that happens here between the two densities.
+    vi.stubGlobal("devicePixelRatio", 1)
+    const { runtime, edgeCanvas, transforms, dispose } = mountCanvas()
+
+    expect(edgeCanvas.width).toBe(800)
+
+    vi.stubGlobal("devicePixelRatio", 2)
+    transforms.length = 0
+    runtime.setViewport({ x: 10, y: 0, zoom: 1 })
+
+    expect(edgeCanvas.width).toBe(1600)
+    expect(edgeCanvas.height).toBe(1200)
+    // And the camera drawn under it is the new ratio's, not a surface enlarged behind a stale scale.
+    expect(transforms.at(-1)?.[0]).toBe(2)
+    dispose()
+  })
+
+  it("leaves the backing store alone when the density did not move", () => {
+    // The guard is what makes the fresh read affordable: this runs on every frame of a pan, and an
+    // unguarded resize would clear and reallocate the surface each time.
+    vi.stubGlobal("devicePixelRatio", 2)
+    const { runtime, edgeCanvas, dispose } = mountCanvas()
+
+    let reallocations = 0
+    Object.defineProperty(edgeCanvas, "width", {
+      configurable: true,
+      get: () => 1600,
+      set: () => void (reallocations += 1),
+    })
+
+    runtime.setViewport({ x: 10, y: 0, zoom: 1 })
+    runtime.setViewport({ x: 20, y: 0, zoom: 1.5 })
+
+    expect(reallocations).toBe(0)
     dispose()
   })
 })
