@@ -22,10 +22,6 @@ public sealed class CoreBackendModule : IModule
     {
     }
 
-    public void RegisterRoutes(INavigationRegistry registry)
-    {
-    }
-
     public void RegisterSidebarItems(ISidebarService sidebarService)
     {
     }

@@ -22,10 +22,6 @@ public sealed class StatisticsBackendModule : IModule
     {
     }
 
-    public void RegisterRoutes(INavigationRegistry registry)
-    {
-    }
-
     public void RegisterSidebarItems(ISidebarService sidebarService)
     {
     }

@@ -28,10 +28,6 @@ public sealed class FlashcardsBackendModule : IModule
         registry.Add(new EmbeddedJsonTranslationSource(assembly, "Mnemo.Infrastructure.Modules.Flashcards.Translations"));
     }
 
-    public void RegisterRoutes(INavigationRegistry registry)
-    {
-    }
-
     public void RegisterSidebarItems(ISidebarService sidebarService)
     {
         sidebarService.RegisterItem(

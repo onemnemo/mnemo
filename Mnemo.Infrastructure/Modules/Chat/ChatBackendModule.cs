@@ -18,10 +18,6 @@ public sealed class ChatBackendModule : IModule
     {
     }
 
-    public void RegisterRoutes(INavigationRegistry registry)
-    {
-    }
-
     public void RegisterSidebarItems(ISidebarService sidebarService)
     {
         // Soma sits beside Overview rather than down in the ecosystem group: it is
