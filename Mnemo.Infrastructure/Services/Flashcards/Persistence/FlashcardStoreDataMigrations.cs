@@ -41,5 +41,6 @@ internal static class FlashcardStoreDataMigrations
     public static readonly Step[] Steps =
     [
         new(6, FlashcardFactBackfill.ApplyAsync),
+        new(9, FlashcardFactDeckHeal.ApplyAsync),
     ];
 }

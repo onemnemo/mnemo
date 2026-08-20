@@ -25,6 +25,18 @@ public interface IReviewRepository
     Task<int> CountForDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Every answer recorded against the given cards, ordered by card and then oldest first, which
+    /// is the order a history is written out in.
+    /// </summary>
+    /// <remarks>
+    /// Joined to the cards so a card the trash is holding contributes nothing. Its history is kept
+    /// and comes back with it, but the library cannot see the card, and an export of the library
+    /// must not ship what it cannot see.
+    /// </remarks>
+    Task<IReadOnlyList<FlashcardReviewLog>> ListForCardsAsync(
+        SqliteConnection conn, IReadOnlyList<string> cardIds, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Every review answered in a deck bound to <paramref name="presetId"/>, oldest first within
     /// each card. This is the training data for weight fitting, which is why it is grouped by card
     /// rather than by time: a fit replays one card's history at a time.
@@ -63,8 +75,8 @@ public sealed class ReviewRepository : IReviewRepository
         cmd.Transaction = tx;
         cmd.CommandText = """
             INSERT INTO FlashcardReviews
-                (CardId, DeckId, SessionId, Grade, ReviewedAt, ElapsedDays, ScheduledDays, StabilityAfter, DifficultyAfter, StateBefore, StateAfter)
-            VALUES ($card, $deck, $session, $grade, $at, $elapsed, $scheduled, $stab, $diff, $before, $state);
+                (CardId, DeckId, SessionId, Grade, ReviewedAt, ElapsedDays, ScheduledDays, StabilityAfter, DifficultyAfter, StateBefore, StateAfter, Origin)
+            VALUES ($card, $deck, $session, $grade, $at, $elapsed, $scheduled, $stab, $diff, $before, $state, $origin);
             SELECT last_insert_rowid();
             """;
         cmd.Parameters.AddWithValue("$card", log.CardId);
@@ -78,6 +90,7 @@ public sealed class ReviewRepository : IReviewRepository
         cmd.Parameters.AddWithValue("$diff", (object?)log.DifficultyAfter ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$before", log.StateBefore is { } before ? (int)before : DBNull.Value);
         cmd.Parameters.AddWithValue("$state", (int)log.StateAfter);
+        cmd.Parameters.AddWithValue("$origin", (int)log.Origin);
         var id = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt64(id);
     }
@@ -98,6 +111,54 @@ public sealed class ReviewRepository : IReviewRepository
         cmd.CommandText = "SELECT COUNT(*) FROM FlashcardReviews WHERE DeckId = $deck;";
         cmd.Parameters.AddWithValue("$deck", deckId);
         return Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+    }
+
+    public async Task<IReadOnlyList<FlashcardReviewLog>> ListForCardsAsync(
+        SqliteConnection conn, IReadOnlyList<string> cardIds, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(cardIds);
+        if (cardIds.Count == 0)
+            return Array.Empty<FlashcardReviewLog>();
+
+        await using var cmd = conn.CreateCommand();
+        var names = new string[cardIds.Count];
+        for (var i = 0; i < cardIds.Count; i++)
+        {
+            names[i] = "$c" + i.ToString(CultureInfo.InvariantCulture);
+            cmd.Parameters.AddWithValue(names[i], cardIds[i]);
+        }
+
+        // Only the loop counter reaches the statement text; every id is a parameter.
+        cmd.CommandText = $"""
+            SELECT r.Id, r.CardId, r.DeckId, r.SessionId, r.Grade, r.ReviewedAt, r.ElapsedDays,
+                   r.ScheduledDays, r.StabilityAfter, r.DifficultyAfter, r.StateBefore, r.StateAfter, r.Origin
+            FROM FlashcardReviews r
+            JOIN FlashcardCards c ON c.Id = r.CardId AND c.TrashId IS NULL
+            WHERE r.CardId IN ({string.Join(", ", names)})
+            ORDER BY r.CardId, r.ReviewedAt, r.Id;
+            """;
+
+        var rows = new List<FlashcardReviewLog>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            rows.Add(new FlashcardReviewLog(
+                reader.GetInt64(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                (FlashcardReviewGrade)reader.GetInt32(4),
+                FlashcardSqlMap.ReadTs(reader, 5),
+                reader.GetDouble(6),
+                reader.GetDouble(7),
+                FlashcardSqlMap.ReadDoubleN(reader, 8),
+                FlashcardSqlMap.ReadDoubleN(reader, 9),
+                reader.IsDBNull(10) ? null : (FlashcardFsrsState)reader.GetInt32(10),
+                (FlashcardFsrsState)reader.GetInt32(11),
+                (FlashcardReviewOrigin)reader.GetInt32(12)));
+        }
+
+        return rows;
     }
 
     // Deliberately reads reviews from held decks and held cards too. This is the history a weight
