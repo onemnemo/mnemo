@@ -219,6 +219,9 @@ public sealed class NotesMnemoPayloadHandlerTests
 
         public Task<IEnumerable<Note>> GetAllNotesAsync() => Task.FromResult<IEnumerable<Note>>(_notes.Values.ToArray());
 
+        public Task<IReadOnlyList<NoteSummary>> GetAllNoteSummariesAsync()
+            => Task.FromResult<IReadOnlyList<NoteSummary>>([.. _notes.Values.Select(NoteSummary.FromNote)]);
+
         public Task<Note?> GetNoteAsync(string noteId)
             => Task.FromResult(_notes.TryGetValue(noteId, out var note) ? note : null);
 
