@@ -35,12 +35,19 @@ public sealed class FlashcardsMnemoFormatAdapter : IContentFormatAdapter
         }
 
         preview.Value.DiscoveredCounts.TryGetValue("flashcards", out var count);
+
+        // Evidence is what the import dialog shows before anything is written. A package that
+        // cannot be inspected still imports, so a failure here costs the dialog its detail rather
+        // than costing the user their import.
+        var evidence = await _packageService.InspectAsync(request.FilePath, cancellationToken).ConfigureAwait(false);
+
         return new ImportExportPreview
         {
             CanImport = count > 0,
             ContentType = ContentType,
             FormatId = FormatId,
             DiscoveredCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["flashcards"] = count },
+            Evidence = evidence.IsSuccess ? evidence.Value : null,
             Warnings = preview.Value.Warnings
         };
     }
@@ -87,6 +94,7 @@ public sealed class FlashcardsMnemoFormatAdapter : IContentFormatAdapter
         {
             PayloadTypes = ["flashcards"],
             PackageKind = "flashcards",
+            Kind = ResolveKind(request, payloadOptions),
             PayloadOptions = payloadOptions
         }, cancellationToken).ConfigureAwait(false);
 
@@ -101,5 +109,24 @@ public sealed class FlashcardsMnemoFormatAdapter : IContentFormatAdapter
                 ["flashcards"] = export.Value?.Entries.FirstOrDefault(e => string.Equals(e.PayloadType, "flashcards", StringComparison.OrdinalIgnoreCase))?.ItemCount ?? 0
             }
         };
+    }
+
+    /// <summary>
+    /// Whether this export is a backup of the collection or a package of chosen decks. The caller
+    /// says so when it knows, because "every deck in the library" and "every deck a search left
+    /// standing" both arrive here as a list of ids and only the caller can tell them apart. When
+    /// nothing was said, a request that named no decks is taking the whole collection.
+    /// </summary>
+    /// <remarks>
+    /// The difference is not cosmetic: a backup carries the review history and daily counters a
+    /// restore needs, and an export deliberately does not, because somebody else's answers have no
+    /// business landing in the reader's own record.
+    /// </remarks>
+    private static string ResolveKind(ImportExportRequest request, IReadOnlyDictionary<string, object?> payloadOptions)
+    {
+        if (ImportExportOptionKeys.GetStringOption(request.Options, ImportExportOptionKeys.PackageKind) is { } declared)
+            return MnemoPackageKinds.Normalize(declared);
+
+        return payloadOptions.ContainsKey("flashcards.deckIds") ? MnemoPackageKinds.Export : MnemoPackageKinds.Backup;
     }
 }

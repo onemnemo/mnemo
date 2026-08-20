@@ -363,12 +363,7 @@ public sealed class FlashcardImportExportTests
         new(h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
     private static FlashcardsMnemoPayloadHandler NewHandler(FlashcardStoreHarness h) =>
-        new(NewLibrary(h),
-            new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock),
-            new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock),
-            h.Store,
-            h.Schedules,
-            new TestLogger());
+        FlashcardPackageFixture.Handler(h);
 
     private static MnemoPayloadImportContext BuildImportContext(IReadOnlyDictionary<string, byte[]> files, ImportConflictPolicy policy) =>
         new()

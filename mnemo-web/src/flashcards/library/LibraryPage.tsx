@@ -137,6 +137,9 @@ export function LibraryPage() {
       scope: {
         label: fc("TransferScopeAllDecks"),
         deckIds: decksInScope(decks.data ?? [], search).map((deck) => deck.id),
+        // Only an unfiltered library is the whole collection, and only the whole collection is a
+        // backup. A search narrows what goes into the file, so what comes out is an export.
+        wholeCollection: search.trim().length === 0,
       },
     })
 

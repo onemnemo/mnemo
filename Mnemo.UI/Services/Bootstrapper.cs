@@ -135,6 +135,8 @@ public static class Bootstrapper
         services.AddSingleton<IPresetRepository, PresetRepository>();
         services.AddSingleton<IDeckRepository, DeckRepository>();
         services.AddSingleton<ICardRepository, CardRepository>();
+        services.AddSingleton<ICardTypeRepository, CardTypeRepository>();
+        services.AddSingleton<IFactRepository, FactRepository>();
         services.AddSingleton<IScheduleRepository, ScheduleRepository>();
         services.AddSingleton<IReviewRepository, ReviewRepository>();
         services.AddSingleton<ITestAttemptRepository, TestAttemptRepository>();

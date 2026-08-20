@@ -4,15 +4,26 @@ import { cn } from "@/lib/utils"
 
 import type { TransferFormatDto } from "@/api/types"
 import type { TransferScope } from "../store"
+import { packageCaptionKey } from "../transfer"
 
 /**
  * Display name and one-line caption per format. The adapters carry their own English names, but
  * these come from the translation bundle so an export dialog reads in the app's language.
  */
 const FORMAT_KEYS: Record<string, { label: string; caption: string }> = {
-  "flashcards.mnemo": { label: "TransferFormatArchive", caption: "TransferFormatCaptionArchive" },
+  "flashcards.mnemo": { label: "TransferFormatArchive", caption: "" },
   "flashcards.csv": { label: "TransferFormatCsv", caption: "TransferFormatCaptionCsv" },
   "flashcards.anki": { label: "TransferFormatAnki", caption: "TransferFormatCaptionAnki" },
+}
+
+/**
+ * The package format's caption depends on what the file would hold: the whole collection, which
+ * is a backup and restores as one, or the decks the scope names, which is content to hand on.
+ * The other formats say the same thing whatever the scope is.
+ */
+function captionKeyFor(formatId: string, scope: TransferScope): string {
+  if (formatId === "flashcards.mnemo") return packageCaptionKey(scope.wholeCollection)
+  return FORMAT_KEYS[formatId]?.caption ?? ""
 }
 
 /** The export side: which format to write, and a reminder of what is going into it. */
@@ -71,7 +82,9 @@ export function ExportPanel({
                   {keys ? common(keys.label) : format.displayName}
                 </span>
                 {keys ? (
-                  <span className="text-caption leading-snug text-text-tertiary">{common(keys.caption)}</span>
+                  <span className="text-caption leading-snug text-text-tertiary">
+                    {common(captionKeyFor(format.formatId, scope))}
+                  </span>
                 ) : null}
                 {isSelected ? (
                   <AppIcon

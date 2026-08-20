@@ -350,5 +350,14 @@ public sealed class FlashcardServiceTests
 
         public Task IncrementAsync(SqliteConnection conn, SqliteTransaction tx, string deckId, string localDay, int newDelta, int reviewsDelta, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("simulated daily-stats failure");
+
+        public Task<IReadOnlyList<FlashcardDailyStat>> ListAllForDeckAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<FlashcardDailyStat>>([]);
+
+        public Task RestoreAsync(SqliteConnection conn, SqliteTransaction tx, FlashcardDailyStat stat, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task DeleteForDeckAsync(SqliteConnection conn, SqliteTransaction tx, string deckId, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 }
