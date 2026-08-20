@@ -356,6 +356,7 @@ internal sealed class FlashcardCollectionCapture
         DifficultyAfter = log.DifficultyAfter,
         StateBefore = log.StateBefore is { } before ? (int)before : null,
         StateAfter = (int)log.StateAfter,
+        Origin = (int)log.Origin,
     };
 
     private static SourceSnapshotDto? ToSource(FlashcardSourceInfo? source) =>

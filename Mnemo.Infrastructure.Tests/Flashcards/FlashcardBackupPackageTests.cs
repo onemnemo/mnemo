@@ -139,6 +139,71 @@ public sealed class FlashcardBackupPackageTests
     }
 
     /// <summary>
+    /// History carried in from another app comes back still marked as carried in. A backup that
+    /// drops the marker hands those answers back as though they had been sat through here, and
+    /// nothing afterwards can tell the two apart again.
+    /// </summary>
+    [Fact]
+    public async Task A_backup_keeps_imported_history_apart_from_history_answered_here()
+    {
+        await using var source = await SeededCollectionAsync();
+        var importedSession = FlashcardImportedReviews.NewSessionId();
+        var studiedCardId = (await source.Store.ReadAsync(
+            (conn, ct) => source.Reviews.ListAllForDeckAsync(conn, "deck-1", ct)))[0].CardId;
+        await source.Store.WriteAsync(async (conn, tx, ct) =>
+        {
+            await source.Reviews.AppendAsync(conn, tx, new FlashcardReviewLog(
+                FlashcardReviewLog.Unassigned, studiedCardId, "deck-1", importedSession, FlashcardReviewGrade.Hard,
+                Now.AddDays(-5), 2.0, 4.0, 18.0, 5.5, FlashcardFsrsState.Review, FlashcardFsrsState.Review,
+                FlashcardReviewOrigin.Imported), ct);
+        });
+
+        var package = await FlashcardPackageFixture.Handler(source).ExportAsync(FlashcardPackageFixture.ExportContext());
+
+        await using var target = new FlashcardStoreHarness(Now);
+        await target.Store.InitializeAsync();
+        await FlashcardPackageFixture.Handler(target).ImportAsync(FlashcardPackageFixture.ImportContext(package));
+
+        var restored = await target.Store.ReadAsync((conn, ct) => target.Reviews.ListAllForDeckAsync(conn, "deck-1", ct));
+        Assert.Equal(3, restored.Count);
+        Assert.Equal(["session-1", "session-2", importedSession], restored.Select(r => r.SessionId));
+        Assert.Equal(FlashcardReviewOrigin.Studied, restored[0].Origin);
+        Assert.Equal(FlashcardReviewOrigin.Studied, restored[1].Origin);
+        Assert.Equal(FlashcardReviewOrigin.Imported, restored[2].Origin);
+        Assert.Equal(FlashcardReviewGrade.Hard, restored[2].Grade);
+    }
+
+    /// <summary>
+    /// A package written before a review said where it came from carries no marker at all, and the
+    /// honest reading of that silence is that the answer was given here, which is what every row in
+    /// such a package was.
+    /// </summary>
+    [Fact]
+    public async Task A_review_with_no_recorded_origin_comes_back_as_answered_here()
+    {
+        var exported = new MnemoPayloadExportData
+        {
+            ItemCount = 1,
+            SchemaVersion = 3,
+            Files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["flashcards.db"] = PayloadWithoutReviewOriginBytes(),
+            },
+        };
+
+        await using var target = new FlashcardStoreHarness(Now);
+        await target.Store.InitializeAsync();
+        var result = await FlashcardPackageFixture.Handler(target).ImportAsync(FlashcardPackageFixture.ImportContext(exported));
+
+        Assert.Equal(1, result.ImportedCount);
+        var review = Assert.Single(await target.Store.ReadAsync(
+            (conn, ct) => target.Reviews.ListAllForDeckAsync(conn, "deck-before-origins", ct)));
+        Assert.Equal(FlashcardReviewOrigin.Studied, review.Origin);
+        Assert.Equal(FlashcardReviewGrade.Good, review.Grade);
+        Assert.Equal("session-old", review.SessionId);
+    }
+
+    /// <summary>
     /// A package somebody means to hand on carries the content and none of the reader's own record
     /// of answering it. Otherwise a shared deck lands in the recipient's retention figures and in
     /// the training data their scheduler fits its parameters from.
@@ -490,6 +555,88 @@ public sealed class FlashcardBackupPackageTests
             .Select(v => v.Card)
             .Where(c => c.LayoutKey is not null && c.LayoutKey.StartsWith('c') && c.LayoutKey.Length == 2)
             .ToList();
+    }
+
+    /// <summary>
+    /// A payload database holding one deck and one review whose JSON has every field a review
+    /// carried before it recorded where the answer came from, and no origin field at all.
+    /// </summary>
+    private static byte[] PayloadWithoutReviewOriginBytes()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"mnemo-no-origin-{Guid.NewGuid():N}.db");
+        try
+        {
+            using (var connection = new SqliteConnection($"Data Source={tempPath};Pooling=False"))
+            {
+                connection.Open();
+                using (var create = connection.CreateCommand())
+                {
+                    create.CommandText = """
+                        CREATE TABLE Decks (DeckId TEXT PRIMARY KEY, Json TEXT NOT NULL);
+                        CREATE TABLE Reviews (ReviewId INTEGER PRIMARY KEY, Json TEXT NOT NULL);
+                        """;
+                    create.ExecuteNonQuery();
+                }
+
+                var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+                var deck = new
+                {
+                    id = "deck-before-origins",
+                    name = "Before origins",
+                    tags = Array.Empty<string>(),
+                    cards = new[]
+                    {
+                        new
+                        {
+                            id = "card-before-origins",
+                            deckId = "deck-before-origins",
+                            front = "Q",
+                            back = "A",
+                            type = 0,
+                            dueDate = Now.AddDays(2),
+                            fsrsState = 2,
+                        },
+                    },
+                };
+
+                var review = new
+                {
+                    id = 7L,
+                    cardId = "card-before-origins",
+                    deckId = "deck-before-origins",
+                    sessionId = "session-old",
+                    grade = (int)FlashcardReviewGrade.Good,
+                    reviewedAt = Now.AddDays(-6),
+                    elapsedDays = 3.0,
+                    scheduledDays = 4.0,
+                    stabilityAfter = 22.5,
+                    difficultyAfter = 5.1,
+                    stateBefore = (int)FlashcardFsrsState.Review,
+                    stateAfter = (int)FlashcardFsrsState.Review,
+                };
+
+                Insert(connection, "INSERT INTO Decks (DeckId, Json) VALUES ($id, $json)", "deck-before-origins", JsonSerializer.Serialize(deck, options));
+                Insert(connection, "INSERT INTO Reviews (ReviewId, Json) VALUES ($id, $json)", 7L, JsonSerializer.Serialize(review, options));
+            }
+
+            return File.ReadAllBytes(tempPath);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                try { File.Delete(tempPath); } catch (IOException) { }
+            }
+        }
+    }
+
+    private static void Insert(SqliteConnection connection, string sql, object id, string json)
+    {
+        using var insert = connection.CreateCommand();
+        insert.CommandText = sql;
+        insert.Parameters.AddWithValue("$id", id);
+        insert.Parameters.AddWithValue("$json", json);
+        insert.ExecuteNonQuery();
     }
 
     /// <summary>

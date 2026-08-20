@@ -144,7 +144,7 @@ public sealed class ReviewRepository : IReviewRepository
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             SELECT Id, CardId, DeckId, SessionId, Grade, ReviewedAt, ElapsedDays, ScheduledDays,
-                   StabilityAfter, DifficultyAfter, StateBefore, StateAfter
+                   StabilityAfter, DifficultyAfter, StateBefore, StateAfter, Origin
             FROM FlashcardReviews
             WHERE DeckId = $deck
             ORDER BY Id;
@@ -166,7 +166,8 @@ public sealed class ReviewRepository : IReviewRepository
                 StabilityAfter: FlashcardSqlMap.ReadDoubleN(reader, 8),
                 DifficultyAfter: FlashcardSqlMap.ReadDoubleN(reader, 9),
                 StateBefore: reader.IsDBNull(10) ? null : (FlashcardFsrsState)reader.GetInt32(10),
-                StateAfter: (FlashcardFsrsState)reader.GetInt32(11)));
+                StateAfter: (FlashcardFsrsState)reader.GetInt32(11),
+                Origin: (FlashcardReviewOrigin)reader.GetInt32(12)));
         }
 
         return logs;
