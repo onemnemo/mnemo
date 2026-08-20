@@ -29,7 +29,7 @@ public sealed class MindmapToolService
 
     /// <param name="integrity">
     /// Optional integrity sweep; when supplied, <c>outline_mindmap</c> appends dangling-reference warnings.
-    /// A null sweep (or a failing one) simply omits warnings — the outline never fails on it.
+    /// A null sweep (or a failing one) simply omits warnings. The outline never fails on it.
     /// </param>
     public MindmapToolService(IMindmapService mindmaps, IMindmapIntegrityService? integrity = null)
     {

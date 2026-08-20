@@ -6,7 +6,7 @@ namespace Mnemo.Host.Contracts;
 /// <summary>
 /// A snapshot of the settings the SPA renders rows for.
 /// <para>
-/// <see cref="Values"/> holds the raw stored JSON per key — a boolean or a string,
+/// <see cref="Values"/> holds the raw stored JSON per key (a boolean or a string),
 /// matching what the desktop wrote. Keys with nothing stored are absent, so the SPA
 /// applies its own schema default rather than guessing one server-side.
 /// </para>

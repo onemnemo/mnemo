@@ -6,7 +6,7 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 /// Owns the flashcard database: connection, DDL, schema migration, the single-writer queue and
 /// transaction coordination. All multi-table writes go through <see cref="WriteAsync"/> so they
 /// commit atomically; reads run concurrently through <see cref="ReadAsync"/> (WAL allows it).
-/// Repositories never own a connection — the store hands them one (plus a transaction for writes).
+/// Repositories never own a connection. The store hands them one (plus a transaction for writes).
 /// </summary>
 public interface IFlashcardStore
 {

@@ -120,7 +120,7 @@ public partial class RichTextEditor
             maxWidth = MinLayoutWidth;
 
         // Skip rebuild when text and width are unchanged (e.g. ArrangeOverride fires immediately after
-        // MeasureOverride with the same width — this is the most common layout cycle for non-equation blocks).
+        // MeasureOverride with the same width; this is the most common layout cycle for non-equation blocks).
         // Equations bypass the cache because their reserve-width is re-clamped after layout settles.
         if (_textLayout != null
             && !_hasEquationSpans
@@ -145,7 +145,7 @@ public partial class RichTextEditor
 
         if (string.IsNullOrEmpty(text))
         {
-            // Empty — still build a zero-char layout so HitTest works
+            // Empty; still build a zero-char layout so HitTest works
             _textLayout = new TextLayout(
                 string.Empty, typeface, FontSize, foreground,
                 TextAlignment.Left, TextWrapping.Wrap, TextTrimming.None,
@@ -210,7 +210,7 @@ public partial class RichTextEditor
         _lastBuiltText = text;
         _lastLayoutWidth = maxWidth;
 
-        // Underline geometry references TextLayout hit-test results — must be recomputed
+        // Underline geometry references TextLayout hit-test results; must be recomputed
         // whenever the layout changes (new text, width, or after DisposeLayouts).
         RebuildSpellcheckGeometry();
 

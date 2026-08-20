@@ -543,7 +543,7 @@ public partial class FlashcardDeckViewModel : ViewModelBase, INavigationAware, I
         }
         catch (OperationCanceledException)
         {
-            // Stale load superseded by a newer query — nothing to do.
+            // Stale load superseded by a newer query; nothing to do.
         }
         finally
         {

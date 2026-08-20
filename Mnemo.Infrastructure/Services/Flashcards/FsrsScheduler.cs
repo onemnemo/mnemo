@@ -196,7 +196,7 @@ public sealed class FsrsScheduler : IFsrsScheduler
                 var idx = steps.Length > 0 ? Math.Min(stepIndex, steps.Length - 1) : 0;
                 return (state, idx, now.AddMinutes(steps.Length > 0 ? steps[idx] : 1));
             }
-            default: // Good — advance a step, graduating past the last
+            default: // Good: advance a step, graduating past the last
             {
                 var next = stepIndex + 1;
                 if (next >= steps.Length)
@@ -209,8 +209,8 @@ public sealed class FsrsScheduler : IFsrsScheduler
     /// <summary>
     /// Accepts Mnemo's 21-slot FSRS-6 vector, or the 19-slot vector the FSRS-5 optimizer emits.
     /// Padding the latter is exact rather than approximate: no short-term damping and a decay of 0.5
-    /// are precisely what FSRS-5 pinned. Any other length is a mistake — a truncated paste, or a
-    /// vector from a different algorithm — and quietly scheduling every future review on substituted
+    /// are precisely what FSRS-5 pinned. Any other length is a mistake (a truncated paste, or a
+    /// vector from a different algorithm), and quietly scheduling every future review on substituted
     /// weights would bury it, so it throws instead.
     /// </summary>
     private static double[] ResolveWeights(FlashcardPreset preset)
@@ -281,7 +281,7 @@ public sealed class FsrsScheduler : IFsrsScheduler
 
     /// <summary>
     /// The same curve without the clamp. Mean reversion pulls toward the unclamped D_0(Easy), which
-    /// under the FSRS-6 defaults is negative — clamping it here would move the target by nearly six
+    /// under the FSRS-6 defaults is negative. Clamping it here would move the target by nearly six
     /// difficulty points and flatten the spread the model is trying to produce.
     /// </summary>
     private static double RawInitialDifficulty(FlashcardReviewGrade grade, double[] weights) =>

@@ -12,7 +12,7 @@ internal static class MindmapGraph
 {
     /// <summary>
     /// True if adding a hierarchy edge <paramref name="fromId"/> → <paramref name="toId"/> would create a
-    /// cycle — i.e. <paramref name="fromId"/> is already reachable from <paramref name="toId"/> through
+    /// cycle, i.e. <paramref name="fromId"/> is already reachable from <paramref name="toId"/> through
     /// existing hierarchy edges. Mirrors v1's BFS, kept as the invariant guard for reparenting.
     /// </summary>
     public static bool WouldCreateCycle(IEnumerable<MindmapEdge> edges, string fromId, string toId)

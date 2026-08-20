@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Mnemo.Core.Models.Mindmap;
 
-/// <summary>The kind of a <see cref="MindmapElement"/>. Closed set — new kinds are a schema change.</summary>
+/// <summary>The kind of a <see cref="MindmapElement"/>. Closed set. New kinds are a schema change.</summary>
 public enum ElementKind
 {
     /// <summary>A mindmap tree node (card with typed content); participates in the hierarchy.</summary>

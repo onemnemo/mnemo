@@ -22,8 +22,8 @@ namespace Mnemo.UI.Components.Overlays
     /// <summary>
     /// The single reusable dialog for the app. Runs in two modes:
     /// <list type="bullet">
-    ///   <item>Action — title, description, and confirm/cancel buttons (deletes, exits, confirmations).</item>
-    ///   <item>Input — adds a text field; the primary button returns its value (create/rename flows).</item>
+    ///   <item>Action: title, description, and confirm/cancel buttons (deletes, exits, confirmations).</item>
+    ///   <item>Input: adds a text field; the primary button returns its value (create/rename flows).</item>
     /// </list>
     /// Prefer <see cref="Mnemo.Core.Services.IOverlayService.CreateDialogAsync"/> /
     /// <c>CreateInputDialogAsync</c> over constructing this directly.

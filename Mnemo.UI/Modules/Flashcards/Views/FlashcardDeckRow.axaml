@@ -65,7 +65,7 @@
                 <TextBlock Text="{Binding RetentionText}" Classes="retention-text" VerticalAlignment="Center" />
             </StackPanel>
 
-            <!-- Row actions (revealed on hover) — overlays the retention column so the compact split
+            <!-- Row actions (revealed on hover), overlays the retention column so the compact split
                  button + ⋯ have room without widening every row. -->
             <Border Grid.Column="4" Grid.ColumnSpan="2"
                     Classes="row-actions-scrim"

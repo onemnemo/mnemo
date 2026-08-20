@@ -12,7 +12,7 @@ namespace Mnemo.UI.Modules.Mindmap.Views;
 /// <summary>
 /// A theme-resolved snapshot of a mindmap ready to serialize to SVG. Colors are already hex (resolved
 /// against the active theme by the canvas), so the emitter has no Avalonia visual dependency beyond the
-/// geometry types it carries — which keeps it pure and unit-testable.
+/// geometry types it carries, which keeps it pure and unit-testable.
 /// </summary>
 public sealed record MindmapSvgScene
 {
@@ -80,7 +80,7 @@ public sealed record MindmapSvgEdge
 /// <summary>
 /// Serializes a <see cref="MindmapSvgScene"/> to a standalone SVG string. Pure and deterministic: geometry
 /// mirrors the canvas draw path, sizes come from the same <c>FontSizeFor</c> the canvas uses, and selection
-/// state is never emitted (a flat export is clean). Math nodes fall back to italic raw LaTeX text — the one
+/// state is never emitted (a flat export is clean). Math nodes fall back to italic raw LaTeX text: the one
 /// fidelity gap versus the on-screen render.
 /// </summary>
 public static class MindmapSvgExporter
@@ -587,7 +587,7 @@ public static class MindmapSvgExporter
         sb.Append('>').Append(Escape(text)).Append("</text>\n");
     }
 
-    // Offsets a polyline sideways by shifting each vertex along the (averaged, at corners) segment normal —
+    // Offsets a polyline sideways by shifting each vertex along the (averaged, at corners) segment normal;
     // the same construction the canvas uses for the double line style.
     private static IReadOnlyList<Point> OffsetPolyline(IReadOnlyList<Point> points, double offset)
     {

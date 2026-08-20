@@ -16,7 +16,7 @@ public interface INoteSidMigrator
 {
     /// <summary>
     /// True once every note carries a valid sid and version and the whole corpus has been
-    /// revalidated. False before the migration runs, and false if it ran and failed — a failed
+    /// revalidated. False before the migration runs, and false if it ran and failed. A failed
     /// migration leaves notes closed rather than exposing a half-migrated corpus.
     /// </summary>
     bool IsComplete { get; }

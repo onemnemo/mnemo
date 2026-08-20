@@ -122,7 +122,7 @@ public sealed class AIOrchestrator : IAIOrchestrator
         }
         catch (AiClientException ex)
         {
-            // A terminal provider failure ends the turn quietly — consumers already render the empty-response case.
+            // A terminal provider failure ends the turn quietly. Consumers already render the empty-response case.
             _logger.Error("AIOrchestrator", $"Chat stream failed ({ex.Kind}): {ex.Message}", ex);
             writer.Complete();
         }

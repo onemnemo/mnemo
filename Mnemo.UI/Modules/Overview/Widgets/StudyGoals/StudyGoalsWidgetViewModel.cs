@@ -31,7 +31,7 @@ public partial class StudyGoalItem : ObservableObject
 /// <summary>
 /// ViewModel for the Study Goals widget. Settings: <c>goal_type</c> ("daily" reads today's
 /// summary, "weekly" sums the last 7 daily summaries with targets ×7) and <c>metric</c>
-/// ("cards" or "minutes" — the chosen metric's goal is listed first).
+/// ("cards" or "minutes"; the chosen metric's goal is listed first).
 /// </summary>
 public partial class StudyGoalsWidgetViewModel : WidgetViewModelBase
 {

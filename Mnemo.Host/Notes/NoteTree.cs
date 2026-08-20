@@ -14,7 +14,7 @@ internal static class NoteTree
 
     /// <summary>
     /// Depth ceiling for every walk up the tree. Nesting is unbounded by design, so the
-    /// cap is not a rule about how deep a tree may be — it stops a walk that a corrupt
+    /// cap is not a rule about how deep a tree may be; it stops a walk that a corrupt
     /// or hand-edited parent chain would otherwise run forever.
     /// </summary>
     private const int MaxWalkDepth = 512;
@@ -55,7 +55,7 @@ internal static class NoteTree
 
     /// <summary>
     /// True when <paramref name="candidateId"/> is <paramref name="folderId"/> itself or
-    /// sits underneath it — the two ways moving a folder there would detach the subtree
+    /// sits underneath it: the two ways moving a folder there would detach the subtree
     /// from the root into a loop.
     /// </summary>
     public static bool IsSelfOrDescendant(IReadOnlyCollection<NoteFolder> folders, string folderId, string? candidateId)

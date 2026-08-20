@@ -111,7 +111,7 @@ public partial class MindmapEdgeItem : ObservableObject, IDisposable
     public IReadOnlyList<Point> HitPolyline => Route.Points;
 
     /// <summary>Connector geometry: a horizontal-ease cubic bezier for the tree, the routed path for links.
-    /// Cached — the canvas re-reads it every render frame, so only edges whose endpoints moved rebuild.</summary>
+    /// Cached; the canvas re-reads it every render frame, so only edges whose endpoints moved rebuild.</summary>
     public Geometry Geometry => IsHierarchy
         ? _hierarchyGeometry ??= BuildHierarchyGeometry()
         : Route.GeometryFor(0);
@@ -223,7 +223,7 @@ public partial class MindmapEdgeItem : ObservableObject, IDisposable
             var cdx = toCenter.X - fromCenter.X;
             var cdy = toCenter.Y - fromCenter.Y;
 
-            // Anchor at the center of the face each end travels through — a face midpoint lies exactly on
+            // Anchor at the center of the face each end travels through; a face midpoint lies exactly on
             // the outline for every shape we draw (pill, rounded rect, ellipse, diamond), so the elbow path
             // meets the border flush and perpendicular.
             Point start, end;

@@ -8,7 +8,7 @@ namespace Mnemo.Core.Services;
 /// <see cref="Resolve"/> honors each widget's stored coordinates (free-grid placement),
 /// and <see cref="Pack"/> flows an ordered list densely (used to seed coordinates on
 /// migration and to compact narrow breakpoints). All placement decisions go through this
-/// engine — never through panels or code-behind.
+/// engine, never through panels or code-behind.
 /// </summary>
 public interface IWidgetLayoutEngine
 {
@@ -24,7 +24,7 @@ public interface IWidgetLayoutEngine
     /// Resolves <paramref name="desired"/> free-grid placements into non-overlapping cells on a
     /// grid of <paramref name="columnCount"/> columns. Spans and coordinates are clamped to the
     /// grid; a widget with unassigned coordinates (<c>-1</c>) drops into the first free cell.
-    /// Overlaps are resolved by pushing the later widget <em>down</em> only — there is no upward
+    /// Overlaps are resolved by pushing the later widget <em>down</em> only. There is no upward
     /// compaction, so an intentional gap above a widget is preserved. When
     /// <paramref name="anchorIndex"/> is a valid index, that widget is placed first so it keeps
     /// the cell it was dropped on and everything else yields around it. Returns one placement per

@@ -424,7 +424,7 @@ public class SketchCompilerTests
             """);
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == SketchDiagnosticSeverity.Error);
-        // Diamond renders as polygon (node polygons) — arrowheads are also polygons, so just check
+        // Diamond renders as polygon (node polygons); arrowheads are also polygons, so just check
         // that the SVG contains a polygon that is NOT an arrowhead (arrowheads have 3 points, diamond has 4).
         var doc = System.Xml.Linq.XDocument.Parse(result.Svg);
         var polygons = doc.Root!.Descendants()

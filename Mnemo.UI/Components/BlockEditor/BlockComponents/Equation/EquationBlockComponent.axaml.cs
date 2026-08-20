@@ -137,7 +137,7 @@ public partial class EquationBlockComponent : BlockComponentBase
 
         // TranslatePoint to a ScrollViewer returns viewport-relative coordinates:
         // 0 = top of the visible area, scroll.Viewport.Height = bottom.
-        // Do NOT add scroll.Offset.Y here — that would mix document-absolute and
+        // Do NOT add scroll.Offset.Y here; that would mix document-absolute and
         // viewport-relative spaces and cause visible items to appear "off-screen".
         var tl = this.TranslatePoint(new Point(0, 0), scroll);
         if (!tl.HasValue) return true;

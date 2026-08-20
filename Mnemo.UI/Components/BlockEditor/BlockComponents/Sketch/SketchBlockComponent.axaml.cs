@@ -172,7 +172,7 @@ public partial class SketchBlockComponent : BlockComponentBase
 
     private void HoverHost_PointerExited(object? sender, PointerEventArgs e)
     {
-        // Never collapse during resize — any layout change disrupts the drag delta.
+        // Never collapse during resize; any layout change disrupts the drag delta.
         if (_isResizing) return;
 
         if (FlyoutButton?.Flyout?.IsOpen == true)
@@ -229,7 +229,7 @@ public partial class SketchBlockComponent : BlockComponentBase
 
         HoverHost?.Focus();
 
-        // Defer opening the overlay until release — if the pointer moves beyond the threshold
+        // Defer opening the overlay until release; if the pointer moves beyond the threshold
         // first, we initiate a block reorder drag instead.
         _reorderDragLaunched = false;
         _reorderPressPoint = e.GetPosition(SketchChrome);
@@ -246,7 +246,7 @@ public partial class SketchBlockComponent : BlockComponentBase
 
     private void SketchChrome_PointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
-        // Releasing capture to start DoDragDrop fires this — TopLevel release still completes a click.
+        // Releasing capture to start DoDragDrop fires this; TopLevel release still completes a click.
         if (_reorderDragLaunched)
             return;
     }

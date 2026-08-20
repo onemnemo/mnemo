@@ -75,7 +75,7 @@ export interface BlockRegistry {
   readonly inlines: readonly InlineModule[];
 
   readonly byNodeName: ReadonlyMap<string, AnyBlockModule>;
-  /** Derived from `wireTypes`, so Heading1–4 all resolve to the one heading module. */
+  /** Derived from `wireTypes`, so Heading1 through Heading4 all resolve to the one heading module. */
   readonly byWireType: ReadonlyMap<BlockType, AnyBlockModule>;
   readonly markByStyleKey: ReadonlyMap<keyof TextStyle, AnyMarkModule>;
   readonly inlineBySpanKind: ReadonlyMap<string, InlineModule>;

@@ -136,7 +136,7 @@
             <Setter Property="BoxShadow" Value="0 16 40 -24 #40000000" />
         </Style>
 
-        <!-- Micro label between hairlines ("— ANSWER —") -->
+        <!-- Micro label ("ANSWER") flanked by hairlines -->
         <Style Selector="TextBlock.answer-label">
             <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}" />
             <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
@@ -414,7 +414,7 @@
 
                                     <!-- Answer -->
                                     <StackPanel Spacing="14" IsVisible="{Binding IsRevealed}">
-                                        <!-- Divider row "— ANSWER —" -->
+                                        <!-- Divider row "ANSWER" -->
                                         <Grid ColumnDefinitions="*,Auto,*" Margin="0,22,0,4">
                                             <Border Grid.Column="0" Height="1" VerticalAlignment="Center"
                                                     Background="{DynamicResource BorderBrush}" />

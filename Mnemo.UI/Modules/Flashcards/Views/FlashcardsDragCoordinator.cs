@@ -128,7 +128,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
             return null;
         }
 
-        // Ignore drops that never travelled far enough to be intentional — this is the guard against
+        // Ignore drops that never travelled far enough to be intentional; this is the guard against
         // a click or tiny slip silently relocating a deck/folder to root.
         var travelled = _hasDragOrigin ? Distance(_dragOrigin, _lastPointer) : 0;
         if (travelled < CommitDistance)
@@ -185,7 +185,7 @@ public sealed class FlashcardsDragCoordinator : IDisposable
     private void ResolveDeckDrop(List<RowInfo> rows, int hitIndex, RowInfo hit)
     {
         // A deck lands *inside* whichever folder owns the row under the pointer. Hovering a folder's own
-        // row, or any of its nested child rows, all resolve to that folder — so the whole folder block is
+        // row, or any of its nested child rows, all resolve to that folder, so the whole folder block is
         // one big drop target. A row that belongs to no folder (root-level deck) resolves to root.
         if (hit.IsFolder)
         {

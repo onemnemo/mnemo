@@ -127,7 +127,7 @@
             <Setter Property="BoxShadow" Value="0 16 40 -24 #40000000" />
         </Style>
 
-        <!-- Micro label between hairlines ("— YOUR ANSWER —") -->
+        <!-- Micro label ("YOUR ANSWER") flanked by hairlines -->
         <Style Selector="TextBlock.answer-label">
             <Setter Property="FontFamily" Value="{DynamicResource Font.SemiBold}" />
             <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
@@ -494,7 +494,7 @@
                                     <components:MarkdownView Source="{Binding FrontText}"
                                                              Foreground="{DynamicResource TextPrimaryBrush}" />
 
-                                    <!-- "— YOUR ANSWER —" divider -->
+                                    <!-- "YOUR ANSWER" divider -->
                                     <Grid ColumnDefinitions="*,Auto,*" Margin="0,22,0,10">
                                         <Border Grid.Column="0" Height="1" VerticalAlignment="Center"
                                                 Background="{DynamicResource BorderBrush}" />

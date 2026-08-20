@@ -4,7 +4,7 @@ namespace Mnemo.Core.Formatting;
 
 /// <summary>
 /// Pure-logic applier for inline formatting using markdown-style delimiters.
-/// Wrap/unwrap is based on simple string checks — no regex.
+/// Wrap/unwrap is based on simple string checks, no regex.
 /// </summary>
 public static class InlineFormatApplier
 {

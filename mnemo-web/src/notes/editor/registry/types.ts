@@ -427,7 +427,7 @@ export interface BlockModule<TAttrs extends Record<string, unknown> = Record<str
   readonly nodeName: string;
 
   /**
-   * The C# wire discriminants this module owns; `heading` owns Heading1–4.
+   * The C# wire discriminants this module owns; `heading` owns Heading1 through Heading4.
    *
    * The mapper is derived from this, so one schema key can serve several enum
    * values without either side pretending the mapping is 1:1.

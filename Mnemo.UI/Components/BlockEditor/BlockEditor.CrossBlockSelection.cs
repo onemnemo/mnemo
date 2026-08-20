@@ -138,7 +138,7 @@ public partial class BlockEditor
             // Pointer is below all currently realized blocks.
             // Only signal "past end" (doc.Count) when the lowest realized block is actually the
             // last block in the document. In a virtualized list the lowest *realized* block is
-            // often just the bottom of the visible viewport â€” returning doc.Count from there
+            // often just the bottom of the visible viewport, and returning doc.Count from there
             // would snap cross-block selection all the way to block 1499, which is incorrect.
             var doc = GetDocumentOrderBlocks();
             if (lowestDocIndex == doc.Count - 1)
@@ -181,7 +181,7 @@ public partial class BlockEditor
     {
         // Only realized blocks have a RichTextEditor / selection to clear. Walking the full
         // document used to be O(N) calls into GetEditableBlockForViewModel, each cache-miss
-        // scanning all row indices â€” O(NÂ²) with virtualization on large notes.
+        // scanning all row indices, O(N squared) with virtualization on large notes.
         foreach (var kv in _realizedBlocksByVm)
         {
             var vm = kv.Key;
@@ -205,7 +205,7 @@ public partial class BlockEditor
         if (anchorIndex < 0 || _crossBlockAnchorBlock == null) return;
 
         // Use cached doc list (O(1) after first build). GetBlockIndexAtPoint and the hysteresis
-        // check both need indexed access, so we still need the list â€” but we avoid re-allocating it.
+        // check both need indexed access, so we still need the list, but we avoid re-allocating it.
         var docList = GetDocumentOrderBlocks();
         int rawIndex = GetBlockIndexAtPoint(currentPoint);
         if (rawIndex < 0) return;
@@ -230,7 +230,7 @@ public partial class BlockEditor
         // cleared too (iterating only top-level Blocks left them highlighted).
         ClearBlockSelection();
 
-        // Interact only with realized blocks â€” typically ~8-17 out of 1500+.
+        // Interact only with realized blocks, typically ~8-17 out of 1500+.
         // Non-realized blocks have no live RichTextEditor, so ApplyTextSelection is a no-op for them;
         // when they scroll back into view they start fresh with no selection applied.
         var docIndexLookup = GetDocIndexLookup();

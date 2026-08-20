@@ -23,7 +23,7 @@ namespace Mnemo.UI.Modules.Flashcards.ViewModels;
 ///
 /// The queue is Test's own: every active (non-suspended) card of the deck, ordered by due date, or
 /// shuffled when the deck preset's <c>ShuffleOrder</c> is on. Grading is a three-way tally
-/// (Missed / Close / Got it) held in memory — there is no per-card persistence — and single-step undo
+/// (Missed / Close / Got it) held in memory (there is no per-card persistence), and single-step undo
 /// simply steps back to the previous card, restores its typed answer and decrements its tally.
 /// </summary>
 public partial class FlashcardTestViewModel : ViewModelBase, INavigationAware, IDisposable
@@ -31,7 +31,7 @@ public partial class FlashcardTestViewModel : ViewModelBase, INavigationAware, I
     /// <summary>Upper bound on the Test queue; decks larger than this are truncated (a Test is a session, not the library).</summary>
     private const int MaxCards = 2000;
 
-    /// <summary>Test's own self-check grade — deliberately distinct from FSRS <see cref="FlashcardReviewGrade"/>.</summary>
+    /// <summary>Test's own self-check grade: deliberately distinct from FSRS <see cref="FlashcardReviewGrade"/>.</summary>
     private enum TestGrade
     {
         Missed = 0,
@@ -514,7 +514,7 @@ public partial class FlashcardTestViewModel : ViewModelBase, INavigationAware, I
         var tested = _gotItCount + _closeCount + _missedCount;
         if (tested <= 0)
         {
-            // No cards graded (empty deck should not reach here, but guard) — just leave.
+            // No cards graded (empty deck should not reach here, but guard), just leave.
             NavigateBackToDeck();
             return;
         }
@@ -612,7 +612,7 @@ public partial class FlashcardTestViewModel : ViewModelBase, INavigationAware, I
 
     private async Task CloseAsync()
     {
-        // Confirm when a session is mid-flight with real progress — abandoning discards the attempt.
+        // Confirm when a session is mid-flight with real progress: abandoning discards the attempt.
         var midSession = IsActive && (_gotItCount + _closeCount + _missedCount) > 0;
         if (midSession)
         {

@@ -3,7 +3,7 @@ namespace Mnemo.Core.Models.Mindmap;
 /// <summary>
 /// Stable <c>$type</c> discriminator strings for every built-in <see cref="IElementContent"/>. Shared
 /// between the content records and the Infrastructure serializer so both agree on one source of truth.
-/// These strings are persisted — never rename an existing one (add a new kind instead).
+/// These strings are persisted. Never rename an existing one (add a new kind instead).
 /// </summary>
 public static class ElementContentDiscriminators
 {

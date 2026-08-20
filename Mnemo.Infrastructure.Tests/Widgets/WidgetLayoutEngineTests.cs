@@ -76,7 +76,7 @@ public class WidgetLayoutEngineTests
         Assert.Equal(new WidgetPlacement(2, 0, 2, 1), before[1]);
         Assert.Equal(new WidgetPlacement(0, 1, 2, 1), before[2]);
 
-        // Moving the last widget to the front is a pure input reorder — same slots, new owners.
+        // Moving the last widget to the front is a pure input reorder: same slots, new owners.
         var reordered = new[] { sizes[2], sizes[0], sizes[1] };
         var after = _engine.Pack(reordered, 4);
         Assert.Equal(new WidgetPlacement(0, 0, 2, 1), after[0]);
@@ -148,7 +148,7 @@ public class WidgetLayoutEngineTests
     [Fact]
     public void Resolve_LeavesGapAbove_NoUpwardCompaction()
     {
-        // A lone tile placed in row 3 stays there — the empty rows above it are intentional.
+        // A lone tile placed in row 3 stays there; the empty rows above it are intentional.
         var placements = _engine.Resolve([D(0, 3, 1, 1)], 4);
 
         Assert.Equal(new WidgetPlacement(0, 3, 1, 1), placements[0]);

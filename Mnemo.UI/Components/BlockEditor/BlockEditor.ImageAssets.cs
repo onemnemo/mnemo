@@ -30,13 +30,13 @@ public partial class BlockEditor
     /// <summary>
     /// Last-block guard for clicking the area below all blocks: avoid stacking duplicate empty text blocks.
     /// Structural/non-text block types are never considered "empty" for this purpose because they don't
-    /// hold flow text – the guard only prevents duplicate empty text blocks at the bottom of the document.
+    /// hold flow text; the guard only prevents duplicate empty text blocks at the bottom of the document.
     /// </summary>
     private static bool IsLastBlockEmptyForBelowBlocksAreaClick(IReadOnlyList<BlockViewModel> blocks)
     {
         if (blocks.Count == 0) return false;
 
-        // Check the top-level last block first. TwoColumnBlockViewModel is a structural container —
+        // Check the top-level last block first. TwoColumnBlockViewModel is a structural container.
         // EnumerateInDocumentOrder skips it and returns its column children instead, which would cause
         // the empty-text check to incorrectly evaluate the last child (often an empty placeholder row).
         var topLast = blocks[blocks.Count - 1];
@@ -45,7 +45,7 @@ public partial class BlockEditor
 
         // For single-block rows, fall through to the per-type emptiness logic using document order
         // so that nested leaf blocks (e.g. the last block inside a two-column's right column) are
-        // still reachable — but only when the top-level row is not itself structural.
+        // still reachable, but only when the top-level row is not itself structural.
         var last = BlockHierarchy.EnumerateInDocumentOrder(blocks).LastOrDefault() ?? topLast;
 
         switch (last.Type)

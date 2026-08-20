@@ -10,7 +10,7 @@ namespace Mnemo.UI.Modules.Overview.ViewModels;
 /// <summary>
 /// Host ViewModel for one widget tile on the board: wraps the draft <see cref="WidgetInstance"/>,
 /// the resolved manifest, and the widget's content ViewModel. A null <see cref="Content"/> means
-/// the widget type is unavailable (e.g. its extension was uninstalled) — the tile renders a
+/// the widget type is unavailable (e.g. its extension was uninstalled); the tile renders a
 /// placeholder with a remove affordance instead of crashing the board.
 /// </summary>
 public partial class WidgetHostViewModel : ObservableObject

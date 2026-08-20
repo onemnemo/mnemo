@@ -5,7 +5,7 @@ namespace Mnemo.UI.Modules.Mindmap.ViewModels;
 
 /// <summary>
 /// A single canvas element as rendered in the editor (schema v2). A lightweight view projection of a
-/// <c>MindmapElement</c> — position, size, label, style and selection state — kept separate from the
+/// <c>MindmapElement</c> (position, size, label, style and selection state), kept separate from the
 /// immutable document model so the canvas can bind and update it without touching storage. Covers tree
 /// nodes and the free kinds (text, shapes, frames); <see cref="Kind"/> tells the canvas how to draw it.
 /// </summary>

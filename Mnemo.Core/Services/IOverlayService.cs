@@ -72,7 +72,7 @@ public interface IOverlayService
 
     /// <summary>
     /// Shows the shared action dialog (title, description, confirm/cancel). Returns the text of the
-    /// button pressed — <paramref name="confirmText"/> on confirm, <paramref name="cancelText"/> on
+    /// button pressed, <paramref name="confirmText"/> on confirm, <paramref name="cancelText"/> on
     /// cancel, or null if dismissed via the close affordance.
     /// </summary>
     /// <param name="confirmIconName">Optional leading icon on the primary button (e.g. "Common/trash").</param>

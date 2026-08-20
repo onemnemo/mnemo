@@ -17,7 +17,7 @@ namespace Mnemo.UI.Mcp;
 /// <summary>
 /// Hosts an in-process Streamable-HTTP MCP server that exposes Mnemo's tool surface
 /// to external MCP clients (Claude Desktop, CLIs, other agents). The in-app assistant
-/// does not go through this server — it dispatches tools in-process via the AI gateway.
+/// does not go through this server, it dispatches tools in-process via the AI gateway.
 /// </summary>
 /// <remarks>
 /// <para>Binds exclusively to <c>127.0.0.1</c> (loopback). DNS rebinding attacks are
@@ -81,7 +81,7 @@ public sealed class MnemoMcpServer : IAsyncDisposable
         }
 
         // Ensure module tools are registered and skill manifests loaded, regardless of
-        // the AI assistant toggle — the MCP server must work even when the in-app
+        // the AI assistant toggle. The MCP server must work even when the in-app
         // assistant is off.
         await _toolHost.EnsureLoadedAsync(ct).ConfigureAwait(false);
 
@@ -161,7 +161,7 @@ public sealed class MnemoMcpServer : IAsyncDisposable
                 }
                 catch (OperationCanceledException)
                 {
-                    // Graceful shutdown — stop the app and exit the loop.
+                    // Graceful shutdown, stop the app and exit the loop.
                     await app.StopAsync(CancellationToken.None).ConfigureAwait(false);
                     return;
                 }

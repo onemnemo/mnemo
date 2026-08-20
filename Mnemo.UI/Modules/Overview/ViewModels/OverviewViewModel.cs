@@ -17,7 +17,7 @@ namespace Mnemo.UI.Modules.Overview.ViewModels;
 
 /// <summary>
 /// ViewModel for the Overview dashboard: an ordered widget board packed by
-/// <see cref="IWidgetLayoutEngine"/>. Edit mode operates on the live board as a draft —
+/// <see cref="IWidgetLayoutEngine"/>. Edit mode operates on the live board as a draft:
 /// entering edit snapshots the committed layout, Done persists the board, Cancel (or leaving
 /// the page) restores the snapshot. Placement is order + span only; positions are computed.
 /// </summary>
@@ -180,7 +180,7 @@ public partial class OverviewViewModel : ViewModelBase, INavigationAware, IWidge
         {
             if (!result.IsSuccess)
             {
-                // Do not seed defaults over a load failure — that could clobber a real layout.
+                // Do not seed defaults over a load failure, that could clobber a real layout.
                 _logger.Error("Overview", $"Failed to load overview layout: {result.ErrorMessage}", result.Exception);
                 IsLayoutLoaded = true;
                 return;

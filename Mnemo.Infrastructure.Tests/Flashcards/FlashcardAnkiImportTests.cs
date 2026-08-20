@@ -67,7 +67,7 @@ public sealed class FlashcardAnkiImportTests
             Assert.Equal(storedName, Path.GetFileName(storedName));
             Assert.DoesNotContain("..", storedName, StringComparison.Ordinal);
 
-            // No image blocks anywhere — the block pipeline is text-only now.
+            // No image blocks anywhere. The block pipeline is text-only now.
             var allBlocks = (card.FrontBlocks ?? Array.Empty<Block>())
                 .Concat(card.BackBlocks ?? Array.Empty<Block>());
             Assert.DoesNotContain(allBlocks, b => b.Type == BlockType.Image);

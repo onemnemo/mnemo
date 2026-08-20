@@ -25,7 +25,7 @@ public partial class TagChipInput : UserControl
 
     /// <summary>
     /// Optional suggestion source. The flyout opens only when both the entry has text AND there are
-    /// matching suggestions — so decks with no existing tags (or a fresh deck) never see an empty popup.
+    /// matching suggestions, so decks with no existing tags (or a fresh deck) never see an empty popup.
     /// </summary>
     public static readonly StyledProperty<System.Collections.IEnumerable?> SuggestionsProperty =
         AvaloniaProperty.Register<TagChipInput, System.Collections.IEnumerable?>(nameof(Suggestions));

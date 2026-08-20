@@ -12,7 +12,7 @@ namespace Mnemo.UI.Modules.Mindmap.Views;
 /// the canvas uses (top-left origin: <c>screen = content*scale + offset</c>) so the pattern pans and scales
 /// with the content, giving a sense of place on the otherwise featureless infinite canvas. The pattern is
 /// coarsened when zoomed out and refined when zoomed in so it never becomes a dense smear or a sparse void.
-/// Dots render as a single tiled-brush fill from a cached one-cell bitmap — drawing each dot individually
+/// Dots render as a single tiled-brush fill from a cached one-cell bitmap; drawing each dot individually
 /// cost thousands of draw calls per pan/zoom frame and made the whole editor feel sluggish.
 /// </summary>
 public sealed class MindmapGridBackground : Control
@@ -113,7 +113,7 @@ public sealed class MindmapGridBackground : Control
         }
     }
 
-    // ~100–200 strokes per frame at worst; cheap enough to draw directly.
+    // ~100 to 200 strokes per frame at worst; cheap enough to draw directly.
     private void DrawLines(DrawingContext context, Color color, double spacing, double startX, double startY)
     {
         var bounds = Bounds;

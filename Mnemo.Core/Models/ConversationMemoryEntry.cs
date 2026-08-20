@@ -13,7 +13,7 @@ public sealed class ConversationMemoryEntry
     /// <summary>Semantic key, e.g. "active_note_id", "listed_note_ids", "active_mindmap_id".</summary>
     public string Key { get; init; } = string.Empty;
 
-    /// <summary>The value — a scalar string or compact JSON for lists.</summary>
+    /// <summary>The value, a scalar string or compact JSON for lists.</summary>
     public string Value { get; init; } = string.Empty;
 
     /// <summary>Tool name that produced this fact.</summary>

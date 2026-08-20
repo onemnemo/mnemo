@@ -35,7 +35,7 @@ public partial class BlockViewModel
     /// <summary>When set with <see cref="PendingCaretPlaceOnLastLine"/>, positions the caret by horizontal pixel column (see <see cref="RichTextEditor.GetCaretIndexFromHorizontalOffset"/>).</summary>
     public double? PendingCaretPixelX { get; set; }
 
-    /// <summary>True: Up into this block â€” use last visual line. False: Down into this block â€” first line.</summary>
+    /// <summary>True: Up into this block, use last visual line. False: Down into this block, first line.</summary>
     public bool PendingCaretPlaceOnLastLine { get; set; }
 
     public event Action<BlockViewModel>? DeleteAndFocusAboveRequested;

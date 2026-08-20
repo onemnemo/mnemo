@@ -21,7 +21,7 @@
         <StyleInclude Source="avares://Mnemo.UI/Modules/Chat/Views/ChatStyles.axaml"/>
     </UserControl.Styles>
 
-    <!-- Composer: a flat well, not a raised card. Every tool is on the surface — nothing
+    <!-- Composer: a flat well, not a raised card. Every tool is on the surface, nothing
          hides behind a menu. ~64px at rest; the input grows from there. The border answers
          focus the way every other text control does. -->
     <Border Classes="chatComposerShell"
@@ -144,7 +144,7 @@
                     </StackPanel>
                 </ToggleButton>
 
-                <!-- Response length: a flat 3-way choice. No GroupName — Avalonia scopes an
+                <!-- Response length: a flat 3-way choice. No GroupName, Avalonia scopes an
                      ungrouped RadioButton to its parent, keeping the landing and docked
                      composers independent. -->
                 <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="0"

@@ -233,7 +233,7 @@ public partial class CodeBlockComponent : BlockComponentBase, IBlockEditorReadOn
         if (SelectionBackground == null || CodeEditor == null)
             return;
 
-        // Idempotent — pointer/key events fire constantly; assigning Text reflows the layer.
+        // Idempotent, pointer/key events fire constantly; assigning Text reflows the layer.
         var text = CodeEditor.Text ?? string.Empty;
         if (!string.Equals(SelectionBackground.Text, text, StringComparison.Ordinal))
             SelectionBackground.Text = text;

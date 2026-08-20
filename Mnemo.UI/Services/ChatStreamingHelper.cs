@@ -64,10 +64,10 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
         };
     }
 
-    /// <summary>Delay between UI reveal steps while streaming (smooth display, not network pacing) — matches <see cref="ChatStreamingDisplayOptions.Balanced"/>.</summary>
+    /// <summary>Delay between UI reveal steps while streaming (smooth display, not network pacing); matches <see cref="ChatStreamingDisplayOptions.Balanced"/>.</summary>
     public const int StreamingDisplayTickMs = 22;
 
-    /// <summary>Maximum characters revealed per tick toward the buffered response — matches <see cref="ChatStreamingDisplayOptions.Balanced"/>.</summary>
+    /// <summary>Maximum characters revealed per tick toward the buffered response; matches <see cref="ChatStreamingDisplayOptions.Balanced"/>.</summary>
     public const int StreamingCharsPerTick = 6;
 
     /// <summary>Max number of recent messages to include in context (conversation window).</summary>
@@ -83,7 +83,7 @@ Response length: DETAILED. Be thorough: explain reasoning, add examples, steps, 
     /// <param name="getContent">Selector for message content.</param>
     /// <param name="excludeLastUserTurn">
     /// When true, drops the last message if it is a user message. Use with
-    /// <see cref="IAIOrchestrator.PromptStreamingWithHistoryAsync"/> which appends <c>userMessage</c> separately—otherwise the latest user turn appears twice.
+    /// <see cref="IAIOrchestrator.PromptStreamingWithHistoryAsync"/> which appends <c>userMessage</c> separately; otherwise the latest user turn appears twice.
     /// </param>
     public static IReadOnlyList<ConversationTurn> BuildConversationHistory<T>(
         IList<T> messages,

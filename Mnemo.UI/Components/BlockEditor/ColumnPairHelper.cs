@@ -95,7 +95,7 @@ public static class ColumnPairHelper
         && b.Children[0].Type == BlockType.ColumnGroup
         && b.Children[1].Type == BlockType.ColumnGroup;
 
-    /// <summary>Normalizes legacy <see cref="BlockType.TwoColumn"/> rows (non–<see cref="BlockType.ColumnGroup"/> children) into nested column groups + <see cref="TwoColumnPayload"/>. Already-nested splits pass through.</summary>
+    /// <summary>Normalizes legacy <see cref="BlockType.TwoColumn"/> rows (non-<see cref="BlockType.ColumnGroup"/> children) into nested column groups + <see cref="TwoColumnPayload"/>. Already-nested splits pass through.</summary>
     public static List<Block> ExpandLegacyTwoColumnBlocks(IEnumerable<Block> blocks)
     {
         var list = new List<Block>();

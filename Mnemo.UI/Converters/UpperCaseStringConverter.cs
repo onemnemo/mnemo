@@ -4,7 +4,7 @@ using Avalonia.Data.Converters;
 
 namespace Mnemo.UI.Converters;
 
-/// <summary>Uppercases a bound string for display (e.g. section header labels). Purely visual — does not mutate the source value.</summary>
+/// <summary>Uppercases a bound string for display (e.g. section header labels). Purely visual; does not mutate the source value.</summary>
 public class UpperCaseStringConverter : IValueConverter
 {
     public static readonly UpperCaseStringConverter Instance = new();

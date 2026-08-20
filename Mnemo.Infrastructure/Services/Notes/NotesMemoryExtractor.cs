@@ -8,7 +8,7 @@ namespace Mnemo.Infrastructure.Services.Notes;
 
 /// <summary>
 /// Extracts conversation-memory facts from Notes tool results.
-/// Rule-based and synchronous — no LLM call.
+/// Rule-based and synchronous, with no LLM call.
 /// </summary>
 public sealed class NotesMemoryExtractor : IToolResultMemoryExtractor
 {

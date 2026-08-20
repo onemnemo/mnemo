@@ -21,7 +21,7 @@ public sealed class FlashcardDeckRowViewModel
 
     public int TotalCards { get; init; }
 
-    /// <summary>Non-suspended cards — the pool Cram's "All cards" scope draws from.</summary>
+    /// <summary>Non-suspended cards, the pool Cram's "All cards" scope draws from.</summary>
     public int ActiveCards { get; init; }
 
     public int RetentionScore { get; init; }
@@ -44,10 +44,10 @@ public sealed class FlashcardDeckRowViewModel
     /// <summary>Total cards waiting today across all buckets.</summary>
     public int DueToday => NewCount + LearnCount + ReviewDueCount;
 
-    /// <summary>Nothing waiting — row renders dimmed with an "Up to date" label instead of counts.</summary>
+    /// <summary>Nothing waiting; row renders dimmed with an "Up to date" label instead of counts.</summary>
     public bool IsUpToDate => DueToday == 0;
 
-    /// <summary>Retention bar (0–100).</summary>
+    /// <summary>Retention bar (0 to 100).</summary>
     public int RetentionPercent => Math.Clamp(RetentionScore, 0, 100);
 
     /// <summary>Fixed pixel width of the retention track (fill is a fraction of this).</summary>
