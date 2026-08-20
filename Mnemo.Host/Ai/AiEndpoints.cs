@@ -10,13 +10,12 @@ namespace Mnemo.Host.Ai;
 
 /// <summary>
 /// The AI configuration surface the chat settings depend on: the provider model catalog
-/// for pickers, the "test connection" key check, and the global web-search toggle. All read
-/// the same services and setting keys the desktop app uses, so the two UIs stay in sync
-/// against one database during the parallel phase.
+/// for pickers, the "test connection" key check, and the global web-search toggle.
 /// </summary>
 public static class AiEndpoints
 {
-    // Mirror the keys the desktop's SettingsViewModel / ChatViewModel read and write.
+    // Also declared in SettingsKeyRegistry, the allowlist behind the generic settings
+    // endpoint; kept here too as typed constants for this file's own reads and writes.
     private const string WebSearchEnabledKey = "AI.WebSearch.Enabled";
     private const string ApiKeyKey = "AI.OpenRouter.ApiKey";
 
@@ -62,7 +61,8 @@ public static class AiEndpoints
 
         endpoints.MapPut("/api/ai/settings/web-search", async (UpdateBoolSettingDto body, ISettingsService settings) =>
         {
-            // Store a real boolean (not a string) so the desktop's GetAsync<bool> reads it back.
+            // Real boolean, not a string: existing profiles already store it that way, and
+            // GetAsync<bool> would silently fall back to the default on a shape mismatch.
             await settings.SetAsync(WebSearchEnabledKey, body.Value).ConfigureAwait(false);
             return Results.NoContent();
         });
