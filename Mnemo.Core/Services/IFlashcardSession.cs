@@ -12,7 +12,7 @@ public interface IFlashcardSession
     FlashcardSessionMode Mode { get; }
     string DeckId { get; }
 
-    /// <summary>True only for Review — Cram never writes to the schedule.</summary>
+    /// <summary>True only for Review. Cram never writes to the schedule.</summary>
     bool WritesSchedule { get; }
 
     bool IsFinished { get; }

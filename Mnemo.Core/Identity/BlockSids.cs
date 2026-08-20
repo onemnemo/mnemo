@@ -5,7 +5,7 @@ namespace Mnemo.Core.Identity;
 
 /// <summary>
 /// Keeps a note's block sids well-formed and unique within that note. Shared by the backfill and by
-/// the commit path so both agree on what a valid block tree looks like — they differ only in how
+/// the commit path so both agree on what a valid block tree looks like. They differ only in how
 /// forgiving they are, which is the one thing that should differ.
 /// </summary>
 public static class BlockSids
@@ -36,7 +36,7 @@ public static class BlockSids
         {
             foreach (var block in level)
             {
-                // Claiming fails for a value an earlier block already kept — the duplicate case.
+                // Claiming fails for a value an earlier block already kept (the duplicate case).
                 if (!Sid.IsWellFormedBlockSid(block.Sid) || !claimed.Add(block.Sid))
                 {
                     block.Sid = sids.NextBlockSid(blocked);

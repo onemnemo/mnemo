@@ -110,7 +110,7 @@ public static class SettingsEndpoints
             return null;
 
         // JsonElement is a struct, so a missing key comes back as default(JsonElement)
-        // rather than null — that reads as Undefined, alongside a stored JSON null.
+        // rather than null; that reads as Undefined, alongside a stored JSON null.
         var value = result.Value;
         return value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null ? null : value;
     }

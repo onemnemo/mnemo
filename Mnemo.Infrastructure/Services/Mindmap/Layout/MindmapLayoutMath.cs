@@ -8,7 +8,7 @@ namespace Mnemo.Infrastructure.Services.Mindmap.Layout;
 /// <summary>
 /// Shared geometry for the built-in layout providers: building the visible tree from a snapshot,
 /// a size-aware layered "tidy tree" packer, leaf counting for radial spread, and the common finalize step
-/// (anchor the tree to the root's stored position; keep pinned nodes fixed). Pure — no document or UI access.
+/// (anchor the tree to the root's stored position; keep pinned nodes fixed). Pure, no document or UI access.
 /// </summary>
 internal static class MindmapLayoutMath
 {
@@ -120,7 +120,7 @@ internal static class MindmapLayoutMath
         return positions;
     }
 
-    /// <summary>Count of visible leaves under a node (a leaf counts as 1) — the radial angular weight.</summary>
+    /// <summary>Count of visible leaves under a node (a leaf counts as 1). This is the radial angular weight.</summary>
     public static int VisibleLeafCount(Tree tree, LayoutNode node)
     {
         var kids = tree.VisibleChildren(node);

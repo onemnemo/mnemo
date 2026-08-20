@@ -62,7 +62,7 @@ public partial class FlashcardAttachmentItemViewModel : ObservableObject
 
     public string DisplayName => Attachment.DisplayName;
 
-    /// <summary>"diagram.png · 24 KB" — filename and size for the figure caption row.</summary>
+    /// <summary>"diagram.png · 24 KB": filename and size for the figure caption row.</summary>
     public string SizeLabel
     {
         get

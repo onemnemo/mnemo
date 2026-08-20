@@ -465,7 +465,7 @@ public partial class ImageBlockComponent : BlockComponentBase
     }
 
     /// <summary>
-    /// Keyboard focus for Delete/Back — only from image chrome, not from <see cref="HoverHost"/>
+    /// Keyboard focus for Delete/Back; only from image chrome, not from <see cref="HoverHost"/>
     /// (ancestor handlers run in the same route as toolbar <see cref="Button"/>s and break Flyout/MenuFlyout).
     /// </summary>
     private void ImageChrome_PointerPressed(object? sender, PointerPressedEventArgs e)
@@ -508,7 +508,7 @@ public partial class ImageBlockComponent : BlockComponentBase
 
     private void ImageChrome_PointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
-        // Releasing capture to start DoDragDrop fires this — do not clear; RunImageReorderDragAsync clears after drop.
+        // Releasing capture to start DoDragDrop fires this. Do not clear; RunImageReorderDragAsync clears after drop.
         if (_imageReorderDragLaunched)
             return;
         ClearImageReorderGestureState();
@@ -911,7 +911,7 @@ public partial class ImageBlockComponent : BlockComponentBase
         await ImportImageAsync();
     }
 
-    // ── Flyout (Button.Flyout opens automatically — no extra Click handler) ───
+    // ── Flyout (Button.Flyout opens automatically, no extra Click handler) ───
 
     private async void FlyoutReplace_Click(object? sender, RoutedEventArgs e)
     {
@@ -1124,7 +1124,7 @@ public partial class ImageBlockComponent : BlockComponentBase
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Max width for the block body (star column), from the list item row width — not the shrink-wrapped
+    /// Max width for the block body (star column), from the list item row width, not the shrink-wrapped
     /// content chrome bounds (those match the current image width and would block scaling up).
     /// </summary>
     private double GetContentColumnConstraintWidth()

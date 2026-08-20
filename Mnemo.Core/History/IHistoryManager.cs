@@ -50,7 +50,7 @@ public interface IHistoryManager
 
     /// <summary>
     /// Raised after <see cref="Clear"/> discards the stacks. Undo/redo can no longer restore
-    /// prior document state — hosts use this to reclaim resources (e.g. stored image files).
+    /// prior document state. Hosts use this to reclaim resources (e.g. stored image files).
     /// </summary>
     event Action? Cleared;
 

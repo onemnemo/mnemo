@@ -15,14 +15,6 @@ import { CoverPicker } from './NoteHeaderChrome';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-// The popover positions itself with Popper, which measures its content.
-class StubResizeObserver {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-globalThis.ResizeObserver ??= StubResizeObserver as unknown as typeof ResizeObserver;
-
 // Uploads are held open so a test decides when the bytes land, which is the only way to
 // interleave a choice with an upload still in flight.
 const uploads = vi.hoisted(() => {

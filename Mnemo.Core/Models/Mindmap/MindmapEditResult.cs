@@ -25,7 +25,7 @@ public enum MindmapEditErrorCode
     InvalidOperation,
 }
 
-/// <summary>Details of the op that caused a batch to fail. Batches are transactional — all or nothing.</summary>
+/// <summary>Details of the op that caused a batch to fail. Batches are transactional, all or nothing.</summary>
 public sealed record MindmapEditError
 {
     public required MindmapEditErrorCode Code { get; init; }

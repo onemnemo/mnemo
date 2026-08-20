@@ -11,8 +11,8 @@ namespace Mnemo.Infrastructure.Services.Notes;
 /// <remarks>
 /// Blocks are addressed by their full id or by any unique prefix of it (a short id, like a
 /// git short SHA). This keeps the tokens a small model has to reproduce minimal while staying
-/// stable across edits. Resolution walks the whole tree — including nested children such as
-/// two-column cells — so edits are not limited to the top-level list.
+/// stable across edits. Resolution walks the whole tree, including nested children such as
+/// two-column cells, so edits are not limited to the top-level list.
 /// </remarks>
 internal static class NoteBlockTree
 {
@@ -103,7 +103,7 @@ internal static class NoteBlockTree
 
     /// <summary>
     /// Sets <see cref="Block.Order"/> to match each block's current position in its list, recursively.
-    /// Unlike <see cref="NormalizeTree"/> this does not sort — it treats list position as authoritative,
+    /// Unlike <see cref="NormalizeTree"/> this does not sort. It treats list position as authoritative,
     /// which is what edit ops mutate.
     /// </summary>
     public static void ReindexByPosition(List<Block> roots)

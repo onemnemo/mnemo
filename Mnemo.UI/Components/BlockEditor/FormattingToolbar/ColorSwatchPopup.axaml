@@ -9,7 +9,7 @@
       Curated 5-swatch display palette. Theme files still define ten swatch slots so
       documents written before the rehaul keep rendering; the picker intentionally
       surfaces this subset (red / orange / blue / green / violet text, cream / blue /
-      green / pink / neutral backgrounds — the slot semantics match across themes).
+      green / pink / neutral backgrounds; the slot semantics match across themes).
     -->
     <UserControl.Resources>
         <SolidColorBrush x:Key="TextSwatchRedBrush" Color="{DynamicResource TextColorSwatch5}" />

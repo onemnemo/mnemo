@@ -10,9 +10,9 @@ namespace Mnemo.Infrastructure.Services.AI;
 /// complete <see cref="ToolCallRequest"/> instances.
 ///
 /// Each tool call arrives across multiple SSE chunks:
-///   delta.tool_calls[i].id         — first chunk for that index (may be null on continuations)
-///   delta.tool_calls[i].function.name       — first chunk
-///   delta.tool_calls[i].function.arguments  — one or more partial JSON strings
+///   delta.tool_calls[i].id         : first chunk for that index (may be null on continuations)
+///   delta.tool_calls[i].function.name       : first chunk
+///   delta.tool_calls[i].function.arguments  : one or more partial JSON strings
 /// </summary>
 internal sealed class ToolCallParser
 {

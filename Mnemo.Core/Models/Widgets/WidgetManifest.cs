@@ -6,7 +6,7 @@ namespace Mnemo.Core.Models.Widgets;
 
 /// <summary>
 /// Static description of a widget type: identity, presentation keys, sizing contract, and
-/// config schema. Manifests are pure data — safe to list in the widget library without
+/// config schema. Manifests are pure data, safe to list in the widget library without
 /// instantiating the widget.
 /// </summary>
 public sealed record WidgetManifest

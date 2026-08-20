@@ -114,7 +114,8 @@ public class MarkdownShortcutDetector
 
     private static bool IsDividerShortcut(string trimmed)
     {
-        // When the text shortcut "-- " -> "– " runs first, typing "--- " can become "-– " (or "–- ").
+        // When the text shortcut converts "-- " into an en dash and a space first, typing "--- " can
+        // become a hyphen followed by an en dash, or an en dash followed by a hyphen.
         // Treat both forms as divider triggers so users still get a divider from three hyphens.
         return trimmed is "---" or "-–" or "–-";
     }

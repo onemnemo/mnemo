@@ -149,7 +149,7 @@ public abstract class BlockComponentBase : UserControl
         if (_editor == null) return;
         // Do NOT call SyncFromViewModel() here. After the user types, CommitSpansFromEditor
         // normalises the spans into a new list reference (N') while the editor still holds the
-        // original reference (N) — same content, different object. Calling SyncFromViewModel()
+        // original reference (N), same content, different object. Calling SyncFromViewModel()
         // on focus would assign N' → fire OnSpansChanged() → InvalidateMeasure() → layout jump.
         // Legitimate external span changes are already handled by OnViewModelPropertyChanged,
         // so there is no scenario where a focus-time sync provides a content benefit.

@@ -2,7 +2,7 @@ namespace Mnemo.Core.Models.Ai;
 
 /// <summary>
 /// One unit of a streaming chat response: visible text, model reasoning, an assembled
-/// tool call, usage accounting, or the finish signal. Closed union — pattern-match on
+/// tool call, usage accounting, or the finish signal. Closed union. Pattern-match on
 /// the nested types.
 /// </summary>
 public abstract record ChatStreamDelta

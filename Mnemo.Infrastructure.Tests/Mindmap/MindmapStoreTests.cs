@@ -80,7 +80,7 @@ public sealed class MindmapStoreTests
         var document = Doc("m1", "M", 1, Node("n1", "granite"), Node("n2", "basalt"));
         await h.Store.SaveAsync(document, FullDelta(document));
 
-        // Re-index n1 with new text, remove n2 from the mirror — the incremental path.
+        // Re-index n1 with new text, remove n2 from the mirror: the incremental path.
         await h.Store.SaveAsync(document with { Revision = 2 }, new MindmapSearchDelta
         {
             Upserts = new[] { new MindmapSearchEntry("n1", "gneiss") },

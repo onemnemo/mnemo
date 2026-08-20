@@ -39,7 +39,7 @@ public interface IMindmapService
 
     /// <summary>
     /// Full-text search within one map (<c>find_in_map</c>), returning matching elements with their
-    /// hierarchy breadcrumb and the current revision — the entry point into a huge map for a small model.
+    /// hierarchy breadcrumb and the current revision (the entry point into a huge map for a small model).
     /// An empty/whitespace query yields no hits (still with the current revision), never a failure.
     /// </summary>
     Task<Result<MindmapFindResult>> FindInMapAsync(string mapId, string query, int limit, CancellationToken cancellationToken = default);
@@ -126,7 +126,7 @@ public interface IMindmapService
     Task<Result> MoveToFolderAsync(string mapId, string? folderId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Raised after a mutation commits (create/edit/rename/delete/duplicate), on the committing thread —
+    /// Raised after a mutation commits (create/edit/rename/delete/duplicate), on the committing thread,
     /// which is a background thread for tool-driven edits, never the semaphore-held write section.
     /// Handlers must marshal to the UI thread themselves and must not throw; a throwing handler is logged
     /// and swallowed rather than corrupting the commit.

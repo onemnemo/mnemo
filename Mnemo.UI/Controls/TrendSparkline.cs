@@ -14,7 +14,7 @@ namespace Mnemo.UI.Controls;
 /// <remarks>
 /// Promoted from <c>Mnemo.UI.Modules.Flashcards.Views.FlashcardTestSparkline</c> (test score
 /// screen) now that a second call site (Overview's Memory/Test widgets) needs the same rendering.
-/// The Flashcards module's copy is left as-is — it can adopt this shared control later.
+/// The Flashcards module's copy is left as-is; it can adopt this shared control later.
 /// </remarks>
 public sealed class TrendSparkline : Control
 {

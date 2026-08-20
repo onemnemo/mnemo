@@ -14,7 +14,7 @@ namespace Mnemo.UI.Modules.Flashcards.ViewModels;
 /// One row in the deck view card table. Projects a <see cref="FlashcardView"/> (content +
 /// schedule) into presentation state: a single-line front preview with cloze tokens collapsed to a
 /// <c>[…]</c> chip, type/tag/due/lapse cells, and the flags the row template reads (attachments,
-/// flagged, suspended, selection). Purely display state — all mutations go through the owning
+/// flagged, suspended, selection). Purely display state; all mutations go through the owning
 /// <see cref="FlashcardDeckViewModel"/> and the batch card service.
 /// </summary>
 public partial class FlashcardCardRowViewModel : ObservableObject

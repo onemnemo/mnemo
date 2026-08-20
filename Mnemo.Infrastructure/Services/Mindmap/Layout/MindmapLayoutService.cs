@@ -66,7 +66,7 @@ public sealed class MindmapLayoutService : IMindmapLayoutService
         if (_providers.TryGetValue(MindmapLayoutAlgorithms.Balanced, out var fallback))
             return fallback;
 
-        // No balanced provider registered — degenerate config; use any provider deterministically.
+        // No balanced provider registered (a degenerate config); use any provider deterministically.
         return _providers.Values.OrderBy(p => p.Id, StringComparer.Ordinal).First();
     }
 }

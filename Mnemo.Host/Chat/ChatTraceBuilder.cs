@@ -9,7 +9,7 @@ namespace Mnemo.Host.Chat;
 /// desktop app's <c>ChatProcessThreadTracker</c> + <c>ChatViewModel</c> so a turn saved by the
 /// host reopens identically in either UI. It consumes the same streaming signals the orchestrator
 /// emits (pipeline keys, tool-call lifecycle, mid-turn narration, reasoning) and produces the
-/// persisted trace fields directly — no view-model layer. Every mutating call is serialized, since
+/// persisted trace fields directly: no view-model layer. Every mutating call is serialized, since
 /// the orchestrator's callbacks can arrive off the request thread.
 /// </summary>
 public sealed class ChatTraceBuilder
@@ -26,7 +26,7 @@ public sealed class ChatTraceBuilder
         public bool IsActive;
         public ToolEntry? Tool;
 
-        // Past tense once complete, present-progressive while active — exactly the view-model rule.
+        // Past tense once complete, present-progressive while active: exactly the view-model rule.
         public string Label => IsComplete && !string.IsNullOrEmpty(DoneLabel) ? DoneLabel! : RunningLabel;
     }
 
@@ -91,7 +91,7 @@ public sealed class ChatTraceBuilder
 
         lock (_gate)
         {
-            // Count once per distinct call — the same id surfaces twice (Running then terminal).
+            // Count once per distinct call: the same id surfaces twice (Running then terminal).
             var isNewCall = string.IsNullOrEmpty(toolCall.ToolCallId)
                 ? toolCall.Stage == ChatToolCallStage.Running
                 : _seenToolCallIds.Add(toolCall.ToolCallId);

@@ -76,7 +76,7 @@ public partial class WidgetLibraryItemViewModel : ObservableObject
 
 /// <summary>
 /// ViewModel for the widget library panel: registered widget types grouped into built-in and
-/// extension sections, filtered by search. A view over <see cref="IWidgetRegistry"/> — adding
+/// extension sections, filtered by search. A view over <see cref="IWidgetRegistry"/>; adding
 /// delegates to the board's ViewModel.
 /// </summary>
 public partial class WidgetLibraryViewModel : ObservableObject

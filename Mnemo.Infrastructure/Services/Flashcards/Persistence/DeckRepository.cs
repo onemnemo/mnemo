@@ -8,7 +8,7 @@ using Mnemo.Core.Services;
 
 namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
-/// <summary>Row-level access to <c>FlashcardDecks</c> (headers only — never cards).</summary>
+/// <summary>Row-level access to <c>FlashcardDecks</c> (headers only, never cards).</summary>
 public interface IDeckRepository
 {
     Task<IReadOnlyList<FlashcardDeckHeader>> ListHeadersAsync(SqliteConnection conn, CancellationToken cancellationToken);

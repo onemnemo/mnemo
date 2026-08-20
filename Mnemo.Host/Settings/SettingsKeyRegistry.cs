@@ -32,7 +32,7 @@ public sealed record SettingKeyDescriptor(string Key, SettingValueKind Kind, boo
 /// <para>
 /// Declaring each key's value kind also makes writes deterministic. The SPA holds the
 /// presentation schema (labels, options, defaults); duplicating just the kind here
-/// turns a client-side type slip into a 400 instead of a silently unreadable value —
+/// turns a client-side type slip into a 400 instead of a silently unreadable value:
 /// the desktop's typed <c>GetAsync&lt;T&gt;</c> falls back to its default when the
 /// stored JSON has the wrong shape, which would look like the setting resetting itself.
 /// </para>

@@ -11,7 +11,7 @@ namespace Mnemo.UI.Modules.Overview.Views;
 
 /// <summary>
 /// Overview page. The code-behind is the drag controller for widget tiles: pointer capture
-/// must live here — on an element that survives reordering — because reordering the board
+/// must live here, on an element that survives reordering, because reordering the board
 /// recreates item containers, and hiding the dragged card would otherwise kill a capture
 /// held by the tile itself. All board mutations happen in <see cref="OverviewViewModel"/>.
 /// </summary>

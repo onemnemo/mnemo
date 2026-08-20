@@ -25,8 +25,8 @@ public sealed record ChatTurnRequestDto(
     IReadOnlyList<ChatAssetDto>? Attachments = null);
 
 /// <summary>
-/// A tool call as it crosses the turn stream. The same call arrives twice — once
-/// <c>running</c>, once <c>completed</c>/<c>failed</c> — correlated by <see cref="Id"/>,
+/// A tool call as it crosses the turn stream. The same call arrives twice (once
+/// <c>running</c>, once <c>completed</c>/<c>failed</c>), correlated by <see cref="Id"/>,
 /// so the SPA trace can show a spinner that resolves into a check or an error.
 /// </summary>
 public sealed record ChatToolEventDto(string Id, string Name, string? Arguments, string? Result, string Stage)

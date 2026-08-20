@@ -16,8 +16,8 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 /// Per the migration spec: a token whose path resolves to an existing file on disk becomes an
 /// attachment and is stripped from the text; a token whose path does not resolve is left inline
 /// (never silently dropped) and reported via <see cref="FlashcardImageTokenConversionResult.Warnings"/>.
-/// Each side is capped at <see cref="MaxAttachmentsPerSide"/> attachments — matching
-/// <c>IFlashcardCardService.MaxAttachmentsPerSide</c> — so callers can pass the result straight into
+/// Each side is capped at <see cref="MaxAttachmentsPerSide"/> attachments, matching
+/// <c>IFlashcardCardService.MaxAttachmentsPerSide</c>, so callers can pass the result straight into
 /// card creation without tripping that cap; tokens beyond the cap are left inline and warned about too.
 /// </remarks>
 public static class FlashcardImageTokenConverter
@@ -26,7 +26,7 @@ public static class FlashcardImageTokenConverter
     public const int MaxAttachmentsPerSide = 3;
 
     /// <summary>
-    /// Matches <c>![alt](path){align=left|center|right}</c> — the legacy embedded-image token grammar
+    /// Matches <c>![alt](path){align=left|center|right}</c>, the legacy embedded-image token grammar
     /// injected by <c>RichDocumentEditor</c> into blob-era card text.
     /// </summary>
     private static readonly Regex ImageTokenPattern = new(

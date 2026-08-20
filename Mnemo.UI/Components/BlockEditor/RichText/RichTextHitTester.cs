@@ -7,7 +7,7 @@ namespace Mnemo.UI.Components.BlockEditor;
 
 /// <summary>
 /// Pure hit-testing helpers for <see cref="RichTextEditor"/>.
-/// All methods accept layout objects as parameters — no reference to the control instance.
+/// All methods accept layout objects as parameters; no reference to the control instance.
 /// </summary>
 internal static class RichTextHitTester
 {

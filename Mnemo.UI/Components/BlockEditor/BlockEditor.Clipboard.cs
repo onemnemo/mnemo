@@ -48,7 +48,7 @@ public partial class BlockEditor
         or BlockType.BulletList or BlockType.NumberedList or BlockType.Checklist
         or BlockType.Quote;
 
-    /// <summary>Image/Divider/Equation blocks have no inline runs Ã¢â‚¬â€ merging them into a Text block drops the payload.</summary>
+    /// <summary>Image/Divider/Equation blocks have no inline runs; merging them into a Text block drops the payload.</summary>
     private static bool PasteFirstBlockRequiresBlockInsert(BlockViewModel[] pasted) =>
         pasted.Length > 0 && pasted[0].Type is BlockType.Image or BlockType.Divider or BlockType.Equation or BlockType.Page;
 
@@ -70,7 +70,7 @@ public partial class BlockEditor
 
     /// <summary>
     /// Nested <see cref="TextBox"/> (e.g. code) uses OS copy/cut/paste and undo; we must not steal those shortcuts.
-    /// Image caption uses <see cref="RichTextEditor"/> Ã¢â‚¬â€ it has no built-in undo/clipboard, so those stay on the editor.
+    /// Image caption uses <see cref="RichTextEditor"/>; it has no built-in undo/clipboard, so those stay on the editor.
     /// </summary>
     private bool IsFocusInsideNestedTextBox()
     {

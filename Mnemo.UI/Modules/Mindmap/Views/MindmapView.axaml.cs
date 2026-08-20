@@ -53,7 +53,7 @@ public partial class MindmapView : UserControl
     private bool _pressedMultiMember;
 
     // Marquee on empty canvas (select tool): its start point (content coords) while in progress. Selection
-    // updates live as the rectangle grows — hits are highlighted view-side each frame and committed through
+    // updates live as the rectangle grows; hits are highlighted view-side each frame and committed through
     // the view model on release. Shift makes it additive over the selection captured at press.
     private bool _isMarqueeing;
     private bool _marqueeStarted;
@@ -359,7 +359,7 @@ public partial class MindmapView : UserControl
         }
 
         // Chrome (badges, checkboxes, ref glyphs, resize handles) that the canvas simplifies away at low zoom
-        // must not respond to clicks either — the affordance isn't drawn, so a click there falls through to
+        // must not respond to clicks either; the affordance isn't drawn, so a click there falls through to
         // plain selection/drag/pan instead.
         var chromeInteractive = _canvas?.ChromeVisible ?? true;
 
@@ -571,7 +571,7 @@ public partial class MindmapView : UserControl
     // Snapshot the rest of a multi-selection so the whole group shifts live with the dragged element. Every
     // other selected element moves by the same delta, plus the members of any selected frame (so a framed
     // group follows its frame), deduped so a member that is itself selected only moves once. The dragged
-    // element's own frame members are excluded — CaptureFrameMembers already shifts those, so shifting them
+    // element's own frame members are excluded; CaptureFrameMembers already shifts those, so shifting them
     // here too would double them.
     private void CaptureMultiDragMembers(MindmapNodeItem dragged)
     {

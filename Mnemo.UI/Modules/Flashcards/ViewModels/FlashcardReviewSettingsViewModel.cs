@@ -241,7 +241,7 @@ public partial class FlashcardReviewSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _shuffleOrder;
 
-    /// <summary>Feature ships disabled ("coming soon") — the toggle is never actionable; value is carried through unchanged.</summary>
+    /// <summary>Feature ships disabled ("coming soon"). The toggle is never actionable; value is carried through unchanged.</summary>
     [ObservableProperty]
     private bool _buryRelated;
 

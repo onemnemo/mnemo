@@ -25,6 +25,15 @@ namespace Mnemo.Infrastructure.Tests.Flashcards;
 [Collection(AnkiPackageFixture.TestCollection)]
 public sealed class FlashcardAnkiImportTests
 {
+    /// <summary>
+    /// A private root for this test class's import extractions, so <see cref="LeftoverImportDirectories"/>
+    /// scans a directory nothing else on the machine writes to. Scanning the shared OS temp directory
+    /// instead let any other process importing during the run flip the leftover-directory assertion
+    /// either way.
+    /// </summary>
+    private static readonly string ImportTempRoot =
+        Path.Combine(Path.GetTempPath(), $"mnemo-tests-anki-import-{Guid.NewGuid():N}");
+
     private const char UnitSeparator = '';
 
     [Fact]
@@ -36,7 +45,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(), ImportTempRoot);
 
         var apkg = await BuildApkgAsync(
             deckName: "Biology",
@@ -67,7 +76,7 @@ public sealed class FlashcardAnkiImportTests
             Assert.Equal(storedName, Path.GetFileName(storedName));
             Assert.DoesNotContain("..", storedName, StringComparison.Ordinal);
 
-            // No image blocks anywhere — the block pipeline is text-only now.
+            // No image blocks anywhere. The block pipeline is text-only now.
             var allBlocks = (card.FrontBlocks ?? Array.Empty<Block>())
                 .Concat(card.BackBlocks ?? Array.Empty<Block>());
             Assert.DoesNotContain(allBlocks, b => b.Type == BlockType.Image);
@@ -87,7 +96,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(), ImportTempRoot);
 
         var apkg = await BuildApkgAsync(
             deckName: "Overflow",
@@ -131,7 +140,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(), ImportTempRoot);
 
         // A .apkg with no collection.anki21/anki2 fails after the temp directory is already
         // extracted; both call sites must still remove it rather than leaking it in %TEMP%.
@@ -165,7 +174,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(), ImportTempRoot);
 
         var apkg = await BuildApkgAsync(
             deckName: "Mislabelled",
@@ -200,7 +209,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(), ImportTempRoot);
 
         var apkg = await BuildApkgAsync(
             deckName: "NotAnImage",
@@ -236,7 +245,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(), ImportTempRoot);
 
         // A real image outside the package, so only the containment check can stop it being
         // copied. A non-image would be refused for the wrong reason and prove nothing.
@@ -277,7 +286,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(), ImportTempRoot);
 
         var apkg = await BuildApkgAsync("Escape", "front", "back", new Dictionary<string, byte[]>());
         var escapeName = $"mnemo_anki_escape_{Guid.NewGuid():N}.png";
@@ -321,7 +330,9 @@ public sealed class FlashcardAnkiImportTests
         "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==");
 
     private static HashSet<string> LeftoverImportDirectories() =>
-        new(Directory.GetDirectories(Path.GetTempPath(), "mnemo-anki-import-*"), StringComparer.OrdinalIgnoreCase);
+        Directory.Exists(ImportTempRoot)
+            ? new(Directory.GetDirectories(ImportTempRoot, "mnemo-anki-import-*"), StringComparer.OrdinalIgnoreCase)
+            : new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Writes a .apkg zip containing no collection.anki21/anki2, for temp-cleanup coverage.</summary>
     private static async Task<string> BuildBrokenApkgAsync()

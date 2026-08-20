@@ -1734,7 +1734,7 @@ public class ChatViewModel : ViewModelBase, INavigationAware, IDisposable
         await Dispatcher.UIThread.InvokeAsync(() => ApplyNotice(aiMessage, kind, text));
     }
 
-    /// <summary>Replaces the turn's trace/answer with an inline notice row (transient — never persisted, never model context).</summary>
+    /// <summary>Replaces the turn's trace/answer with an inline notice row (transient: never persisted, never model context).</summary>
     private static void ApplyNotice(ChatMessageViewModel message, ChatNoticeKind kind, string text)
     {
         message.ProcessSteps.Clear();

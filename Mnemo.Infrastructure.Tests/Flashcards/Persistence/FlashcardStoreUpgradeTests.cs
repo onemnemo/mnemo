@@ -229,7 +229,9 @@ public sealed class FlashcardStoreUpgradeTests
     }
 
     /// <summary>Writes a collection with the current build, so the file has the full real shape.</summary>
-    private static async Task WriteRealCollectionAsync(string path, string deckId, string cardId)
+    /// <remarks>Internal rather than private: <see cref="FlashcardStoreVersionMatrixTests"/> composes
+    /// with this rather than rebuilding its own copy of a real collection.</remarks>
+    internal static async Task WriteRealCollectionAsync(string path, string deckId, string cardId)
     {
         var now = DateTimeOffset.UtcNow;
         await using var store = new FlashcardStore(new TestLogger(), path);
@@ -317,7 +319,7 @@ public sealed class FlashcardStoreUpgradeTests
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private static async Task SetVersionAsync(string path, int version)
+    internal static async Task SetVersionAsync(string path, int version)
     {
         SqliteConnection.ClearAllPools();
         await using var conn = new SqliteConnection($"Data Source={path}");
@@ -410,7 +412,7 @@ public sealed class FlashcardStoreUpgradeTests
         await deck.ExecuteNonQueryAsync();
     }
 
-    private static Task<bool> ColumnExistsAsync(FlashcardStore store, string table, string column) =>
+    internal static Task<bool> ColumnExistsAsync(FlashcardStore store, string table, string column) =>
         store.ReadAsync(async (conn, ct) =>
         {
             await using var cmd = conn.CreateCommand();
@@ -435,7 +437,7 @@ public sealed class FlashcardStoreUpgradeTests
             return await cmd.ExecuteScalarAsync(ct) is not null;
         });
 
-    private static void Delete(string path)
+    internal static void Delete(string path)
     {
         SqliteConnection.ClearAllPools();
         foreach (var file in new[] { path, path + "-wal", path + "-shm" })

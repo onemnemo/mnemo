@@ -58,7 +58,7 @@ public class LocalPathToBitmapConverter : IValueConverter
 
     private static void EvictOne()
     {
-        // Drop a single arbitrary entry. Cheap and good enough — bitmaps for stale paths/timestamps
+        // Drop a single arbitrary entry. Cheap and good enough; bitmaps for stale paths/timestamps
         // can't be re-fetched on demand cost-free, but image previews are not on the absolute hot path.
         foreach (var kv in Cache)
         {

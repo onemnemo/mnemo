@@ -6,7 +6,7 @@ namespace Mnemo.Infrastructure.Services.Flashcards;
 /// <summary>
 /// Applies a preset's daily caps to raw due counts. New cards beyond the day's remaining new budget
 /// are not introduced; mature (Due) reviews are bounded by the remaining review budget. Learning
-/// cards are never capped — they must be finished once started.
+/// cards are never capped. They must be finished once started.
 /// </summary>
 internal static class FlashcardDueCalculator
 {

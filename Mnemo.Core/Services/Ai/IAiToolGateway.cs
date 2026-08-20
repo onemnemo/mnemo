@@ -26,7 +26,7 @@ public interface IAiToolGateway
     /// </summary>
     /// <remarks>
     /// Tool failures (unknown tool, bad arguments, handler errors) are returned as error
-    /// content in the result — not thrown — so the agentic loop can relay them to the
+    /// content in the result (not thrown), so the agentic loop can relay them to the
     /// model verbatim. Only cancellation propagates as an exception.
     /// </remarks>
     /// <param name="call">The call as requested by the model.</param>

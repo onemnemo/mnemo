@@ -18,7 +18,7 @@ namespace Mnemo.UI.Modules.Flashcards.ViewModels;
 /// ViewModel is a thin projection over it: it renders the current card (markdown front/back with cloze
 /// masking + first-class attachments), computes the four next-interval previews from the deck's preset,
 /// drives the auto-reveal timer, and routes grade / undo / edit / flag / close through the engine. It
-/// never grades or persists directly — every mutation goes through the engine so the "Review persists,
+/// never grades or persists directly: every mutation goes through the engine so the "Review persists,
 /// Cram persists nothing / Again requeues in-session" invariants hold by construction.
 /// </summary>
 public partial class FlashcardSessionViewModel : ViewModelBase, INavigationAware, IDisposable
@@ -43,7 +43,7 @@ public partial class FlashcardSessionViewModel : ViewModelBase, INavigationAware
     /// <summary>Cancels a pending auto-reveal when the card changes / the user reveals manually.</summary>
     private CancellationTokenSource? _autoRevealCts;
 
-    /// <summary>Grades performed minus undos — drives <see cref="CanUndo"/> without an engine query.</summary>
+    /// <summary>Grades performed minus undos; drives <see cref="CanUndo"/> without an engine query.</summary>
     private int _undoDepth;
 
     /// <summary>Cards graded this session (for the Activity stat bucket on leave).</summary>
@@ -246,7 +246,7 @@ public partial class FlashcardSessionViewModel : ViewModelBase, INavigationAware
         var token = _lifetimeCts.Token;
         try
         {
-            // Deck header (name) + the deck's preset (auto-reveal) — the header comes from the library
+            // Deck header (name) + the deck's preset (auto-reveal); the header comes from the library
             // service; the study service exposes only the session + due counts.
             var summary = await _library.GetDeckAsync(request.DeckId, token).ConfigureAwait(false);
             var deckDisplayName = summary?.Header.Name ?? string.Empty;
@@ -475,7 +475,7 @@ public partial class FlashcardSessionViewModel : ViewModelBase, INavigationAware
             }
             else
             {
-                // Engine had nothing to undo — resync our depth so the button disables.
+                // Engine had nothing to undo: resync our depth so the button disables.
                 _undoDepth = 0;
             }
         }

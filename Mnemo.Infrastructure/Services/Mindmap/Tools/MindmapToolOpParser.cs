@@ -18,7 +18,7 @@ namespace Mnemo.Infrastructure.Services.Mindmap.Tools;
 /// </summary>
 public static class MindmapToolOpParser
 {
-    // Same converters and discriminators as storage, but tolerant of property-name casing — a small model
+    // Same converters and discriminators as storage, but tolerant of property-name casing. A small model
     // is inconsistent about it, and there is no reason to reject "Fill" when "fill" is meant.
     private static readonly JsonSerializerOptions ContentOptions =
         new(MindmapDocumentSerializer.Options) { PropertyNameCaseInsensitive = true };

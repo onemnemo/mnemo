@@ -208,7 +208,7 @@ public class OverviewLayoutStoreTests
         Assert.True(result.IsSuccess);
         var byId = result.Value!.Widgets.ToDictionary(w => w.WidgetId);
 
-        // Dense pack of [2×1, 2×2, 2×2] on a 4-column grid — identical to the pre-coords appearance.
+        // Dense pack of [2×1, 2×2, 2×2] on a 4-column grid, identical to the pre-coords appearance.
         Assert.Equal((0, 0), (byId["mnemo.flashcard-stats"].Column, byId["mnemo.flashcard-stats"].Row));
         Assert.Equal((2, 0), (byId["mnemo.recent-decks"].Column, byId["mnemo.recent-decks"].Row));
         Assert.Equal((0, 1), (byId["mnemo.recent-notes"].Column, byId["mnemo.recent-notes"].Row));

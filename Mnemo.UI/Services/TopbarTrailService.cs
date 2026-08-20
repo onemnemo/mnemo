@@ -14,7 +14,7 @@ public sealed record TopbarTrailCrumb(string Title, string? Route = null, object
 /// <summary>
 /// Lets the current page publish a hierarchy trail ("where am I inside the module") into the
 /// topbar, next to the sidebar-resolved module label. The trail is cleared automatically on every
-/// navigation, so pages must set it after their navigation completes — typically from the async
+/// navigation, so pages must set it after their navigation completes, typically from the async
 /// load that resolves the names, never synchronously inside <c>OnNavigatedTo</c>.
 /// </summary>
 public interface ITopbarTrailService

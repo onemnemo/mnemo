@@ -14,7 +14,7 @@ namespace Mnemo.UI.Components.BlockEditor;
 /// <summary>
 /// Pure layout-construction helpers for <see cref="RichTextEditor"/>:
 /// expanded-layout-text building and text measurement.
-/// Receives all required data as parameters — no reference to the control instance.
+/// Receives all required data as parameters; no reference to the control instance.
 /// </summary>
 internal static class RichTextLayoutBuilder
 {

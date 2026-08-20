@@ -16,8 +16,8 @@ public sealed class ElementContentJsonConverter : JsonConverter<IElementContent>
 {
     private const string TypeProperty = "$type";
 
-    // The one place discriminator strings bind to CLR types. PlaceholderContent is intentionally absent —
-    // it is the fallback for anything not in this table.
+    // The one place discriminator strings bind to CLR types. PlaceholderContent is intentionally absent.
+    // It is the fallback for anything not in this table.
     private static readonly IReadOnlyDictionary<string, Type> ByDiscriminator = new Dictionary<string, Type>(StringComparer.Ordinal)
     {
         [ElementContentDiscriminators.Text] = typeof(TextContent),
@@ -69,7 +69,7 @@ public sealed class ElementContentJsonConverter : JsonConverter<IElementContent>
         writer.WriteStartObject();
         writer.WriteString(TypeProperty, value.TypeDiscriminator);
 
-        // Serialize the concrete payload, then splice its members in — skipping the redundant
+        // Serialize the concrete payload, then splice its members in, skipping the redundant
         // TypeDiscriminator projection (it is represented by $type). Serializing value.GetType() (concrete)
         // does not re-enter this converter, which only handles the IElementContent-typed slot.
         using var payload = JsonSerializer.SerializeToDocument(value, value.GetType(), options);

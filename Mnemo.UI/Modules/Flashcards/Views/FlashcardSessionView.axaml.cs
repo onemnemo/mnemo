@@ -20,7 +20,7 @@ namespace Mnemo.UI.Modules.Flashcards.Views;
 /// Study session shell code-behind. All state lives in <see cref="FlashcardSessionViewModel"/>;
 /// this wires only view-only glue: the session keybinds (1 to 4 grade, Space reveal/good, E edit, Ctrl/Cmd+Z
 /// undo, Escape close), click-to-reveal on the card, click-to-zoom on an attachment figure, and launching
-/// the card editor / review-settings overlays — refreshing the current card when the editor closes.
+/// the card editor / review-settings overlays, refreshing the current card when the editor closes.
 /// Keybinds are handled at view level (the same pattern the editor / review-settings overlays use), since
 /// this is a full-page focus owner rather than a route the global keymap targets.
 /// </summary>
@@ -102,7 +102,7 @@ public partial class FlashcardSessionView : UserControl
 
         var primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
 
-        // Ctrl/Cmd+Z — undo.
+        // Ctrl/Cmd+Z: undo.
         if (e.KeyModifiers.HasFlag(primary) && e.Key == Key.Z)
         {
             if (_viewModel.UndoCommand.CanExecute(null))

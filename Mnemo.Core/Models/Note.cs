@@ -23,7 +23,7 @@ public class Note
     /// <summary>
     /// Monotonic revision counter, incremented once per converged logical document change. Content
     /// writes compare against it and swap, so it is what makes a stale write fail instead of
-    /// clobbering. It must never decrease — not even when content is restored to an earlier state,
+    /// clobbering. It must never decrease, not even when content is restored to an earlier state,
     /// because an old edit token would then become valid again for different content.
     /// Zero means the note predates the migration.
     /// </summary>

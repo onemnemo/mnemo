@@ -136,7 +136,7 @@ public sealed class ToastService : IToastService
 
     /// <summary>
     /// Desired order top → bottom: newest timed … oldest timed, then oldest sticky … newest sticky (corner).
-    /// Updates <see cref="ActiveToasts"/> with Remove/Move/Insert only — avoids Clear() so items do not flicker.
+    /// Updates <see cref="ActiveToasts"/> with Remove/Move/Insert only; avoids Clear() so items do not flicker.
     /// </summary>
     private void SyncActiveCollectionWithDesiredOrder()
     {

@@ -15,7 +15,7 @@ public partial class WidgetLibraryView : UserControl
     {
         base.OnDetachedFromVisualTree(e);
 
-        // The overlay can close via the X button, Escape, or the board's Done/Cancel —
+        // The overlay can close via the X button, Escape, or the board's Done/Cancel;
         // detaching is the one signal common to all paths, so the owner cleans up here.
         if (DataContext is WidgetLibraryViewModel viewModel)
             viewModel.NotifyClosed();

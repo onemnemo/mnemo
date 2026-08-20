@@ -287,7 +287,7 @@
 
                 <!-- ===================== ACTIVE CONVERSATION ===================== -->
                 <Grid RowDefinitions="Auto,*" IsVisible="{Binding !ShowWelcomeIntro}">
-                    <!-- Session header: title only, actions on hover-free demand. No divider —
+                    <!-- Session header: title only, actions on hover-free demand. No divider,
                          the thread's own whitespace separates it. -->
                     <Grid Grid.Row="0" Height="44" Margin="24,0,16,0" ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0"
@@ -354,7 +354,7 @@
                                                                           IsChecked="{Binding IsProcessThreadExpanded, Mode=TwoWay}">
                                                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                                                     <!-- One 13px slot for both states, so the label doesn't shift
-                                                                         when streaming ends. Done is a bare faded check — the
+                                                                         when streaming ends. Done is a bare faded check, the
                                                                          header text already says the turn finished. -->
                                                                     <Panel Width="13" Height="13" VerticalAlignment="Center">
                                                                         <Panel IsVisible="{Binding IsStreaming}">
@@ -404,7 +404,7 @@
                                                                                                   Width="14" Height="14"
                                                                                                   Color="{DynamicResource ChatProcessStateActiveBrush}"/>
                                                                             </Panel>
-                                                                            <!-- Done reads as a quiet faded check — colour in the rail is reserved
+                                                                            <!-- Done reads as a quiet faded check, colour in the rail is reserved
                                                                                  for live activity and failure. -->
                                                                             <controls:AppIcon Icon="States/done-check"
                                                                                               Width="14" Height="14"
@@ -422,7 +422,7 @@
                                                                         <TextBlock Classes="chatStepLabel"
                                                                                    Classes.active="{Binding IsActivelyThinking}"
                                                                                    Text="{markup:T Ns=Chat, Key=ThinkingLabel}"/>
-                                                                        <!-- Clamped 2-line summary of the reasoning — never the full chain-of-thought. -->
+                                                                        <!-- Clamped 2-line summary of the reasoning, never the full chain-of-thought. -->
                                                                         <TextBlock Text="{Binding Thoughts}"
                                                                                    FontSize="{DynamicResource FontSize.Body.ExtraSmall}"
                                                                                    Foreground="{DynamicResource TextFadedBrush}"

@@ -31,7 +31,7 @@ public sealed record DepthRule
 }
 
 /// <summary>
-/// A named set of styling rules — the primary way a map gets its look. A template contributes
+/// A named set of styling rules, the primary way a map gets its look. A template contributes
 /// defaults to the style cascade; per-element overrides always sit above it and survive template switches.
 /// Stored globally and referenced by id; a <c>.mnemo</c> export embeds a snapshot of referenced templates
 /// so maps stay portable.

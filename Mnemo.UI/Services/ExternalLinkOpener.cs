@@ -38,7 +38,7 @@ public static class ExternalLinkOpener
         }
         catch
         {
-            // Nothing more we can do — a missing browser shouldn't take the app down.
+            // Nothing more we can do; a missing browser shouldn't take the app down.
         }
     }
 }

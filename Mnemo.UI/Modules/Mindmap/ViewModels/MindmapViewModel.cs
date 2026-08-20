@@ -55,7 +55,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     private MindmapDocument? _document;
 
     // Resolved titles for note/flashcard refs, keyed "note:{id}" / "deck:{id}"; a null value marks a confirmed
-    // dangling reference. Lives for the view model's lifetime — a note/deck renamed elsewhere is not reflected
+    // dangling reference. Lives for the view model's lifetime; a note/deck renamed elsewhere is not reflected
     // until the map is reopened (accepted staleness).
     private readonly Dictionary<string, (string Title, string? Badge)?> _refCache = new();
 
@@ -107,7 +107,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     // Never-null binding sources for the floating toolbars and inspector. Compiled bindings walk their
     // chains even while those panels are hidden, and a null intermediate logs a binding error per control
-    // per selection change — dozens per click, and the error logging itself is measurably slow. The
+    // per selection change; dozens per click, and the error logging itself is measurably slow. The
     // placeholders are inert detached items that nothing edits.
     private static readonly MindmapNodeItem PlaceholderNode = new() { Id = string.Empty };
     private static readonly MindmapEdgeItem PlaceholderEdge = new(string.Empty, PlaceholderNode, PlaceholderNode, isHierarchy: false);
@@ -124,7 +124,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     // The additive multi-selection set. <see cref="SelectedNode"/> stays the PRIMARY (last added) and every
     // existing single-selection consumer keeps reading it; this only tracks the extra members so multi-drag,
     // multi-delete and align/distribute have a set to work over. Invariant: a member is in this list iff its
-    // IsSelected is true, and the primary — when non-null — is the last entry. A set of ≤1 mirrors the old
+    // IsSelected is true, and the primary, when non-null, is the last entry. A set of ≤1 mirrors the old
     // single selection exactly, so single-selection behaviour is unchanged.
     private readonly List<MindmapNodeItem> _selectedNodes = new();
 
@@ -581,7 +581,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     // our own pipeline reloads after it commits, and that reload reads the latest document anyway.
     private int _localMutationsInFlight;
 
-    // Raised by the service on its committing (background) thread after any successful commit — including
+    // Raised by the service on its committing (background) thread after any successful commit, including
     // ones made by AI tools while this map is open. Marshal to the UI thread before touching state.
     private void OnServiceChanged(object? sender, MindmapChangedEventArgs e)
     {
@@ -700,7 +700,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         var branchColors = new Dictionary<string, string?>();
         Nodes.Clear();
 
-        // Frames are containers, so they draw behind everything — project them first (lowest z). Their
+        // Frames are containers, so they draw behind everything; project them first (lowest z). Their
         // explicit membership rides along so the canvas can drag the whole group together.
         foreach (var element in document.Elements.Where(e => e.Kind == ElementKind.Frame))
         {
@@ -1202,7 +1202,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         }
 
         // Collapse any multi-selection to just this node. A set of ≤1 touches only the two affected items,
-        // exactly as before — looping every node fired a property-change and canvas invalidate per element
+        // exactly as before; looping every node fired a property-change and canvas invalidate per element
         // on every click, which dragged on large maps.
         for (var i = 0; i < _selectedNodes.Count; i++)
             if (!ReferenceEquals(_selectedNodes[i], node))
@@ -1372,7 +1372,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     }
 
     // Floats the style toolbar just above the selected node, following pan, zoom and drag. Hidden when the
-    // selection holds more than one element — a multi-selection shows the align toolbar (or nothing) instead.
+    // selection holds more than one element; a multi-selection shows the align toolbar (or nothing) instead.
     private void UpdateSelectionToolbar()
     {
         var node = SelectedNode;
@@ -1500,7 +1500,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
 
     /// <summary>
     /// Commits a live multi-element drag as one move batch (one undo step) from the elements' current
-    /// positions, then restores the selection. A selected frame's members are left out — the frame's own
+    /// positions, then restores the selection. A selected frame's members are left out; the frame's own
     /// move already translates them in Core, so a separate move would shift them twice.
     /// </summary>
     public async Task CommitMultiMoveAsync()
@@ -2213,7 +2213,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
     public Task CreateDefaultShapeAtCursorAsync() => CreateShapeAsync(ShapeType.Rectangle, CursorAnchorContent());
 
     /// <summary>
-    /// Creates a link edge (connector) between two elements — or removes the existing one, so the connect
+    /// Creates a link edge (connector) between two elements, or removes the existing one, so the connect
     /// tool doubles as the disconnect gesture. No-op if they are the same element.
     /// </summary>
     public async Task LinkAsync(string fromId, string toId)
@@ -2246,7 +2246,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         if (!import.IsSuccess || string.IsNullOrEmpty(import.Value))
             return;
 
-        // Store only the file name so the document stays portable — renderers resolve it under the shared
+        // Store only the file name so the document stays portable; renderers resolve it under the shared
         // images directory. Deleting an image element never deletes this file: undo can bring the element
         // back, and a later integrity sweep reclaims genuinely orphaned assets.
         var assetId = Path.GetFileName(import.Value);
@@ -2493,7 +2493,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         }, selectRef: "paste").ConfigureAwait(true);
     }
 
-    /// <summary>Duplicates the selected subtree as a sibling, or — for a root — as an offset copy beside it.</summary>
+    /// <summary>Duplicates the selected subtree as a sibling, or (for a root) as an offset copy beside it.</summary>
     public async Task DuplicateSelectionAsync()
     {
         if (SelectedNode is null || _document is null)
@@ -2514,7 +2514,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         }
 
         // Root: there is no parent to re-home under, and the placeholder layout would drop a fresh root
-        // cluster off-screen — so pin the whole copied subtree at a small offset from the source so it
+        // cluster off-screen, so pin the whole copied subtree at a small offset from the source so it
         // lands visibly beside the original.
         const double offset = 48;
         var pinnedSpec = CaptureSubtree(SelectedNode.Id, offset, offset) with { Ref = "dup" };
@@ -2567,7 +2567,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
             return;
 
         // Note/flashcard refs have no editable label: the service's text edit would convert the ref to plain
-        // text. Their label comes from the target entity and changes only by relinking. (Links stay editable —
+        // text. Their label comes from the target entity and changes only by relinking. (Links stay editable;
         // their edit writes the link title.)
         if (item.ContentType is ElementContentDiscriminators.Note or ElementContentDiscriminators.Flashcard)
             return;
@@ -2596,7 +2596,7 @@ public partial class MindmapViewModel : ViewModelBase, INavigationAware
         LabelEditorHeight = boxHeight * scale;
         LabelEditorFontSize = FontSizeFor(item.FontScale) * scale;
 
-        // Mirror how the canvas draws this label — alignment, left inset, family and weight — so the text
+        // Mirror how the canvas draws this label (alignment, left inset, family and weight) so the text
         // doesn't visibly jump when the editor opens or commits.
         LabelEditorTextAlignment = isCode || isTask || isLink ? TextAlignment.Left : TextAlignment.Center;
         LabelEditorIsMono = isCode;

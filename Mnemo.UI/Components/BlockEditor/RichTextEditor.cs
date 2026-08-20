@@ -148,7 +148,7 @@ public partial class RichTextEditor : Control, ICustomHitTest, IRichTextEditorHo
     internal InlineEquationController? _equations;
     /// <summary>Delegate back-ref so controller can trigger editor rebuilds.</summary>
     internal Task RebuildInlineEquationsAsync() => _equations != null ? RebuildInlineEquationsAsyncCore() : Task.CompletedTask;
-    /// <summary>Cached flag — set whenever <see cref="Spans"/> are reassigned. Avoids a per-keystroke LINQ Any scan.</summary>
+    /// <summary>Cached flag, set whenever <see cref="Spans"/> are reassigned. Avoids a per-keystroke LINQ Any scan.</summary>
     private bool _hasEquationSpans;
 
     /// <summary>Cached flattened text. <see cref="OnSpansChanged"/> clears this; the getter rebuilds lazily.
@@ -349,7 +349,7 @@ public partial class RichTextEditor : Control, ICustomHitTest, IRichTextEditorHo
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        // Do NOT start caret timer here — timer fires every 530ms causing repaints on all realized editors.
+        // Do NOT start caret timer here; timer fires every 530ms causing repaints on all realized editors.
         // Started in OnGotFocus, stopped in OnLostFocus.
         _services = RichTextServices.Resolve();
         _equations = new InlineEquationController(this, _services.LaTeX);

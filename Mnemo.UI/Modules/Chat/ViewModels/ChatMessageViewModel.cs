@@ -23,7 +23,7 @@ public enum ChatNoticeKind
 {
     None = 0,
 
-    /// <summary>The configured provider needs an API key and none is set — points the user at Settings.</summary>
+    /// <summary>The configured provider needs an API key and none is set: points the user at Settings.</summary>
     MissingApiKey = 1,
 
     /// <summary>No model is bound / the model can't be reached right now.</summary>
@@ -92,7 +92,7 @@ public class ChatMessageViewModel : ViewModelBase
 
     private bool _isLatestAssistantTurn;
     /// <summary>
-    /// True only on the newest assistant message in the thread — its action bar stays visible
+    /// True only on the newest assistant message in the thread; its action bar stays visible
     /// while earlier turns reveal theirs on hover.
     /// </summary>
     public bool IsLatestAssistantTurn
@@ -230,7 +230,7 @@ public class ChatMessageViewModel : ViewModelBase
 
     /// <summary>
     /// True while the model's reasoning trace is the only thing being
-    /// produced — distinct from the "generating response" phase, which starts
+    /// produced, distinct from the "generating response" phase, which starts
     /// the moment visible <see cref="Content"/> begins to arrive. Drives the
     /// live "Thinking" indicator so the two states never look merged.
     /// </summary>
@@ -239,7 +239,7 @@ public class ChatMessageViewModel : ViewModelBase
     /// <summary>True once the model has moved on from reasoning to producing (or has finished) its final reply.</summary>
     public bool HasFinishedThinking => IsThinking && !IsActivelyThinking;
 
-    /// <summary>True from send until the first visible token arrives — drives the answer-area shimmer skeleton.</summary>
+    /// <summary>True from send until the first visible token arrives; drives the answer-area shimmer skeleton.</summary>
     public bool IsAwaitingFirstToken => IsStreaming && Content.Length == 0;
 
     private MessageFeedback _feedback = MessageFeedback.None;
@@ -298,7 +298,7 @@ public class ChatMessageViewModel : ViewModelBase
     public bool HasProcessThreadOrThoughts => HasProcessThread || IsThinking;
 
     /// <summary>
-    /// True when the process thread is worth showing (tool use, continuation after tools, or explicit thinking text) — not routing / model prep / generation alone.
+    /// True when the process thread is worth showing (tool use, continuation after tools, or explicit thinking text), not routing / model prep / generation alone.
     /// </summary>
     public bool HasSubstantiveProcessThread =>
         IsThinking

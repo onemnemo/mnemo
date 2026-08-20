@@ -65,7 +65,7 @@
                 <Grid RowDefinitions="Auto,8,*">
                     <!-- Header row: label + toolbar overlay (toolbar never affects layout height) -->
                     <Grid>
-                        <!-- Toolbar floats right — Opacity-only toggle so row height never changes -->
+                        <!-- Toolbar floats right, opacity-only toggle so row height never changes -->
                         <StackPanel
                             x:Name="Toolbar"
                             HorizontalAlignment="Right"

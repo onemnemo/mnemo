@@ -20,7 +20,7 @@ namespace Mnemo.UI.Modules.Overview.Controls;
 /// coordinates (<see cref="IWidgetLayoutEngine.Resolve"/>, free-grid placement); at narrower
 /// breakpoints it flow-compacts (<see cref="IWidgetLayoutEngine.Pack"/>) so nothing is lost.
 /// The panel converts placements to pixels, animates tiles between layouts (FLIP, via a
-/// render-transform — never a layout property), computes edit-mode hint cells (drawn by
+/// render-transform, never a layout property), computes edit-mode hint cells (drawn by
 /// <see cref="WidgetBoardHintLayer"/> because <c>Panel.Render</c> is sealed), and translates a
 /// pointer position to the grid cell under it for drag placement.
 /// </summary>
@@ -59,7 +59,7 @@ public sealed class WidgetBoardPanel : Panel
 
     private readonly List<Rect> _childRects = new();
     private readonly List<Rect> _hintCells = new();
-    // Last arranged rect per child, keyed by the container — drives the FLIP slide animation.
+    // Last arranged rect per child, keyed by the container; drives the FLIP slide animation.
     private readonly Dictionary<Control, Rect> _lastArranged = new();
 
     private int _lastColumnCount = OverviewBoardMetrics.MaxColumns;
@@ -143,7 +143,7 @@ public sealed class WidgetBoardPanel : Panel
 
             // FLIP: if the tile moved since the last pass, jump it back to where it was and let a
             // render-transform transition slide it into place. The dragged tile (anchor) is
-            // excluded — it is hidden and its floating ghost follows the pointer instead.
+            // excluded; it is hidden and its floating ghost follows the pointer instead.
             if (i == AnchorIndex)
                 child.RenderTransform = TransformOperations.Identity;
             else if (_lastArranged.TryGetValue(child, out var previous))
@@ -299,7 +299,7 @@ public sealed class WidgetBoardPanel : Panel
             return engine.Resolve(desired, columnCount, AnchorIndex).ToArray();
         }
 
-        // Narrow breakpoint: flow-compact in canonical (Row, Column) order — coordinates from the
+        // Narrow breakpoint: flow-compact in canonical (Row, Column) order; coordinates from the
         // 4-column grid no longer fit, so the board collapses to a gap-free flow.
         var order = Enumerable.Range(0, Children.Count)
             .OrderBy(i => NormalizedRow(Children[i]))
