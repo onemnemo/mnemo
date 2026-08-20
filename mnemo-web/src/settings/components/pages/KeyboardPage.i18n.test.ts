@@ -2,9 +2,10 @@
  * KeyboardPage renders one row per server-side keybind action, and every row's label
  * and category come from t(NS, action.labelKey) / t(NS, action.categoryKey) with
  * NS = "Keybinds" (see labelsFor / groupByCategory in KeyboardPage.tsx). The actions
- * themselves are declared across three separate C# modules (CoreUIModule, NotesModule,
- * MindmapModule), and nothing connects a manifest entry's DisplayLabelKey /
- * DisplayCategoryKey to whether that key actually exists in a bundle. A new action
+ * themselves are declared across three separate C# modules (CoreBackendModule,
+ * NotesBackendModule, MindmapBackendModule), and nothing connects a manifest
+ * entry's DisplayLabelKey / DisplayCategoryKey to whether that key actually
+ * exists in a bundle. A new action
  * shipped without a translation renders its own id, e.g. `editor.bold`, and its
  * section header renders `category.formatting`: this is the single most visible way
  * the Keyboard page can look broken to a new user, so this test enumerates every
@@ -15,9 +16,9 @@ import { describe, expect, it } from "vitest"
 import { mergedEnglishBundle, readRepoText, resolves } from "@/i18n/test-bundle"
 
 const PAGE_SOURCE = readRepoText("mnemo-web", "src", "settings", "components", "pages", "KeyboardPage.tsx")
-const CORE_MODULE = readRepoText("Mnemo.UI", "Modules", "CoreUIModule.cs")
-const NOTES_MODULE = readRepoText("Mnemo.UI", "Modules", "Notes", "NotesModule.cs")
-const MINDMAP_MODULE = readRepoText("Mnemo.UI", "Modules", "Mindmap", "MindmapModule.cs")
+const CORE_MODULE = readRepoText("Mnemo.Infrastructure", "Modules", "Core", "CoreBackendModule.cs")
+const NOTES_MODULE = readRepoText("Mnemo.Infrastructure", "Modules", "Notes", "NotesBackendModule.cs")
+const MINDMAP_MODULE = readRepoText("Mnemo.Infrastructure", "Modules", "Mindmap", "MindmapBackendModule.cs")
 
 interface ActionLabel {
   actionId: string
@@ -49,10 +50,10 @@ function parseExplicitDefinitions(source: string): ActionLabel[] {
 }
 
 /**
- * CoreUIModule's EditorKeybindManifest.Chords: `new("id", "gesture", descriptionKeyOrNull
+ * CoreBackendModule's EditorKeybindManifest.Chords: `new("id", "gesture", descriptionKeyOrNull
  * [, "categoryKey"])`, registered with `DisplayLabelKey = chord.ActionId` and a
  * `DisplayCategoryKey` that defaults to "category.formatting" when the 4th argument is
- * omitted (see the record's default in CoreUIModule.cs).
+ * omitted (see the record's default in CoreBackendModule.cs).
  */
 function parseEditorChords(source: string): ActionLabel[] {
   const array = source.match(/Chords\s*=\s*\[([\s\S]*?)\];/)?.[1] ?? ""
@@ -65,7 +66,7 @@ function parseEditorChords(source: string): ActionLabel[] {
 }
 
 /**
- * MindmapModule's MindmapKeybindManifest.Definitions: every entry is `Chords("id", ...
+ * MindmapBackendModule's MindmapKeybindManifest.Definitions: every entry is `Chords("id", ...
  * gestures)`, and that local helper always sets DisplayLabelKey to the action id and
  * DisplayCategoryKey to "category.mindmap".
  */
