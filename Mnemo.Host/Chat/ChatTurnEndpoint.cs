@@ -13,7 +13,6 @@ using Mnemo.Host.Ai;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Events;
 using Mnemo.Infrastructure.Services.AI;
-using Mnemo.UI.Services;
 
 namespace Mnemo.Host.Chat;
 
@@ -260,7 +259,7 @@ public static class ChatTurnEndpoint
             Thoughts = thoughts,
             ThoughtsCount = trace.ThoughtsCount,
             ProcessHeaderText = localize("ThoughtFor"),
-            ElapsedText = ChatProcessThreadTracker.FormatShortDuration(trace.Elapsed),
+            ElapsedText = ChatTurnDuration.FormatShort(trace.Elapsed),
             ProcessSummaryText = trace.BuildCompletionSummary(localize),
             ProcessSteps = steps.Count == 0 ? null : steps,
         };
