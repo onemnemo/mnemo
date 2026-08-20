@@ -156,7 +156,10 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         var tempPath = Path.Combine(Path.GetTempPath(), $"mnemo-notes-{Guid.NewGuid():N}.db");
         try
         {
-            using (var connection = new SqliteConnection($"Data Source={tempPath}"))
+            // Pooling is off so disposing the connection releases the temp file immediately (allowing the
+            // read/delete below) without a process-global SqliteConnection.ClearAllPools(), which would
+            // disrupt other stores' live connections. Matches the mindmap and flashcard payload writers.
+            using (var connection = new SqliteConnection($"Data Source={tempPath};Pooling=False"))
             {
                 connection.Open();
                 using var cmd = connection.CreateCommand();
@@ -196,7 +199,6 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
                 tx.Commit();
             }
 
-            SqliteConnection.ClearAllPools();
             return File.ReadAllBytes(tempPath);
         }
         finally
@@ -215,7 +217,9 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         {
             File.WriteAllBytes(tempPath, dbBytes);
             var snapshot = new NoteSnapshot();
-            using var connection = new SqliteConnection($"Data Source={tempPath}");
+            // Pooling off for the same reason the writer above has it off: the temp file has to be
+            // deletable the moment this connection is disposed, without a process wide pool clear.
+            using var connection = new SqliteConnection($"Data Source={tempPath};Pooling=False");
             connection.Open();
 
             using (var cmd = connection.CreateCommand())
@@ -242,7 +246,6 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
                 }
             }
 
-            SqliteConnection.ClearAllPools();
             return snapshot;
         }
         finally

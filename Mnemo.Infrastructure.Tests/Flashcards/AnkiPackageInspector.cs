@@ -77,7 +77,8 @@ internal static class AnkiPackageInspector
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            // No pool to clear: the collection above is opened with Pooling=False, so its file is
+            // already released by the time this runs.
             try { Directory.Delete(workRoot, recursive: true); } catch (IOException) { }
         }
     }
