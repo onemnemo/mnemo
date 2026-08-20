@@ -29,6 +29,12 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Languages\*.json" />
+    <!-- Module translation resources. The resource name is what the module registers a source
+         for, so a file moved between folders renames its resource and has to be registered
+         under the new name. -->
+    <EmbeddedResource Include="Modules\Flashcards\Translations\*.json" />
+    <EmbeddedResource Include="Modules\Mindmap\Translations\*.json" />
+    <EmbeddedResource Include="Modules\Notes\Translations\*.json" />
     <EmbeddedResource Include="Seed\WelcomeNote.json" />
     <EmbeddedResource Include="Seed\welcome-mitochondrion.png" />
     <Content Include="Dictionaries\Spellcheck\**\*">
