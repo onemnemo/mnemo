@@ -635,6 +635,7 @@ const UNWIRED_ROW_IDS = new Set<string>([
   "Markdown.MathFontSize",
   "Markdown.RenderMath",
   "App.EnableGamification",
+  "App.PerformanceDiagnostics",
   "Chat.StreamingReveal",
   "AI.WebSearch.Provider",
   "AI.WebSearch.SearxngUrl",
