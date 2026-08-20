@@ -7,11 +7,12 @@ import type { ChatProcessStep, ChatToolEvent } from "./types"
 // so one panel renders both the live trace and a reloaded one.
 //
 // This mirrors the grouping in Mnemo.Host/Chat/ChatTraceBuilder.cs and the label
-// resolution in Mnemo.UI/Services/ChatToolVocabulary.cs. It only drives the
-// transient streaming view: on a successful turn the store swaps in the server's
-// canonical persisted message (resolved header/elapsed/summary and all), so the
-// authoritative trace shape always comes from one place, the server. Keeping a
-// light client mirror here just avoids a blank panel while tokens arrive.
+// resolution in Mnemo.Infrastructure/Services/AI/ChatToolVocabulary.cs. It only
+// drives the transient streaming view: on a successful turn the store swaps in
+// the server's canonical persisted message (resolved header/elapsed/summary and
+// all), so the authoritative trace shape always comes from one place, the
+// server. Keeping a light client mirror here just avoids a blank panel while
+// tokens arrive.
 
 const NS = "Chat"
 
