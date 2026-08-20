@@ -51,9 +51,8 @@ jobs:
 
   dotnet:
     # windows-latest rather than ubuntu-latest: it is the platform release.yml's own gate has
-    # actually built and tested this solution on, Mnemo.UI included. Linux and macOS builds
-    # exist in that matrix too, but neither has completed a real run yet, so there is nothing to
-    # point at for them.
+    # actually built and tested this solution on. Linux and macOS builds exist in that matrix
+    # too, but neither has completed a real run yet, so there is nothing to point at for them.
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

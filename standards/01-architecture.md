@@ -7,13 +7,12 @@
 | `Mnemo.Core` | Interfaces, models, contracts, enums. Zero implementation dependencies. | nothing |
 | `Mnemo.Infrastructure` | Concrete implementations: storage, AI, knowledge management, services. | Core |
 | `Mnemo.Host` | The loopback HTTP API and the desktop shell that hosts the web UI. | Core, Infrastructure |
-| `Mnemo.UI` | The Avalonia presentation layer and the module tree. | Core, Infrastructure |
-| `mnemo-web` | The React single page app, the primary user interface. | the Host HTTP API |
+| `mnemo-web` | The React single page app, the user interface. | the Host HTTP API |
 
 Rules that do not bend:
 
-- `Mnemo.Core` never depends on `Infrastructure`, `Host`, or `UI`. It holds no implementation.
-- Implementation lives in `Infrastructure`. Presentation lives in `UI` and `mnemo-web`.
+- `Mnemo.Core` never depends on `Infrastructure` or `Host`. It holds no implementation.
+- Implementation lives in `Infrastructure`. Presentation lives in `mnemo-web`.
 - No circular dependencies between layers, ever.
 - Implementation details do not leak across a boundary. A Core interface must not expose a
   type that only one implementation could satisfy.
