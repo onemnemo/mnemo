@@ -174,7 +174,7 @@ public sealed class FlashcardAnkiDeckStructureTests
             Assert.True(result.Success, result.ErrorMessage);
             Assert.Equal(1, result.ProcessedCounts["decks"]);
             Assert.Equal(1, result.ProcessedCounts["flashcards"]);
-            Assert.Contains(result.Warnings, w => w.Contains("'Bad'", StringComparison.Ordinal));
+            Assert.Contains(result.Warnings, w => w.Key == "AnkiDeckImportFailed" && w.Params["deckName"] == "Bad");
 
             // The half-made deck is rolled back rather than left for the user to find and delete.
             var deck = Assert.Single(await library.ListDecksAsync());
@@ -209,8 +209,8 @@ public sealed class FlashcardAnkiDeckStructureTests
             Assert.True(result.Success, result.ErrorMessage);
 
             // Dropping the third and later fields silently reads as an import that worked.
-            var warning = Assert.Single(result.Warnings, w => w.Contains("Basic", StringComparison.Ordinal));
-            Assert.Contains("first two fields", warning, StringComparison.Ordinal);
+            var warning = Assert.Single(result.Warnings, w => w.Key == "AnkiExtraFieldsDropped");
+            Assert.Contains("Basic", warning.Params["noteTypes"], StringComparison.Ordinal);
         }
         finally
         {
@@ -307,7 +307,7 @@ public sealed class FlashcardAnkiDeckStructureTests
 
             // Nothing the template asked for was dropped, so warning that fields were lost would
             // send the user looking for a problem that is not there.
-            Assert.DoesNotContain(result.Warnings, w => w.Contains("first two fields", StringComparison.Ordinal));
+            Assert.DoesNotContain(result.Warnings, w => w.Key == "AnkiExtraFieldsDropped");
         }
         finally
         {
@@ -338,8 +338,8 @@ public sealed class FlashcardAnkiDeckStructureTests
             Assert.True(result.Success, result.ErrorMessage);
 
             // Leaving the reference on the card with nothing said reads as a rendering bug.
-            var warning = Assert.Single(result.Warnings, w => w.Contains("audio", StringComparison.OrdinalIgnoreCase));
-            Assert.StartsWith("1 card", warning, StringComparison.Ordinal);
+            var warning = Assert.Single(result.Warnings, w => w.Key == "AnkiAudioNotImported");
+            Assert.Equal("1", warning.Params["count"]);
         }
         finally
         {

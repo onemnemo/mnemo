@@ -18,7 +18,7 @@ public sealed record NoteTransferUploadDto(
     string FormatName,
     bool CanImport,
     int? NoteCount,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<TransferWarningDto> Warnings);
 
 /// <summary>
 /// Import body. Several uploads run as one batch so the client reports a single outcome for what
@@ -45,7 +45,7 @@ public sealed record NoteTransferImportResultDto(
     int SucceededFiles,
     int FailedFiles,
     int ImportedNotes,
-    IReadOnlyList<string> Warnings,
+    IReadOnlyList<TransferWarningDto> Warnings,
     IReadOnlyList<string> Errors);
 
 /// <summary>

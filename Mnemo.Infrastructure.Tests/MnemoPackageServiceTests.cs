@@ -79,7 +79,7 @@ public sealed class MnemoPackageServiceTests
 
             Assert.True(result.IsSuccess);
             Assert.NotNull(result.Value);
-            Assert.Contains(result.Value.Warnings, w => w.Contains("Unknown payload type", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(result.Value.Warnings, w => w.Key == "PackageUnknownPayloadSkipped");
         }
         finally
         {

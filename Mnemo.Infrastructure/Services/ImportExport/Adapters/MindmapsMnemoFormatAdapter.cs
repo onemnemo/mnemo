@@ -35,7 +35,7 @@ public sealed class MindmapsMnemoFormatAdapter : IContentFormatAdapter
                 CanImport = false,
                 ContentType = ContentType,
                 FormatId = FormatId,
-                Warnings = { preview.ErrorMessage ?? "Unable to preview package." }
+                Warnings = { MnemoPackagePreviewWarning.PreviewFailed(preview.ErrorMessage) }
             };
         }
 
@@ -64,7 +64,7 @@ public sealed class MindmapsMnemoFormatAdapter : IContentFormatAdapter
             ContentType = ContentType,
             FormatId = FormatId,
             ProcessedCounts = import.Value?.ImportedCountsByPayload ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
-            Warnings = import.Value?.Warnings ?? new List<string>(),
+            Warnings = import.Value?.Warnings ?? new List<TransferWarning>(),
             ErrorMessage = import.IsSuccess ? null : import.ErrorMessage
         };
     }

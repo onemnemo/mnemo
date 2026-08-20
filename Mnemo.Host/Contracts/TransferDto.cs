@@ -48,7 +48,7 @@ public sealed record TransferUploadDto(
     string FormatName,
     bool CanImport,
     int? CardCount,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<TransferWarningDto> Warnings);
 
 /// <summary>
 /// Import body. Several uploads run as one batch so the client reports a single outcome for what
@@ -73,7 +73,7 @@ public sealed record TransferImportResultDto(
     int SucceededFiles,
     int FailedFiles,
     int ImportedCards,
-    IReadOnlyList<string> Warnings,
+    IReadOnlyList<TransferWarningDto> Warnings,
     IReadOnlyList<string> Errors);
 
 /// <summary>
