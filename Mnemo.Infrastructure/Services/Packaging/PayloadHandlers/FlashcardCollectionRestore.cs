@@ -505,7 +505,8 @@ internal sealed class FlashcardCollectionRestore
                 StabilityAfter: review.StabilityAfter,
                 DifficultyAfter: review.DifficultyAfter,
                 StateBefore: review.StateBefore is { } before ? (FlashcardFsrsState)before : null,
-                StateAfter: (FlashcardFsrsState)review.StateAfter), cancellationToken).ConfigureAwait(false);
+                StateAfter: (FlashcardFsrsState)review.StateAfter,
+                Origin: (FlashcardReviewOrigin)review.Origin), cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var stat in snapshot.DailyStats)
