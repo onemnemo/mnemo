@@ -11,6 +11,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.ImportExport.Adapters.Anki;
 
 namespace Mnemo.Infrastructure.Services.ImportExport.Adapters;
@@ -82,17 +83,20 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
     private readonly IFlashcardLibraryService _library;
     private readonly IFlashcardCardService _cards;
+    private readonly IFlashcardFactService _facts;
     private readonly IFlashcardPresetService _presets;
     private readonly IImageAssetService _imageAssetService;
 
     public FlashcardsAnkiFormatAdapter(
         IFlashcardLibraryService library,
         IFlashcardCardService cards,
+        IFlashcardFactService facts,
         IFlashcardPresetService presets,
         IImageAssetService imageAssetService)
     {
         _library = library;
         _cards = cards;
+        _facts = facts;
         _presets = presets;
         _imageAssetService = imageAssetService;
     }
@@ -162,76 +166,54 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     note.ModelName = modelName;
             }
 
-            var decksByDid = cards
-                .GroupBy(c => c.HomeDeckId)
-                .OrderBy(g => g.Key)
-                .ToArray();
+            var plan = PlanDecks(cards, notes, collectionInfo.NoteTypes);
 
             var now = DateTimeOffset.UtcNow;
             var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
             var folders = await DeckFolderResolver.CreateAsync(_library, cancellationToken).ConfigureAwait(false);
-            var noteTypesWithExtraFields = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tally = new ImportTally();
             var failedDecks = 0;
-            var cardsWithAudio = 0;
 
-            foreach (var deckGroup in decksByDid)
+            foreach (var deckPlan in plan.Decks)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var deckPath = collectionInfo.Decks.TryGetValue(deckGroup.Key, out var n) && !string.IsNullOrWhiteSpace(n)
+                var deckPath = collectionInfo.Decks.TryGetValue(deckPlan.DeckId, out var n) && !string.IsNullOrWhiteSpace(n)
                     ? n
-                    : $"Imported Deck {deckGroup.Key}";
+                    : $"Imported Deck {deckPlan.DeckId}";
                 var drafts = new List<FlashcardCardDraft>();
+                var material = new List<FlashcardFactDraft>();
 
-                foreach (var cardRow in deckGroup)
+                foreach (var cardRow in deckPlan.Rows)
                 {
                     if (!notes.TryGetValue(cardRow.NoteId, out var note))
                         continue;
 
-                    var fields = note.Fields;
-                    var (frontHtml, backHtml) = SidesFor(note, cardRow.Ord, collectionInfo.NoteTypes);
-
-                    // A card here has two sides, so fields a template does not show are lost. Say so
-                    // once per note type rather than per card or not at all.
-                    if (fields.Length > 2 && !collectionInfo.NoteTypes.ContainsKey(note.ModelId))
-                        noteTypesWithExtraFields.Add(note.ModelName ?? $"note type {note.ModelId}");
-
-                    // A card holds images and nothing else, so an audio reference stays as the text
-                    // it is written as. Counted rather than silently left on the card.
-                    if (SoundTagRegex.IsMatch(frontHtml) || SoundTagRegex.IsMatch(backHtml))
-                        cardsWithAudio++;
-
-                    // Images become FlashcardAttachments (up to 3 per side); the block pipeline no
-                    // longer emits image blocks, the canonical body is the text field and
-                    // attachments render as framed figures.
-                    var front = await BuildSideAsync(
-                        frontHtml, FlashcardAttachment.FrontSide, opened.TempDirectory, opened.Media, warnings, cancellationToken).ConfigureAwait(false);
-                    var back = await BuildSideAsync(
-                        backHtml, FlashcardAttachment.BackSide, opened.TempDirectory, opened.Media, warnings, cancellationToken).ConfigureAwait(false);
-
-                    var attachments = front.Attachments.Count == 0 && back.Attachments.Count == 0
-                        ? (IReadOnlyList<FlashcardAttachment>)Array.Empty<FlashcardAttachment>()
-                        : front.Attachments.Concat(back.Attachments).ToArray();
-
-                    drafts.Add(new FlashcardCardDraft(
-                        DeckId: string.Empty,
-                        Type: DetectType(front.Text, frontHtml, note.ModelName),
-                        Front: front.Text,
-                        Back: back.Text,
-                        Tags: ParseTags(note.Tags),
-                        Attachments: attachments,
-                        SourceInfo: null,
-                        FrontBlocks: front.Blocks,
-                        BackBlocks: back.Blocks,
-                        // Landing a studied collection as new cards makes every one of them due at
-                        // once, which is the opposite of what importing a schedule is for.
-                        Schedule: BuildImportedSchedule(cardRow, collectionInfo.CollectionCreatedAt, now),
-                        State: cardRow.Queue == AnkiQueueSuspended
-                            ? FlashcardCardState.Suspended
-                            : FlashcardCardState.Active));
+                    var sides = await ReadSidesAsync(
+                        note, cardRow.Ord, rowCount: 1, collectionInfo, opened, warnings, tally, cancellationToken).ConfigureAwait(false);
+                    drafts.Add(DraftFor(note, cardRow, sides, collectionInfo, now));
                 }
 
-                if (drafts.Count == 0)
+                foreach (var clozeNote in deckPlan.ClozeNotes)
+                {
+                    var sides = await ReadSidesAsync(
+                        clozeNote.Note, ord: 0, clozeNote.Rows.Count, collectionInfo, opened, warnings, tally, cancellationToken)
+                        .ConfigureAwait(false);
+
+                    if (MaterialFor(clozeNote, sides, collectionInfo, now) is { } fact)
+                    {
+                        material.Add(fact);
+                        continue;
+                    }
+
+                    // A note type that says cloze over text carrying no deletion. Its rows go back to
+                    // standing for themselves rather than losing their cards to a classification
+                    // nobody typed.
+                    foreach (var row in clozeNote.Rows.Values)
+                        drafts.Add(DraftFor(clozeNote.Note, row, sides, collectionInfo, now));
+                }
+
+                if (drafts.Count == 0 && material.Count == 0)
                     continue;
 
                 // A deck and its cards land together or not at all. Half of one is a named, empty
@@ -245,9 +227,21 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     await _library.SaveDeckAsync(
                         deck with { Description = "Imported from Anki package" },
                         cancellationToken).ConfigureAwait(false);
-                    var created = await _cards.CreateCardsAsync(deck.Id, drafts, cancellationToken).ConfigureAwait(false);
+
+                    if (drafts.Count > 0)
+                    {
+                        var created = await _cards.CreateCardsAsync(deck.Id, drafts, cancellationToken).ConfigureAwait(false);
+                        importedCards += created.Count;
+                    }
+
+                    if (material.Count > 0)
+                    {
+                        var saved = await _facts.SaveFactsAsync(
+                            [.. material.Select(m => m with { DeckId = deck.Id })], cancellationToken).ConfigureAwait(false);
+                        importedCards += saved.Sum(s => s.Cards.Count);
+                    }
+
                     importedDecks++;
-                    importedCards += created.Count;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -265,19 +259,28 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 warnings.Add(TransferWarning.Of(
                     "AnkiDecksImportFailedCount",
                     ("failedCount", failedDecks.ToString(CultureInfo.InvariantCulture)),
-                    ("totalCount", decksByDid.Length.ToString(CultureInfo.InvariantCulture))));
+                    ("totalCount", plan.Decks.Count.ToString(CultureInfo.InvariantCulture))));
             }
 
-            if (noteTypesWithExtraFields.Count > 0)
+            if (tally.NoteTypesWithExtraFields.Count > 0)
             {
                 warnings.Add(TransferWarning.Of(
-                    "AnkiExtraFieldsDropped", ("noteTypes", string.Join(", ", noteTypesWithExtraFields))));
+                    "AnkiExtraFieldsDropped", ("noteTypes", string.Join(", ", tally.NoteTypesWithExtraFields))));
             }
 
-            if (cardsWithAudio > 0)
+            if (tally.CardsWithAudio > 0)
             {
                 warnings.Add(TransferWarning.Of(
-                    "AnkiAudioNotImported", ("count", cardsWithAudio.ToString(CultureInfo.InvariantCulture))));
+                    "AnkiAudioNotImported", ("count", tally.CardsWithAudio.ToString(CultureInfo.InvariantCulture))));
+            }
+
+            // Cards moving between decks without a word is exactly the kind of thing somebody finds
+            // months later and cannot explain.
+            if (plan.NotesFiledTogether > 0)
+            {
+                warnings.Add(TransferWarning.Of(
+                    "AnkiClozeSiblingsFiledTogether",
+                    ("count", plan.NotesFiledTogether.ToString(CultureInfo.InvariantCulture))));
             }
 
             // The first few intervals will not match what the other app would have given, and a user
@@ -675,6 +678,195 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             return fallback;
 
         return (JoinFields(fields, template.FrontFields), JoinFields(fields, template.BackFields));
+    }
+
+    /// <summary>
+    /// Divides a package's card rows into the decks they land in, separating the rows that stand
+    /// for themselves from the notes whose rows are the deletions of one piece of material.
+    /// </summary>
+    /// <remarks>
+    /// A note is one piece of material, so it lands whole. Siblings someone filed into a second
+    /// deck come along to the deck holding most of them rather than splitting the material in two,
+    /// which would give each half a card for every deletion in the shared text.
+    /// </remarks>
+    private static AnkiImportPlan PlanDecks(
+        IReadOnlyList<CardRow> cards,
+        IReadOnlyDictionary<long, NoteRow> notes,
+        IReadOnlyDictionary<long, AnkiNoteType> noteTypes)
+    {
+        var rowsByDeck = new Dictionary<long, List<CardRow>>();
+        var clozeRowsByNote = new Dictionary<long, List<CardRow>>();
+
+        foreach (var row in cards)
+        {
+            if (!notes.TryGetValue(row.NoteId, out var note))
+                continue;
+
+            if (MakesOneCardPerDeletion(note, noteTypes))
+            {
+                if (!clozeRowsByNote.TryGetValue(row.NoteId, out var sibling))
+                    clozeRowsByNote[row.NoteId] = sibling = [];
+                sibling.Add(row);
+                continue;
+            }
+
+            if (!rowsByDeck.TryGetValue(row.HomeDeckId, out var rows))
+                rowsByDeck[row.HomeDeckId] = rows = [];
+            rows.Add(row);
+        }
+
+        var clozeByDeck = new Dictionary<long, List<AnkiClozeNote>>();
+        var filedTogether = 0;
+        foreach (var (noteId, rows) in clozeRowsByNote.OrderBy(pair => pair.Key))
+        {
+            var homes = rows.GroupBy(r => r.HomeDeckId).ToArray();
+            if (homes.Length > 1)
+                filedTogether++;
+
+            var deckId = homes.OrderByDescending(g => g.Count()).ThenBy(g => g.Key).First().Key;
+            var byOrdinal = new SortedDictionary<int, CardRow>();
+            foreach (var row in rows)
+                byOrdinal.TryAdd(ClozeOrdinalFor(row), row);
+
+            if (!clozeByDeck.TryGetValue(deckId, out var forDeck))
+                clozeByDeck[deckId] = forDeck = [];
+            forDeck.Add(new AnkiClozeNote(notes[noteId], byOrdinal));
+        }
+
+        var deckIds = rowsByDeck.Keys.Concat(clozeByDeck.Keys).Distinct().OrderBy(id => id);
+        var decks = deckIds
+            .Select(id => new AnkiDeckPlan(
+                id,
+                rowsByDeck.TryGetValue(id, out var rows) ? rows : [],
+                clozeByDeck.TryGetValue(id, out var cloze) ? cloze : []))
+            .ToArray();
+
+        return new AnkiImportPlan(decks, filedTogether);
+    }
+
+    /// <summary>
+    /// Whether a note's card rows stand for its deletions rather than for its templates. A cloze
+    /// note type says so outright. A collection that keeps its note types in an encoded config says
+    /// nothing about any of them, so there the deletions in the note's own first field are the only
+    /// signal left, and they are also the only way such a note came to have a row per ordinal.
+    /// </summary>
+    private static bool MakesOneCardPerDeletion(NoteRow note, IReadOnlyDictionary<long, AnkiNoteType> noteTypes)
+    {
+        if (noteTypes.TryGetValue(note.ModelId, out var noteType))
+            return noteType.IsCloze;
+
+        return note.Fields.Length > 0 && ClozeRegex.IsMatch(note.Fields[0]);
+    }
+
+    /// <summary>
+    /// The deletion one cloze card row stands for. Anki numbers those rows from zero, while the
+    /// deletion they name is written from one.
+    /// </summary>
+    private static int ClozeOrdinalFor(CardRow row) => row.Ord + 1;
+
+    /// <summary>
+    /// Reads what a note shows into both sides of a card: media copied out of the package, images
+    /// turned into attachments, and everything the reading noticed added to the tally.
+    /// </summary>
+    /// <param name="rowCount">
+    /// How many card rows this reading covers, so a note read once for all its deletions still
+    /// counts for the cards the package actually held.
+    /// </param>
+    private async Task<NoteSides> ReadSidesAsync(
+        NoteRow note,
+        int ord,
+        int rowCount,
+        CollectionInfo collectionInfo,
+        OpenedApkg opened,
+        ICollection<TransferWarning> warnings,
+        ImportTally tally,
+        CancellationToken cancellationToken)
+    {
+        var (frontHtml, backHtml) = SidesFor(note, ord, collectionInfo.NoteTypes);
+
+        // A card here has two sides, so fields a template does not show are lost. Say so once per
+        // note type rather than per card or not at all.
+        if (note.Fields.Length > 2 && !collectionInfo.NoteTypes.ContainsKey(note.ModelId))
+            tally.NoteTypesWithExtraFields.Add(note.ModelName ?? $"note type {note.ModelId}");
+
+        // A card holds images and nothing else, so an audio reference stays as the text it is
+        // written as. Counted rather than silently left on the card.
+        if (SoundTagRegex.IsMatch(frontHtml) || SoundTagRegex.IsMatch(backHtml))
+            tally.CardsWithAudio += rowCount;
+
+        // Images become FlashcardAttachments (up to 3 per side); the block pipeline no longer emits
+        // image blocks, the canonical body is the text field and attachments render as framed
+        // figures.
+        var front = await BuildSideAsync(
+            frontHtml, FlashcardAttachment.FrontSide, opened.TempDirectory, opened.Media, warnings, cancellationToken).ConfigureAwait(false);
+        var back = await BuildSideAsync(
+            backHtml, FlashcardAttachment.BackSide, opened.TempDirectory, opened.Media, warnings, cancellationToken).ConfigureAwait(false);
+
+        return new NoteSides(frontHtml, front, back);
+    }
+
+    /// <summary>One card row as a card written side by side, which is what a single row stands for.</summary>
+    private static FlashcardCardDraft DraftFor(
+        NoteRow note, CardRow row, NoteSides sides, CollectionInfo collectionInfo, DateTimeOffset now) =>
+        new(
+            DeckId: string.Empty,
+            Type: DetectType(sides.Front.Text, sides.FrontHtml, note.ModelName),
+            Front: sides.Front.Text,
+            Back: sides.Back.Text,
+            Tags: ParseTags(note.Tags),
+            Attachments: sides.Attachments,
+            SourceInfo: null,
+            FrontBlocks: sides.Front.Blocks,
+            BackBlocks: sides.Back.Blocks,
+            // Landing a studied collection as new cards makes every one of them due at once, which
+            // is the opposite of what importing a schedule is for.
+            Schedule: BuildImportedSchedule(row, collectionInfo.CollectionCreatedAt, now),
+            State: row.Queue == AnkiQueueSuspended
+                ? FlashcardCardState.Suspended
+                : FlashcardCardState.Active);
+
+    /// <summary>
+    /// The material one cloze note stands for: the whole text with every deletion still in it, plus
+    /// what the package knew about the card each deletion already had. Saving it makes one card per
+    /// deletion, all off the one piece of material, which is what lets answering one hold the rest
+    /// back and what lets a later edit reach all of them.
+    /// </summary>
+    /// <returns>
+    /// Null when the text carries no deletion after all, which leaves the note's rows to import as
+    /// the plain cards they describe rather than losing them to a classification nobody typed.
+    /// </returns>
+    private static FlashcardFactDraft? MaterialFor(
+        AnkiClozeNote note, NoteSides sides, CollectionInfo collectionInfo, DateTimeOffset now)
+    {
+        if (FlashcardGeneration.ClozeOrdinals(sides.Front.Text).Count == 0)
+            return null;
+
+        var carried = new Dictionary<string, FlashcardImportedCard>(StringComparer.Ordinal);
+        foreach (var (ordinal, row) in note.Rows)
+        {
+            carried[FlashcardGeneration.ClozeKey(ordinal)] = new FlashcardImportedCard(
+                BuildImportedSchedule(row, collectionInfo.CollectionCreatedAt, now),
+                row.Queue == AnkiQueueSuspended ? FlashcardCardState.Suspended : FlashcardCardState.Active);
+        }
+
+        var media = new Dictionary<string, IReadOnlyList<FlashcardAttachment>>(StringComparer.Ordinal);
+        if (sides.Front.Attachments.Count > 0)
+            media[FlashcardCardType.ClozeTextFieldId] = sides.Front.Attachments;
+        if (sides.Back.Attachments.Count > 0)
+            media[FlashcardCardType.ClozeExtraFieldId] = sides.Back.Attachments;
+
+        return new FlashcardFactDraft(
+            Id: null,
+            DeckId: string.Empty,
+            TypeId: FlashcardCardType.ClozeId,
+            Values: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [FlashcardCardType.ClozeTextFieldId] = sides.Front.Text,
+                [FlashcardCardType.ClozeExtraFieldId] = sides.Back.Text,
+            },
+            Media: media,
+            Tags: ParseTags(note.Note.Tags),
+            Cards: carried);
     }
 
     private static string JoinFields(string[] fields, IReadOnlyList<int> positions) =>
@@ -1808,6 +2000,44 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         string Text,
         IReadOnlyList<Block> Blocks,
         IReadOnlyList<FlashcardAttachment> Attachments);
+
+    /// <summary>
+    /// Both sides of what a note shows, read once. The question's original HTML is kept alongside
+    /// its text because a marker that survives only in the markup still says what kind of card it is.
+    /// </summary>
+    private sealed record NoteSides(string FrontHtml, SideContent Front, SideContent Back)
+    {
+        /// <summary>Every picture on the note, each still tagged with the side it arrived on.</summary>
+        public IReadOnlyList<FlashcardAttachment> Attachments =>
+            Front.Attachments.Count == 0 && Back.Attachments.Count == 0
+                ? Array.Empty<FlashcardAttachment>()
+                : [.. Front.Attachments, .. Back.Attachments];
+    }
+
+    /// <summary>What an import noticed while reading, reported once at the end rather than per card.</summary>
+    private sealed class ImportTally
+    {
+        public SortedSet<string> NoteTypesWithExtraFields { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public int CardsWithAudio { get; set; }
+    }
+
+    /// <summary>
+    /// How a package's rows are divided up before anything is written.
+    /// </summary>
+    /// <param name="NotesFiledTogether">
+    /// How many notes had their cards spread over more than one deck and were kept together in one.
+    /// </param>
+    private sealed record AnkiImportPlan(IReadOnlyList<AnkiDeckPlan> Decks, int NotesFiledTogether);
+
+    /// <summary>What one deck receives: rows that stand for themselves, and notes that make several.</summary>
+    private sealed record AnkiDeckPlan(
+        long DeckId,
+        IReadOnlyList<CardRow> Rows,
+        IReadOnlyList<AnkiClozeNote> ClozeNotes);
+
+    /// <summary>A note whose cards are its deletions, with the row that stands for each one.</summary>
+    private sealed record AnkiClozeNote(NoteRow Note, IReadOnlyDictionary<int, CardRow> Rows);
 
     /// <summary>
     /// The package's media table: which file inside the package backs each referenced filename.

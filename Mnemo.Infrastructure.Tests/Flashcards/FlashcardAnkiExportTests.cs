@@ -179,7 +179,8 @@ public sealed class FlashcardAnkiExportTests
         FlashcardStoreHarness h,
         FlashcardLibraryService library,
         FlashcardCardService cardSvc) =>
-        new(library, cardSvc, new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock), new ImageAssetService());
+        new(library, cardSvc, h.FactService,
+            new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock), new ImageAssetService());
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
         new(h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);

@@ -61,9 +61,21 @@ internal sealed record AnkiFixtureNoteType(
     bool IsCloze = false);
 
 /// <summary>
+/// One card row of a note, for a note whose rows are not simply one per template. A cloze note
+/// makes a row per deletion, numbered from zero for the deletion written as <c>c1</c>, and each of
+/// them carries its own history.
+/// </summary>
+/// <param name="DeckName">Which deck this one row sits in, or null for the note's own deck.</param>
+internal sealed record AnkiFixtureCardRow(
+    int Ord,
+    AnkiFixtureScheduling? Scheduling = null,
+    string? DeckName = null);
+
+/// <summary>
 /// One note in a fixture package, and the deck it belongs to. <paramref name="ExtraFields"/> stands
-/// in for a note type that carries more than the two sides a card here has room for, and
-/// <paramref name="NoteType"/> for one whose templates decide what each card shows.
+/// in for a note type that carries more than the two sides a card here has room for,
+/// <paramref name="NoteType"/> for one whose templates decide what each card shows, and
+/// <paramref name="CardRows"/> for a note whose rows are written out one by one.
 /// </summary>
 internal sealed record AnkiFixtureCard(
     string DeckName,
@@ -72,7 +84,8 @@ internal sealed record AnkiFixtureCard(
     string Tags = "",
     IReadOnlyList<string>? ExtraFields = null,
     AnkiFixtureScheduling? Scheduling = null,
-    AnkiFixtureNoteType? NoteType = null);
+    AnkiFixtureNoteType? NoteType = null,
+    IReadOnlyList<AnkiFixtureCardRow>? CardRows = null);
 
 /// <summary>
 /// Writes representative Anki packages for import tests. Real packages are not checked in, so
@@ -103,17 +116,27 @@ internal static class AnkiPackageFixture
     /// <summary>The id a fixture gives a deck, so a card can point at one it is not filed under.</summary>
     public static long DeckIdFor(IReadOnlyList<AnkiFixtureCard> cards, string deckName)
     {
-        var seen = new List<string>();
-        foreach (var card in cards)
-        {
-            if (!seen.Contains(card.DeckName, StringComparer.Ordinal))
-                seen.Add(card.DeckName);
-        }
-
-        var index = seen.IndexOf(deckName);
+        var index = DeckNames(cards).IndexOf(deckName);
         if (index < 0)
             throw new ArgumentException($"No fixture deck named '{deckName}'.", nameof(deckName));
         return FirstDeckId + index;
+    }
+
+    /// <summary>Every deck a set of fixture notes mentions, in the order the ids are handed out.</summary>
+    private static List<string> DeckNames(IReadOnlyList<AnkiFixtureCard> cards)
+    {
+        var seen = new List<string>();
+        foreach (var card in cards)
+        {
+            foreach (var name in new[] { card.DeckName }.Concat(
+                card.CardRows?.Select(r => r.DeckName ?? card.DeckName) ?? []))
+            {
+                if (!seen.Contains(name, StringComparer.Ordinal))
+                    seen.Add(name);
+            }
+        }
+
+        return seen;
     }
 
     public static async Task<string> WriteAsync(
@@ -269,11 +292,8 @@ internal static class AnkiPackageFixture
             """).ConfigureAwait(false);
 
         var deckIds = new Dictionary<string, long>(StringComparer.Ordinal);
-        foreach (var card in cards)
-        {
-            if (!deckIds.ContainsKey(card.DeckName))
-                deckIds[card.DeckName] = FirstDeckId + deckIds.Count;
-        }
+        foreach (var name in DeckNames(cards))
+            deckIds[name] = FirstDeckId + deckIds.Count;
 
         if (layout == AnkiFixtureLayout.Legacy)
         {
@@ -302,23 +322,26 @@ internal static class AnkiPackageFixture
                 ("@tags", card.Tags),
                 ("@flds", fields)).ConfigureAwait(false);
 
-            var scheduling = card.Scheduling ?? new AnkiFixtureScheduling();
             // A note makes one card per template, and the ordinal is how a card row says which of
             // them it stands for. A note with no note type declared makes the single card the
-            // fixture has always written.
-            var ordinals = card.NoteType is { Templates.Count: > 0 } noteType
-                ? Enumerable.Range(0, noteType.Templates.Count)
-                : [0];
-            foreach (var ord in ordinals)
+            // fixture has always written, and one that lists its rows outright gets exactly those.
+            var rows = card.CardRows is { Count: > 0 } listed
+                ? listed
+                : (card.NoteType is { Templates.Count: > 0 } noteType
+                    ? [.. Enumerable.Range(0, noteType.Templates.Count).Select(ord => new AnkiFixtureCardRow(ord))]
+                    : new AnkiFixtureCardRow[] { new(0) });
+
+            foreach (var row in rows)
             {
+                var scheduling = row.Scheduling ?? card.Scheduling ?? new AnkiFixtureScheduling();
                 await ExecAsync(
                     connection,
                     "INSERT INTO cards(id,nid,did,ord,mod,usn,type,queue,due,ivl,factor,reps,lapses,left,odue,odid,flags,data) " +
                     "VALUES(@id, @nid, @did, @ord, 0, 0, @type, @queue, @due, @ivl, 2500, @reps, @lapses, 0, @odue, @odid, 0, '');",
                     ("@id", cardId),
                     ("@nid", noteId),
-                    ("@did", deckIds[card.DeckName]),
-                    ("@ord", ord),
+                    ("@did", deckIds[row.DeckName ?? card.DeckName]),
+                    ("@ord", row.Ord),
                     ("@type", scheduling.Type),
                     ("@queue", scheduling.Queue),
                     ("@due", scheduling.Due),
