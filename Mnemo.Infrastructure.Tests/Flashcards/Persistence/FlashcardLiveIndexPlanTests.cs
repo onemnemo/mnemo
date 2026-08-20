@@ -85,7 +85,7 @@ public sealed class FlashcardLiveIndexPlanTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPools.ClearPoolFor(path);
             foreach (var file in new[] { path, path + "-wal", path + "-shm" })
             {
                 try
@@ -150,7 +150,7 @@ public sealed class FlashcardLiveIndexPlanTests
 
     private static async Task<IReadOnlyList<string>> CapturePlanAsync(string path, string query)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
@@ -165,7 +165,7 @@ public sealed class FlashcardLiveIndexPlanTests
 
     private static async Task<IReadOnlyList<FlashcardDeckHeader>> CaptureDeckRowsAsync(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         return await new DeckRepository().ListHeadersAsync(conn, CancellationToken.None);
@@ -173,7 +173,7 @@ public sealed class FlashcardLiveIndexPlanTests
 
     private static async Task<IReadOnlyList<FlashcardFolder>> CaptureFolderRowsAsync(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         return await new FolderRepository().ListAsync(conn, CancellationToken.None);
@@ -181,7 +181,7 @@ public sealed class FlashcardLiveIndexPlanTests
 
     private static async Task DropIndexesAsync(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();

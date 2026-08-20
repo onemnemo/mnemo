@@ -82,7 +82,7 @@ public sealed class MindmapFolderLiveIndexPlanTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPools.ClearPoolFor(path);
             foreach (var file in new[] { path, path + "-wal", path + "-shm" })
             {
                 try
@@ -108,7 +108,7 @@ public sealed class MindmapFolderLiveIndexPlanTests
         await store.SaveFolderAsync(new MindmapFolder("folder-b", "Biology", null, 1));
         await store.SaveFolderAsync(new MindmapFolder("folder-c", "Chemistry", null, 2));
 
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
@@ -118,7 +118,7 @@ public sealed class MindmapFolderLiveIndexPlanTests
 
     private static async Task<IReadOnlyList<string>> CapturePlanAsync(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
@@ -133,7 +133,7 @@ public sealed class MindmapFolderLiveIndexPlanTests
 
     private static async Task DropIndexAsync(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();

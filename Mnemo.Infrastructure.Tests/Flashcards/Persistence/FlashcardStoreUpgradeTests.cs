@@ -377,7 +377,7 @@ public sealed class FlashcardStoreUpgradeTests
     /// </summary>
     private static async Task StripTheLiveIndexesAsync(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPools.ClearPoolFor(path);
         await using var conn = new SqliteConnection($"Data Source={path}");
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
