@@ -57,7 +57,7 @@ public partial class SidebarCategory : ObservableObject
 
     /// <summary>
     /// When true, this category renders in the sidebar footer (bottom, no section header),
-    /// alongside the Quick actions button — e.g. Settings. Otherwise it renders in the
+    /// alongside the Quick actions button (e.g. Settings). Otherwise it renders in the
     /// main scrollable nav list with a section header.
     /// </summary>
     public bool IsFooter { get; }

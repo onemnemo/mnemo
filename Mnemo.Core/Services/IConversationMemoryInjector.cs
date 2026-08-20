@@ -23,7 +23,7 @@ public interface IConversationMemoryInjector
     /// </summary>
     /// <param name="conversationId">Used to look up the memory snapshot.</param>
     /// <param name="allRawTurns">All persisted user/assistant turns, oldest first (the full chat window).</param>
-    /// <param name="userMessage">The current (new) user message — used for Tier-3 semantic search.</param>
+    /// <param name="userMessage">The current (new) user message, used for Tier-3 semantic search.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>
     /// When a summary exists: <c>[synthetic summary turn] + [last K raw turns]</c>.

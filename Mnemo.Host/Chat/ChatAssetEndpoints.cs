@@ -13,7 +13,7 @@ namespace Mnemo.Host.Chat;
 /// as a managed copy under the attachments directory and returns its id; <c>GET
 /// /api/chat/assets/{assetId}</c> streams the bytes back. The id is a bare filename, so the
 /// serve route can never read outside that directory. Both routes sit under <c>/api</c>, so the
-/// per-launch bearer token guards them — the client fetches asset bytes with the auth header and
+/// per-launch bearer token guards them; the client fetches asset bytes with the auth header and
 /// renders them from a blob URL rather than a bare &lt;img src&gt; that could not carry the token.
 /// </summary>
 public static class ChatAssetEndpoints
@@ -21,7 +21,7 @@ public static class ChatAssetEndpoints
     public static void MapChatAssets(this IEndpointRouteBuilder endpoints)
     {
         // Read the multipart body directly (rather than binding IFormFile) so no antiforgery
-        // filter is attached — loopback binding plus the bearer token are the security boundary.
+        // filter is attached; loopback binding plus the bearer token are the security boundary.
         endpoints.MapPost("/api/chat/assets", async (HttpRequest request) =>
         {
             if (!request.HasFormContentType)

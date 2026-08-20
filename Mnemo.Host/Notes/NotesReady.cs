@@ -13,8 +13,8 @@ public static class NotesReady
     /// carries this, reads included: a half-migrated corpus is one where some blocks can be addressed
     /// by sid and some cannot, and a caller that reads such a note has no way to tell which it got.
     /// <para>
-    /// 503 rather than 500 because it is a real state the client can act on — the app is starting, or
-    /// the migration failed and will be retried on the next launch — not a bug in the request.
+    /// 503 rather than 500 because it is a real state the client can act on (the app is starting, or
+    /// the migration failed and will be retried on the next launch), not a bug in the request.
     /// </para>
     /// </summary>
     public static RouteHandlerBuilder RequireNotesMigrated(this RouteHandlerBuilder builder) =>

@@ -8,7 +8,7 @@ namespace Mnemo.UI.Modules.Mindmap.Views;
 /// list. It backs two hot paths on the canvas: view-frustum culling (<see cref="Query"/> the visible
 /// rect so only on-screen nodes are drawn) and hit-testing (<see cref="QueryPoint"/> under the pointer).
 /// Entries that straddle a boundary are stored in every quadrant they touch, so queries may return an index
-/// more than once — callers dedupe (culling sorts; hit-testing takes the topmost).
+/// more than once; callers dedupe (culling sorts; hit-testing takes the topmost).
 /// </summary>
 internal sealed class MindmapQuadtree
 {

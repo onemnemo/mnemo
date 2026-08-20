@@ -58,7 +58,7 @@ public sealed record MindmapRestoreDelta
     /// Builds the delta that, applied to <paramref name="from"/>, reproduces <paramref name="to"/>: every
     /// element/edge/cluster present-and-changed or added in <paramref name="to"/> is captured verbatim, and
     /// every id dropped between the two is queued for removal. Value equality on the immutable records means
-    /// unchanged rows are skipped (record list members may over-capture, which is safe — never missed).
+    /// unchanged rows are skipped (record list members may over-capture, which is safe, never missed).
     /// </summary>
     public static MindmapRestoreDelta Between(MindmapDocument from, MindmapDocument to)
     {

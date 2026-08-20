@@ -2,7 +2,7 @@ namespace Mnemo.Core.Services;
 
 /// <summary>
 /// Curated service surface handed to widgets. Widgets read application data and request UI
-/// affordances exclusively through this context — they never see the DI container, which keeps
+/// affordances exclusively through this context. They never see the DI container, which keeps
 /// extension widgets sandboxable to exactly this surface.
 /// </summary>
 public interface IWidgetContext

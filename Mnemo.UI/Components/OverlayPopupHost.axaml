@@ -53,7 +53,7 @@
               </Border.Background>
             </Border>
 
-            <!-- Content container with alignment options (sized to dialog — do not stretch full window or backdrop clicks break) -->
+            <!-- Content container with alignment options (sized to dialog, do not stretch full window or backdrop clicks break) -->
             <Border x:Name="ContentBorder"
                     Background="Transparent"
                     LayoutUpdated="OnOverlayLayoutUpdated"

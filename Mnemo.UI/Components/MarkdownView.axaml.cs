@@ -27,7 +27,7 @@ public partial class MarkdownView : UserControl
     /// <summary>
     /// When &gt; 0, Source changes use a repeating render timer so the UI keeps up with streaming without
     /// restarting the timer on every change (which would otherwise never elapse during continuous updates).
-    /// Use for live streaming (e.g. 150–200). When 0 (default), every change triggers an immediate render.
+    /// Use for live streaming (e.g. 150 to 200). When 0 (default), every change triggers an immediate render.
     /// </summary>
     public static readonly StyledProperty<int> StreamingUpdateIntervalMsProperty =
         AvaloniaProperty.Register<MarkdownView, int>(nameof(StreamingUpdateIntervalMs), defaultValue: 0);

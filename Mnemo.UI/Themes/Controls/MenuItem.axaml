@@ -102,7 +102,7 @@
                       BorderThickness="0"
                       Margin="{DynamicResource MenuIconPresenterMargin}"
                       IsVisible="False">
-                <!-- Flat icon in a gutter (no tile) — Viewbox in-template so styles can target SvgIcon descendants -->
+                <!-- Flat icon in a gutter (no tile), Viewbox in-template so styles can target SvgIcon descendants -->
                 <Viewbox x:Name="PART_IconPresenter"
                          Width="15"
                          Height="15"

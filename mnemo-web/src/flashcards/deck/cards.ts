@@ -75,7 +75,7 @@ export function selectAllState(pageIds: string[], selected: ReadonlySet<string>)
   return count === pageIds.length ? true : "indeterminate"
 }
 
-/** Inclusive 1-based range of the current page, for the "{0}–{1} of {2}" footer. */
+/** Inclusive 1-based range of the current page, for the "{0}-{1} of {2}" footer. */
 export function pageRange(offset: number, totalCount: number): { first: number; last: number } {
   return {
     first: totalCount === 0 ? 0 : offset + 1,

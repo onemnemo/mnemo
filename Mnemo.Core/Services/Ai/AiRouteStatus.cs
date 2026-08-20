@@ -1,8 +1,8 @@
 namespace Mnemo.Core.Services.Ai;
 
 /// <summary>
-/// Why resolving a role did or didn't produce a binding. Routing-time knowledge only —
-/// runtime failures (rejected key, network down) surface later as
+/// Why resolving a role did or didn't produce a binding. Routing-time knowledge only.
+/// Runtime failures (rejected key, network down) surface later as
 /// <see cref="Mnemo.Core.Models.Ai.AiClientException"/> from the bound client.
 /// </summary>
 public enum AiRouteStatus

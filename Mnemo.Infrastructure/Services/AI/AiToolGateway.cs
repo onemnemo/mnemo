@@ -36,7 +36,7 @@ public sealed class AiToolGateway : IAiToolGateway
         var definitions = new List<ChatToolDefinition>(manifestTools.Count);
         foreach (var (_, tool) in manifestTools)
         {
-            // Schema is passed through verbatim from the manifest — the model sees exactly what the skill declared.
+            // Schema is passed through verbatim from the manifest. The model sees exactly what the skill declared.
             definitions.Add(new ChatToolDefinition(tool.Name, tool.Description, tool.Parameters));
         }
 

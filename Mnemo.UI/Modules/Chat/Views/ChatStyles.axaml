@@ -81,7 +81,7 @@
         </Style>
     </Style>
 
-    <!-- Landing quick-action pill: hairline at rest, accent ink on hover. No fill — these sit
+    <!-- Landing quick-action pill: hairline at rest, accent ink on hover. No fill, these sit
          under the composer and must not compete with it. -->
     <Style Selector="Button.chatQuickPill">
         <Setter Property="Background" Value="Transparent"/>
@@ -380,7 +380,7 @@
         <Setter Property="RenderTransform" Value="rotate(180deg)"/>
     </Style>
 
-    <!-- Trace rail step label: faded when done, primary while active. Weight stays flat —
+    <!-- Trace rail step label: faded when done, primary while active. Weight stays flat,
          the colour shift alone carries the state. -->
     <Style Selector="TextBlock.chatStepLabel">
         <Setter Property="FontSize" Value="{DynamicResource FontSize.Body.ExtraSmall}"/>
@@ -448,7 +448,7 @@
     </Style>
 
     <!-- Inline turn-failure notice (missing key, unavailable model, generic error). Flat tint,
-         no border — it sits where the answer would be and reads as prose, not as a dialog. -->
+         no border, it sits where the answer would be and reads as prose, not as a dialog. -->
     <Style Selector="Border.chatNoticeCard">
         <Setter Property="Background" Value="{DynamicResource SurfaceSubtleBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>

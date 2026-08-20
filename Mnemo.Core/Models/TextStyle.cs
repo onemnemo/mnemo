@@ -1,6 +1,6 @@
 namespace Mnemo.Core.Models;
 
-/// <summary>Text-only annotations (no inline equation — use <see cref="EquationSpan"/>).</summary>
+/// <summary>Text-only annotations (no inline equation, use <see cref="EquationSpan"/>).</summary>
 public readonly record struct TextStyle(
     bool Bold = false,
     bool Italic = false,

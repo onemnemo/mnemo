@@ -87,7 +87,7 @@ public class NoteSidMigratorTests
         var first = await h.SeedAsync(NoteSidMigrationHarness.NoteWith(NoteSidMigrationHarness.TextBlock()));
         var second = await h.SeedAsync(NoteSidMigrationHarness.NoteWith(NoteSidMigrationHarness.TextBlock()));
 
-        // Enough sids for one note, then the generator throws — standing in for a crash part way
+        // Enough sids for one note, then the generator throws, standing in for a crash part way
         // through the corpus, after at least one note has been committed.
         var starved = new SidGeneratorOverride("aaaaaa", "bbbbb");
         await Assert.ThrowsAnyAsync<Exception>(() => h.NewMigrator(starved).MigrateAsync());

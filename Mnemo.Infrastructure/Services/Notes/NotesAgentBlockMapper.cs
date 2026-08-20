@@ -10,8 +10,8 @@ namespace Mnemo.Infrastructure.Services.Notes;
 /// <remarks>
 /// Reads are lossless where it matters: flow blocks carry their inline markdown (so formatting,
 /// links and inline math survive a round-trip), and typed blocks expose their payload (equation
-/// LaTeX, code language/source, image, page reference, checklist state). Outlines stay tiny — a
-/// single truncated preview per block — so a small model can map a note without loading it.
+/// LaTeX, code language/source, image, page reference, checklist state). Outlines stay tiny
+/// (a single truncated preview per block), so a small model can map a note without loading it.
 /// </remarks>
 internal static class NotesAgentBlockMapper
 {

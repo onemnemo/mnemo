@@ -40,7 +40,7 @@ internal static class FsrsReferenceOracle
 
     /// <summary>
     /// D_0(G) before the clamp. Mean reversion targets the unclamped D_0(Easy), which the FSRS-6
-    /// defaults put well below 1 — clamping it would silently retarget the whole difficulty model.
+    /// defaults put well below 1; clamping it would silently retarget the whole difficulty model.
     /// </summary>
     public static double RawInitialDifficulty(int grade, double[] w) =>
         w[4] - Math.Exp(w[5] * (grade - 1)) + 1d;

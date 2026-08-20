@@ -14,7 +14,7 @@ namespace Mnemo.UI.Modules.Flashcards.Views;
 /// <summary>
 /// Deck-scoped export flow (⋯ → Export) shared by the deck view. Presents the export-only
 /// <see cref="TransferDialog"/>, then runs the chosen format's adapter with the deck id as the
-/// portable payload — the same contract the library uses (a deck id string resolves to the deck's
+/// portable payload, the same contract the library uses (a deck id string resolves to the deck's
 /// cards for every format, with CSV taking a single-element id array).
 /// </summary>
 internal static class FlashcardDeckExport

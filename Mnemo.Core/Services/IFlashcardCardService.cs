@@ -3,7 +3,7 @@ using Mnemo.Core.Models.Flashcards;
 namespace Mnemo.Core.Services;
 
 /// <summary>
-/// Content CRUD for cards — the surface AI/MCP tools mirror. Every mutation is a small,
+/// Content CRUD for cards (the surface AI/MCP tools mirror). Every mutation is a small,
 /// addressable, single-row or bounded-batch operation; no whole-deck rewrites.
 /// </summary>
 public interface IFlashcardCardService

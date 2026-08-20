@@ -125,7 +125,7 @@ public partial class BlockEditor
     }
 
     /// <summary>
-    /// Shows a live clone of the block (same as notes sidebar ghost) at reduced opacity â€” avoids RenderTargetBitmap text rasterization artifacts.
+    /// Shows a live clone of the block (same as notes sidebar ghost) at reduced opacity; avoids RenderTargetBitmap text rasterization artifacts.
     /// </summary>
     internal void BeginBlockDragGhost(EditableBlock source, PointerEventArgs e)
     {
@@ -335,13 +335,13 @@ public partial class BlockEditor
              source.GetVisualAncestors().OfType<Border>().Any(b => b.Tag is "AddBlockBelow"));
         if (hitIsAddBlockBelow) return;
 
-        // Image/sketch width resize strip â€” must not capture here or the first drag is eaten by cross-block selection.
+        // Image/sketch width resize strip; must not capture here or the first drag is eaten by cross-block selection.
         bool hitIsBlockWidthResizeHandle = source != null &&
             (source is Border { Tag: "ImageResizeHandle" or "SketchResizeHandle" } ||
              source.GetVisualAncestors().OfType<Border>().Any(b => b.Tag is "ImageResizeHandle" or "SketchResizeHandle"));
         if (hitIsBlockWidthResizeHandle) return;
 
-        // Column splitter sits in the gutter between cells; not inside EditableBlock hit â€” would otherwise arm box-select and steal capture.
+        // Column splitter sits in the gutter between cells, not inside EditableBlock hit; would otherwise arm box-select and steal capture.
         bool hitIsColumnSplitHandle = source != null &&
             (source is Border { Tag: "ColumnSplitHandle" } ||
              source.GetVisualAncestors().OfType<Border>().Any(b => Equals(b.Tag, "ColumnSplitHandle")));
@@ -463,7 +463,7 @@ public partial class BlockEditor
             ClearTextSelectionInAllBlocksExcept(null);
             editableBlock.ApplyTextSelection(_crossBlockAnchorCharIndex, _crossBlockAnchorCharIndex);
             // Set PendingCaretIndex before IsFocused so FocusTextBox lands at the click position
-            // directly â€” without this it would snap to the end first, causing a visible flicker.
+            // directly; without this it would snap to the end first, causing a visible flicker.
             vm.PendingCaretIndex = _crossBlockAnchorCharIndex;
             vm.IsFocused = true;
             e.Pointer.Capture(this);
@@ -471,7 +471,7 @@ public partial class BlockEditor
             return;
         }
 
-        // Arm box-select â€” capture immediately to prevent ScrollViewer from stealing the gesture
+        // Arm box-select; capture immediately to prevent ScrollViewer from stealing the gesture
         _boxSelectStart = pos;
         var overlay = _selectionBoxBorder?.GetVisualParent() as Visual;
         _boxSelectStartInOverlay = overlay != null ? e.GetPosition(overlay) : pos;
@@ -532,7 +532,7 @@ public partial class BlockEditor
     /// block content surfaces should trigger "insert block below". This covers two cases:
     /// <list type="bullet">
     ///   <item>The explicit <c>BelowBlocksArea</c> hit strip below the item repeater.</item>
-    ///   <item>The dead zone inside the last block's inflated row but below its visual content — common
+    ///   <item>The dead zone inside the last block's inflated row but below its visual content, common
     ///     for Image and Sketch blocks whose row height is larger than their rendered content.</item>
     /// </list>
     /// Callers must only invoke this after confirming <c>_boxSelectArmed</c> (i.e. the click was not
@@ -614,7 +614,7 @@ public partial class BlockEditor
         if (_crossBlockArmed) return;
 
         var source = e.Source as Visual;
-        // Drag handle uses press+move threshold; selection is applied on release â€” do not clear here.
+        // Drag handle uses press+move threshold; selection is applied on release. Do not clear here.
         bool hitIsDragHandle = source != null &&
             (source is Border { Tag: "DragHandle" } ||
              source.GetVisualAncestors().OfType<Border>().Any(b => b.Tag is "DragHandle"));
@@ -640,14 +640,14 @@ public partial class BlockEditor
         int caretIndex = textBox?.CaretIndex ?? richTextEditor?.CaretIndex ?? 0;
         int textLength = textBox?.Text?.Length ?? richTextEditor?.TextLength ?? 0;
 
-        // Arm cross-block select â€” capture happens in PointerMoved once drag leaves the source block
+        // Arm cross-block select; capture happens in PointerMoved once drag leaves the source block
         _crossBlockAnchorBlock = vm;
         _crossBlockAnchorBlockIndex = GetDocumentOrderBlocks().IndexOf(vm);
         _crossBlockAnchorCharIndex = Math.Clamp(caretIndex, 0, textLength);
         _crossBlockStartPoint = e.GetPosition(this);
         _crossBlockArmed = true;
         _isCrossBlockSelecting = false;
-        // Do NOT capture or mark handled here â€” let the TextBox handle its own click normally
+        // Do NOT capture or mark handled here; let the TextBox handle its own click normally
     }
 
     private void Editor_PointerMoved(object? sender, PointerEventArgs e)
@@ -696,7 +696,7 @@ public partial class BlockEditor
                 return;
         }
 
-        // Box selection: activate once movement exceeds threshold â€” state transition is synchronous
+        // Box selection: activate once movement exceeds threshold; state transition is synchronous
         // so pointer capture and border visibility are set in the same event dispatch.
         if (_boxSelectArmed)
         {
@@ -747,7 +747,7 @@ public partial class BlockEditor
 
         // Coalesce rapid pointer-move events: store the latest position and schedule a single
         // deferred update per render frame. If the dispatcher already has a pending update, just
-        // refresh the stored position â€” the next flush will use the most recent values.
+        // refresh the stored position; the next flush will use the most recent values.
         _pendingPointerPoint = current;
         _pendingPointerIsBox = willBox;
         _pendingPointerIsCross = willCross;
@@ -908,7 +908,7 @@ public partial class BlockEditor
         var selectionRect = new Rect(minX, minY, maxX - minX, maxY - minY);
 
         // Only iterate realized blocks (~8-17 of 1500+). Unrealized blocks have no live UI so
-        // their intersection bounds are unavailable anyway â€” the original code continued past them.
+        // their intersection bounds are unavailable anyway; the original code continued past them.
         // When blocks scroll into view during a box-select they are naturally picked up.
         var processed = new HashSet<BlockViewModel>(ReferenceEqualityComparer.Instance);
         foreach (var (vm, editable) in _realizedBlocksByVm)

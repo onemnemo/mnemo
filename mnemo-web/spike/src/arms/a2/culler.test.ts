@@ -7,7 +7,7 @@ import { createCuller, type CullTarget } from './culler'
 /**
  * The culler is load-bearing rather than an optimization: without it the engine's own paint walk
  * is proportional to how many boxes exist, and a pan showing one element measured 50ms a frame.
- * These tests weight the two properties that would fail silently — a target that is visible but
+ * These tests weight the two properties that would fail silently: a target that is visible but
  * hidden, and per-frame work that quietly becomes proportional to the document.
  */
 

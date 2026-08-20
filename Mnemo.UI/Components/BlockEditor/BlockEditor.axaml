@@ -26,7 +26,7 @@
                         virtualize inside this ScrollViewer > StackPanel chain.
 
                         The ContentControl wrapper exists so we can keep two data templates (single block row
-                        vs. split-column row) without writing a custom IDataTemplate — ContentControl resolves
+                        vs. split-column row) without writing a custom IDataTemplate; ContentControl resolves
                         its DataTemplates against the bound row type.
                     -->
                     <ItemsRepeater x:Name="BlocksItemsControl" Grid.Row="0" ItemsSource="{Binding BlockRows}">

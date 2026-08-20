@@ -58,7 +58,7 @@ public partial class EditableBlock
     private void DragHandle_PointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
         => _chrome?.OnDragHandlePointerCaptureLost(e);
 
-    /// <summary>Gutter handle or image chrome (after move threshold) — same payload and ghost as the drag handle.</summary>
+    /// <summary>Gutter handle or image chrome (after move threshold); same payload and ghost as the drag handle.</summary>
     internal async Task BeginBlockReorderDragCoreAsync(PointerPressedEventArgs e)
     {
         if (_viewModel == null) return;
@@ -207,7 +207,7 @@ public partial class EditableBlock
 
     /// <summary>
     /// True when the editor has a non-collapsed range the user (or cross-block delete) should treat as selected text.
-    /// Empty paragraphs use selection upper bound 1 for drag geometry only — not a real text selection.
+    /// Empty paragraphs use selection upper bound 1 for drag geometry only; not a real text selection.
     /// </summary>
     internal static bool HasActiveTextSelection(RichTextEditor rte)
     {
@@ -425,7 +425,7 @@ public partial class EditableBlock
 
     /// <summary>
     /// Maps a point (block coordinates) to a character index.
-    /// Returns -1 when the position cannot be resolved (editor not wired yet, layout in flight) —
+    /// Returns -1 when the position cannot be resolved (editor not wired yet, layout in flight);
     /// callers must pick a sensible fallback instead of snapping the caret to 0.
     /// </summary>
     public int GetCharacterIndexFromPoint(Point pointInBlock)

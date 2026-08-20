@@ -2,7 +2,7 @@ namespace Mnemo.Core.Identity;
 
 /// <summary>
 /// The short identifier format for notes and blocks. A sid is the only identifier that crosses the
-/// model boundary — the GUID stays internal — so it is optimised for being read, dictated and
+/// model boundary (the GUID stays internal), so it is optimised for being read, dictated and
 /// reasoned about rather than for entropy per character.
 ///
 /// The alphabet drops every pair that is confusable in a proportional font or in speech: no 0/O,

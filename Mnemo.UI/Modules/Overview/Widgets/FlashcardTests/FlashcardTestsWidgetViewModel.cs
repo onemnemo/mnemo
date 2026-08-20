@@ -66,7 +66,7 @@ public partial class FlashcardTestsWidgetViewModel : WidgetViewModelBase
     /// <summary>True when the latest score dropped from the previous attempt (▼ red).</summary>
     public bool IsTrendDown => Trend == TestScoreTrend.Down;
 
-    /// <summary>True when this is the deck's first attempt, or the score is unchanged (— neutral).</summary>
+    /// <summary>True when this is the deck's first attempt, or the score is unchanged (flat, no arrow).</summary>
     public bool IsTrendNone => Trend == TestScoreTrend.None;
 
     public ObservableCollection<double> TrendValues { get; } = new();

@@ -4,7 +4,7 @@ using Avalonia.Media;
 namespace Mnemo.UI.Services;
 
 /// <summary>
-/// TextMate grammar–based syntax highlighting (TextMateSharp + bundled grammars).
+/// TextMate grammar-based syntax highlighting (TextMateSharp + bundled grammars).
 /// </summary>
 public interface ITextMateSyntaxHighlighter
 {

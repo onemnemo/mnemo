@@ -241,7 +241,7 @@ public partial class BlockEditor
     /// <summary>
     /// Called by OnBlockContentChanged to start/extend a typing batch for the given block.
     /// <paramref name="previousText"/> is the text *before* this edit (from EditorStateManager).
-    /// Must not be null â€” caller must have a valid pre-edit snapshot.
+    /// Must not be null; caller must have a valid pre-edit snapshot.
     /// </summary>
     internal void TrackTypingEdit(BlockViewModel block, string previousText, List<InlineSpan>? previousRuns = null)
     {

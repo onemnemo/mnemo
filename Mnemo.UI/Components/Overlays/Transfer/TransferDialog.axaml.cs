@@ -27,11 +27,11 @@ namespace Mnemo.UI.Components.Overlays.Transfer;
 /// <summary>
 /// Adaptive import/export dialog. Import queues up to <see cref="TransferDialogContext.MaxFiles"/>
 /// files with per-file format auto-detection; export offers format radio cards and an optional
-/// scope choice. The dialog only collects the user's decision — callers execute the transfer.
+/// scope choice. The dialog only collects the user's decision; callers execute the transfer.
 /// </summary>
 public partial class TransferDialog : UserControl
 {
-    // Resolved explicitly via FindControl (not bare generated-field access) — see TagChipInput/MarkdownView
+    // Resolved explicitly via FindControl (not bare generated-field access); see TagChipInput/MarkdownView
     // for the same pattern; bare x:Name field access isn't reliable this early in this codebase's setup.
     private readonly AppIcon _directionIcon;
     private readonly SegmentedToggle _modeToggle;

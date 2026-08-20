@@ -10,7 +10,7 @@ namespace Mnemo.UI.Services;
 /// done, an optional value chip drawn from the call's arguments (a query, a theme name), and an
 /// optional quiet count suffix drawn from the result. Labels are localization keys resolved by the
 /// caller; only the object ("your theme") is ever named, never the tool. Unmapped tools fall back to
-/// a generic "Used a tool" with the humanized name as the chip — never snake_case.
+/// a generic "Used a tool" with the humanized name as the chip, never snake_case.
 /// </summary>
 public static class ChatToolVocabulary
 {
@@ -46,7 +46,7 @@ public static class ChatToolVocabulary
         ["web_search"] = ("ToolRunWebSearch", "ToolDoneWebSearch"),
         ["search_web"] = ("ToolRunWebSearch", "ToolDoneWebSearch"),
 
-        // Internal orchestration plumbing — surfaced quietly as "getting ready", never by name.
+        // Internal orchestration plumbing, surfaced quietly as "getting ready", never by name.
         ["get_skills"] = ("ToolRunPreparing", "ToolDonePreparing"),
         ["fetch_skill"] = ("ToolRunPreparing", "ToolDonePreparing"),
         ["inject_skill"] = ("ToolRunPreparing", "ToolDonePreparing"),
@@ -172,7 +172,7 @@ public static class ChatToolVocabulary
     }
 
     /// <summary>
-    /// Counts result rows only when the shape is unambiguous — a top-level JSON array, or an object
+    /// Counts result rows only when the shape is unambiguous: a top-level JSON array, or an object
     /// carrying a recognised array property. Returns null (no suffix) rather than risk a wrong number.
     /// </summary>
     private static int? TryCountResults(string resultContent)

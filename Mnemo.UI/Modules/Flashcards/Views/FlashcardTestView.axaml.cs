@@ -134,7 +134,7 @@ public partial class FlashcardTestView : UserControl
 
         var primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
 
-        // Ctrl/Cmd+Z — undo (available regardless of focus).
+        // Ctrl/Cmd+Z: undo (available regardless of focus).
         if (e.KeyModifiers.HasFlag(primary) && e.Key == Key.Z)
         {
             if (_viewModel.UndoCommand.CanExecute(null))

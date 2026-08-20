@@ -11,7 +11,7 @@ namespace Mnemo.Infrastructure.Services.TextShortcuts;
 /// </summary>
 public static class FractionShortcutResolver
 {
-    // Fractions with dedicated Unicode glyphs — highest fidelity.
+    // Fractions with dedicated Unicode glyphs, highest fidelity.
     private static readonly Dictionary<(int Numerator, int Denominator), char> UnicodeGlyphs = new()
     {
         { (1, 2), '\u00BD' }, // ½

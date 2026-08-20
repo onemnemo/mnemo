@@ -83,7 +83,7 @@ public partial class FlashcardCardEditorOverlay : UserControl
             return;
         }
 
-        // Primary+Shift+C — wrap the focused side's selection as a cloze deletion (cloze type only).
+        // Primary+Shift+C: wrap the focused side's selection as a cloze deletion (cloze type only).
         if (hasPrimary && e.KeyModifiers.HasFlag(KeyModifiers.Shift) && e.Key == Key.C)
         {
             if (vm.IsCloze && vm.FocusedSide is { } side)
@@ -94,7 +94,7 @@ public partial class FlashcardCardEditorOverlay : UserControl
             }
         }
 
-        // Primary+Enter — the primary action (save-and-new / save).
+        // Primary+Enter: the primary action (save-and-new / save).
         if (hasPrimary && (e.Key == Key.Enter || e.Key == Key.Return))
         {
             if (vm.PrimaryCommand.CanExecute(null))
@@ -103,7 +103,7 @@ public partial class FlashcardCardEditorOverlay : UserControl
             return;
         }
 
-        // Primary+V on a focused side — attach a clipboard image if present, else fall through to
+        // Primary+V on a focused side: attach a clipboard image if present, else fall through to
         // the TextBox's own text paste.
         if (hasPrimary && !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && e.Key == Key.V && vm.FocusedSide is { } pasteSide)
         {
@@ -327,7 +327,7 @@ public partial class FlashcardCardEditorOverlay : UserControl
         }
         catch
         {
-            // Best effort — unsupported clipboard content falls through to normal text paste.
+            // Best effort: unsupported clipboard content falls through to normal text paste.
         }
 
         return false;

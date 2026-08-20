@@ -58,7 +58,7 @@ public interface ICardRepository
 
     Task InsertAsync(SqliteConnection conn, SqliteTransaction tx, Flashcard card, CancellationToken cancellationToken);
 
-    /// <summary>Insert-or-update by id (migration path). Uses ON CONFLICT DO UPDATE — never REPLACE,
+    /// <summary>Insert-or-update by id (migration path). Uses ON CONFLICT DO UPDATE (never REPLACE),
     /// so the 1:1 scheduling row is not cascade-deleted.</summary>
     Task UpsertAsync(SqliteConnection conn, SqliteTransaction tx, Flashcard card, CancellationToken cancellationToken);
 

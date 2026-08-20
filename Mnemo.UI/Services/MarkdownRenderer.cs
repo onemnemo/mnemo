@@ -219,7 +219,7 @@ public class MarkdownRenderer : IMarkdownRenderer
             return await RenderParagraphWithDisplayMathAsync(paragraph, specialInlines, foreground, options);
         }
 
-        // Simple path: no display math — single TextBlock with inline content.
+        // Simple path: no display math, single TextBlock with inline content.
         // Inflate LineHeight to fit inline math so Avalonia allocates enough vertical space
         // in the line box (Avalonia caps line boxes at LineHeight, unlike WPF).
         var effectiveLineHeightPx = await GetEffectiveLineHeightAsync(paragraph, specialInlines, options.LineHeightPx, options);
@@ -328,7 +328,7 @@ public class MarkdownRenderer : IMarkdownRenderer
             var markerIndex = text.IndexOf("Ⓢ", position, StringComparison.Ordinal);
             if (markerIndex < 0)
             {
-                // No more markers — append remainder as inline text
+                // No more markers; append remainder as inline text
                 AppendRunIfNonEmpty(currentTextBlock, text.Substring(position), foreground);
                 break;
             }
@@ -385,7 +385,7 @@ public class MarkdownRenderer : IMarkdownRenderer
                 }
                 else
                 {
-                    // Non-display-math special inline — render into the current TextBlock
+                    // Non-display-math special inline; render into the current TextBlock
                     if (currentTextBlock.Inlines != null)
                         await RenderSpecialInlineAsync(inlineData, currentTextBlock.Inlines, foreground, options);
                 }
@@ -394,7 +394,7 @@ public class MarkdownRenderer : IMarkdownRenderer
             }
             else
             {
-                // Not a recognised placeholder — advance past the first marker
+                // Not a recognised placeholder; advance past the first marker
                 position = markerIndex + 1;
             }
         }
@@ -498,7 +498,7 @@ public class MarkdownRenderer : IMarkdownRenderer
                 var span = new Span();
                 if (emphasis.DelimiterCount == 2)
                     // Geist ships as per-weight files; FontWeight.Bold on the regular cut would synthesize
-                    // a faux bold. Conversation drops to Medium — models bold liberally, and a chat page
+                    // a faux bold. Conversation drops to Medium; models bold liberally, and a chat page
                     // full of semibold reads shouty rather than emphasized.
                     span.FontFamily = GetFontFamily(options.Profile == MarkdownRenderProfile.Conversation ? "Font.Medium" : "Font.SemiBold");
                 else if (emphasis.DelimiterCount == 1)
@@ -700,7 +700,7 @@ public class MarkdownRenderer : IMarkdownRenderer
     {
         // Two ramps, both scaled from the base size. Documents keep the classic reading scale
         // (32/24/20/18/16/14 at 16px). Conversation caps headings just above body size so an
-        // answer keeps a spoken rhythm — hierarchy comes from weight and space, not poster type.
+        // answer keeps a spoken rhythm; hierarchy comes from weight and space, not poster type.
         var scale = options.Profile == MarkdownRenderProfile.Conversation
             ? heading.Level switch
             {
@@ -763,7 +763,7 @@ public class MarkdownRenderer : IMarkdownRenderer
             : (IBrush)app.FindResource("TextPrimaryBrush")!;
 
         // One flat well: a single tinted surface with a hairline edge. No header bar, no
-        // line-number gutter — the code is the content, everything else stays out of its way.
+        // line-number gutter; the code is the content, everything else stays out of its way.
         var container = new Border
         {
             Background = (IBrush)app.FindResource("TextControlBackgroundBrush")!,
@@ -947,7 +947,7 @@ public class MarkdownRenderer : IMarkdownRenderer
 
     private async Task<Control> RenderListAsync(ListBlock list, Dictionary<string, MarkdownSpecialInline> specialInlines, IBrush? foreground, RenderOptions options, int depth = 0)
     {
-        // Items sit closer than paragraphs — a list is one thought, not a run of sections.
+        // Items sit closer than paragraphs; a list is one thought, not a run of sections.
         var container = new StackPanel { Spacing = Math.Max(4, options.BlockSpacing / 2), Margin = new Thickness(0, 0) };
         var fontSize = options.BaseFontSize;
         var letterSpacing = options.LetterSpacing;

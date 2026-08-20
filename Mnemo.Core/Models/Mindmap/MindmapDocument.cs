@@ -7,7 +7,7 @@ namespace Mnemo.Core.Models.Mindmap;
 /// A schema v2 mindmap document: an infinite freeform canvas holding tree nodes, shapes, free text,
 /// images and frames as a single element model. Instances are immutable;
 /// every committed edit produces a new document with an incremented <see cref="Revision"/>. Only the
-/// command layer (the service graph mutator) assembles new document states — nothing else may.
+/// command layer (the service graph mutator) assembles new document states. Nothing else may.
 /// </summary>
 public sealed record MindmapDocument
 {

@@ -4,7 +4,7 @@ namespace Mnemo.Core.Models.Ai;
 
 /// <summary>
 /// A single-shot utility-plane completion request: one prompt in, one completion out.
-/// No history, no tools — the assistant plane uses <see cref="ChatRequest"/> instead.
+/// No history, no tools. The assistant plane uses <see cref="ChatRequest"/> instead.
 /// </summary>
 public sealed record TextCompletionRequest
 {
@@ -25,7 +25,7 @@ public sealed record TextCompletionRequest
 
     /// <summary>
     /// Hard cap on generated tokens; null = provider default. Utility callers should set
-    /// a tight cap — these calls are meant to be short and cheap.
+    /// a tight cap. These calls are meant to be short and cheap.
     /// </summary>
     public int? MaxOutputTokens { get; init; }
 

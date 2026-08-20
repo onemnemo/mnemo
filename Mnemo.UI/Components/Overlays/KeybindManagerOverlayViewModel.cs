@@ -209,7 +209,7 @@ public partial class KeybindManagerOverlayViewModel : ViewModelBase
         OnPropertyChanged(nameof(EditorCaptureEnabled));
     }
 
-    /// <summary>Opens the chord editor; called from the view (avoid binding <see cref="Button.Command"/> to generic RelayCommand — Avalonia can NRE).</summary>
+    /// <summary>Opens the chord editor; called from the view (avoid binding <see cref="Button.Command"/> to generic RelayCommand, Avalonia can NRE).</summary>
     public void RequestBeginEditShortcut(string? actionId) => BeginEditShortcut(actionId);
 
     private void BeginEditShortcut(string? actionId)

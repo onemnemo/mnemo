@@ -49,7 +49,7 @@
 
     </UserControl.Styles>
 
-    <!-- DataTemplate for note/folder rows — used by TreeView ItemTemplate (drag-drop and folder icons in NoteTreeRow) -->
+    <!-- DataTemplate for note/folder rows, used by TreeView ItemTemplate (drag-drop and folder icons in NoteTreeRow) -->
     <UserControl.DataTemplates>
         <DataTemplate DataType="vm:NoteTreeItemViewModel">
             <views:NoteTreeRow />
@@ -398,7 +398,7 @@
                             <!--
                               Vertical StackPanel between ScrollViewer and BlockEditor passes unbounded height to children
                               and disables ItemsRepeater virtualization (Avalonia perf guide). Grid rows avoid that; a long
-                              scrollbar still reflects full document extent — virtualization only limits realized controls.
+                              scrollbar still reflects full document extent, virtualization only limits realized controls.
                             -->
                             <Grid x:Name="EditorDocumentPanel"
                                   Margin="32,32,32,32"

@@ -1062,7 +1062,7 @@ public sealed class MindmapDocumentService : IMindmapService
         working.RemoveElements(toRemove);
 
         // Frames orphan (never cascade) their members, but a deleted member must not linger as a dangling
-        // ChildId — drop removed ids from any surviving frame's membership.
+        // ChildId. Drop removed ids from any surviving frame's membership.
         PruneFrameMembership(working, toRemove);
 
         accumulator.DeletedCount += toRemove.Count;

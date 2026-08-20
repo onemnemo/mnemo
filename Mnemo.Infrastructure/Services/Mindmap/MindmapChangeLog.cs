@@ -38,7 +38,7 @@ internal sealed class MindmapChangeLog
 
     /// <summary>
     /// The union of ids touched by every revision strictly after <paramref name="sinceRevision"/>, or
-    /// null when the window cannot cover that range (older than what is retained) — in which case the
+    /// null when the window cannot cover that range (older than what is retained), in which case the
     /// caller must treat the batch as a conflict, since non-contention cannot be proven.
     /// </summary>
     public IReadOnlySet<string>? TouchedSince(string mapId, long sinceRevision)

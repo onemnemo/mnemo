@@ -44,8 +44,8 @@ public partial class SettingsGroupViewModel : ViewModelBase
                 : string.Format(_hiddenSummaryFormat, Items.Count(item => item is not SettingsSubheaderViewModel));
 
     // Proxy the master row's bindable members through the group itself (rather than
-    // letting the view bind "MasterToggle.X" directly) so plain groups — where
-    // MasterToggle is null and the master row markup is simply hidden, not absent —
+    // letting the view bind "MasterToggle.X" directly) so plain groups (where
+    // MasterToggle is null and the master row markup is simply hidden, not absent)
     // never dereference a null path.
     public string? MasterTitle => MasterToggle?.Title;
 

@@ -54,7 +54,7 @@ internal static class MindmapSuggestions
     }
 
     /// <summary>
-    /// Levenshtein distance with an early-out at <paramref name="max"/> — short ids make the full table
+    /// Levenshtein distance with an early-out at <paramref name="max"/>: short ids make the full table
     /// trivial, and the bound skips far-apart candidates outright. Returns <c>max + 1</c> when past the bound.
     /// </summary>
     private static int BoundedLevenshtein(string a, string b, int max)

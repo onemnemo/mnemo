@@ -24,7 +24,7 @@ public readonly record struct AlignMove(string Id, double X, double Y);
 
 /// <summary>
 /// Pure geometry for aligning and distributing free canvas elements. Given each element's box, it returns
-/// the new top-left for the ones that actually move — align snaps an edge or centre to the selection's
+/// the new top-left for the ones that actually move: align snaps an edge or centre to the selection's
 /// extent; distribute equalises the gaps between sorted edges with the outer two anchored. No document,
 /// theme or Avalonia dependency, so the view model can turn the output straight into a <c>move</c> batch and
 /// the behaviour is unit-testable in isolation.
@@ -82,7 +82,7 @@ public static class MindmapAlignment
     }
 
     // Even gaps between the sorted left/right edges, leftmost and rightmost anchored (the classic "distribute
-    // horizontally"). Needs at least three elements — with two there is nothing between the anchors to space.
+    // horizontally"). Needs at least three elements; with two there is nothing between the anchors to space.
     private static List<AlignMove> DistributeHorizontal(IReadOnlyList<AlignBox> elements)
     {
         var moves = new List<AlignMove>();

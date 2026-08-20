@@ -472,7 +472,7 @@ public partial class SettingsViewModel : ViewModelBase
             }));
 
         // Web search stays enabled by default via DuckDuckGo (no key/signup
-        // required) so the assistant has a working tool out of the box — a
+        // required) so the assistant has a working tool out of the box; a
         // model with zero tools available otherwise has no way to answer
         // current-events questions except by hallucinating one.
         aiGroup.Items.Add(new SettingsSubheaderViewModel(T("WebSearch")));

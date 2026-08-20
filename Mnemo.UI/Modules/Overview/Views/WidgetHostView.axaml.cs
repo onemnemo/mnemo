@@ -3,7 +3,7 @@ using Avalonia.Controls;
 namespace Mnemo.UI.Modules.Overview.Views;
 
 /// <summary>
-/// One widget tile. Purely declarative — drag input is tracked by <see cref="OverviewView"/>
+/// One widget tile. Purely declarative. Drag input is tracked by <see cref="OverviewView"/>
 /// (pointer capture must live on an element that survives board reordering), and all board
 /// mutations happen in the ViewModels.
 /// </summary>

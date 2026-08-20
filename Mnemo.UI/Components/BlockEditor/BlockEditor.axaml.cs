@@ -385,7 +385,7 @@ public partial class BlockEditor : UserControl, INotifyPropertyChanged, IEditorH
         _realizedBlocksByVm.Clear();
         _numberedListBlocks.Clear();
 
-        // Unsubscribe from old blocks (do not register released paths Ã¢â‚¬â€ note switch / persistence owns asset lifetime).
+        // Unsubscribe from old blocks (do not register released paths; note switch / persistence owns asset lifetime).
         foreach (var block in Blocks)
             UnsubscribeFromBlock(block, registerReleasedStoredImagePath: false);
         Collection.ResetSubscriptionTracking();

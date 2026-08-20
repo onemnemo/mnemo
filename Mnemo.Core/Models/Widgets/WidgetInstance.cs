@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace Mnemo.Core.Models.Widgets;
 
 /// <summary>
-/// One widget placed on the overview board. Identity is <see cref="InstanceId"/> — several
+/// One widget placed on the overview board. Identity is <see cref="InstanceId"/>. Several
 /// instances of the same <see cref="WidgetId"/> may coexist with different settings.
 /// Settings travel with the instance so saving the layout is atomic and removing an
 /// instance can never orphan its config.

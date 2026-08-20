@@ -89,7 +89,7 @@ public sealed record NoteDto(
 public sealed record CreateNoteDto(string? Title, string? FolderId, string? ParentNoteId);
 
 /// <summary>
-/// Full replace of a note's editable metadata — deliberately every field a client may
+/// Full replace of a note's editable metadata: deliberately every field a client may
 /// set, and deliberately nothing else. There is no content or block field here and no
 /// content write endpoint anywhere: the versioned commit contract is the only way a
 /// body is ever written, and a general update shape would quietly become a second one.
@@ -113,7 +113,7 @@ public sealed record UpdateNoteMetadataDto(
 /// A complete replacement body for a note, and the only shape that writes note content.
 /// <para>
 /// <c>BaseVer</c> is the version the client edited. The write applies only if the note is still on
-/// it, so two clients editing the same note cannot silently overwrite each other — the second one
+/// it, so two clients editing the same note cannot silently overwrite each other; the second one
 /// is told it is stale and rebases instead. <c>RequestId</c> makes a retry safe: replaying the same
 /// id after a lost response is recognised as the write that already landed rather than rejected as
 /// a conflict.

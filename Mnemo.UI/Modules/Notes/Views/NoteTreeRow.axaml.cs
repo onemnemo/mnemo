@@ -441,7 +441,7 @@ public partial class NoteTreeRow : UserControl
         var pos = e.GetPosition(NameTextBox);
         if (pos.X >= 0 && pos.Y >= 0 && pos.X <= NameTextBox.Bounds.Width && pos.Y <= NameTextBox.Bounds.Height)
             return;
-        // Press is outside — commit and stop listening.
+        // Press is outside; commit and stop listening.
         StopGlobalEditListener();
         CommitRename();
     }
