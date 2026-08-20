@@ -52,14 +52,19 @@ internal static class FlashcardTrashContents
             cancellationToken).ConfigureAwait(false);
 
         // Material with nothing left to show. Its cards were either taken just now or were already
-        // gone, so it has no reason to stay in a collection the user can see.
+        // gone, so it has no reason to stay in a collection the user can see. The cards this entry
+        // is holding count as much as the filing does: a card moved into a held deck brings its
+        // material's last card in with it, whatever deck that material still names.
         await FlashcardTrashSql.ExecuteForEntryAsync(
             writer,
             tx,
             $"""
             UPDATE FlashcardFacts SET TrashId = $entry
             WHERE TrashId IS NULL
-              AND DeckId IN ({HeldDecks})
+              AND (DeckId IN ({HeldDecks})
+                   OR EXISTS (
+                       SELECT 1 FROM FlashcardCards c
+                       WHERE c.FactId = FlashcardFacts.Id AND c.TrashId = $entry))
               AND NOT EXISTS (
                   SELECT 1 FROM FlashcardCards c WHERE c.FactId = FlashcardFacts.Id AND c.TrashId IS NULL);
             """,

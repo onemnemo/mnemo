@@ -82,6 +82,50 @@ public sealed class FlashcardFactHttpTests
     }
 
     [Fact]
+    public async Task SavingMaterialSucceedsAfterTheDeckItNamesIsGone()
+    {
+        await using var h = new FlashcardHttpHarness();
+        await h.StartAsync();
+        var home = await CreateDeckAsync(h, "Home");
+        var elsewhere = await CreateDeckAsync(h, "Elsewhere");
+        var typeId = await CreateCardTypeAsync(h);
+
+        var created = await h.Client.PostAsync("/api/facts", JsonBody(new
+        {
+            deckId = home,
+            typeId,
+            values = new Dictionary<string, string> { ["front"] = "Q", ["back"] = "A" },
+        }));
+        created.EnsureSuccessStatusCode();
+        var saved = Parse<FactSavedDto>(await created.Content.ReadAsStringAsync());
+
+        var moved = await h.Client.PostAsync("/api/cards/move", JsonBody(new
+        {
+            cardIds = new[] { saved.Cards[0].Id },
+            targetDeckId = elsewhere,
+        }));
+        moved.EnsureSuccessStatusCode();
+
+        // The desktop app deletes a deck outright rather than into the trash, and the editor's copy
+        // of the material still names the deck it was written in.
+        Assert.True(await h.Library.DeleteDeckAsync(home));
+
+        var response = await h.Client.PutAsync($"/api/facts/{saved.Fact.Id}", JsonBody(new
+        {
+            id = saved.Fact.Id,
+            deckId = home,
+            typeId,
+            values = new Dictionary<string, string> { ["front"] = "Q edited", ["back"] = "A" },
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var again = Parse<FactSavedDto>(await response.Content.ReadAsStringAsync());
+        Assert.Equal(elsewhere, again.Fact.DeckId);
+        Assert.Equal("Q edited", Assert.Single(again.Cards).Front);
+        Assert.Equal(elsewhere, again.Cards[0].DeckId);
+    }
+
+    [Fact]
     public async Task ACardTypeWithNoNameIsRefused()
     {
         await using var h = new FlashcardHttpHarness();

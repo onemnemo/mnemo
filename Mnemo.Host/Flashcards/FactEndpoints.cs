@@ -186,21 +186,19 @@ public static class FactEndpoints
             }
         }
 
-        // Without this the missing deck surfaces as a raw foreign-key violation from the driver,
-        // which the global handler would render as an opaque 500.
-        var deck = await library.GetDeckAsync(body.DeckId, cancellationToken).ConfigureAwait(false);
-        if (deck is null)
-            return Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{body.DeckId}'."));
-
         var existing = string.IsNullOrWhiteSpace(id)
             ? null
             : await facts.GetFactAsync(id, cancellationToken).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(id) && existing is null)
             return Results.NotFound(new ErrorDto("unknown_fact", $"No material '{id}'."));
 
+        var deckId = await ResolveDeckAsync(body.DeckId, existing, library, cancellationToken).ConfigureAwait(false);
+        if (deckId is null)
+            return Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{body.DeckId}'."));
+
         var draft = new FlashcardFactDraft(
             Id: existing?.Id,
-            DeckId: body.DeckId,
+            DeckId: deckId,
             TypeId: body.TypeId?.Trim() ?? string.Empty,
             Values: NormalizeValues(body.Values),
             Media: ResolveMedia(body.Media, existing),
@@ -215,6 +213,37 @@ public static class FactEndpoints
         {
             return Results.BadRequest(new ErrorDto("invalid_fact", ex.Message));
         }
+    }
+
+    /// <summary>
+    /// The deck a save should file its material under, or null when there is no such deck to be had.
+    /// </summary>
+    /// <remarks>
+    /// Checking at all is what keeps a missing deck from surfacing as a raw foreign-key violation
+    /// from the driver, which the global handler would render as an opaque 500.
+    /// <para>
+    /// The deck named in the request is an editor's copy of what the material said when it was
+    /// opened, and material goes on naming the deck it was written in after a card it made has been
+    /// moved elsewhere, so that name can outlive the deck itself. An edit arriving with a name that
+    /// no longer resolves is therefore a stale copy rather than a request to file the material
+    /// somewhere impossible, and the stored material knows better than the copy does.
+    /// </para>
+    /// </remarks>
+    private static async Task<string?> ResolveDeckAsync(
+        string requestedDeckId,
+        FlashcardFact? existing,
+        IFlashcardLibraryService library,
+        CancellationToken cancellationToken)
+    {
+        if (await library.GetDeckAsync(requestedDeckId, cancellationToken).ConfigureAwait(false) is not null)
+            return requestedDeckId;
+
+        if (existing is null || string.Equals(existing.DeckId, requestedDeckId, StringComparison.Ordinal))
+            return null;
+
+        return await library.GetDeckAsync(existing.DeckId, cancellationToken).ConfigureAwait(false) is null
+            ? null
+            : existing.DeckId;
     }
 
     private static IReadOnlyDictionary<string, string> NormalizeValues(IReadOnlyDictionary<string, string>? values)

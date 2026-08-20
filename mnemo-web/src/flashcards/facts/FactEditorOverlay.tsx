@@ -23,6 +23,7 @@ import {
   draftFromFact,
   emptyDraft,
   factDraftIsDirty,
+  resolveDraftDeck,
   snapshotFactDraft,
   toSaveFact,
   type FactDraft,
@@ -88,6 +89,7 @@ function FactEditor({ target, onClose }: { target: CardEditorTarget; onClose: ()
   }, [fact.isError, onClose])
 
   const options = useMemo(() => deckOptions(decks.data ?? [], folders.data ?? []), [decks.data, folders.data])
+  const deckId = resolveDraftDeck(draft.deckId, options.map((option) => option.id), target.deckId)
   const typeList = useMemo(() => (types.data ?? []).map((summary) => summary.type), [types.data])
   const type = typeList.find((candidate) => candidate.id === draft.typeId)
 
@@ -152,7 +154,7 @@ function FactEditor({ target, onClose }: { target: CardEditorTarget; onClose: ()
     if (!canSave || saving) return
     setSaving(true)
     try {
-      await saveFact(toSaveFact(isEditMode ? (loaded?.id ?? null) : null, draft))
+      await saveFact(toSaveFact(isEditMode ? (loaded?.id ?? null) : null, { ...draft, deckId }))
       refresh()
     } catch (error) {
       // The dialog deliberately stays open so nothing typed is lost, as on the desktop.
@@ -223,7 +225,7 @@ function FactEditor({ target, onClose }: { target: CardEditorTarget; onClose: ()
               {fc(isEditMode ? "CardEditorTitleEdit" : "CardEditorTitleNew")}
             </Dialog.Title>
             <SelectControl
-              value={draft.deckId}
+              value={deckId}
               choices={options.map((option) => ({ value: option.id, label: option.pathLabel }))}
               onChange={(deckId) => setDraft((current) => ({ ...current, deckId }))}
               label={fc("ColDeck")}

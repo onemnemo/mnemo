@@ -141,6 +141,13 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
     /// and still counted as "in use" against a card type. A card moved to another deck before the
     /// delete keeps its material alive; only material left with nothing behind it is removed.
     /// </summary>
+    /// <remarks>
+    /// Material and cards can disagree about which deck they are in, because moving a card does not
+    /// refile the material behind it. So the material this delete has to answer for is not the
+    /// material filed under the deck: it is that, plus whatever is behind the cards standing in the
+    /// deck right now. Anything left with cards elsewhere keeps them and is refiled where they are,
+    /// rather than being left naming a deck row that is about to stop existing.
+    /// </remarks>
     public Task<bool> DeleteDeckAsync(string deckId, CancellationToken cancellationToken = default) =>
         _store.WriteAsync(async (conn, tx, ct) =>
         {
@@ -156,7 +163,7 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
             var cards = await _cards.ListByDeckAsync(conn, deckId, ct).ConfigureAwait(false);
             owned.AddRange(cards.Where(c => c.FactId is null).SelectMany(c => c.Attachments).Select(a => a.FilePath));
 
-            var homeFacts = await _facts.ListByDeckAsync(conn, deckId, ct).ConfigureAwait(false);
+            var candidates = await CollectDeckMaterialAsync(conn, deckId, ct).ConfigureAwait(false);
 
             await FlashcardTrashCascade
                 .DestroyHeldCardsInDeckAsync(conn, tx, deckId, _logger, ct)
@@ -165,14 +172,21 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
             if (!await _decks.DeleteAsync(conn, tx, deckId, ct).ConfigureAwait(false))
                 return false;
 
-            foreach (var fact in homeFacts)
+            foreach (var fact in candidates)
             {
                 var remaining = await _facts.GetCardKeysAsync(conn, fact.Id, ct).ConfigureAwait(false);
-                if (remaining.Count > 0)
+                if (remaining.Count == 0)
+                {
+                    owned.AddRange(fact.Media.Values.SelectMany(list => list).Select(a => a.FilePath));
+                    await _facts.DeleteManyAsync(conn, tx, new[] { fact.Id }, ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                if (!string.Equals(fact.DeckId, deckId, StringComparison.Ordinal))
                     continue;
 
-                owned.AddRange(fact.Media.Values.SelectMany(list => list).Select(a => a.FilePath));
-                await _facts.DeleteManyAsync(conn, tx, new[] { fact.Id }, ct).ConfigureAwait(false);
+                if (await _cards.GetFactDeckAsync(conn, fact.Id, ct).ConfigureAwait(false) is { } home)
+                    await _facts.UpsertAsync(conn, tx, fact with { DeckId = home }, ct).ConfigureAwait(false);
             }
 
             await AssetCleanupQueue
@@ -180,6 +194,27 @@ public sealed class FlashcardLibraryService : IFlashcardLibraryService
                 .ConfigureAwait(false);
             return true;
         }, cancellationToken);
+
+    /// <summary>Every piece of material a deck's deletion has to decide about, each read once.</summary>
+    private async Task<IReadOnlyList<FlashcardFact>> CollectDeckMaterialAsync(
+        SqliteConnection conn, string deckId, CancellationToken cancellationToken)
+    {
+        var byId = new Dictionary<string, FlashcardFact>(StringComparer.Ordinal);
+        foreach (var fact in await _facts.ListByDeckAsync(conn, deckId, cancellationToken).ConfigureAwait(false))
+            byId[fact.Id] = fact;
+
+        foreach (var factId in await _cards.ListFactIdsInDeckAsync(conn, deckId, cancellationToken).ConfigureAwait(false))
+        {
+            if (byId.ContainsKey(factId))
+                continue;
+            // Material the trash is holding reads as absent here, which is right: it belongs to a
+            // trash entry, and only that entry finishing gets to destroy it.
+            if (await _facts.GetAsync(conn, factId, cancellationToken).ConfigureAwait(false) is { } fact)
+                byId[factId] = fact;
+        }
+
+        return byId.Values.ToList();
+    }
 
     /// <summary>
     /// Deletes a folder. Its direct child folders and decks are lifted to the root rather than
