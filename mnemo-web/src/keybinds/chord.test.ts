@@ -5,9 +5,20 @@
  * enum, so an unmapped token leaks straight through to a page whose entire job is to
  * tell someone which key to press. `D0` and `NumPad0` are the two the shipped catalog
  * actually uses.
+ *
+ * `isMac` is decided once, when the module is imported, so a suite that imports it plainly
+ * pins whichever machine happens to run it. The platform is declared here instead, and both
+ * spellings are covered: the mac one is a different set of glyphs and a different modifier
+ * key, and asserting only the other platform's is how it stayed unchecked.
  */
 
-import { describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
+
+// Hoisted above the import below, which is the only window in which `navigator` can be set
+// for a module that reads it as it loads.
+vi.hoisted(() => {
+  vi.stubGlobal("navigator", { platform: "Win32", userAgent: "" })
+})
 
 import { chordFromEvent, formatChord, formatChordParts, parseChord } from "./chord"
 
@@ -73,5 +84,44 @@ describe("chordFromEvent", () => {
     const chord = chordFromEvent(press("KeyH", { ctrlKey: true, shiftKey: true }))
     expect(chord).toBe("Primary+Shift+H")
     expect(parseChord(chord!)).toMatchObject({ primary: true, shift: true, alt: false, key: "H" })
+  })
+})
+
+describe("on macOS", () => {
+  // Its own copy of the module: one process can only see one platform per instance, and the
+  // static import above is already the Windows one.
+  let mac: typeof import("./chord")
+
+  beforeAll(async () => {
+    vi.stubGlobal("navigator", { platform: "MacIntel", userAgent: "" })
+    vi.resetModules()
+    mac = await import("./chord")
+  })
+
+  afterAll(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("engraves the modifiers as the symbols printed on the keyboard", () => {
+    expect(mac.formatChordParts("Primary+Shift+H")).toEqual(["⌘", "⇧", "H"])
+  })
+
+  it("runs the caps together, the way the platform writes a shortcut", () => {
+    expect(mac.formatChord("Primary+K")).toBe("⌘K")
+  })
+
+  it("prints Primary and Ctrl as the two different keys they are here", () => {
+    expect(mac.formatChordParts("Ctrl+Primary+K")).toEqual(["⌘", "⌃", "K"])
+  })
+
+  it("records Cmd as Primary, and Control as itself", () => {
+    expect(mac.chordFromEvent(press("KeyH", { metaKey: true, shiftKey: true }))).toBe("Primary+Shift+H")
+    expect(mac.chordFromEvent(press("KeyH", { ctrlKey: true }))).toBe("Ctrl+H")
+  })
+
+  it("matches Cmd against Primary, and refuses the Ctrl that stands in for it elsewhere", () => {
+    const chord = mac.parseChord("Primary+Z")
+    expect(mac.matchesEvent(chord, press("KeyZ", { metaKey: true }))).toBe(true)
+    expect(mac.matchesEvent(chord, press("KeyZ", { ctrlKey: true }))).toBe(false)
   })
 })

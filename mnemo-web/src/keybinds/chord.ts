@@ -236,7 +236,10 @@ export function formatChordParts(canonical: string): string[] {
   const parts: string[] = []
   // Order matches the desktop pill: command/ctrl first, then alt, then shift.
   if (chord.primary) parts.push(labels.primary)
-  if (chord.ctrl && !chord.primary) parts.push(labels.ctrl)
+  // Off macOS, Primary and Ctrl are the same physical key, so printing both would ask for a
+  // modifier to be held twice. On macOS they are Cmd and Control, two keys a remapped chord
+  // can require together, and dropping one leaves the pill asking for less than it matches.
+  if (chord.ctrl && (isMac || !chord.primary)) parts.push(labels.ctrl)
   if (chord.alt) parts.push(labels.alt)
   if (chord.shift) parts.push(labels.shift)
   parts.push(keyLabel(chord.key))
