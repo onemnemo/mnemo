@@ -22,6 +22,27 @@ describe("resolveThemeId", () => {
     expect(resolveThemeId("ember")).toBe("dark")
   })
 
+  // Real profiles do not hold lowercase ids. A pre-rehaul install persisted
+  // Appearance.Theme in TitleCase ("Dawn", "Dusk", ...), and the settings API hands the
+  // SPA that raw value, so this is the actual shape resolveThemeId has to handle. The
+  // lowercase-only cases above cannot catch a case-sensitivity regression here; these can.
+  it("migrates the retired ids in the TitleCase they are actually stored in", () => {
+    expect(resolveThemeId("Dawn")).toBe("light")
+    expect(resolveThemeId("Noon")).toBe("light")
+    expect(resolveThemeId("Dusk")).toBe("dark")
+    expect(resolveThemeId("Ember")).toBe("dark")
+  })
+
+  it("migrates the fifth legacy id, New-Dark, regardless of casing", () => {
+    expect(resolveThemeId("New-Dark")).toBe("dark")
+    expect(resolveThemeId("new-dark")).toBe("dark")
+  })
+
+  it("matches a current id regardless of casing", () => {
+    expect(resolveThemeId("Dark")).toBe("dark")
+    expect(resolveThemeId("DARK")).toBe("dark")
+  })
+
   it("falls back rather than applying a data-theme nothing is styled for", () => {
     expect(resolveThemeId("glass")).toBe(DEFAULT_THEME)
     expect(resolveThemeId(null)).toBe(DEFAULT_THEME)
@@ -32,6 +53,10 @@ describe("resolveThemeId", () => {
 describe("resolveThemePreference", () => {
   it("keeps 'system' as itself, so it can keep following the OS", () => {
     expect(resolveThemePreference("system")).toBe("system")
+  })
+
+  it("treats 'System' as the system preference too, not an unknown id", () => {
+    expect(resolveThemePreference("System")).toBe("system")
   })
 
   it("collapses everything else through resolveThemeId", () => {
