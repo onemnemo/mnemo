@@ -29,6 +29,10 @@ export function connectEventStream(handlers: StreamHandlers): () => void {
     if (token) headers.set("Authorization", `Bearer ${token}`)
 
     const response = await fetch("/api/events", { headers, signal: controller.signal })
+    // Disposal races the request: the abort has not necessarily landed by the time the
+    // fetch resolves, so without this a discarded connection reports itself open and the
+    // store reads "open" for a stream nobody is listening to.
+    if (disposed) return
     if (!response.ok || !response.body) {
       throw new Error(`event stream failed: ${response.status}`)
     }
@@ -41,6 +45,8 @@ export function connectEventStream(handlers: StreamHandlers): () => void {
     for (;;) {
       const { value, done } = await reader.read()
       if (done) break
+      // Frames buffered before disposal are not ours to deliver either.
+      if (disposed) return
       buffer += value
       // SSE frames are separated by a blank line.
       let boundary = buffer.indexOf("\n\n")
