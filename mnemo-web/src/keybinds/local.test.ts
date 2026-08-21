@@ -4,9 +4,19 @@
  * The cases that matter are the ones that decide whether a canvas can hand its keyboard over to the
  * catalog at all: another module's identically bound action must not answer, a disabled one must not
  * answer, and a chord with a modifier must not be reachable by pressing the key on its own.
+ *
+ * The presses below hold Ctrl for Primary, which is the non-mac spelling. That is decided when
+ * `chord` loads, so the platform is declared rather than inherited from the machine running the
+ * suite; the mac side of the same code is covered in `chord.test.ts`.
  */
 
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+
+// Hoisted above the import below, which is the only window in which `navigator` can be set for a
+// module that reads it as it loads.
+vi.hoisted(() => {
+  vi.stubGlobal("navigator", { platform: "Win32", userAgent: "" })
+})
 
 import { localMatcher } from "./local"
 import type { Keybind } from "./types"
