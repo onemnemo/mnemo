@@ -77,12 +77,30 @@ const THEME_IDS = new Set<string>(THEMES.map((t) => t.id))
  * Read-only compatibility: a stored id is translated on the way in and the new id is
  * written back on the next change. Dropping the entry instead would silently reset a
  * dark-theme user to light on upgrade, which reads as the app losing their settings.
+ *
+ * Keyed lowercase, like every lookup here: see {@link normalizeThemeValue}. `new-dark` is
+ * the fifth legacy id, migrated by `HeadlessThemeService` on the host side; both the host
+ * (straight to `Dark`) and the old desktop app (to `Ember`, which itself maps to `dark`
+ * below) agree on where it lands, so there is only one place it can go.
  */
 const RETIRED: Record<string, ThemeId> = {
   dawn: "light",
   noon: "light",
   dusk: "dark",
   ember: "dark",
+  "new-dark": "dark",
+}
+
+/**
+ * A stored value, folded to the casing and shape every lookup in this module compares
+ * against.
+ *
+ * Profiles written before this rehaul hold TitleCase ids (`Appearance.Theme` as
+ * `"Dawn"`), and the API hands that value to the SPA unchanged, so matching has to be
+ * case-insensitive or the migration below never fires for them.
+ */
+function normalizeThemeValue(value: string | null | undefined): string | undefined {
+  return value?.trim().toLowerCase()
 }
 
 export function isThemeId(value: string | null | undefined): value is ThemeId {
@@ -92,12 +110,17 @@ export function isThemeId(value: string | null | undefined): value is ThemeId {
 /**
  * A stored or server-supplied theme id as one this build can render.
  *
+ * Normalized before either lookup runs (see {@link normalizeThemeValue}), so `"Dusk"`,
+ * `"DUSK"` and `"dusk"` all migrate the same way instead of only the lowercase form
+ * matching.
+ *
  * Unknown ids fall back to the default rather than being applied: a `data-theme` nothing
  * is styled for produces an unreadable window, which is worse than the wrong theme.
  */
 export function resolveThemeId(value: string | null | undefined): ThemeId {
-  if (isThemeId(value)) return value
-  if (value != null && value in RETIRED) return RETIRED[value]
+  const normalized = normalizeThemeValue(value)
+  if (isThemeId(normalized)) return normalized
+  if (normalized != null && normalized in RETIRED) return RETIRED[normalized]
   return DEFAULT_THEME
 }
 
@@ -106,7 +129,7 @@ export function resolveThemeId(value: string | null | undefined): ThemeId {
  * resolves to. Everything else collapses through {@link resolveThemeId}.
  */
 export function resolveThemePreference(value: string | null | undefined): ThemePreference {
-  return value === "system" ? "system" : resolveThemeId(value)
+  return normalizeThemeValue(value) === "system" ? "system" : resolveThemeId(value)
 }
 
 const DARK_QUERY = "(prefers-color-scheme: dark)"
