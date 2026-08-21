@@ -35,10 +35,17 @@ A one-line summary of the change, then bullets, one per distinct part.
 - Skip the summary line when there is a single bullet or the subject already says it all.
   Do not bullet a single-idea change.
 - A small self-evident change gets a one-line body, or none at all.
-- The body is a plain changelog: what changed, plus the one load-bearing reason it matters.
-  Not an essay, not a design document, not a thought process written out longhand. Cut
-  editorializing, process narration ("I first tried"), and rhetorical flourish. State the fact
-  and stop.
+- The body is a plain changelog of the resulting repository state: what changed, and when
+  necessary, the constraint or invariant that explains why the code must be this way.
+
+Good reasons describe facts that remain true after the commit:
+
+- why an unusual implementation is necessary
+- what invariant the code preserves
+- what bug or compatibility constraint required the change
+- why an apparently simpler alternative cannot be used
+
+Write about the code as it stands, not the path that led there.
 
 ```
 fix(notes): read the paste progress strings from the namespace they live in
