@@ -9,9 +9,8 @@ import { estimatedMinutes } from "../tree"
 /**
  * Today's work and the button that starts it.
  *
- * The count used to sit in a box that was seven eighths empty and had no action in
- * it. Studying is the entire reason the screen exists, so the number and the thing
- * that acts on it are one object.
+ * Studying is the entire reason the screen exists, so the number and the thing that acts
+ * on it are one object rather than a count in a box with nothing to press.
  */
 export function DuePanel({
   due,

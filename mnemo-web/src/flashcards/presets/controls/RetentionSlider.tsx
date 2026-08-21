@@ -5,9 +5,8 @@ import { MAX_RETENTION_PCT, MIN_RETENTION_PCT } from "../presets"
 /**
  * Desired retention, in whole percent.
  *
- * The shared control in its numeric mode rather than a slider of its own: this used to be a
- * second implementation of the same shapes, and two sliders drawn twice drift apart the first
- * time one of them is retuned.
+ * The shared control in its numeric mode rather than a slider of its own: a second
+ * implementation of the same shapes drifts from this one the first time either is retuned.
  */
 export function RetentionSlider({
   percent,

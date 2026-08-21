@@ -11,10 +11,10 @@ import { Block } from "../kit"
 /**
  * The theme picker.
  *
- * The catalog is client-owned. It used to come from GET /themes so the web UI and the desktop app
- * agreed, but the two no longer share a palette: a theme here is a block of CSS tokens in this
- * bundle, so the only build that can say which themes exist is this one. Asking the server would
- * list themes nothing is styled for.
+ * The catalog is client-owned rather than read from GET /themes. The web UI and the desktop app
+ * do not share a palette: a theme here is a block of CSS tokens in this bundle, so the only build
+ * that can say which themes exist is this one. Asking the server would list themes nothing is
+ * styled for.
  */
 export function ThemeGalleryRow({
   title,

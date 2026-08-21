@@ -52,10 +52,10 @@ export interface MindmapToolDockProps {
  * pointer-events-none and only the bar itself takes presses, or the invisible full-width row it is
  * centred in would swallow every click along the bottom of the map.
  *
- * The shape tool owns a set of sub-choices, and arming it puts them on screen. The choices used to be
- * behind a hold, which is a gesture with nothing on screen to suggest it: pressing the shape tool
- * armed it and did nothing else, so eight shapes sat behind a press nobody had a reason to try. The
- * corner mark now says the panel is there and an ordinary press opens it.
+ * The shape tool owns a set of sub-choices, and arming it puts them on screen. A hold would put
+ * them behind a gesture with nothing on screen to suggest it, leaving eight shapes behind a press
+ * nobody has a reason to try, so the corner mark says the panel is there and an ordinary press
+ * opens it.
  *
  * That costs nothing to anyone who did not want it. The panel closes on the next press anywhere
  * outside it, and that press still reaches whatever it landed on, so a press on the map plants the

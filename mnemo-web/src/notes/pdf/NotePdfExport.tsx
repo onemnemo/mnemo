@@ -348,9 +348,9 @@ export function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onCl
           )}
         </Group>
 
-        {/* Bare labels. Every hint these rows used to carry described what the preview was already
-            showing. The one below survives because paper genuinely cannot do the thing the switch
-            is named after, and no preview says so. */}
+        {/* Bare labels: a hint on these rows would describe what the preview is already showing.
+            The one below is kept because paper genuinely cannot do the thing that switch is named
+            after, and no preview says so. */}
         <Group label={nt("PdfGroupInclude")} className="mt-6">
           <Toggle label={nt("PdfIncludeTitle")} on={options.includeTitle} onChange={(v) => set("includeTitle", v)} />
           <Toggle label={nt("PdfIncludeTags")} on={options.includeTags} onChange={(v) => set("includeTags", v)} />
@@ -370,8 +370,8 @@ export function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onCl
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-canvas-sunken">
-        {/* This bar used to say "PREVIEW" over a pane obviously showing one. It says what the
-            settings did instead: the count is the whole reason the preview is measured. */}
+        {/* The bar says what the settings did rather than labelling a pane that obviously shows a
+            preview: the count is the whole reason the preview is measured. */}
         <div className="flex h-11 shrink-0 items-center gap-2 px-4">
           <span className="min-w-0 truncate text-[12px] text-ink-3">
             {previewState === "error" ? nt("PdfPreviewError") : preview ? summary : nt("PdfPreviewLoading")}

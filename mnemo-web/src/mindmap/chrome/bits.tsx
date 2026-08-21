@@ -42,9 +42,9 @@ export interface SlotProps {
   /**
    * That this control has a panel of its own behind it, and whether that panel is open now.
    *
-   * A control that opens one has to say so before it is pressed. The dock's two picker tools used to
-   * look exactly like the four that plant one thing, so the only way to learn that a shape tool had
-   * eight shapes behind it was to be told.
+   * A control that opens one has to say so before it is pressed. Without the mark the dock's two
+   * picker tools look exactly like the four that plant one thing, and the only way to learn that a
+   * shape tool has eight shapes behind it is to be told.
    */
   menu?: { open: boolean }
   disabled?: boolean

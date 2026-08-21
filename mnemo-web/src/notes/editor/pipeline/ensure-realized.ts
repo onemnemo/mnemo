@@ -14,13 +14,10 @@
  * find/replace and the outline chip need exactly this and must call the same
  * helper rather than reinventing it.
  *
- * ## Why not a NodeView shell toggle
- *
- * The shelling design that `ensureRealized` was first written for was
- * dropped: blocks are permanently-realized NodeViews and off-screen ones are only
- * `content-visibility`-skipped, never removed from the DOM. So realizing a block
- * is not a shell/realize state change; it is forcing the engine to lay out a
- * skipped subtree. Reading a geometry property is what does that. Crucially the
+ * Blocks are permanently-realized NodeViews; off-screen ones are only
+ * `content-visibility`-skipped, never removed from the DOM, so realizing a
+ * block means forcing the engine to lay out a skipped subtree. Reading a
+ * geometry property is what does that. Crucially the
  * read must not *write* to a `view.dom` descendant - a bare style mutation there
  * looks like an external edit to ProseMirror's own MutationObserver and tears
  * down neighbouring NodeViews - so this only ever reads.

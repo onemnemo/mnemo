@@ -42,10 +42,8 @@ const MUTED = "var(--ink-3)"
  * The colour an element is drawn in.
  *
  * Its own resolved stroke, which the cascade has already fallen back to the branch's hue for when the
- * element names none of its own. Reading the branch colour first, as this used to, meant a node given
- * a colour of its own went on showing its branch's: the override was stored, and nothing on screen
- * ever changed. That is why colouring one node used to have to be written down a whole branch before
- * anyone could see it.
+ * element names none of its own. Reading the branch colour first would show a node its branch's
+ * colour even where it names one of its own: the override is stored, and nothing on screen changes.
  */
 export function accentOf(element: Accented): string | undefined {
   return element.stroke ?? element.branchColor

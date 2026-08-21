@@ -1,11 +1,10 @@
 /**
  * The callout's NodeView: a real, pressable glyph in front of the callout's text.
  *
- * The glyph used to be a CSS pseudo-element fed from the `data-callout-emoji`
- * attr. A pseudo-element receives no events of its own and can carry no name, so
- * the only way to change a glyph was a third button in the block gutter pointing
- * at something the reader could not press. Here the glyph is the control: press
- * it and the emoji picker opens on it.
+ * Not a CSS pseudo-element fed from the `data-callout-emoji` attr: a pseudo-element
+ * receives no events of its own and can carry no name, so changing a glyph would need a
+ * separate button in the block gutter pointing at something the reader cannot press. Here
+ * the glyph is the control: press it and the emoji picker opens on it.
  *
  * The button lives outside `contentDOM`, carries `contenteditable="false"`, and
  * `ignoreMutation` owns every mutation inside it, so the caret has nowhere to

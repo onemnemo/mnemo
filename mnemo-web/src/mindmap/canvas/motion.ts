@@ -7,8 +7,7 @@
  * should not be re-rastered mid-flight. So a layer rastered at overview zoom keeps its overview
  * pixels when the camera zooms in, and the map is drawn by scaling that texture up. Every node comes
  * back blurred, and stays blurred until something invalidates it: repainting one node (selecting it)
- * sharpened that one, and a drag, which reprojects the scene, sharpened all of them. That was the
- * whole shape of the bug.
+ * sharpens that one, and a drag, which reprojects the scene, sharpens all of them.
  *
  * The hint therefore has to be temporary. It goes on with the first frame of a gesture, so the
  * measured pan and drag behaviour is exactly what it was, and comes off shortly after the camera

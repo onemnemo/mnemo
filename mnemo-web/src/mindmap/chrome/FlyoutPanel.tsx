@@ -17,7 +17,7 @@ export interface FlyoutPanelProps {
  * Centred on whatever control owns it and opening upward where there is room, because these hang off
  * floating bars and a bar sits over the thing it is about. Where there is not, the panel flips below
  * rather than disappearing behind the header: a node bar clamped against the top of the pane has no
- * space above it at all, and a tall panel opened from there used to be most of the way off screen.
+ * space above it at all, and a tall panel opened from there would be most of the way off screen.
  *
  * Positioning is against the nearest positioned ancestor, so the control that owns a flyout is the
  * one that has to be `relative`, and the room to work with is the mindmap pane's, marked with

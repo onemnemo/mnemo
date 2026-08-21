@@ -59,8 +59,8 @@ function App() {
     usePaletteStore.getState().toggle()
   }), [])
 
-  // What used to raise the quick-actions catalogue. It is a settings page now, so the
-  // shortcut opens that page rather than a modal listing the same thing.
+  // The quick-actions catalogue is a settings page, not a modal, so this keybind navigates
+  // there.
   useEffect(() => registerKeybindAction("global.quick-actions", () => {
     window.location.hash = "#/settings/Keyboard"
   }), [])

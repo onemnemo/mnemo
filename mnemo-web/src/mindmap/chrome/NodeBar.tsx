@@ -122,9 +122,8 @@ export function NodeBar({ element, count, onStyle, color, onKind, actions }: Nod
             </div>
           </Group>
 
-          {/* Off by default, and only offered when there is something under the node to reach. A
-              colour used to always be written down the whole branch, which meant recolouring one
-              node repainted its parent and every cousin it had. */}
+          {/* Off by default, and only offered when there is something under the node to reach. Writing a
+              colour down the whole branch repaints the node's parent and every cousin it has. */}
           <MenuToggle
             label={t("Mindmap", "ApplyToSubtree")}
             on={subtree && color.hasSubtree}

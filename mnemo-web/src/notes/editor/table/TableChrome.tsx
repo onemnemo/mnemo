@@ -544,19 +544,18 @@ export function TableChrome({
   /**
    * Press selects, click opens, drag reorders.
    *
-   * The version before this had you click a bar to turn it into a handle and then
-   * click the handle to get the menu: two presses on the same three millimetres of
-   * screen, the first of which did nothing you could use. There is only one column
-   * it could be talking about by the time you have reached for it, so the press
-   * does the selecting and the click that completes it does the opening.
+   * Not a bar that one click turns into a handle for a second click to open: that is two
+   * presses on the same three millimetres of screen, the first of which does nothing you
+   * can use. There is only one column it could be talking about by the time you have reached
+   * for it, so the press does the selecting and the click that completes it does the opening.
    */
   const onHandleDown = (event: ReactPointerEvent, kind: 'row' | 'col', at: number): void => {
     if (event.button !== 0) return
     setSel(kind === 'row' ? { kind: 'row', at } : { kind: 'col', at })
     // The document's caret goes into the run as well, without focus, because the
-    // caret is what says which table the keyboard is talking to. A row grabbed
-    // from cold used to leave it in whatever block it was last in, and the verbs
-    // the selection exists for then answered about that block instead.
+    // caret is what says which table the keyboard is talking to. Without this a
+    // row grabbed from cold leaves the caret in whatever block it was last in, and
+    // the verbs the selection exists for answer about that block instead.
     focusCell(kind === 'row' ? at : 0, kind === 'row' ? 0 : at, { focus: false })
     ;(document.activeElement as HTMLElement | null)?.blur()
 

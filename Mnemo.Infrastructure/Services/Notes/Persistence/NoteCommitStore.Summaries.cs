@@ -15,8 +15,8 @@ namespace Mnemo.Infrastructure.Services.Notes.Persistence;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Listing the library used to load every note whole, one connection and one round trip each, and
-/// then throw every body away. On a real corpus that is the whole database parsed to answer a
+/// Listing the library by loading every note whole costs one connection and one round trip each
+/// and then throws every body away. On a real corpus that is the whole database parsed to answer a
 /// question about thirteen scalars. This reads the same rows in one statement and never builds a
 /// block.
 /// </para>

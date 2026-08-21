@@ -9,9 +9,9 @@ import { splitMath, type MathPiece } from "./math"
 /**
  * Card text with the maths rendered.
  *
- * The editor has had a formula button since before this existed, it inserts `$…$` and nothing
- * on the other end ever turned that into anything, so a card showed `$E_K$` to its owner
- * mid-review. See `math.ts` for the split and strip logic this renders from.
+ * The editor's formula button inserts `$…$`, and without this nothing on the card side
+ * renders it, so a card shows `$E_K$` to its owner mid-review. See `math.ts` for the split
+ * and strip logic this renders from.
  */
 
 type RenderedPiece = MathPiece & { out: { html: string } | { error: true } | null }
