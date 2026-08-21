@@ -908,7 +908,7 @@
     "RecentlyActive": "最近活用したもの",
     "Library": "ライブラリ",
     "SearchMindmaps": "マインドマップを検索...",
-    "ColumnName": "NAME",
+    "ColumnName": "名前",
     "LastModified": "最終更新",
     "NodesEdges": "ノード / エッジ",
     "MindmapLabel": "マインドマップ",
@@ -1114,7 +1114,10 @@
     "HintOpen": "開く",
     "ScopeActions": "アクション",
     "ScopeTags": "タグ",
-    "AskSoma": "Soma に質問:"
+    "AskSoma": "Soma に質問:",
+    "ActionToggleTheme": "テーマ切り替え",
+    "ActionToggleThemeContext": "ライトとダーク",
+    "ActionToggleSidebar": "サイドバーの表示/非表示"
   },
   "Topbar": {
     "NotificationsTitle": "通知",

@@ -1114,7 +1114,10 @@
     "HintOpen": "Open",
     "ScopeActions": "Actions",
     "ScopeTags": "Tag",
-    "AskSoma": "Ask Soma about"
+    "AskSoma": "Ask Soma about",
+    "ActionToggleTheme": "Toggle theme",
+    "ActionToggleThemeContext": "Light and dark",
+    "ActionToggleSidebar": "Toggle sidebar"
   },
   "Topbar": {
     "NotificationsTitle": "Notifications",
