@@ -312,6 +312,11 @@ jobs:
   # here: the packages, and the releases.{rid}-{channel}.json index that lists them.
   publish-update-feed:
     needs: [meta, build]
+    # A matrix job reports failure if any leg failed, so waiting on `build` normally would
+    # let one platform withhold the packages every other platform built. That is the exact
+    # outcome fail-fast is turned off to avoid, and the artifact scan below already refuses
+    # to publish nothing, so the empty case is covered without the whole job standing down.
+    if: ${{ !cancelled() && needs.meta.result == 'success' }}
     runs-on: ubuntu-latest
     env:
       PACK_ID: Mnemo.Desktop.V2
@@ -397,12 +402,12 @@ jobs:
           api="${{ github.api_url }}/repos/${{ github.repository }}"
 
           # Read off the packages that were built rather than spelled out, because the
-          # installer's extension is the platform's own: exe on Windows, and whatever vpk
-          # writes on macOS and Linux. Naming them here would be guessing at file names this
-          # workflow has never seen.
+          # installer's extension is the platform's own: Setup.exe on Windows, and on Linux
+          # an AppImage, which carries no installer word in its name at all. Both forms are
+          # matched, so the keep list holds this channel's installer on every platform.
           shopt -s nullglob
           keep=""
-          for installer in artifacts/vpk-*/*-"$CHANNEL"-Setup.*; do
+          for installer in artifacts/vpk-*/*-"$CHANNEL"-Setup.* artifacts/vpk-*/*-"$CHANNEL".AppImage; do
             keep="$keep $(basename "$installer")"
           done
           echo "keeping:$keep"
@@ -411,7 +416,7 @@ jobs:
             | jq -r --arg keep "$keep" '
                 ($keep | split(" ") | map(select(length > 0))) as $keep
                 | .assets[]
-                | select((.name | test("-Setup\\.")) or (.name | test("-Portable\\.")))
+                | select((.name | test("-Setup\\.")) or (.name | test("-Portable\\.")) or (.name | test("\\.AppImage$")))
                 | select(.name as $n | ($keep | index($n)) | not)
                 | "\(.id) \(.name)"' \
             | while read -r id name; do
@@ -424,6 +429,7 @@ jobs:
   # put back a download the step above just removed.
   upload-to-release:
     needs: [meta, publish-update-feed]
+    if: ${{ !cancelled() && needs['publish-update-feed'].result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -440,15 +446,20 @@ jobs:
           # The curated notes are what the in-app update prompt shows; the release page also
           # gets the commit list appended, which is the part worth reading on a nightly.
           generate_release_notes: true
+          # Linux has no -Setup file: vpk's installer there is the AppImage, named
+          # {packId}-{rid}-{channel}.AppImage with no installer word in it at all. Matching
+          # only -Setup would leave the one download a Linux user needs off the page.
           files: |
             artifacts/**/Mnemo-Portable-*.zip
             artifacts/**/Mnemo-Portable-*.tar.gz
             artifacts/**/*-${{ needs.meta.outputs.channel }}-Setup.*
+            artifacts/**/*-${{ needs.meta.outputs.channel }}.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   upload-update-feed-artifact:
     needs: [meta, build]
+    if: ${{ !cancelled() && needs.meta.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
