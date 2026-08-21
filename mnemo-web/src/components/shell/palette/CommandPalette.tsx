@@ -5,7 +5,7 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { PaletteRow } from "@/components/shell/palette/PaletteRow"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
-import { ACTIONS } from "@/search/actions"
+import { getActions } from "@/search/actions"
 import { defaultGroups, runSearch, scopeFor } from "@/search/score"
 import type { ActionContext, Group, Hit, Scope } from "@/search/types"
 import { useSearchPool } from "@/search/useSearchPool"
@@ -45,7 +45,7 @@ function PaletteBody() {
   const listRef = useRef<HTMLDivElement>(null)
 
   const indexed = useSearchPool()
-  const pool = useMemo(() => [...ACTIONS, ...indexed], [indexed])
+  const pool = useMemo(() => [...getActions(t), ...indexed], [indexed, t])
   const scopeLabel: Record<"actions" | "tags", string> = {
     actions: t("GlobalSearch", "ScopeActions"),
     tags: t("GlobalSearch", "ScopeTags"),
