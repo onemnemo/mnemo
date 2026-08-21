@@ -8,10 +8,10 @@ namespace Mnemo.Infrastructure.Services.Notes.Persistence;
 /// Transactional writes for note folders, on the same writer the note rows use.
 /// </summary>
 /// <remarks>
-/// Folder rows used to be written straight through the key and value provider, which meant the row
-/// and the folder index landed as two independent statements and a folder could exist without being
-/// listed. It also left no way to refuse a write to a folder the trash is holding, since the check and
-/// the write would sit on different connections. Both are the same problem, so both are solved here.
+/// Writing folder rows straight through the key and value provider lands the row and the folder
+/// index as two independent statements, so a folder can exist without being listed, and it leaves
+/// no way to refuse a write to a folder the trash is holding, since the check and the write sit on
+/// different connections. Both are the same problem, so both are solved here.
 /// </remarks>
 public interface INoteFolderStore
 {

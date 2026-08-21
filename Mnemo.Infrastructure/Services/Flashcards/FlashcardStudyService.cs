@@ -261,8 +261,8 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
     /// <summary>
     /// The daily review cap limits how many cards due for review get shown, so only an answer
     /// on a card that was already in review spends it. Introducing a new card and stepping a
-    /// learning or relearning card are counted elsewhere, and charging them here used to hide
-    /// genuine reviews behind repetitions the user had not asked to be limited.
+    /// learning or relearning card are counted elsewhere, and charging them here would hide
+    /// genuine reviews behind repetitions the user did not ask to be limited.
     /// </summary>
     private static bool ChargesReviewCap(FlashcardFsrsState? stateBefore) =>
         stateBefore == FlashcardFsrsState.Review;

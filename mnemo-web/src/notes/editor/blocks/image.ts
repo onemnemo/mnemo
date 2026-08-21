@@ -2,9 +2,8 @@
  * The image block.
  *
  * Its caption lives in the line, which is the concrete payoff of the mandatory
- * line, since the image was originally specified as a childless atom and eight
- * of the nine real image blocks carry caption text in `spans[0].text`. As an
- * atom that text had nowhere to go.
+ * line: eight of the nine real image blocks carry caption text in
+ * `spans[0].text`, and a childless atom has nowhere to put it.
  *
  * The caption is also stored in `payload.alt`, byte-identical in every real
  * block. That redundancy is why the projection emits one segment and not two:

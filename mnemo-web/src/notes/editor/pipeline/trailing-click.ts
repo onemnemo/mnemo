@@ -22,8 +22,8 @@
  * everything.
  *
  * The space itself is the editable root's bottom padding (`notes-editor.css`).
- * It used to sit on the pane around the editor, where it looked identical and
- * was unreachable: a press there never entered the view at all.
+ * It cannot sit on the pane around the editor: it would look identical and be
+ * unreachable, since a press there never enters the view at all.
  *
  * `mousedown` rather than `click`, because by the time a click has landed the
  * browser has already put the caret at the nearest position it could find, which

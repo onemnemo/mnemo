@@ -274,8 +274,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 }
             }
 
-            // One failed deck used to discard the count of every deck that already landed, so a
-            // retry produced duplicates of everything that had worked.
+            // A partial import has to report what landed as well as what failed, or a retry duplicates
+            // every deck that already worked.
             if (failedDecks > 0)
             {
                 warnings.Add(TransferWarning.Of(
@@ -845,9 +845,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         if (SoundTagRegex.IsMatch(frontHtml) || SoundTagRegex.IsMatch(backHtml))
             tally.CardsWithAudio += rowCount;
 
-        // Images become FlashcardAttachments (up to 3 per side); the block pipeline no longer emits
-        // image blocks, the canonical body is the text field and attachments render as framed
-        // figures.
+        // Images become FlashcardAttachments (up to 3 per side). The block pipeline emits no image
+        // blocks: the canonical body is the text field, and attachments render as framed figures.
         var front = await BuildSideAsync(
             frontHtml, FlashcardAttachment.FrontSide, opened.TempDirectory, opened.Media, warnings, cancellationToken).ConfigureAwait(false);
         var back = await BuildSideAsync(
@@ -1126,7 +1125,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// <see cref="FlashcardAttachment"/>s (files copied via <see cref="IImageAssetService"/>); any
     /// overflow images are appended to the text as inline <c>![alt](path)</c> markdown tokens (kept
     /// visible by the persistence-layer converter, never silently dropped) with a logged warning.
-    /// The block pipeline no longer emits image blocks; attachments are the model for card media.
+    /// The block pipeline emits no image blocks; attachments are the model for card media.
     /// </summary>
     private async Task<SideContent> BuildSideAsync(
         string html,
@@ -2021,9 +2020,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Images live on the card as attachments. Reading them off the rich blocks instead, as the
-    /// export used to, found nothing, because the block pipeline stopped emitting image blocks; a
-    /// deck full of pictures exported as a deck of bare text.
+    /// Images live on the card as attachments. Reading them off the rich blocks instead finds
+    /// nothing, because the block pipeline emits no image blocks, and a deck full of pictures
+    /// would export as a deck of bare text.
     /// </para>
     /// <para>
     /// Maths goes back into the delimiters the receiving app draws. Text is rewritten before the

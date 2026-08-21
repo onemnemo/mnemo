@@ -153,7 +153,7 @@ export function tableView(args: RealizedBlockViewArgs<Record<string, unknown>>):
    * `endOfTextblock` needs client rects to measure, which a headless mount (a test)
    * cannot give and throws without. There the caret is treated as at the edge so
    * the arrow still steps to the next cell, which is all a layout-free environment
-   * can do and is how the key behaved before this asked the layout at all.
+   * can do.
    */
   function atTextEdge(dir: 'up' | 'down'): boolean {
     try {

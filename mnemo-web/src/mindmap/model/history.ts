@@ -140,8 +140,8 @@ export function redoLabel(state: HistoryState): string | undefined {
  * Both are sets keyed by id, so `second` wins wherever they overlap, and an id `second` removes is
  * dropped from `first`'s upserts entirely rather than being restored and then removed again. The
  * two document-level fields follow the same rule: whichever delta names one last is the state being
- * reached, and dropping them here is how a coalesced group of edits used to lose the background it
- * was undoing back to.
+ * reached, and dropping them here would make a coalesced group of edits lose the background it is
+ * undoing back to.
  */
 export function mergeDeltas(first: MindmapRestoreDelta, second: MindmapRestoreDelta): MindmapRestoreDelta {
   const removedElements = new Set(second.removeElementIds ?? [])

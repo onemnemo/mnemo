@@ -210,11 +210,10 @@ public static class Program
         // preserving the ordering guarantee the Avalonia app enforces at startup.
         await HostComposition.InitializeBackendAsync(app.Services, discoveryFailures).ConfigureAwait(false);
 
-        // Resolved here, on the async startup path: this used to be bridged onto
-        // Photino's STA thread with a Task.Run/GetResult in RunWindow, blocking
-        // window creation on a settings read. The service provider is already
-        // live at this point, so the resolved value can just ride along on
-        // ServerHandle instead.
+        // Resolved here, on the async startup path. Bridging it onto Photino's STA
+        // thread with a Task.Run/GetResult in RunWindow blocks window creation on a
+        // settings read. The service provider is already live at this point, so the
+        // resolved value rides along on ServerHandle.
         var language = await app.Services.GetRequiredService<ISettingsService>()
             .GetAsync("Editor.SpellCheckLanguages", "en").ConfigureAwait(false);
         var spellcheckLanguage = string.IsNullOrWhiteSpace(language) ? "en" : language;

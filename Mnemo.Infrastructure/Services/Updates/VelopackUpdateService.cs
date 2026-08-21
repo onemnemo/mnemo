@@ -22,10 +22,9 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
     /// it, and switching channels stays a client-side choice rather than a reinstall.
     /// </summary>
     /// <remarks>
-    /// This used to be a static site. Update feeds only grow, every full package is
-    /// north of a hundred megabytes, and GitHub Pages allows a gigabyte for the whole
-    /// site, so that arrangement had a release count it could not survive. Release
-    /// assets have no such ceiling.
+    /// Not a static site on GitHub Pages: update feeds only grow, every full package is
+    /// north of a hundred megabytes, and Pages allows a gigabyte for the whole site, so that
+    /// arrangement has a release count it cannot survive. Release assets have no such ceiling.
     /// </remarks>
     private const string RepoUrl = "https://github.com/onemnemo/mnemo";
 

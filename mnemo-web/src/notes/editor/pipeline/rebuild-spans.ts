@@ -3,17 +3,12 @@
  * its set through a transaction and rebuilds only the top-level blocks the
  * transaction touched, rather than the whole document: intrinsic-size's
  * reserved heights and the code highlighter's token colours both work this
- * way, and used to carry their own copy of it.
+ * way.
  *
- * The two copies drifted to slightly different widening predicates before
- * this was pulled out. The one kept here is the highlighter's: an inclusive
- * "touching, not merely overlapping" test, checked per block against every
- * changed range rather than per range against the whole document. Both
- * shapes were swept against each other across thousands of randomized edits,
- * including deletes and inserts at the very last position, and never
- * disagreed, so the unification is behavior preserving; this shape survives
- * because it is the one proven against the harder case (see
- * `highlight-incremental.test.ts`), not because the other was wrong.
+ * The widening predicate is an inclusive "touching, not merely overlapping"
+ * test, checked per block against every changed range rather than per range
+ * against the whole document. This is the shape proven against the harder
+ * case (see `highlight-incremental.test.ts`).
  */
 
 import type { Transaction } from 'prosemirror-state';

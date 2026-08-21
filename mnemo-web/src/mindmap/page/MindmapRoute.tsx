@@ -119,11 +119,10 @@ const NEW_SHAPE_SIZE: [number, number] = [148, 86]
 /**
  * The look a freshly drawn connector takes.
  *
- * One fixed style rather than a picker on the dock: the connect tool used to carry a flyout that
- * preset these before drawing, which was the same four values the edge bar offers after a line is
- * drawn and selected. Setting them up front saved nobody a step, since the line still has to be drawn
- * either way, so the arming panel is gone and a new connector simply comes out solid and arrowed and
- * is restyled from the edge bar like every other.
+ * One fixed style rather than a picker on the dock. A flyout that presets these before drawing
+ * offers the same four values the edge bar offers after a line is drawn and selected, and saves
+ * nobody a step, since the line still has to be drawn either way. A new connector comes out solid
+ * and arrowed and is restyled from the edge bar like every other.
  */
 const NEW_EDGE_STYLE: EdgeStyle = {
   line: "solid",
@@ -1020,11 +1019,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   /**
    * The colour control, or null when nothing coloured is selected.
    *
-   * It sets the colour of what is highlighted, and nothing else. It used to write every pick down
-   * the whole branch a node sat in, on the reasoning that a colour is a branch's rather than a
-   * node's, which meant recolouring one node repainted its parent, its grandparent and every cousin
-   * hanging off them. The subtree is still reachable, as an option inside the panel, and it starts
-   * at the selected node rather than at the top of its branch.
+   * It sets the colour of what is highlighted, and nothing else. Writing every pick down the whole
+   * branch a node sits in repaints its parent, its grandparent and every cousin hanging off them.
+   * The subtree is reachable as an option inside the panel, and it starts at the selected node
+   * rather than at the top of its branch.
    *
    * Clearing is a different op from setting. The protocol merges a patch member by member and reads
    * a missing member as "leave it alone", so there is no value meaning "unset this"; handing a node
