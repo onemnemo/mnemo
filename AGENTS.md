@@ -1,7 +1,7 @@
 # Agent contract
 
-This file is the entry point for automated coding tools. Contributions are often prepared with
-one, and this exists so the tool picks up the project's standard before it writes a line
+This file is the entry point for automated coding tools. Many contributors prepare changes
+with one, and this exists so the tool picks up the project's standard before it writes a line
 rather than after review. If you are reading by hand, go straight to
 [standards/](standards/).
 
