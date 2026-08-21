@@ -155,16 +155,10 @@ jobs:
         working-directory: mnemo-web
         run: npm run build
 
-      # vpk wants an icns on macOS, and nothing in the repo can produce one from Windows,
-      # so it is built here from the same source art the app itself uses. sips and iconutil
-      # are both part of macOS, so this needs nothing installed.
-      #
-      # The set stops at 256 rather than carrying the 512 and 1024 entries a complete one
-      # would: the source is 256px, and inventing the larger sizes by upscaling would only
-      # make Finder's largest icon view look soft in a more elaborate way.
-      # Velopack shows these in the update prompt, so an empty notes file is a version that
-      # tells the person nothing about what they are about to install. A prerelease usually
-      # has no curated section, hence the fallback rather than a failure.
+      # The notes are the CHANGELOG section named for this tag, and Velopack shows them in
+      # the update prompt, so an empty notes file is a version that tells the person nothing
+      # about what they are about to install. A prerelease usually has no curated section,
+      # hence the fallback rather than a failure.
       - name: Collect the release notes
         shell: bash
         env:
@@ -183,6 +177,13 @@ jobs:
           fi
           cat "$notes"
 
+      # vpk wants an icns on macOS, and nothing in the repo can produce one from Windows,
+      # so it is built here from the same source art the app itself uses. sips and iconutil
+      # are both part of macOS, so this needs nothing installed.
+      #
+      # The set stops at 256 rather than carrying the 512 and 1024 entries a complete one
+      # would: the source is 256px, and inventing the larger sizes by upscaling would only
+      # make Finder's largest icon view look soft in a more elaborate way.
       - name: Build the macOS icon
         if: runner.os == 'macOS'
         shell: bash
