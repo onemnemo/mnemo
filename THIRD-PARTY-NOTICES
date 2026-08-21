@@ -127,8 +127,7 @@ enumerated individually here; see "What this does not cover" below.
 
   MIT License
     CommunityToolkit.Mvvm, Microsoft.Data.Sqlite, Microsoft.Extensions.DependencyInjection,
-    Microsoft.Extensions.Http, Microsoft.ML.OnnxRuntime, Microsoft.ML.OnnxRuntime.Managed,
-    Velopack, ZstdSharp.Port
+    Microsoft.Extensions.Http, Velopack, ZstdSharp.Port
     (Microsoft.Extensions.DependencyInjection is no longer referenced directly, but
     still reaches a built app through Mnemo.Infrastructure's package graph.)
 
