@@ -16,8 +16,18 @@ export const CLOZE_PLACEHOLDER = "[…]"
 export const CLOZE_GENERATOR = "cloze"
 export const OCCLUSION_GENERATOR = "occlusion"
 
-// No dot-matches-newline: a deletion or a field marker does not span a blank line.
-const CLOZE_PATTERN = /\{\{c(\d+)::(.+?)(?:::(.+?))?\}\}/g
+/**
+ * What a deletion or its hint may contain: anything at all, except a blank line and except the
+ * start of the next deletion.
+ *
+ * A deletion may wrap a line, because a deletion long enough to be a clause is normally typed as
+ * one. It may not cross a blank line, which is where one thought ends and the marker was clearly
+ * left unclosed. Refusing the next deletion's opening keeps a half typed `{{c1::` from swallowing
+ * the finished marker after it. Mirrors FlashcardGeneration.ClozeBody, which has to agree.
+ */
+const CLOZE_BODY = String.raw`(?:(?!\r?\n\r?\n|\{\{c\d+::)[\s\S])+?`
+
+const CLOZE_PATTERN = new RegExp(String.raw`\{\{c(\d+)::(${CLOZE_BODY})(?:::(${CLOZE_BODY}))?\}\}`, "g")
 const FIELD_PATTERN = /\{\{([^{}]+)\}\}/g
 const BLANK_RUN_PATTERN = /\n{3,}/g
 

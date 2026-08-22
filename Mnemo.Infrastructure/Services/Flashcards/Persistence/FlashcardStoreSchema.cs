@@ -7,7 +7,7 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 internal static class FlashcardStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 10;
+    public const int TargetVersion = 11;
 
     /// <summary>
     /// Columns added after v1, for databases that already exist.
