@@ -58,6 +58,69 @@ export function asFactLike(draft: FactDraft): FactLike<DraftAttachment> {
   return { values: draft.values, media: draft.media }
 }
 
+function fieldKey(name: string): string {
+  return name.trim().toLowerCase()
+}
+
+/**
+ * Moves a draft onto another card type, carrying what it holds.
+ *
+ * Field ids belong to the type that declared them, so a draft's values and pictures mean nothing to
+ * the type it is changing to and would be stranded under ids the new type has never heard of.
+ * Fields sharing a name keep their material; whatever is left falls into the slots still free, in
+ * order, which is what lands a Front and a Back in a Text and an Extra. Material the new type has
+ * no field for is dropped, since there would be nowhere to show it or edit it back out.
+ */
+export function retypeDraft(draft: FactDraft, from: CardTypeDto | undefined, to: CardTypeDto): FactDraft {
+  if (!from || from.id === to.id) return { ...draft, typeId: to.id }
+
+  const byName = new Map(to.fields.map((field) => [fieldKey(field.name), field.id]))
+  const taken = new Set<string>()
+  const moves: [string, string][] = []
+
+  for (const field of from.fields) {
+    const target = byName.get(fieldKey(field.name))
+    if (target === undefined || taken.has(target)) continue
+    taken.add(target)
+    moves.push([field.id, target])
+  }
+
+  // Whatever a name did not place goes into the slots nothing claimed, both sides read in the order
+  // the type editor shows them, so the carry over is the one someone looking at the two lists would
+  // have drawn themselves.
+  const free = to.fields.filter((field) => !taken.has(field.id))
+  for (const field of from.fields) {
+    if (moves.some(([id]) => id === field.id)) continue
+    const target = free.shift()
+    if (!target) break
+    moves.push([field.id, target.id])
+  }
+
+  const values: Record<string, string> = {}
+  const media: Record<string, DraftAttachment[]> = {}
+  for (const [before, after] of moves) {
+    const value = draft.values[before]
+    if (value) values[after] = value
+    const attachments = draft.media[before]
+    if (attachments && attachments.length > 0) media[after] = attachments
+  }
+
+  return { ...draft, typeId: to.id, values, media }
+}
+
+/**
+ * The cards an edit would delete: the ones on disk whose layout no longer produces anything. The
+ * server sweeps them with a hard delete, so their review history goes too, which is worth saying
+ * out loud before a change of type rather than after.
+ */
+export function droppedCardCount(
+  before: { type: CardTypeDto; draft: FactDraft },
+  after: { type: CardTypeDto; draft: FactDraft },
+): number {
+  const kept = new Set(generate(after.type, asFactLike(after.draft)).map((card) => card.key))
+  return generate(before.type, asFactLike(before.draft)).filter((card) => !kept.has(card.key)).length
+}
+
 function hasSomething(text: string, attachments: DraftAttachment[]): boolean {
   return text.trim().length > 0 || attachments.length > 0
 }
