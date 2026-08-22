@@ -19,10 +19,21 @@ public static class FlashcardGeneration
     /// <summary>What a masked deletion reads as when it carries no hint.</summary>
     public const string ClozePlaceholder = "[…]";
 
-    // No Singleline: a deletion or a field marker does not span a blank line, and the web copy's
-    // regex behaves the same way.
+    /// <summary>
+    /// What a deletion or its hint may contain: anything at all, except a blank line and except
+    /// the start of the next deletion.
+    /// </summary>
+    /// <remarks>
+    /// A deletion is allowed to wrap a line, because a deletion long enough to be a clause is
+    /// normally typed as one. It is not allowed to cross a blank line, which is where one thought
+    /// ends and the marker was clearly left unclosed. Refusing the next deletion's opening is what
+    /// keeps a half typed <c>{{c1::</c> from swallowing the finished marker after it, which is the
+    /// case a plain <c>.</c> used to rule out by stopping at the first newline.
+    /// </remarks>
+    private const string ClozeBody = @"(?:(?!\r?\n\r?\n|\{\{c\d+::)[\s\S])+?";
+
     private static readonly Regex ClozePattern = new(
-        @"\{\{c(\d+)::(.+?)(?:::(.+?))?\}\}", RegexOptions.Compiled);
+        @"\{\{c(\d+)::(" + ClozeBody + @")(?:::(" + ClozeBody + @"))?\}\}", RegexOptions.Compiled);
 
     private static readonly Regex FieldPattern = new(
         @"\{\{([^{}]+)\}\}", RegexOptions.Compiled);

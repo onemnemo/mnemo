@@ -42,5 +42,6 @@ internal static class FlashcardStoreDataMigrations
     [
         new(6, FlashcardFactBackfill.ApplyAsync),
         new(9, FlashcardFactDeckHeal.ApplyAsync),
+        new(11, FlashcardClozeWrapRepair.ApplyAsync),
     ];
 }

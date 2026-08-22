@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { CardAttachmentDto, CardTypeDto, CardTypeFieldDto, CardTypeLayoutDto } from "@/api/types"
 
-import { clozeKey, clozeOrdinalFromKey, clozeOrdinals, dormant, generate, type FactLike } from "./generation"
+import { clozeKey, clozeOrdinalFromKey, clozeOrdinals, dormant, generate, maskCloze, type FactLike } from "./generation"
 
 /**
  * The same cases the server side generation is tested against. The two copies have to agree: this
@@ -244,10 +244,23 @@ describe("cloze", () => {
     expect(clozeOrdinals("{{c99999999999999999999::x}} and {{c2::y}}")).toEqual([2])
   })
 
-  it("does not let a deletion span a line break", () => {
-    // A marker left unclosed by a stray newline should read as text rather than swallowing the rest
-    // of the note.
-    expect(clozeOrdinals("{{c1::first\nsecond}}")).toEqual([])
+  it("lets a deletion wrap a line, since a clause long enough to wrap is still one deletion", () => {
+    expect(clozeOrdinals("{{c1::first\nsecond}}")).toEqual([1])
+  })
+
+  it("masks and reveals a wrapped deletion rather than printing the marker verbatim", () => {
+    const text = "Found only in {{c1::plant\n}}cells outside the wall"
+
+    expect(maskCloze(text, 1, false)).toBe("Found only in […]cells outside the wall")
+    expect(maskCloze(text, 1, true)).toBe("Found only in plant\ncells outside the wall")
+  })
+
+  it("does not let a deletion cross a blank line, where the marker was left unclosed", () => {
+    expect(clozeOrdinals("{{c1::first\n\nsecond}}")).toEqual([])
+  })
+
+  it("does not let an unclosed deletion swallow the finished one after it", () => {
+    expect(clozeOrdinals("{{c1::unclosed\nand later {{c2::closed}}")).toEqual([2])
   })
 })
 

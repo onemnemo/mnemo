@@ -281,11 +281,39 @@ public sealed class FlashcardGenerationTests
     }
 
     [Fact]
-    public void A_deletion_does_not_span_a_line_break()
+    public void A_deletion_may_wrap_a_line()
     {
-        // The web copy's regex behaves the same way, and a marker left unclosed by a stray newline
-        // should read as text rather than swallowing the rest of the note.
-        Assert.Empty(FlashcardGeneration.ClozeOrdinals("{{c1::first\nsecond}}"));
+        // A deletion long enough to be a clause is normally typed across a line, and the web copy
+        // reads it the same way.
+        Assert.Equal([1], FlashcardGeneration.ClozeOrdinals("{{c1::first\nsecond}}"));
+    }
+
+    [Fact]
+    public void A_wrapped_deletion_is_masked_and_revealed_rather_than_printed_verbatim()
+    {
+        var text = "Found only in {{c1::plant\n}}cells outside the wall";
+
+        Assert.Equal(
+            $"Found only in {FlashcardGeneration.ClozePlaceholder}cells outside the wall",
+            FlashcardGeneration.MaskCloze(text, 1, reveal: false));
+        Assert.Equal(
+            "Found only in plant\ncells outside the wall",
+            FlashcardGeneration.MaskCloze(text, 1, reveal: true));
+    }
+
+    [Fact]
+    public void A_deletion_does_not_cross_a_blank_line()
+    {
+        // Where one thought ends, a marker still open was left unclosed rather than wrapped.
+        Assert.Empty(FlashcardGeneration.ClozeOrdinals("{{c1::first\n\nsecond}}"));
+    }
+
+    [Fact]
+    public void An_unclosed_deletion_does_not_swallow_the_finished_one_after_it()
+    {
+        // What the old line-bound pattern ruled out by accident, and the reason the body refuses
+        // the next deletion's opening rather than simply allowing newlines.
+        Assert.Equal([2], FlashcardGeneration.ClozeOrdinals("{{c1::unclosed\nand later {{c2::closed}}"));
     }
 
     // --- stable keys ---
