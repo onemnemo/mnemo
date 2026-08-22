@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 7456b44f69b357fa0975e9717ff8abd90f0e0dd0bd6ba7a727ee1e3be4056e8e
+sha256 0212fe07a66e1fa3196ffc847c0212fac94eb34f0d25ea28e54f6c5e99dbf31e
 namespaces 38
-keys 2112
+keys 2115
   App 10
   Chat 132
   Common 86
@@ -13,7 +13,7 @@ keys 2112
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 382
+  Flashcards 385
   GlobalSearch 18
   Hardware 2
   Keybinds 102
@@ -46,9 +46,9 @@ keys 2112
   WidgetToday 9
 
 culture de
-sha256 6ddf130c417d1405a9902711148979eea942bb42a30f7a45ee38c771549083d9
+sha256 9c06a583788a8ec0bd01e42732885c022ef3508a7dc823d2540ea576461e0e41
 namespaces 38
-keys 2112
+keys 2115
   App 10
   Chat 132
   Common 86
@@ -56,7 +56,7 @@ keys 2112
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 382
+  Flashcards 385
   GlobalSearch 18
   Hardware 2
   Keybinds 102
@@ -89,9 +89,9 @@ keys 2112
   WidgetToday 9
 
 culture es
-sha256 e9b8043f8e6dd834f5a2a81810287f702ffbdc768e48ea2ca0b3a1b6b065516c
+sha256 59f82db55a132584563504ba3f50f8d6b3f996907413c325831a62052481943f
 namespaces 38
-keys 2112
+keys 2115
   App 10
   Chat 132
   Common 86
@@ -99,7 +99,7 @@ keys 2112
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 382
+  Flashcards 385
   GlobalSearch 18
   Hardware 2
   Keybinds 102
@@ -132,9 +132,9 @@ keys 2112
   WidgetToday 9
 
 culture ja
-sha256 79a74f913b49c79b46d3642c80674d05f572e2e52476ba209897a5275d7b5a16
+sha256 623570fff5e7832c6880281189c3c937a881814956a651cd33439f8a6b21967d
 namespaces 38
-keys 2112
+keys 2115
   App 10
   Chat 132
   Common 86
@@ -142,7 +142,7 @@ keys 2112
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 382
+  Flashcards 385
   GlobalSearch 18
   Hardware 2
   Keybinds 102
@@ -175,9 +175,9 @@ keys 2112
   WidgetToday 9
 
 culture nb
-sha256 4c8afe136d41b876412234d40e14a744592fe9343a751719a3fa5b11be60a651
+sha256 f1bcc645d26cc5c2ac505b12bda3c4900f3cecbe24ce9a5b108dd5a1b98ab43a
 namespaces 38
-keys 2112
+keys 2115
   App 10
   Chat 132
   Common 86
@@ -185,7 +185,7 @@ keys 2112
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 382
+  Flashcards 385
   GlobalSearch 18
   Hardware 2
   Keybinds 102
