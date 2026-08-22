@@ -21,9 +21,11 @@ import { FieldEditor } from "./components/FieldEditor"
 import {
   canSaveFact,
   draftFromFact,
+  droppedCardCount,
   emptyDraft,
   factDraftIsDirty,
   resolveDraftDeck,
+  retypeDraft,
   snapshotFactDraft,
   toSaveFact,
   type FactDraft,
@@ -133,10 +135,50 @@ export function FactEditor({ target, onClose }: { target: CardEditorTarget; onCl
       },
     }))
 
+  // A field id belongs to the type that declared it, so changing type has to move the material onto
+  // the new type's fields rather than leave it pointing at fields nothing will render.
+  const changeType = (typeId: string) => {
+    const next = typeList.find((candidate) => candidate.id === typeId)
+    if (!next) return
+    setDraft((current) => {
+      const previous = typeList.find((candidate) => candidate.id === current.typeId)
+      return retypeDraft(current, previous, next)
+    })
+  }
+
   const canSave = canSaveFact(type, draft)
+
+  /**
+   * Cards are matched to the layout that makes them by key, so a type whose layouts key differently
+   * leaves the old cards with nothing producing them and the server deletes them outright, review
+   * history included. It is the only thing the editor can do that loses history, so it stops here
+   * rather than reporting it afterwards. Counted against what is on disk, not against the type that
+   * was picked, so an edit made after the change is accounted for.
+   */
+  const confirmTypeChange = async (): Promise<boolean> => {
+    if (!loaded || !type || draft.typeId === loaded.typeId) return true
+
+    const previous = typeList.find((candidate) => candidate.id === loaded.typeId)
+    if (!previous) return true
+
+    const dropped = droppedCardCount(
+      { type: previous, draft: draftFromFact(loaded) },
+      { type, draft: { ...draft, deckId } },
+    )
+    if (dropped === 0) return true
+
+    return dialog.confirm({
+      title: fc("CardTypeChangeTitle"),
+      message: fc("CardTypeChangeMessage", { 0: dropped }),
+      confirmLabel: fc("CardTypeChangeConfirm"),
+      cancelLabel: t("Common", "Cancel"),
+      destructive: true,
+    })
+  }
 
   const save = async () => {
     if (!canSave || saving) return
+    if (!(await confirmTypeChange())) return
     setSaving(true)
     try {
       await saveFact(toSaveFact(isEditMode ? (loaded?.id ?? null) : null, { ...draft, deckId }))
@@ -217,19 +259,13 @@ export function FactEditor({ target, onClose }: { target: CardEditorTarget; onCl
               className="min-w-[180px]"
             />
             <div className="flex-1" />
-            {isEditMode ? (
-              // Changing the card type would strand every value under field ids the new type does
-              // not have, so it is not something an edit does in passing.
-              <span className="text-[12px] text-ink-3">{type?.name ?? ""}</span>
-            ) : (
-              <SelectControl
-                value={draft.typeId}
-                choices={typeList.map((candidate) => ({ value: candidate.id, label: candidate.name }))}
-                onChange={(typeId) => setDraft((current) => ({ ...current, typeId, values: {}, media: {} }))}
-                label={fc("CardTypeLabel")}
-                className="min-w-[150px]"
-              />
-            )}
+            <SelectControl
+              value={draft.typeId}
+              choices={typeList.map((candidate) => ({ value: candidate.id, label: candidate.name }))}
+              onChange={changeType}
+              label={fc("CardTypeLabel")}
+              className="min-w-[150px]"
+            />
             <Dialog.Close asChild>
               <IconButton icon="common/x" iconSize={14} label={t("Common", "Close")} />
             </Dialog.Close>
