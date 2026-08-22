@@ -16,19 +16,32 @@ export function maskCloze(front: string): string {
   return front.replace(CLOZE, "[…]")
 }
 
-/** Answer side of a cloze card: the deletions come back in bold. The card's back is never shown. */
-export function revealCloze(front: string): string {
-  return front.replace(CLOZE, "**$1**")
+/** Reads whatever deletions a piece of text still carries back out, in bold. */
+export function revealCloze(text: string): string {
+  return text.replace(CLOZE, "**$1**")
 }
 
-/** What the card's front shows before the answer is revealed. */
+/**
+ * What the card's front shows before the answer is revealed.
+ *
+ * Generation already masks the front it stores, so this changes nothing on most cards. It stays
+ * for the ones generation could not read: a deletion written across a line break is left in the
+ * row as literal markup, and masking here is what keeps it off the screen.
+ */
 export function promptText(card: CardDto): string {
   return card.type === "cloze" ? maskCloze(card.front) : card.front
 }
 
-/** What the answer half shows. For cloze that is the front again, deletions filled in. */
+/**
+ * What the answer half shows.
+ *
+ * A cloze card's back is the sentence with its deletion filled in, written out when the card was
+ * generated, so the answer is read from there. Deriving it from the front instead showed the
+ * masked sentence twice and never the answer: the stored front has no markers left to reveal.
+ */
 export function answerText(card: CardDto): string {
-  return card.type === "cloze" ? revealCloze(card.front) : card.back
+  if (card.type !== "cloze") return card.back
+  return card.back.trim() ? revealCloze(card.back) : revealCloze(card.front)
 }
 
 /** Filled width in px of the 160px progress track both session bars draw. */
