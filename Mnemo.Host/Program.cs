@@ -109,12 +109,20 @@ public static class Program
 
     private static async Task<ServerHandle> StartServerAsync(HostOptions options)
     {
+        // The port is part of the origin the window loads, and the browser partitions web
+        // storage by origin, so production resolves the same port on every launch instead
+        // of taking whatever the OS offers. The reservation holds the port bound until
+        // Kestrel is ready to take it, which is half a second of module discovery, backend
+        // init and migrations away.
+        using var reservation = options.DevMode ? null : LoopbackPort.Reserve();
+        var apiPort = reservation?.Port ?? options.DevApiPort;
+
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.ConfigureKestrel(kestrel =>
         {
-            // Loopback only, never 0.0.0.0. Prod binds an ephemeral port; dev uses a
-            // fixed port so the Vite proxy has a stable target across host restarts.
-            kestrel.Listen(IPAddress.Loopback, options.DevMode ? options.DevApiPort : 0);
+            // Loopback only, never 0.0.0.0. Dev keeps its own fixed port so the Vite proxy
+            // has a stable target across host restarts.
+            kestrel.Listen(IPAddress.Loopback, apiPort);
         });
         builder.Configuration["AllowedHosts"] = "localhost;127.0.0.1";
         builder.Logging.ClearProviders();
@@ -218,6 +226,10 @@ public static class Program
             .GetAsync("Editor.SpellCheckLanguages", "en").ConfigureAwait(false);
         var spellcheckLanguage = string.IsNullOrWhiteSpace(language) ? "en" : language;
 
+        // Kestrel cannot bind a port this process is still listening on, so the handover
+        // happens here and nowhere earlier.
+        reservation?.Dispose();
+
         await app.StartAsync().ConfigureAwait(false);
 
         // A quit or crash skips the on-close cleanup, so every launch collects what got left
@@ -234,6 +246,15 @@ public static class Program
 
         var apiBaseUrl = ResolveBoundAddress(app);
         logger.Info(CrashLog.Category, $"API listening on {apiBaseUrl}");
+
+        if (!options.DevMode && apiPort != LoopbackPort.Preferred)
+        {
+            // Worth a line of its own: a launch off the preferred port has a different
+            // origin, so the window opens with none of the web storage the last one left,
+            // and the app looks like it forgot the user's settings.
+            logger.Warning(CrashLog.Category,
+                $"Port {LoopbackPort.Preferred} was taken, so this launch bound {apiPort}. Saved theme, dock width and last route will not carry over.");
+        }
 
         if (options.DevMode)
         {
