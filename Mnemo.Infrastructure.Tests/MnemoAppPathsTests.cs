@@ -19,74 +19,54 @@ public sealed class DataRootCollection
 [Collection(DataRootCollection.Name)]
 public sealed class MnemoAppPathsTests
 {
+    private static readonly string LocalAppData = Path.Combine(Path.GetTempPath(), "mnemo-local-app-data");
+
     [Fact]
-    public void GetLocalUserDataRoot_UsesOverride_WhenEnvironmentVariableSet()
+    public void ResolveDataRoot_UsesTheOverride_WhenOneIsGiven()
     {
         var overrideRoot = Path.Combine(Path.GetTempPath(), "mnemo-data-override");
-        using var scope = new DataDirOverrideScope(overrideRoot);
 
-        var expectedRoot = Path.GetFullPath(overrideRoot);
-        Assert.Equal(expectedRoot, MnemoAppPaths.GetLocalUserDataRoot());
-        Assert.Equal(Path.Combine(expectedRoot, "mnemo.db"), MnemoAppPaths.GetLocalUserDataFile("mnemo.db"));
-        Assert.Equal(Path.Combine(expectedRoot, "images"), MnemoAppPaths.GetImagesDirectory());
+        Assert.Equal(
+            Path.GetFullPath(overrideRoot),
+            MnemoAppPaths.ResolveDataRoot(overrideRoot, LocalAppData));
     }
 
     [Fact]
-    public void GetLogsDirectory_FollowsTheOverride()
+    public void ResolveDataRoot_IgnoresTheOverride_WhenItIsBlank()
     {
-        var overrideRoot = Path.Combine(Path.GetTempPath(), "mnemo-data-override");
-        using var scope = new DataDirOverrideScope(overrideRoot);
+        var withoutOverride = MnemoAppPaths.ResolveDataRoot(null, LocalAppData);
 
-        Assert.Equal(Path.Combine(Path.GetFullPath(overrideRoot), "logs"), MnemoAppPaths.GetLogsDirectory());
+        Assert.Equal(withoutOverride, MnemoAppPaths.ResolveDataRoot("   ", LocalAppData));
+        Assert.Equal(withoutOverride, MnemoAppPaths.ResolveDataRoot(string.Empty, LocalAppData));
     }
 
     [Fact]
-    public void GetLogsDirectory_KeepsTheShippedLocation_WhenOverrideUnset()
+    public void ResolveDataRoot_KeepsTheShippedLocation_WhenThereIsNoOverride()
     {
-        using var scope = new DataDirOverrideScope(null);
-
         // Spelled out rather than derived from the accessor: an installed app has no
-        // override, and its log files have to stay at this exact path.
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        Assert.Equal(Path.Combine(localAppData, "Mnemo", "logs"), MnemoAppPaths.GetLogsDirectory());
+        // override, and its profile has to stay at this exact path.
+        Assert.Equal(Path.Combine(LocalAppData, "Mnemo"), MnemoAppPaths.ResolveDataRoot(null, LocalAppData));
     }
 
     [Fact]
-    public void GetLocalUserDataRoot_IgnoresOverride_WhenWhitespace()
+    public void GetLocalUserDataRoot_FollowsTheEnvironmentVariable()
     {
-        string defaultRoot;
-        using (new DataDirOverrideScope(null))
-        {
-            defaultRoot = MnemoAppPaths.GetLocalUserDataRoot();
-        }
+        var inForce = Environment.GetEnvironmentVariable(MnemoAppPaths.DataDirEnvironmentVariable);
 
-        using var scope = new DataDirOverrideScope("   ");
-        Assert.Equal(defaultRoot, MnemoAppPaths.GetLocalUserDataRoot());
+        Assert.False(string.IsNullOrWhiteSpace(inForce));
+        Assert.Equal(Path.GetFullPath(inForce!), MnemoAppPaths.GetLocalUserDataRoot());
     }
 
     [Fact]
-    public void GetLocalUserDataRoot_EndsWithProductFolder_WhenOverrideUnset()
+    public void Every_accessor_sits_under_the_root_in_force()
     {
-        using var scope = new DataDirOverrideScope(null);
-        Assert.Equal("Mnemo", Path.GetFileName(MnemoAppPaths.GetLocalUserDataRoot()));
-    }
+        var root = MnemoAppPaths.GetLocalUserDataRoot();
 
-    /// <summary>
-    /// Sets the data-dir override for the duration of a test and restores the
-    /// previous value on dispose, so the process-wide variable never leaks
-    /// between tests.
-    /// </summary>
-    private sealed class DataDirOverrideScope : IDisposable
-    {
-        private readonly string? _previous;
-
-        public DataDirOverrideScope(string? value)
-        {
-            _previous = Environment.GetEnvironmentVariable(MnemoAppPaths.DataDirEnvironmentVariable);
-            Environment.SetEnvironmentVariable(MnemoAppPaths.DataDirEnvironmentVariable, value);
-        }
-
-        public void Dispose()
-            => Environment.SetEnvironmentVariable(MnemoAppPaths.DataDirEnvironmentVariable, _previous);
+        Assert.Equal(Path.Combine(root, "mnemo.db"), MnemoAppPaths.GetLocalUserDataFile("mnemo.db"));
+        Assert.Equal(Path.Combine(root, "images"), MnemoAppPaths.GetImagesDirectory());
+        Assert.Equal(Path.Combine(root, "logs"), MnemoAppPaths.GetLogsDirectory());
+        Assert.Equal(Path.Combine(root, "note-assets"), MnemoAppPaths.GetNoteAssetsDirectory());
+        Assert.Equal(Path.Combine(root, "mindmap-assets"), MnemoAppPaths.GetMindmapAssetsDirectory());
+        Assert.Equal(Path.Combine(root, "chat-attachments"), MnemoAppPaths.GetChatAttachmentsDirectory());
     }
 }

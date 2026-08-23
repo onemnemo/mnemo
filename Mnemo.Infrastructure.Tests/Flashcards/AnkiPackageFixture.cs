@@ -127,6 +127,18 @@ internal static class AnkiPackageFixture
 
     public static DateTimeOffset CollectionCreatedAt => DateTimeOffset.FromUnixTimeSeconds(CollectionCreatedAtUnixSeconds);
 
+    /// <summary>
+    /// A fresh directory for the media an import materialises. Handing one to the image asset
+    /// service keeps a test's attachments in a directory it owns, rather than in the profile an
+    /// installed app reads, which is where the service resolves them when nobody says otherwise.
+    /// </summary>
+    public static string NewImagesDirectory()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"mnemo-tests-anki-images-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        return directory;
+    }
+
     private const long FirstDeckId = 1500000000001L;
     private const long BasicNotetypeId = 1608194021001L;
     private const string BasicNotetypeName = "Basic";
