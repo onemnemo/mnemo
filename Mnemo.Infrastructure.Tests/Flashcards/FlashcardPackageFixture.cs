@@ -13,7 +13,15 @@ namespace Mnemo.Infrastructure.Tests.Flashcards;
 /// </summary>
 internal static class FlashcardPackageFixture
 {
-    public static FlashcardsMnemoPayloadHandler Handler(FlashcardStoreHarness h) => new(
+    /// <summary>
+    /// Wires the handler over a test store. <paramref name="imagesDirectory"/> is where a restore
+    /// writes the image files a package carries; a test that also builds attachment paths of its
+    /// own passes the directory it built them in, so the rows and the files agree. Omitting it
+    /// mints a fresh directory, which is what a test that never looks at the files wants.
+    /// </summary>
+    public static FlashcardsMnemoPayloadHandler Handler(
+        FlashcardStoreHarness h,
+        string? imagesDirectory = null) => new(
         new FlashcardLibraryService(
             h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock),
         new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock),
@@ -28,7 +36,20 @@ internal static class FlashcardPackageFixture
         h.Schedules,
         h.Reviews,
         h.DailyStats,
-        new TestLogger());
+        new TestLogger(),
+        imagesDirectory ?? NewImagesDirectory());
+
+    /// <summary>
+    /// A fresh directory for the image files a restore writes. Handing one to the handler keeps a
+    /// package test's assets in a directory it owns, rather than in the profile an installed app
+    /// reads, which is where the handler resolves them when nobody says otherwise.
+    /// </summary>
+    public static string NewImagesDirectory()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"mnemo-tests-package-images-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        return directory;
+    }
 
     /// <summary>An export of the whole collection, as a backup unless the caller says otherwise.</summary>
     public static MnemoPayloadExportContext ExportContext(string kind = MnemoPackageKinds.Backup) =>

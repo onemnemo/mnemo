@@ -179,5 +179,5 @@ public sealed class FlashcardAnkiMathDelimiterTests
         FlashcardCardService cardSvc) =>
         new(library, cardSvc, h.FactService,
             new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock),
-            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService());
+            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()));
 }

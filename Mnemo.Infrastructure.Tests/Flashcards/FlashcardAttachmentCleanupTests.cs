@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Flashcards;
-using Mnemo.Infrastructure.Common;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Tests.Flashcards.Persistence;
 using Xunit;
@@ -28,6 +27,13 @@ namespace Mnemo.Infrastructure.Tests.Flashcards;
 /// </remarks>
 public sealed class FlashcardAttachmentCleanupTests
 {
+    /// <summary>
+    /// The directory this class treats as the managed image store. Owned here rather than
+    /// resolved from the data root, so the paths these tests build never point into the profile
+    /// an installed app reads.
+    /// </summary>
+    private static readonly string ImagesDirectory = FlashcardPackageFixture.NewImagesDirectory();
+
     private static readonly DateTimeOffset Now = new(2026, 3, 4, 9, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -276,7 +282,7 @@ public sealed class FlashcardAttachmentCleanupTests
         });
 
     private static string ManagedPath(string name) =>
-        Path.Combine(MnemoAppPaths.GetImagesDirectory(), $"{Guid.NewGuid():N}-{name}");
+        Path.Combine(ImagesDirectory, $"{Guid.NewGuid():N}-{name}");
 
     private static FlashcardAttachment Attachment(string id, string path) =>
         new(id, FlashcardAttachment.FrontSide, path, Path.GetFileName(path), 100);
