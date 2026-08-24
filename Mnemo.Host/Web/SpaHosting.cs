@@ -40,10 +40,17 @@ public static class SpaHosting
             throw new InvalidOperationException($"'{indexPath}' has no </head> tag to template the auth token into.");
         }
 
-        // The token is lowercase hex, so it needs no HTML or JS escaping.
+        // Two globals the page reads before it boots: the per-launch bearer token,
+        // and the engine the host built its window around. Windows uses WebView2
+        // (Chromium); Linux and macOS use WebKit. The notes stylesheet gates its
+        // content-visibility optimisation on that value, because WebKit mispaints a
+        // revealed block. The token is lowercase hex and the engine is a fixed
+        // literal, so neither needs HTML or JS escaping.
+        var engine = OperatingSystem.IsWindows() ? "chromium" : "webkit";
         var templated = html.Insert(
             insertAt,
-            $"<script nonce=\"{nonce}\">window.__MNEMO_TOKEN__ = \"{bearerToken}\";</script>");
+            $"<script nonce=\"{nonce}\">window.__MNEMO_TOKEN__ = \"{bearerToken}\"; " +
+            $"window.__MNEMO_ENGINE__ = \"{engine}\";</script>");
 
         return new SpaDocument(templated, BuildPolicy(nonce));
     }
