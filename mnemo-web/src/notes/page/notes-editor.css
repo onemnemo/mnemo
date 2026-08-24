@@ -76,8 +76,20 @@
  * Two consequences worth knowing before adding block chrome. Paint containment
  * clips anything drawn outside the block's own box, so a hover handle in a
  * left-hand gutter has to live inside the block. And a selection makes a block
- * relevant again, so selecting the whole document lays all of it out. */
-.notes-doc .ProseMirror > * {
+ * relevant again, so selecting the whole document lays all of it out.
+ *
+ * WebKit compatibility fallback. The skipping is opted into only on Chromium
+ * (WebView2), the one engine verified to paint a revealed block correctly. WebKit
+ * (WebKitGTK on Linux, WKWebView on macOS, both WebCore) can leave a
+ * `content-visibility: auto` subtree with stale layout during dynamic editing, so
+ * typed text stays in the DOM but unpainted until the block is focused, covered
+ * by a selection, or its reserved-size estimate changes (the 83rd character of a
+ * paragraph, where the estimate first grows a line). Tracked, not proven the same
+ * defect: mnemo#34, related upstream WebKit#321501. The engine is stamped on
+ * <html> by lib/engine.ts from a value Mnemo.Host injects. The `:where()` wrapper
+ * adds no specificity, so every `content-visibility: visible` override below
+ * still wins exactly as it did when this rule was unconditional. */
+:where(:root[data-engine="chromium"]) .notes-doc .ProseMirror > * {
   content-visibility: auto;
   contain-intrinsic-size: 34px;
   contain-intrinsic-size: auto 34px;

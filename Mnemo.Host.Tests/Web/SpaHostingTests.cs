@@ -68,6 +68,17 @@ public sealed class SpaHostingTests
     }
 
     [Fact]
+    public void The_engine_the_host_built_for_reaches_the_page()
+    {
+        var document = Load(BuiltIndexHtml);
+
+        // The notes stylesheet gates its content-visibility optimisation on this:
+        // Chromium under WebView2 on Windows, WebKit (WebKitGTK / WKWebView) elsewhere.
+        var expected = OperatingSystem.IsWindows() ? "chromium" : "webkit";
+        Assert.Contains($"window.__MNEMO_ENGINE__ = \"{expected}\"", document.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void The_policy_shuts_the_doors_nothing_in_the_app_uses()
     {
         var policy = Load(BuiltIndexHtml).ContentSecurityPolicy;
