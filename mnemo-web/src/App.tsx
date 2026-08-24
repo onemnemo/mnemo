@@ -5,6 +5,7 @@ import { checkLegacyInstallWarning } from "@/app/legacy-install-warning"
 import { startRoutePrefetch } from "@/app/prefetch"
 import { useRouteNormalization } from "@/app/router"
 import { AppShell } from "@/components/shell/AppShell"
+import { useDragRegions } from "@/components/shell/chrome/useDragRegions"
 import { DialogHost } from "@/components/shell/DialogHost"
 import { CommandPalette } from "@/components/shell/palette/CommandPalette"
 import { TooltipHost } from "@/components/ui/tooltip"
@@ -29,6 +30,10 @@ if (import.meta.env.DEV) {
 
 function App() {
   useRouteNormalization()
+
+  // At the root rather than in a bar component, because it collects every drag
+  // surface in the document, the onboarding screen's included.
+  useDragRegions()
 
   useEffect(() => installContextMenuGuard(), [])
 

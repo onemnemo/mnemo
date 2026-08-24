@@ -1,5 +1,3 @@
-import { forwardRef } from "react"
-
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
@@ -14,19 +12,14 @@ interface SidebarBrandProps {
  * The rail's top row, at topbar height so the wordmark and the breadcrumb share a
  * baseline.
  *
- * It doubles as the window's Linux drag handle, which is why it holds exactly one
- * control and that control only appears on hover: whatever this row covers stops
- * being clickable there.
+ * A drag surface like the topbar. Its one control appears only on hover, so the
+ * row keeps reading as a place to take hold of the window.
  */
-export const SidebarBrand = forwardRef<HTMLDivElement, SidebarBrandProps>(function SidebarBrand(
-  { collapsed, hovered, onToggle },
-  ref,
-) {
+export function SidebarBrand({ collapsed, hovered, onToggle }: SidebarBrandProps) {
   const t = useT()
 
   return (
     <div
-      ref={ref}
       className={cn("drag-region flex shrink-0 items-center", collapsed ? "justify-center px-2" : "justify-between pl-3 pr-2")}
       style={{ height: "var(--topbar-h)" }}
     >
@@ -57,4 +50,4 @@ export const SidebarBrand = forwardRef<HTMLDivElement, SidebarBrandProps>(functi
       )}
     </div>
   )
-})
+}
