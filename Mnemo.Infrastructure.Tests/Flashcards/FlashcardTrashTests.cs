@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Models.Trash;
-using Mnemo.Infrastructure.Common;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Services.Flashcards.Trash;
@@ -19,6 +18,13 @@ namespace Mnemo.Infrastructure.Tests.Flashcards;
 /// </summary>
 public sealed class FlashcardTrashTests
 {
+    /// <summary>
+    /// The directory this class treats as the managed image store. Owned here rather than
+    /// resolved from the data root, so the paths these tests build never point into the profile
+    /// an installed app reads.
+    /// </summary>
+    private static readonly string ImagesDirectory = FlashcardPackageFixture.NewImagesDirectory();
+
     private static readonly DateTimeOffset Now = new(2026, 4, 1, 8, 0, 0, TimeSpan.Zero);
 
     // ---- Decks -------------------------------------------------------------------------------
@@ -539,7 +545,7 @@ public sealed class FlashcardTrashTests
         new(id, FlashcardAttachment.FrontSide, path, System.IO.Path.GetFileName(path), 100);
 
     private static string ManagedPath(string name) =>
-        System.IO.Path.Combine(MnemoAppPaths.GetImagesDirectory(), $"{Guid.NewGuid():N}-{name}");
+        System.IO.Path.Combine(ImagesDirectory, $"{Guid.NewGuid():N}-{name}");
 
     private static Task SeedFolderAsync(FlashcardStoreHarness h, string id, string? parentId) =>
         h.Store.WriteAsync((conn, tx, ct) =>

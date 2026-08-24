@@ -42,7 +42,14 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemo
     private readonly IReviewRepository _reviews;
     private readonly IDailyStatsRepository _dailyStats;
     private readonly ILoggerService _logger;
+    private readonly string? _imagesDirectory;
 
+    /// <summary>
+    /// Builds the handler. <paramref name="imagesDirectory"/> is where a restore writes the image
+    /// files a package carries; null resolves the per-user images directory, which is what the app
+    /// does. A caller that owns a directory, such as a test, passes it here rather than repointing
+    /// the data root for the whole process.
+    /// </summary>
     public FlashcardsMnemoPayloadHandler(
         IFlashcardLibraryService library,
         IFlashcardCardService cards,
@@ -57,7 +64,8 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemo
         IScheduleRepository schedules,
         IReviewRepository reviews,
         IDailyStatsRepository dailyStats,
-        ILoggerService logger)
+        ILoggerService logger,
+        string? imagesDirectory = null)
     {
         _library = library;
         _cards = cards;
@@ -73,7 +81,15 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemo
         _reviews = reviews;
         _dailyStats = dailyStats;
         _logger = logger;
+        _imagesDirectory = imagesDirectory;
     }
+
+    /// <summary>
+    /// Where a restore writes the image files a package carries, and the directory the restored
+    /// attachment rows are made to point at. Resolved once per import so the bytes and the rows
+    /// cannot end up in two different places.
+    /// </summary>
+    private string ImagesDirectory => _imagesDirectory ?? MnemoAppPaths.GetImagesDirectory();
 
     public string PayloadType => "flashcards";
 
@@ -108,11 +124,12 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemo
         if (ReadSnapshot(bytes) is not { } snapshot)
             return new MnemoPayloadImportResult { Warnings = { TransferWarning.Of("FlashcardsPayloadUnreadable") } };
 
-        RestoreImageAssets(context.Files);
+        var imagesDirectory = ImagesDirectory;
+        RestoreImageAssets(context.Files, imagesDirectory);
 
         var restore = new FlashcardCollectionRestore(
             _store, _presetService, _folders, _decks, _cardRows, _facts, _cardTypes,
-            _presets, _schedules, _reviews, _dailyStats, _logger);
+            _presets, _schedules, _reviews, _dailyStats, _logger, imagesDirectory);
         return await restore.RestoreAsync(snapshot, context.Options.ConflictPolicy, cancellationToken).ConfigureAwait(false);
     }
 
@@ -245,9 +262,9 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemo
     /// Writes packaged attachment bytes into the local images directory. A file already there is
     /// left alone: a restore must never overwrite a picture this machine's own cards point at.
     /// </summary>
-    private static void RestoreImageAssets(IReadOnlyDictionary<string, byte[]> files)
+    private static void RestoreImageAssets(IReadOnlyDictionary<string, byte[]> files, string imagesDirectory)
     {
-        string? imagesDirectory = null;
+        var created = false;
         foreach (var pair in files)
         {
             if (!pair.Key.StartsWith(AssetPrefix, StringComparison.OrdinalIgnoreCase))
@@ -257,10 +274,10 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemo
             if (string.IsNullOrWhiteSpace(fileName))
                 continue;
 
-            if (imagesDirectory is null)
+            if (!created)
             {
-                imagesDirectory = MnemoAppPaths.GetImagesDirectory();
                 Directory.CreateDirectory(imagesDirectory);
+                created = true;
             }
 
             var destination = Path.Combine(imagesDirectory, fileName);

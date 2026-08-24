@@ -37,7 +37,13 @@ internal sealed class FlashcardCollectionRestore
     private readonly IReviewRepository _reviews;
     private readonly IDailyStatsRepository _dailyStats;
     private readonly ILoggerService _logger;
+    private readonly string _imagesDirectory;
 
+    /// <summary>
+    /// Builds the restore. <paramref name="imagesDirectory"/> is where the package's image files
+    /// have already been written, and is the directory the restored attachment paths are made to
+    /// point at, so the rows and the files on disk cannot disagree.
+    /// </summary>
     public FlashcardCollectionRestore(
         IFlashcardStore store,
         IFlashcardPresetService presetService,
@@ -50,7 +56,8 @@ internal sealed class FlashcardCollectionRestore
         IScheduleRepository schedules,
         IReviewRepository reviews,
         IDailyStatsRepository dailyStats,
-        ILoggerService logger)
+        ILoggerService logger,
+        string imagesDirectory)
     {
         _store = store;
         _presetService = presetService;
@@ -64,6 +71,7 @@ internal sealed class FlashcardCollectionRestore
         _reviews = reviews;
         _dailyStats = dailyStats;
         _logger = logger;
+        _imagesDirectory = imagesDirectory;
     }
 
     public async Task<MnemoPayloadImportResult> RestoreAsync(
@@ -76,7 +84,7 @@ internal sealed class FlashcardCollectionRestore
         await _presetService.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
 
         var result = new MnemoPayloadImportResult();
-        var imagesDirectory = MnemoAppPaths.GetImagesDirectory();
+        var imagesDirectory = _imagesDirectory;
         var now = DateTimeOffset.UtcNow;
 
         await _store.WriteAsync(async (conn, tx, ct) =>
