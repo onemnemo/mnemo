@@ -3,8 +3,8 @@ namespace Mnemo.Host;
 /// <summary>
 /// Launch options. <c>--dev [url]</c> points the window at the Vite dev server
 /// (default http://localhost:5173/) and binds the API to a fixed dev port so the
-/// Vite proxy has a stable target across host restarts; without it the host binds
-/// an ephemeral port and serves the built SPA itself.
+/// Vite proxy has a stable target across host restarts; without it the host serves
+/// the built SPA itself on the port <see cref="Startup.LoopbackPort"/> resolves.
 /// </summary>
 public sealed record HostOptions(bool DevMode, string DevServerUrl, int DevApiPort, string? SpaRootOverride)
 {
