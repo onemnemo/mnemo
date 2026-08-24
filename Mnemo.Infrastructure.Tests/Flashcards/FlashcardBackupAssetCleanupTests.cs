@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Mnemo.Core.Enums;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
-using Mnemo.Infrastructure.Common;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Tests.Flashcards.Persistence;
 using Xunit;
@@ -26,6 +25,13 @@ namespace Mnemo.Infrastructure.Tests.Flashcards;
 /// </remarks>
 public sealed class FlashcardBackupAssetCleanupTests
 {
+    /// <summary>
+    /// The directory this class treats as the managed image store. Owned here rather than
+    /// resolved from the data root, so the paths these tests build never point into the profile
+    /// an installed app reads.
+    /// </summary>
+    private static readonly string ImagesDirectory = FlashcardPackageFixture.NewImagesDirectory();
+
     private static readonly DateTimeOffset Now = new(2026, 3, 4, 9, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -34,13 +40,13 @@ public sealed class FlashcardBackupAssetCleanupTests
         await using var h = await OpenAsync();
 
         // Taken before the material exists, so restoring it is a genuine deletion of that material.
-        var package = await FlashcardPackageFixture.Handler(h).ExportAsync(FlashcardPackageFixture.ExportContext());
+        var package = await FlashcardPackageFixture.Handler(h, ImagesDirectory).ExportAsync(FlashcardPackageFixture.ExportContext());
 
         var path = ManagedPath("destroyed.png");
         var saved = await h.FactService.SaveFactAsync(Draft(new() { ["front"] = "Q", ["back"] = "A" }, MediaOn("front", path)));
         Assert.Single(saved.Cards);
 
-        await FlashcardPackageFixture.Handler(h)
+        await FlashcardPackageFixture.Handler(h, ImagesDirectory)
             .ImportAsync(FlashcardPackageFixture.ImportContext(package, ImportConflictPolicy.Replace));
 
         Assert.Null(await h.FactService.GetFactAsync(saved.Fact.Id));
@@ -51,7 +57,7 @@ public sealed class FlashcardBackupAssetCleanupTests
     public async Task Replacing_a_deck_queues_the_files_of_the_cards_it_destroys()
     {
         await using var h = await OpenAsync();
-        var package = await FlashcardPackageFixture.Handler(h).ExportAsync(FlashcardPackageFixture.ExportContext());
+        var package = await FlashcardPackageFixture.Handler(h, ImagesDirectory).ExportAsync(FlashcardPackageFixture.ExportContext());
 
         // A card with no material of its own owns its file outright, so nothing else can speak for it.
         var path = ManagedPath("freeform.png");
@@ -61,7 +67,7 @@ public sealed class FlashcardBackupAssetCleanupTests
             Attachments: [Attachment("a1", path)], CreatedAt: Now, UpdatedAt: Now);
         await h.AddCardAsync(card, FlashcardSchedule.NewFor(card.Id, Now));
 
-        await FlashcardPackageFixture.Handler(h)
+        await FlashcardPackageFixture.Handler(h, ImagesDirectory)
             .ImportAsync(FlashcardPackageFixture.ImportContext(package, ImportConflictPolicy.Replace));
 
         Assert.Contains(path, await QueuedAsync(h));
@@ -81,13 +87,13 @@ public sealed class FlashcardBackupAssetCleanupTests
         var kept = ManagedPath("kept.png");
         await h.FactService.SaveFactAsync(Draft(new() { ["front"] = "Q", ["back"] = "A" }, MediaOn("front", kept)));
 
-        var package = await FlashcardPackageFixture.Handler(h).ExportAsync(FlashcardPackageFixture.ExportContext());
+        var package = await FlashcardPackageFixture.Handler(h, ImagesDirectory).ExportAsync(FlashcardPackageFixture.ExportContext());
 
         // Written after the backup was taken, so the replace destroys it for good.
         var orphaned = ManagedPath("orphaned.png");
         await h.FactService.SaveFactAsync(Draft(new() { ["front"] = "Later", ["back"] = "Gone" }, MediaOn("front", orphaned)));
 
-        await FlashcardPackageFixture.Handler(h)
+        await FlashcardPackageFixture.Handler(h, ImagesDirectory)
             .ImportAsync(FlashcardPackageFixture.ImportContext(package, ImportConflictPolicy.Replace));
 
         var queued = await QueuedAsync(h);
@@ -109,11 +115,11 @@ public sealed class FlashcardBackupAssetCleanupTests
     public async Task Replacing_a_deck_leaves_the_search_index_agreeing_with_the_cards()
     {
         await using var h = await OpenAsync();
-        var package = await FlashcardPackageFixture.Handler(h).ExportAsync(FlashcardPackageFixture.ExportContext());
+        var package = await FlashcardPackageFixture.Handler(h, ImagesDirectory).ExportAsync(FlashcardPackageFixture.ExportContext());
 
         await h.FactService.SaveFactAsync(Draft(new() { ["front"] = "Vanishing", ["back"] = "Gone" }, null));
 
-        await FlashcardPackageFixture.Handler(h)
+        await FlashcardPackageFixture.Handler(h, ImagesDirectory)
             .ImportAsync(FlashcardPackageFixture.ImportContext(package, ImportConflictPolicy.Replace));
 
         await IntegrityCheckAsync(h);
@@ -162,7 +168,7 @@ public sealed class FlashcardBackupAssetCleanupTests
         });
 
     private static string ManagedPath(string name) =>
-        Path.Combine(MnemoAppPaths.GetImagesDirectory(), $"{Guid.NewGuid():N}-{name}");
+        Path.Combine(ImagesDirectory, $"{Guid.NewGuid():N}-{name}");
 
     private static FlashcardAttachment Attachment(string id, string path) =>
         new(id, FlashcardAttachment.FrontSide, path, Path.GetFileName(path), 100);

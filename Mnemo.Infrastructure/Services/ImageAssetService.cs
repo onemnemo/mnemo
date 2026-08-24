@@ -14,6 +14,19 @@ namespace Mnemo.Infrastructure.Services;
 /// </summary>
 public sealed class ImageAssetService : IImageAssetService
 {
+    private readonly string? _imagesDirectory;
+
+    /// <summary>
+    /// Creates a service that copies images into <paramref name="imagesDirectory"/>. Passing null
+    /// resolves the per-user images directory instead, which is what the app does. A caller that
+    /// owns a directory, such as a test, passes it here rather than repointing the data root for
+    /// the whole process.
+    /// </summary>
+    public ImageAssetService(string? imagesDirectory = null)
+    {
+        _imagesDirectory = imagesDirectory;
+    }
+
     /// <inheritdoc/>
     public async Task<Result<string>> ImportAndCopyAsync(
         string sourcePath,
@@ -36,7 +49,7 @@ public sealed class ImageAssetService : IImageAssetService
             if (ext is null)
                 return Result<string>.Failure("File is not a supported image (PNG, JPEG, GIF, WebP or BMP).");
 
-            var imagesDir = MnemoAppPaths.GetImagesDirectory();
+            var imagesDir = _imagesDirectory ?? MnemoAppPaths.GetImagesDirectory();
             Directory.CreateDirectory(imagesDir);
 
             var dest = Path.Combine(imagesDir, blockId + ext);

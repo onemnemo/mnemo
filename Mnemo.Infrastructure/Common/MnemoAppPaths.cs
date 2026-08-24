@@ -18,16 +18,37 @@ public static class MnemoAppPaths
     // Windows: %LOCALAPPDATA%\Mnemo\
     // Linux/macOS: resolved via .NET's LocalApplicationData implementation.
     public static string GetLocalUserDataRoot()
+        => ResolveDataRoot(
+            Environment.GetEnvironmentVariable(DataDirEnvironmentVariable),
+            GetLocalApplicationData());
+
+    /// <summary>
+    /// Decides the data root from an override and the per-user application data directory.
+    /// An override that is null, empty or whitespace is ignored, so a blank variable behaves as
+    /// if it were unset; otherwise the override wins and is returned as a full path. Split out
+    /// from <see cref="GetLocalUserDataRoot"/> so the rule can be exercised without changing the
+    /// environment of the running process.
+    /// </summary>
+    public static string ResolveDataRoot(string? overrideRoot, string localApplicationData)
     {
-        var overrideRoot = Environment.GetEnvironmentVariable(DataDirEnvironmentVariable);
         if (!string.IsNullOrWhiteSpace(overrideRoot))
             return Path.GetFullPath(overrideRoot);
 
+        return Path.Combine(localApplicationData, ProductFolderName);
+    }
+
+    /// <summary>
+    /// The per-user application data directory this machine reports, falling back to the roaming
+    /// directory when the local one is unavailable. Ignores the data root override, so a caller
+    /// that needs the shipped location can ask for it while an override is in force.
+    /// </summary>
+    public static string GetLocalApplicationData()
+    {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (string.IsNullOrWhiteSpace(localAppData))
             localAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
 
-        return Path.Combine(localAppData, ProductFolderName);
+        return localAppData;
     }
 
     public static string GetLocalUserDataFile(string fileName)
