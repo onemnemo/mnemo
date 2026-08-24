@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef } from "react"
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react"
 
+import { restoreTextSelection, suppressTextSelection } from "../../lib/dnd/drag-select"
 import { flowIndexAt } from "../layout/compute"
 import type { WidgetPlacement } from "../layout/engine"
 import { cellWidthFor, GAP, MAX_COLUMNS } from "../layout/metrics"
@@ -76,7 +77,7 @@ export function useBoardDrag(boardRef: RefObject<HTMLElement | null>, metrics: B
     teardown.current = null
     pressed.current = null
     dragging.current = false
-    document.body.style.userSelect = ""
+    restoreTextSelection()
     document.body.style.cursor = ""
   }, [])
 
@@ -86,7 +87,7 @@ export function useBoardDrag(boardRef: RefObject<HTMLElement | null>, metrics: B
   useEffect(
     () => () => {
       teardown.current?.()
-      document.body.style.userSelect = ""
+      restoreTextSelection()
       document.body.style.cursor = ""
     },
     [],
@@ -153,7 +154,7 @@ export function useBoardDrag(boardRef: RefObject<HTMLElement | null>, metrics: B
 
           dragging.current = true
           // Dragging across the page would otherwise sweep a text selection along with it.
-          document.body.style.userSelect = "none"
+          suppressTextSelection()
           document.body.style.cursor = "grabbing"
           useOverviewStore.getState().beginDrag(from.instanceId)
         }

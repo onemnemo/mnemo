@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { usePointerDrag, type PointerDrag, type PointerDragOptions } from './usePointerDrag';
+import { DRAGGING_CLASS } from './drag-select';
 
 interface Handle {
   id: string;
@@ -72,12 +73,12 @@ function baseOptions(over: Partial<PointerDragOptions<Handle, Target, Plan>> = {
 }
 
 beforeEach(() => {
-  document.body.style.userSelect = '';
+  document.body.classList.remove(DRAGGING_CLASS);
 });
 
 afterEach(() => {
   if (root) unmount();
-  document.body.style.userSelect = '';
+  document.body.classList.remove(DRAGGING_CLASS);
 });
 
 describe('usePointerDrag state machine', () => {
@@ -107,7 +108,7 @@ describe('usePointerDrag state machine', () => {
     fire(windowEvent('pointerup', 140, 140));
     expect(onDrop).toHaveBeenCalledExactlyOnceWith({ moved: 'plan' });
     expect(api!.handle).toBeNull();
-    expect(document.body.style.userSelect).toBe('');
+    expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(false);
   });
 
   it('does not commit when the plan is null', () => {
@@ -129,13 +130,13 @@ describe('usePointerDrag state machine', () => {
       api!.press(pressEvent(100, 100), { id: 'a' });
     });
     fire(windowEvent('pointermove', 140, 140));
-    expect(document.body.style.userSelect).toBe('none');
+    expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(true);
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     });
     expect(onDrop).not.toHaveBeenCalled();
     expect(api!.handle).toBeNull();
-    expect(document.body.style.userSelect).toBe('');
+    expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(false);
   });
 
   it('pointercancel tears the drag down without committing', () => {
@@ -148,7 +149,7 @@ describe('usePointerDrag state machine', () => {
     fire(windowEvent('pointercancel', 140, 140));
     expect(onDrop).not.toHaveBeenCalled();
     expect(api!.handle).toBeNull();
-    expect(document.body.style.userSelect).toBe('');
+    expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(false);
   });
 
   it('unmounting mid-drag clears the body selection lock', () => {
@@ -157,9 +158,9 @@ describe('usePointerDrag state machine', () => {
       api!.press(pressEvent(100, 100), { id: 'a' });
     });
     fire(windowEvent('pointermove', 140, 140));
-    expect(document.body.style.userSelect).toBe('none');
+    expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(true);
     unmount();
-    expect(document.body.style.userSelect).toBe('');
+    expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(false);
   });
 
   it('suppresses exactly one trailing click on the dragged key', () => {
