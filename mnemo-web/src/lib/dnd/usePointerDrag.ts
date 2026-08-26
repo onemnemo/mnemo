@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react"
 
+import { restoreTextSelection, suppressTextSelection } from "./drag-select"
+
 /**
  * The pointer state machine behind hand-rolled drag-and-drop. Press arms,
  * movement past the threshold starts the drag, and release commits the plan the
@@ -242,7 +244,7 @@ export function usePointerDrag<THandle, TTarget, TPlan>(
     active.current = null
     targetRef.current = null
     plannedRef.current = null
-    document.body.style.userSelect = ""
+    restoreTextSelection()
     setHandle(null)
     setTarget(null)
   }, [stopAutoScroll])
@@ -254,7 +256,7 @@ export function usePointerDrag<THandle, TTarget, TPlan>(
     () => () => {
       stopAutoScroll()
       teardown.current?.()
-      document.body.style.userSelect = ""
+      restoreTextSelection()
     },
     [stopAutoScroll],
   )
@@ -316,7 +318,7 @@ export function usePointerDrag<THandle, TTarget, TPlan>(
           active.current = { handle: from.handle }
           dragged.current = latest.current.getKey(from.handle)
           // Dragging across the page would otherwise sweep a text selection along.
-          document.body.style.userSelect = "none"
+          suppressTextSelection()
           const autoScroll = latest.current.autoScroll
           if (autoScroll && autoScrollTimer.current === null) {
             autoScrollTimer.current = setInterval(autoScrollTick, autoScroll.intervalMs ?? 50)

@@ -227,8 +227,8 @@
         overflow: hidden;
     }
 
-    /* Desktop app, not a web page: chrome text does not drag-select. Prose opts
-       back in with data-selectable, which is the only mechanism for it. Note the
+    /* Desktop app, not a web page: chrome text does not drag-select. Editable prose
+       and data-selectable regions opt back in, and nothing else does. Note the
        descendant selectors: the blanket `*` above sets user-select explicitly on
        every element, so it beats inheritance, and without `[data-selectable] *`
        the children of a selectable region are still unselectable. */
@@ -238,11 +238,21 @@
 
     input,
     textarea,
-    [contenteditable],
-    [contenteditable] *,
+    [contenteditable="true"],
+    [contenteditable="true"] *,
     [data-selectable],
     [data-selectable] * {
         user-select: text;
+    }
+
+    /* The opt-in matches the attribute, not its value, so a contenteditable="false"
+       island inside prose (an atom node's DOM, an embedded widget) would inherit
+       text and let the browser paint a range across something that is not text you
+       select. This turns it back off. It follows the opt-in so it wins at equal
+       specificity, and covers the descendants for the same reason the opt-in does. */
+    [contenteditable="false"],
+    [contenteditable="false"] * {
+        user-select: none;
     }
 
     /* Without this every selection in the app is painted in the OS highlight
@@ -286,6 +296,19 @@
     .drag-region input {
         -webkit-app-region: no-drag;
         app-region: no-drag;
+    }
+
+    /* While a pointer drag is up (block marquee, board tile, block reorder, dock
+       resize) nothing should sweep a text selection along under it. Writing
+       userSelect on the body from JS does nothing in WebKitGTK, whose CSSOM
+       ignores the unprefixed property, so the drag guards toggle this class on the
+       body and the build prefixes the rule the same way it prefixes every
+       user-select above. In the utilities layer with a compound selector so it
+       outranks both the base opt-ins and any select-text utility for the length of
+       the drag. */
+    body.app-dragging,
+    body.app-dragging * {
+        user-select: none;
     }
 
     .scroll-thin {
