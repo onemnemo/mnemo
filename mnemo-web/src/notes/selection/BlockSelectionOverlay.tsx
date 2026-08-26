@@ -15,6 +15,7 @@ import {
   rectsIntersect,
   type Point,
 } from './marquee-hit';
+import { restoreTextSelection, suppressTextSelection } from '../../lib/dnd/drag-select';
 
 /**
  * Every drag that means "these blocks": the rubber-band marquee on the editor's
@@ -253,7 +254,7 @@ export function BlockSelectionOverlay({
         clearInterval(scrollTimer);
         scrollTimer = null;
       }
-      document.body.style.userSelect = '';
+      restoreTextSelection();
       view.dom.removeAttribute('data-block-drag');
       setDragging(false);
       window.removeEventListener('pointermove', onMove);
@@ -309,7 +310,7 @@ export function BlockSelectionOverlay({
 
       if (!state.active) {
         state.active = true;
-        document.body.style.userSelect = 'none';
+        suppressTextSelection();
         // Only the marquee paints a rubber band; a range drag is drawn entirely
         // by the selection it is making.
         if (state.kind === 'marquee') setDragging(true);
@@ -414,7 +415,7 @@ export function BlockSelectionOverlay({
       const frame = drag.current?.frame;
       if (frame !== null && frame !== undefined) cancelAnimationFrame(frame);
       drag.current = null;
-      document.body.style.userSelect = '';
+      restoreTextSelection();
       view.dom.removeAttribute('data-block-drag');
     };
   }, [view, registry, scrollRef]);

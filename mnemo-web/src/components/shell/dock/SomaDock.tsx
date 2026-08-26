@@ -6,6 +6,7 @@ import { useChatStore } from "@/chat/store"
 import { FrameButton } from "@/components/shell/topbar/FrameButton"
 import { useT } from "@/i18n/useT"
 import { useShortcutLabel } from "@/keybinds/store"
+import { restoreTextSelection, suppressTextSelection } from "@/lib/dnd/drag-select"
 import { useSettingValue } from "@/settings/store"
 import { clampDockWidth, DOCK_MAX_WIDTH, DOCK_MIN_WIDTH, useSomaStore } from "@/stores/soma"
 
@@ -54,13 +55,13 @@ export function SomaDock() {
         window.removeEventListener("pointermove", move)
         window.removeEventListener("pointerup", stop)
         document.body.style.cursor = ""
-        document.body.style.userSelect = ""
+        restoreTextSelection()
         endDrag.current = null
       }
       // The cursor is set on the body, not the strip: once the pointer leaves the 7px
       // target mid-drag the strip's own cursor stops applying and the arrow flickers back.
       document.body.style.cursor = "col-resize"
-      document.body.style.userSelect = "none"
+      suppressTextSelection()
       window.addEventListener("pointermove", move)
       window.addEventListener("pointerup", stop)
       endDrag.current = stop
