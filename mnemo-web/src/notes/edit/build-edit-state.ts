@@ -39,6 +39,7 @@ import { clipboardPlugin } from '../clipboard/clipboard-plugin';
 import { defaultPasteAssetSupport } from '../clipboard/stage-assets';
 import { nestedInputGuard } from '../editor/pipeline/nested-input';
 import { trailingClickPlugin } from '../editor/pipeline/trailing-click';
+import { selectionDragPlugin } from '../editor/pipeline/selection-drag';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
 import { tableHeaderPlugin } from '../editor/table/header-decorations';
 import { codeHighlightPlugin } from '../editor/code/highlight';
@@ -136,6 +137,9 @@ export function editorPlugins(
     // block. Ahead of everything else so no other plugin reads it as a press on
     // the block it landed nearest.
     trailingClickPlugin(),
+    // Before ProseMirror's own drag handler so a marked text range cannot become
+    // a native move or copy operation. It declines empty and node selections.
+    selectionDragPlugin(),
     // Before anything that could read a paste as text input; it claims only pastes and
     // drops carrying image files and declines everything else.
     imageClipboardPlugin(resolveServices(services)),
