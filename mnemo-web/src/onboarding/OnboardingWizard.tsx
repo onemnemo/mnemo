@@ -86,9 +86,6 @@ export function OnboardingWizard() {
 
   return (
     <div className="animate-fade-in fixed inset-0 z-[130] flex flex-col bg-canvas">
-      {/* No drag rectangle is published from here. The shell is still mounted underneath
-          and its brand row already claims the top-left strip, which on this screen holds
-          nothing but the mark. Two publishers would fight over one rectangle. */}
       <header
         onPointerDown={onTitlebarPointerDown}
         className="drag-region flex shrink-0 items-center justify-between pl-3.5"

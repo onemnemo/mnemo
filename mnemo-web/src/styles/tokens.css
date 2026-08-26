@@ -88,9 +88,7 @@
   --card-padding: 16px;
   --list-row-padding: 10px 12px;
 
-  /* Frame metrics. The brand row matches the topbar so the two share a baseline.
-     Anything draggable has to stay inside --topbar-h: on Linux the window drag region
-     is a rectangle of that height, not a set of elements (see SetLinuxChromelessDragRegion). */
+  /* Frame metrics. The brand row matches the topbar so the two share a baseline. */
   --topbar-h: 48px;
   --sidebar-w: 240px;
   --sidebar-w-collapsed: 56px;

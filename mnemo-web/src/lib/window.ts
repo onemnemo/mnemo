@@ -51,23 +51,26 @@ export function closeWindow(): void {
   send({ type: "chrome.close" })
 }
 
+/** A rectangle in CSS pixels from the top left of the webview. */
+export interface DragRect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 /**
- * Tells the host where the titlebar's grab area is, in CSS pixels from the top
- * left of the webview.
+ * Tells the host where the titlebar's drag surfaces and their interactive
+ * exclusions are.
  *
- * Only Linux uses it, and only as a rectangle: GTK and Wayland will not start a
- * window move from a message, so the region has to be claimed before the gesture
- * rather than in response to it. That rectangle swallows whatever it covers, which
- * is why the shell points it at an area with no controls in it instead of at the
- * whole bar.
+ * Only Linux consumes it: GTK and Wayland will not start a window move from a
+ * message, so the draggable area has to be claimed as native hit-test regions
+ * ahead of the gesture rather than in response to it. No-drag wins over drag,
+ * which is what lets the shell declare whole bars and carve the controls back
+ * out: the same shape `app-region` already gives the other platforms.
  */
-export function reportDragRegion(region: { height: number; left: number; right: number }): void {
-  send({
-    type: "chrome.drag-region",
-    height: Math.round(region.height),
-    left: Math.round(region.left),
-    right: Math.round(region.right),
-  })
+export function reportDragRegions(drag: DragRect[], noDrag: DragRect[]): void {
+  send({ type: "chrome.drag-regions", drag, noDrag })
 }
 
 const maximizeListeners = new Set<(maximized: boolean) => void>()
