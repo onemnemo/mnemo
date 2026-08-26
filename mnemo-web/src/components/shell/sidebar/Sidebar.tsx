@@ -1,7 +1,6 @@
-import { useRef, useState } from "react"
+import { useState } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
-import { useDragRegion } from "@/components/shell/chrome/useDragRegion"
 import { NavButton } from "@/components/shell/sidebar/NavButton"
 import { ProfileRow } from "@/components/shell/sidebar/ProfileRow"
 import { SidebarBrand } from "@/components/shell/sidebar/SidebarBrand"
@@ -29,9 +28,6 @@ export function Sidebar({ activeRoute, collapsed, onToggle }: SidebarProps) {
   const categories = useNavCategories()
   const badges = useNavBadges()
   const [hovered, setHovered] = useState(false)
-  const brandRef = useRef<HTMLDivElement>(null)
-
-  useDragRegion(brandRef)
 
   const groups = categories.filter((category) => !category.footer)
   const footer = categories.filter((category) => category.footer)
@@ -47,7 +43,7 @@ export function Sidebar({ activeRoute, collapsed, onToggle }: SidebarProps) {
         transitionDuration: "var(--duration-slow)",
       }}
     >
-      <SidebarBrand ref={brandRef} collapsed={collapsed} hovered={hovered} onToggle={onToggle} />
+      <SidebarBrand collapsed={collapsed} hovered={hovered} onToggle={onToggle} />
 
       <div className="scroll-thin flex-1 overflow-y-auto px-2 pb-2 pt-1">
         {groups.map((category, index) => (

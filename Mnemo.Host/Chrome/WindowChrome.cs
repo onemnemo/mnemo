@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using Mnemo.Core.Services;
+using Mnemo.Host.Startup;
 using Photino.NET;
 
 namespace Mnemo.Host.Chrome;
@@ -15,13 +16,12 @@ namespace Mnemo.Host.Chrome;
 /// On Windows and macOS the SPA calls in from a pointer-down handler and the OS
 /// takes over the gesture. On Linux those entry points are no-ops: GTK and Wayland
 /// only start a move or resize from the trusted native button event, which a
-/// message arriving over the WebView bridge is not. There the drag area has to be
-/// declared up front as a rectangle, so the SPA reports where its handle is
-/// (<c>chrome.drag-region</c>) and this applies it.
-///
-/// A rectangle cannot express "everything except these buttons", so the SPA points
-/// the Linux region at an area it keeps free of controls rather than at the whole
-/// titlebar.
+/// message arriving over the WebView bridge is not. There the draggable area has to
+/// be claimed ahead of the gesture as native hit-test regions, so the SPA publishes
+/// its drag surfaces and their interactive exclusions (<c>chrome.drag-regions</c>)
+/// and this applies them. No-drag wins over drag, which is what lets the shell
+/// declare whole bars and carve the controls back out: the same shape
+/// <c>app-region</c> gives the other platforms.
 /// </remarks>
 internal static class WindowChrome
 {
@@ -60,11 +60,11 @@ internal static class WindowChrome
         {
             window.SetLinuxChromelessResizeBorderThickness(LinuxResizeBorder);
             // Provisional, so the window is movable during the first paint. The SPA
-            // narrows it to its real handle as soon as the shell mounts.
+            // replaces it with its real region set as soon as the shell mounts.
             window.SetLinuxChromelessDragRegion(DefaultDragRegionHeight, 0, 0);
         }
 
-        window.RegisterWebMessageReceivedHandler(OnWebMessage);
+        window.RegisterWebMessageReceivedHandler((sender, e) => OnWebMessage(sender, e, logger));
 
         // Snap, keyboard shortcuts and the window menu all change the state without
         // going through our buttons, so the glyph follows the window rather than the
@@ -73,7 +73,7 @@ internal static class WindowChrome
             PublishState(sender, e.NewState == PhotinoWindowState.Maximized));
     }
 
-    private static void OnWebMessage(object? sender, WebMessageReceivedEventArgs e)
+    private static void OnWebMessage(object? sender, WebMessageReceivedEventArgs e, ILoggerService? logger)
     {
         if (sender is not PhotinoWindow window)
             return;
@@ -116,23 +116,30 @@ internal static class WindowChrome
                 window.Close();
                 break;
 
-            case "chrome.drag-region":
-                ApplyDragRegion(window, payload);
+            case "chrome.drag-regions":
+                ApplyDragRegions(window, payload, logger);
                 break;
         }
     }
 
-    private static void ApplyDragRegion(PhotinoWindow window, JsonElement payload)
+    private static void ApplyDragRegions(PhotinoWindow window, JsonElement payload, ILoggerService? logger)
     {
         if (!OperatingSystem.IsLinux())
             return;
 
-        var height = ReadInt(payload, "height", DefaultDragRegionHeight);
-        var left = ReadInt(payload, "left", 0);
-        var right = ReadInt(payload, "right", 0);
+        if (!DragRegionPayload.TryParse(payload, out var drag, out var noDrag))
+            return;
 
-        // Right before left: the argument order is the reverse of the name order.
-        window.SetLinuxChromelessDragRegion(height, right, left);
+        try
+        {
+            window.SetLinuxChromelessDragRegions(drag, noDrag);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // A publish can race the window's teardown. Losing one replacement is
+            // fine: the SPA sends a fresh set on its next layout change.
+            logger?.Warning(CrashLog.Category, $"Drag regions not applied: {ex.Message}");
+        }
     }
 
     private static bool IsMaximized(PhotinoWindow window) =>
@@ -193,12 +200,4 @@ internal static class WindowChrome
 
         return edge != (PhotinoWindowEdge)(-1);
     }
-
-    private static int ReadInt(JsonElement payload, string name, int fallback) =>
-        payload.ValueKind == JsonValueKind.Object
-        && payload.TryGetProperty(name, out var element)
-        && element.ValueKind == JsonValueKind.Number
-        && element.TryGetInt32(out var value)
-            ? Math.Max(0, value)
-            : fallback;
 }
