@@ -189,7 +189,7 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
     requestAnimationFrame(() => searchInputRef.current?.focus());
   }, []);
 
-  // Ctrl/Cmd+N new note, Ctrl/Cmd+P focus search, matching the desktop.
+  // Handle app shortcuts even when the browser-default guard prevents printing on the same chord.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const primary = isMac ? event.metaKey : event.ctrlKey;

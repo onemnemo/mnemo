@@ -14,6 +14,8 @@ import { FactEditorOverlay } from "@/flashcards/facts/FactEditorOverlay"
 import { ReviewSettingsOverlay } from "@/flashcards/presets/ReviewSettingsOverlay"
 import { TransferOverlay } from "@/flashcards/transfer/TransferOverlay"
 import { registerKeybindAction } from "@/keybinds/registry"
+import { installNativeDropGuard } from "@/lib/native-drop"
+import { installNativeKeyGuard } from "@/lib/native-keys"
 import { installContextMenuGuard } from "@/lib/native-menu"
 import { OnboardingWizard } from "@/onboarding/OnboardingWizard"
 import { dialog } from "@/stores/dialog"
@@ -36,6 +38,10 @@ function App() {
   useDragRegions()
 
   useEffect(() => installContextMenuGuard(), [])
+
+  useEffect(() => installNativeKeyGuard(), [])
+
+  useEffect(() => installNativeDropGuard(), [])
 
   useEffect(() => installExitConfirm(), [])
 
