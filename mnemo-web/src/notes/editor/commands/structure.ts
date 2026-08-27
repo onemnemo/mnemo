@@ -211,11 +211,15 @@ export function convertBlockType(
 }
 
 /**
- * Insert a literal newline at the caret. This is the Ctrl/Cmd+Enter behaviour
- * everywhere, and the plain-Enter behaviour inside code (multi-line source) and
- * inside a quote whose current line still has text (a soft wrap, not an exit).
+ * Insert a literal newline at the caret. This is the Shift+Enter and
+ * Ctrl/Cmd+Enter behaviour everywhere, and the plain-Enter behaviour inside
+ * code (multi-line source) and inside a quote whose current line still has
+ * text (a soft wrap, not an exit).
  */
 export const insertSoftBreak: Command = (state, dispatch) => {
+  // The same gate splitBlock keeps: over a node selection the insert would
+  // REPLACE the selected block with the newline, so only text takes the break.
+  if (!(state.selection instanceof TextSelection)) return false;
   const { from, to } = state.selection;
   if (dispatch) dispatch(state.tr.insertText('\n', from, to).scrollIntoView());
   return true;
@@ -559,6 +563,9 @@ export const deleteForwardStructural: Command = (state, dispatch) => {
 export function structureKeyBindings(): Record<string, Command> {
   return {
     Enter: splitBlock,
+    // Two chords, one meaning: Shift+Enter is the web convention and
+    // Ctrl/Cmd+Enter is the desktop's, the same pairing the chat composer keeps.
+    'Shift-Enter': insertSoftBreak,
     'Mod-Enter': insertSoftBreak,
     Backspace: backspaceStructural,
     Delete: deleteForwardStructural,
