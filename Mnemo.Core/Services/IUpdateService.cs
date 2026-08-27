@@ -27,6 +27,10 @@ public interface IUpdateService
     /// </summary>
     Task<Result> DownloadUpdatesAsync(AppUpdateInfo update, IProgress<int>? progress, CancellationToken cancellationToken = default);
 
-    /// <summary>Restarts the app and applies a downloaded update. No-op if nothing pending.</summary>
-    void ApplyUpdatesAndRestart();
+    /// <summary>
+    /// Restarts the app to apply a downloaded update. A successful restart ends this process;
+    /// failures return a result for the caller to handle.
+    /// </summary>
+    /// <returns>The apply result if control returns to this process.</returns>
+    Result ApplyUpdatesAndRestart();
 }

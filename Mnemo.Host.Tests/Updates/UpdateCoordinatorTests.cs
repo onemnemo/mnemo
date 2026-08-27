@@ -600,6 +600,50 @@ public sealed class UpdateCoordinatorTests
         Assert.Null(await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson));
     }
 
+    [Fact]
+    public async Task AFailedApplyReportsItselfAndClearsTheInstalledMarker()
+    {
+        var world = new World();
+        await world.ReachReady();
+        world.Updates.ApplyFailure = "The install directory is locked.";
+
+        await world.Coordinator.ApplyAsync();
+
+        var status = await world.Events.WaitFor(s => s.Stage == UpdateStage.Failed);
+        Assert.Equal("apply_failed", status.Error);
+        // Remove the pre-restart marker on failure so the next launch cannot announce an update
+        // that was not installed.
+        Assert.Null(await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingPostUpdateToastVersion));
+    }
+
+    [Fact]
+    public async Task AFailedApplyLeavesTheStoredOfferWhereItWas()
+    {
+        var world = new World();
+        await world.ReachReady();
+        world.Updates.ApplyFailure = "The install directory is locked.";
+
+        await world.Coordinator.ApplyAsync();
+
+        var stored = await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson);
+        Assert.NotNull(stored);
+        Assert.Equal("0.9.0", AppUpdateInfoPersistence.Deserialize(stored!)?.Version);
+    }
+
+    [Fact]
+    public async Task AFailedApplyDoesNotBringBackAnOfferTheUserSkipped()
+    {
+        var world = new World();
+        await world.ReachReady();
+        await world.Coordinator.SkipAvailableVersionAsync();
+        world.Updates.ApplyFailure = "The install directory is locked.";
+
+        await world.Coordinator.ApplyAsync();
+
+        // Restore the persisted value, not the cached offer that a skip may have cleared.
+        Assert.Null(await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson));
+    }
+
     /// <summary>The coordinator and the four things it talks to.</summary>
     private sealed class World
     {
@@ -684,7 +728,14 @@ public sealed class UpdateCoordinatorTests
             return _download.Task;
         }
 
-        public void ApplyUpdatesAndRestart() => Applies++;
+        /// <summary>Set to make the apply report a failure instead of replacing the process.</summary>
+        public string? ApplyFailure { get; set; }
+
+        public Result ApplyUpdatesAndRestart()
+        {
+            Applies++;
+            return ApplyFailure is null ? Result.Success() : Result.Failure(ApplyFailure);
+        }
     }
 
     private sealed class RecordingEvents : IAppEventPublisher

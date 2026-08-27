@@ -403,22 +403,26 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
         }
     }
 
-    public void ApplyUpdatesAndRestart()
+    /// <summary>
+    /// Applies the staged update and reports failures so the caller can clear its restart marker.
+    /// </summary>
+    public Result ApplyUpdatesAndRestart()
     {
         if (_pendingVelopackUpdate == null)
-        {
-            _logger.Warning("Updates", "ApplyUpdatesAndRestart called with no pending Velopack update.");
-            return;
-        }
+            return Result.Failure("No pending Velopack update to apply.");
 
         try
         {
             var um = GetLocalUpdateManager();
             um.ApplyUpdatesAndRestart(_pendingVelopackUpdate.TargetFullRelease, restartArgs: Array.Empty<string>());
+
+            // If Velopack returns without applying the update, report failure.
+            return Result.Success();
         }
         catch (Exception ex)
         {
             _logger.Error("Updates", "ApplyUpdatesAndRestart failed.", ex);
+            return Result.Failure(ex.Message, ex);
         }
     }
 }

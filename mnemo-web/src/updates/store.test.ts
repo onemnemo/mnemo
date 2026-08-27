@@ -257,10 +257,26 @@ describe("apply", () => {
     expect(order).toEqual(["flush", "apply"])
   })
 
-  it("stays busy once the restart is under way", async () => {
+  it("stays busy while the restart is still expected", async () => {
     await useUpdateStore.getState().apply()
-    // Re-enabling the button would only let someone ask twice for a process that is
-    // already on its way out.
+    // Keep the action busy until apply fails or the process exits.
+    expect(useUpdateStore.getState().busy).toBe(true)
+  })
+
+  it("comes back once the host says the apply failed", async () => {
+    await useUpdateStore.getState().apply()
+
+    useUpdateStore.getState().receive(status({ stage: "Failed", error: "apply_failed" }))
+
+    expect(useUpdateStore.getState().busy).toBe(false)
+  })
+
+  it("leaves the flag alone while a stage is still working", () => {
+    useUpdateStore.setState({ busy: true })
+
+    useUpdateStore.getState().receive(status({ stage: "Downloading" }))
+
+    // Unrelated status events must not enable a second action while one is pending.
     expect(useUpdateStore.getState().busy).toBe(true)
   })
 

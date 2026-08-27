@@ -308,6 +308,7 @@
     "UpdateDownloadingFormat": "ダウンロード中、{0}%。",
     "UpdateReadyToInstall": "ダウンロードしました。再起動すると更新が完了します。",
     "UpdateCheckFailed": "更新を確認できませんでした。",
+    "UpdateApplyFailed": "更新をインストールできませんでした。",
     "UpdateManualDownloadHint": "このビルドは自動で更新できません。GitHub から新しいバージョンをダウンロードしてください。",
     "UpdateChannelCatchUpNotice": "現在、より新しい Beta 版を使用中です。Stable 版が現在のバージョンに追いついた時点で Mnemo は Stable に切り替わります。",
     "ReleaseChannel": "リリースチャンネル",

@@ -103,6 +103,17 @@ public sealed class VelopackUpdateServiceTests
         Assert.Contains("different version", result.ErrorMessage);
     }
 
+    /// <summary>
+    /// A failed apply must return a result so the caller can remove its restart marker.
+    /// </summary>
+    [Fact]
+    public void AnApplyWithNothingPendingReportsFailureRatherThanReturningQuietly()
+    {
+        using var service = new VelopackUpdateService(new TestLogger(), new SettingsService(new InMemoryStorageProvider()));
+
+        Assert.False(service.ApplyUpdatesAndRestart().IsSuccess);
+    }
+
     /// <summary>The shape a check resolves, built by hand because no feed is reachable here.</summary>
     private static Velopack.UpdateInfo PendingUpdate(string version)
     {

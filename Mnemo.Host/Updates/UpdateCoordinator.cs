@@ -445,24 +445,76 @@ public sealed class UpdateCoordinator
     public bool CanApply => _stage == UpdateStage.Ready;
 
     /// <summary>
-    /// Restarts into the staged update. Does not return: the process is replaced.
+    /// Applies the staged update. Persist the version before restart, then restore the previous
+    /// settings if apply fails.
     /// </summary>
-    /// <remarks>
-    /// The version is written down first, because the only process that knows an update
-    /// was applied is the one about to stop existing. The build that comes up next reads
-    /// it back through <see cref="BeginLaunchAsync"/> and says so once.
-    /// </remarks>
     public async Task ApplyAsync()
     {
-        if (_available is not null)
+        var offer = _available;
+        string? storedOffer = null;
+        var markerWritten = false;
+        var offerCleared = false;
+
+        try
         {
-            await _settings
-                .SetAsync(UpdateSettingsKeys.PendingPostUpdateToastVersion, _available.Version)
-                .ConfigureAwait(false);
-            await _settings.SetAsync<string?>(UpdateSettingsKeys.PendingOfferJson, null).ConfigureAwait(false);
+            if (offer is not null)
+            {
+                storedOffer = await _settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson).ConfigureAwait(false);
+                await _settings.SetAsync(UpdateSettingsKeys.PendingPostUpdateToastVersion, offer.Version).ConfigureAwait(false);
+                markerWritten = true;
+                await _settings.SetAsync<string?>(UpdateSettingsKeys.PendingOfferJson, null).ConfigureAwait(false);
+                offerCleared = true;
+            }
+
+            var result = _updates.ApplyUpdatesAndRestart();
+            if (result.IsSuccess)
+                return;
+
+            _logger.Error("Updates", $"Update apply failed: {result.ErrorMessage}", result.Exception);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Updates", "Update apply threw.", ex);
         }
 
-        _updates.ApplyUpdatesAndRestart();
+        await RollBackApplyAsync(markerWritten, offerCleared, storedOffer).ConfigureAwait(false);
+
+        // The channel read clears the error on a channel change, so the code the row shows
+        // is set after it rather than before.
+        var channel = await ReadChannelAsync(CancellationToken.None).ConfigureAwait(false);
+        _error = "apply_failed";
+        SetStage(UpdateStage.Failed, channel, await ReadLastCheckedAsync().ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// Restores both pre-apply settings independently. Use the persisted offer to avoid
+    /// resurrecting a skipped update; log storage failures without interrupting the second write.
+    /// </summary>
+    private async Task RollBackApplyAsync(bool markerWritten, bool offerCleared, string? storedOffer)
+    {
+        if (markerWritten)
+        {
+            try
+            {
+                await _settings.SetAsync<string?>(UpdateSettingsKeys.PendingPostUpdateToastVersion, null).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Updates", "Could not clear the marker written ahead of a failed update apply.", ex);
+            }
+        }
+
+        if (!offerCleared)
+            return;
+
+        try
+        {
+            await _settings.SetAsync(UpdateSettingsKeys.PendingOfferJson, storedOffer).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Updates", "Could not restore the offer cleared ahead of a failed update apply.", ex);
+        }
     }
 
     private void SetStage(UpdateStage stage, string channel, DateTime? lastChecked)
