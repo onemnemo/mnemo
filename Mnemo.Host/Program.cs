@@ -1,4 +1,6 @@
 using System.Net;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
@@ -41,16 +43,14 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
-        // First, before anything else runs: Velopack's install, update and uninstall hooks
-        // execute inside this call and exit the process when one of them applies. Work done
-        // ahead of it happens during those hooks too, and a shortcut, an uninstall or the
-        // first applied update all depend on it being reached.
-        VelopackApp.Build().Run();
-
         CrashLog.InstallProcessHandlers();
 
         try
         {
+            // Velopack hooks may exit the process here. Startup work before this call also runs
+            // during installation and removal.
+            VelopackApp.Build().Run();
+
             return Run(args);
         }
         catch (Exception ex)
@@ -69,6 +69,10 @@ public static class Program
             // stacks and PhotinoX's native layer does not handle it; disable it
             // proactively unless the user explicitly chose a value.
             Environment.SetEnvironmentVariable("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+
+            // The managed write above is invisible to native getenv on Unix, so this
+            // call is not a duplicate to remove.
+            SetNativeEnvironmentVariable("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
 
         var options = HostOptions.Parse(args);
@@ -86,6 +90,31 @@ public static class Program
             StopServer(server);
         }
     }
+
+    /// <summary>
+    /// Writes an environment variable through libc, so native code started in this
+    /// process (WebKitGTK, GTK itself) can see it with getenv.
+    /// </summary>
+    [SupportedOSPlatform("linux")]
+    private static void SetNativeEnvironmentVariable(string name, string value)
+    {
+        try
+        {
+            setenv(name, value, 1);
+        }
+        catch (Exception ex)
+        {
+            // Some minimal or non-glibc distribution without the symbol. The managed
+            // write already covers every read this app's own code makes.
+            CrashLog.Write($"Native setenv is unavailable for {name}.", ex);
+        }
+    }
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern int setenv(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string name,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string value,
+        int overwrite);
 
     private static void StopServer(ServerHandle server)
     {
