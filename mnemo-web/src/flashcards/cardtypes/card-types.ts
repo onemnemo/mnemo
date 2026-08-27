@@ -1,4 +1,4 @@
-import type { CardTypeSummaryDto, SaveCardTypeDto } from "@/api/types"
+import type { CardTypeDto, CardTypeLayoutDto, CardTypeSummaryDto, SaveCardTypeDto } from "@/api/types"
 
 /**
  * The card type manager's working copy. Edits are held here until Save, so a half finished type
@@ -220,6 +220,17 @@ export function removeLayout(draft: CardTypeDraft, layoutId: string): CardTypeDr
     layouts: draft.layouts.filter((layout) => layout.id !== layoutId),
     dirty: true,
   }
+}
+
+/**
+ * Returns stored layouts missing from the draft, using their saved names for confirmation.
+ */
+export function removedLayouts(stored: CardTypeDto, draft: CardTypeDraft): CardTypeLayoutDto[] {
+  // Generated types save no layouts; their cards are derived from fields.
+  if (draft.generator) return []
+
+  const kept = new Set(draft.layouts.map((layout) => layout.id))
+  return stored.layouts.filter((layout) => !kept.has(layout.id))
 }
 
 /**
