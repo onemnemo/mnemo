@@ -139,6 +139,22 @@ public sealed class StudySessionRegistry
 
         return (IReadOnlyList<StudySessionEntry>?)expired ?? Array.Empty<StudySessionEntry>();
     }
+
+    /// <summary>
+    /// Atomically removes all sessions for shutdown, regardless of age. Concurrent end requests can
+    /// remove each session only once.
+    /// </summary>
+    public IReadOnlyList<StudySessionEntry> TakeAll()
+    {
+        List<StudySessionEntry>? taken = null;
+        foreach (var id in _sessions.Keys)
+        {
+            if (_sessions.TryRemove(id, out var removed))
+                (taken ??= new List<StudySessionEntry>()).Add(removed);
+        }
+
+        return (IReadOnlyList<StudySessionEntry>?)taken ?? Array.Empty<StudySessionEntry>();
+    }
 }
 
 /// <summary>One live session plus the bookkeeping the desktop kept in its ViewModel.</summary>

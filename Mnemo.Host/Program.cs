@@ -127,6 +127,10 @@ public static class Program
         builder.Configuration["AllowedHosts"] = "localhost;127.0.0.1";
         builder.Logging.ClearProviders();
 
+        // Signals must close the window before cancelling the event stream used by the save
+        // handshake.
+        WindowHostLifetime.Install(builder.Services);
+
         var modules = HostComposition.DiscoverModules(out var discoveryFailures);
         HostComposition.AddMnemoBackend(builder.Services, modules);
 
@@ -306,6 +310,7 @@ public static class Program
 
         WindowChrome.Configure(window, logger);
         AttachShutdownGate(window, server.App.Services);
+        ExitSignals.Attach(window, logger);
         server.App.Services.GetRequiredService<NativeFolderPicker>().Attach(window);
 
         logger.Info(CrashLog.Category, $"Load({url})");
@@ -341,7 +346,7 @@ public static class Program
                 return;
 
             e.Cancel = true;
-            events.Publish(new AppEvent("shutdown", new { graceMs = (int)ShutdownGrace.TotalMilliseconds }));
+            var listeners = events.Publish(new AppEvent("shutdown", new { graceMs = (int)ShutdownGrace.TotalMilliseconds }));
 
             _ = Task.Run(async () =>
             {
@@ -357,7 +362,9 @@ public static class Program
                 }
 
                 if (verdict == ShutdownVerdict.TimedOut)
-                    logger.Warning(CrashLog.Category, "No client answered before the shutdown grace expired; closing anyway.");
+                    logger.Warning(CrashLog.Category, listeners == 0
+                        ? "No client was listening on the event stream, so nothing was asked to save; closing anyway."
+                        : "No client answered before the shutdown grace expired; closing anyway.");
 
                 window.Invoke(window.Close);
             });
