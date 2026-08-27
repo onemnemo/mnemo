@@ -85,6 +85,20 @@ function measureBands(
   );
 }
 
+/** Whether two runs of bands would paint the same, so an unchanged one can keep its render. */
+function sameBands(a: readonly Band[], b: readonly Band[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (band, index) =>
+        band.top === b[index].top &&
+        band.height === b[index].height &&
+        band.left === b[index].left &&
+        band.width === b[index].width,
+    )
+  );
+}
+
 export function SelectionBands({
   view,
   registry,
@@ -108,12 +122,7 @@ export function SelectionBands({
       const next = measureBands(view, registry, container);
       // The same geometry on every scroll frame of an unmoved selection is the
       // common case; re-rendering it would repaint the layer for nothing.
-      setBands((prev) =>
-        prev.length === next.length &&
-        prev.every((band, i) => band.top === next[i].top && band.height === next[i].height && band.left === next[i].left)
-          ? prev
-          : next,
-      );
+      setBands((prev) => (sameBands(prev, next) ? prev : next));
     };
 
     const schedule = () => {

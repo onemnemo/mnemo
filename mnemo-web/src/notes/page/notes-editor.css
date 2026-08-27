@@ -1614,12 +1614,9 @@
   border-radius: 6px;
 }
 
-/* Once a drag is about blocks, the browser has to stop painting text selection,
- * or the ragged word-shaped boxes reappear under the clean bands and the editor
- * is showing two answers at once. */
-.notes-doc [data-block-drag],
-.notes-doc [data-block-drag] * {
-  user-select: none;
+/* A gutter marquee keeps the block cursor while crossing selectable prose. */
+.notes-doc [data-block-marquee],
+.notes-doc [data-block-marquee] * {
   cursor: default;
 }
 

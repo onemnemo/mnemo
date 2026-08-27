@@ -4,6 +4,7 @@ import type { Node as PMNode } from 'prosemirror-model'
 import { AppIcon } from '@/components/icon/AppIcon'
 import { Menu, MenuContent, MenuTrigger } from '@/components/ui/menu'
 import { cn } from '@/lib/utils'
+import { restoreTextSelection, suppressTextSelection } from '@/lib/dnd/drag-select'
 import { useT } from '@/i18n/useT'
 
 import {
@@ -178,6 +179,8 @@ export function TableChrome({
   /** The live node, for handlers bound once and read from during a drag. */
   const latest = useRef(node)
   latest.current = node
+  /** Ends a running cell drag, so a note switched mid-drag does not strand its guard. */
+  const endCellDrag = useRef<(() => void) | null>(null)
 
   const grid = useTableGrid(frame, [rows, cols, node.attrs.columnWidths, node.attrs.fullWidth])
   const ready = grid.x.length === cols + 1 && grid.y.length === rows + 1
@@ -263,6 +266,13 @@ export function TableChrome({
       setSel({ kind: 'cells', rect: { r0: start.row, c0: start.col, r1: start.row, c1: start.col } })
 
       let crossed = false
+      const endDrag = (): void => {
+        window.removeEventListener('pointermove', onPointerMove)
+        window.removeEventListener('pointerup', endDrag)
+        window.removeEventListener('pointercancel', endDrag)
+        endCellDrag.current = null
+        restoreTextSelection()
+      }
       const onPointerMove = (moveEvent: PointerEvent): void => {
         const over = cellAt(document.elementFromPoint(moveEvent.clientX, moveEvent.clientY))
         if (!over) return
@@ -271,18 +281,21 @@ export function TableChrome({
           crossed = true
           // Two answers to one gesture, a ragged text range inside one cell and a
           // clean rectangle across four, is the thing to avoid. The moment the
-          // drag leaves its own cell, the caret loses.
+          // drag leaves its own cell, the caret loses. Dropping the range once is
+          // not enough by itself: the browser starts sweeping a fresh one under
+          // the rectangle unless the same guard every other drag uses is up, and
+          // that guard is a class rather than an inline style because WebKitGTK
+          // ignores the unprefixed property written from script.
           ;(document.activeElement as HTMLElement | null)?.blur()
           window.getSelection()?.removeAllRanges()
+          suppressTextSelection()
         }
         setSel({ kind: 'cells', rect: { r0: start.row, c0: start.col, r1: over.row, c1: over.col } })
       }
-      const onUp = (): void => {
-        window.removeEventListener('pointermove', onPointerMove)
-        window.removeEventListener('pointerup', onUp)
-      }
+      endCellDrag.current = endDrag
       window.addEventListener('pointermove', onPointerMove)
-      window.addEventListener('pointerup', onUp)
+      window.addEventListener('pointerup', endDrag)
+      window.addEventListener('pointercancel', endDrag)
     }
 
     const onContextMenu = (event: MouseEvent): void => {
@@ -302,6 +315,9 @@ export function TableChrome({
     return () => {
       frame.removeEventListener('pointerdown', onDown)
       scroll.removeEventListener('contextmenu', onContextMenu)
+      // A drag still running when the table goes away would otherwise keep both
+      // its window listeners and the app-wide selection guard.
+      endCellDrag.current?.()
     }
   }, [frame, scroll, editable])
 

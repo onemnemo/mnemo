@@ -27,6 +27,7 @@ import { EditorView } from 'prosemirror-view';
 import { TextSelection } from 'prosemirror-state';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { DRAGGING_CLASS } from '@/lib/dnd/drag-select';
 import { buildNoteEditState } from '../../edit/build-edit-state';
 import type { Block } from '../../model/types';
 import { plainSpan } from '../../model/spans';
@@ -520,5 +521,80 @@ describe('the context-menu key', () => {
     pressMenuKey(0, 0, elsewhere);
     expect(document.querySelector('.notes-table-band')).toBeNull();
     elsewhere.remove();
+  });
+});
+/**
+ * A drag from one cell into another is the table's own gesture, and while it
+ * runs nothing else may sweep a text range under it.
+ *
+ * The guard is the shared body class rather than an inline `userSelect`, because
+ * WebKitGTK's CSSOM drops the unprefixed property written from script and the
+ * drag would run unguarded on Linux only. These tests care that the class goes
+ * up when the drag crosses a cell boundary and comes back down however the drag
+ * ends, since a guard left standing disables selection for the whole session.
+ */
+describe('the cell range drag', () => {
+  function cells(): HTMLElement[] {
+    return Array.from(document.querySelectorAll<HTMLElement>('[data-table-cell]'));
+  }
+
+  /**
+   * Press in one cell and drag into another. jsdom ships no `elementFromPoint`,
+   * which is how the drag asks what it is over, so the answer is installed here.
+   */
+  function dragBetween(from: HTMLElement, to: HTMLElement): void {
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => to,
+    });
+    act(() => {
+      from.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, pointerId: 1, isPrimary: true }),
+      );
+      window.dispatchEvent(
+        new PointerEvent('pointermove', { bubbles: true, buttons: 1, pointerId: 1, isPrimary: true }),
+      );
+    });
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(document, 'elementFromPoint');
+    document.body.classList.remove(DRAGGING_CLASS);
+  });
+
+  it('guards the selection once the drag leaves the cell it started in', () => {
+    const all = cells();
+    dragBetween(all[0], all[all.length - 1]);
+
+    expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(true);
+  });
+
+  it('leaves the selection alone while the drag stays in one cell', () => {
+    const all = cells();
+    dragBetween(all[0], all[0]);
+
+    expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(false);
+  });
+
+  it.each(['pointerup', 'pointercancel'] as const)('drops the guard on %s', (ending) => {
+    const all = cells();
+    dragBetween(all[0], all[all.length - 1]);
+    expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(true);
+
+    act(() => {
+      window.dispatchEvent(new PointerEvent(ending, { bubbles: true, pointerId: 1, isPrimary: true }));
+    });
+
+    expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(false);
+  });
+
+  it('drops the guard when the table goes away mid-drag', () => {
+    const all = cells();
+    dragBetween(all[0], all[all.length - 1]);
+    expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(true);
+
+    act(() => harness!.root.unmount());
+
+    expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(false);
   });
 });
