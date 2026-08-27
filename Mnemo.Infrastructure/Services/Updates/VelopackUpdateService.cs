@@ -10,6 +10,7 @@ using Mnemo.Core.Services;
 using NuGet.Versioning;
 using Velopack;
 using Velopack.Exceptions;
+using Velopack.Locators;
 using Velopack.Sources;
 
 namespace Mnemo.Infrastructure.Services.Updates;
@@ -44,6 +45,9 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
     private string? _updateManagerChannel;
     private Velopack.UpdateInfo? _pendingVelopackUpdate;
 
+    private readonly SemaphoreSlim _seedGate = new(1, 1);
+    private bool _channelSeeded;
+
     public VelopackUpdateService(ILoggerService logger, ISettingsService settings)
     {
         _logger = logger;
@@ -52,13 +56,106 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("MnemoDesktop/1.0 (update-check)");
     }
 
-    public void Dispose() => _httpClient.Dispose();
+    public void Dispose()
+    {
+        _httpClient.Dispose();
+        _seedGate.Dispose();
+    }
 
     public async Task<string> GetChannelAsync(CancellationToken cancellationToken = default)
     {
-        _ = cancellationToken;
+        await EnsureChannelSeededAsync(cancellationToken).ConfigureAwait(false);
         var stored = await _settings.GetAsync<string?>(UpdateSettingsKeys.Channel).ConfigureAwait(false);
         return UpdateChannels.Normalize(stored);
+    }
+
+    /// <summary>
+    /// Serializes channel initialization before reads. A failed seed is logged and attempted at
+    /// most once per process.
+    /// </summary>
+    private async Task EnsureChannelSeededAsync(CancellationToken cancellationToken)
+    {
+        await _seedGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_channelSeeded)
+                return;
+
+            // Set before the work rather than after: this runs at most once per process
+            // either way, and a seed that threw must not be retried on every channel read.
+            _channelSeeded = true;
+            await SeedChannelIfAbsentAsync(ResolveInstalledChannel).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning("Updates", $"Could not seed the update channel: {ex.Message}");
+        }
+        finally
+        {
+            _seedGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Seeds an absent channel setting from the installed package. Unknown channels remain unset,
+    /// and existing choices are never overwritten.
+    /// </summary>
+    /// <returns>True when a value was written.</returns>
+    internal async Task<bool> SeedChannelIfAbsentAsync(Func<string?> installedChannel)
+    {
+        if (await _settings.ExistsAsync(UpdateSettingsKeys.Channel).ConfigureAwait(false))
+            return false;
+
+        var channel = installedChannel();
+        if (channel is null)
+            return false;
+
+        await _settings.SetAsync(UpdateSettingsKeys.Channel, channel).ConfigureAwait(false);
+        _logger.Info("Updates", $"First run adopted the installed update channel '{channel}'.");
+        return true;
+    }
+
+    /// <summary>
+    /// Reads the installed channel from Velopack. Returns null outside an installed layout and logs
+    /// unavailable metadata once per profile for diagnosis.
+    /// </summary>
+    private string? ResolveInstalledChannel()
+    {
+        if (!VelopackLocator.IsCurrentSet)
+        {
+            _logger.Info("Updates", "No update channel to adopt: this process has no Velopack locator.");
+            return null;
+        }
+
+        var locator = VelopackLocator.Current;
+        var installed = ParseVersion(locator.CurrentlyInstalledVersion?.ToString());
+        if (installed is null)
+        {
+            _logger.Info("Updates", "No update channel to adopt: this build is not an installed package.");
+            return null;
+        }
+
+        // Published packages declare a channel; do not infer one when package metadata omits it.
+        if (string.IsNullOrWhiteSpace(locator.Channel))
+        {
+            _logger.Info("Updates", "No update channel to adopt: the locator reports no channel.");
+            return null;
+        }
+
+        var fromLocator = UpdateChannels.ChannelFromFeedName(locator.Channel);
+        if (fromLocator is not null)
+            return fromLocator;
+
+        // Fall back to a recognized prerelease label. Leave Stable unset because it is already the
+        // default.
+        var inferred = UpdateChannels.ForVersion(installed);
+        if (!string.Equals(inferred, UpdateChannels.Stable, StringComparison.Ordinal))
+            return inferred;
+
+        _logger.Info(
+            "Updates",
+            $"No update channel to adopt: the locator reports '{locator.Channel}' for version {installed}.");
+        return null;
     }
 
     /// <summary>

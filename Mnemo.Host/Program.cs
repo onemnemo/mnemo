@@ -218,6 +218,9 @@ public static class Program
         // preserving the ordering guarantee the Avalonia app enforces at startup.
         await HostComposition.InitializeBackendAsync(app.Services, discoveryFailures).ConfigureAwait(false);
 
+        // Seed the channel before serving the initial settings snapshot.
+        _ = await app.Services.GetRequiredService<IUpdateService>().GetChannelAsync().ConfigureAwait(false);
+
         // Resolved here, on the async startup path. Bridging it onto Photino's STA
         // thread with a Task.Run/GetResult in RunWindow blocks window creation on a
         // settings read. The service provider is already live at this point, so the

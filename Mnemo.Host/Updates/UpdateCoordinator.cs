@@ -33,26 +33,19 @@ public enum UpdateStage
     Failed,
 }
 
-/// <param name="Version">The running build, as the About row shows it.</param>
-/// <param name="Channel">Normalised; never null even when nothing is stored.</param>
-/// <param name="SupportsInAppApply">False for portable and unpackaged builds, which can only be told where to download.</param>
-/// <param name="AwaitingChannelCatchUp">
-/// The running build is less settled than the selected channel, so that channel has
-/// nothing to offer until it reaches this version. Distinct from <see cref="UpdateStage.UpToDate"/>,
-/// which would read as "you are on the newest Stable build" when the user is not.
-/// </param>
-/// <param name="ShouldPrompt">
-/// Whether an unsolicited toast about <paramref name="AvailableVersion"/> is warranted.
-/// False once the user has snoozed or skipped it. The host answers this rather than the
-/// SPA because the answer is stored, and a window that has just opened would otherwise
-/// have to read three settings before it could decide to stay quiet.
-/// </param>
-/// <param name="Skipped">The available version is on the skip list, so no prompt will name it again.</param>
-/// <param name="Error">A code the SPA translates, not a sentence. Null unless the stage is Failed.</param>
+/// <param name="Version">The running version.</param>
+/// <param name="Channel">The normalized selected update channel.</param>
+/// <param name="RunningChannel">The channel inferred from the running version, independent of the selected channel.</param>
+/// <param name="SupportsInAppApply">False for portable and unpackaged builds.</param>
+/// <param name="AwaitingChannelCatchUp">The selected channel has not reached the running version.</param>
+/// <param name="ShouldPrompt">Whether the available update warrants a prompt, accounting for snoozed and skipped offers.</param>
+/// <param name="Skipped">Whether the available version is skipped.</param>
+/// <param name="Error">A translated error code, or null unless the stage is Failed.</param>
 public sealed record UpdateStatus(
     UpdateStage Stage,
     string Version,
     string Channel,
+    string RunningChannel,
     bool SupportsInAppApply,
     bool AwaitingChannelCatchUp,
     DateTime? LastCheckedUtc,
@@ -463,12 +456,14 @@ public sealed class UpdateCoordinator
     private UpdateStatus BuildStatus(string channel, DateTime? lastChecked)
     {
         var version = _updates.CurrentDisplayVersion;
+        var parsed = VelopackUpdateService.ParseVersion(version);
         return new UpdateStatus(
             _stage,
             version,
             channel,
+            parsed is null ? UpdateChannels.Stable : UpdateChannels.ForVersion(parsed),
             _updates.SupportsInAppApply,
-            UpdateChannels.IsAwaitingCatchUp(channel, VelopackUpdateService.ParseVersion(version)),
+            UpdateChannels.IsAwaitingCatchUp(channel, parsed),
             lastChecked,
             _available?.Version,
             _available?.ReleaseNotesMarkdown,

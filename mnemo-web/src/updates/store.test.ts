@@ -39,6 +39,7 @@ function status(patch: Partial<UpdateStatus> = {}): UpdateStatus {
     stage: "Idle",
     version: "0.8.0",
     channel: "stable",
+    runningChannel: "stable",
     supportsInAppApply: true,
     awaitingChannelCatchUp: false,
     lastCheckedUtc: null,

@@ -35,6 +35,23 @@ public class SettingsService : ISettingsService
     }
 
     /// <summary>
+    /// Checks for a stored key, including null values. Returns true on read failure to prevent
+    /// default initialization from overwriting unreadable settings.
+    /// </summary>
+    public async Task<bool> ExistsAsync(string key)
+    {
+        if (_cache.TryGetValue(key, out var cached))
+            return cached is not null;
+
+        // Check existence without populating the typed cache with a JsonElement.
+        var stored = await _storage.LoadAsync<object>(key).ConfigureAwait(false);
+        if (stored.IsSuccess)
+            return stored.Value is not null;
+
+        return stored.Exception is not null;
+    }
+
+    /// <summary>
     /// Writes a setting, and throws if it did not reach storage.
     /// </summary>
     /// <remarks>

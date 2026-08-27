@@ -54,6 +54,18 @@ public sealed class UpdateCoordinatorTests
     }
 
     [Fact]
+    public async Task TheStatusNamesTheChannelTheRunningBuildCameFrom()
+    {
+        // Nightly remains available for nightly builds even after selecting another channel.
+        var world = new World();
+        world.Updates.CurrentDisplayVersion = "0.9.0-nightly.3";
+        Assert.Equal(UpdateChannels.Nightly, (await world.Coordinator.GetStatusAsync()).RunningChannel);
+
+        world.Updates.CurrentDisplayVersion = "0.8.0";
+        Assert.Equal(UpdateChannels.Stable, (await world.Coordinator.GetStatusAsync()).RunningChannel);
+    }
+
+    [Fact]
     public async Task AFoundUpdateIsReportedWithItsVersionAndNotes()
     {
         var world = new World();
@@ -702,6 +714,9 @@ public sealed class UpdateCoordinatorTests
             SettingChanged?.Invoke(this, key);
             return Task.CompletedTask;
         }
+
+        public Task<bool> ExistsAsync(string key) =>
+            Task.FromResult(_values.TryGetValue(key, out var value) && value is not null);
     }
 
     private sealed class SilentLogger : ILoggerService
