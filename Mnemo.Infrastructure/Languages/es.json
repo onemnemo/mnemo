@@ -499,6 +499,7 @@
     "CrashTitle": "Algo salió mal",
     "CrashHint": "Mnemo encontró un error del que no pudo recuperarse. Recargar suele solucionarlo.",
     "CrashReload": "Recargar",
+    "CrashReturnToOverview": "Volver al resumen",
     "CrashShowDetails": "Mostrar detalles",
     "CrashHideDetails": "Ocultar detalles",
     "UnhandledFaultTitle": "Algo salió mal",

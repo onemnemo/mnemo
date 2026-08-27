@@ -499,6 +499,7 @@
     "CrashTitle": "問題が発生しました",
     "CrashHint": "Mnemoで回復できないエラーが発生しました。通常は再読み込みで解決します。",
     "CrashReload": "再読み込み",
+    "CrashReturnToOverview": "概要に戻る",
     "CrashShowDetails": "詳細を表示",
     "CrashHideDetails": "詳細を隠す",
     "UnhandledFaultTitle": "問題が発生しました",
