@@ -10,6 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   completeShutdown,
+  isAnythingDirty,
+  onDirtyCheck,
   onShutdown,
   onShutdownGuard,
   resetShutdownForTests,
@@ -130,6 +132,33 @@ describe("runShutdownGuards", () => {
 
   it("allows the exit when nothing is registered", async () => {
     await expect(runShutdownGuards()).resolves.toBe(true)
+  })
+})
+
+describe("isAnythingDirty", () => {
+  // The exit prompt registers a guard on the first render and never withdraws it,
+  // so an answer counting registrations calls the whole session unsaved.
+  it("reports what the sources say, not what is registered", () => {
+    onShutdownGuard(async () => true)
+    onShutdown(async () => undefined)
+    expect(isAnythingDirty()).toBe(false)
+
+    onDirtyCheck(() => true)
+    expect(isAnythingDirty()).toBe(true)
+  })
+
+  it("reads a probe that throws as unsaved", () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined)
+    onDirtyCheck(() => {
+      throw new Error("probe is broken")
+    })
+
+    expect(isAnythingDirty()).toBe(true)
+  })
+
+  it("forgets a probe that unregisters", () => {
+    onDirtyCheck(() => true)()
+    expect(isAnythingDirty()).toBe(false)
   })
 })
 

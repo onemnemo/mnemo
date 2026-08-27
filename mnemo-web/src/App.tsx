@@ -4,6 +4,7 @@ import { installExitConfirm } from "@/app/exit-confirm"
 import { checkLegacyInstallWarning } from "@/app/legacy-install-warning"
 import { startRoutePrefetch } from "@/app/prefetch"
 import { useRouteNormalization } from "@/app/router"
+import { installUnloadBackstop } from "@/app/unload-backstop"
 import { AppShell } from "@/components/shell/AppShell"
 import { useDragRegions } from "@/components/shell/chrome/useDragRegions"
 import { DialogHost } from "@/components/shell/DialogHost"
@@ -44,6 +45,8 @@ function App() {
   useEffect(() => installNativeDropGuard(), [])
 
   useEffect(() => installExitConfirm(), [])
+
+  useEffect(() => installUnloadBackstop(), [])
 
   // Here rather than in the settings page, because the launch check has to run whether
   // or not anyone opens settings, and the download it may start has to keep reporting

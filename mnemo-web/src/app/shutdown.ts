@@ -1,23 +1,6 @@
 /**
- * The last moment anything gets to object, and the last moment anything gets to
- * write.
- *
- * Closing the desktop window unmounts nothing, so every "save on the way out"
- * path in the app, a note's autosave flush above all, simply never runs. The
- * web platform has no fix for that on its own: `beforeunload` cannot await a
- * request, and a keepalive one would be posting to a server inside the process
- * that is exiting.
- *
- * So the host asks first. It cancels the close, pushes a `shutdown` event down
- * the event stream, and waits for an answer before closing for real. This module
- * is the middle of that handshake, and it has two halves. Guards may veto the
- * exit; participants save. Whoever holds unsaved state or an objection registers
- * here, and the host is not told to proceed until they have all settled.
- *
- * It is deliberately not aware of notes, or of the exit prompt, or of anything
- * else. The alternative, the event dispatcher reaching into each feature that
- * might have something to save or something to ask, puts a list in the one file
- * that should not have to be edited when a feature is added.
+ * Coordinates native window shutdown: guards may veto, then participants finish saving before the
+ * host closes. Separate synchronous probes report unsaved work for browser reloads.
  */
 
 import { apiSend } from "@/api/client"
@@ -38,8 +21,15 @@ export type ShutdownParticipant = () => Promise<unknown>
  */
 export type ShutdownGuard = () => Promise<boolean>
 
+/**
+ * Reports whether this source has unsaved work. Must be synchronous because beforeunload cannot
+ * await a save.
+ */
+export type DirtyProbe = () => boolean
+
 const participants = new Set<ShutdownParticipant>()
 const guards = new Set<ShutdownGuard>()
+const probes = new Set<DirtyProbe>()
 
 /** Registers a participant. Returns the disposer; call it on unmount. */
 export function onShutdown(participant: ShutdownParticipant): () => void {
@@ -55,6 +45,30 @@ export function onShutdownGuard(guard: ShutdownGuard): () => void {
   return () => {
     guards.delete(guard)
   }
+}
+
+/** Registers a dirty probe. Returns the disposer; call it on unmount. */
+export function onDirtyCheck(probe: DirtyProbe): () => void {
+  probes.add(probe)
+  return () => {
+    probes.delete(probe)
+  }
+}
+
+/**
+ * Checks registered probes for unsaved work. A throwing probe counts as dirty so an error cannot
+ * suppress the leave-page warning.
+ */
+export function isAnythingDirty(): boolean {
+  for (const probe of [...probes]) {
+    try {
+      if (probe()) return true
+    } catch (error) {
+      console.error("[shutdown] a dirty probe failed; treating it as unsaved", error)
+      return true
+    }
+  }
+  return false
 }
 
 /**
@@ -176,9 +190,10 @@ async function report(path: string): Promise<void> {
   }
 }
 
-/** Test seam: forgets the memoized handshake, every participant and every guard. */
+/** Test seam: forgets the memoized handshake and everything registered. */
 export function resetShutdownForTests(): void {
   handshake = null
   participants.clear()
   guards.clear()
+  probes.clear()
 }

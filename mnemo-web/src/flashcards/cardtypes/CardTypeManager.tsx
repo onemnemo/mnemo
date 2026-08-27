@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Dialog } from "radix-ui"
 
+import { onDirtyCheck } from "@/app/shutdown"
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
 import { useT } from "@/i18n/useT"
@@ -13,6 +14,7 @@ import {
   addLayout,
   canSave as canSaveDrafts,
   draftFromSummary,
+  isDirty as draftsAreDirty,
   moveField,
   newDraft,
   patchField,
@@ -67,6 +69,11 @@ export function CardTypeManager({
     toast.warning(t("Flashcards", "CardTypesLoadErrorTitle"), { description: loadError.message })
     onClose()
   }, [loadError, onClose, t])
+
+  // Read current state through a ref without re-registering on every edit.
+  const latestDrafts = useRef(drafts)
+  latestDrafts.current = drafts
+  useEffect(() => onDirtyCheck(() => draftsAreDirty(latestDrafts.current)), [])
 
   const patchSelected = (transform: (draft: CardTypeDraft) => CardTypeDraft) => {
     if (saving) return

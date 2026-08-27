@@ -293,6 +293,7 @@ public static class Program
             .SetUseOsDefaultSize(false)
             .SetSize(bounds.Width, bounds.Height)
             .SetMinSize(bounds.MinWidth, bounds.MinHeight)
+            .SetDevToolsEnabled(options.DevMode)
             .Center();
 
         if (OperatingSystem.IsWindows())
