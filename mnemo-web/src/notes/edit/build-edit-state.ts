@@ -85,9 +85,9 @@ export type NoteEditState =
  *  - `trailingClickPlugin` claims a press in the space under the last block and
  *    nothing else. It is high up so no plugin below reads that press as one on
  *    the block it happened to land nearest, which for a table is a cell.
- *  - `slashMenuPlugin` takes the arrow keys and Enter while its menu is open,
- *    so it has to precede every keymap. It declines every key when the menu is
- *    closed, which is almost always.
+ *  - `slashMenuPlugin` takes the arrow keys and Enter, whatever modifier rides
+ *    along, while its menu is open, so it has to precede every keymap. It
+ *    declines every key when the menu is closed, which is almost always.
  *  - `blockSelectionPlugin` claims Backspace/Delete and Escape only while a
  *    block selection is live, and Ctrl+A always; it must precede the structural
  *    keymap so those win over the per-character handlers, and it declines

@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { EditorState, TextSelection, type Command } from 'prosemirror-state';
+import { EditorState, NodeSelection, TextSelection, type Command, type Transaction } from 'prosemirror-state';
+import { keydownHandler } from 'prosemirror-keymap';
 import type { Mark, Node as PMNode } from 'prosemirror-model';
 
 import { createEditorSchema } from '../schema';
@@ -11,6 +12,7 @@ import {
   deleteForwardStructural,
   insertSoftBreak,
   splitBlock,
+  structureKeyBindings,
 } from './structure';
 
 const { schema, registry } = createEditorSchema();
@@ -202,12 +204,64 @@ describe('splitBlock (Enter)', () => {
   });
 });
 
-describe('insertSoftBreak (Mod-Enter)', () => {
+describe('insertSoftBreak (Shift-Enter, Mod-Enter)', () => {
   it('inserts a newline at the caret without splitting', () => {
     const document = doc(para('ab'));
     const { state } = run(document, insertSoftBreak, { from: caretAt(document, 0, 1) });
     expect(state.doc.childCount).toBe(1);
     expect(state.doc.child(0).textContent).toBe('a\nb');
+  });
+
+  it('answers both chords, and Enter stays a split', () => {
+    const bindings = structureKeyBindings();
+    expect(bindings['Shift-Enter']).toBe(insertSoftBreak);
+    expect(bindings['Mod-Enter']).toBe(insertSoftBreak);
+    expect(bindings.Enter).toBe(splitBlock);
+  });
+
+  it('replaces a selected range with the newline', () => {
+    const document = doc(para('quote text'));
+    const { state } = run(document, insertSoftBreak, {
+      from: caretAt(document, 0, 5),
+      to: caretAt(document, 0, 6),
+    });
+    expect(state.doc.childCount).toBe(1);
+    expect(state.doc.child(0).textContent).toBe('quote\ntext');
+  });
+
+  it('declines a node selection rather than replacing the node', () => {
+    const document = doc(para('ab'), divider());
+    const state = EditorState.create({
+      schema,
+      doc: document,
+      selection: NodeSelection.create(document, document.child(0).nodeSize),
+    });
+    let dispatched = false;
+    const handled = insertSoftBreak(state, () => {
+      dispatched = true;
+    });
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('reaches the command from the real chord, through keymap normalization', () => {
+    const document = doc(para('ab'));
+    const state = EditorState.create({
+      schema,
+      doc: document,
+      selection: TextSelection.create(document, caretAt(document, 0, 1)),
+    });
+    let applied = state;
+    const view = {
+      state,
+      dispatch: (tr: Transaction) => {
+        applied = state.apply(tr);
+      },
+    };
+    const press = { key: 'Enter', keyCode: 13, shiftKey: true, altKey: false, ctrlKey: false, metaKey: false };
+    const handled = keydownHandler(structureKeyBindings())(view as never, press as unknown as KeyboardEvent);
+    expect(handled).toBe(true);
+    expect(applied.doc.child(0).textContent).toBe('a\nb');
   });
 });
 

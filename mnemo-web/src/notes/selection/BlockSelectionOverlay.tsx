@@ -18,20 +18,15 @@ import {
 import { restoreTextSelection, suppressTextSelection } from '../../lib/dnd/drag-select';
 
 /**
- * Every drag that means "these blocks": the rubber-band marquee on the editor's
- * empty space, and the handover that turns a text drag into a block selection
- * the moment it leaves the block it started in.
+ * The block marquee gesture, owned exclusively by the editor's explicit gutter.
+ * Presses inside ProseMirror belong to native text selection for their entire
+ * lifetime, while every other part of the note keeps its own pointer behavior.
  *
- * A document has two things a pointer can mean, and the whole design rests on
- * never showing both answers at once. Inside one block the browser's own text
- * selection is right: words, a caret, a ragged right edge, because you are
- * pointing at language. Across two blocks it is wrong: three differently shaped
- * highlights with the leading showing between them, because the question has
- * become one about structure. So the instant the pointer crosses into another
- * block the text range is dropped, the bands appear, and the browser is stopped
- * from painting text selection for the rest of the drag.
- *
- * The band drawing is {@link SelectionBands}; this owns only the gestures.
+ * The painted box stays anchored to the exact press, and the same box does the
+ * hit-testing: a block is selected only while the box overlaps its rect on
+ * both axes, a two-column row per lane. A sweep that stays in the margin has
+ * not reached any block yet. The block bands make the selection visible
+ * without moving the box.
  *
  * It is one overlay per note, not a widget per block, for the same two reasons
  * the gutter is: paint containment would clip a band drawn inside a block, and a
@@ -63,21 +58,13 @@ const SCROLL_MIN_STEP = 9;
 const SCROLL_MAX_STEP = 18;
 const SCROLL_INTERVAL_MS = 50;
 
-/**
- * What the current drag has turned out to mean. A press inside a block is
- * `text` until it leaves that block, and a press on empty space can only ever
- * have meant blocks.
- */
-type DragKind = 'marquee' | 'text' | 'range';
-
 interface DragState {
-  kind: DragKind;
+  /** Pointer that owns this gesture; events from every other pointer are ignored. */
+  pointerId: number;
   /** Press point in the scroll container's content space; never moves. */
   anchor: Point;
   /** Latest pointer position in viewport space. */
   pointer: Point;
-  /** For a range drag: the top-level row the press landed in. */
-  anchorRow: number;
   active: boolean;
   frame: number | null;
 }
@@ -89,10 +76,12 @@ function clamp(value: number, min: number, max: number): number {
 export function BlockSelectionOverlay({
   view,
   registry,
+  paneRef,
   scrollRef,
 }: {
   view: EditorView;
   registry: BlockRegistry;
+  paneRef: RefObject<HTMLElement | null>;
   scrollRef: RefObject<HTMLElement | null>;
 }) {
   const [dragging, setDragging] = useState(false);
@@ -101,7 +90,8 @@ export function BlockSelectionOverlay({
 
   useEffect(() => {
     const container = scrollRef.current;
-    if (!container) return;
+    const pane = paneRef.current;
+    if (!container || !pane) return;
     let scrollTimer: ReturnType<typeof setInterval> | null = null;
 
     const toContent = (clientX: number, clientY: number): Point => {
@@ -109,46 +99,9 @@ export function BlockSelectionOverlay({
       return { x: clientX - rect.left + container.scrollLeft, y: clientY - rect.top + container.scrollTop };
     };
 
-    /**
-     * The top-level row at a viewport height. The gap above a block belongs to
-     * that block: a pointer in it is reaching for what comes next.
-     */
-    const rowAt = (clientY: number): number => {
-      const root = view.dom;
-      const rows = marqueeRows(view.state.doc, registry);
-      const count = Math.min(root.children.length, rows.length);
-      if (count === 0) return -1;
-      const index = firstRowTouching(
-        count,
-        (i) => root.children[i].getBoundingClientRect().bottom,
-        clientY,
-      );
-      return Math.min(index, count - 1);
-    };
-
-    /** Select every block in the rows from the drag's anchor row to `to`, inclusive. */
-    const selectRows = (from: number, to: number) => {
-      const rows = marqueeRows(view.state.doc, registry);
-      const lo = Math.max(0, Math.min(from, to));
-      const hi = Math.min(rows.length - 1, Math.max(from, to));
-      const selected = new Set<string>();
-      for (let index = lo; index <= hi; index++) {
-        for (const sid of rows[index].sids) selected.add(sid);
-      }
-      // The anchor is the row the drag started in, whichever end it now sits at,
-      // so a later shift-click extends from where the user last pointed.
-      setBlockSelection(view, { selected, anchorSid: rows[from]?.sids[0] ?? null });
-    };
-
     const paintAndSelect = () => {
       const state = drag.current;
       if (!state?.active) return;
-
-      if (state.kind === 'range') {
-        const row = rowAt(state.pointer.y);
-        if (row >= 0) selectRows(state.anchorRow, row);
-        return;
-      }
 
       const rect = container.getBoundingClientRect();
       const band = bandFrom(state.anchor, toContent(state.pointer.x, state.pointer.y));
@@ -195,11 +148,15 @@ export function BlockSelectionOverlay({
           selected.add(sid);
         }
       };
+      // The binary search bounds the vertical range; every row inside it still
+      // has to meet the band on the horizontal axis, because the marquee
+      // selects exactly what it touches: a sweep down the margin claims no
+      // block until the box crosses into one. A two-column row is asked per
+      // lane, so a band inside one lane never claims the neighbour.
       for (let index = first; index <= last && index < count; index++) {
-        if (!rectsIntersect(vBand, rectOf(index))) continue;
         const row = rows[index];
         if (!row.cellChildren) {
-          add(row.sids);
+          if (rectsIntersect(vBand, rectOf(index))) add(row.sids);
           continue;
         }
         for (const child of row.cellChildren) {
@@ -255,15 +212,11 @@ export function BlockSelectionOverlay({
         scrollTimer = null;
       }
       restoreTextSelection();
-      view.dom.removeAttribute('data-block-drag');
+      view.dom.removeAttribute('data-block-marquee');
       setDragging(false);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('keydown', onKey, true);
       container.removeEventListener('scroll', onScroll);
-      // Of the two { once: true } listeners, only the one whose event ended the
-      // gesture removed itself; the sibling must be removed here or it survives
-      // into the session and a later unrelated pointercancel would clear a
-      // selection the user still holds. Removing an already-gone one is a no-op.
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
       // A committed marquee takes focus so the following Delete or Escape reaches
@@ -271,49 +224,27 @@ export function BlockSelectionOverlay({
       if (focus && !view.hasFocus()) view.focus();
     };
 
-    /**
-     * Hand the drag over from text to blocks.
-     *
-     * The text range goes first and the caret is collapsed to where the press
-     * landed, in one deliberate transaction: leaving the browser to keep
-     * extending its own selection under the bands is what would put two answers
-     * on screen, and a collapsed caret is also a selection ProseMirror already
-     * agrees with, so nothing dispatches a selection change behind us that would
-     * drop the block selection the instant it is made.
-     */
-    const beginRange = () => {
+    const clearNativeSelection = () => {
       document.getSelection()?.removeAllRanges();
-      const { doc, selection } = view.state;
-      view.dispatch(view.state.tr.setSelection(TextSelection.near(doc.resolve(selection.from))));
-      view.dom.setAttribute('data-block-drag', '');
+      if (!view.state.selection.empty) {
+        const { doc, selection } = view.state;
+        view.dispatch(view.state.tr.setSelection(TextSelection.near(doc.resolve(selection.from))));
+      }
     };
 
     const onMove = (event: PointerEvent) => {
       const state = drag.current;
-      if (!state) return;
+      if (!state || event.pointerId !== state.pointerId) return;
       state.pointer = { x: event.clientX, y: event.clientY };
 
       const cur = toContent(event.clientX, event.clientY);
       const moved = Math.hypot(cur.x - state.anchor.x, cur.y - state.anchor.y) >= START_THRESHOLD;
 
-      if (state.kind === 'text') {
-        // A drag that stays inside its own block is still about words; only
-        // crossing the boundary means the gesture was about blocks.
-        if (!moved) return;
-        const row = rowAt(event.clientY);
-        if (row < 0 || row === state.anchorRow) return;
-        state.kind = 'range';
-        beginRange();
-      } else if (!state.active && !moved) {
-        return;
-      }
+      if (!state.active && !moved) return;
 
       if (!state.active) {
         state.active = true;
-        suppressTextSelection();
-        // Only the marquee paints a rubber band; a range drag is drawn entirely
-        // by the selection it is making.
-        if (state.kind === 'marquee') setDragging(true);
+        setDragging(true);
         scrollTimer ??= setInterval(autoScrollTick, SCROLL_INTERVAL_MS);
       }
       scheduleFrame();
@@ -325,15 +256,16 @@ export function BlockSelectionOverlay({
       if (drag.current?.active) scheduleFrame();
     };
 
-    const onUp = () => {
-      const wasActive = drag.current?.active ?? false;
-      end(wasActive);
+    const onUp = (event: PointerEvent) => {
+      const state = drag.current;
+      if (!state || event.pointerId !== state.pointerId) return;
+      end(state.active);
     };
 
-    const onCancel = () => {
+    const onCancel = (event: PointerEvent) => {
       // Only a live gesture has anything to abandon; defence in depth against a
       // stray event reaching a handler that outlived its gesture.
-      if (!drag.current) return;
+      if (!drag.current || event.pointerId !== drag.current.pointerId) return;
       clearBlockSelection(view);
       end(false);
     };
@@ -346,69 +278,77 @@ export function BlockSelectionOverlay({
     };
 
     const onPointerDown = (event: PointerEvent) => {
-      if (event.button !== 0 || drag.current) return;
+      if (event.button !== 0 || !event.isPrimary || drag.current) return;
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
-      // A press on interactive chrome belongs to that control.
-      if (target.closest('button, a, input, textarea, [role="menuitem"], .notes-column-splitter')) return;
-      // A drag inside a table is about cells. Two selection systems answering one
-      // gesture is exactly what this bail exists to prevent, and the table's own
-      // rectangle drag is the more specific of the two.
-      if (target.closest('.notes-table')) return;
+      if (
+        target.closest(
+          'button, a, input, textarea, select, [role="button"], [role="menu"], [role="menuitem"], [role="tab"], .notes-column-splitter, .notes-table',
+        )
+      ) return;
+      // The page itself, plus the one chrome layer that floats over the margin:
+      // the block gutter follows the pointer to the very strip this gesture is
+      // aimed at, so leaving it out would make the handle's own row a dead zone.
+      // Every other layer the pane stacks over the note (the save row, the find
+      // panel) keeps its presses, which is why this asks where the press landed
+      // rather than trusting the pane to only ever hold the note.
+      if (!container.contains(target) && !target.closest('[data-block-gutter]')) return;
+      if (target.closest('.ProseMirror')) return;
 
-      const inText = target.closest('.ProseMirror') !== null;
-      const listen = () => {
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp, { once: true });
-        window.addEventListener('pointercancel', onCancel, { once: true });
-        window.addEventListener('keydown', onKey, true);
-        container.addEventListener('scroll', onScroll);
-      };
+      // A press on the page's own empty space is a plain deselect, the way the
+      // desktop reads it, whether or not a marquee follows it. It comes before
+      // the geometry below because the margin beside the title and the space
+      // past the last block are still somewhere you can put a gesture down to
+      // mean "not those blocks". A press on the gutter chrome row is not that:
+      // the row can float over the content column, and a press there that the
+      // geometry turns away must not cost the user a standing selection.
+      const fromGutterChrome = target.closest('[data-block-gutter]') !== null;
+      if (!fromGutterChrome) clearBlockSelection(view);
 
-      if (inText) {
-        // Left alone: this press is a caret, and the browser owns the text drag
-        // that may follow. It is watched only so that leaving the block can hand
-        // the gesture over. ProseMirror's own selection change clears any block
-        // selection standing, so nothing is cleared here.
-        const row = rowAt(event.clientY);
-        if (row < 0) return;
-        drag.current = {
-          kind: 'text',
-          anchor: toContent(event.clientX, event.clientY),
-          pointer: { x: event.clientX, y: event.clientY },
-          anchorRow: row,
-          active: false,
-          frame: null,
-        };
-        listen();
-        return;
-      }
+      const root = view.dom;
+      const first = root.firstElementChild;
+      const last = root.lastElementChild;
+      if (!first || !last) return;
+      const containerRect = container.getBoundingClientRect();
+      // clientWidth rather than the border box: the reserved scrollbar gutter is
+      // the scrollbar's strip to answer for, not the page's margin.
+      const contentRight = containerRect.left + container.clientWidth;
+      if (event.clientX < containerRect.left || event.clientX > contentRight) return;
+      const rootRect = root.getBoundingClientRect();
+      const inLeftMargin = event.clientX <= rootRect.left;
+      const inRightMargin = event.clientX >= rootRect.right && event.clientX <= contentRight;
+      if (!inLeftMargin && !inRightMargin) return;
+      if (
+        event.clientY < first.getBoundingClientRect().top ||
+        event.clientY > last.getBoundingClientRect().bottom
+      ) return;
 
-      // Arming clears the current selection, like the desktop: an empty-space
-      // press with no drag is a plain "deselect".
-      clearBlockSelection(view);
+      if (fromGutterChrome) clearBlockSelection(view);
+      event.preventDefault();
+      suppressTextSelection();
+      view.dom.setAttribute('data-block-marquee', '');
+      clearNativeSelection();
 
       drag.current = {
-        kind: 'marquee',
+        pointerId: event.pointerId,
         anchor: toContent(event.clientX, event.clientY),
         pointer: { x: event.clientX, y: event.clientY },
-        anchorRow: -1,
         active: false,
         frame: null,
       };
-      listen();
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onCancel);
+      window.addEventListener('keydown', onKey, true);
+      container.addEventListener('scroll', onScroll);
     };
 
-    container.addEventListener('pointerdown', onPointerDown);
+    pane.addEventListener('pointerdown', onPointerDown);
     return () => {
-      container.removeEventListener('pointerdown', onPointerDown);
+      pane.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('keydown', onKey, true);
       container.removeEventListener('scroll', onScroll);
-      // These are registered per-gesture with { once: true }, so they normally
-      // clear themselves; removing them here covers a note switch mid-drag,
-      // where a later pointerup/cancel would otherwise dispatch to a torn-down
-      // view.
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
       if (scrollTimer !== null) clearInterval(scrollTimer);
@@ -416,9 +356,9 @@ export function BlockSelectionOverlay({
       if (frame !== null && frame !== undefined) cancelAnimationFrame(frame);
       drag.current = null;
       restoreTextSelection();
-      view.dom.removeAttribute('data-block-drag');
+      view.dom.removeAttribute('data-block-marquee');
     };
-  }, [view, registry, scrollRef]);
+  }, [view, registry, paneRef, scrollRef]);
 
   if (!dragging) return null;
   return createPortal(

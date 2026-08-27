@@ -41,11 +41,17 @@ import { useAnnouncer } from './useAnnouncer';
  * that follow the hovered (or caret) block, plus the block action menu the handle
  * opens.
  *
- * It is one floating layer portalled to the body, not a widget per block. Two
- * reasons: the top-level blocks carry `content-visibility` paint containment, so
- * anything drawn in a left gutter that lived inside a block would be clipped at
- * the block's edge; and a single repositioned handle is O(1) where per-block
- * widgets would be O(blocks) against the tens-of-thousands target.
+ * It is one floating layer, not a widget per block. Two reasons: the top-level
+ * blocks carry `content-visibility` paint containment, so anything drawn in a
+ * left gutter that lived inside a block would be clipped at the block's edge;
+ * and a single repositioned handle is O(1) where per-block widgets would be
+ * O(blocks) against the tens-of-thousands target.
+ *
+ * The row is positioned rather than portalled, so it stays a child of the note's
+ * pane. Only the drag ghost and the drop line go to the body, which is what lets
+ * them draw over the sidebar. The marquee reads the row as page rather than
+ * chrome (see `data-block-gutter` below), so the strip beside a hovered block is
+ * still somewhere a block selection can start.
  *
  * The unit the handle points at is the *deepest* hovered block, not the
  * top-level one: inside a two-column row every cell child gets the handle
@@ -411,6 +417,11 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
   const overlay = handleBlock && handle && row && !dragging ? (
     <div
       ref={overlayRef}
+      // The row floats over the page margin, and the marquee starts there. The
+      // two buttons answer their own presses; this marks the space around them
+      // as still belonging to the page, so hovering a block never turns the
+      // strip beside it into somewhere a marquee cannot begin.
+      data-block-gutter
       className={cn(
         'animate-fade-in fixed z-40 flex h-7 items-center gap-0.5 rounded',
         row.overContent && 'bg-canvas shadow-elevation-1',
