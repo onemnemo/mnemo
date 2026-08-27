@@ -231,6 +231,76 @@ public sealed class FlashcardAnkiSchedulingImportTests
         }
     }
 
+    [Fact]
+    public async Task Import_DueValueInMilliseconds_LandsTheCardWithTheDateItMeans()
+    {
+        // Some collections use milliseconds; interpreting them as seconds can overflow the date
+        // range.
+        var dueAt = DateTimeOffset.UtcNow.AddDays(30);
+        var cards = new[]
+        {
+            new AnkiFixtureCard("Physiology", "Front", "Back", Scheduling: new AnkiFixtureScheduling(
+                Type: 2, Queue: 2, Due: dueAt.ToUnixTimeMilliseconds(), Interval: 45, Reps: 6)),
+        };
+
+        var apkg = await AnkiPackageFixture.WriteAsync(AnkiFixtureLayout.Legacy, cards, new Dictionary<string, byte[]>());
+        try
+        {
+            var (_, schedule) = await ImportSingleAsync(apkg);
+
+            Assert.Equal(dueAt, schedule.DueDate, TimeSpan.FromSeconds(1));
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task Import_DueValueNoCalendarCanHold_FallsBackToNow()
+    {
+        var cards = new[]
+        {
+            new AnkiFixtureCard("Physiology", "Front", "Back", Scheduling: new AnkiFixtureScheduling(
+                Type: 2, Queue: 2, Due: long.MaxValue, Interval: 10, Reps: 1)),
+        };
+
+        var apkg = await AnkiPackageFixture.WriteAsync(AnkiFixtureLayout.Legacy, cards, new Dictionary<string, byte[]>());
+        try
+        {
+            var (_, schedule) = await ImportSingleAsync(apkg);
+
+            Assert.True(schedule.DueDate <= DateTimeOffset.UtcNow.AddMinutes(1));
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task Import_IntervalLongerThanTheCalendar_LeavesLastAnsweredUnset()
+    {
+        var cards = new[]
+        {
+            new AnkiFixtureCard("Physiology", "Front", "Back", Scheduling: new AnkiFixtureScheduling(
+                Type: 2, Queue: 2, Due: DaysToFuture(30), Interval: int.MaxValue, Reps: 4)),
+        };
+
+        var apkg = await AnkiPackageFixture.WriteAsync(AnkiFixtureLayout.Legacy, cards, new Dictionary<string, byte[]>());
+        try
+        {
+            var (_, schedule) = await ImportSingleAsync(apkg);
+
+            // An interval before year one has no representable last-review date.
+            Assert.Null(schedule.LastReviewedAt);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
     private static async Task<(Flashcard Card, FlashcardSchedule Schedule)> ImportSingleAsync(string apkg)
     {
         await using var h = new FlashcardStoreHarness();

@@ -47,6 +47,12 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// </summary>
     private const long SecondsSinceEpochThreshold = 1_000_000_000L;
 
+    /// <summary>9999-12-31T23:59:59Z, the last instant a date can hold, in Unix seconds.</summary>
+    private const long MaxUnixSeconds = 253_402_300_799L;
+
+    /// <summary>The same instant in Unix milliseconds.</summary>
+    private const long MaxUnixMilliseconds = 253_402_300_799_999L;
+
     /// <summary>
     /// How far ahead an imported due date is believed. Beyond this the row is broken, and honouring
     /// it would hide the card rather than schedule it.
@@ -181,55 +187,53 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 var deckPath = collectionInfo.Decks.TryGetValue(deckPlan.DeckId, out var n) && !string.IsNullOrWhiteSpace(n)
                     ? n
                     : $"Imported Deck {deckPlan.DeckId}";
-                var drafts = new List<FlashcardCardDraft>();
-                // Which package row each draft came from, so the history that row carried can be
-                // attached once the card it becomes has an id.
-                var draftRows = new List<CardRow>();
-                var material = new List<FlashcardFactDraft>();
-                var materialNotes = new List<AnkiClozeNote>();
-
-                foreach (var cardRow in deckPlan.Rows)
-                {
-                    if (!notes.TryGetValue(cardRow.NoteId, out var note))
-                        continue;
-
-                    var sides = await ReadSidesAsync(
-                        note, cardRow.Ord, rowCount: 1, collectionInfo, opened, warnings, tally, cancellationToken).ConfigureAwait(false);
-                    drafts.Add(DraftFor(note, cardRow, sides, collectionInfo, now));
-                    draftRows.Add(cardRow);
-                }
-
-                foreach (var clozeNote in deckPlan.ClozeNotes)
-                {
-                    var sides = await ReadSidesAsync(
-                        clozeNote.Note, ord: 0, clozeNote.Rows.Count, collectionInfo, opened, warnings, tally, cancellationToken)
-                        .ConfigureAwait(false);
-
-                    if (MaterialFor(clozeNote, sides, collectionInfo, now) is { } fact)
-                    {
-                        material.Add(fact);
-                        materialNotes.Add(clozeNote);
-                        continue;
-                    }
-
-                    // A note type that says cloze over text carrying no deletion. Its rows go back to
-                    // standing for themselves rather than losing their cards to a classification
-                    // nobody typed.
-                    foreach (var row in clozeNote.Rows.Values)
-                    {
-                        drafts.Add(DraftFor(clozeNote.Note, row, sides, collectionInfo, now));
-                        draftRows.Add(row);
-                    }
-                }
-
-                if (drafts.Count == 0 && material.Count == 0)
-                    continue;
-
-                // A deck and its cards land together or not at all. Half of one is a named, empty
-                // deck the user has to find and delete before retrying.
+                // Keep row construction inside the per-deck failure boundary so errors affect only
+                // that deck.
                 string? createdDeckId = null;
                 try
                 {
+                    var drafts = new List<FlashcardCardDraft>();
+                    // Retain source row ids to attach review history after cards receive their new
+                    // ids.
+                    var draftRows = new List<CardRow>();
+                    var material = new List<FlashcardFactDraft>();
+                    var materialNotes = new List<AnkiClozeNote>();
+
+                    foreach (var cardRow in deckPlan.Rows)
+                    {
+                        if (!notes.TryGetValue(cardRow.NoteId, out var note))
+                            continue;
+
+                        var sides = await ReadSidesAsync(
+                            note, cardRow.Ord, rowCount: 1, collectionInfo, opened, warnings, tally, cancellationToken).ConfigureAwait(false);
+                        drafts.Add(DraftFor(note, cardRow, sides, collectionInfo, now));
+                        draftRows.Add(cardRow);
+                    }
+
+                    foreach (var clozeNote in deckPlan.ClozeNotes)
+                    {
+                        var sides = await ReadSidesAsync(
+                            clozeNote.Note, ord: 0, clozeNote.Rows.Count, collectionInfo, opened, warnings, tally, cancellationToken)
+                            .ConfigureAwait(false);
+
+                        if (MaterialFor(clozeNote, sides, collectionInfo, now) is { } fact)
+                        {
+                            material.Add(fact);
+                            materialNotes.Add(clozeNote);
+                            continue;
+                        }
+
+                        // Preserve individual cards when a cloze note contains no cloze markers.
+                        foreach (var row in clozeNote.Rows.Values)
+                        {
+                            drafts.Add(DraftFor(clozeNote.Note, row, sides, collectionInfo, now));
+                            draftRows.Add(row);
+                        }
+                    }
+
+                    if (drafts.Count == 0 && material.Count == 0)
+                        continue;
+
                     var (folderId, deckName) = await folders.ResolveAsync(deckPath, cancellationToken).ConfigureAwait(false);
                     var deck = await _library.CreateDeckAsync(deckName, folderId, preset.Id, cancellationToken).ConfigureAwait(false);
                     createdDeckId = deck.Id;
@@ -2132,19 +2136,33 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return Convert.ToBase64String(hash[..10]).Replace('+', 'A').Replace('/', 'B');
     }
 
-    private static DateTimeOffset ParseUnixTimestamp(long value)
+    /// <summary>
+    /// Reads Unix seconds, falling back to milliseconds when seconds overflow. Returns false if
+    /// neither interpretation is representable.
+    /// </summary>
+    private static bool TryReadUnixTimestamp(long value, out DateTimeOffset instant)
     {
+        instant = default;
         if (value <= 0)
-            return DateTimeOffset.UtcNow;
+            return false;
 
-        // Anki datasets in the wild may use either seconds or milliseconds.
-        // Values beyond Unix-seconds max range are interpreted as milliseconds.
-        const long maxUnixSeconds = 253402300799L; // 9999-12-31T23:59:59Z
-        if (value > maxUnixSeconds)
-            return DateTimeOffset.FromUnixTimeMilliseconds(value);
+        if (value <= MaxUnixSeconds)
+        {
+            instant = DateTimeOffset.FromUnixTimeSeconds(value);
+            return true;
+        }
 
-        return DateTimeOffset.FromUnixTimeSeconds(value);
+        if (value <= MaxUnixMilliseconds)
+        {
+            instant = DateTimeOffset.FromUnixTimeMilliseconds(value);
+            return true;
+        }
+
+        return false;
     }
+
+    private static DateTimeOffset ParseUnixTimestamp(long value) =>
+        TryReadUnixTimestamp(value, out var instant) ? instant : DateTimeOffset.UtcNow;
 
     /// <summary>
     /// Turns one Anki card row's scheduling into the state this app keeps, or null for a card that
@@ -2169,9 +2187,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
         var due = ResolveDueDate(card, state, collectionCreatedAt, now);
 
-        // The card reached this due date by waiting out its interval, so the interval back from it
-        // is when it was last answered. Arithmetic on two recorded numbers rather than a guess.
-        DateTimeOffset? lastReviewedAt = card.IntervalDays > 0 ? due.AddDays(-card.IntervalDays) : null;
+        // Derive the last review from the due date and interval. Leave it unset if the subtraction
+        // exceeds the date range.
+        DateTimeOffset? lastReviewedAt = null;
+        if (card.IntervalDays > 0 && (due - DateTimeOffset.MinValue).TotalDays > card.IntervalDays)
+            lastReviewedAt = due.AddDays(-card.IntervalDays);
         if (lastReviewedAt > now)
             lastReviewedAt = null;
 
@@ -2192,9 +2212,21 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         if (raw <= 0)
             return now;
 
-        var due = raw >= SecondsSinceEpochThreshold
-            ? DateTimeOffset.FromUnixTimeSeconds(raw)
-            : collectionCreatedAt.AddDays(raw);
+        // Invalid timestamps must not abort an otherwise readable import.
+        DateTimeOffset due;
+        if (raw >= SecondsSinceEpochThreshold)
+        {
+            if (!TryReadUnixTimestamp(raw, out due))
+                return now;
+        }
+        else if (raw > (DateTimeOffset.MaxValue - collectionCreatedAt).TotalDays)
+        {
+            return now;
+        }
+        else
+        {
+            due = collectionCreatedAt.AddDays(raw);
+        }
 
         // A card that is already late stays late; one dated beyond any plausible schedule is a
         // corrupt row, and burying it a century out would hide it forever.
@@ -2213,7 +2245,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
         // Canonical Anki value: days since Unix epoch.
         // Some packages may contain seconds or milliseconds instead.
-        const long maxReasonableAnkiDays = 3_652_059; // up to year 9999
+        const long maxReasonableAnkiDays = MaxUnixSeconds / 86400L; // up to year 9999
         if (crtRaw <= maxReasonableAnkiDays)
             return DateTimeOffset.FromUnixTimeSeconds(crtRaw * 86400L);
 
