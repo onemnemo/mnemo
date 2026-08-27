@@ -106,6 +106,10 @@ public sealed class UpdateCoordinator
     private bool _shouldPrompt;
     private bool _skipped;
 
+    // Tracks whether the service still holds the resolved download object. Restored offers have
+    // metadata only.
+    private bool _serviceHoldsOffer;
+
     // The launch bookkeeping runs once per process, not once per page load: the SPA calls
     // it on mount, and a reload during development would otherwise spend a snooze launch
     // and eat the post-update toast before anyone saw it.
@@ -157,6 +161,7 @@ public sealed class UpdateCoordinator
             return channel;
 
         _available = null;
+        _serviceHoldsOffer = false;
         _progress = 0;
         _error = null;
         _shouldPrompt = false;
@@ -219,6 +224,8 @@ public sealed class UpdateCoordinator
             return;
 
         _available = offer;
+        // A persisted offer does not retain its resolved download object.
+        _serviceHoldsOffer = false;
         _error = null;
         _stage = UpdateStage.Available;
         await RefreshPromptGateAsync().ConfigureAwait(false);
@@ -330,6 +337,7 @@ public sealed class UpdateCoordinator
             {
                 _logger.Warning("Updates", $"Update check failed: {result.ErrorMessage}");
                 _available = null;
+                _serviceHoldsOffer = false;
                 _error = "check_failed";
                 await RefreshPromptGateAsync().ConfigureAwait(false);
                 SetStage(UpdateStage.Failed, channel, lastChecked);
@@ -338,6 +346,7 @@ public sealed class UpdateCoordinator
 
             _error = null;
             _available = result.Value;
+            _serviceHoldsOffer = _available is not null;
             await _settings.SetAsync<string?>(
                 UpdateSettingsKeys.PendingOfferJson,
                 _available is null ? null : AppUpdateInfoPersistence.Serialize(_available)).ConfigureAwait(false);
@@ -366,6 +375,17 @@ public sealed class UpdateCoordinator
 
         if (_stage is UpdateStage.Downloading or UpdateStage.Ready || _available is null)
             return BuildStatus(channel, lastChecked);
+
+        // Resolve restored offers before downloading. A manual check bypasses the automatic
+        // cooldown.
+        if (!_serviceHoldsOffer)
+        {
+            await CheckAsync(automatic: false, cancellationToken).ConfigureAwait(false);
+            channel = await ReadChannelAsync(cancellationToken).ConfigureAwait(false);
+            lastChecked = await ReadLastCheckedAsync().ConfigureAwait(false);
+            if (_available is null || !_serviceHoldsOffer)
+                return BuildStatus(channel, lastChecked);
+        }
 
         var update = _available;
         _progress = 0;

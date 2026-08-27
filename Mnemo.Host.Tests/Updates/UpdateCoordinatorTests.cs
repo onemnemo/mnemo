@@ -480,6 +480,25 @@ public sealed class UpdateCoordinatorTests
     }
 
     [Fact]
+    public async Task AResumedOfferIsCheckedAgainBeforeItIsDownloaded()
+    {
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: false);
+
+        var next = world.NextLaunch();
+        await next.CheckAsync(automatic: true);
+
+        await next.BeginDownloadAsync();
+        await world.Updates.DownloadStarted.Task;
+        world.Updates.FinishDownload(Result.Success());
+        await world.Events.WaitFor(s => s.Stage == UpdateStage.Ready);
+
+        // A restored offer needs a fresh check to resolve the downloadable update object.
+        Assert.Equal(2, world.Updates.Checks);
+    }
+
+    [Fact]
     public async Task AResumedOfferThatWasSkippedDoesNotPrompt()
     {
         var world = new World();
@@ -596,7 +615,12 @@ public sealed class UpdateCoordinatorTests
         /// app. Launch bookkeeping happens once per process, so restarting is the only way
         /// to reach it twice.
         /// </summary>
-        public UpdateCoordinator NextLaunch() => new(Updates, Settings, Events, new SilentLogger());
+        public UpdateCoordinator NextLaunch()
+        {
+            // A new service instance has no resolved download object.
+            Updates.ForgetPendingUpdate();
+            return new(Updates, Settings, Events, new SilentLogger());
+        }
 
         /// <summary>Finds an update, downloads it and waits for the staged state.</summary>
         public async Task ReachReady()
@@ -627,17 +651,24 @@ public sealed class UpdateCoordinatorTests
         public IProgress<int>? Progress { get; private set; }
 
         private readonly TaskCompletionSource<Result> _download = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool _holdsPendingUpdate;
 
         public void FinishDownload(Result result) => _download.TrySetResult(result);
 
         public Task<string> GetChannelAsync(CancellationToken cancellationToken = default) => Task.FromResult(Channel);
 
+        /// <summary>Stands in for the next process: a new service instance holds no update a check resolved.</summary>
+        public void ForgetPendingUpdate() => _holdsPendingUpdate = false;
+
         public Task<Result<AppUpdateInfo?>> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
         {
             Checks++;
-            return Task.FromResult(CheckFailure is null
-                ? Result<AppUpdateInfo?>.Success(Available)
-                : Result<AppUpdateInfo?>.Failure(CheckFailure));
+            _holdsPendingUpdate = false;
+            if (CheckFailure is not null)
+                return Task.FromResult(Result<AppUpdateInfo?>.Failure(CheckFailure));
+
+            _holdsPendingUpdate = Available is not null;
+            return Task.FromResult(Result<AppUpdateInfo?>.Success(Available));
         }
 
         public Task<Result> DownloadUpdatesAsync(AppUpdateInfo update, IProgress<int>? progress, CancellationToken cancellationToken = default)
@@ -645,6 +676,11 @@ public sealed class UpdateCoordinatorTests
             Downloads++;
             Progress = progress;
             DownloadStarted.TrySetResult(true);
+
+            // Match production: downloading requires a check in the same service instance.
+            if (!_holdsPendingUpdate)
+                return Task.FromResult(Result.Failure("No pending update was resolved by a check in this instance."));
+
             return _download.Task;
         }
 

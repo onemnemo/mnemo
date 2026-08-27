@@ -372,6 +372,11 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
         return asm?.GetName().Version?.ToString() ?? "0.0.0";
     }
 
+    /// <summary>
+    /// Supplies a resolved update for tests without an installed Velopack layout.
+    /// </summary>
+    internal void SetPendingUpdateForTests(Velopack.UpdateInfo? update) => _pendingVelopackUpdate = update;
+
     public async Task<Result> DownloadUpdatesAsync(AppUpdateInfo update, IProgress<int>? progress, CancellationToken cancellationToken = default)
     {
         if (_pendingVelopackUpdate == null)

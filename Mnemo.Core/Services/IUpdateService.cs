@@ -20,7 +20,11 @@ public interface IUpdateService
     /// <summary>Returns null when no newer version is available.</summary>
     Task<Result<AppUpdateInfo?>> CheckForUpdatesAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Downloads packages for the update returned by <see cref="CheckForUpdatesAsync"/>.</summary>
+    /// <summary>
+    /// Downloads packages for the update <see cref="CheckForUpdatesAsync"/> resolved in this
+    /// instance. Fails without touching the network when no check has run here, or when the
+    /// version asked for is not the one that check resolved.
+    /// </summary>
     Task<Result> DownloadUpdatesAsync(AppUpdateInfo update, IProgress<int>? progress, CancellationToken cancellationToken = default);
 
     /// <summary>Restarts the app and applies a downloaded update. No-op if nothing pending.</summary>

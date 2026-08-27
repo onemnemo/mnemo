@@ -1,6 +1,9 @@
+using Mnemo.Core.Models;
 using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Updates;
 using Mnemo.Infrastructure.Tests.Widgets;
+using NuGet.Versioning;
+using Velopack;
 
 namespace Mnemo.Infrastructure.Tests.Services.Updates;
 
@@ -71,5 +74,46 @@ public sealed class VelopackUpdateServiceTests
         // A failed read must leave the existing setting unchanged.
         Assert.False(asked);
         Assert.Equal("{ not valid json", storage.Raw[ChannelKey]);
+    }
+
+    /// <summary>
+    /// Downloading requires an update object resolved by this service instance.
+    /// </summary>
+    [Fact]
+    public async Task ADownloadWithoutACheckIsRefusedBeforeTheNetwork()
+    {
+        using var service = new VelopackUpdateService(new TestLogger(), new SettingsService(new InMemoryStorageProvider()));
+
+        var result = await service.DownloadUpdatesAsync(
+            new AppUpdateInfo("0.9.0", null, null, false), progress: null);
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task ADownloadForADifferentVersionThanThePendingOneIsRefused()
+    {
+        using var service = new VelopackUpdateService(new TestLogger(), new SettingsService(new InMemoryStorageProvider()));
+        service.SetPendingUpdateForTests(PendingUpdate("0.9.0"));
+
+        var result = await service.DownloadUpdatesAsync(
+            new AppUpdateInfo("0.9.1", null, null, false), progress: null);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("different version", result.ErrorMessage);
+    }
+
+    /// <summary>The shape a check resolves, built by hand because no feed is reachable here.</summary>
+    private static Velopack.UpdateInfo PendingUpdate(string version)
+    {
+        var asset = new VelopackAsset
+        {
+            PackageId = "Mnemo",
+            Version = SemanticVersion.Parse(version),
+            FileName = $"Mnemo-{version}-full.nupkg",
+        };
+
+        // The target release, not a downgrade, the same asset as the base, and no deltas.
+        return new Velopack.UpdateInfo(asset, false, asset, []);
     }
 }
