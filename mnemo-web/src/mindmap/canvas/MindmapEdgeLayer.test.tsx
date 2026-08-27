@@ -1,17 +1,14 @@
 // @vitest-environment jsdom
 
 /**
- * The edge label field, `EdgeLabelEditor`.
- *
- * Same contract as the node and frame editors it sits alongside: an uncontrolled field tracking its
- * own latest value in a ref, flushed on an unmount that closed no other way, and never finished on a
- * composing Enter. Pinned here against the real component since `MindmapEdgeLabels` is the only
- * export and the editor itself is not.
+ * Checks that edge label edits flush on blur, unmount, and window shutdown.
  */
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { resetShutdownForTests, runShutdown } from "@/app/shutdown"
 
 import { MindmapEdgeLabels } from "./MindmapEdgeLayer"
 import type { Scene, SceneEdge, SceneElement } from "../model/scene"
@@ -49,6 +46,7 @@ let container: HTMLElement
 let root: Root
 
 beforeEach(() => {
+  resetShutdownForTests()
   container = document.createElement("div")
   document.body.appendChild(container)
   root = createRoot(container)
@@ -104,5 +102,19 @@ describe("an edge label being edited", () => {
     pressKey(field, "Enter")
 
     expect(onEditEnd).toHaveBeenCalledWith("e1", "meets")
+  })
+
+  it("commits what is in the field when the window closes and nothing unmounts", async () => {
+    const onEditEnd = vi.fn()
+    act(() => root.render(<MindmapEdgeLabels scene={SCENE} editingId="e1" onEditEnd={onEditEnd} />))
+
+    const field = container.querySelector<HTMLInputElement>('input[data-mm-edge-label="e1"]')!
+    type(field, "renamed")
+
+    await act(async () => {
+      await runShutdown()
+    })
+
+    expect(onEditEnd).toHaveBeenCalledWith("e1", "renamed")
   })
 })
