@@ -235,9 +235,10 @@ export function startAutosave(options: AutosaveOptions): Autosave {
       if (current) await current;
       // That save's own accounting may have queued a retry while we waited.
       cancel();
-      // Conflict is not overridden by urgency. The authority has adopted the
-      // server's version, so this write would land, over content it never saw.
-      if (destroyed || conflicted) return { status: 'skipped' };
+      if (destroyed) return { status: 'skipped' };
+      // Urgency must not overwrite unseen server changes. Return conflicted so exit callers can
+      // distinguish failure from an empty flush.
+      if (conflicted) return { status: 'conflict', ver: authority.status().ver };
       if (!authority.status().dirty) return { status: 'skipped' };
       return run();
     },
