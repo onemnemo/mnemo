@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef } from "react"
 
 import { navigate } from "@/app/router"
+import { onShutdown } from "@/app/shutdown"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
@@ -71,15 +72,18 @@ export function TestPage({ deckId }: { deckId?: string }) {
 
   const backToDeck = () => (deckId ? navigate("flashcard-deck", deckId) : navigate("flashcards"))
 
-  // Start once for this deck, and record the effort when the screen goes away - the only moment
-  // a test that was abandoned rather than finished gets to say it happened.
+  // Record unfinished test activity on both unmount and native window shutdown.
   useEffect(() => {
     if (!deckId) {
       navigate("flashcards")
       return
     }
     void useTest.getState().start(deckId)
-    return () => void useTest.getState().leave()
+    const unregister = onShutdown(() => useTest.getState().leave())
+    return () => {
+      unregister()
+      void useTest.getState().leave()
+    }
   }, [deckId])
 
   // A queue that could not be fetched leaves nothing to run, so the reader goes back to the deck -
