@@ -74,6 +74,7 @@ export function NoteSurface({
   const nt = (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
   const commit = useNoteContentCommitter();
   const updateNote = useUpdateNoteMetadata();
+  const paneRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Metadata edits are a full replace; route every one through the carry so a
@@ -121,7 +122,7 @@ export function NoteSurface({
   const { spellCheck, lang } = useSpellcheck();
 
   return (
-    <div className="group/pane relative flex h-full min-h-0 flex-col">
+    <div ref={paneRef} className="group/pane relative flex h-full min-h-0 flex-col">
       {/* The note's chrome, pinned to the pane rather than a bar over it: the
           breadcrumb now lives in the shared topbar. The row is anchored to the
           right with the actions last, so the save label changing length moves
@@ -167,7 +168,9 @@ export function NoteSurface({
         </div>
       </div>
       {view ? <IndexChip view={view} registry={registry} scrollRef={scrollRef} /> : null}
-      {view ? <BlockSelectionOverlay view={view} registry={registry} scrollRef={scrollRef} /> : null}
+      {view ? (
+        <BlockSelectionOverlay view={view} registry={registry} paneRef={paneRef} scrollRef={scrollRef} />
+      ) : null}
       {view ? <SelectionBands view={view} registry={registry} scrollRef={scrollRef} /> : null}
       {view ? <BlockSelectionAnnouncer view={view} /> : null}
       {view ? <BlockGutter view={view} registry={registry} /> : null}
