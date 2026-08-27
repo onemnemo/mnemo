@@ -539,12 +539,22 @@ internal sealed class FlashcardCollectionRestore
         string imagesDirectory,
         DateTimeOffset now)
     {
-        // Convert legacy embedded image tokens into attachment records at the boundary, so no
-        // downstream renderer needs the regex again. A package that carries attachments of its own
-        // also carried their bytes, so its tokens are only a compatibility copy: strip them and use
-        // the field, whose paths are rebuilt against this installation's images directory.
-        var conversion = FlashcardImageTokenConverter.Convert(cardId, card.Front, card.Back);
+        // Remove legacy image tokens by filename rather than local file existence so imported
+        // packages do not display foreign paths.
         var carriesAttachments = card.Attachments is { Count: > 0 };
+        var front = card.Front;
+        var back = card.Back;
+        if (carriesAttachments)
+        {
+            front = FlashcardImageTokenConverter.StripTokensForFiles(
+                front, PackagedNames(card.Attachments!, FlashcardAttachment.FrontSide));
+            back = FlashcardImageTokenConverter.StripTokensForFiles(
+                back, PackagedNames(card.Attachments!, FlashcardAttachment.BackSide));
+        }
+
+        // Without structured attachments, legacy tokens remain the source for disk-based
+        // conversion.
+        var conversion = FlashcardImageTokenConverter.Convert(cardId, front, back);
         if (!carriesAttachments)
         {
             foreach (var warning in conversion.Warnings)
@@ -648,6 +658,29 @@ internal sealed class FlashcardCollectionRestore
         source is { SourceType: { } type, SourceId: { } id }
             ? new FlashcardSourceInfo(type, id, source.DisplayLabel)
             : null;
+
+    /// <summary>
+    /// Normalizes attachment filenames consistently with restored paths, including paths from
+    /// another platform.
+    /// </summary>
+    private static IReadOnlySet<string> PackagedNames(IReadOnlyList<AttachmentSnapshotDto> snapshots, string side)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var snapshot in snapshots)
+        {
+            var snapshotSide = string.Equals(snapshot.Side, FlashcardAttachment.BackSide, StringComparison.OrdinalIgnoreCase)
+                ? FlashcardAttachment.BackSide
+                : FlashcardAttachment.FrontSide;
+            if (!string.Equals(snapshotSide, side, StringComparison.Ordinal))
+                continue;
+
+            var fileName = Path.GetFileName(snapshot.FileName.Replace('\\', '/'));
+            if (!string.IsNullOrWhiteSpace(fileName))
+                names.Add(fileName);
+        }
+
+        return names;
+    }
 
     /// <summary>
     /// Rebuilds attachment records against this installation's images directory. The packaged file

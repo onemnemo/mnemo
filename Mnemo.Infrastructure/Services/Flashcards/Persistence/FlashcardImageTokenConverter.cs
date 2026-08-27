@@ -54,6 +54,31 @@ public static class FlashcardImageTokenConverter
         return new FlashcardImageTokenConversionResult(cleanFront, cleanBack, attachments, warnings);
     }
 
+    /// <summary>
+    /// Removes tokens matching attachment filenames or containing directory separators, including
+    /// manually entered paths. Unmatched bare filenames remain. Null becomes empty; blank lines
+    /// collapse only after removal.
+    /// </summary>
+    public static string StripTokensForFiles(string? text, IReadOnlySet<string> fileNames)
+    {
+        if (string.IsNullOrEmpty(text) || !ImageTokenPattern.IsMatch(text))
+            return text ?? string.Empty;
+
+        var removedAny = false;
+        var stripped = ImageTokenPattern.Replace(text, match =>
+        {
+            var path = match.Groups["path"].Value.Trim();
+            var carriesDirectory = path.Contains('/', StringComparison.Ordinal) || path.Contains('\\', StringComparison.Ordinal);
+            if (!carriesDirectory && !fileNames.Contains(Path.GetFileName(path.Replace('\\', '/'))))
+                return match.Value;
+
+            removedAny = true;
+            return string.Empty;
+        });
+
+        return removedAny ? CollapseBlankLines(stripped) : text;
+    }
+
     private static string ConvertSide(
         string? cardId,
         string text,
