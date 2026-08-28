@@ -32,6 +32,28 @@ const JAPANESE_TRANSFER_WARNINGS = (
   }
 ).TransferWarnings
 
+function notesNamespace(file: string): Record<string, string> {
+  return (JSON.parse(readFileSync(file, "utf8")) as { Notes: Record<string, string> }).Notes
+}
+
+// Module translations override matching shared keys in the served bundle.
+const NOTES_MODULE_ENGLISH = notesNamespace(
+  path.resolve(process.cwd(), "..", "Mnemo.Infrastructure", "Modules", "Notes", "Translations", "en.json"),
+)
+const SERVED_ENGLISH_NOTES = {
+  ...notesNamespace(path.join(LANGUAGES_DIR, "en.json")),
+  ...NOTES_MODULE_ENGLISH,
+}
+
+const READY_FILE: QueuedFile = {
+  key: "row-ready",
+  name: "Biology.md",
+  sizeBytes: 512,
+  status: "ready",
+  uploadId: "u1",
+  noteCount: 1,
+}
+
 const FORMATS: TransferFormatDto[] = [
   {
     formatId: "notes.mnemo",
@@ -83,9 +105,11 @@ describe("the notes import panel", () => {
         conflict="KeepBoth"
         busy={false}
         ready
+        replaceConfirmed={false}
         onAddFiles={() => {}}
         onRemove={() => {}}
         onConflictChange={() => {}}
+        onReplaceConfirmedChange={() => {}}
       />,
     )
 
@@ -96,5 +120,59 @@ describe("the notes import panel", () => {
     expect(expected).toBe("ノート「旅行の計画」のインポートに失敗しました: 重複したID")
     expect(container.textContent).toContain(expected)
     expect(container.textContent).not.toContain("NoteImportFailed")
+  })
+
+  it.each([
+    ["Markdown", ["Biology.md"]],
+    ["package", ["Biology.mnemo"]],
+    ["mixed", ["Biology.md", "Chemistry.mnemo"]],
+  ])("explains both replacement outcomes for a %s queue", (_format, names) => {
+    useI18nStore.setState({ bundle: { Notes: SERVED_ENGLISH_NOTES } })
+
+    mount(
+      <NoteImportPanel
+        queue={names.map((name) => ({ ...READY_FILE, key: name, name }))}
+        formats={FORMATS}
+        rejected={[]}
+        conflict="Replace"
+        busy={false}
+        ready
+        replaceConfirmed={false}
+        onAddFiles={() => {}}
+        onRemove={() => {}}
+        onConflictChange={() => {}}
+        onReplaceConfirmedChange={() => {}}
+      />,
+    )
+
+    expect(container.querySelector('input[type="checkbox"]')).not.toBeNull()
+    const consent = container.querySelector('input[type="checkbox"]')?.closest("label")
+    expect(consent?.textContent).toContain("Replace existing notes?")
+    expect(consent?.textContent).toContain(
+      "Markdown imports keep the old content in the trash for recovery as a separate note.",
+    )
+    expect(consent?.textContent).toContain("Package imports permanently overwrite it.")
+  })
+
+  it("does not ask under a policy that takes nothing", () => {
+    useI18nStore.setState({ bundle: { Notes: SERVED_ENGLISH_NOTES } })
+
+    mount(
+      <NoteImportPanel
+        queue={[READY_FILE]}
+        formats={FORMATS}
+        rejected={[]}
+        conflict="KeepBoth"
+        busy={false}
+        ready
+        replaceConfirmed={false}
+        onAddFiles={() => {}}
+        onRemove={() => {}}
+        onConflictChange={() => {}}
+        onReplaceConfirmedChange={() => {}}
+      />,
+    )
+
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull()
   })
 })

@@ -1,4 +1,4 @@
-import type { MindmapTransferUploadDto, TransferFormatDto, TransferWarningDto } from "@/api/types"
+import type { ConflictPolicy, MindmapTransferUploadDto, TransferFormatDto, TransferWarningDto } from "@/api/types"
 import type { TranslateFn } from "@/i18n/types"
 
 // Pure rules behind the mindmap transfer dialog: what a file is allowed to be, and how the import
@@ -95,6 +95,14 @@ export function readyMapCount(queue: readonly QueuedFile[]): number | null {
 /** Whether the dialog can commit: something to import, and nothing still being read. */
 export function canImport(queue: readonly QueuedFile[]): boolean {
   return queue.some((file) => file.status === "ready") && !queue.some((file) => file.status === "uploading")
+}
+
+/**
+ * Requires consent for Replace with any ready file. The preview does not report collisions.
+ */
+export function replaceNeedsConfirmation(queue: readonly QueuedFile[], policy: ConflictPolicy): boolean {
+  if (policy !== "Replace") return false
+  return queue.some((file) => file.status === "ready")
 }
 
 /**
