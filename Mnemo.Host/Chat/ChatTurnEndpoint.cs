@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Hosting;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Ai;
 using Mnemo.Core.Services;
@@ -46,7 +47,8 @@ public static class ChatTurnEndpoint
         IConversationMemoryStore memoryStore,
         IConversationMemoryInjector memoryInjector,
         IConversationSummarizer summarizer,
-        ILoggerService logger)
+        ILoggerService logger,
+        IHostApplicationLifetime lifetime)
     {
         var response = context.Response;
         response.Headers.CacheControl = "no-cache";
@@ -85,7 +87,10 @@ public static class ChatTurnEndpoint
         var systemPrompt = ChatStreamingHelper.GetSystemPromptForMode(mode);
 
         var registration = turns.Register(request.TurnId);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(registration.Token, context.RequestAborted);
+        // Host shutdown cancels the producer through the same path as Stop, preserving the partial
+        // turn.
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            registration.Token, context.RequestAborted, lifetime.ApplicationStopping);
         var token = linked.Token;
 
         // The same signals stream to the SPA (which renders its own live trace) and feed the trace

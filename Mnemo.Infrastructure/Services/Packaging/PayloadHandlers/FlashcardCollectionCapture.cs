@@ -389,20 +389,23 @@ internal sealed class FlashcardCollectionCapture
     }
 
     /// <summary>
-    /// Re-embeds a card side's attachments as trailing <c>![alt](path)</c> tokens (the caption becomes
-    /// alt text) so a legacy-shaped export still carries the images, and re-importing it round-trips
-    /// them back into attachments.
+    /// Appends filename-only image tokens for older readers. Absolute paths would disclose the
+    /// exporting account and fail on other machines. Attachments without filenames are skipped.
     /// </summary>
     private static string EmbedAttachmentsAsTokens(string text, IReadOnlyList<FlashcardAttachment>? attachments, string side)
     {
         if (attachments is null || attachments.Count == 0)
             return text;
 
-        var sideAttachments = attachments.Where(a => string.Equals(a.Side, side, StringComparison.OrdinalIgnoreCase)).ToArray();
-        if (sideAttachments.Length == 0)
+        var tokens = attachments
+            .Where(a => string.Equals(a.Side, side, StringComparison.OrdinalIgnoreCase))
+            .Select(a => new { a.Caption, FileName = Path.GetFileName(a.FilePath.Replace('\\', '/')) })
+            .Where(a => !string.IsNullOrWhiteSpace(a.FileName))
+            .Select(a => $"![{a.Caption ?? string.Empty}]({a.FileName})")
+            .ToArray();
+        if (tokens.Length == 0)
             return text;
 
-        var tokens = sideAttachments.Select(a => $"![{a.Caption ?? string.Empty}]({a.FilePath})");
         var suffix = string.Join("\n", tokens);
         return string.IsNullOrEmpty(text) ? suffix : $"{text}\n\n{suffix}";
     }

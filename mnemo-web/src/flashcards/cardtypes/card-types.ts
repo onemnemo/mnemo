@@ -1,4 +1,4 @@
-import type { CardTypeSummaryDto, SaveCardTypeDto } from "@/api/types"
+import type { CardTypeDto, CardTypeLayoutDto, CardTypeSummaryDto, SaveCardTypeDto } from "@/api/types"
 
 /**
  * The card type manager's working copy. Edits are held here until Save, so a half finished type
@@ -223,6 +223,17 @@ export function removeLayout(draft: CardTypeDraft, layoutId: string): CardTypeDr
 }
 
 /**
+ * Returns stored layouts missing from the draft, using their saved names for confirmation.
+ */
+export function removedLayouts(stored: CardTypeDto, draft: CardTypeDraft): CardTypeLayoutDto[] {
+  // Generated types save no layouts; their cards are derived from fields.
+  if (draft.generator) return []
+
+  const kept = new Set(draft.layouts.map((layout) => layout.id))
+  return stored.layouts.filter((layout) => !kept.has(layout.id))
+}
+
+/**
  * Everything that would stop this type from working, checked here so the dialog can say which one
  * it is rather than letting the save come back as a refusal with no field to point at.
  */
@@ -254,8 +265,15 @@ export function problems(draft: CardTypeDraft): CardTypeProblem[] {
   return found
 }
 
+/**
+ * Whether any draft has unsaved edits, including invalid drafts.
+ */
+export function isDirty(drafts: readonly CardTypeDraft[]): boolean {
+  return drafts.some((draft) => draft.dirty)
+}
+
 export function canSave(drafts: readonly CardTypeDraft[]): boolean {
-  return drafts.some((draft) => draft.dirty) && drafts.every((draft) => problems(draft).length === 0)
+  return isDirty(drafts) && drafts.every((draft) => problems(draft).length === 0)
 }
 
 export function toSaveDto(draft: CardTypeDraft): SaveCardTypeDto {

@@ -1,4 +1,4 @@
-import type { NoteTransferUploadDto, TransferFormatDto, TransferWarningDto } from "@/api/types"
+import type { ConflictPolicy, NoteTransferUploadDto, TransferFormatDto, TransferWarningDto } from "@/api/types"
 import type { TranslateFn } from "@/i18n/types"
 
 // Pure rules behind the note transfer dialog: what a file is allowed to be, which formats an export
@@ -103,6 +103,15 @@ export function readyNoteCount(queue: readonly QueuedFile[]): number | null {
 /** Whether the dialog can commit: something to import, and nothing still being read. */
 export function canImport(queue: readonly QueuedFile[]): boolean {
   return queue.some((file) => file.status === "ready") && !queue.some((file) => file.status === "uploading")
+}
+
+/**
+ * Requires consent for Replace with any ready file. Neither format reports collisions in its
+ * preview.
+ */
+export function replaceNeedsConfirmation(queue: readonly QueuedFile[], policy: ConflictPolicy): boolean {
+  if (policy !== "Replace") return false
+  return queue.some((file) => file.status === "ready")
 }
 
 /**

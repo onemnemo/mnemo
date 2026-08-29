@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Dialog } from "radix-ui"
 
+import { onDirtyCheck } from "@/app/shutdown"
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
 import { useT } from "@/i18n/useT"
@@ -23,6 +24,7 @@ import {
   differs,
   draftFromPreset,
   formatSteps,
+  isDirty as hasUnsavedChanges,
   newDraft,
   parseSteps,
   restoreDefaults,
@@ -88,6 +90,11 @@ export function ReviewSettings({
     toast.warning(t("Flashcards", "ReviewSettingsLoadErrorTitle"), { description: loadError.message })
     onClose()
   }, [loadError, onClose, t])
+
+  // Read current state through a ref without re-registering on every edit.
+  const latest = useRef({ drafts, deckId: target.deckId, selectedKey, originalPresetId })
+  latest.current = { drafts, deckId: target.deckId, selectedKey, originalPresetId }
+  useEffect(() => onDirtyCheck(() => hasUnsavedChanges(latest.current)), [])
 
   const patchSelected = (patch: Partial<PresetDraft>) => {
     if (saving) return

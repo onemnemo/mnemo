@@ -80,6 +80,8 @@
     "TransferExportTitle": "Notizen exportieren",
     "TransferExportNoteTitle": "Notiz exportieren",
     "TransferConflictQuestion": "Wenn eine Notiz bereits existiert",
+    "TransferReplaceConfirmTitle": "Vorhandene Notizen ersetzen?",
+    "TransferReplaceConfirmCheckbox": "Übereinstimmende Notizen ersetzen. Bei Markdown-Importen bleibt der bisherige Inhalt im Papierkorb und kann als separate Notiz wiederhergestellt werden. Paketimporte überschreiben ihn dauerhaft.",
     "TransferNounSingular": "Notiz",
     "TransferNounPlural": "Notizen",
     "ExportNoNotesMessage": "Keine Notizen zum Exportieren ausgewählt.",

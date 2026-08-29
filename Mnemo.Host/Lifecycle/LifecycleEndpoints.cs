@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Startup;
+using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
 
 namespace Mnemo.Host.Lifecycle;
@@ -40,6 +41,10 @@ public static class LifecycleEndpoints
     /// <param name="ShouldWarn">True the first time this is asked while the old, unsupported
     /// Avalonia install is found sharing this profile's data. False on every later call.</param>
     public sealed record LegacyInstallCheckDto(bool ShouldWarn);
+
+    /// <param name="UserAgent">The browser-reported user agent. An omitted value is logged as
+    /// unknown.</param>
+    public sealed record ClientInfoDto(string? UserAgent);
 
     /// <param name="NoteId">The note whose last write did not land. An identifier, never a title.</param>
     /// <param name="Verdict">Why it did not land. One of the two names this host records.</param>
@@ -268,5 +273,34 @@ public static class LifecycleEndpoints
         // or the next launch never repeats the warning.
         endpoints.MapPost("/api/app/legacy-install-check", async (LegacyInstallWarning warning, CancellationToken ct) =>
             new LegacyInstallCheckDto(await warning.ShouldWarnAsync(ct).ConfigureAwait(false)));
+
+        // Record client metadata to diagnose blank-window reports alongside the host startup log.
+        endpoints.MapPost("/api/app/client-info", (ClientInfoDto body, ILoggerService logger) =>
+        {
+            logger.Info(CrashLog.Category, $"Boot(engine={SpaHosting.ResolveEngine()}, userAgent={AsLogValue(body.UserAgent)})");
+            return Results.NoContent();
+        });
+    }
+
+    private const int UserAgentLogLimit = 256;
+
+    /// <summary>
+    /// Bounds the user agent and replaces control characters to prevent log injection. Null, empty,
+    /// and whitespace values become unknown.
+    /// </summary>
+    internal static string AsLogValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "unknown";
+
+        var bounded = value.Length > UserAgentLogLimit ? value[..UserAgentLogLimit] : value;
+        var buffer = bounded.ToCharArray();
+        for (var i = 0; i < buffer.Length; i++)
+        {
+            if (char.IsControl(buffer[i]))
+                buffer[i] = ' ';
+        }
+
+        return new string(buffer);
     }
 }

@@ -57,6 +57,7 @@ public static class NoteBlockMarkdownConverter
             BlockType.Sketch => SerializeSketchFence(block),
             BlockType.Divider => "---",
             BlockType.Equation => "$$\n" + GetEquationLatex(block) + "\n$$",
+            BlockType.Image => $"![{EscapeImageAlt(GetImageAlt(block))}]({GetImagePath(block)})",
             BlockType.TwoColumn => SerializeColumns(block),
             BlockType.ColumnGroup => SerializeColumnGroup(block),
             BlockType.Table => SerializeTable(block),
@@ -229,6 +230,25 @@ public static class NoteBlockMarkdownConverter
                     Spans = new List<InlineSpan> { InlineSpan.Plain(string.Empty) }
                 };
                 result.Add(pageBlock);
+                i++;
+                continue;
+            }
+
+            // Accept an empty target so a missing image remains an image block rather than raw
+            // Markdown.
+            var imageRef = Regex.Match(trimmed, @"^!\[([^\]]*)\]\(([^)]*)\)\s*$");
+            if (imageRef.Success)
+            {
+                var alt = UnescapeImageAlt(imageRef.Groups[1].Value);
+                var imageBlock = new Block
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Type = BlockType.Image,
+                    Order = order++,
+                    Payload = new ImagePayload(UnwrapImageTarget(imageRef.Groups[2].Value), alt),
+                    Spans = new List<InlineSpan> { InlineSpan.Plain(alt) }
+                };
+                result.Add(imageBlock);
                 i++;
                 continue;
             }
@@ -549,6 +569,50 @@ public static class NoteBlockMarkdownConverter
             JsonElement je when je.ValueKind == JsonValueKind.String => je.GetString() ?? string.Empty,
             _ => v.ToString() ?? string.Empty
         };
+    }
+
+    /// <summary>
+    /// Serializes the stored image reference. Local image bytes, display width, and alignment are
+    /// not included in Markdown exports.
+    /// </summary>
+    private static string GetImagePath(Block block) =>
+        block.Payload is ImagePayload p && p.Path.Length > 0 ? p.Path : ReadMetaString(block, "imagePath");
+
+    private static string GetImageAlt(Block block) =>
+        block.Payload is ImagePayload p && p.Alt.Length > 0 ? p.Alt : ReadMetaString(block, "imageAlt");
+
+    private static string ReadMetaString(Block block, string key)
+    {
+        if (!block.Meta.TryGetValue(key, out var v) || v == null)
+            return string.Empty;
+        return v switch
+        {
+            string s => s,
+            JsonElement je when je.ValueKind == JsonValueKind.String => je.GetString() ?? string.Empty,
+            _ => v.ToString() ?? string.Empty
+        };
+    }
+
+    /// <summary>
+    /// Escapes alt text for the matching reader. Replace line breaks with spaces to keep the image
+    /// reference on one line.
+    /// </summary>
+    private static string EscapeImageAlt(string alt) =>
+        alt.Replace("\\", "\\\\", StringComparison.Ordinal)
+           .Replace("]", "\\]", StringComparison.Ordinal)
+           .Replace("\r\n", " ", StringComparison.Ordinal)
+           .Replace("\r", " ", StringComparison.Ordinal)
+           .Replace("\n", " ", StringComparison.Ordinal);
+
+    private static string UnescapeImageAlt(string alt) =>
+        alt.Replace("\\]", "]", StringComparison.Ordinal)
+           .Replace("\\\\", "\\", StringComparison.Ordinal);
+
+    /// <summary>Angle bracket wrapping is stripped, matching the editor's own reader.</summary>
+    private static string UnwrapImageTarget(string raw)
+    {
+        var trimmed = raw.Trim();
+        return trimmed.Length >= 2 && trimmed[0] == '<' && trimmed[^1] == '>' ? trimmed[1..^1].Trim() : trimmed;
     }
 }
 

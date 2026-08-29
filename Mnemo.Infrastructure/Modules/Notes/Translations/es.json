@@ -149,6 +149,8 @@
     "TransferExportTitle": "Exportar notas",
     "TransferExportNoteTitle": "Exportar nota",
     "TransferConflictQuestion": "Si una nota ya existe",
+    "TransferReplaceConfirmTitle": "¿Reemplazar las notas existentes?",
+    "TransferReplaceConfirmCheckbox": "Reemplazar las notas coincidentes. Las importaciones de Markdown conservan el contenido anterior en la papelera para recuperarlo como una nota independiente. Las importaciones de paquetes lo sobrescriben permanentemente.",
     "TransferNounSingular": "nota",
     "TransferNounPlural": "notas",
     "ExportNoNotesMessage": "No hay notas seleccionadas para exportar.",

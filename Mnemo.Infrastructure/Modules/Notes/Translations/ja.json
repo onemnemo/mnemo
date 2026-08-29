@@ -80,6 +80,8 @@
     "TransferExportTitle": "ノートをエクスポート",
     "TransferExportNoteTitle": "ノートをエクスポート",
     "TransferConflictQuestion": "ノートが既に存在する場合",
+    "TransferReplaceConfirmTitle": "既存のノートを置き換えますか？",
+    "TransferReplaceConfirmCheckbox": "一致するノートを置き換えます。Markdownのインポートでは、元の内容はゴミ箱に保存され、別のノートとして復元できます。パッケージのインポートでは、元の内容は完全に上書きされます。",
     "TransferNounSingular": "ノート",
     "TransferNounPlural": "ノート",
     "ExportNoNotesMessage": "エクスポートするノートが選択されていません。",

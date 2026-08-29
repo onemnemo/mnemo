@@ -91,6 +91,13 @@ public sealed class FlashcardFactService : IFlashcardFactService
             var used = await _types.CountFactsAsync(conn, typeId, ct).ConfigureAwait(false);
             if (used > 0)
                 throw new InvalidOperationException($"This card type still holds {used} pieces of material.");
+
+            // Trashed material retains its type id. Keep the type until those references are
+            // removed.
+            var held = await _types.CountAllFactsAsync(conn, typeId, ct).ConfigureAwait(false);
+            if (held > 0)
+                throw new InvalidOperationException($"This card type still holds {held} pieces of material in the trash.");
+
             return await _types.DeleteAsync(conn, tx, typeId, ct).ConfigureAwait(false);
         }, cancellationToken);
 

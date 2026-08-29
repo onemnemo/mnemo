@@ -40,13 +40,9 @@ public static class SpaHosting
             throw new InvalidOperationException($"'{indexPath}' has no </head> tag to template the auth token into.");
         }
 
-        // Two globals the page reads before it boots: the per-launch bearer token,
-        // and the engine the host built its window around. Windows uses WebView2
-        // (Chromium); Linux and macOS use WebKit. The notes stylesheet gates its
-        // content-visibility optimisation on that value, because WebKit mispaints a
-        // revealed block. The token is lowercase hex and the engine is a fixed
-        // literal, so neither needs HTML or JS escaping.
-        var engine = OperatingSystem.IsWindows() ? "chromium" : "webkit";
+        // The token is lowercase hex and the engine is a fixed literal, so neither needs escaping.
+        // WebKit disables content-visibility to avoid unpainted note blocks.
+        var engine = ResolveEngine();
         var templated = html.Insert(
             insertAt,
             $"<script nonce=\"{nonce}\">window.__MNEMO_TOKEN__ = \"{bearerToken}\"; " +
@@ -54,6 +50,12 @@ public static class SpaHosting
 
         return new SpaDocument(templated, BuildPolicy(nonce));
     }
+
+    /// <summary>
+    /// Returns chromium on Windows and webkit elsewhere. Shared by page initialization and startup
+    /// diagnostics.
+    /// </summary>
+    internal static string ResolveEngine() => OperatingSystem.IsWindows() ? "chromium" : "webkit";
 
     /// <summary>
     /// A fresh nonce for this launch.

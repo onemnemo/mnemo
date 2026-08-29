@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest"
 
 import type { TransferFormatDto } from "@/api/types"
-import { canImport, exportFormats, isImportable, readyNoteCount, type QueuedFile } from "./transfer"
+import {
+  canImport,
+  exportFormats,
+  isImportable,
+  readyNoteCount,
+  replaceNeedsConfirmation,
+  type QueuedFile,
+} from "./transfer"
 
 const PACKAGE: TransferFormatDto = {
   formatId: "notes.mnemo",
@@ -60,5 +67,28 @@ describe("canImport", () => {
     expect(canImport([ready(1)])).toBe(true)
     expect(canImport([{ ...ready(1), status: "uploading" }])).toBe(false)
     expect(canImport([{ ...ready(1), status: "rejected" }])).toBe(false)
+  })
+})
+
+describe("replaceNeedsConfirmation", () => {
+  it("stays quiet under a policy that takes nothing", () => {
+    expect(replaceNeedsConfirmation([ready(1)], "KeepBoth")).toBe(false)
+    expect(replaceNeedsConfirmation([ready(1)], "Skip")).toBe(false)
+  })
+
+  it("stays quiet while no file in the queue could import", () => {
+    expect(
+      replaceNeedsConfirmation(
+        [
+          { ...ready(1), status: "uploading" },
+          { ...ready(1), status: "rejected" },
+        ],
+        "Replace",
+      ),
+    ).toBe(false)
+  })
+
+  it("asks as soon as one file is ready to replace something", () => {
+    expect(replaceNeedsConfirmation([ready(1)], "Replace")).toBe(true)
   })
 })

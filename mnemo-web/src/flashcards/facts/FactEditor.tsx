@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Dialog } from "radix-ui"
 
+import { onDirtyCheck } from "@/app/shutdown"
 import { IconButton } from "@/components/ui/icon-button"
 import { useT } from "@/i18n/useT"
 import { SelectControl } from "@/settings/components/controls/SelectControl"
@@ -74,6 +75,14 @@ export function FactEditor({ target, onClose }: { target: CardEditorTarget; onCl
   useEffect(() => {
     if (fact.isError) onClose()
   }, [fact.isError, onClose])
+
+  // Read current state through a ref without re-registering on every edit.
+  const latestDraft = useRef(draft)
+  latestDraft.current = draft
+  useEffect(
+    () => onDirtyCheck(() => factDraftIsDirty(baseline.current, snapshotFactDraft(latestDraft.current))),
+    [],
+  )
 
   const options = useMemo(() => deckOptions(decks.data ?? [], folders.data ?? []), [decks.data, folders.data])
   const deckId = resolveDraftDeck(draft.deckId, options.map((option) => option.id), target.deckId)
@@ -149,14 +158,11 @@ export function FactEditor({ target, onClose }: { target: CardEditorTarget; onCl
   const canSave = canSaveFact(type, draft)
 
   /**
-   * Cards are matched to the layout that makes them by key, so a type whose layouts key differently
-   * leaves the old cards with nothing producing them and the server deletes them outright, review
-   * history included. It is the only thing the editor can do that loses history, so it stops here
-   * rather than reporting it afterwards. Counted against what is on disk, not against the type that
-   * was picked, so an edit made after the change is accounted for.
+   * Compare generated keys from stored material and the draft. This can overcount trashed cards
+   * and miss restored cards whose keys are no longer generated.
    */
-  const confirmTypeChange = async (): Promise<boolean> => {
-    if (!loaded || !type || draft.typeId === loaded.typeId) return true
+  const confirmCardLoss = async (): Promise<boolean> => {
+    if (!loaded || !type) return true
 
     const previous = typeList.find((candidate) => candidate.id === loaded.typeId)
     if (!previous) return true
@@ -167,10 +173,11 @@ export function FactEditor({ target, onClose }: { target: CardEditorTarget; onCl
     )
     if (dropped === 0) return true
 
+    const retyped = draft.typeId !== loaded.typeId
     return dialog.confirm({
-      title: fc("CardTypeChangeTitle"),
-      message: fc("CardTypeChangeMessage", { 0: dropped }),
-      confirmLabel: fc("CardTypeChangeConfirm"),
+      title: fc(retyped ? "CardTypeChangeTitle" : "CardEditorCardLossTitle"),
+      message: fc(retyped ? "CardTypeChangeMessage" : "CardEditorCardLossMessage", { 0: dropped }),
+      confirmLabel: fc(retyped ? "CardTypeChangeConfirm" : "CardEditorCardLossConfirm"),
       cancelLabel: t("Common", "Cancel"),
       destructive: true,
     })
@@ -178,7 +185,7 @@ export function FactEditor({ target, onClose }: { target: CardEditorTarget; onCl
 
   const save = async () => {
     if (!canSave || saving) return
-    if (!(await confirmTypeChange())) return
+    if (!(await confirmCardLoss())) return
     setSaving(true)
     try {
       await saveFact(toSaveFact(isEditMode ? (loaded?.id ?? null) : null, { ...draft, deckId }))

@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { EditorView } from 'prosemirror-view';
-import { onShutdown } from '@/app/shutdown';
+import { onDirtyCheck, onShutdown } from '@/app/shutdown';
 import type { SaveState } from '../authority/authority';
 import { closeNoteAssetSession, openNoteAssetSession } from '../assets/api';
 import { reportLostSave } from '../save/lost-exit';
@@ -84,6 +84,8 @@ export function useNoteSession(options: UseNoteSessionOptions): UseNoteSessionRe
       // Await reporting before the host closes.
       await reportLostSave(options.noteId, result, 'shutdown');
     });
+    // Read dirtiness without materializing the remaining blocks of a chunked note.
+    const unregisterDirty = onDirtyCheck(() => session.authority.status().dirty);
 
     // While this session is open its undo history can resurrect image uploads no saved
     // note references, so the host's asset sweep stands down until it hears the close.
@@ -101,6 +103,7 @@ export function useNoteSession(options: UseNoteSessionOptions): UseNoteSessionRe
 
     return () => {
       unregister();
+      unregisterDirty();
       unsubscribe();
       setView(null);
       // Cleared before the close so a save arriving during teardown joins that

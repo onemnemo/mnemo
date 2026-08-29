@@ -149,6 +149,8 @@
     "TransferExportTitle": "Export notes",
     "TransferExportNoteTitle": "Export note",
     "TransferConflictQuestion": "If a note already exists",
+    "TransferReplaceConfirmTitle": "Replace existing notes?",
+    "TransferReplaceConfirmCheckbox": "Replace matching notes. Markdown imports keep the old content in the trash for recovery as a separate note. Package imports permanently overwrite it.",
     "TransferNounSingular": "note",
     "TransferNounPlural": "notes",
     "ExportNoNotesMessage": "No notes selected to export.",
