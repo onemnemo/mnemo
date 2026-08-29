@@ -83,7 +83,7 @@ export function TestCard({
 
       {/* Room kept on the right so a long first line never runs under the corner actions. */}
       <div className="flex flex-wrap items-start gap-x-6 gap-y-4 pr-16">
-        <div className="chat-prose min-w-0 flex-[1_1_17rem]" data-selectable>
+        <div className="chat-prose min-w-0 flex-[1_1_17rem] whitespace-pre-wrap" data-selectable>
           <p>
             <MathText>{promptText(card)}</MathText>
           </p>
@@ -124,7 +124,7 @@ export function TestCard({
         <div className="animate-rise">
           <Rule label={fc("TestCorrectAnswerLabel")} />
           <div className="flex items-start">
-            <div className="chat-prose mr-3.5 min-w-0 flex-1" data-selectable>
+            <div className="chat-prose mr-3.5 min-w-0 flex-1 whitespace-pre-wrap" data-selectable>
               {/* Paragraphs, not one block: an answer can carry more than the answer itself,
                   and the blank line between them is the only signal that survives typing. */}
               {answerText(card)
