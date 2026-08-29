@@ -6,8 +6,7 @@ using Mnemo.Infrastructure.Services.Notes.Pdf;
 namespace Mnemo.Infrastructure.Tests;
 
 /// <summary>
-/// Exercises the real runtime service end-to-end against the vendored binary, offline. Skips when
-/// the binary has not been restored (fresh clone) via the same guard the composer smoke tests use.
+/// Exercises PDF export against the vendored Typst binary. Skips when the binary is absent.
 /// </summary>
 public sealed class TypstNotePdfExportServiceTests
 {
@@ -42,11 +41,9 @@ public sealed class TypstNotePdfExportServiceTests
     private static bool IsPng(byte[] bytes) =>
         bytes.Length > 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47;
 
-    [Fact]
+    [TypstFact]
     public async Task GeneratePdfAsync_ProducesValidPdf()
     {
-        if (!NoteTypstToolchain.Available) return;
-
         var note = NoteWith(
             Leaf(BlockType.Heading1, "Chapter"),
             Leaf(BlockType.Text, "A paragraph with an equation."),
@@ -60,11 +57,9 @@ public sealed class TypstNotePdfExportServiceTests
         Assert.True(bytes.Length > 500, "PDF looks implausibly small.");
     }
 
-    [Fact]
+    [TypstFact]
     public async Task GeneratePreviewPngPagesAsync_ReturnsPngPerPage()
     {
-        if (!NoteTypstToolchain.Available) return;
-
         var note = NoteWith(
             Leaf(BlockType.Heading1, "Preview"),
             Leaf(BlockType.Text, "Some body copy for a preview render."));
@@ -75,11 +70,9 @@ public sealed class TypstNotePdfExportServiceTests
         Assert.All(pages, page => Assert.True(IsPng(page), "Every preview page should be a PNG."));
     }
 
-    [Fact]
+    [TypstFact]
     public async Task GeneratePdfAsync_EmbedsStagedImage()
     {
-        if (!NoteTypstToolchain.Available) return;
-
         var imgPath = Path.Combine(Path.GetTempPath(), "mnemo-img-" + Guid.NewGuid().ToString("N") + ".png");
         await File.WriteAllBytesAsync(imgPath, Convert.FromBase64String(OnePixelPngBase64));
         try
@@ -98,11 +91,9 @@ public sealed class TypstNotePdfExportServiceTests
         }
     }
 
-    [Fact]
+    [TypstFact]
     public async Task GeneratePdfAsync_MissingImagePath_DoesNotFailDocument()
     {
-        if (!NoteTypstToolchain.Available) return;
-
         var note = NoteWith(
             Leaf(BlockType.Text, "Body."),
             Leaf(BlockType.Image, "", new ImagePayload(Path: "Z:/does/not/exist.png", Alt: "gone", Width: 40)));
@@ -112,11 +103,9 @@ public sealed class TypstNotePdfExportServiceTests
         Assert.True(IsPdf(bytes));
     }
 
-    [Fact]
+    [TypstFact]
     public async Task GeneratePdfAsync_HonorsCancellation()
     {
-        if (!NoteTypstToolchain.Available) return;
-
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
@@ -126,11 +115,9 @@ public sealed class TypstNotePdfExportServiceTests
             () => Service().GeneratePdfAsync(note, new NotePdfExportOptions(), cts.Token));
     }
 
-    [Fact]
+    [TypstFact]
     public async Task Compiler_InvalidSource_ThrowsWithStdErr()
     {
-        if (!NoteTypstToolchain.Available) return;
-
         var compiler = new TypstCompiler(SourceTreeProvider());
         var workDir = Path.Combine(Path.GetTempPath(), "mnemo-typst-badsrc-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(workDir);
@@ -155,11 +142,9 @@ public sealed class TypstNotePdfExportServiceTests
         Assert.Throws<TypstToolchainUnavailableException>(() => provider.ResolveBinaryPath());
     }
 
-    [Fact]
+    [TypstFact]
     public void BinaryProvider_SourceTree_IsAvailable()
     {
-        if (!NoteTypstToolchain.Available) return;
-
         var provider = SourceTreeProvider();
         Assert.True(provider.IsPackageAvailable);
         Assert.True(provider.IsBinaryAvailable);
