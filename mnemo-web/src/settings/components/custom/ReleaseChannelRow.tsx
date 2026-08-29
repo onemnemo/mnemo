@@ -10,13 +10,7 @@ import { SelectControl, type SelectChoice } from "../controls/SelectControl"
 const SETTING_KEY = "Updates.Channel"
 
 /**
- * Which track this install follows.
- *
- * Only Stable and Beta are offered. Nightly exists all the way down, and nothing
- * publishes to it yet, so listing it would be a control that quietly points the updater
- * at a feed that is not there. It appears once it is already selected, so an install
- * that was switched by hand shows what it is actually following rather than the wrong
- * answer.
+ * Offers Nightly when selected or when the running build is a nightly.
  */
 export function ReleaseChannelRow({
   title,
@@ -28,6 +22,7 @@ export function ReleaseChannelRow({
 }) {
   const t = useT()
   const selected = useSettingValue(SETTING_KEY, UpdateChannel.Stable) as UpdateChannelName
+  const runningChannel = useUpdateStore((s) => s.status?.runningChannel)
   const setValue = useSettingsStore((s) => s.setValue)
 
   async function choose(next: string) {
@@ -41,7 +36,7 @@ export function ReleaseChannelRow({
     <SettingRowShell title={title} description={describe(selected, t)} divider={divider}>
       <SelectControl
         value={selected}
-        choices={choices(selected, t)}
+        choices={choices(selected, runningChannel, t)}
         onChange={(next) => void choose(next)}
         label={title}
       />
@@ -49,13 +44,20 @@ export function ReleaseChannelRow({
   )
 }
 
-function choices(selected: UpdateChannelName, t: TranslateFn): SelectChoice[] {
+/**
+ * The running channel remains unknown until update status arrives.
+ */
+function choices(
+  selected: UpdateChannelName,
+  running: UpdateChannelName | undefined,
+  t: TranslateFn,
+): SelectChoice[] {
   const offered: SelectChoice[] = [
     { value: UpdateChannel.Stable, label: t("Settings", "ReleaseChannelStable") },
     { value: UpdateChannel.Beta, label: t("Settings", "ReleaseChannelBeta") },
   ]
 
-  if (selected === UpdateChannel.Nightly)
+  if (selected === UpdateChannel.Nightly || running === UpdateChannel.Nightly)
     offered.push({ value: UpdateChannel.Nightly, label: t("Settings", "ReleaseChannelNightly") })
 
   return offered

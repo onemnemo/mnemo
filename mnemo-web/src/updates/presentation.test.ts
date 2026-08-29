@@ -15,6 +15,7 @@ function status(patch: Partial<UpdateStatus> = {}): UpdateStatus {
     stage: "Idle",
     version: "0.8.0",
     channel: "stable",
+    runningChannel: "stable",
     supportsInAppApply: true,
     awaitingChannelCatchUp: false,
     lastCheckedUtc: null,
@@ -94,6 +95,32 @@ describe("updateNote", () => {
   it("tells a failed download apart from a failed check", () => {
     expect(updateNote(status({ stage: "Failed", error: "download_failed" }))).toEqual({ key: "UpdateDownloadFailed" })
     expect(updateNote(status({ stage: "Failed", error: "check_failed" }))).toEqual({ key: "UpdateCheckFailed" })
+  })
+
+  it("names a failed install rather than a failed check", () => {
+    // An install failure must not be described as a failed check.
+    expect(updateNote(status({ stage: "Failed", error: "apply_failed" }))).toEqual({ key: "UpdateApplyFailed" })
+  })
+
+  it("keeps a real failure visible when the channel is also behind", () => {
+    expect(updateNote(status({ stage: "Failed", error: "check_failed", awaitingChannelCatchUp: true }))).toEqual({
+      key: "UpdateCheckFailed",
+    })
+  })
+
+  it("keeps a download in flight in front of the channel notice", () => {
+    // A channel switch deliberately leaves a running download alone, so this pair of
+    // states is reachable rather than theoretical.
+    expect(updateNote(status({ stage: "Downloading", downloadProgress: 42, awaitingChannelCatchUp: true }))).toEqual({
+      key: "UpdateDownloadingFormat",
+      params: { 0: "42" },
+    })
+  })
+
+  it("keeps a staged build in front of the channel notice", () => {
+    expect(updateNote(status({ stage: "Ready", awaitingChannelCatchUp: true }))).toEqual({
+      key: "UpdateReadyToInstall",
+    })
   })
 
   it("explains a channel that is behind rather than claiming to be up to date", () => {

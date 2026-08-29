@@ -63,12 +63,7 @@ export function offersSkip(status: UpdateStatus | null): boolean {
 export function updateNote(status: UpdateStatus | null): UpdateNote | null {
   if (!status) return null
 
-  // Ahead of the stage, because it explains why a check keeps finding nothing.
-  if (status.awaitingChannelCatchUp) return { key: "UpdateChannelCatchUpNotice" }
-
   switch (status.stage) {
-    case "UpToDate":
-      return { key: "UpdatesUpToDate" }
     case "Available":
       return status.supportsInAppApply
         ? { key: "UpdateAvailableVersionFormat", params: { 0: status.availableVersion ?? "" } }
@@ -78,9 +73,24 @@ export function updateNote(status: UpdateStatus | null): UpdateNote | null {
     case "Ready":
       return { key: "UpdateReadyToInstall" }
     case "Failed":
-      return { key: status.error === "download_failed" ? "UpdateDownloadFailed" : "UpdateCheckFailed" }
+      return { key: failureNote(status.error) }
+  }
+
+  // Failures, downloads, and staged updates take precedence over the channel availability note.
+  if (status.awaitingChannelCatchUp) return { key: "UpdateChannelCatchUpNotice" }
+
+  return status.stage === "UpToDate" ? { key: "UpdatesUpToDate" } : null
+}
+
+/** Which failure the row names. The stage alone only says that something broke. */
+function failureNote(error: string | null): string {
+  switch (error) {
+    case "download_failed":
+      return "UpdateDownloadFailed"
+    case "apply_failed":
+      return "UpdateApplyFailed"
     default:
-      return null
+      return "UpdateCheckFailed"
   }
 }
 

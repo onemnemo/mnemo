@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 6c635aae0f61420e353c19fc6882f8c5e893271e92dcd78f7b24169dab6724a7
+sha256 887dcf9e9caecc6027b5a7512c78d357a55ed042492882334a04d5e3ea6cdb52
 namespaces 38
-keys 2124
+keys 2125
   App 10
   Chat 132
   Common 86
@@ -25,7 +25,7 @@ keys 2124
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 279
+  Settings 280
   Sidebar 14
   StudyGoals 11
   Topbar 28
@@ -46,9 +46,9 @@ keys 2124
   WidgetToday 9
 
 culture de
-sha256 c0bf61091ba7696b4eda4ca587cd840439158a6a7f501c1a2e97df662762c0e1
+sha256 676253cf71f119b0c06c33177770d5c789c4ea278ca6d478b382907ee8f68da4
 namespaces 38
-keys 2124
+keys 2125
   App 10
   Chat 132
   Common 86
@@ -68,7 +68,7 @@ keys 2124
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 279
+  Settings 280
   Sidebar 14
   StudyGoals 11
   Topbar 28
@@ -89,9 +89,9 @@ keys 2124
   WidgetToday 9
 
 culture es
-sha256 5f797450cb4279f618cc01d86665c80a780f08695f86332d83e0b7a63f5de731
+sha256 a766c87446b045c366fdf187a87a5fc7e56ca0ad5d63206d80e6b0870226b50c
 namespaces 38
-keys 2124
+keys 2125
   App 10
   Chat 132
   Common 86
@@ -111,7 +111,7 @@ keys 2124
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 279
+  Settings 280
   Sidebar 14
   StudyGoals 11
   Topbar 28
@@ -132,9 +132,9 @@ keys 2124
   WidgetToday 9
 
 culture ja
-sha256 f46d056a2fd34762137805780050a308dae28753ee5f02423cda369342932fa3
+sha256 3e4b3b257644a91cca5a2337ef201b3b43d9ec6992fe831d27bdaded90938306
 namespaces 38
-keys 2124
+keys 2125
   App 10
   Chat 132
   Common 86
@@ -154,7 +154,7 @@ keys 2124
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 279
+  Settings 280
   Sidebar 14
   StudyGoals 11
   Topbar 28
@@ -175,9 +175,9 @@ keys 2124
   WidgetToday 9
 
 culture nb
-sha256 3c2ed29a2fbe7830f30e19bab94aff1feee29b31f4a9759298e29d6de4ea3a9a
+sha256 6756bb39a6f04471a86fcd888d2d6edba6c8b3c656b7cd6178a05614ae3b7821
 namespaces 38
-keys 2124
+keys 2125
   App 10
   Chat 132
   Common 86
@@ -197,7 +197,7 @@ keys 2124
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 279
+  Settings 280
   Sidebar 14
   StudyGoals 11
   Topbar 28

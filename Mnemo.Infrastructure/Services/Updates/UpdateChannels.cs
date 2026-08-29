@@ -65,6 +65,28 @@ public static class UpdateChannels
     public static string FeedName(string runtimeIdentifier, string channel) =>
         $"{runtimeIdentifier}-{Normalize(channel)}";
 
+    /// <summary>
+    /// Returns the channel token from a recognized feed name, or null. Match the full final segment
+    /// so unknown feeds cannot become persisted channel choices.
+    /// </summary>
+    public static string? ChannelFromFeedName(string? feedName)
+    {
+        if (string.IsNullOrWhiteSpace(feedName))
+            return null;
+
+        var trimmed = feedName.Trim();
+        var lastDash = trimmed.LastIndexOf('-');
+        var token = lastDash < 0 ? trimmed : trimmed[(lastDash + 1)..];
+
+        foreach (var known in All)
+        {
+            if (string.Equals(token, known, StringComparison.OrdinalIgnoreCase))
+                return known;
+        }
+
+        return null;
+    }
+
     /// <summary>How close to development a channel sits. Higher means less settled.</summary>
     public static int Rank(string channel) => Normalize(channel) switch
     {

@@ -238,6 +238,8 @@ public sealed class LaunchAtStartupServiceTests
             SettingChanged?.Invoke(this, key);
             return Task.CompletedTask;
         }
+
+        public Task<bool> ExistsAsync(string key) => Task.FromResult(false);
     }
 
     private sealed class FakeLogger : ILoggerService
