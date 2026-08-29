@@ -49,6 +49,7 @@ public sealed class UpdateStatusWireTests
             UpdateStage.Available,
             "0.8.0-beta+3f2a1b9",
             "beta",
+            "nightly",
             SupportsInAppApply: true,
             AwaitingChannelCatchUp: false,
             LastCheckedUtc: new DateTime(2026, 8, 16, 12, 0, 0, DateTimeKind.Utc),
@@ -63,6 +64,7 @@ public sealed class UpdateStatusWireTests
 
         Assert.Contains("\"stage\":\"Available\"", wire);
         // Hand-mirrored in mnemo-web/src/updates/types.ts, which reads these exact names.
+        Assert.Contains("\"runningChannel\":\"nightly\"", wire);
         Assert.Contains("\"supportsInAppApply\":true", wire);
         Assert.Contains("\"awaitingChannelCatchUp\":false", wire);
         Assert.Contains("\"shouldPrompt\":true", wire);

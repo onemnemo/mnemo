@@ -126,8 +126,14 @@ jobs:
         working-directory: mnemo-web
         run: npm ci
 
-      # Everything below this line up to the publish is the gate. It runs before anything
-      # is packed, so a tag on a commit that does not pass cannot reach the release page.
+      # Restore before tests and publish: the project only copies an existing binary, and PDF
+      # tests skip without it.
+      - name: Restore the Typst binary
+        shell: pwsh
+        run: ./scripts/restore-typst.ps1 -Rid ${{ matrix.rid }}
+
+      # Each platform must pass its tests before packing. Publishing also requires a Windows
+      # package.
       - name: Lint the web UI
         working-directory: mnemo-web
         run: npm run lint
@@ -142,12 +148,6 @@ jobs:
 
       - name: Test the solution
         run: dotnet test MnemoApp.sln -c Release
-
-      # The Typst binary is not committed, and the csproj only copies it when it is already
-      # on disk, so without this the released app has no PDF export at all.
-      - name: Restore the Typst binary
-        shell: pwsh
-        run: ./scripts/restore-typst.ps1 -Rid ${{ matrix.rid }}
 
       # The published host serves this from wwwroot, so it has to exist before the publish
       # that copies it in. No dist means an app that starts and shows nothing.
@@ -296,10 +296,7 @@ jobs:
         shell: bash
         run: tar -czf "vpk-out/Mnemo-Portable-${{ matrix.rid }}.tar.gz" -C publish .
 
-      # The macOS and Linux packages have never been built by this workflow, and the publish
-      # job below finds their installers by glob. Listing the directory means the first run
-      # states outright what vpk produced, rather than leaving it to be inferred from
-      # whichever later step came up empty.
+      # Fail here if packaging produced no installer matching the publish patterns.
       - name: List the packed artifacts
         shell: bash
         run: ls -l vpk-out
@@ -336,6 +333,17 @@ jobs:
           path: artifacts
           pattern: vpk-*
           merge-multiple: false
+
+      # Require Windows before any upload, so Windows users are never offered a release without a
+      # compatible download.
+      - name: Require the Windows packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! ls artifacts/vpk-win-x64/*.nupkg >/dev/null 2>&1; then
+            echo "::error::the win-x64 leg packed nothing, so this tag cannot be released"
+            exit 1
+          fi
 
       # One upload per RID and channel, in sequence. The first creates the release and
       # the rest attach to it, which is what --merge permits; running them in parallel
@@ -457,6 +465,27 @@ jobs:
             artifacts/**/*-${{ needs.meta.outputs.channel }}.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Hash the final published installer and portable assets so the list reflects the platforms
+      # that succeeded.
+      - name: Publish checksums for the downloads
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p downloads
+          gh release download "$TAG" --repo "$REPO" --dir downloads --clobber \
+            --pattern '*-Setup.*' \
+            --pattern '*.AppImage' \
+            --pattern 'Mnemo-Portable-*'
+          # Write outside the directory to exclude the checksum file itself; use bare names for
+          # sha256sum -c.
+          ( cd downloads && sha256sum -- * ) > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release upload "$TAG" SHA256SUMS.txt --repo "$REPO" --clobber
 
   upload-update-feed-artifact:
     needs: [meta, build]

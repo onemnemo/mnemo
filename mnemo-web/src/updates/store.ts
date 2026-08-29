@@ -52,7 +52,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   status: null,
   busy: false,
 
-  receive: (status) => set({ status }),
+  // Apply has no finally because success exits the process. A pushed failure must clear busy to
+  // allow retry.
+  receive: (status) => set(status.stage === "Failed" ? { status, busy: false } : { status }),
 
   refresh: async () => {
     try {

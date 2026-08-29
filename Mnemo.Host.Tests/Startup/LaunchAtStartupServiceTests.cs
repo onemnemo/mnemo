@@ -89,6 +89,44 @@ public sealed class LaunchAtStartupServiceTests
     }
 
     [Fact]
+    public void ResolveAutostartExecutable_PrefersAppImage_OnLinuxWhenSet()
+    {
+        var executable = LaunchAtStartupService.ResolveAutostartExecutable(
+            isLinux: true,
+            appImage: "/home/user/Applications/Mnemo.AppImage",
+            processPath: "/tmp/.mount_MnemoAbCdEf/usr/bin/Mnemo.Host");
+
+        Assert.Equal("/home/user/Applications/Mnemo.AppImage", executable);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ResolveAutostartExecutable_FallsBackToProcessPath_OnLinuxWhenAppImageIsUnset(string? appImage)
+    {
+        var executable = LaunchAtStartupService.ResolveAutostartExecutable(
+            isLinux: true,
+            appImage: appImage,
+            processPath: "/opt/Mnemo/Mnemo.Host");
+
+        Assert.Equal("/opt/Mnemo/Mnemo.Host", executable);
+    }
+
+    [Fact]
+    public void ResolveAutostartExecutable_IgnoresAppImage_WhenNotLinux()
+    {
+        // Mac has no AppImage runtime, and its own executable never moves out from under
+        // itself the way a squashfs mount does, so processPath is already the right answer.
+        var executable = LaunchAtStartupService.ResolveAutostartExecutable(
+            isLinux: false,
+            appImage: "/home/user/Applications/Mnemo.AppImage",
+            processPath: "/Applications/Mnemo.app/Contents/MacOS/Mnemo");
+
+        Assert.Equal("/Applications/Mnemo.app/Contents/MacOS/Mnemo", executable);
+    }
+
+    [Fact]
     public void ApplyToFile_WritesTheComposedContent_WhenEnabled()
     {
         using var directory = new TemporaryDirectory();
@@ -200,6 +238,8 @@ public sealed class LaunchAtStartupServiceTests
             SettingChanged?.Invoke(this, key);
             return Task.CompletedTask;
         }
+
+        public Task<bool> ExistsAsync(string key) => Task.FromResult(false);
     }
 
     private sealed class FakeLogger : ILoggerService

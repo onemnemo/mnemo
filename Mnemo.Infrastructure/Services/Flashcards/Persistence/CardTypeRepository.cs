@@ -18,6 +18,12 @@ public interface ICardTypeRepository
 
     /// <summary>How much material a type is holding, which is what makes deleting one a decision.</summary>
     Task<int> CountFactsAsync(SqliteConnection conn, string typeId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Counts material using a type, including trashed material that would need the type on
+    /// restore.
+    /// </summary>
+    Task<int> CountAllFactsAsync(SqliteConnection conn, string typeId, CancellationToken cancellationToken);
 }
 
 /// <inheritdoc />
@@ -91,6 +97,14 @@ public sealed class CardTypeRepository : ICardTypeRepository
     {
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM FlashcardFacts WHERE TypeId = $id AND TrashId IS NULL;";
+        cmd.Parameters.AddWithValue("$id", typeId);
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+    }
+
+    public async Task<int> CountAllFactsAsync(SqliteConnection conn, string typeId, CancellationToken cancellationToken)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM FlashcardFacts WHERE TypeId = $id;";
         cmd.Parameters.AddWithValue("$id", typeId);
         return Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
     }

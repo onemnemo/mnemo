@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { caretLength, flattenDisplay, flattenForCaret, normalizeSpans, plainSpan } from './spans';
 import { parseBlock, serializeBlock } from './wire';
-import { defaultTextStyle, equationAtomChar, type InlineSpan } from './types';
+import { allBlockTypes, defaultTextStyle, equationAtomChar, type BlockType, type InlineSpan } from './types';
 
 const bold = { ...defaultTextStyle, bold: true };
 
@@ -174,6 +174,44 @@ describe('legacy shapes still on disk', () => {
       payload: { kind: 'equation', latex: 'a+b' },
     });
     expect(flattenDisplay(block.spans)).toBe('');
+  });
+});
+
+describe('block type ordinals are pinned', () => {
+  // Numeric block types use declaration order on the wire. Append new types to preserve saved
+  // values.
+  const blockTypesByOrdinal: readonly BlockType[] = [
+    'Text',
+    'Heading1',
+    'Heading2',
+    'Heading3',
+    'Heading4',
+    'BulletList',
+    'NumberedList',
+    'Checklist',
+    'Quote',
+    'Code',
+    'Divider',
+    'Image',
+    'ColumnGroup',
+    'TwoColumn',
+    'Equation',
+    'Page',
+    'Sketch',
+    'Callout',
+    'Table',
+    'TableRow',
+    'TableCell',
+  ];
+
+  it('matches the declaration order exported from types.ts', () => {
+    expect(allBlockTypes).toEqual(blockTypesByOrdinal);
+  });
+
+  it('matches the name every stored ordinal resolves to', () => {
+    blockTypesByOrdinal.forEach((name, ordinal) => {
+      expect(parseBlock({ id: 'x', type: ordinal }).type).toBe(name);
+    });
   });
 });
 

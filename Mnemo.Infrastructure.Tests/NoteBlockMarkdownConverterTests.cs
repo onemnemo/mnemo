@@ -277,6 +277,82 @@ public class NoteBlockMarkdownConverterTests
         Assert.Contains("6. Second", md);
     }
 
+    [Fact]
+    public void RoundTrip_ImageBlock_PreservesPathAndAlt()
+    {
+        var blocks = new List<Block>
+        {
+            new()
+            {
+                Type = BlockType.Heading1,
+                Order = 0,
+                Spans = new List<InlineSpan> { InlineSpan.Plain("Cells") }
+            },
+            new()
+            {
+                Type = BlockType.Image,
+                Order = 1,
+                Payload = new ImagePayload("abc123.png", "A diagram", 320, "center")
+            },
+            Text("After", 2)
+        };
+
+        var md = NoteBlockMarkdownConverter.Serialize(blocks);
+        Assert.Contains("![A diagram](abc123.png)", md);
+
+        var back = NoteBlockMarkdownConverter.Deserialize(md);
+        var image = Assert.Single(back, b => b.Type == BlockType.Image);
+        var payload = Assert.IsType<ImagePayload>(image.Payload);
+        Assert.Equal("abc123.png", payload.Path);
+        Assert.Equal("A diagram", payload.Alt);
+        Assert.Equal("A diagram", image.Content);
+
+        // Markdown image references do not preserve display width or alignment.
+        Assert.Equal(0, payload.Width);
+        Assert.Equal("left", payload.Align);
+    }
+
+    [Fact]
+    public void RoundTrip_ImageAlt_SurvivesABackslash()
+    {
+        var block = new Block { Type = BlockType.Image, Order = 0, Payload = new ImagePayload("p.png", @"a\b") };
+
+        var back = NoteBlockMarkdownConverter.Deserialize(
+            NoteBlockMarkdownConverter.Serialize(new List<Block> { block }));
+
+        var payload = Assert.IsType<ImagePayload>(Assert.Single(back).Payload);
+        Assert.Equal(@"a\b", payload.Alt);
+        Assert.Equal("p.png", payload.Path);
+    }
+
+    [Fact]
+    public void RoundTrip_ImageAlt_WithALineBreak_KeepsThePicture()
+    {
+        var block = new Block { Type = BlockType.Image, Order = 0, Payload = new ImagePayload("p.png", "top\nbottom") };
+
+        var back = NoteBlockMarkdownConverter.Deserialize(
+            NoteBlockMarkdownConverter.Serialize(new List<Block> { block }));
+
+        // Normalize alt-text line breaks to keep the Markdown image on one line.
+        var payload = Assert.IsType<ImagePayload>(Assert.Single(back).Payload);
+        Assert.Equal("top bottom", payload.Alt);
+        Assert.Equal("p.png", payload.Path);
+    }
+
+    [Fact]
+    public void Serialize_LegacyImageBlock_ReadsTheMetaKeys()
+    {
+        // Rows written before the typed payload carry the same two values under meta keys.
+        var block = new Block
+        {
+            Type = BlockType.Image,
+            Order = 0,
+            Meta = new Dictionary<string, object> { ["imagePath"] = "old.png", ["imageAlt"] = "A chart" }
+        };
+
+        Assert.Contains("![A chart](old.png)", NoteBlockMarkdownConverter.Serialize(new List<Block> { block }));
+    }
+
     private static Block Text(string text, int order) => new()
     {
         Type = BlockType.Text,

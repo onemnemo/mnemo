@@ -362,12 +362,9 @@ public sealed class NoteTypstDocumentComposerTests
     private static readonly byte[] OnePixelPng = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP4////fwAJ+wP99djxmgAAAABJRU5ErkJggg==");
 
-    [Fact]
+    [TypstFact]
     public void KitchenSink_CompilesWithVendoredTypst()
     {
-        if (!NoteTypstToolchain.Available)
-            return; // Typst binary not restored (run scripts/restore-typst); nothing to compile against.
-
         var note = BuildKitchenSinkNote();
         var typ = Compose(note, new NotePdfExportOptions(), new FakeAssetResolver("/img.png"));
 
@@ -378,12 +375,9 @@ public sealed class NoteTypstDocumentComposerTests
         Assert.True(exit == 0, $"typst compile failed (exit {exit}):\n{stderr}\n\n--- source ---\n{typ}");
     }
 
-    [Fact]
+    [TypstFact]
     public void NewPageSetup_CompilesWithVendoredTypst()
     {
-        if (!NoteTypstToolchain.Available)
-            return; // Typst binary not restored (run scripts/restore-typst); nothing to compile against.
-
         var note = new Note
         {
             Title = "Landscape legal",
@@ -404,12 +398,9 @@ public sealed class NoteTypstDocumentComposerTests
         Assert.True(exit == 0, $"typst compile failed (exit {exit}):\n{stderr}\n\n--- source ---\n{typ}");
     }
 
-    [Fact]
+    [TypstFact]
     public void BacktickEquation_CompilesWithVendoredTypst()
     {
-        if (!NoteTypstToolchain.Available)
-            return; // Typst binary not restored (run scripts/restore-typst); nothing to compile against.
-
         var note = NoteWith(Leaf(BlockType.Equation, "ignored", new EquationPayload("\\text{a `b` c} + x")));
         var typ = Compose(note);
 

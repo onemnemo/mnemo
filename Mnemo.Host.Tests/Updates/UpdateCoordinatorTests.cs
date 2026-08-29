@@ -54,6 +54,18 @@ public sealed class UpdateCoordinatorTests
     }
 
     [Fact]
+    public async Task TheStatusNamesTheChannelTheRunningBuildCameFrom()
+    {
+        // Nightly remains available for nightly builds even after selecting another channel.
+        var world = new World();
+        world.Updates.CurrentDisplayVersion = "0.9.0-nightly.3";
+        Assert.Equal(UpdateChannels.Nightly, (await world.Coordinator.GetStatusAsync()).RunningChannel);
+
+        world.Updates.CurrentDisplayVersion = "0.8.0";
+        Assert.Equal(UpdateChannels.Stable, (await world.Coordinator.GetStatusAsync()).RunningChannel);
+    }
+
+    [Fact]
     public async Task AFoundUpdateIsReportedWithItsVersionAndNotes()
     {
         var world = new World();
@@ -468,6 +480,25 @@ public sealed class UpdateCoordinatorTests
     }
 
     [Fact]
+    public async Task AResumedOfferIsCheckedAgainBeforeItIsDownloaded()
+    {
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: false);
+
+        var next = world.NextLaunch();
+        await next.CheckAsync(automatic: true);
+
+        await next.BeginDownloadAsync();
+        await world.Updates.DownloadStarted.Task;
+        world.Updates.FinishDownload(Result.Success());
+        await world.Events.WaitFor(s => s.Stage == UpdateStage.Ready);
+
+        // A restored offer needs a fresh check to resolve the downloadable update object.
+        Assert.Equal(2, world.Updates.Checks);
+    }
+
+    [Fact]
     public async Task AResumedOfferThatWasSkippedDoesNotPrompt()
     {
         var world = new World();
@@ -569,6 +600,50 @@ public sealed class UpdateCoordinatorTests
         Assert.Null(await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson));
     }
 
+    [Fact]
+    public async Task AFailedApplyReportsItselfAndClearsTheInstalledMarker()
+    {
+        var world = new World();
+        await world.ReachReady();
+        world.Updates.ApplyFailure = "The install directory is locked.";
+
+        await world.Coordinator.ApplyAsync();
+
+        var status = await world.Events.WaitFor(s => s.Stage == UpdateStage.Failed);
+        Assert.Equal("apply_failed", status.Error);
+        // Remove the pre-restart marker on failure so the next launch cannot announce an update
+        // that was not installed.
+        Assert.Null(await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingPostUpdateToastVersion));
+    }
+
+    [Fact]
+    public async Task AFailedApplyLeavesTheStoredOfferWhereItWas()
+    {
+        var world = new World();
+        await world.ReachReady();
+        world.Updates.ApplyFailure = "The install directory is locked.";
+
+        await world.Coordinator.ApplyAsync();
+
+        var stored = await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson);
+        Assert.NotNull(stored);
+        Assert.Equal("0.9.0", AppUpdateInfoPersistence.Deserialize(stored!)?.Version);
+    }
+
+    [Fact]
+    public async Task AFailedApplyDoesNotBringBackAnOfferTheUserSkipped()
+    {
+        var world = new World();
+        await world.ReachReady();
+        await world.Coordinator.SkipAvailableVersionAsync();
+        world.Updates.ApplyFailure = "The install directory is locked.";
+
+        await world.Coordinator.ApplyAsync();
+
+        // Restore the persisted value, not the cached offer that a skip may have cleared.
+        Assert.Null(await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson));
+    }
+
     /// <summary>The coordinator and the four things it talks to.</summary>
     private sealed class World
     {
@@ -584,7 +659,12 @@ public sealed class UpdateCoordinatorTests
         /// app. Launch bookkeeping happens once per process, so restarting is the only way
         /// to reach it twice.
         /// </summary>
-        public UpdateCoordinator NextLaunch() => new(Updates, Settings, Events, new SilentLogger());
+        public UpdateCoordinator NextLaunch()
+        {
+            // A new service instance has no resolved download object.
+            Updates.ForgetPendingUpdate();
+            return new(Updates, Settings, Events, new SilentLogger());
+        }
 
         /// <summary>Finds an update, downloads it and waits for the staged state.</summary>
         public async Task ReachReady()
@@ -615,17 +695,24 @@ public sealed class UpdateCoordinatorTests
         public IProgress<int>? Progress { get; private set; }
 
         private readonly TaskCompletionSource<Result> _download = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool _holdsPendingUpdate;
 
         public void FinishDownload(Result result) => _download.TrySetResult(result);
 
         public Task<string> GetChannelAsync(CancellationToken cancellationToken = default) => Task.FromResult(Channel);
 
+        /// <summary>Stands in for the next process: a new service instance holds no update a check resolved.</summary>
+        public void ForgetPendingUpdate() => _holdsPendingUpdate = false;
+
         public Task<Result<AppUpdateInfo?>> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
         {
             Checks++;
-            return Task.FromResult(CheckFailure is null
-                ? Result<AppUpdateInfo?>.Success(Available)
-                : Result<AppUpdateInfo?>.Failure(CheckFailure));
+            _holdsPendingUpdate = false;
+            if (CheckFailure is not null)
+                return Task.FromResult(Result<AppUpdateInfo?>.Failure(CheckFailure));
+
+            _holdsPendingUpdate = Available is not null;
+            return Task.FromResult(Result<AppUpdateInfo?>.Success(Available));
         }
 
         public Task<Result> DownloadUpdatesAsync(AppUpdateInfo update, IProgress<int>? progress, CancellationToken cancellationToken = default)
@@ -633,10 +720,22 @@ public sealed class UpdateCoordinatorTests
             Downloads++;
             Progress = progress;
             DownloadStarted.TrySetResult(true);
+
+            // Match production: downloading requires a check in the same service instance.
+            if (!_holdsPendingUpdate)
+                return Task.FromResult(Result.Failure("No pending update was resolved by a check in this instance."));
+
             return _download.Task;
         }
 
-        public void ApplyUpdatesAndRestart() => Applies++;
+        /// <summary>Set to make the apply report a failure instead of replacing the process.</summary>
+        public string? ApplyFailure { get; set; }
+
+        public Result ApplyUpdatesAndRestart()
+        {
+            Applies++;
+            return ApplyFailure is null ? Result.Success() : Result.Failure(ApplyFailure);
+        }
     }
 
     private sealed class RecordingEvents : IAppEventPublisher
@@ -649,11 +748,14 @@ public sealed class UpdateCoordinatorTests
             get { lock (_lock) return [.. _statuses]; }
         }
 
-        public void Publish(AppEvent evt)
+        public int Publish(AppEvent evt)
         {
             Assert.Equal("update-status", evt.Type);
             lock (_lock)
                 _statuses.Add(Assert.IsType<UpdateStatus>(evt.Data));
+
+            // Standing in for exactly one connected client.
+            return 1;
         }
 
         /// <summary>
@@ -702,6 +804,9 @@ public sealed class UpdateCoordinatorTests
             SettingChanged?.Invoke(this, key);
             return Task.CompletedTask;
         }
+
+        public Task<bool> ExistsAsync(string key) =>
+            Task.FromResult(_values.TryGetValue(key, out var value) && value is not null);
     }
 
     private sealed class SilentLogger : ILoggerService

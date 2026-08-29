@@ -82,6 +82,15 @@ describe("TransferOverlay gate", () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
+  it("shows the loading shell at a bounded height, not a fixed one", () => {
+    act(() => useTransfer.getState().open({ direction: "import", scope: null }))
+    mount(<TransferOverlay />)
+
+    const shell = [...document.querySelectorAll("div")].find((el) => el.className.includes("86vh"))
+    expect(shell, "the loading shell is not on screen").not.toBeUndefined()
+    expect(shell!.className.split(/\s+/)).toContain("max-h-[86vh]")
+  })
+
   it("mounts the dialog's lazily-loaded content once a target is set", async () => {
     act(() => useTransfer.getState().open({ direction: "import", scope: null }))
     mount(<TransferOverlay />)

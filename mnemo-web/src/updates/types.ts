@@ -10,7 +10,7 @@ export type UpdateStage =
   | "Ready"
   | "Failed"
 
-/** The tracks a user can follow. Nightly exists server-side but is not offered yet. */
+/** The tracks a user can follow. */
 export const UpdateChannel = {
   Stable: "stable",
   Beta: "beta",
@@ -29,6 +29,10 @@ export interface UpdateStatus {
   /** The running build, informational version and all. */
   version: string
   channel: UpdateChannelName
+  /**
+   * The channel inferred from the running version, independent of the selected update channel.
+   */
+  runningChannel: UpdateChannelName
   /** False for portable and unpackaged builds, which can only be pointed at a download. */
   supportsInAppApply: boolean
   /**

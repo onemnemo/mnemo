@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { onTitlebarPointerDown } from "@/lib/window"
+import { Z_LAYERS } from "@/lib/z-layers"
 import { useSettingValue, useSettingsStore } from "@/settings/store"
+import { useDialogStore } from "@/stores/dialog"
 
 import { completeOnboarding, useNeedsFirstRun } from "./first-run"
 import {
@@ -44,6 +46,8 @@ export function OnboardingWizard() {
   const needsFirstRun = useNeedsFirstRun()
   const setValue = useSettingsStore((s) => s.setValue)
   const savedName = useSettingValue("User.DisplayName", "")
+  // Dim and disable onboarding while a queued dialog is active.
+  const dialogPending = useDialogStore((s) => s.queue.length > 0)
 
   const [step, setStep] = useState<OnboardingStep>("welcome")
   // Null until the field is touched, so the box picks up the stored name whenever the
@@ -85,7 +89,16 @@ export function OnboardingWizard() {
   const at = questionIndex(step)
 
   return (
-    <div className="animate-fade-in fixed inset-0 z-[130] flex flex-col bg-canvas">
+    <div
+      aria-hidden={dialogPending}
+      className="animate-fade-in fixed inset-0 flex flex-col bg-canvas transition-opacity"
+      style={{
+        zIndex: Z_LAYERS.onboarding,
+        transitionDuration: "var(--duration-normal)",
+        opacity: dialogPending ? 0 : 1,
+        pointerEvents: dialogPending ? "none" : undefined,
+      }}
+    >
       <header
         onPointerDown={onTitlebarPointerDown}
         className="drag-region flex shrink-0 items-center justify-between pl-3.5"

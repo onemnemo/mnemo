@@ -27,4 +27,7 @@ internal sealed class FakeSettingsService : ISettingsService
         SettingChanged?.Invoke(this, key);
         return Task.CompletedTask;
     }
+
+    public Task<bool> ExistsAsync(string key) =>
+        Task.FromResult(_values.TryGetValue(key, out var value) && value is not null);
 }

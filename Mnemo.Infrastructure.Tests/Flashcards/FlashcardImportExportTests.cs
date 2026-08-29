@@ -188,7 +188,9 @@ public sealed class FlashcardImportExportTests
             var json = System.Text.Encoding.UTF8.GetString(ReadDeckJson(export.Files["flashcards.db"]));
 
             Assert.Contains("![a diagram]", json);
-            Assert.Contains(imagePath.Replace("\\", "\\\\"), json);
+            Assert.Contains("(diagram.png)", json);
+            // Absolute image paths can disclose the exporting account name.
+            Assert.DoesNotContain(imagePath.Replace("\\", "\\\\"), json);
         }
         finally
         {
@@ -286,8 +288,10 @@ public sealed class FlashcardImportExportTests
 
         var importedDeck = Assert.Single(await targetLibrary.ListDecksAsync());
         var page = await targetCards.ListCardsAsync(new FlashcardCardQuery(importedDeck.Id));
-        var restored = Assert.Single(Assert.Single(page.Items).Card.Attachments);
+        var card = Assert.Single(page.Items).Card;
+        var restored = Assert.Single(card.Attachments);
 
+        Assert.Equal("Cell?", card.Front);
         Assert.True(File.Exists(restored.FilePath), restored.FilePath);
         Assert.Equal(imageBytes, await File.ReadAllBytesAsync(restored.FilePath));
         Assert.Equal("diagram.png", restored.DisplayName);

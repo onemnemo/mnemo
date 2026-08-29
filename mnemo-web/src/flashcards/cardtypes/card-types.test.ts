@@ -14,6 +14,7 @@ import {
   problems,
   removeField,
   removeLayout,
+  removedLayouts,
   toSaveDto,
   uniqueName,
   type CardTypeDraft,
@@ -128,6 +129,26 @@ describe("card type drafts", () => {
     expect(problems({ ...draft, sortFieldId: "gone" })).toContain("CardTypesErrorSortField")
     expect(problems(removeLayout(draft, draft.layouts[0].id))).toContain("CardTypesErrorCards")
     expect(problems(addLayout(draft, "Recall"))).toContain("CardTypesErrorCardSides")
+  })
+
+  it("names the cards an edit takes off a stored type", () => {
+    const stored = summary({
+      layouts: [
+        { id: "recognition", name: "Recognition", front: "{{Word}}", back: "{{Meaning}}", requires: null },
+        { id: "recall", name: "Recall", front: "{{Meaning}}", back: "{{Word}}", requires: null },
+      ],
+    })
+    const draft = draftFromSummary(stored)
+
+    expect(removedLayouts(stored.type, removeLayout(draft, "recall")).map((layout) => layout.name)).toEqual([
+      "Recall",
+    ])
+    expect(removedLayouts(stored.type, draft)).toEqual([])
+
+    // A generated type sends no layouts whatever its draft holds, so a stored row that still
+    // carries some is not losing the cards they describe.
+    const generated = draftFromSummary(summary({ generator: "cloze", generateFrom: "word", layouts: [] }))
+    expect(removedLayouts(stored.type, generated)).toEqual([])
   })
 
   it("asks nothing of a generated type's cards, because it has none to lay out", () => {

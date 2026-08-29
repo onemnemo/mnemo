@@ -1,13 +1,25 @@
+using System.Globalization;
 using System.Text;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Services.ImportExport.Adapters.Csv;
 
 namespace Mnemo.Infrastructure.Services.ImportExport.Adapters;
 
 public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
 {
     private const int CardPageSize = 200;
+
+    /// <summary>
+    /// Limits individual skipped-row warnings so a malformed file cannot produce an unreadable
+    /// notification.
+    /// </summary>
+    private const int MaxSkippedRowWarnings = 5;
+
+    private const string DeckColumn = "deck";
+    private const string FrontColumn = "front";
+    private const string BackColumn = "back";
 
     private readonly IFlashcardLibraryService _library;
     private readonly IFlashcardCardService _cards;
@@ -46,8 +58,73 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
 
     public async Task<ImportExportResult> ImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
-        var lines = await File.ReadAllLinesAsync(request.FilePath, cancellationToken).ConfigureAwait(false);
-        if (lines.Length == 0)
+        var warnings = new List<TransferWarning>();
+        var rows = new List<CsvCardRow>();
+        var sawRecord = false;
+        var skippedRows = 0;
+        var namedSkips = 0;
+        bool endedInsideQuotedValue;
+
+        using (var text = new StreamReader(request.FilePath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+        {
+            var reader = new CsvRecordReader(text);
+            var deckColumn = -1;
+            var frontColumn = 0;
+            var backColumn = 1;
+            var atFirstRecord = true;
+
+            await foreach (var record in reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                if (record.Fields.All(string.IsNullOrWhiteSpace))
+                    continue;
+
+                sawRecord = true;
+                if (atFirstRecord)
+                {
+                    atFirstRecord = false;
+                    if (TryReadHeader(record.Fields, out deckColumn, out frontColumn, out backColumn))
+                        continue;
+
+                    deckColumn = -1;
+                    frontColumn = 0;
+                    backColumn = 1;
+                }
+
+                var front = Cell(record.Fields, frontColumn);
+                if (string.IsNullOrWhiteSpace(front))
+                {
+                    skippedRows++;
+                    if (namedSkips < MaxSkippedRowWarnings)
+                    {
+                        namedSkips++;
+                        warnings.Add(TransferWarning.Of(
+                            "CsvRowSkipped",
+                            ("row", record.StartLine.ToString(CultureInfo.InvariantCulture))));
+                    }
+
+                    continue;
+                }
+
+                rows.Add(new CsvCardRow(
+                    Cell(record.Fields, deckColumn),
+                    front,
+                    Cell(record.Fields, backColumn)));
+            }
+
+            endedInsideQuotedValue = reader.EndedInsideQuotedValue;
+        }
+
+        if (skippedRows > namedSkips)
+        {
+            warnings.Add(TransferWarning.Of(
+                "CsvRowsSkippedMore",
+                ("count", (skippedRows - namedSkips).ToString(CultureInfo.InvariantCulture))));
+        }
+
+        if (endedInsideQuotedValue)
+            warnings.Add(TransferWarning.Of("CsvUnterminatedQuote"));
+
+        if (!sawRecord)
         {
             return new ImportExportResult
             {
@@ -58,35 +135,54 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
             };
         }
 
-        // New cards created via the store arrive FSRS-new and due now; the CSV carries content only.
-        var drafts = new List<FlashcardCardDraft>();
-        for (var i = 1; i < lines.Length; i++)
-        {
-            if (string.IsNullOrWhiteSpace(lines[i]))
-                continue;
-            var parts = ParseCsvLine(lines[i]);
-            if (parts.Count < 2)
-                continue;
+        var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
+        var fileDeckName = Path.GetFileNameWithoutExtension(request.FilePath) ?? string.Empty;
 
-            drafts.Add(new FlashcardCardDraft(
+        // Preserve exact deck names from the export; different spellings remain separate decks.
+        var deckOrder = new List<string>();
+        var byDeck = new Dictionary<string, List<FlashcardCardDraft>>(StringComparer.Ordinal);
+        foreach (var row in rows)
+        {
+            var deckName = string.IsNullOrWhiteSpace(row.Deck) ? fileDeckName : row.Deck;
+            if (!byDeck.TryGetValue(deckName, out var deckDrafts))
+            {
+                deckDrafts = new List<FlashcardCardDraft>();
+                byDeck[deckName] = deckDrafts;
+                deckOrder.Add(deckName);
+            }
+
+            // New cards created via the store arrive FSRS-new and due now; the CSV carries content only.
+            deckDrafts.Add(new FlashcardCardDraft(
                 DeckId: string.Empty,
                 Type: FlashcardType.Classic,
-                Front: parts[0],
-                Back: parts[1],
+                Front: row.Front,
+                Back: row.Back,
                 Tags: Array.Empty<string>(),
                 Attachments: Array.Empty<FlashcardAttachment>()));
         }
 
-        var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
-        var deck = await _library.CreateDeckAsync(
-            Path.GetFileNameWithoutExtension(request.FilePath),
-            folderId: null,
-            presetId: preset.Id,
-            cancellationToken).ConfigureAwait(false);
+        if (deckOrder.Count == 0)
+        {
+            deckOrder.Add(fileDeckName);
+            byDeck[fileDeckName] = new List<FlashcardCardDraft>();
+        }
 
-        var created = drafts.Count > 0
-            ? await _cards.CreateCardsAsync(deck.Id, drafts, cancellationToken).ConfigureAwait(false)
-            : Array.Empty<Flashcard>();
+        var createdCards = 0;
+        foreach (var deckName in deckOrder)
+        {
+            var deck = await _library.CreateDeckAsync(
+                deckName,
+                folderId: null,
+                presetId: preset.Id,
+                cancellationToken).ConfigureAwait(false);
+
+            var deckDrafts = byDeck[deckName];
+            if (deckDrafts.Count > 0)
+            {
+                var created = await _cards.CreateCardsAsync(deck.Id, deckDrafts, cancellationToken).ConfigureAwait(false);
+                createdCards += created.Count;
+            }
+        }
 
         return new ImportExportResult
         {
@@ -95,9 +191,10 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
             FormatId = FormatId,
             ProcessedCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
             {
-                ["decks"] = 1,
-                ["flashcards"] = created.Count
-            }
+                ["decks"] = deckOrder.Count,
+                ["flashcards"] = createdCards
+            },
+            Warnings = warnings
         };
     }
 
@@ -193,38 +290,34 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
         return $"\"{escaped}\"";
     }
 
-    private static List<string> ParseCsvLine(string line)
+    /// <summary>
+    /// Recognizes a header containing both front and back, using the leftmost duplicate. Other
+    /// records are read as cards by column position.
+    /// </summary>
+    private static bool TryReadHeader(IReadOnlyList<string> cells, out int deck, out int front, out int back)
     {
-        var values = new List<string>();
-        var sb = new StringBuilder();
-        var inQuotes = false;
-        for (var i = 0; i < line.Length; i++)
+        deck = -1;
+        front = -1;
+        back = -1;
+
+        for (var index = 0; index < cells.Count; index++)
         {
-            var ch = line[i];
-            if (ch == '"' && i + 1 < line.Length && line[i + 1] == '"')
-            {
-                sb.Append('"');
-                i++;
-                continue;
-            }
-
-            if (ch == '"')
-            {
-                inQuotes = !inQuotes;
-                continue;
-            }
-
-            if (ch == ',' && !inQuotes)
-            {
-                values.Add(sb.ToString());
-                sb.Clear();
-                continue;
-            }
-
-            sb.Append(ch);
+            // Remove the byte order mark before matching the first header name.
+            var name = (index == 0 ? cells[index].TrimStart('\uFEFF') : cells[index]).Trim();
+            if (deck < 0 && string.Equals(name, DeckColumn, StringComparison.OrdinalIgnoreCase))
+                deck = index;
+            else if (front < 0 && string.Equals(name, FrontColumn, StringComparison.OrdinalIgnoreCase))
+                front = index;
+            else if (back < 0 && string.Equals(name, BackColumn, StringComparison.OrdinalIgnoreCase))
+                back = index;
         }
 
-        values.Add(sb.ToString());
-        return values;
+        return front >= 0 && back >= 0;
     }
+
+    /// <summary>One mapped cell of a record, empty when the record is shorter than the header.</summary>
+    private static string Cell(IReadOnlyList<string> fields, int index) =>
+        index >= 0 && index < fields.Count ? fields[index] : string.Empty;
+
+    private sealed record CsvCardRow(string Deck, string Front, string Back);
 }

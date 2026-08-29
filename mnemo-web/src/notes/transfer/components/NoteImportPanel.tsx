@@ -6,7 +6,14 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import type { ConflictPolicy, TransferFormatDto } from "@/api/types"
-import { fileNoteText, formatFileSize, importExtensions, MAX_FILES, type QueuedFile } from "../transfer"
+import {
+  fileNoteText,
+  formatFileSize,
+  importExtensions,
+  MAX_FILES,
+  replaceNeedsConfirmation,
+  type QueuedFile,
+} from "../transfer"
 
 const CONFLICT_OPTIONS: { value: ConflictPolicy; labelKey: string; captionKey: string }[] = [
   { value: "KeepBoth", labelKey: "TransferConflictKeepBoth", captionKey: "TransferConflictKeepBothCaption" },
@@ -22,9 +29,11 @@ export function NoteImportPanel({
   conflict,
   busy,
   ready,
+  replaceConfirmed,
   onAddFiles,
   onRemove,
   onConflictChange,
+  onReplaceConfirmedChange,
 }: {
   queue: QueuedFile[]
   formats: TransferFormatDto[]
@@ -34,9 +43,14 @@ export function NoteImportPanel({
   busy: boolean
   /** False until the format list lands; picking before then would refuse every file. */
   ready: boolean
+  /**
+   * Whether replacement has been explicitly confirmed.
+   */
+  replaceConfirmed: boolean
   onAddFiles: (files: File[]) => void
   onRemove: (key: string) => void
   onConflictChange: (policy: ConflictPolicy) => void
+  onReplaceConfirmedChange: (next: boolean) => void
 }) {
   const t = useT()
   const nt = (key: string, params?: Record<string, string | number>) => t("Notes", key, params)
@@ -154,6 +168,25 @@ export function NoteImportPanel({
         <p className="text-caption text-text-tertiary">
           {common(CONFLICT_OPTIONS.find((option) => option.value === conflict)?.captionKey ?? "")}
         </p>
+        {replaceNeedsConfirmation(queue, conflict) ? (
+          <label className="flex items-start gap-2 rounded-md border border-[var(--toast-accent-warning)] bg-[var(--toast-icon-badge-warning)] px-2.5 py-2">
+            <input
+              type="checkbox"
+              checked={replaceConfirmed}
+              disabled={busy}
+              onChange={(event) => onReplaceConfirmedChange(event.target.checked)}
+              className="mt-0.5 size-3.5 shrink-0 accent-[var(--toast-accent-warning)]"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block text-body-extra-small font-medium text-[var(--toast-accent-warning)]">
+                {nt("TransferReplaceConfirmTitle")}
+              </span>
+              <span className="block text-caption text-text-tertiary">
+                {nt("TransferReplaceConfirmCheckbox")}
+              </span>
+            </span>
+          </label>
+        ) : null}
       </div>
     </div>
   )
