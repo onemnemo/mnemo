@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
+import { Z_LAYERS } from "@/lib/z-layers"
 import { type Toast, type ToastType, useToastStore } from "@/stores/toast"
 
 /**
@@ -180,7 +181,8 @@ export function ToastHost() {
       aria-label="Notifications"
       onPointerEnter={() => setHeld(true)}
       onPointerLeave={() => setHeld(false)}
-      className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex flex-col items-center px-4 pb-4"
+      className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center px-4 pb-4"
+      style={{ zIndex: Z_LAYERS.toast }}
     >
       {toasts.map((toast) => (
         <ToastRow key={toast.id} toast={toast} paused={held} />

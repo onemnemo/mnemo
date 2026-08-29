@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useDialogStore } from "@/stores/dialog"
 
+import { getTopLayer } from "./top-layer"
+
 export function DialogHost() {
   const request = useDialogStore((s) => s.queue[0])
   const settle = useDialogStore((s) => s.settle)
@@ -27,7 +29,7 @@ export function DialogHost() {
 
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !next && cancel()}>
-      <Dialog.Portal>
+      <Dialog.Portal container={getTopLayer()}>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px]" />
         <Dialog.Content
           {...(request?.message ? {} : { "aria-describedby": undefined })}
