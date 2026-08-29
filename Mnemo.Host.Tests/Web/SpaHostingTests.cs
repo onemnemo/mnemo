@@ -75,6 +75,9 @@ public sealed class SpaHostingTests
         // The notes stylesheet gates its content-visibility optimisation on this:
         // Chromium under WebView2 on Windows, WebKit (WebKitGTK / WKWebView) elsewhere.
         var expected = OperatingSystem.IsWindows() ? "chromium" : "webkit";
+
+        // Use literal expectations so the test checks the resolver as well as the page.
+        Assert.Equal(expected, SpaHosting.ResolveEngine());
         Assert.Contains($"window.__MNEMO_ENGINE__ = \"{expected}\"", document.Html, StringComparison.Ordinal);
     }
 
