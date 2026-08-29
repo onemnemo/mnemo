@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 
+import { reportClientInfo } from "@/app/client-info"
 import { installExitConfirm } from "@/app/exit-confirm"
 import { checkLegacyInstallWarning } from "@/app/legacy-install-warning"
 import { startRoutePrefetch } from "@/app/prefetch"
@@ -56,6 +57,10 @@ function App() {
   // Runs on every boot; the host answers true at most once ever, so this never repeats
   // the warning once it has been shown.
   useEffect(() => checkLegacyInstallWarning(), [])
+
+  // So a report of a blank or broken window has an engine and a user agent in the
+  // host log to match against.
+  useEffect(() => reportClientInfo(), [])
 
   // Mounted rather than called at import time on purpose: the code the pages need is worth
   // fetching with time the window is not otherwise using, and never at the expense of the

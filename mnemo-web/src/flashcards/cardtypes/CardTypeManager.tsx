@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Dialog } from "radix-ui"
 
+import { ApiError } from "@/api/client"
 import { onDirtyCheck } from "@/app/shutdown"
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
@@ -21,6 +22,7 @@ import {
   patchLayout,
   removeField,
   removeLayout,
+  removedLayouts,
   toSaveDto,
   uniqueName,
   type CardTypeDraft,
@@ -119,10 +121,15 @@ export function CardTypeManager({
     try {
       await deleteCardType(draft.serverId)
     } catch (error) {
-      // The server refuses a type that still holds material, and refuses one the app ships with.
-      // The row stays, because it is still real.
+      // Keep refused deletions visible and translate the error code instead of displaying server
+      // English.
+      const holdsMaterial = error instanceof ApiError && error.code === "card_type_in_use"
       toast.warning(fc("CardTypesDeleteBlockedTitle"), {
-        description: error instanceof Error ? error.message : undefined,
+        description: holdsMaterial
+          ? fc("CardTypesDeleteBlockedMessage")
+          : error instanceof Error
+            ? error.message
+            : undefined,
       })
       return
     }
@@ -133,8 +140,46 @@ export function CardTypeManager({
 
   const canSave = canSaveDrafts(drafts)
 
+  /**
+   * Confirm all layout removals before saving any type, since each save commits independently.
+   * This does not detect losses caused by changes to Requires.
+   */
+  const confirmRemovedCards = async (): Promise<boolean> => {
+    const stored = new Map((types.data ?? []).map((summary) => [summary.type.id, summary]))
+
+    for (const draft of drafts) {
+      if (!draft.dirty || !draft.serverId) continue
+
+      const before = stored.get(draft.serverId)
+      // Nothing live is using the type, and the sweep only reaches live material.
+      if (!before || before.factCount === 0) continue
+
+      const removed = removedLayouts(before.type, draft)
+      if (removed.length === 0) continue
+
+      const confirmed = await dialog.confirm({
+        title: fc("CardTypesRemoveCardsTitle"),
+        message: fc("CardTypesRemoveCardsMessage", {
+          0: removed
+            .map((layout) => layout.name.trim())
+            .filter((name) => name.length > 0)
+            .join(", "),
+          1: draft.name.trim(),
+          2: before.factCount,
+        }),
+        confirmLabel: fc("CardTypesRemoveCardsConfirm"),
+        cancelLabel: t("Common", "Cancel"),
+        destructive: true,
+      })
+      if (!confirmed) return false
+    }
+
+    return true
+  }
+
   const save = async () => {
     if (!canSave || saving) return
+    if (!(await confirmRemovedCards())) return
     setSaving(true)
     try {
       for (const draft of drafts.filter((item) => item.dirty)) {

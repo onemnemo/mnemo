@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Hosting;
 
 namespace Mnemo.Host.Events;
 
@@ -17,7 +18,11 @@ public static class EventStreamEndpoint
     public static IEndpointConventionBuilder MapEventStream(this IEndpointRouteBuilder endpoints)
         => endpoints.MapGet("/api/events", HandleAsync);
 
-    private static async Task HandleAsync(HttpContext context, IAppEventSource source, CancellationToken cancellationToken)
+    private static async Task HandleAsync(
+        HttpContext context,
+        IAppEventSource source,
+        IHostApplicationLifetime lifetime,
+        CancellationToken cancellationToken)
     {
         var response = context.Response;
         response.Headers.CacheControl = "no-cache";
@@ -29,10 +34,11 @@ public static class EventStreamEndpoint
         await using var subscription = source.Subscribe();
         var reader = subscription.Reader;
 
-        // Greet immediately: flips the client to "connected" and forces headers to
-        // flush through any buffering proxy before the first real event arrives.
-        await ServerSentEvents.WriteEventAsync(
-            response, new AppEvent("hello", new { serverTime = DateTimeOffset.UtcNow }), cancellationToken).ConfigureAwait(false);
+        // WebKitGTK connections can outlive the window. The host token prevents them from delaying
+        // shutdown until the drain timeout.
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, lifetime.ApplicationStopping);
+        var streamToken = linked.Token;
 
         using var heartbeat = new PeriodicTimer(HeartbeatInterval);
         // Keep each wait outstanding across loop turns: the channel is single-reader
@@ -42,10 +48,15 @@ public static class EventStreamEndpoint
 
         try
         {
-            while (!cancellationToken.IsCancellationRequested)
+            // Flush the greeting immediately. Cancellation must be caught if shutdown began before
+            // the stream opened.
+            await ServerSentEvents.WriteEventAsync(
+                response, new AppEvent("hello", new { serverTime = DateTimeOffset.UtcNow }), streamToken).ConfigureAwait(false);
+
+            while (!streamToken.IsCancellationRequested)
             {
-                readWait ??= reader.WaitToReadAsync(cancellationToken).AsTask();
-                beatWait ??= heartbeat.WaitForNextTickAsync(cancellationToken).AsTask();
+                readWait ??= reader.WaitToReadAsync(streamToken).AsTask();
+                beatWait ??= heartbeat.WaitForNextTickAsync(streamToken).AsTask();
 
                 if (await Task.WhenAny(readWait, beatWait).ConfigureAwait(false) == readWait)
                 {
@@ -53,20 +64,20 @@ public static class EventStreamEndpoint
                         break; // hub completed the channel
                     readWait = null;
                     while (reader.TryRead(out var evt))
-                        await ServerSentEvents.WriteEventAsync(response, evt, cancellationToken).ConfigureAwait(false);
+                        await ServerSentEvents.WriteEventAsync(response, evt, streamToken).ConfigureAwait(false);
                 }
                 else
                 {
                     if (!await beatWait.ConfigureAwait(false))
                         break; // timer disposed
                     beatWait = null;
-                    await ServerSentEvents.WriteCommentAsync(response, "ping", cancellationToken).ConfigureAwait(false);
+                    await ServerSentEvents.WriteCommentAsync(response, "ping", streamToken).ConfigureAwait(false);
                 }
             }
         }
         catch (OperationCanceledException)
         {
-            // Client disconnected (RequestAborted) - the normal way an SSE stream ends.
+            // Client disconnect and host shutdown are normal stream termination.
         }
     }
 }

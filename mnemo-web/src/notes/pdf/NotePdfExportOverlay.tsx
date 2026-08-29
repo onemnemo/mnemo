@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react"
 import { createPortal } from "react-dom"
 
 import { Skeleton } from "@/components/ui/skeleton"
+import { Z_LAYERS } from "@/lib/z-layers"
 
 import { useNotePdf } from "./store"
 
@@ -33,7 +34,10 @@ export function NotePdfExportOverlay() {
  */
 function NotePdfExportShell() {
   return createPortal(
-    <div className="animate-fade-in fixed inset-0 z-[140] flex items-center justify-center p-8">
+    <div
+      className="animate-fade-in fixed inset-0 flex items-center justify-center p-8"
+      style={{ zIndex: Z_LAYERS.modal }}
+    >
       <div className="absolute inset-0 bg-ink/25 backdrop-blur-[2px]" />
       <div
         style={{ width: 960, maxHeight: "min(820px, 92vh)" }}

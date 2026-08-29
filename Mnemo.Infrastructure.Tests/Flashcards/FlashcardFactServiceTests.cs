@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
+using Mnemo.Infrastructure.Services.Flashcards.Trash;
 using Mnemo.Infrastructure.Tests.Flashcards.Persistence;
 using Xunit;
 
@@ -293,6 +294,45 @@ public sealed class FlashcardFactServiceTests
     }
 
     [Fact]
+    public async Task Removing_a_card_from_a_type_takes_that_card_from_every_piece_of_material()
+    {
+        await using var harness = await OpenAsync();
+        var first = await harness.FactService.SaveFactAsync(Draft(FlashcardCardType.BasicReverseId, new()
+        {
+            ["front"] = "Amiodarone",
+            ["back"] = "Class III",
+        }));
+        var second = await harness.FactService.SaveFactAsync(Draft(FlashcardCardType.BasicReverseId, new()
+        {
+            ["front"] = "Digoxin",
+            ["back"] = "Cardiac glycoside",
+        }));
+
+        var firstRecall = first.Cards.Single(c => c.LayoutKey == FlashcardCardType.RecallLayoutId);
+        var secondRecall = second.Cards.Single(c => c.LayoutKey == FlashcardCardType.RecallLayoutId);
+        await StudyAsync(harness, firstRecall.Id);
+
+        var type = await harness.FactService.GetCardTypeAsync(FlashcardCardType.BasicReverseId);
+        await harness.FactService.SaveCardTypeAsync(type! with
+        {
+            Layouts = [.. type.Layouts.Where(l => l.Id != FlashcardCardType.RecallLayoutId)],
+        });
+
+        // Removing a layout deletes its cards and schedules across all material using the type.
+        foreach (var gone in new[] { firstRecall, secondRecall })
+        {
+            Assert.Null(await harness.Store.ReadAsync((conn, ct) => harness.Cards.GetAsync(conn, gone.Id, ct)));
+            Assert.Null(await harness.Store.ReadAsync((conn, ct) => harness.Schedules.GetAsync(conn, gone.Id, ct)));
+        }
+
+        foreach (var kept in new[] { first, second })
+        {
+            var recognition = kept.Cards.Single(c => c.LayoutKey == FlashcardCardType.RecognitionLayoutId);
+            Assert.NotNull(await harness.Store.ReadAsync((conn, ct) => harness.Cards.GetAsync(conn, recognition.Id, ct)));
+        }
+    }
+
+    [Fact]
     public async Task A_card_type_that_still_holds_material_is_not_deleted()
     {
         await using var harness = await OpenAsync();
@@ -303,6 +343,24 @@ public sealed class FlashcardFactServiceTests
             [new FlashcardLayout("one", "One", "{{A}}", "{{B}}")]));
         await harness.FactService.SaveFactAsync(Draft("custom", new() { ["a"] = "x", ["b"] = "y" }));
 
+        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.FactService.DeleteCardTypeAsync("custom"));
+        Assert.NotNull(await harness.FactService.GetCardTypeAsync("custom"));
+    }
+
+    [Fact]
+    public async Task A_card_type_whose_only_material_is_in_the_trash_is_not_deleted()
+    {
+        await using var harness = await OpenAsync();
+        await harness.FactService.SaveCardTypeAsync(new FlashcardCardType(
+            "custom", "Custom", false,
+            [new FlashcardField("a", "A"), new FlashcardField("b", "B")],
+            "a",
+            [new FlashcardLayout("one", "One", "{{A}}", "{{B}}")]));
+        var saved = await harness.FactService.SaveFactAsync(Draft("custom", new() { ["a"] = "x", ["b"] = "y" }));
+        await new FlashcardFactTrashSource(harness.Store).CaptureAsync(saved.Fact.Id, "e1");
+
+        // The live count excludes trashed material, which still needs its type when restored.
+        Assert.Equal(0, await harness.FactService.CountFactsUsingTypeAsync("custom"));
         await Assert.ThrowsAsync<InvalidOperationException>(() => harness.FactService.DeleteCardTypeAsync("custom"));
         Assert.NotNull(await harness.FactService.GetCardTypeAsync("custom"));
     }

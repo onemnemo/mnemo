@@ -29,6 +29,7 @@ import {
   queuedFromUpload,
   readyMapCount,
   readyUploadIds,
+  replaceNeedsConfirmation,
   type QueuedFile,
 } from "./transfer"
 
@@ -60,8 +61,15 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
   const [queue, setQueue] = useState<QueuedFile[]>([])
   const [rejected, setRejected] = useState<string[]>([])
   const [conflict, setConflict] = useState<ConflictPolicy>("KeepBoth")
+  const [replaceConfirmed, setReplaceConfirmed] = useState(false)
   const [exportFormat, setExportFormat] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // Consent applies only to the current queue and policy.
+  const changeConflict = (policy: ConflictPolicy) => {
+    setConflict(policy)
+    setReplaceConfirmed(false)
+  }
 
   const scope = target.scope
   const available = useMemo(() => exportFormats(formatList), [formatList])
@@ -130,6 +138,9 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
     }
 
     setRejected(refused)
+    if (accepted.length > 0) {
+      setReplaceConfirmed(false)
+    }
 
     for (const file of accepted) {
       if (queueRef.current.length >= MAX_FILES) {
@@ -193,6 +204,7 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
 
     queueRef.current = queueRef.current.filter((queued) => queued.key !== key)
     setQueue((current) => current.filter((queued) => queued.key !== key))
+    setReplaceConfirmed(false)
   }
 
   const count = readyMapCount(queue)
@@ -271,8 +283,9 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
 
   const importing = direction === "import"
   const emptyScope = !scope || scope.mapIds.length === 0
+  const awaitingReplaceConsent = replaceNeedsConfirmation(queue, conflict) && !replaceConfirmed
   const confirmEnabled = importing
-    ? queueCanImport(queue) && !busy
+    ? queueCanImport(queue) && !busy && !awaitingReplaceConsent
     : !emptyScope && exportFormat !== null && !busy
 
   const confirm = () => void (importing ? doImport() : doExport())
@@ -374,9 +387,11 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
             conflict={conflict}
             busy={busy}
             ready={formatsReady}
+            replaceConfirmed={replaceConfirmed}
             onAddFiles={addFiles}
             onRemove={removeFile}
-            onConflictChange={setConflict}
+            onConflictChange={changeConflict}
+            onReplaceConfirmedChange={setReplaceConfirmed}
           />
         ) : emptyScope ? (
           <p className="py-6 text-center text-[12px] text-ink-3">{mm("ExportNoMapsMessage")}</p>

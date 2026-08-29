@@ -1,4 +1,6 @@
 using System.Net;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
@@ -41,16 +43,14 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
-        // First, before anything else runs: Velopack's install, update and uninstall hooks
-        // execute inside this call and exit the process when one of them applies. Work done
-        // ahead of it happens during those hooks too, and a shortcut, an uninstall or the
-        // first applied update all depend on it being reached.
-        VelopackApp.Build().Run();
-
         CrashLog.InstallProcessHandlers();
 
         try
         {
+            // Velopack hooks may exit the process here. Startup work before this call also runs
+            // during installation and removal.
+            VelopackApp.Build().Run();
+
             return Run(args);
         }
         catch (Exception ex)
@@ -69,6 +69,10 @@ public static class Program
             // stacks and PhotinoX's native layer does not handle it; disable it
             // proactively unless the user explicitly chose a value.
             Environment.SetEnvironmentVariable("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+
+            // The managed write above is invisible to native getenv on Unix, so this
+            // call is not a duplicate to remove.
+            SetNativeEnvironmentVariable("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
 
         var options = HostOptions.Parse(args);
@@ -86,6 +90,31 @@ public static class Program
             StopServer(server);
         }
     }
+
+    /// <summary>
+    /// Writes an environment variable through libc, so native code started in this
+    /// process (WebKitGTK, GTK itself) can see it with getenv.
+    /// </summary>
+    [SupportedOSPlatform("linux")]
+    private static void SetNativeEnvironmentVariable(string name, string value)
+    {
+        try
+        {
+            setenv(name, value, 1);
+        }
+        catch (Exception ex)
+        {
+            // Some minimal or non-glibc distribution without the symbol. The managed
+            // write already covers every read this app's own code makes.
+            CrashLog.Write($"Native setenv is unavailable for {name}.", ex);
+        }
+    }
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern int setenv(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string name,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string value,
+        int overwrite);
 
     private static void StopServer(ServerHandle server)
     {
@@ -126,6 +155,10 @@ public static class Program
         });
         builder.Configuration["AllowedHosts"] = "localhost;127.0.0.1";
         builder.Logging.ClearProviders();
+
+        // Signals must close the window before cancelling the event stream used by the save
+        // handshake.
+        WindowHostLifetime.Install(builder.Services);
 
         var modules = HostComposition.DiscoverModules(out var discoveryFailures);
         HostComposition.AddMnemoBackend(builder.Services, modules);
@@ -218,6 +251,9 @@ public static class Program
         // preserving the ordering guarantee the Avalonia app enforces at startup.
         await HostComposition.InitializeBackendAsync(app.Services, discoveryFailures).ConfigureAwait(false);
 
+        // Seed the channel before serving the initial settings snapshot.
+        _ = await app.Services.GetRequiredService<IUpdateService>().GetChannelAsync().ConfigureAwait(false);
+
         // Resolved here, on the async startup path. Bridging it onto Photino's STA
         // thread with a Task.Run/GetResult in RunWindow blocks window creation on a
         // settings read. The service provider is already live at this point, so the
@@ -307,6 +343,7 @@ public static class Program
 
         WindowChrome.Configure(window, logger);
         AttachShutdownGate(window, server.App.Services);
+        ExitSignals.Attach(window, logger);
         server.App.Services.GetRequiredService<NativeFolderPicker>().Attach(window);
 
         logger.Info(CrashLog.Category, $"Load({url})");
@@ -342,7 +379,7 @@ public static class Program
                 return;
 
             e.Cancel = true;
-            events.Publish(new AppEvent("shutdown", new { graceMs = (int)ShutdownGrace.TotalMilliseconds }));
+            var listeners = events.Publish(new AppEvent("shutdown", new { graceMs = (int)ShutdownGrace.TotalMilliseconds }));
 
             _ = Task.Run(async () =>
             {
@@ -358,7 +395,9 @@ public static class Program
                 }
 
                 if (verdict == ShutdownVerdict.TimedOut)
-                    logger.Warning(CrashLog.Category, "No client answered before the shutdown grace expired; closing anyway.");
+                    logger.Warning(CrashLog.Category, listeners == 0
+                        ? "No client was listening on the event stream, so nothing was asked to save; closing anyway."
+                        : "No client answered before the shutdown grace expired; closing anyway.");
 
                 window.Invoke(window.Close);
             });

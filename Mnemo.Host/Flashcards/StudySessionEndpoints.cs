@@ -200,23 +200,19 @@ public static class StudySessionEndpoints
     }
 
     /// <summary>
-    /// Records what a removed session studied, once whatever it was doing has finished.
+    /// Records a removed session after acquiring its gate. Cancellation applies only to the gate
+    /// wait; recording remains uncancellable because the session cannot be retried.
     /// </summary>
-    /// <remarks>
-    /// Takes the gate first: a grade holding it is about to increment the count, and reading
-    /// past it would leave that card committed to the schedule but missing from the study
-    /// record. Uncancellable, because by this point the session is already out of the registry -
-    /// giving up here would lose the record with no way to retry it.
-    /// </remarks>
-    private static Task EndEntryAsync(
+    internal static Task EndEntryAsync(
         StudySessionEntry entry,
         DateTimeOffset endedAt,
         IStatisticsManager statistics,
         IStudyDayService studyDay,
-        ILoggerService logger) =>
+        ILoggerService logger,
+        CancellationToken cancellationToken = default) =>
         entry.MutateAsync(
             () => RecordActivityAsync(entry, endedAt, statistics, studyDay, logger),
-            CancellationToken.None);
+            cancellationToken);
 
     /// <summary>
     /// Clears out sessions that went idle and records what each one studied before dropping it.

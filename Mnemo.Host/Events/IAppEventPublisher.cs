@@ -7,5 +7,9 @@ namespace Mnemo.Host.Events;
 /// </summary>
 public interface IAppEventPublisher
 {
-    void Publish(AppEvent evt);
+    /// <summary>
+    /// Publishes to all subscribers and returns the number accepting the write. Full buffers evict
+    /// their oldest event and still count. Acceptance does not confirm client delivery.
+    /// </summary>
+    int Publish(AppEvent evt);
 }

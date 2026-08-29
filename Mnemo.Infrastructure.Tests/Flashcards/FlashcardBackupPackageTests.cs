@@ -265,6 +265,35 @@ public sealed class FlashcardBackupPackageTests
     }
 
     /// <summary>
+    /// Replace imports must preserve decks absent from the package, including their cards.
+    /// </summary>
+    [Fact]
+    public async Task Replacing_leaves_a_deck_the_package_never_carried_alone()
+    {
+        await using var h = await SeededCollectionAsync();
+        var package = await FlashcardPackageFixture.Handler(h).ExportAsync(FlashcardPackageFixture.ExportContext());
+
+        var library = LibraryOf(h);
+        var foreignDeck = await library.CreateDeckAsync("Not in the package");
+        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+        await cards.CreateCardsAsync(foreignDeck.Id, new[]
+        {
+            new FlashcardCardDraft(foreignDeck.Id, FlashcardType.Classic, "outside the package", "still here", [], []),
+        });
+        var before = await ReadDeckAsync(h, foreignDeck.Id);
+
+        var result = await FlashcardPackageFixture.Handler(h)
+            .ImportAsync(FlashcardPackageFixture.ImportContext(package, ImportConflictPolicy.Replace));
+
+        // Asserted before the survival check, which an import that quietly did nothing would also
+        // satisfy.
+        Assert.Equal(1, result.ImportedCount);
+        var decks = await library.ListDecksAsync();
+        Assert.Contains(decks, d => d.Id == foreignDeck.Id);
+        Assert.Equal(before, await ReadDeckAsync(h, foreignDeck.Id));
+    }
+
+    /// <summary>
     /// Keeping both is what an import into a collection that already has this content does by
     /// default, and it must never overwrite what is there or leave two cards fighting over one
     /// layout of the same material.
@@ -483,12 +512,13 @@ public sealed class FlashcardBackupPackageTests
             new Dictionary<string, string> { ["text"] = "{{c1::Amiodarone}} is {{c2::class III}}.", ["extra"] = "Antiarrhythmic" },
             new Dictionary<string, IReadOnlyList<FlashcardAttachment>>(), []));
 
-        // A card with history behind it, so a restore that drops scheduling is visible.
+        // Use non-null scheduling fields so a dropped field cannot pass the round-trip comparison.
         var studied = terms.Cards[0];
         await harness.Store.WriteAsync(async (conn, tx, ct) =>
         {
             await harness.Schedules.UpsertAsync(conn, tx, new FlashcardSchedule(
-                studied.Id, Now.AddDays(9), 41.5, 5.25, 4, 1, FlashcardFsrsState.Review, 2, Now.AddDays(-1)), ct);
+                studied.Id, Now.AddDays(9), 41.5, 5.25, 4, 1, FlashcardFsrsState.Review, 2, Now.AddDays(-1),
+                Now.AddDays(-3)), ct);
             await harness.Reviews.AppendAsync(conn, tx, new FlashcardReviewLog(
                 FlashcardReviewLog.Unassigned, studied.Id, "deck-1", "session-1", FlashcardReviewGrade.Good,
                 Now.AddDays(-2), 3.0, 4.0, 30.1, 5.0, FlashcardFsrsState.Review, FlashcardFsrsState.Review), ct);
@@ -525,8 +555,10 @@ public sealed class FlashcardBackupPackageTests
             lines.Add(
                 $"card {view.Card.Id} fact={view.Card.FactId} layout={view.Card.LayoutKey} " +
                 $"front={view.Card.Front} back={view.Card.Back} state={view.Card.State} " +
-                $"due={view.Schedule.DueDate:O} stability={view.Schedule.Stability} reps={view.Schedule.Reps} " +
-                $"lapses={view.Schedule.Lapses} fsrs={view.Schedule.FsrsState} step={view.Schedule.LearningStepIndex}");
+                $"due={view.Schedule.DueDate:O} stability={view.Schedule.Stability} difficulty={view.Schedule.Difficulty} " +
+                $"reps={view.Schedule.Reps} lapses={view.Schedule.Lapses} fsrs={view.Schedule.FsrsState} " +
+                $"step={view.Schedule.LearningStepIndex} lastReviewed={view.Schedule.LastReviewedAt?.ToString("O")} " +
+                $"buried={view.Schedule.BuriedUntil?.ToString("O")}");
         }
 
         var facts = await h.Store.ReadAsync((conn, ct) => h.Facts.ListByDeckAsync(conn, deckId, ct));
@@ -538,7 +570,10 @@ public sealed class FlashcardBackupPackageTests
 
         var reviews = await h.Store.ReadAsync((conn, ct) => h.Reviews.ListAllForDeckAsync(conn, deckId, ct));
         foreach (var review in reviews)
-            lines.Add($"review {review.Id} card={review.CardId} grade={review.Grade} at={review.ReviewedAt:O} after={review.StateAfter}");
+            lines.Add(
+                $"review {review.Id} card={review.CardId} grade={review.Grade} before={review.StateBefore} " +
+                $"at={review.ReviewedAt:O} after={review.StateAfter} elapsed={review.ElapsedDays} " +
+                $"scheduled={review.ScheduledDays} stabilityAfter={review.StabilityAfter} difficultyAfter={review.DifficultyAfter}");
 
         var stats = await h.Store.ReadAsync((conn, ct) => h.DailyStats.ListAllForDeckAsync(conn, deckId, ct));
         foreach (var stat in stats)

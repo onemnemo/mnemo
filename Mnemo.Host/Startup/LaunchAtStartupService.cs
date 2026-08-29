@@ -128,7 +128,10 @@ public sealed class LaunchAtStartupService : IDisposable
             return;
         }
 
-        var executable = Environment.ProcessPath;
+        var executable = ResolveAutostartExecutable(
+            OperatingSystem.IsLinux(),
+            Environment.GetEnvironmentVariable("APPIMAGE"),
+            Environment.ProcessPath);
         if (string.IsNullOrWhiteSpace(executable))
         {
             _logger.Warning(Category, "Launch at startup is on, but this process has no resolvable executable path to register.");
@@ -146,6 +149,13 @@ public sealed class LaunchAtStartupService : IDisposable
         File.WriteAllText(path, desired);
         _logger.Info(Category, $"Registered {executable} to launch at startup.");
     }
+
+    /// <summary>
+    /// Resolves the executable to register for startup. AppImage mounts disappear at exit, so Linux
+    /// prefers APPIMAGE over the temporary process path.
+    /// </summary>
+    internal static string? ResolveAutostartExecutable(bool isLinux, string? appImage, string? processPath) =>
+        isLinux && !string.IsNullOrWhiteSpace(appImage) ? appImage : processPath;
 
     /// <remarks>Internal rather than private so the path formula has a unit test of its own.</remarks>
     internal static string MacLaunchAgentPath() =>

@@ -33,26 +33,19 @@ public enum UpdateStage
     Failed,
 }
 
-/// <param name="Version">The running build, as the About row shows it.</param>
-/// <param name="Channel">Normalised; never null even when nothing is stored.</param>
-/// <param name="SupportsInAppApply">False for portable and unpackaged builds, which can only be told where to download.</param>
-/// <param name="AwaitingChannelCatchUp">
-/// The running build is less settled than the selected channel, so that channel has
-/// nothing to offer until it reaches this version. Distinct from <see cref="UpdateStage.UpToDate"/>,
-/// which would read as "you are on the newest Stable build" when the user is not.
-/// </param>
-/// <param name="ShouldPrompt">
-/// Whether an unsolicited toast about <paramref name="AvailableVersion"/> is warranted.
-/// False once the user has snoozed or skipped it. The host answers this rather than the
-/// SPA because the answer is stored, and a window that has just opened would otherwise
-/// have to read three settings before it could decide to stay quiet.
-/// </param>
-/// <param name="Skipped">The available version is on the skip list, so no prompt will name it again.</param>
-/// <param name="Error">A code the SPA translates, not a sentence. Null unless the stage is Failed.</param>
+/// <param name="Version">The running version.</param>
+/// <param name="Channel">The normalized selected update channel.</param>
+/// <param name="RunningChannel">The channel inferred from the running version, independent of the selected channel.</param>
+/// <param name="SupportsInAppApply">False for portable and unpackaged builds.</param>
+/// <param name="AwaitingChannelCatchUp">The selected channel has not reached the running version.</param>
+/// <param name="ShouldPrompt">Whether the available update warrants a prompt, accounting for snoozed and skipped offers.</param>
+/// <param name="Skipped">Whether the available version is skipped.</param>
+/// <param name="Error">A translated error code, or null unless the stage is Failed.</param>
 public sealed record UpdateStatus(
     UpdateStage Stage,
     string Version,
     string Channel,
+    string RunningChannel,
     bool SupportsInAppApply,
     bool AwaitingChannelCatchUp,
     DateTime? LastCheckedUtc,
@@ -113,6 +106,10 @@ public sealed class UpdateCoordinator
     private bool _shouldPrompt;
     private bool _skipped;
 
+    // Tracks whether the service still holds the resolved download object. Restored offers have
+    // metadata only.
+    private bool _serviceHoldsOffer;
+
     // The launch bookkeeping runs once per process, not once per page load: the SPA calls
     // it on mount, and a reload during development would otherwise spend a snooze launch
     // and eat the post-update toast before anyone saw it.
@@ -164,6 +161,7 @@ public sealed class UpdateCoordinator
             return channel;
 
         _available = null;
+        _serviceHoldsOffer = false;
         _progress = 0;
         _error = null;
         _shouldPrompt = false;
@@ -226,6 +224,8 @@ public sealed class UpdateCoordinator
             return;
 
         _available = offer;
+        // A persisted offer does not retain its resolved download object.
+        _serviceHoldsOffer = false;
         _error = null;
         _stage = UpdateStage.Available;
         await RefreshPromptGateAsync().ConfigureAwait(false);
@@ -337,6 +337,7 @@ public sealed class UpdateCoordinator
             {
                 _logger.Warning("Updates", $"Update check failed: {result.ErrorMessage}");
                 _available = null;
+                _serviceHoldsOffer = false;
                 _error = "check_failed";
                 await RefreshPromptGateAsync().ConfigureAwait(false);
                 SetStage(UpdateStage.Failed, channel, lastChecked);
@@ -345,6 +346,7 @@ public sealed class UpdateCoordinator
 
             _error = null;
             _available = result.Value;
+            _serviceHoldsOffer = _available is not null;
             await _settings.SetAsync<string?>(
                 UpdateSettingsKeys.PendingOfferJson,
                 _available is null ? null : AppUpdateInfoPersistence.Serialize(_available)).ConfigureAwait(false);
@@ -373,6 +375,17 @@ public sealed class UpdateCoordinator
 
         if (_stage is UpdateStage.Downloading or UpdateStage.Ready || _available is null)
             return BuildStatus(channel, lastChecked);
+
+        // Resolve restored offers before downloading. A manual check bypasses the automatic
+        // cooldown.
+        if (!_serviceHoldsOffer)
+        {
+            await CheckAsync(automatic: false, cancellationToken).ConfigureAwait(false);
+            channel = await ReadChannelAsync(cancellationToken).ConfigureAwait(false);
+            lastChecked = await ReadLastCheckedAsync().ConfigureAwait(false);
+            if (_available is null || !_serviceHoldsOffer)
+                return BuildStatus(channel, lastChecked);
+        }
 
         var update = _available;
         _progress = 0;
@@ -432,24 +445,76 @@ public sealed class UpdateCoordinator
     public bool CanApply => _stage == UpdateStage.Ready;
 
     /// <summary>
-    /// Restarts into the staged update. Does not return: the process is replaced.
+    /// Applies the staged update. Persist the version before restart, then restore the previous
+    /// settings if apply fails.
     /// </summary>
-    /// <remarks>
-    /// The version is written down first, because the only process that knows an update
-    /// was applied is the one about to stop existing. The build that comes up next reads
-    /// it back through <see cref="BeginLaunchAsync"/> and says so once.
-    /// </remarks>
     public async Task ApplyAsync()
     {
-        if (_available is not null)
+        var offer = _available;
+        string? storedOffer = null;
+        var markerWritten = false;
+        var offerCleared = false;
+
+        try
         {
-            await _settings
-                .SetAsync(UpdateSettingsKeys.PendingPostUpdateToastVersion, _available.Version)
-                .ConfigureAwait(false);
-            await _settings.SetAsync<string?>(UpdateSettingsKeys.PendingOfferJson, null).ConfigureAwait(false);
+            if (offer is not null)
+            {
+                storedOffer = await _settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson).ConfigureAwait(false);
+                await _settings.SetAsync(UpdateSettingsKeys.PendingPostUpdateToastVersion, offer.Version).ConfigureAwait(false);
+                markerWritten = true;
+                await _settings.SetAsync<string?>(UpdateSettingsKeys.PendingOfferJson, null).ConfigureAwait(false);
+                offerCleared = true;
+            }
+
+            var result = _updates.ApplyUpdatesAndRestart();
+            if (result.IsSuccess)
+                return;
+
+            _logger.Error("Updates", $"Update apply failed: {result.ErrorMessage}", result.Exception);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Updates", "Update apply threw.", ex);
         }
 
-        _updates.ApplyUpdatesAndRestart();
+        await RollBackApplyAsync(markerWritten, offerCleared, storedOffer).ConfigureAwait(false);
+
+        // The channel read clears the error on a channel change, so the code the row shows
+        // is set after it rather than before.
+        var channel = await ReadChannelAsync(CancellationToken.None).ConfigureAwait(false);
+        _error = "apply_failed";
+        SetStage(UpdateStage.Failed, channel, await ReadLastCheckedAsync().ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// Restores both pre-apply settings independently. Use the persisted offer to avoid
+    /// resurrecting a skipped update; log storage failures without interrupting the second write.
+    /// </summary>
+    private async Task RollBackApplyAsync(bool markerWritten, bool offerCleared, string? storedOffer)
+    {
+        if (markerWritten)
+        {
+            try
+            {
+                await _settings.SetAsync<string?>(UpdateSettingsKeys.PendingPostUpdateToastVersion, null).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Updates", "Could not clear the marker written ahead of a failed update apply.", ex);
+            }
+        }
+
+        if (!offerCleared)
+            return;
+
+        try
+        {
+            await _settings.SetAsync(UpdateSettingsKeys.PendingOfferJson, storedOffer).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Updates", "Could not restore the offer cleared ahead of a failed update apply.", ex);
+        }
     }
 
     private void SetStage(UpdateStage stage, string channel, DateTime? lastChecked)
@@ -463,12 +528,14 @@ public sealed class UpdateCoordinator
     private UpdateStatus BuildStatus(string channel, DateTime? lastChecked)
     {
         var version = _updates.CurrentDisplayVersion;
+        var parsed = VelopackUpdateService.ParseVersion(version);
         return new UpdateStatus(
             _stage,
             version,
             channel,
+            parsed is null ? UpdateChannels.Stable : UpdateChannels.ForVersion(parsed),
             _updates.SupportsInAppApply,
-            UpdateChannels.IsAwaitingCatchUp(channel, VelopackUpdateService.ParseVersion(version)),
+            UpdateChannels.IsAwaitingCatchUp(channel, parsed),
             lastChecked,
             _available?.Version,
             _available?.ReleaseNotesMarkdown,
