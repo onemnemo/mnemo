@@ -34,9 +34,8 @@ function isTextEntry(node: EventTarget | null): boolean {
  */
 export function installContextMenuGuard(): () => void {
   const onContextMenu = (event: MouseEvent) => {
-    // Shift-right-click is the browser's long-standing way past a page's own
-    // handling of the menu, and it keeps Inspect reachable while porting.
-    if (event.shiftKey) return
+    // Allow the native page menu bypass only in development builds.
+    if (event.shiftKey && import.meta.env.DEV) return
     if (isTextEntry(event.target)) return
     event.preventDefault()
   }

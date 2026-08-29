@@ -7,7 +7,7 @@
  * spelling suggestions with it.
  */
 
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { installContextMenuGuard } from "./native-menu"
 
@@ -16,6 +16,8 @@ let dispose: (() => void) | undefined
 afterEach(() => {
   dispose?.()
   dispose = undefined
+  // Restore the environment stub so later tests use their own build mode.
+  vi.unstubAllEnvs()
   document.body.innerHTML = ""
 })
 
@@ -50,9 +52,16 @@ describe("installContextMenuGuard", () => {
     expect(rightClick(mount("<input type='checkbox'>"))).toBe(true)
   })
 
-  it("lets shift through, so Inspect stays reachable", () => {
+  it("lets shift through while developing, so Inspect stays reachable", () => {
+    vi.stubEnv("DEV", true)
     dispose = installContextMenuGuard()
     expect(rightClick(mount("<div>deck</div>"), { shiftKey: true })).toBe(false)
+  })
+
+  it("closes the way past in a shipped window", () => {
+    vi.stubEnv("DEV", false)
+    dispose = installContextMenuGuard()
+    expect(rightClick(mount("<div>deck</div>"), { shiftKey: true })).toBe(true)
   })
 
   it("stops suppressing once disposed", () => {

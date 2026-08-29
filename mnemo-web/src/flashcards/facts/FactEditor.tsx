@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Dialog } from "radix-ui"
 
+import { onDirtyCheck } from "@/app/shutdown"
 import { IconButton } from "@/components/ui/icon-button"
 import { useT } from "@/i18n/useT"
 import { SelectControl } from "@/settings/components/controls/SelectControl"
@@ -74,6 +75,14 @@ export function FactEditor({ target, onClose }: { target: CardEditorTarget; onCl
   useEffect(() => {
     if (fact.isError) onClose()
   }, [fact.isError, onClose])
+
+  // Read current state through a ref without re-registering on every edit.
+  const latestDraft = useRef(draft)
+  latestDraft.current = draft
+  useEffect(
+    () => onDirtyCheck(() => factDraftIsDirty(baseline.current, snapshotFactDraft(latestDraft.current))),
+    [],
+  )
 
   const options = useMemo(() => deckOptions(decks.data ?? [], folders.data ?? []), [decks.data, folders.data])
   const deckId = resolveDraftDeck(draft.deckId, options.map((option) => option.id), target.deckId)

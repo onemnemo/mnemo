@@ -1,13 +1,7 @@
 // @vitest-environment jsdom
 
 /**
- * What the workspace shows when it could not read the library, and which note it
- * opens when it could.
- *
- * A list request that failed and a user with no notes leave the same thing in
- * hand, an empty array, and drawing them the same way tells someone their notes
- * are gone. This covers the branch that keeps those two apart, the way back from
- * the failure, and the memory that reopens the note the last visit was on.
+ * Checks library load failures, initial note selection, and keyboard search focus.
  */
 
 import { StrictMode, act } from 'react';
@@ -18,6 +12,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { NoteSummaryDto } from '@/api/types';
 
+import { installNativeKeyGuard } from '@/lib/native-keys';
+
 import { NotesWorkspace } from './NotesWorkspace';
 import { readLastNoteId, rememberLastNoteId } from './session';
 
@@ -25,6 +21,13 @@ import { readLastNoteId, rememberLastNoteId } from './session';
 // not have, at import time. It renders nothing until it is opened and has no
 // part in reading the library, so it is stood down for these tests.
 vi.mock('../pdf/NotePdfExportOverlay', () => ({ NotePdfExportOverlay: () => null }));
+
+// The workspace resolves its primary modifier once at import, so the host the suite
+// runs on would otherwise decide which chord the case below presses.
+vi.mock('@/keybinds/chord', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/keybinds/chord')>()),
+  isMac: false,
+}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -194,6 +197,46 @@ describe('the note the last visit was on', () => {
 
     expect(window.location.hash).toBe('');
     expect(readLastNoteId()).toBe('note-1');
+  });
+});
+
+describe('the print chord', () => {
+  it('still focuses the search after the key guard has refused the engine', async () => {
+    reads = 'succeed';
+    render();
+    await settle();
+
+    // Set the platform explicitly because the guard reads it on each event.
+    Object.defineProperty(navigator, 'platform', { value: 'Win32', configurable: true });
+    const disposeGuard = installNativeKeyGuard();
+    // Run the scheduled focus callback synchronously in this test.
+    vi.stubGlobal('requestAnimationFrame', (run: FrameRequestCallback) => {
+      run(0);
+      return 0;
+    });
+
+    try {
+      const search = container.querySelector<HTMLInputElement>('input[placeholder="SearchPlaceholder"]');
+      expect(search).not.toBeNull();
+
+      // Dispatch inside the tree to exercise window capture before the workspace listener.
+      const press = new KeyboardEvent('keydown', {
+        key: 'p',
+        code: 'KeyP',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      act(() => {
+        container.dispatchEvent(press);
+      });
+
+      expect(press.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(search);
+    } finally {
+      vi.unstubAllGlobals();
+      disposeGuard();
+    }
   });
 });
 

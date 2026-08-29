@@ -161,6 +161,25 @@ export function uniqueName(base: string, taken: readonly string[]): string {
 }
 
 /**
+ * Checks for edited presets or a changed deck assignment, including invalid drafts that cannot yet
+ * be saved.
+ */
+export function isDirty({
+  drafts,
+  deckId,
+  selectedKey,
+  originalPresetId,
+}: {
+  drafts: readonly PresetDraft[]
+  deckId: string | null
+  selectedKey: string | null
+  originalPresetId: string | null
+}): boolean {
+  if (drafts.some((draft) => draft.dirty)) return true
+  return deckId !== null && selectedKey !== null && selectedKey !== originalPresetId
+}
+
+/**
  * Whether Save should be offered: something was edited, or the deck was pointed at a different
  * preset, and the steps box currently parses.
  */
@@ -177,9 +196,7 @@ export function canSave({
   selectedKey: string | null
   originalPresetId: string | null
 }): boolean {
-  if (!stepsValid) return false
-  if (drafts.some((draft) => draft.dirty)) return true
-  return deckId !== null && selectedKey !== null && selectedKey !== originalPresetId
+  return stepsValid && isDirty({ drafts, deckId, selectedKey, originalPresetId })
 }
 
 /** Percent for the slider; the wire keeps the fraction. */

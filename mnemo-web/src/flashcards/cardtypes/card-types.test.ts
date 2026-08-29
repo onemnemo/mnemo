@@ -7,6 +7,7 @@ import {
   addLayout,
   canSave,
   draftFromSummary,
+  isDirty,
   marker,
   moveField,
   newDraft,
@@ -178,6 +179,14 @@ describe("card type drafts", () => {
 
     // One type nobody can save blocks the whole dialog, because Save writes all of them.
     expect(canSave([edited, { ...stored, name: "" }])).toBe(false)
+  })
+
+  // Invalid drafts can still contain unsaved work.
+  it("calls a set of types dirty as soon as one of them is, sound or not", () => {
+    const broken = { ...draftFromSummary(summary()), name: "", dirty: true }
+
+    expect(isDirty([broken])).toBe(true)
+    expect(canSave([broken])).toBe(false)
   })
 
   it("names a new type something no other type is called", () => {
