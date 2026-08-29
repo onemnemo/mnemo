@@ -500,6 +500,7 @@
     "CrashTitle": "Something went wrong",
     "CrashHint": "Mnemo hit an error it could not recover from. Reloading usually fixes it.",
     "CrashReload": "Reload",
+    "CrashReturnToOverview": "Return to overview",
     "CrashShowDetails": "Show details",
     "CrashHideDetails": "Hide details",
     "UnhandledFaultTitle": "Something went wrong",
