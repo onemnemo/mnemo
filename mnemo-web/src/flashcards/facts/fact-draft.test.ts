@@ -41,6 +41,17 @@ const cloze = cardType({
   generateFrom: "text",
 })
 
+const vocabulary = cardType({
+  id: "vocabulary",
+  name: "Vocabulary",
+  fields: [field("word", "Word"), field("meaning", "Meaning"), field("example", "Example")],
+  sortFieldId: "word",
+  layouts: [
+    { id: "recognition", name: "Recognition", front: "{{Word}}", back: "{{Meaning}}", requires: null },
+    { id: "in-context", name: "In context", front: "{{Example}}", back: "{{Word}}", requires: "example" },
+  ],
+})
+
 function draft(values: Record<string, string>, media: Record<string, DraftAttachment[]> = {}): FactDraft {
   return { deckId: "deck-1", typeId: "basic", values, media, tags: [] }
 }
@@ -134,5 +145,20 @@ describe("droppedCardCount", () => {
     const after = { type: basic, draft: retypeDraft(before.draft, cloze, basic) }
 
     expect(droppedCardCount(before, after)).toBe(2)
+  })
+
+  it("counts the card a removed deletion stops making", () => {
+    const before = { type: cloze, draft: draft({ text: "{{c1::a}} and {{c2::b}}", extra: "" }) }
+    const after = { type: cloze, draft: draft({ text: "{{c1::a}} and b", extra: "" }) }
+
+    expect(droppedCardCount(before, after)).toBe(1)
+  })
+
+  it("counts the card a cleared field stops making", () => {
+    const filled = { word: "Haus", meaning: "house", example: "Das Haus ist alt." }
+    const before = { type: vocabulary, draft: draft(filled) }
+    const after = { type: vocabulary, draft: draft({ ...filled, example: "" }) }
+
+    expect(droppedCardCount(before, after)).toBe(1)
   })
 })

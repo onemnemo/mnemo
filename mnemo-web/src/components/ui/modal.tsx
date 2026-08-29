@@ -3,6 +3,7 @@ import { createPortal } from "react-dom"
 
 import { AppIcon } from "@/components/icon/AppIcon"
 import { cn } from "@/lib/utils"
+import { Z_LAYERS } from "@/lib/z-layers"
 
 interface ModalProps {
   open: boolean
@@ -76,7 +77,10 @@ export function Modal({
   if (!open) return null
 
   return createPortal(
-    <div className="animate-fade-in fixed inset-0 z-[140] flex items-center justify-center p-8">
+    <div
+      className="animate-fade-in fixed inset-0 flex items-center justify-center p-8"
+      style={{ zIndex: Z_LAYERS.modal }}
+    >
       {/* A wash rather than a heavy scrim: the app behind stays legible, which is the point of a
           dialog you opened from a specific tile. */}
       <div className="absolute inset-0 bg-ink/25 backdrop-blur-[2px]" onClick={onClose} />

@@ -11,7 +11,7 @@
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { CardDto } from "@/api/types"
 
@@ -29,12 +29,32 @@ vi.mock("@/components/icon/AppIcon", () => ({
   AppIcon: ({ name }: { name: string }) => <span data-icon={name} />,
 }))
 
+// jsdom does not load built CSS. This fixture checks use of the utility class, not the production
+// stylesheet.
+beforeAll(() => {
+  document.head.insertAdjacentHTML("beforeend", "<style>.whitespace-pre-wrap { white-space: pre-wrap; }</style>")
+})
+
 const card: CardDto = {
   id: "card-1",
   deckId: "deck-1",
   type: "cloze",
   front: "The capital of Japan is […]",
   back: "The capital of Japan is Tokyo",
+  tags: [],
+  state: "active",
+  isFlagged: false,
+  attachments: [],
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-01-01T00:00:00Z",
+}
+
+const multilineCard: CardDto = {
+  id: "card-2",
+  deckId: "deck-1",
+  type: "classic",
+  front: "Top left\nTop right\nBottom left\nBottom right",
+  back: "Right atrium\nRight ventricle\nLeft atrium\nLeft ventricle",
   tags: [],
   state: "active",
   isFlagged: false,
@@ -57,11 +77,11 @@ afterEach(() => {
   host.remove()
 })
 
-function render(revealed: boolean): void {
+function render(revealed: boolean, cardToRender: CardDto = card): void {
   act(() =>
     root.render(
       <CardSurface
-        card={card}
+        card={cardToRender}
         revealed={revealed}
         canUndo={false}
         onReveal={() => {}}
@@ -96,5 +116,15 @@ describe("CardSurface", () => {
 
     // The prompt keeps its own placeholder, so one is expected and two is the bug.
     expect(text().split("[…]").length - 1).toBe(1)
+  })
+
+  it("keeps single line breaks in the prompt and the answer instead of collapsing them into one run-on line", () => {
+    render(true, multilineCard)
+
+    const prose = host.querySelectorAll<HTMLElement>(".chat-prose")
+    expect(prose).toHaveLength(2)
+    for (const el of prose) {
+      expect(getComputedStyle(el).whiteSpace).toBe("pre-wrap")
+    }
   })
 })

@@ -34,7 +34,7 @@ export function CardTypeOverlay() {
 function CardTypeManagerShell() {
   return createPortal(
     <div className="fixed inset-0 z-50 bg-black/50">
-      <div className="fixed left-1/2 top-1/2 z-50 flex h-[86vh] w-[880px] max-w-[calc(100vw-3rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-line-soft bg-canvas shadow-pop">
+      <div className="fixed left-1/2 top-1/2 z-50 flex max-h-[86vh] w-[880px] max-w-[calc(100vw-3rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-line-soft bg-canvas shadow-pop">
         <div className="flex items-center gap-3.5 border-b border-line-soft px-5 py-3.5">
           <Skeleton className="h-4 w-44" />
         </div>

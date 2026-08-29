@@ -81,7 +81,7 @@ export function CardSurface({
 
       <div style={proseSize}>
         <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
-          <div className="chat-prose min-w-0 flex-[1_1_17rem]" data-selectable>
+          <div className="chat-prose min-w-0 flex-[1_1_17rem] whitespace-pre-wrap" data-selectable>
             <p>
               <MathText>{promptText(card)}</MathText>
             </p>
@@ -93,7 +93,7 @@ export function CardSurface({
           <>
             <div className="my-6 h-px bg-line-soft" />
             <div className="animate-rise flex flex-wrap items-start gap-x-6 gap-y-4">
-              <div className="chat-prose min-w-0 flex-[1_1_17rem]" data-selectable>
+              <div className="chat-prose min-w-0 flex-[1_1_17rem] whitespace-pre-wrap" data-selectable>
                 {/* Paragraphs, not one block: an answer can carry more than the answer itself,
                     and the blank line between them is the only signal that survives typing. */}
                 {answerText(card)
