@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Host.Flashcards;
@@ -160,6 +161,56 @@ public sealed class StudySessionRegistryTests
         registry.Add(new FakeSession("deck-a"), "Deck A", FlashcardSessionScope.Due, FlashcardAutoReveal.Off, now);
 
         Assert.Empty(registry.TakeExpired(now + TimeSpan.FromMinutes(1)));
+    }
+
+    [Fact]
+    public void TakeAllRemovesEverySessionHoweverRecentlyItWasTouched()
+    {
+        var registry = new StudySessionRegistry();
+        var started = DateTimeOffset.UtcNow;
+        var idle = registry.Add(new FakeSession("deck-a"), "Deck A", FlashcardSessionScope.Due, FlashcardAutoReveal.Off, started);
+        var busy = registry.Add(new FakeSession("deck-b"), "Deck B", FlashcardSessionScope.Due, FlashcardAutoReveal.Off, started);
+        busy.Touch(started + StudySessionRegistry.IdleTimeout);
+
+        var taken = registry.TakeAll();
+
+        Assert.Equal(
+            new[] { idle.Id, busy.Id }.OrderBy(id => id, StringComparer.Ordinal),
+            taken.Select(e => e.Id).OrderBy(id => id, StringComparer.Ordinal));
+        Assert.Null(registry.Get(idle.Id, started));
+        Assert.Null(registry.Get(busy.Id, started));
+    }
+
+    [Fact]
+    public async Task TakeAllHandsBackEachSessionOnlyOnce()
+    {
+        var registry = new StudySessionRegistry();
+        var now = DateTimeOffset.UtcNow;
+        var ids = Enumerable.Range(0, 60)
+            .Select(i => registry
+                .Add(new FakeSession($"deck-{i}"), $"Deck {i}", FlashcardSessionScope.Due, FlashcardAutoReveal.Off, now)
+                .Id)
+            .ToList();
+
+        // Shutdown and an explicit end request may remove the same session. Only one may record
+        // it.
+        var reported = new ConcurrentBag<string>();
+        var flushes = Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
+        {
+            foreach (var entry in registry.TakeAll())
+                reported.Add(entry.Id);
+        }));
+        var ends = ids.Select(id => Task.Run(() =>
+        {
+            if (registry.Remove(id) is { } entry)
+                reported.Add(entry.Id);
+        }));
+
+        await Task.WhenAll(flushes.Concat(ends));
+
+        Assert.Equal(
+            ids.OrderBy(id => id, StringComparer.Ordinal),
+            reported.OrderBy(id => id, StringComparer.Ordinal));
     }
 
     [Fact]

@@ -243,6 +243,8 @@ public static class HostComposition
 
         // Holds live study sessions, which outlive any single request.
         services.AddSingleton<Flashcards.StudySessionRegistry>();
+        // Record sessions that remain open after the client shutdown handshake.
+        services.AddHostedService<Flashcards.StudySessionFlush>();
         services.AddSingleton<IMnemoPackageService, MnemoPackageService>();
         services.AddSingleton<IMnemoPayloadHandler, NotesMnemoPayloadHandler>();
         services.AddSingleton<IMnemoPayloadHandler, SettingsMnemoPayloadHandler>();

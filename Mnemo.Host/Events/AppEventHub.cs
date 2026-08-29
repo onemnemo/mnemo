@@ -15,13 +15,17 @@ public sealed class AppEventHub : IAppEventPublisher, IAppEventSource
 
     private readonly ConcurrentDictionary<Guid, Channel<AppEvent>> _subscribers = new();
 
-    public void Publish(AppEvent evt)
+    public int Publish(AppEvent evt)
     {
+        var delivered = 0;
         foreach (var channel in _subscribers.Values)
         {
             // Bounded + DropOldest, so a stuck reader never blocks the publisher.
-            channel.Writer.TryWrite(evt);
+            if (channel.Writer.TryWrite(evt))
+                delivered++;
         }
+
+        return delivered;
     }
 
     public IEventSubscription Subscribe()

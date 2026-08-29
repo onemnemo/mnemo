@@ -649,11 +649,14 @@ public sealed class UpdateCoordinatorTests
             get { lock (_lock) return [.. _statuses]; }
         }
 
-        public void Publish(AppEvent evt)
+        public int Publish(AppEvent evt)
         {
             Assert.Equal("update-status", evt.Type);
             lock (_lock)
                 _statuses.Add(Assert.IsType<UpdateStatus>(evt.Data));
+
+            // Standing in for exactly one connected client.
+            return 1;
         }
 
         /// <summary>
