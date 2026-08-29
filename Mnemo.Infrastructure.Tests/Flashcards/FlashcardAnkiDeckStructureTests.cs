@@ -187,6 +187,43 @@ public sealed class FlashcardAnkiDeckStructureTests
     }
 
     [Fact]
+    public async Task Import_OneDeckWhoseRowsWillNotBuild_KeepsTheRestAndSaysSo()
+    {
+        var apkg = await AnkiPackageFixture.WriteAsync(
+            AnkiFixtureLayout.Legacy,
+            new[]
+            {
+                new AnkiFixtureCard("Good", "keep me", "fine"),
+                new AnkiFixtureCard("Bad", "<img src=\"boom.png\">", "boom"),
+            },
+            new Dictionary<string, byte[]> { ["boom.png"] = new byte[] { 1, 2, 3, 4 } });
+
+        try
+        {
+            await using var h = new FlashcardStoreHarness();
+            await h.Store.InitializeAsync();
+            var library = NewLibrary(h);
+            var cardService = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+            var adapter = NewAdapter(h, library, cardService, new FailingImageAssetService());
+
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+
+            // Row-building failures must remain within the affected deck so earlier imports can be
+            // reported as successful.
+            Assert.True(result.Success, result.ErrorMessage);
+            Assert.Equal(1, result.ProcessedCounts["decks"]);
+            Assert.Contains(result.Warnings, w => w.Key == "AnkiDeckImportFailed" && w.Params["deckName"] == "Bad");
+
+            var deck = Assert.Single(await library.ListDecksAsync());
+            Assert.Equal("Good", deck.Name);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
     public async Task Import_NoteTypeWithMoreFieldsThanACardHas_WarnsOncePerNoteType()
     {
         var apkg = await AnkiPackageFixture.WriteAsync(
@@ -387,13 +424,28 @@ public sealed class FlashcardAnkiDeckStructureTests
     private static FlashcardsAnkiFormatAdapter NewAdapter(
         FlashcardStoreHarness h,
         FlashcardLibraryService library,
-        IFlashcardCardService cardSvc) =>
+        IFlashcardCardService cardSvc,
+        IImageAssetService? images = null) =>
         new(library, cardSvc, h.FactService,
             new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock),
-            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()));
+            new FlashcardReviewHistoryService(h.Store, h.Reviews),
+            images ?? new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()));
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
         new(h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
+
+    /// <summary>
+    /// Injects an exception during deck row construction. Normal image storage failures use the
+    /// result contract.
+    /// </summary>
+    private sealed class FailingImageAssetService : IImageAssetService
+    {
+        public Task<Result<string>> ImportAndCopyAsync(string sourcePath, string blockId, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("this picture cannot be stored");
+
+        public Task<Result> DeleteStoredFileAsync(string absolutePath, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result.Success());
+    }
 
     /// <summary>
     /// Refuses one deck's worth of cards so a package can be partly broken. A real package fails the
