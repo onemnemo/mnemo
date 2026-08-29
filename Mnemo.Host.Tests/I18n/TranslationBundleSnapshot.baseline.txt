@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 176a47fa58782eb00096949d2de7d22ce14002496a968d084f90acab25ef30d7
+sha256 837aeb498f5483e1e3bae3eb1618770a890e78a972ed686bef0cddd58238840c
 namespaces 38
-keys 2118
+keys 2128
   App 10
   Chat 132
   Common 86
@@ -13,19 +13,19 @@ keys 2118
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 385
+  Flashcards 392
   GlobalSearch 18
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 194
+  Notes 196
   NotesEditor 168
   Onboarding 55
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 279
+  Settings 280
   Sidebar 14
   StudyGoals 11
   Topbar 28
@@ -46,9 +46,9 @@ keys 2118
   WidgetToday 9
 
 culture de
-sha256 ee55db5065373b7340964e8e67b88b2ef3fd58d40a1968c86b5d9db26171c36e
+sha256 2ee16b7bf71f1ab1a14279aee69c29c2630c9ff6210bebf0c3d43d1bc279fac4
 namespaces 38
-keys 2118
+keys 2128
   App 10
   Chat 132
   Common 86
@@ -56,19 +56,19 @@ keys 2118
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 385
+  Flashcards 392
   GlobalSearch 18
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 194
+  Notes 196
   NotesEditor 168
   Onboarding 55
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 279
+  Settings 280
   Sidebar 14
   StudyGoals 11
   Topbar 28
@@ -89,9 +89,9 @@ keys 2118
   WidgetToday 9
 
 culture es
-sha256 f6c0225675c516f025a98d3c11c5cd352571b0c863ba40d7d01389303e798915
+sha256 1a01d0885dcb90005048807f85de32f8c4d73e174b814f8ca74b77272c6d63e8
 namespaces 38
-keys 2118
+keys 2128
   App 10
   Chat 132
   Common 86
@@ -99,19 +99,19 @@ keys 2118
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 385
+  Flashcards 392
   GlobalSearch 18
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 194
+  Notes 196
   NotesEditor 168
   Onboarding 55
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 279
+  Settings 280
   Sidebar 14
   StudyGoals 11
   Topbar 28
@@ -132,9 +132,9 @@ keys 2118
   WidgetToday 9
 
 culture ja
-sha256 a959ae224f2b45d898950ffaa7d4c53f3cb4519eaf6972ee25f36004591dc654
+sha256 3526b7baaf3d0dbde2ef148538a89018a9fca4b2ef01ba6571d103480fb4e664
 namespaces 38
-keys 2118
+keys 2128
   App 10
   Chat 132
   Common 86
@@ -142,19 +142,19 @@ keys 2118
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 385
+  Flashcards 392
   GlobalSearch 18
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 194
+  Notes 196
   NotesEditor 168
   Onboarding 55
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 279
+  Settings 280
   Sidebar 14
   StudyGoals 11
   Topbar 28
@@ -175,9 +175,9 @@ keys 2118
   WidgetToday 9
 
 culture nb
-sha256 d987dd40aaa3fcdb9b7b256ae8dc8a683ade0bec301c8084c46a463297571adf
+sha256 1dbcac4b271a9e55beb02cd96cb916974a31dba44a53446e5a0f7a0ba35778eb
 namespaces 38
-keys 2118
+keys 2128
   App 10
   Chat 132
   Common 86
@@ -185,19 +185,19 @@ keys 2118
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 385
+  Flashcards 392
   GlobalSearch 18
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 194
+  Notes 196
   NotesEditor 168
   Onboarding 55
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 279
+  Settings 280
   Sidebar 14
   StudyGoals 11
   Topbar 28

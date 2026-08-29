@@ -6,7 +6,14 @@ import { Segmented } from "@/flashcards/transfer/components/Segmented"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
-import { fileNoteText, formatFileSize, importExtensions, MAX_FILES, type QueuedFile } from "../transfer"
+import {
+  fileNoteText,
+  formatFileSize,
+  importExtensions,
+  MAX_FILES,
+  replaceNeedsConfirmation,
+  type QueuedFile,
+} from "../transfer"
 
 const CONFLICT_OPTIONS: { value: ConflictPolicy; labelKey: string; captionKey: string }[] = [
   { value: "KeepBoth", labelKey: "TransferConflictKeepBoth", captionKey: "TransferConflictKeepBothCaption" },
@@ -22,9 +29,11 @@ export function MindmapImportPanel({
   conflict,
   busy,
   ready,
+  replaceConfirmed,
   onAddFiles,
   onRemove,
   onConflictChange,
+  onReplaceConfirmedChange,
 }: {
   queue: QueuedFile[]
   formats: TransferFormatDto[]
@@ -34,9 +43,14 @@ export function MindmapImportPanel({
   busy: boolean
   /** False until the format list lands; picking before then would refuse every file. */
   ready: boolean
+  /**
+   * Whether replacement has been explicitly confirmed.
+   */
+  replaceConfirmed: boolean
   onAddFiles: (files: File[]) => void
   onRemove: (key: string) => void
   onConflictChange: (policy: ConflictPolicy) => void
+  onReplaceConfirmedChange: (next: boolean) => void
 }) {
   const t = useT()
   const mm = (key: string, params?: Record<string, string | number>) => t("Mindmap", key, params)
@@ -143,6 +157,23 @@ export function MindmapImportPanel({
         <p className="text-[11.5px] text-ink-3">
           {common(CONFLICT_OPTIONS.find((option) => option.value === conflict)?.captionKey ?? "")}
         </p>
+        {replaceNeedsConfirmation(queue, conflict) ? (
+          <label className="flex items-start gap-2 rounded-md border border-danger bg-danger-wash px-2.5 py-2">
+            <input
+              type="checkbox"
+              checked={replaceConfirmed}
+              disabled={busy}
+              onChange={(event) => onReplaceConfirmedChange(event.target.checked)}
+              className="mt-0.5 size-3.5 shrink-0 accent-danger"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] font-medium text-danger">
+                {common("TransferReplaceConfirmTitle")}
+              </span>
+              <span className="block text-[11.5px] text-ink-3">{common("TransferReplaceConfirmCheckbox")}</span>
+            </span>
+          </label>
+        ) : null}
       </div>
     </div>
   )

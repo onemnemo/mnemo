@@ -115,6 +115,9 @@ public sealed class HeadlessThemeServiceTests
             return Task.CompletedTask;
         }
 
+        public Task<bool> ExistsAsync(string key) =>
+            Task.FromResult(_values.TryGetValue(key, out var value) && value is not null);
+
         public string? Read(string key) => _values.TryGetValue(key, out var value) ? value as string : null;
     }
 }

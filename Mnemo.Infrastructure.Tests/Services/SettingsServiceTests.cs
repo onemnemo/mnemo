@@ -65,6 +65,60 @@ public sealed class SettingsServiceTests
         Assert.Equal(new[] { "App.Theme" }, raised);
     }
 
+    [Fact]
+    public async Task An_absent_key_does_not_exist()
+    {
+        var settings = new SettingsService(new InMemoryStorageProvider());
+
+        Assert.False(await settings.ExistsAsync("Updates.Channel"));
+    }
+
+    [Fact]
+    public async Task A_written_key_exists()
+    {
+        var settings = new SettingsService(new InMemoryStorageProvider());
+
+        await settings.SetAsync("Updates.Channel", "beta");
+
+        Assert.True(await settings.ExistsAsync("Updates.Channel"));
+    }
+
+    /// <summary>
+    /// A stored null must be distinguishable from a missing setting.
+    /// </summary>
+    [Fact]
+    public async Task A_key_written_as_null_does_not_exist()
+    {
+        var settings = new SettingsService(new InMemoryStorageProvider());
+
+        await settings.SetAsync<string?>("Updates.Channel", null);
+
+        Assert.False(await settings.ExistsAsync("Updates.Channel"));
+        Assert.Null(await settings.GetAsync<string?>("Updates.Channel"));
+    }
+
+    /// <summary>The branch a real first launch takes, with nothing in the cache yet.</summary>
+    [Fact]
+    public async Task A_value_only_in_storage_exists_before_anything_reads_it()
+    {
+        var storage = new InMemoryStorageProvider();
+        storage.Seed("Updates.Channel", "\"nightly\"");
+
+        Assert.True(await new SettingsService(storage).ExistsAsync("Updates.Channel"));
+    }
+
+    /// <summary>
+    /// A failed read must not authorize overwriting an existing setting with a default.
+    /// </summary>
+    [Fact]
+    public async Task A_key_that_cannot_be_read_is_not_reported_as_absent()
+    {
+        var storage = new InMemoryStorageProvider();
+        storage.Seed("Updates.Channel", "{ not valid json");
+
+        Assert.True(await new SettingsService(storage).ExistsAsync("Updates.Channel"));
+    }
+
     /// <summary>Storage that accepts nothing, the way a locked or broken database behaves.</summary>
     private sealed class FailingStorageProvider : IStorageProvider
     {

@@ -308,6 +308,7 @@
     "UpdateDownloadingFormat": "Wird heruntergeladen, {0}%.",
     "UpdateReadyToInstall": "Heruntergeladen. Starten Sie neu, um die Aktualisierung abzuschließen.",
     "UpdateCheckFailed": "Nach Updates konnte nicht gesucht werden.",
+    "UpdateApplyFailed": "Das Update konnte nicht installiert werden.",
     "UpdateManualDownloadHint": "Diese Version kann sich nicht selbst aktualisieren. Laden Sie die neue Version von GitHub herunter.",
     "UpdateChannelCatchUpNotice": "Sie verwenden derzeit eine neuere Beta-Version. Mnemo wechselt zu Stable, sobald eine stabile Version Ihre aktuelle Version erreicht.",
     "ReleaseChannel": "Update-Kanal",

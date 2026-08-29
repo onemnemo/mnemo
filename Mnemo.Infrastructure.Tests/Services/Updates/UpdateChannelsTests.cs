@@ -145,4 +145,42 @@ public class UpdateChannelsTests
     [InlineData("Beta", "win-x64-beta")]
     public void FeedName_NormalizesTheChannelFirst(string channel, string expected) =>
         Assert.Equal(expected, UpdateChannels.FeedName("win-x64", channel));
+
+    /// <summary>
+    /// Converts packaged feed names into stored channel tokens.
+    /// </summary>
+    [Theory]
+    [InlineData("win-x64-stable", UpdateChannels.Stable)]
+    [InlineData("osx-arm64-nightly", UpdateChannels.Nightly)]
+    [InlineData("linux-x64-beta", UpdateChannels.Beta)]
+    [InlineData("WIN-X64-NIGHTLY", UpdateChannels.Nightly)]
+    [InlineData("nightly", UpdateChannels.Nightly)]
+    [InlineData("  win-x64-stable  ", UpdateChannels.Stable)]
+    public void ChannelFromFeedName_ReadsTheTokenOutOfAFeedName(string feedName, string expected) =>
+        Assert.Equal(expected, UpdateChannels.ChannelFromFeedName(feedName));
+
+    /// <summary>
+    /// Unknown feed names must remain unset. Defaulting them to Stable would prevent later channel
+    /// detection.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("win-x64-")]
+    [InlineData("win-x64-experimental")]
+    [InlineData("win-x64-notnightly")]
+    [InlineData("stable-ish")]
+    public void ChannelFromFeedName_AnswersNothingForAnythingElse(string? feedName) =>
+        Assert.Null(UpdateChannels.ChannelFromFeedName(feedName));
+
+    [Theory]
+    [InlineData("win-x64")]
+    [InlineData("osx-arm64")]
+    [InlineData("linux-x64")]
+    public void FeedNameAndChannelFromFeedNameRoundTrip(string rid)
+    {
+        foreach (var channel in UpdateChannels.All)
+            Assert.Equal(channel, UpdateChannels.ChannelFromFeedName(UpdateChannels.FeedName(rid, channel)));
+    }
 }

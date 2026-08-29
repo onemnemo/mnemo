@@ -10,6 +10,9 @@ import { act, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { ApiError } from "@/api/client"
+import type { ConfirmOptions } from "@/stores/dialog"
+
 import { CardTypeOverlay } from "./CardTypeOverlay"
 import { useCardTypeManager } from "./store"
 
@@ -24,6 +27,8 @@ const mocks = vi.hoisted(() => ({
   saveCardType: vi.fn(async (_body: unknown) => ({ id: "vocab" })),
   deleteCardType: vi.fn(async (_typeId: string) => {}),
   refresh: vi.fn(),
+  confirm: vi.fn(async (_options: ConfirmOptions) => false),
+  warn: vi.fn(),
 }))
 
 const vocabulary = {
@@ -35,30 +40,79 @@ const vocabulary = {
     { id: "meaning", name: "Meaning", hint: null },
   ],
   sortFieldId: "word",
-  layouts: [{ id: "recognition", name: "Recognition", front: "{{Word}}", back: "{{Meaning}}", requires: null }],
+  layouts: [
+    { id: "recognition", name: "Recognition", front: "{{Word}}", back: "{{Meaning}}", requires: null },
+    { id: "recall", name: "Recall", front: "{{Meaning}}", back: "{{Word}}", requires: null },
+  ],
   generator: null,
   generateFrom: null,
   createdAt: "2026-01-01T00:00:00+00:00",
   updatedAt: "2026-01-01T00:00:00+00:00",
 }
 
+const grammar = {
+  ...vocabulary,
+  id: "grammar",
+  name: "Grammar",
+  fields: [
+    { id: "rule", name: "Rule", hint: null },
+    { id: "sample", name: "Sample", hint: null },
+  ],
+  sortFieldId: "rule",
+  layouts: [
+    { id: "state", name: "State", front: "{{Rule}}", back: "{{Sample}}", requires: null },
+    { id: "spot", name: "Spot", front: "{{Sample}}", back: "{{Rule}}", requires: null },
+  ],
+}
+
+const idioms = {
+  ...vocabulary,
+  id: "idioms",
+  name: "Idioms",
+  // The row's Delete is offered only for a type the app does not ship and nothing live is using.
+  isBuiltIn: false,
+  fields: [
+    { id: "phrase", name: "Phrase", hint: null },
+    { id: "sense", name: "Sense", hint: null },
+  ],
+  sortFieldId: "phrase",
+  layouts: [
+    { id: "read", name: "Read", front: "{{Phrase}}", back: "{{Sense}}", requires: null },
+    { id: "say", name: "Say", front: "{{Sense}}", back: "{{Phrase}}", requires: null },
+  ],
+}
+
+// The manager initially selects the first type. Idioms has no material.
 vi.mock("../facts/api", () => ({
-  useCardTypesQuery: () => ({ data: [{ type: vocabulary, factCount: 3 }], isError: false }),
+  useCardTypesQuery: () => ({
+    data: [
+      { type: vocabulary, factCount: 3 },
+      { type: grammar, factCount: 5 },
+      { type: idioms, factCount: 0 },
+    ],
+    isError: false,
+  }),
   useRefreshAfterFactWrite: () => mocks.refresh,
   saveCardType: mocks.saveCardType,
   deleteCardType: mocks.deleteCardType,
 }))
 
+// Include parameters in translated output so assertions can inspect names and counts.
 vi.mock("@/i18n/useT", () => ({
-  useT: () => (_ns: string, key: string) => key,
+  useT: () => (_ns: string, key: string, params?: Record<string, string | number>) =>
+    params
+      ? `${key}(${Object.entries(params)
+          .map(([name, value]) => `${name}=${value}`)
+          .join(", ")})`
+      : key,
 }))
 
 vi.mock("@/stores/dialog", () => ({
-  dialog: { confirm: vi.fn(async () => false) },
+  dialog: { confirm: mocks.confirm },
 }))
 
 vi.mock("@/stores/toast", () => ({
-  toast: { warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+  toast: { warning: mocks.warn, info: vi.fn(), success: vi.fn() },
 }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -68,6 +122,9 @@ let root: Root
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Clear mock implementations so consent cannot leak between tests.
+  mocks.confirm.mockResolvedValue(false)
+  mocks.deleteCardType.mockResolvedValue(undefined)
   container = document.createElement("div")
   document.body.appendChild(container)
   root = createRoot(container)
@@ -122,6 +179,14 @@ describe("CardTypeOverlay gate", () => {
     expect(container.innerHTML).toBe("")
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
+
+  it("shows the loading shell at a bounded height, not a fixed one", () => {
+    open()
+
+    const shell = [...document.querySelectorAll("div")].find((el) => el.className.includes("86vh"))
+    expect(shell, "the loading shell is not on screen").not.toBeUndefined()
+    expect(shell!.className.split(/\s+/)).toContain("max-h-[86vh]")
+  })
 })
 
 describe("CardTypeOverlay", () => {
@@ -130,7 +195,10 @@ describe("CardTypeOverlay", () => {
     await settle()
 
     expect(inputsLabelled("CardTypesFieldNamePlaceholder").map((el) => el.value)).toEqual(["Word", "Meaning"])
-    expect(inputsLabelled("CardTypesCardNamePlaceholder").map((el) => el.value)).toEqual(["Recognition"])
+    expect(inputsLabelled("CardTypesCardNamePlaceholder").map((el) => el.value)).toEqual([
+      "Recognition",
+      "Recall",
+    ])
   })
 
   it("offers Save only once something has been edited", async () => {
@@ -160,6 +228,8 @@ describe("CardTypeOverlay", () => {
     // The field keeps its id through a rename, which is what lets the server carry the rename into
     // the templates naming it and leave every piece of material where it is.
     expect(sent.fields[1]).toMatchObject({ id: "meaning", name: "Definition" })
+    // A rename takes no card off the type, so there is nothing to consent to.
+    expect(mocks.confirm).not.toHaveBeenCalled()
   })
 
   it("adds a field to the type it is showing", async () => {
@@ -172,5 +242,148 @@ describe("CardTypeOverlay", () => {
 
     expect(inputsLabelled("CardTypesFieldNamePlaceholder")).toHaveLength(3)
     expect(saveButton()?.disabled).toBe(false)
+  })
+})
+
+function removeCardButtons(): HTMLButtonElement[] {
+  return [...document.querySelectorAll<HTMLButtonElement>('button[aria-label="CardTypesRemoveCard"]')]
+}
+
+function selectRow(index: number): void {
+  const row = [...document.querySelectorAll('div[role="option"]')][index]
+  act(() => {
+    row.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+  })
+}
+
+/**
+ * Layout removal must be confirmed for every affected type before any write begins.
+ */
+describe("CardTypeOverlay card removal guard", () => {
+  it("asks before a save that removes a card from a stored type", async () => {
+    open()
+    await settle()
+
+    act(() => removeCardButtons()[1].click())
+    await settle()
+    act(() => saveButton()?.click())
+    await settle()
+
+    expect(mocks.confirm).toHaveBeenCalledTimes(1)
+    // Use stored layout names and the live material count in the confirmation.
+    expect(mocks.confirm.mock.calls[0][0]).toMatchObject({
+      title: "CardTypesRemoveCardsTitle",
+      message: "CardTypesRemoveCardsMessage(0=Recall, 1=Vocabulary, 2=3)",
+      confirmLabel: "CardTypesRemoveCardsConfirm",
+      destructive: true,
+    })
+    expect(mocks.saveCardType).not.toHaveBeenCalled()
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+  })
+
+  it("sends the surviving cards once the removal is confirmed", async () => {
+    mocks.confirm.mockResolvedValue(true)
+    open()
+    await settle()
+
+    act(() => removeCardButtons()[1].click())
+    await settle()
+    act(() => saveButton()?.click())
+    await settle()
+
+    expect(mocks.confirm).toHaveBeenCalledTimes(1)
+    expect(mocks.saveCardType).toHaveBeenCalledTimes(1)
+    const sent = mocks.saveCardType.mock.calls[0][0] as { layouts: { id: string }[] }
+    expect(sent.layouts.map((layout) => layout.id)).toEqual(["recognition"])
+  })
+
+  it("writes nothing when a later type's removal is refused", async () => {
+    open()
+    await settle()
+
+    typeInto(inputsLabelled("CardTypesFieldNamePlaceholder")[1], "Definition")
+    await settle()
+
+    selectRow(1)
+    await settle()
+    expect(inputsLabelled("CardTypesCardNamePlaceholder").map((el) => el.value)).toEqual(["State", "Spot"])
+
+    act(() => removeCardButtons()[1].click())
+    await settle()
+
+    act(() => saveButton()?.click())
+    await settle()
+
+    expect(mocks.confirm).toHaveBeenCalledTimes(1)
+    expect(mocks.saveCardType).not.toHaveBeenCalled()
+  })
+
+  it("saves a removal from a type nothing is using without asking", async () => {
+    open()
+    await settle()
+
+    selectRow(2)
+    await settle()
+    expect(inputsLabelled("CardTypesCardNamePlaceholder").map((el) => el.value)).toEqual(["Read", "Say"])
+
+    act(() => removeCardButtons()[1].click())
+    await settle()
+
+    act(() => saveButton()?.click())
+    await settle()
+
+    // The sweep only reaches live material.
+    expect(mocks.confirm).not.toHaveBeenCalled()
+    expect(mocks.saveCardType).toHaveBeenCalledTimes(1)
+  })
+})
+
+function rightClick(target: Element): void {
+  act(() => {
+    target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }))
+  })
+}
+
+function clickMenuItem(label: string): void {
+  const item = [...document.querySelectorAll("[role='menuitem']")].find((el) => el.textContent === label)
+  expect(item, `no ${label} row in the menu`).not.toBeUndefined()
+  act(() => (item as HTMLElement).click())
+}
+
+/**
+ * Live and trashed usage share one error code, which the client translates.
+ */
+describe("CardTypeOverlay delete refusal", () => {
+  it("says the refusal in the reader's language when the server names the code for it", async () => {
+    mocks.confirm.mockResolvedValue(true)
+    mocks.deleteCardType.mockRejectedValue(
+      new ApiError("This card type still holds 2 pieces of material in the trash.", 409, "card_type_in_use"),
+    )
+    open()
+    await settle()
+
+    rightClick([...document.querySelectorAll('div[role="option"]')][2])
+    clickMenuItem("Delete")
+    await settle()
+
+    expect(mocks.warn).toHaveBeenCalledWith("CardTypesDeleteBlockedTitle", {
+      description: "CardTypesDeleteBlockedMessage",
+    })
+    expect([...document.querySelectorAll('div[role="option"]')]).toHaveLength(3)
+  })
+
+  it("shows what the server said when the failure is not one it has wording for", async () => {
+    mocks.confirm.mockResolvedValue(true)
+    mocks.deleteCardType.mockRejectedValue(new Error("the collection is locked"))
+    open()
+    await settle()
+
+    rightClick([...document.querySelectorAll('div[role="option"]')][2])
+    clickMenuItem("Delete")
+    await settle()
+
+    expect(mocks.warn).toHaveBeenCalledWith("CardTypesDeleteBlockedTitle", {
+      description: "the collection is locked",
+    })
   })
 })

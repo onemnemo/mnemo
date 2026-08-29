@@ -26,11 +26,20 @@ import { MindmapImportPanel } from "./MindmapImportPanel"
 // trick resolves to a non-file URL once this file runs under the jsdom environment, which this
 // suite needs for `document`. process.cwd() is mnemo-web for every documented way this suite runs.
 const LANGUAGES_DIR = path.resolve(process.cwd(), "..", "Mnemo.Infrastructure", "Languages")
-const NORWEGIAN_TRANSFER_WARNINGS = (
-  JSON.parse(readFileSync(path.join(LANGUAGES_DIR, "nb.json"), "utf8")) as {
-    TransferWarnings: Record<string, string>
-  }
-).TransferWarnings
+const NORWEGIAN = JSON.parse(readFileSync(path.join(LANGUAGES_DIR, "nb.json"), "utf8")) as {
+  Common: Record<string, string>
+  TransferWarnings: Record<string, string>
+}
+const NORWEGIAN_TRANSFER_WARNINGS = NORWEGIAN.TransferWarnings
+
+const READY_FILE: QueuedFile = {
+  key: "row-ready",
+  name: "Study.mnemo",
+  sizeBytes: 2048,
+  status: "ready",
+  uploadId: "u1",
+  mapCount: 1,
+}
 
 const FORMATS: TransferFormatDto[] = [
   {
@@ -83,9 +92,11 @@ describe("the mindmap import panel", () => {
         conflict="KeepBoth"
         busy={false}
         ready
+        replaceConfirmed={false}
         onAddFiles={() => {}}
         onRemove={() => {}}
         onConflictChange={() => {}}
+        onReplaceConfirmedChange={() => {}}
       />,
     )
 
@@ -93,5 +104,51 @@ describe("the mindmap import panel", () => {
     expect(expected).toBe("Hoppet over et tankekart som ikke kunne leses.")
     expect(container.textContent).toContain(expected)
     expect(container.textContent).not.toContain("MindmapDeserializeFailed")
+  })
+
+  it("asks outright before a replace, which for a map really cannot be undone", () => {
+    useI18nStore.setState({ bundle: { Common: NORWEGIAN.Common } })
+
+    mount(
+      <MindmapImportPanel
+        queue={[READY_FILE]}
+        formats={FORMATS}
+        rejected={[]}
+        conflict="Replace"
+        busy={false}
+        ready
+        replaceConfirmed={false}
+        onAddFiles={() => {}}
+        onRemove={() => {}}
+        onConflictChange={() => {}}
+        onReplaceConfirmedChange={() => {}}
+      />,
+    )
+
+    expect(container.querySelector('input[type="checkbox"]')).not.toBeNull()
+    expect(container.textContent).toContain("Å erstatte kan ikke angres")
+    expect(container.textContent).not.toContain("TransferReplaceConfirmTitle")
+  })
+
+  it("does not ask under a policy that takes nothing", () => {
+    useI18nStore.setState({ bundle: { Common: NORWEGIAN.Common } })
+
+    mount(
+      <MindmapImportPanel
+        queue={[READY_FILE]}
+        formats={FORMATS}
+        rejected={[]}
+        conflict="KeepBoth"
+        busy={false}
+        ready
+        replaceConfirmed={false}
+        onAddFiles={() => {}}
+        onRemove={() => {}}
+        onConflictChange={() => {}}
+        onReplaceConfirmedChange={() => {}}
+      />,
+    )
+
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull()
   })
 })
