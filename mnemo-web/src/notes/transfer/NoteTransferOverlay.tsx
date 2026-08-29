@@ -31,6 +31,7 @@ import {
   queuedFromUpload,
   readyNoteCount,
   readyUploadIds,
+  replaceNeedsConfirmation,
   type QueuedFile,
 } from "./transfer"
 
@@ -60,8 +61,15 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
   const [queue, setQueue] = useState<QueuedFile[]>([])
   const [rejected, setRejected] = useState<string[]>([])
   const [conflict, setConflict] = useState<ConflictPolicy>("KeepBoth")
+  const [replaceConfirmed, setReplaceConfirmed] = useState(false)
   const [exportFormat, setExportFormat] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // Consent applies only to the current queue and policy.
+  const changeConflict = (policy: ConflictPolicy) => {
+    setConflict(policy)
+    setReplaceConfirmed(false)
+  }
 
   const scope = target.scope
   const noteCount = scope?.noteIds.length ?? 0
@@ -120,6 +128,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
     }
 
     setRejected(refused)
+    if (accepted.length > 0) setReplaceConfirmed(false)
 
     for (const file of accepted) {
       if (queueRef.current.length >= MAX_FILES) break
@@ -177,6 +186,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
 
     queueRef.current = queueRef.current.filter((queued) => queued.key !== key)
     setQueue((current) => current.filter((queued) => queued.key !== key))
+    setReplaceConfirmed(false)
   }
 
   const count = readyNoteCount(queue)
@@ -251,8 +261,9 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
 
   const importing = direction === "import"
   const emptyScope = !scope || scope.noteIds.length === 0
+  const awaitingReplaceConsent = replaceNeedsConfirmation(queue, conflict) && !replaceConfirmed
   const confirmEnabled = importing
-    ? queueCanImport(queue) && !busy
+    ? queueCanImport(queue) && !busy && !awaitingReplaceConsent
     : !emptyScope && exportFormat !== null && !busy
 
   const confirm = () => void (importing ? doImport() : doExport())
@@ -332,9 +343,11 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
                 conflict={conflict}
                 busy={busy}
                 ready={formatsReady}
+                replaceConfirmed={replaceConfirmed}
                 onAddFiles={addFiles}
                 onRemove={removeFile}
-                onConflictChange={setConflict}
+                onConflictChange={changeConflict}
+                onReplaceConfirmedChange={setReplaceConfirmed}
               />
             ) : emptyScope ? (
               <p className="py-6 text-center text-body-extra-small text-text-tertiary">
