@@ -7,6 +7,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Flashcards;
+using Mnemo.Host.Trash;
 
 namespace Mnemo.Host.Notes;
 
@@ -273,7 +274,7 @@ public static class NoteTransferEndpoints
                     warnings,
                     errors));
             })
-            .RequireNotesMigrated();
+            .RequireNotesMigrated().RequireTrash();
     }
 
     private static void MapExport(IEndpointRouteBuilder endpoints)
