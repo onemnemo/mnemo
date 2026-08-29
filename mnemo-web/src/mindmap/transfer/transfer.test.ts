@@ -8,6 +8,7 @@ import {
   queuedFromUpload,
   readyMapCount,
   readyUploadIds,
+  replaceNeedsConfirmation,
   type QueuedFile,
 } from "./transfer"
 
@@ -110,5 +111,28 @@ describe("queuedFromUpload", () => {
   it("carries the preview through for a file that read cleanly", () => {
     const row = queuedFromUpload("k", upload)
     expect(row).toMatchObject({ key: "k", status: "ready", mapCount: 3, notes: undefined })
+  })
+})
+
+describe("replaceNeedsConfirmation", () => {
+  it("stays quiet under a policy that takes nothing", () => {
+    expect(replaceNeedsConfirmation([ready(1)], "KeepBoth")).toBe(false)
+    expect(replaceNeedsConfirmation([ready(1)], "Skip")).toBe(false)
+  })
+
+  it("stays quiet while no file in the queue could import", () => {
+    expect(
+      replaceNeedsConfirmation(
+        [
+          { ...ready(1), status: "uploading" },
+          { ...ready(1), status: "rejected" },
+        ],
+        "Replace",
+      ),
+    ).toBe(false)
+  })
+
+  it("asks as soon as one file is ready to replace something", () => {
+    expect(replaceNeedsConfirmation([ready(1)], "Replace")).toBe(true)
   })
 })

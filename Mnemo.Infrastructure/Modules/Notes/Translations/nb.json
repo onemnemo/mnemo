@@ -42,6 +42,8 @@
     "TransferExportTitle": "Eksporter notater",
     "TransferExportNoteTitle": "Eksporter notat",
     "TransferConflictQuestion": "Hvis et notat allerede finnes",
+    "TransferReplaceConfirmTitle": "Erstatte eksisterende notater?",
+    "TransferReplaceConfirmCheckbox": "Erstatt samsvarende notater. Ved Markdown-import beholdes det gamle innholdet i papirkurven og kan gjenopprettes som et eget notat. Ved pakkeimport overskrives det permanent.",
     "TransferNounSingular": "notat",
     "TransferNounPlural": "notater",
     "ExportNoNotesMessage": "Ingen notater er valgt for eksport.",
