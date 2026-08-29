@@ -90,3 +90,16 @@ export function readLastRoute(): string | null {
     return null
   }
 }
+
+/**
+ * Clears the remembered route and replaces the current entry with the overview. The caller
+ * controls reload so it can finish cleanup first.
+ */
+export function resetToOverview(): void {
+  try {
+    localStorage.removeItem(LAST_ROUTE_KEY)
+  } catch {
+    // Non-fatal: the hash below still overrides whatever readLastRoute would have returned.
+  }
+  window.location.replace(`#/${DEFAULT_ROUTE}`)
+}

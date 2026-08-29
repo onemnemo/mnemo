@@ -500,6 +500,7 @@
     "CrashTitle": "Es ist ein Fehler aufgetreten",
     "CrashHint": "Mnemo ist auf einen Fehler gestoßen, von dem es sich nicht erholen konnte. Ein Neuladen behebt das meist.",
     "CrashReload": "Neu laden",
+    "CrashReturnToOverview": "Zurück zur Übersicht",
     "CrashShowDetails": "Details anzeigen",
     "CrashHideDetails": "Details ausblenden",
     "UnhandledFaultTitle": "Es ist ein Fehler aufgetreten",

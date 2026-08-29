@@ -500,6 +500,7 @@
     "CrashTitle": "Noe gikk galt",
     "CrashHint": "Mnemo støtte på en feil den ikke kunne komme seg videre fra. Å laste inn på nytt løser det som regel.",
     "CrashReload": "Last inn på nytt",
+    "CrashReturnToOverview": "Tilbake til oversikten",
     "CrashShowDetails": "Vis detaljer",
     "CrashHideDetails": "Skjul detaljer",
     "UnhandledFaultTitle": "Noe gikk galt",
