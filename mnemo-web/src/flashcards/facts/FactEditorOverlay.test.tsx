@@ -12,6 +12,9 @@ import { act, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { FactDto } from "@/api/types"
+import type { ConfirmOptions } from "@/stores/dialog"
+
 import { useCardEditor } from "../editor/store"
 import { FactEditorOverlay } from "./FactEditorOverlay"
 
@@ -23,9 +26,11 @@ beforeAll(async () => {
 }, 30000)
 
 const mocks = vi.hoisted(() => ({
-  confirm: vi.fn(async () => false),
+  confirm: vi.fn(async (_options: ConfirmOptions) => false),
   saveFact: vi.fn(async () => ({})),
   refresh: vi.fn(),
+  /** What the editor finds on disk. Undefined is add mode, which is what most of this file drives. */
+  fact: undefined as FactDto | undefined,
 }))
 
 const basicType = {
@@ -44,14 +49,52 @@ const basicType = {
   updatedAt: "2026-01-01T00:00:00+00:00",
 }
 
+const vocabularyType = {
+  id: "vocabulary",
+  name: "Vocabulary",
+  isBuiltIn: true,
+  fields: [
+    { id: "word", name: "Word", hint: null },
+    { id: "meaning", name: "Meaning", hint: null },
+    { id: "example", name: "Example", hint: null },
+  ],
+  sortFieldId: "word",
+  layouts: [
+    { id: "recognition", name: "Recognition", front: "{{Word}}", back: "{{Meaning}}", requires: null },
+    { id: "in-context", name: "In context", front: "{{Example}}", back: "{{Word}}", requires: "example" },
+  ],
+  generator: null,
+  generateFrom: null,
+  createdAt: "2026-01-01T00:00:00+00:00",
+  updatedAt: "2026-01-01T00:00:00+00:00",
+}
+
+const storedFact: FactDto = {
+  id: "f1",
+  deckId: "d1",
+  typeId: "vocabulary",
+  values: { word: "Haus", meaning: "house", example: "Das Haus ist alt." },
+  media: [],
+  tags: [],
+  isFlagged: false,
+  createdAt: "2026-01-01T00:00:00+00:00",
+  updatedAt: "2026-01-01T00:00:00+00:00",
+}
+
 vi.mock("../api", () => ({
   useDecksQuery: () => ({ data: [{ id: "d1", name: "Deck 1", folderId: null }] }),
   useFoldersQuery: () => ({ data: [] }),
 }))
 
+// Basic stays first: an add form with no type of its own settles onto the head of this list.
 vi.mock("./api", () => ({
-  useCardTypesQuery: () => ({ data: [{ type: basicType, factCount: 0 }] }),
-  useFactForCardQuery: () => ({ data: undefined, isError: false }),
+  useCardTypesQuery: () => ({
+    data: [
+      { type: basicType, factCount: 0 },
+      { type: vocabularyType, factCount: 3 },
+    ],
+  }),
+  useFactForCardQuery: () => ({ data: mocks.fact, isError: false }),
   useRefreshAfterFactWrite: () => mocks.refresh,
   saveFact: mocks.saveFact,
 }))
@@ -80,6 +123,7 @@ let root: Root
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.confirm.mockResolvedValue(false)
+  mocks.fact = undefined
   container = document.createElement("div")
   document.body.appendChild(container)
   root = createRoot(container)
@@ -112,6 +156,12 @@ async function settle(): Promise<void> {
 
 function openAddEditor(): void {
   act(() => useCardEditor.getState().openAdd("d1"))
+  mount(<FactEditorOverlay />)
+}
+
+function openEditEditor(): void {
+  mocks.fact = storedFact
+  act(() => useCardEditor.getState().openEdit("d1", "c1"))
   mount(<FactEditorOverlay />)
 }
 
@@ -245,5 +295,63 @@ describe("FactEditorOverlay save rule", () => {
     await settle()
 
     expect(saveButton()?.disabled).toBe(false)
+  })
+})
+
+/** Edit mode labels its own Save, so the add form's helper does not find it. */
+function editSaveButton(): HTMLButtonElement {
+  const button = [...document.querySelectorAll("button")].find((el) => el.textContent === "Save")
+  expect(button, "the edit form's Save button is not on screen").not.toBeUndefined()
+  return button as HTMLButtonElement
+}
+
+/**
+ * Clearing Example removes the In context card without changing the card type.
+ */
+describe("FactEditorOverlay card loss guard", () => {
+  it("asks before a save that would delete a card the material already makes", async () => {
+    openEditEditor()
+    await settle()
+
+    typeInto(fields()[2], "")
+    await settle()
+    act(() => editSaveButton().click())
+    await settle()
+
+    expect(mocks.confirm).toHaveBeenCalledTimes(1)
+    // The confirmation must describe an edit, not a type change.
+    expect(mocks.confirm.mock.calls[0][0]).toMatchObject({
+      title: "CardEditorCardLossTitle",
+      destructive: true,
+    })
+    expect(mocks.saveFact).not.toHaveBeenCalled()
+    expect(useCardEditor.getState().target).not.toBeNull()
+  })
+
+  it("saves the edit once the card loss is confirmed", async () => {
+    mocks.confirm.mockResolvedValue(true)
+    openEditEditor()
+    await settle()
+
+    typeInto(fields()[2], "")
+    await settle()
+    act(() => editSaveButton().click())
+    await settle()
+
+    expect(mocks.confirm).toHaveBeenCalledTimes(1)
+    expect(mocks.saveFact).toHaveBeenCalledTimes(1)
+  })
+
+  it("saves an edit that drops no card without asking", async () => {
+    openEditEditor()
+    await settle()
+
+    typeInto(fields()[1], "a building someone lives in")
+    await settle()
+    act(() => editSaveButton().click())
+    await settle()
+
+    expect(mocks.confirm).not.toHaveBeenCalled()
+    expect(mocks.saveFact).toHaveBeenCalledTimes(1)
   })
 })
