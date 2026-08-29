@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 887dcf9e9caecc6027b5a7512c78d357a55ed042492882334a04d5e3ea6cdb52
+sha256 837aeb498f5483e1e3bae3eb1618770a890e78a972ed686bef0cddd58238840c
 namespaces 38
-keys 2125
+keys 2128
   App 10
   Chat 132
   Common 86
@@ -29,7 +29,7 @@ keys 2125
   Sidebar 14
   StudyGoals 11
   Topbar 28
-  TransferWarnings 40
+  TransferWarnings 43
   Trash 47
   UsageSummary 22
   WidgetActivity 6
@@ -46,9 +46,9 @@ keys 2125
   WidgetToday 9
 
 culture de
-sha256 676253cf71f119b0c06c33177770d5c789c4ea278ca6d478b382907ee8f68da4
+sha256 2ee16b7bf71f1ab1a14279aee69c29c2630c9ff6210bebf0c3d43d1bc279fac4
 namespaces 38
-keys 2125
+keys 2128
   App 10
   Chat 132
   Common 86
@@ -72,7 +72,7 @@ keys 2125
   Sidebar 14
   StudyGoals 11
   Topbar 28
-  TransferWarnings 40
+  TransferWarnings 43
   Trash 47
   UsageSummary 22
   WidgetActivity 6
@@ -89,9 +89,9 @@ keys 2125
   WidgetToday 9
 
 culture es
-sha256 a766c87446b045c366fdf187a87a5fc7e56ca0ad5d63206d80e6b0870226b50c
+sha256 1a01d0885dcb90005048807f85de32f8c4d73e174b814f8ca74b77272c6d63e8
 namespaces 38
-keys 2125
+keys 2128
   App 10
   Chat 132
   Common 86
@@ -115,7 +115,7 @@ keys 2125
   Sidebar 14
   StudyGoals 11
   Topbar 28
-  TransferWarnings 40
+  TransferWarnings 43
   Trash 47
   UsageSummary 22
   WidgetActivity 6
@@ -132,9 +132,9 @@ keys 2125
   WidgetToday 9
 
 culture ja
-sha256 3e4b3b257644a91cca5a2337ef201b3b43d9ec6992fe831d27bdaded90938306
+sha256 3526b7baaf3d0dbde2ef148538a89018a9fca4b2ef01ba6571d103480fb4e664
 namespaces 38
-keys 2125
+keys 2128
   App 10
   Chat 132
   Common 86
@@ -158,7 +158,7 @@ keys 2125
   Sidebar 14
   StudyGoals 11
   Topbar 28
-  TransferWarnings 40
+  TransferWarnings 43
   Trash 47
   UsageSummary 22
   WidgetActivity 6
@@ -175,9 +175,9 @@ keys 2125
   WidgetToday 9
 
 culture nb
-sha256 6756bb39a6f04471a86fcd888d2d6edba6c8b3c656b7cd6178a05614ae3b7821
+sha256 1dbcac4b271a9e55beb02cd96cb916974a31dba44a53446e5a0f7a0ba35778eb
 namespaces 38
-keys 2125
+keys 2128
   App 10
   Chat 132
   Common 86
@@ -201,7 +201,7 @@ keys 2125
   Sidebar 14
   StudyGoals 11
   Topbar 28
-  TransferWarnings 40
+  TransferWarnings 43
   Trash 47
   UsageSummary 22
   WidgetActivity 6
