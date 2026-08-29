@@ -265,8 +265,15 @@ export function problems(draft: CardTypeDraft): CardTypeProblem[] {
   return found
 }
 
+/**
+ * Whether any draft has unsaved edits, including invalid drafts.
+ */
+export function isDirty(drafts: readonly CardTypeDraft[]): boolean {
+  return drafts.some((draft) => draft.dirty)
+}
+
 export function canSave(drafts: readonly CardTypeDraft[]): boolean {
-  return drafts.some((draft) => draft.dirty) && drafts.every((draft) => problems(draft).length === 0)
+  return isDirty(drafts) && drafts.every((draft) => problems(draft).length === 0)
 }
 
 export function toSaveDto(draft: CardTypeDraft): SaveCardTypeDto {
