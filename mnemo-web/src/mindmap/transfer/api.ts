@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 
 import { apiFetch, apiSend, ApiError } from "@/api/client"
-import { downloadFromApi } from "@/api/download"
+import { exportRequest, saveServerExport, type ExportOutcome, type ExportRequest } from "@/api/export-file"
 import type {
   MindmapTransferExportDto,
   MindmapTransferImportDto,
@@ -49,11 +49,13 @@ export function runMindmapImport(body: MindmapTransferImportDto): Promise<Mindma
   })
 }
 
-/** Exports the selected maps and saves the file the server streams back. */
-export function runMindmapExport(body: MindmapTransferExportDto): Promise<void> {
-  return downloadFromApi("/mindmaps/transfer/export", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
+/** Exports the selected maps, straight to wherever the user says. */
+export function runMindmapExport(body: MindmapTransferExportDto, save: ExportRequest): Promise<ExportOutcome> {
+  return saveServerExport(save, (grant) =>
+    exportRequest("/mindmaps/transfer/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, grant }),
+    }),
+  )
 }

@@ -196,6 +196,7 @@ public static class Program
 
         app.MapEventStream();
         app.MapLifecycle();
+        app.MapExportFile();
         app.MapSettings();
         app.MapProfileAssets();
         app.MapKeybinds();
@@ -344,7 +345,7 @@ public static class Program
         WindowChrome.Configure(window, logger);
         AttachShutdownGate(window, server.App.Services);
         ExitSignals.Attach(window, logger);
-        server.App.Services.GetRequiredService<NativeFolderPicker>().Attach(window);
+        server.App.Services.GetRequiredService<NativeFileDialogs>().Attach(window);
 
         logger.Info(CrashLog.Category, $"Load({url})");
         window.Load(url);

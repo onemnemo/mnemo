@@ -62,17 +62,19 @@ public static class NotePdfEndpoints
                 .ConfigureAwait(false);
         }).RequireNotesMigrated();
 
-        // The same render, written to a folder on this machine instead of returned.
+        // The same render, written where the user said instead of returned.
         //
         // Its own route rather than a flag on export, because the two answer differently: one hands
         // back a PDF and lets the browser decide where it lands, the other writes the file and
-        // reports a path. A dialog that names a destination needs the second, and there is no
-        // destination to name until the host has actually chosen one.
+        // reports a path. A dialog that names a destination needs the second. Nothing here streams
+        // the render to the page first: the destination is settled before the render starts, so the
+        // bytes go straight to it.
         endpoints.MapPost("/api/notes/{id}/pdf/save", async (
             string id,
             NotePdfSaveRequestDto body,
             INoteService notes,
             INotePdfExportService pdf,
+            ExportGrants grants,
             ISettingsService settings,
             ILoggerService logger,
             CancellationToken cancellationToken) =>
@@ -81,15 +83,19 @@ public static class NotePdfEndpoints
             if (note is null)
                 return Results.NotFound(new ErrorDto("unknown_note", $"No note '{id}'."));
 
-            if (!TryResolveTarget(body, out var fullPath, out var directory, out var error))
-                return Results.BadRequest(new ErrorDto(error, "That destination cannot be written to."));
+            // Before the render rather than after it, so a destination that was never chosen costs
+            // nothing to refuse.
+            if (!grants.TryConsume(body.Grant, out var target))
+                return Results.BadRequest(new ErrorDto("unknown_grant", "That destination was not chosen, or the choice has lapsed."));
 
             var options = await BuildOptionsAsync(body.Options, note, notes).ConfigureAwait(false);
+            var pending = string.Empty;
             try
             {
                 var bytes = await pdf.GeneratePdfAsync(note, options, cancellationToken).ConfigureAwait(false);
-                Directory.CreateDirectory(directory);
-                await File.WriteAllBytesAsync(fullPath, bytes, cancellationToken).ConfigureAwait(false);
+                pending = ExportDestination.PathFor(target);
+                await File.WriteAllBytesAsync(pending, bytes, cancellationToken).ConfigureAwait(false);
+                return await ExportDestination.CommitAsync(target!, pending, settings).ConfigureAwait(false);
             }
             catch (TypstToolchainUnavailableException ex)
             {
@@ -109,62 +115,9 @@ public static class NotePdfEndpoints
             {
                 // A read-only folder, a removed drive, a file open in a reader. The user picked the
                 // place, so this is theirs to fix rather than a fault to bury in the log alone.
-                logger.Warning(LogCategory, $"Could not write a PDF to {directory}: {ex.Message}");
-                return Results.Json(
-                    new ErrorDto("write_failed", "The file could not be written to that folder."),
-                    statusCode: StatusCodes.Status409Conflict);
+                return ExportDestination.Failed(target!, pending, logger, LogCategory, ex);
             }
-
-            // Only once the write succeeded: a folder that could not be written to is not one to
-            // offer first the next time.
-            await ExportFolders.RememberAsync(settings, directory).ConfigureAwait(false);
-            return Results.Ok(new NotePdfSavedDto(fullPath));
         }).RequireNotesMigrated();
-    }
-
-    /// <summary>
-    /// Turns a requested folder and file name into one absolute path, or refuses.
-    /// </summary>
-    /// <remarks>
-    /// The security boundary of the save route. The folder is a path the caller supplies, which is
-    /// the point of the feature, so the checks are on shape rather than on a list: it must be
-    /// absolute, its parent must already exist (so a typo cannot conjure a tree), and the file name
-    /// must be a name and not a path, which is what keeps <c>..\..\</c> out of the result.
-    /// </remarks>
-    private static bool TryResolveTarget(
-        NotePdfSaveRequestDto body,
-        out string fullPath,
-        out string directory,
-        out string error)
-    {
-        fullPath = string.Empty;
-        directory = string.Empty;
-
-        var name = body.FileName?.Trim() ?? string.Empty;
-        if (name.Length == 0 || Path.GetFileName(name) != name || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-        {
-            error = "invalid_file_name";
-            return false;
-        }
-
-        var requested = body.Directory?.Trim() ?? string.Empty;
-        if (requested.Length == 0 || !Path.IsPathFullyQualified(requested))
-        {
-            error = "invalid_directory";
-            return false;
-        }
-
-        directory = Path.GetFullPath(requested);
-        var parent = Path.GetDirectoryName(directory);
-        if (!Directory.Exists(directory) && (parent is null || !Directory.Exists(parent)))
-        {
-            error = "missing_directory";
-            return false;
-        }
-
-        fullPath = Path.Combine(directory, name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? name : name + ".pdf");
-        error = string.Empty;
-        return true;
     }
 
     private static async Task<IResult> RenderAsync(

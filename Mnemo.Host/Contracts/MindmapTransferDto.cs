@@ -49,4 +49,8 @@ public sealed record MindmapTransferImportResultDto(
 /// Export body. <paramref name="MapIds"/> is always explicit: the package adapter reads an empty
 /// selection as "export every map", which is not a thing any caller here means.
 /// </summary>
-public sealed record MindmapTransferExportDto(string FormatId, IReadOnlyList<string> MapIds);
+/// <param name="Grant">
+/// The token a save chooser minted for the destination this file is going to. Omitted when there
+/// is nowhere to choose, and then the file comes back in the response instead.
+/// </param>
+public sealed record MindmapTransferExportDto(string FormatId, IReadOnlyList<string> MapIds, string? Grant = null);

@@ -145,4 +145,12 @@ public sealed record TransferImportResultDto(
 /// chosen part of it, null to let the adapter work it out. Both arrive here as a list of deck ids
 /// and only the caller knows which one the user asked for.
 /// </param>
-public sealed record TransferExportDto(string FormatId, IReadOnlyList<string> DeckIds, string? Kind = null);
+/// <param name="Grant">
+/// The token a save chooser minted for the destination this file is going to. Omitted when there
+/// is nowhere to choose, and then the file comes back in the response instead.
+/// </param>
+public sealed record TransferExportDto(
+    string FormatId,
+    IReadOnlyList<string> DeckIds,
+    string? Kind = null,
+    string? Grant = null);
