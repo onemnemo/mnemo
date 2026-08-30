@@ -1,5 +1,12 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 
+import {
+  announceExport,
+  chooseExportTarget,
+  exportSaveOptions,
+  fetchExportFolders,
+  type ChosenTarget,
+} from "@/api/export-file"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
@@ -7,13 +14,12 @@ import { Segmented } from "@/components/ui/segmented"
 import { Switch } from "@/components/ui/switch"
 import { useT } from "@/i18n/useT"
 import { isMac } from "@/keybinds/chord"
-import { fetchExportFolders, pickExportFolder, shortPath } from "@/lib/export-folders"
 import { cn } from "@/lib/utils"
 import { formatFileSize } from "@/notes/transfer/transfer"
 import { SelectControl } from "@/settings/components/controls/SelectControl"
 import { toast } from "@/stores/toast"
 
-import { exportNotePdf, fetchNotePdfPreview, saveNotePdf } from "./api"
+import { fetchNotePdfPreview, saveNotePdf } from "./api"
 import { PdfPreview, type PdfPreviewHandle } from "./components/PdfPreview"
 import {
   DEFAULT_PDF_OPTIONS,
@@ -49,13 +55,11 @@ export function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onCl
   const [busy, setBusy] = useState(false)
   const previewHandle = useRef<PdfPreviewHandle | null>(null)
 
-  // Empty until the host answers, and it stays empty where there is no window to raise a chooser
-  // on. That case is a browser tab against the dev server, where nothing on this page gets to
-  // decide where a file lands, so the destination row is hidden rather than shown broken.
-  const [folder, setFolder] = useState("")
-  const [recentFolders, setRecentFolders] = useState<string[]>([])
-  const [canChooseFolder, setCanChooseFolder] = useState(false)
-  const recentsId = useId()
+  // The destination Browse settled, held until Save spends it. Null means Save raises the chooser
+  // itself, which is also what a browser tab against the dev server always does.
+  const [chosen, setChosen] = useState<ChosenTarget | null>(null)
+  const [lastFolder, setLastFolder] = useState("")
+  const [canChoose, setCanChoose] = useState(false)
 
   const set = <K extends keyof PdfOptions>(key: K, value: PdfOptions[K]) =>
     setOptions((current) => ({ ...current, [key]: value }))
@@ -96,47 +100,49 @@ export function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onCl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [optionsKey, target.noteId])
 
+  // Fewer pages than a moment ago: widened margins, or images turned off.
+  useEffect(() => {
+    if (view > pageCount - 1) setView(Math.max(0, pageCount - 1))
+  }, [pageCount, view])
+
   useEffect(() => {
     let live = true
     fetchExportFolders()
       .then(({ available, folders }) => {
         if (!live) return
-        setCanChooseFolder(available)
-        setRecentFolders(folders)
-        setFolder(folders[0] ?? "")
+        setCanChoose(available)
+        setLastFolder(folders[0] ?? "")
       })
-      // A destination nobody can read is one nobody can offer, so the dialog falls back to the
-      // download it did before rather than putting an error where a path should be.
+      // A destination nobody can read is one nobody can offer, so the row stays hidden rather than
+      // putting an error where a path should be.
       .catch(() => undefined)
     return () => {
       live = false
     }
   }, [])
 
-  // Fewer pages than a moment ago: widened margins, or images turned off.
-  useEffect(() => {
-    if (view > pageCount - 1) setView(Math.max(0, pageCount - 1))
-  }, [pageCount, view])
-
-  const destination = canChooseFolder ? folder.trim() : ""
-  // Minus the one already in the field, or the suggestion list opens on a single row offering
-  // what the field says.
-  const otherFolders = recentFolders.filter((path) => path.toLowerCase() !== destination.toLowerCase())
-  const ready = stem.trim().length > 0 && (!canChooseFolder || destination.length > 0)
+  const ready = stem.trim().length > 0
+  // What Save will write to: the folder Browse settled on, or the one the chooser will open on.
+  const destination = chosen?.status === "chosen" ? folderOf(chosen.path) : lastFolder
 
   const doExport = async () => {
     if (busy || !ready) return
     setBusy(true)
     try {
-      if (destination) {
-        // The host writes the file, so the toast can name where it actually went instead of
-        // asserting that something was saved somewhere.
-        const path = await saveNotePdf(target.noteId, options, documentText, destination, fileName)
-        toast.success(nt("PdfExportCompleteTitle"), { description: path })
-      } else {
-        await exportNotePdf(target.noteId, options, documentText, fileName)
-        toast.success(nt("PdfExportCompleteTitle"), { description: nt("PdfExportCompleteMessage") })
+      // The host writes the file, so the toast can name where it actually went instead of
+      // asserting that something was saved somewhere.
+      const outcome = await saveNotePdf(
+        target.noteId,
+        options,
+        documentText,
+        { ...exportSaveOptions(common), fileName },
+        chosen,
+      )
+      // A dismissed chooser leaves the dialog open on the settings that were about to be used.
+      if (!announceExport(outcome, { title: nt("PdfExportCompleteTitle"), downloaded: nt("PdfExportCompleteMessage") })) {
+        return
       }
+
       onClose()
     } catch (error) {
       toast.warning(nt("PdfExportFailedTitle"), {
@@ -147,11 +153,17 @@ export function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onCl
     }
   }
 
+  // The same chooser Save raises, only earlier. Holding what it returns is what lets the footer
+  // name a destination before anything is written, and what stops Save asking a second time.
   const browse = async () => {
+    if (busy) return
     try {
-      const chosen = await pickExportFolder(nt("PdfChooseFolderTitle"), destination || undefined)
-      // Null is the chooser being dismissed, which means keep what was there.
-      if (chosen) setFolder(chosen)
+      const picked = await chooseExportTarget({ ...exportSaveOptions(common), fileName })
+      if (picked.status !== "chosen") return
+      setChosen(picked)
+      // The chooser settles the name as well as the folder, so the field follows it. Letting them
+      // disagree would put one name in front of the user and another on disk.
+      setStem(sanitizeFileStem(stemOf(picked.path)))
     } catch (error) {
       toast.warning(nt("PdfExportFailedTitle"), {
         description: error instanceof Error ? error.message : undefined,
@@ -204,7 +216,12 @@ export function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onCl
               <AppIcon name="common/file-text" size={14} className="shrink-0 text-ink-icon" />
               <input
                 value={stem}
-                onChange={(event) => setStem(sanitizeFileStem(event.target.value))}
+                onChange={(event) => {
+                  setStem(sanitizeFileStem(event.target.value))
+                  // The held destination carries the name the chooser confirmed. Once that is not
+                  // the name in the field, Save has to ask again rather than write the old one.
+                  setChosen(null)
+                }}
                 aria-label={nt("PdfFileName")}
                 spellCheck={false}
                 placeholder={fallbackStem}
@@ -214,29 +231,20 @@ export function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onCl
               <span className="shrink-0 font-mono text-[12px] text-ink-3">.pdf</span>
             </label>
 
-            {canChooseFolder && (
+            {canChoose && (
               <>
-                <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 shadow-[0_0_0_1px_var(--line)] focus-within:shadow-[0_0_0_1.5px_var(--accent)]">
+                <div
+                  className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 shadow-[0_0_0_1px_var(--line)]"
+                  title={destination}
+                >
                   <AppIcon name="common/folder" size={14} className="shrink-0 text-ink-icon" />
-                  <input
-                    value={folder}
-                    onChange={(event) => setFolder(event.target.value)}
+                  <span
+                    className="min-w-0 flex-1 truncate text-[13px] text-ink"
                     aria-label={nt("PdfDestinationFolder")}
-                    spellCheck={false}
-                    list={otherFolders.length > 0 ? recentsId : undefined}
-                    className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none"
-                  />
-                  {/* The folders used before became this list rather than a row of chips: three
-                      buttons that are only ever right once are three buttons in the way the rest
-                      of the time. */}
-                  {otherFolders.length > 0 && (
-                    <datalist id={recentsId}>
-                      {otherFolders.map((path) => (
-                        <option key={path} value={path} label={shortPath(path)} />
-                      ))}
-                    </datalist>
-                  )}
-                </label>
+                  >
+                    {destination}
+                  </span>
+                </div>
                 <Button variant="outline" className="h-9 shrink-0" disabled={busy} onClick={() => void browse()}>
                   {nt("PdfBrowse")}
                 </Button>
@@ -542,4 +550,20 @@ function Step({
       {children}
     </button>
   )
+}
+
+/** Where the separator falls in a path the chooser returned, on either platform's. */
+function lastSeparator(path: string): number {
+  return Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"))
+}
+
+/** The folder the file is going into, for the row that names it. */
+function folderOf(path: string): string {
+  const cut = lastSeparator(path)
+  return cut < 0 ? "" : path.slice(0, cut)
+}
+
+/** The name, without the extension the field spells out beside it. */
+function stemOf(path: string): string {
+  return path.slice(lastSeparator(path) + 1).replace(/\.pdf$/i, "")
 }

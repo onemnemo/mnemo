@@ -3,12 +3,12 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 fd9c25fc2e1fe6b8737e70ac90a2cefe7bc21f100ef873e698a46ae08f9518af
+sha256 424a43caf134866a6f4b61697f5b961b1449b549aec361223077cef9370e1df0
 namespaces 38
-keys 2132
+keys 2135
   App 11
   Chat 132
-  Common 86
+  Common 90
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -18,7 +18,7 @@ keys 2132
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 199
+  Notes 198
   NotesEditor 168
   Onboarding 55
   Overview 31
@@ -46,12 +46,12 @@ keys 2132
   WidgetToday 9
 
 culture de
-sha256 ed714c063fbdb4faa5da82bc3bfcab2ef1ff8a9346606db889cccfcfd8111b50
+sha256 3d4325bf4689db1f51b7b8a157167cc4f81473c1a6479decd9d7b1d00825e635
 namespaces 38
-keys 2132
+keys 2135
   App 11
   Chat 132
-  Common 86
+  Common 90
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -61,7 +61,7 @@ keys 2132
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 199
+  Notes 198
   NotesEditor 168
   Onboarding 55
   Overview 31
@@ -89,12 +89,12 @@ keys 2132
   WidgetToday 9
 
 culture es
-sha256 34a7865602c028586deadea66fb1686f46a911c88b1a92a510bfd8d16804a363
+sha256 134867c02ac67ad519ccd126d51db160eda810077830b8902cc80ab83b03216e
 namespaces 38
-keys 2132
+keys 2135
   App 11
   Chat 132
-  Common 86
+  Common 90
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -104,7 +104,7 @@ keys 2132
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 199
+  Notes 198
   NotesEditor 168
   Onboarding 55
   Overview 31
@@ -132,12 +132,12 @@ keys 2132
   WidgetToday 9
 
 culture ja
-sha256 00e42e186d8ae3dc7980793f705353ac98bb967476f45d21b9ba5c9189268254
+sha256 87f5efa9eeb2790f17c59c689628ceb7a67da4c5af6ab10a81b223a3163200fa
 namespaces 38
-keys 2132
+keys 2135
   App 11
   Chat 132
-  Common 86
+  Common 90
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -147,7 +147,7 @@ keys 2132
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 199
+  Notes 198
   NotesEditor 168
   Onboarding 55
   Overview 31
@@ -175,12 +175,12 @@ keys 2132
   WidgetToday 9
 
 culture nb
-sha256 018ad2f95564cd2be5ba26f4b22fe123cb1b39af0c8777739a839f5bff37268a
+sha256 99c448d177b72e8044fdfd5bf54906f85b60d201e7b745eb9591bf6160048cba
 namespaces 38
-keys 2132
+keys 2135
   App 11
   Chat 132
-  Common 86
+  Common 90
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -190,7 +190,7 @@ keys 2132
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 199
+  Notes 198
   NotesEditor 168
   Onboarding 55
   Overview 31

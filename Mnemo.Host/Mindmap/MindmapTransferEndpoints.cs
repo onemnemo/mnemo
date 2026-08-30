@@ -6,6 +6,8 @@ using Mnemo.Core.Enums;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.Lifecycle;
+using Mnemo.Host.Transfer;
 using Mnemo.Host.Flashcards;
 
 namespace Mnemo.Host.Mindmap;
@@ -26,6 +28,7 @@ namespace Mnemo.Host.Mindmap;
 public static class MindmapTransferEndpoints
 {
     private const string MindmapsContentType = "mindmaps";
+    private const string LogCategory = "Mindmap.Transfer";
 
     /// <summary>
     /// Files in one import batch, matching the note and flashcard limit for the same reason: the cap
@@ -61,27 +64,27 @@ public static class MindmapTransferEndpoints
             // upload dies in the framework as a generic 500 before the friendly message can fire.
             var sizeLimit = request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
             if (sizeLimit is { IsReadOnly: false })
-                sizeLimit.MaxRequestBodySize = TransferStagingStore.MaxRequestBytes;
+                sizeLimit.MaxRequestBodySize = TransferLimits.MaxRequestBytes;
 
             IFormCollection form;
             try
             {
                 form = await request
-                    .ReadFormAsync(new FormOptions { MultipartBodyLengthLimit = TransferStagingStore.MaxRequestBytes }, cancellationToken)
+                    .ReadFormAsync(new FormOptions { MultipartBodyLengthLimit = TransferLimits.MaxRequestBytes }, cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (BadHttpRequestException)
             {
                 return Results.Json(
-                    new ErrorDto("file_too_large", $"The file exceeds the {TransferStagingStore.MaxFileBytes / (1024 * 1024)} MB limit."),
+                    new ErrorDto("file_too_large", $"The file exceeds the {TransferLimits.MaxFileMegabytes} MB limit."),
                     statusCode: StatusCodes.Status413PayloadTooLarge);
             }
 
             var file = form.Files.GetFile("file") ?? form.Files.FirstOrDefault();
             if (file is null || file.Length == 0)
                 return Results.BadRequest(new ErrorDto("empty_upload", "No file was uploaded."));
-            if (file.Length > TransferStagingStore.MaxFileBytes)
-                return Results.BadRequest(new ErrorDto("file_too_large", $"The file exceeds the {TransferStagingStore.MaxFileBytes / (1024 * 1024)} MB limit."));
+            if (file.Length > TransferLimits.MaxFileBytes)
+                return Results.BadRequest(new ErrorDto("file_too_large", $"The file exceeds the {TransferLimits.MaxFileMegabytes} MB limit."));
 
             var extension = Path.GetExtension(file.FileName);
             var format = ResolveImportFormat(transfer, extension);
@@ -268,6 +271,9 @@ public static class MindmapTransferEndpoints
             MindmapTransferExportDto body,
             IImportExportCoordinator transfer,
             IMindmapService maps,
+            ExportGrants grants,
+            ISettingsService settings,
+            ILoggerService logger,
             CancellationToken cancellationToken) =>
         {
             var mapIds = (body.MapIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
@@ -288,12 +294,11 @@ public static class MindmapTransferEndpoints
                 singleTitle = summaries.Value?.FirstOrDefault(summary => summary.Id == mapIds[0])?.Title;
             }
 
-            // Swept here as well as on upload, so somebody who only ever exports still reclaims what
-            // a failed export left behind.
-            TransferStagingStore.SweepStale();
+            if (ExportDestination.Claim(body.Grant, grants, out var target) is { } refusal)
+                return refusal;
 
             var extension = format.Extensions.FirstOrDefault() ?? ".mnemo";
-            var path = TransferStagingStore.CreateExportPath(extension);
+            var path = ExportDestination.PathFor(target, extension);
             try
             {
                 var result = await transfer.ExportAsync(
@@ -309,9 +314,13 @@ public static class MindmapTransferEndpoints
 
                 if (!result.IsSuccess || result.Value is null || !result.Value.Success)
                 {
+                    ExportDestination.Discard(path);
                     return Results.BadRequest(new ErrorDto("export_failed",
                         result.ErrorMessage ?? result.Value?.ErrorMessage ?? "Export failed."));
                 }
+
+                if (target is not null)
+                    return await ExportDestination.CommitAsync(target, path, settings).ConfigureAwait(false);
 
                 // DeleteOnClose hands cleanup to the response pipeline: the staged copy lives exactly
                 // as long as it takes to write it to the client, including when the client
@@ -320,12 +329,16 @@ public static class MindmapTransferEndpoints
                     FileOptions.DeleteOnClose | FileOptions.Asynchronous);
                 return Results.File(stream, "application/octet-stream", BuildDownloadName(singleTitle, extension));
             }
+            catch (Exception ex) when (target is not null && ex is IOException or UnauthorizedAccessException)
+            {
+                return ExportDestination.Failed(target, path, logger, LogCategory, ex);
+            }
             catch (Exception)
             {
                 // Nothing downstream will ever open this file, so nothing else would delete it.
                 // Covers a cancelled export, an adapter that threw part-way through writing, and a
                 // handle that could not be opened once it had.
-                TransferStagingStore.TryDeleteFile(path);
+                ExportDestination.Discard(path);
                 throw;
             }
         });

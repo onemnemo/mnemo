@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import { ApiError } from "@/api/client"
+import { announceExport, exportFileName, exportSaveOptions } from "@/api/export-file"
 import type { ConflictPolicy } from "@/api/types"
 import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
@@ -262,6 +263,8 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
     }
   }
 
+  const selectedExtension = available.find((format) => format.formatId === exportFormat)?.extensions[0] ?? ""
+
   const doExport = async () => {
     if (!exportFormat || !scope || scope.mapIds.length === 0 || busy) {
       return
@@ -269,8 +272,18 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
 
     setBusy(true)
     try {
-      await runMindmapExport({ formatId: exportFormat, mapIds: scope.mapIds })
-      toast.success(common("ExportCompleteTitle"), { description: common("TransferExportFinished") })
+      const outcome = await runMindmapExport({ formatId: exportFormat, mapIds: scope.mapIds }, {
+        ...exportSaveOptions(common),
+        fileName: exportFileName(scope.mapIds.length === 1 ? scope.label : null, "mindmaps", selectedExtension),
+      })
+      const told = announceExport(outcome, {
+        title: common("ExportCompleteTitle"),
+        downloaded: common("TransferExportFinished"),
+      })
+      // A dismissed chooser leaves the dialog where it was, with the format still picked. Closing
+      // it would read as "done" for a file that does not exist.
+      if (!told) return
+
       onClose()
     } catch (error) {
       toast.warning(common("ExportFailedTitle"), {
@@ -309,7 +322,6 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
     return () => document.removeEventListener("keydown", onKeyDown, true)
   }, [confirmEnabled])
 
-  const selectedExtension = available.find((format) => format.formatId === exportFormat)?.extensions[0] ?? ""
   const confirmLabel = !importing
     ? common("TransferExportButtonFormat", { 0: selectedExtension })
     : count === null

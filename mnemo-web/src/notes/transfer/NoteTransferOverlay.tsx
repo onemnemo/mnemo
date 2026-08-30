@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { Dialog } from "radix-ui"
 
 import { ApiError } from "@/api/client"
+import { announceExport, exportFileName, exportSaveOptions } from "@/api/export-file"
 import type { ConflictPolicy } from "@/api/types"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
@@ -242,13 +243,25 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
     }
   }
 
+  const selectedExtension = available.find((format) => format.formatId === exportFormat)?.extensions[0] ?? ""
+
   const doExport = async () => {
     if (!exportFormat || !scope || scope.noteIds.length === 0 || busy) return
 
     setBusy(true)
     try {
-      await runNoteExport({ formatId: exportFormat, noteIds: scope.noteIds })
-      toast.success(common("ExportCompleteTitle"), { description: common("TransferExportFinished") })
+      const outcome = await runNoteExport({ formatId: exportFormat, noteIds: scope.noteIds }, {
+        ...exportSaveOptions(common),
+        fileName: exportFileName(scope.noteIds.length === 1 ? scope.label : null, "notes", selectedExtension),
+      })
+      const told = announceExport(outcome, {
+        title: common("ExportCompleteTitle"),
+        downloaded: common("TransferExportFinished"),
+      })
+      // A dismissed chooser leaves the dialog where it was, with the format still picked. Closing
+      // it would read as "done" for a file that does not exist.
+      if (!told) return
+
       onClose()
     } catch (error) {
       toast.warning(common("ExportFailedTitle"), {
@@ -268,7 +281,6 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
 
   const confirm = () => void (importing ? doImport() : doExport())
 
-  const selectedExtension = available.find((format) => format.formatId === exportFormat)?.extensions[0] ?? ""
   const confirmLabel = !importing
     ? common("TransferExportButtonFormat", { 0: selectedExtension })
     : count === null
