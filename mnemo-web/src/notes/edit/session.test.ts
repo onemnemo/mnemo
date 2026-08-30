@@ -166,6 +166,33 @@ describe('close', () => {
     expect(h.mount.querySelector('.ProseMirror')).toBeNull();
   });
 
+  it('reports the last write, not the one it waited out', async () => {
+    let landed!: () => void;
+    const held = new Promise<void>((resolve) => {
+      landed = resolve;
+    });
+    const commits: NoteSnapshot[] = [];
+    const h = harness({ commits, hold: held });
+
+    h.type('x');
+    const flushed = h.session.flush();
+    // Wait until the first write snapshots the document before typing, so the second write must
+    // carry the edit.
+    await Promise.resolve();
+    await Promise.resolve();
+    h.type('y');
+
+    const closed = h.session.close();
+    landed();
+    const result = await closed;
+    await flushed;
+
+    expect(h.commits).toHaveLength(2);
+    expect(h.commits[1].doc.textContent).toBe('yxhello');
+    // Close must return the result of the final write, not the write it waited for.
+    expect(result).toMatchObject({ status: 'saved', stillDirty: false });
+  });
+
   it('releases the editor without waiting for the save to come back', async () => {
     let landed!: () => void;
     const held = new Promise<void>((resolve) => {

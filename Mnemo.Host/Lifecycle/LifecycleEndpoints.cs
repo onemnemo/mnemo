@@ -46,6 +46,11 @@ public static class LifecycleEndpoints
     /// unknown.</param>
     public sealed record ClientInfoDto(string? UserAgent);
 
+    /// <param name="NoteId">The note whose last write did not land. An identifier, never a title.</param>
+    /// <param name="Verdict">Why it did not land. One of the two names this host records.</param>
+    /// <param name="Trigger">Which exit it happened on. One of the two names this host records.</param>
+    public sealed record SaveLostRequest(string? NoteId, string? Verdict, string? Trigger);
+
     /// <summary>What a folder request resolved to.</summary>
     public enum OpenFolderOutcome
     {
@@ -86,6 +91,58 @@ public static class LifecycleEndpoints
         return Directory.Exists(path) ? OpenFolderOutcome.Ready : OpenFolderOutcome.MissingDirectory;
     }
 
+    /// <summary>What a lossy-save report resolved to.</summary>
+    public enum SaveLostOutcome
+    {
+        /// <summary>A report this host records. The resolved line is what to write.</summary>
+        Recorded,
+        /// <summary>Not one of the verdicts this host records.</summary>
+        UnknownVerdict,
+        /// <summary>Not one of the exits this host records.</summary>
+        UnknownTrigger,
+        /// <summary>The note id is missing, too long, or is not an identifier.</summary>
+        UnusableNote,
+    }
+
+    /// <summary>
+    /// Validates the report and builds a fixed log message from an identifier and allowed values.
+    /// Invalid input never reaches the log writer.
+    /// </summary>
+    public static SaveLostOutcome ResolveSaveLost(SaveLostRequest? body, out string line)
+    {
+        line = string.Empty;
+
+        var verdict = body?.Verdict;
+        if (verdict is not ("failed" or "conflict"))
+            return SaveLostOutcome.UnknownVerdict;
+
+        var trigger = body?.Trigger;
+        if (trigger is not ("close" or "shutdown"))
+            return SaveLostOutcome.UnknownTrigger;
+
+        var noteId = body?.NoteId;
+        if (string.IsNullOrEmpty(noteId) || noteId.Length > 64 || !IsIdentifier(noteId))
+            return SaveLostOutcome.UnusableNote;
+
+        line = $"A note's last write did not land. trigger={trigger} note={noteId} verdict={verdict}";
+        return SaveLostOutcome.Recorded;
+    }
+
+    /// <summary>
+    /// Accepts only identifier characters, preventing control characters from injecting log
+    /// records.
+    /// </summary>
+    private static bool IsIdentifier(string value)
+    {
+        foreach (var c in value)
+        {
+            if (!char.IsAsciiLetterOrDigit(c) && c != '-' && c != '_')
+                return false;
+        }
+
+        return true;
+    }
+
     public static void MapLifecycle(this IEndpointRouteBuilder endpoints)
     {
         // The three answers to the host's shutdown event. All unconditional: the gate
@@ -110,6 +167,17 @@ public static class LifecycleEndpoints
         endpoints.MapPost("/api/app/shutdown-cancel", (ShutdownGate gate) =>
         {
             gate.SignalCancelled();
+            return Results.NoContent();
+        });
+
+        // Log only validated identifiers and fixed values. Logging rejected input would reopen the
+        // injection path.
+        endpoints.MapPost("/api/app/save-lost", (SaveLostRequest? body, ILoggerService logger) =>
+        {
+            if (ResolveSaveLost(body, out var line) != SaveLostOutcome.Recorded)
+                return Results.BadRequest(new { error = "invalid_report" });
+
+            logger.Warning(CrashLog.Category, line);
             return Results.NoContent();
         });
 

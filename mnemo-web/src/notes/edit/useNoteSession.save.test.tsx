@@ -1,13 +1,7 @@
 // @vitest-environment jsdom
 
 /**
- * Manual saving, through the whole stack the editor actually uses: a real
- * session, a real autosave scheduler with the setting switched off, and the real
- * key listener on top of them.
- *
- * The point is the case the product cannot get wrong. With autosave off nothing
- * writes on its own, so every one of these assertions is the difference between
- * a note being on disk and a note being lost.
+ * Checks manual saving and exit flushes through the real note session and autosave scheduler.
  */
 
 import { act } from 'react';
@@ -15,7 +9,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { EditorView } from 'prosemirror-view';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { resetShutdownForTests, runShutdown } from '@/app/shutdown';
+import { useI18nStore } from '@/i18n/store';
 import { useSettingsStore } from '@/settings/store';
+import { useToastStore } from '@/stores/toast';
 import type { CommitOutcome, NoteSnapshot } from '../authority/authority';
 import { defaultTextStyle, type Block } from '../model/types';
 import { useSaveShortcut } from '../save/useSaveShortcut';
@@ -145,12 +142,27 @@ beforeEach(() => {
   probe.saveState = 'loading';
   // Autosave off is the state this whole feature exists for.
   useSettingsStore.setState({ values: { 'Editor.AutoSave': false }, loaded: true });
+  useToastStore.setState({ toasts: [], history: [] });
+  // Use stand-in translations to check key selection and parameter substitution.
+  useI18nStore.setState({
+    bundle: {
+      Notes: {
+        SaveLostTitle: 'lost {0}',
+        SaveLostFailedDescription: 'open it again',
+        Untitled: 'no title',
+      },
+    },
+  });
+  resetShutdownForTests();
 });
 
 afterEach(() => {
   unmount();
   container.remove();
   useSettingsStore.setState({ values: {}, loaded: false });
+  useToastStore.setState({ toasts: [], history: [] });
+  useI18nStore.setState({ bundle: {} });
+  resetShutdownForTests();
 });
 
 describe('saving a note by hand', () => {
@@ -270,5 +282,78 @@ describe('leaving a note with unsaved work', () => {
 
     expect(commits.map((c) => c.noteId)).toEqual(['note-1']);
     expect(commits[0].doc.textContent).toBe('xhello');
+  });
+
+  it('writes the keystroke typed during a save that was still in flight when the note closed', async () => {
+    openGate();
+    render();
+    type('x');
+    pressCtrlS();
+    await settle();
+    expect(commits).toHaveLength(1);
+
+    // Typed while the first write is in the air, so its snapshot cannot carry it.
+    type('y');
+    unmount();
+
+    gate?.open();
+    gate = null;
+    await settle();
+
+    // The final write must include edits made while the earlier write was pending.
+    expect(commits).toHaveLength(2);
+    expect(commits[0].doc.textContent).toBe('xhello');
+    expect(commits[1].doc.textContent).toBe('yxhello');
+  });
+});
+
+describe('closing the window with a note open', () => {
+  it('writes what was typed while the closing save was in the air, rather than reporting it lost', async () => {
+    openGate();
+    render();
+    type('x');
+
+    const draining = runShutdown();
+    await settle();
+    expect(commits).toHaveLength(1);
+
+    // The note remains editable while the window shutdown handshake runs.
+    type('y');
+    gate?.open();
+    gate = null;
+    await act(async () => {
+      await draining;
+    });
+
+    expect(commits).toHaveLength(2);
+    expect(commits[1].doc.textContent).toBe('yxhello');
+    // Persist the pending edit before the handshake permits the window to close.
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+});
+
+describe('a note whose last write did not land', () => {
+  it('says so, and does not fade, when the last write failed', async () => {
+    outcome = () => ({ status: 'failed', error: new Error('offline') });
+    render();
+    type('x');
+    unmount();
+    await settle();
+
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0]).toMatchObject({ type: 'warning', durationMs: 0 });
+    // Identify the affected note and keep the warning until dismissed.
+    expect(toasts[0].title).toBe('lost no title');
+  });
+
+  it('says nothing when the note saved cleanly', async () => {
+    render();
+    type('x');
+    unmount();
+    await settle();
+
+    expect(commits).toHaveLength(1);
+    expect(useToastStore.getState().toasts).toHaveLength(0);
   });
 });

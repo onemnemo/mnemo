@@ -113,20 +113,30 @@ export function createNoteSession(options: NoteSessionOptions): NoteSession {
       // authority the first one is about to destroy. React's StrictMode makes
       // that a real sequence, not a hypothetical one.
       closing ??= (() => {
-        // Started before the scheduler is destroyed, since `flush` refuses once
-        // it is, and this last write is the entire point of closing.
+        // Keep the scheduler alive until the closing flush completes.
         const saved = autosave.flush();
-        autosave.destroy();
         // The editor leaves the DOM now, not when the network answers. Teardown
         // that waits leaves a live view behind across a note switch, and
         // StrictMode's remount turns that into two views on one mount point.
         // The handle keeps the last document readable so the save in flight can
         // still commit it.
         mounted.destroy();
-        return saved.then((result) => {
+        // Release after both success and failure so no timer or subscription remains attached to
+        // the closed note.
+        const release = (): void => {
+          autosave.destroy();
           authority.destroy();
-          return result;
-        });
+        };
+        return saved.then(
+          (result) => {
+            release();
+            return result;
+          },
+          (error: unknown) => {
+            release();
+            throw error;
+          },
+        );
       })();
       return closing;
     },

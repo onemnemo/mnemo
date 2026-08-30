@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react"
 
 import type { ReviewGrade, SessionMode, SessionScope } from "@/api/types"
 import { navigate } from "@/app/router"
+import { onShutdown } from "@/app/shutdown"
 import { useT } from "@/i18n/useT"
 import { isEditableTarget } from "@/keybinds/chord"
 import { useLocalActions } from "@/keybinds/local"
@@ -55,8 +56,7 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
 
   const backToDeck = () => (deckId ? navigate("flashcard-deck", deckId) : navigate("flashcards"))
 
-  // Start once for this deck, and end the session when the screen goes away so the study it
-  // represents is recorded rather than waiting to be swept.
+  // End on both unmount and shutdown: closing the native window does not unmount React.
   useEffect(() => {
     if (!deckId) {
       navigate("flashcards")
@@ -64,7 +64,11 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
     }
     const start = useSession.getState().start
     void start(deckId, mode === "cram" ? "cram" : ("review" as SessionMode), scope === "all" ? "all" : ("due" as SessionScope))
-    return () => void useSession.getState().end()
+    const unregister = onShutdown(() => useSession.getState().end())
+    return () => {
+      unregister()
+      void useSession.getState().end()
+    }
   }, [deckId, mode, scope])
 
   // A session the server has lost cannot be resumed, so the reader goes back to the deck - which
