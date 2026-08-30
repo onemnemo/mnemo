@@ -1,11 +1,16 @@
-import { ApiError, apiFetch, apiToken } from "@/api/client"
-import { saveBlob } from "@/api/download"
+import { ApiError, apiToken } from "@/api/client"
+import {
+  exportRequest,
+  saveServerExport,
+  type ChosenTarget,
+  type ExportOutcome,
+  type ExportRequest,
+} from "@/api/export-file"
 
 import { toRequestBody, type PdfDocumentText, type PdfOptions } from "./options"
 
-async function post(
+async function preview(
   noteId: string,
-  route: "preview" | "export",
   options: PdfOptions,
   text: PdfDocumentText,
   signal?: AbortSignal,
@@ -14,7 +19,7 @@ async function post(
   const token = apiToken()
   if (token) headers.set("Authorization", `Bearer ${token}`)
 
-  const response = await fetch(`/api/notes/${encodeURIComponent(noteId)}/pdf/${route}`, {
+  const response = await fetch(`/api/notes/${encodeURIComponent(noteId)}/pdf/preview`, {
     method: "POST",
     headers,
     body: JSON.stringify(toRequestBody(options, text)),
@@ -46,43 +51,36 @@ export async function fetchNotePdfPreview(
   text: PdfDocumentText,
   signal?: AbortSignal,
 ): Promise<ArrayBuffer> {
-  const response = await post(noteId, "preview", options, text, signal)
+  const response = await preview(noteId, options, text, signal)
   return response.arrayBuffer()
 }
 
 /**
- * Exports the note and saves it. The name comes from the dialog rather than from the server's
- * Content-Disposition: the field in the footer is the one the user just typed, and a download that
- * ignores it would make the field a decoration.
- */
-export async function exportNotePdf(
-  noteId: string,
-  options: PdfOptions,
-  text: PdfDocumentText,
-  fileName: string,
-): Promise<void> {
-  const response = await post(noteId, "export", options, text)
-  saveBlob(await response.blob(), fileName)
-}
-
-/**
- * Writes the note into a folder on this machine and answers with the path it wrote, which is what
- * lets the toast name the file and offer to show it.
+ * Renders the note and saves it wherever the user says, answering with the path it wrote so the
+ * toast can name the file and offer to show it.
  *
- * The download above is still the right call without a native window, where the app has no say in
- * where anything lands and the browser's own folder is the only answer.
+ * Two routes behind one call, because the render happens on the server and the destination is
+ * settled before it starts: `save` writes the PDF straight there, and `export` is only for a
+ * browser tab with no window to choose with, which has to take the bytes itself.
+ *
+ * @param settled A destination the footer's Browse already chose, so Save does not ask twice.
  */
-export async function saveNotePdf(
+export function saveNotePdf(
   noteId: string,
   options: PdfOptions,
   text: PdfDocumentText,
-  directory: string,
-  fileName: string,
-): Promise<string> {
-  const saved = await apiFetch<{ path: string }>(`/notes/${encodeURIComponent(noteId)}/pdf/save`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ options: toRequestBody(options, text), directory, fileName }),
-  })
-  return saved.path
+  save: ExportRequest,
+  settled?: ChosenTarget | null,
+): Promise<ExportOutcome> {
+  const body = toRequestBody(options, text)
+  return saveServerExport(
+    save,
+    (grant) =>
+      exportRequest(`/notes/${encodeURIComponent(noteId)}/pdf/${grant === null ? "export" : "save"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(grant === null ? body : { options: body, grant }),
+      }),
+    settled,
+  )
 }

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 
 import { apiFetch, apiSend, ApiError } from "@/api/client"
-import { downloadFromApi } from "@/api/download"
+import { exportRequest, saveServerExport, type ExportOutcome, type ExportRequest } from "@/api/export-file"
 import type {
   NoteTransferExportDto,
   NoteTransferImportDto,
@@ -49,11 +49,13 @@ export function runNoteImport(body: NoteTransferImportDto): Promise<NoteTransfer
   })
 }
 
-/** Exports the selected notes and saves the file the server streams back. */
-export function runNoteExport(body: NoteTransferExportDto): Promise<void> {
-  return downloadFromApi("/notes/transfer/export", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
+/** Exports the selected notes, straight to wherever the user says. */
+export function runNoteExport(body: NoteTransferExportDto, save: ExportRequest): Promise<ExportOutcome> {
+  return saveServerExport(save, (grant) =>
+    exportRequest("/notes/transfer/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, grant }),
+    }),
+  )
 }

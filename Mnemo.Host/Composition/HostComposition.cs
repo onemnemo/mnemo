@@ -304,9 +304,13 @@ public static class HostComposition
         // The window's closing handler and the SPA's reply endpoint meet here.
         services.AddSingleton<ShutdownGate>();
 
-        // Likewise for the native folder chooser: registered whether or not a window ever
-        // attaches, so the endpoint can answer "not here" instead of failing to resolve.
-        services.AddSingleton<NativeFolderPicker>();
+        // Likewise for the native file and folder choosers: registered whether or not a window
+        // ever attaches, so the endpoint can answer "not here" instead of failing to resolve.
+        services.AddSingleton<NativeFileDialogs>();
+
+        // The destinations those choosers returned, which is the only thing the write route will
+        // accept. Process-wide because the chooser and the upload are two separate requests.
+        services.AddSingleton<ExportGrants>();
 
         // Gates the old-Avalonia-install warning behind its one-shot settings flag.
         services.AddSingleton<LegacyInstallWarning>();

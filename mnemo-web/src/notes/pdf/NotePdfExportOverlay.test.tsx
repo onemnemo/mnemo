@@ -16,19 +16,12 @@ import { NotePdfExportOverlay } from "./NotePdfExportOverlay"
 import { useNotePdf } from "./store"
 
 vi.mock("./api", () => ({
-  exportNotePdf: vi.fn(),
   fetchNotePdfPreview: vi.fn(async () => new ArrayBuffer(0)),
   saveNotePdf: vi.fn(),
 }))
 
 vi.mock("./components/PdfPreview", () => ({
   PdfPreview: () => <div data-testid="pdf-preview-stub" />,
-}))
-
-vi.mock("@/lib/export-folders", () => ({
-  fetchExportFolders: vi.fn(async () => ({ available: false, folders: [] })),
-  pickExportFolder: vi.fn(),
-  shortPath: (path: string) => path,
 }))
 
 vi.mock("@/i18n/useT", () => ({

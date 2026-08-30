@@ -23,15 +23,12 @@ public sealed record NotePdfExportOptionsDto(
     string? MissingSubpageTitle = null);
 
 /// <summary>
-/// Writing a rendered note into a folder on this machine, which is a different job from handing the
-/// bytes back over HTTP and so carries its own body rather than more optional fields on the options.
+/// Writing a rendered note to the destination a save chooser returned, which is a different job
+/// from handing the bytes back over HTTP and so carries its own body rather than more optional
+/// fields on the options.
 /// </summary>
-/// <param name="Directory">An absolute path, normally one the native chooser returned.</param>
-/// <param name="FileName">A bare file name. Anything that looks like a path is refused.</param>
+/// <param name="Grant">The token the chooser route minted for the destination. The path itself
+/// never travels in a request body.</param>
 public sealed record NotePdfSaveRequestDto(
     NotePdfExportOptionsDto? Options,
-    string Directory,
-    string FileName);
-
-/// <param name="Path">Where the file was written, for the toast to name and to open.</param>
-public sealed record NotePdfSavedDto(string Path);
+    string? Grant);

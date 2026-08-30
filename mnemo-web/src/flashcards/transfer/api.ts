@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 
 import { apiFetch, apiSend, ApiError } from "@/api/client"
-import { downloadFromApi } from "@/api/download"
+import { exportRequest, saveServerExport, type ExportOutcome, type ExportRequest } from "@/api/export-file"
 import type {
   TransferExportDto,
   TransferFormatDto,
@@ -51,11 +51,13 @@ export function runImport(body: TransferImportDto): Promise<TransferImportResult
   })
 }
 
-/** Exports the selected decks and saves the file the server streams back. */
-export function runExport(body: TransferExportDto): Promise<void> {
-  return downloadFromApi("/flashcards/transfer/export", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
+/** Exports the selected decks, straight to wherever the user says. */
+export function runExport(body: TransferExportDto, save: ExportRequest): Promise<ExportOutcome> {
+  return saveServerExport(save, (grant) =>
+    exportRequest("/flashcards/transfer/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, grant }),
+    }),
+  )
 }

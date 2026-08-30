@@ -8,7 +8,7 @@
  * server's, produced by the exporter the desktop already uses.
  */
 
-import { downloadFromApi, saveBlob } from "@/api/download"
+import { exportRequest, saveExport, saveServerExport, type ExportOutcome, type ExportSaveOptions } from "@/api/export-file"
 
 import { fetchImageDataUri } from "../assets"
 import { imageRefOf } from "../scene/content"
@@ -28,21 +28,30 @@ export interface MapExportRequest {
   readonly scene: Scene
   /** Leaves the paper out, for a picture that has to sit on something of its own. */
   readonly transparent?: boolean
+  /** The chooser and overwrite copy. Passed in because the translations live in the UI, not here. */
+  readonly save: ExportSaveOptions
 }
 
 /** The two families the emitter names, which are the two an embedded picture has to carry. */
 const FACES = ["Inter", "Geist Mono"]
 
-export async function exportMap(format: MapExportFormat, request: MapExportRequest): Promise<void> {
+export async function exportMap(format: MapExportFormat, request: MapExportRequest): Promise<ExportOutcome> {
   if (format === "markdown") {
-    await downloadFromApi(`/mindmaps/${encodeURIComponent(request.id)}/outline`)
-    return
+    // The grant rides in the query because the outline is a GET. Spent on sight and short lived,
+    // so it is not a secret a URL can leak.
+    return saveServerExport({ ...request.save, fileName: fileName(request.title, "md") }, (grant) =>
+      exportRequest(
+        `/mindmaps/${encodeURIComponent(request.id)}/outline${grant === null ? "" : `?grant=${encodeURIComponent(grant)}`}`,
+      ),
+    )
   }
 
   if (format === "svg") {
     const picture = draw(request, await collectImages(request.scene))
-    saveBlob(new Blob([picture.markup], { type: "image/svg+xml;charset=utf-8" }), fileName(request.title, "svg"))
-    return
+    return saveExport(new Blob([picture.markup], { type: "image/svg+xml;charset=utf-8" }), {
+      ...request.save,
+      fileName: fileName(request.title, "svg"),
+    })
   }
 
   // Fonts go into the copy that gets rasterised and nowhere else. A saved .svg opened on a machine
@@ -52,7 +61,10 @@ export async function exportMap(format: MapExportFormat, request: MapExportReque
     inlineFonts(FACES).catch(() => ""),
     collectImages(request.scene),
   ])
-  saveBlob(await rasterize(draw(request, images, style)), fileName(request.title, "png"))
+  return saveExport(await rasterize(draw(request, images, style)), {
+    ...request.save,
+    fileName: fileName(request.title, "png"),
+  })
 }
 
 /**

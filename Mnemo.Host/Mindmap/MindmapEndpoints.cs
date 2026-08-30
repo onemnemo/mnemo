@@ -7,6 +7,7 @@ using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.Lifecycle;
 using Mnemo.Host.Trash;
 using Mnemo.Infrastructure.Services.Mindmap.Tools;
 using Mnemo.Infrastructure.Services.Mindmap.Trash;
@@ -28,6 +29,7 @@ public static class MindmapEndpoints
     private const string DefaultTitle = "Untitled map";
     private const int FindLimit = 50;
     private const string OutlineContentType = "text/markdown; charset=utf-8";
+    private const string LogCategory = "Mindmap.Export";
 
     private static readonly IReadOnlyDictionary<string, string> EmptyIds =
         new Dictionary<string, string>(StringComparer.Ordinal);
@@ -143,19 +145,17 @@ public static class MindmapEndpoints
         // the map was measured, which is the browser, but an outline is a projection of the stored
         // document and knows nothing about how wide a label came out, so it is produced here by the
         // same exporter the desktop has always used.
-        endpoints.MapGet("/api/mindmaps/{id}/outline", async (string id, IMindmapService maps, CancellationToken cancellationToken) =>
-        {
-            var loaded = await maps.GetAsync(id, cancellationToken).ConfigureAwait(false);
-            if (!loaded.IsSuccess)
-                return IsMissing(loaded.ErrorMessage, id)
-                    ? UnknownMap(id)
-                    : ServerError(loaded.ErrorMessage, $"Mindmap '{id}' could not be read.");
-            if (loaded.Value is null)
-                return UnknownMap(id);
-
-            var outline = MindmapMarkdownExporter.ExportOutline(loaded.Value);
-            return Results.File(Encoding.UTF8.GetBytes(outline), OutlineContentType, OutlineFileName(loaded.Value.Title));
-        });
+        // The grant rides in the query rather than a body because this is a GET. It is spent on
+        // sight and expires on its own, so it is not a secret a URL can leak.
+        endpoints.MapGet("/api/mindmaps/{id}/outline", (
+            string id,
+            string? grant,
+            IMindmapService maps,
+            ExportGrants grants,
+            ISettingsService settings,
+            ILoggerService logger,
+            CancellationToken cancellationToken) =>
+            OutlineAsync(id, grant, maps, grants, settings, logger, cancellationToken));
 
         endpoints.MapPost("/api/mindmaps/{id}/ops", (string id, HttpRequest request, IMindmapService maps, CancellationToken cancellationToken) =>
             ApplyOpsAsync(id, request.Body, maps, cancellationToken));
@@ -181,6 +181,47 @@ public static class MindmapEndpoints
     /// thing that happens to you after every keystroke.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// The outline, written to a destination the user chose, or handed back for the browser to take
+    /// when no grant says otherwise.
+    /// </summary>
+    public static async Task<IResult> OutlineAsync(
+        string id,
+        string? grant,
+        IMindmapService maps,
+        ExportGrants grants,
+        ISettingsService settings,
+        ILoggerService logger,
+        CancellationToken cancellationToken = default)
+    {
+        var loaded = await maps.GetAsync(id, cancellationToken).ConfigureAwait(false);
+        if (!loaded.IsSuccess)
+            return IsMissing(loaded.ErrorMessage, id)
+                ? UnknownMap(id)
+                : ServerError(loaded.ErrorMessage, $"Mindmap '{id}' could not be read.");
+        if (loaded.Value is null)
+            return UnknownMap(id);
+
+        if (ExportDestination.Claim(grant, grants, out var target) is { } refusal)
+            return refusal;
+
+        var outline = Encoding.UTF8.GetBytes(MindmapMarkdownExporter.ExportOutline(loaded.Value));
+        if (target is null)
+            return Results.File(outline, OutlineContentType, OutlineFileName(loaded.Value.Title));
+
+        var pending = string.Empty;
+        try
+        {
+            pending = ExportDestination.PathFor(target, ".md");
+            await File.WriteAllBytesAsync(pending, outline, cancellationToken).ConfigureAwait(false);
+            return await ExportDestination.CommitAsync(target, pending, settings).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return ExportDestination.Failed(target, pending, logger, LogCategory, ex);
+        }
+    }
+
     public static async Task<IResult> ArrangeAsync(
         string id,
         Stream requestBody,

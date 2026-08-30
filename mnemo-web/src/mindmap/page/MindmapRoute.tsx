@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import { announceExport, exportSaveOptions } from "@/api/export-file"
 import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
@@ -1158,7 +1159,18 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         return
       }
       try {
-        await exportMap(format, { id: mapId, title: map.data?.title ?? "", scene, transparent })
+        const outcome = await exportMap(format, {
+          id: mapId,
+          title: map.data?.title ?? "",
+          scene,
+          transparent,
+          save: exportSaveOptions((key) => t("Common", key)),
+        })
+        // Dismissing the chooser is a decision, not a result, so nothing is said about it.
+        announceExport(outcome, {
+          title: t("Common", "ExportCompleteTitle"),
+          downloaded: t("Common", "TransferExportFinished"),
+        })
       } catch (error) {
         toast.warning(t("Mindmap", "ExportFailedTitle"), {
           description: error instanceof Error ? error.message : undefined,

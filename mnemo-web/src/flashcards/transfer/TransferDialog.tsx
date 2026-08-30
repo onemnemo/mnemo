@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { Dialog } from "radix-ui"
 
 import { ApiError } from "@/api/client"
+import { announceExport, exportFileName, exportSaveOptions } from "@/api/export-file"
 import type { ConflictPolicy } from "@/api/types"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
@@ -243,17 +244,32 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
     }
   }
 
+  const selectedExtension = available.find((format) => format.formatId === exportFormat)?.extensions[0] ?? ""
+
   const doExport = async () => {
     if (!exportFormat || !scope || scope.deckIds.length === 0 || busy) return
 
     setBusy(true)
     try {
-      await runExport({
-        formatId: exportFormat,
-        deckIds: scope.deckIds,
-        kind: exportKind(scope.wholeCollection),
+      const outcome = await runExport(
+        {
+          formatId: exportFormat,
+          deckIds: scope.deckIds,
+          kind: exportKind(scope.wholeCollection),
+        },
+        {
+          ...exportSaveOptions(common),
+          fileName: exportFileName(scope.deckIds.length === 1 ? scope.label : null, "flashcards", selectedExtension),
+        },
+      )
+      const told = announceExport(outcome, {
+        title: common("ExportCompleteTitle"),
+        downloaded: common("TransferExportFinished"),
       })
-      toast.success(common("ExportCompleteTitle"), { description: common("TransferExportFinished") })
+      // A dismissed chooser leaves the dialog where it was, with the format still picked. Closing
+      // it would read as "done" for a file that does not exist.
+      if (!told) return
+
       onClose()
     } catch (error) {
       toast.warning(common("ExportFailedTitle"), {
@@ -273,7 +289,6 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
 
   const confirm = () => void (importing ? doImport() : doExport())
 
-  const selectedExtension = available.find((format) => format.formatId === exportFormat)?.extensions[0] ?? ""
   const confirmLabel = !importing
     ? common("TransferExportButtonFormat", { 0: selectedExtension })
     : // "Import 42 cards" when the queue can say how many, a plain "Import" when it cannot -

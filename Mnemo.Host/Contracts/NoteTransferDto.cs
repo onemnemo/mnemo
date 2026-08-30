@@ -53,4 +53,8 @@ public sealed record NoteTransferImportResultDto(
 /// selection as "export every note", which is not a thing any caller here means. Markdown exports a
 /// single note only, so a markdown request with anything other than one id is rejected.
 /// </summary>
-public sealed record NoteTransferExportDto(string FormatId, IReadOnlyList<string> NoteIds);
+/// <param name="Grant">
+/// The token a save chooser minted for the destination this file is going to. Omitted when there
+/// is nowhere to choose, and then the file comes back in the response instead.
+/// </param>
+public sealed record NoteTransferExportDto(string FormatId, IReadOnlyList<string> NoteIds, string? Grant = null);

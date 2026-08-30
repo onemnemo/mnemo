@@ -1,6 +1,6 @@
 using Mnemo.Infrastructure.Common;
 
-namespace Mnemo.Host.Flashcards;
+namespace Mnemo.Host.Transfer;
 
 /// <summary>
 /// Scratch space for transfer files. The import/export adapters work on local file paths - the
@@ -11,19 +11,6 @@ namespace Mnemo.Host.Flashcards;
 /// </summary>
 public static class TransferStagingStore
 {
-    /// <summary>
-    /// Upper bound on an uploaded transfer file. Far above the 20 MB image cap because an Anki
-    /// package carries every media file for a whole collection.
-    /// </summary>
-    public const long MaxFileBytes = 512L * 1024 * 1024;
-
-    /// <summary>
-    /// What the request pipeline is allowed to read for one upload. Slightly above the file cap so
-    /// multipart headers and boundaries cannot push a file that is legally sized into a framework
-    /// rejection, which would surface as an opaque 500 instead of the size message.
-    /// </summary>
-    public const long MaxRequestBytes = MaxFileBytes + (4L * 1024 * 1024);
-
     /// <summary>
     /// How long an abandoned staged file survives. Only long enough to outlast an import dialog
     /// somebody left open; the confirmed and cancelled paths both delete eagerly, so anything
