@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef } from "react"
 import "katex/dist/katex.min.css"
 
+import { onShutdown } from "@/app/shutdown"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
@@ -25,8 +26,8 @@ export interface MindmapNodeProps {
   element: SceneElement
   /** This node's label is being typed into. Only ever true for one node at a time. */
   editing?: boolean
-  /** The typed text, or null when the edit was abandoned. */
-  onEditEnd?: (id: string, text: string | null) => void
+  /** The typed text, or null when the edit was abandoned. Any promise it returns is the write. */
+  onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
 }
 
 /**
@@ -596,7 +597,7 @@ function FrameTitle({
 }: {
   element: SceneElement
   title: string
-  onEditEnd?: (id: string, text: string | null) => void
+  onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
 }) {
   const done = useRef(false)
   // Tracked alongside the uncontrolled field so an unmount before Enter, Escape, or a blur closed it
@@ -604,16 +605,22 @@ function FrameTitle({
   // never fires for an element that is simply removed from the DOM.
   const latest = useRef(title)
 
-  const finish = (value: string | null): void => {
+  const finish = (value: string | null): void | Promise<unknown> => {
     if (done.current) {
       return
     }
     done.current = true
-    onEditEnd?.(element.id, value)
+    return onEditEnd?.(element.id, value)
   }
 
   useEffect(() => {
-    return () => finish(latest.current)
+    // Native window close does not unmount React. Await the write before the shutdown handshake
+    // completes.
+    const unregister = onShutdown(async () => finish(latest.current))
+    return () => {
+      unregister()
+      void finish(latest.current)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -704,7 +711,7 @@ function NodeEditor({
   onEditEnd,
 }: {
   element: SceneElement
-  onEditEnd?: (id: string, text: string | null) => void
+  onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
 }) {
   const { text, isRoot } = element
   const body = bodyOf(element.content)
@@ -724,16 +731,22 @@ function NodeEditor({
     grow(node)
   }, [])
 
-  const finish = (value: string | null): void => {
+  const finish = (value: string | null): void | Promise<unknown> => {
     if (done.current) {
       return
     }
     done.current = true
-    onEditEnd?.(element.id, value)
+    return onEditEnd?.(element.id, value)
   }
 
   useEffect(() => {
-    return () => finish(latest.current)
+    // Native window close does not unmount React. Await the write before the shutdown handshake
+    // completes.
+    const unregister = onShutdown(async () => finish(latest.current))
+    return () => {
+      unregister()
+      void finish(latest.current)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

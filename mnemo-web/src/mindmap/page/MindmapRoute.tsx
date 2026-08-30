@@ -378,8 +378,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     [addChild, hierarchy],
   )
 
+  // Require a promise so shutdown callers can await persistence instead of discarding the write.
   const endEdit = useCallback(
-    (id: string, text: string | null) => {
+    (id: string, text: string | null): Promise<unknown> => {
       setEditing(null)
       const wasBlank = blank.current === id
       blank.current = null
@@ -389,14 +390,14 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         // A node created for this edit and never given a label is a box nobody asked for. One that
         // already had a label keeps it, because emptying a node is what Delete is for.
         if (wasBlank) {
-          void editor.apply([op.del([id])], { label: t("Mindmap", "Delete") })
+          return editor.apply([op.del([id])], { label: t("Mindmap", "Delete") })
         }
-        return
+        return Promise.resolve()
       }
       if (typed === currentText(scene, id)) {
-        return
+        return Promise.resolve()
       }
-      void editor.apply([op.set(id, { t: typed })], { label: t("Mindmap", "Rename") })
+      return editor.apply([op.set(id, { t: typed })], { label: t("Mindmap", "Rename") })
     },
     [editor, scene, t],
   )
@@ -1168,19 +1169,19 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   )
 
   const endEdgeLabel = useCallback(
-    (id: string, text: string | null) => {
+    (id: string, text: string | null): Promise<unknown> => {
       setEditingEdge(null)
       if (text === null) {
-        return
+        return Promise.resolve()
       }
       const typed = text.trim()
       const edge = scene?.edges.find((candidate) => candidate.id === id)
       // An unchanged label costs no revision and no undo step. An emptied one is sent, because an
       // empty string is how the edit protocol says to take a label away.
       if (!edge || (edge.label ?? "") === typed) {
-        return
+        return Promise.resolve()
       }
-      void editor.apply([op.setEdge(id, { label: typed })], { label: t("Mindmap", "EditLabel") })
+      return editor.apply([op.setEdge(id, { label: typed })], { label: t("Mindmap", "EditLabel") })
     },
     [editor, scene, t],
   )

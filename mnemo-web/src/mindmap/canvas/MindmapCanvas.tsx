@@ -39,11 +39,11 @@ export interface MindmapCanvasProps {
   onActivate?: (id: string) => void
   /** The node whose label is currently a field. */
   editingId?: string | null
-  /** The field closed: the typed text, or null when the edit was abandoned. */
-  onEditEnd?: (id: string, text: string | null) => void
+  /** The field closed: the typed text, or null when the edit was abandoned. Any promise it returns is the write. */
+  onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
   /** The edge whose label is currently a field. */
   editingEdgeId?: string | null
-  onEdgeLabelEnd?: (id: string, text: string | null) => void
+  onEdgeLabelEnd?: (id: string, text: string | null) => void | Promise<unknown>
   /** Descendants in the hierarchy, from the document rather than the scene. See the controller. */
   subtreeOf?: (id: string) => readonly string[]
   /** What a press means. Select unless the dock says otherwise. */

@@ -405,7 +405,8 @@ describe('when a write conflicts', () => {
     await settle();
 
     h.type('b');
-    expect(await autosave.flush()).toEqual({ status: 'skipped' });
+    // Report conflicts explicitly; skipped means there was no write to make.
+    expect(await autosave.flush()).toEqual({ status: 'conflict', ver: 12 });
     expect(h.commits).toHaveLength(1);
   });
 });

@@ -1,19 +1,14 @@
 // @vitest-environment jsdom
 
 /**
- * The inline editors: a node's label and a frame's title.
- *
- * Both are uncontrolled fields tracking their own latest value in a ref, so that an unmount the
- * field never asked for still has something to flush. Before this, only a key the field itself
- * handled (Enter, Escape, a blur) ever called back; navigating away or letting the scene rebuild
- * out from under an open editor silently dropped whatever had been typed. Pinned here against the
- * real component rather than the pattern in isolation, since the thing that broke was the wiring
- * between the ref and the unmount, not the ref itself.
+ * Checks that node and frame edits flush on blur, unmount, and window shutdown.
  */
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { resetShutdownForTests, runShutdown } from "@/app/shutdown"
 
 import { MindmapNode } from "./MindmapNode"
 import type { SceneElement } from "../model/scene"
@@ -58,6 +53,7 @@ let container: HTMLElement
 let root: Root
 
 beforeEach(() => {
+  resetShutdownForTests()
   container = document.createElement("div")
   document.body.appendChild(container)
   root = createRoot(container)
@@ -121,6 +117,52 @@ describe("a node label being edited", () => {
 
     expect(onEditEnd).toHaveBeenCalledWith("a", "hello")
   })
+
+  it("commits what is in the field when the window closes and nothing unmounts", async () => {
+    const onEditEnd = vi.fn()
+    act(() => root.render(<MindmapNode element={node()} editing onEditEnd={onEditEnd} />))
+
+    const field = container.querySelector("textarea")!
+    type(field, "goodbye")
+
+    await act(async () => {
+      await runShutdown()
+    })
+
+    expect(onEditEnd).toHaveBeenCalledWith("a", "goodbye")
+  })
+
+  it("waits for the write before letting the exit go through", async () => {
+    let land!: () => void
+    const held = new Promise<void>((resolve) => {
+      land = resolve
+    })
+    const onEditEnd = vi.fn(() => held)
+    act(() => root.render(<MindmapNode element={node()} editing onEditEnd={onEditEnd} />))
+
+    const field = container.querySelector("textarea")!
+    type(field, "goodbye")
+
+    let drained = false
+    const draining = runShutdown().then(() => {
+      drained = true
+    })
+    // Wait a macrotask so the assertion does not depend on how far act drains the handshake
+    // promise chain.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onEditEnd).toHaveBeenCalled()
+    // The handshake must wait for the write before allowing the host to close.
+    expect(drained).toBe(false)
+
+    land()
+    await act(async () => {
+      await draining
+    })
+    expect(drained).toBe(true)
+  })
 })
 
 describe("a frame title being edited", () => {
@@ -144,5 +186,19 @@ describe("a frame title being edited", () => {
     pressKey(field, "Enter", { isComposing: true })
 
     expect(onEditEnd).not.toHaveBeenCalled()
+  })
+
+  it("commits what is in the field when the window closes and nothing unmounts", async () => {
+    const onEditEnd = vi.fn()
+    act(() => root.render(<MindmapNode element={frame()} editing onEditEnd={onEditEnd} />))
+
+    const field = container.querySelector("input")!
+    type(field, "Renamed")
+
+    await act(async () => {
+      await runShutdown()
+    })
+
+    expect(onEditEnd).toHaveBeenCalledWith("f", "Renamed")
   })
 })

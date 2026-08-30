@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef } from "react"
 
+import { onShutdown } from "@/app/shutdown"
 import { cn } from "@/lib/utils"
 
 import { boxOf, anchorsFor, edgeShape, strokeToPathData, isFilled } from "./edge-paths"
@@ -124,7 +125,7 @@ export const MindmapEdgeLabels = memo(function MindmapEdgeLabels({
   /** The edge whose label is currently a field. */
   editingId?: string | null
   /** The field closed: the typed text, or null when the edit was abandoned. */
-  onEditEnd?: (id: string, text: string | null) => void
+  onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
 }) {
   const boxes = new Map<string, SceneElement>()
   for (const element of scene.elements) {
@@ -186,7 +187,7 @@ function EdgeLabelEditor({
 }: {
   edge: SceneEdge
   place: { transform: string }
-  onEditEnd?: (id: string, text: string | null) => void
+  onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
 }) {
   // A cancel blurs the field, and the blur must not then commit what the cancel just threw away.
   const done = useRef(false)
@@ -195,16 +196,22 @@ function EdgeLabelEditor({
   // never fires for an element that is simply removed from the DOM.
   const latest = useRef(edge.label ?? "")
 
-  const finish = (value: string | null): void => {
+  const finish = (value: string | null): void | Promise<unknown> => {
     if (done.current) {
       return
     }
     done.current = true
-    onEditEnd?.(edge.id, value)
+    return onEditEnd?.(edge.id, value)
   }
 
   useEffect(() => {
-    return () => finish(latest.current)
+    // Native window close does not unmount React. Await the write before the shutdown handshake
+    // completes.
+    const unregister = onShutdown(async () => finish(latest.current))
+    return () => {
+      unregister()
+      void finish(latest.current)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
