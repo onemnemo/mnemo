@@ -19,6 +19,7 @@ import {
 } from "../model/document"
 import type { ShapeContent, ShapeType } from "../model/document"
 import type { SceneElement } from "../model/scene"
+import { isAutoSized, measureFor } from "./live-box"
 import { isOpenShape, shapePath, shapeTextInset } from "./shape-path"
 import { useFieldFlush } from "./useFieldFlush"
 
@@ -692,15 +693,20 @@ function NodeEditor({
   const { text, isRoot } = element
   const body = bodyOf(element.content)
   const { finish, track } = useFieldFlush(plainText(element), (value) => onEditEnd?.(element.id, value))
+  const resize = useLiveBox(element)
 
-  const mount = useCallback((node: HTMLTextAreaElement | null) => {
-    if (!node) {
-      return
-    }
-    node.focus({ preventScroll: true })
-    node.select()
-    grow(node)
-  }, [])
+  const mount = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      if (!node) {
+        return
+      }
+      node.focus({ preventScroll: true })
+      node.select()
+      grow(node)
+      resize(node, node.value)
+    },
+    [resize],
+  )
 
   return (
     <textarea
@@ -728,6 +734,7 @@ function NodeEditor({
       }}
       onInput={(event) => {
         grow(event.currentTarget)
+        resize(event.currentTarget, event.currentTarget.value)
         track(event.currentTarget.value)
       }}
       onKeyDown={(event) => {
@@ -769,6 +776,47 @@ function NodeEditor({
 function grow(node: HTMLTextAreaElement): void {
   node.style.height = "0px"
   node.style.height = `${node.scrollHeight}px`
+}
+
+/**
+ * Keeps the node's box the size of what is being typed into it.
+ *
+ * Written to the host directly rather than held as state, for the reason the field itself is
+ * uncontrolled: a keystroke that re-renders the canvas subtree costs more than the box is worth.
+ *
+ * Only for a box that is still the size its own text measures to. One given a size by hand keeps
+ * it, because the projector prefers that size and growing it here would be undone by the commit.
+ */
+function useLiveBox(element: SceneElement): (field: HTMLTextAreaElement, value: string) => void {
+  const host = useRef<HTMLElement | null>(null)
+  const auto = useRef(false)
+  const opened = useRef(element)
+  opened.current = element
+
+  useEffect(() => {
+    const box = host.current
+    return () => {
+      // Escape leaves the document untouched, so nothing re-renders this node and the size typing
+      // wrote would otherwise stay on a box whose label went back to what it was.
+      if (box && auto.current) {
+        box.style.width = `${opened.current.width}px`
+        box.style.height = `${opened.current.height}px`
+      }
+    }
+  }, [])
+
+  return useCallback((field: HTMLTextAreaElement, value: string) => {
+    if (!host.current) {
+      host.current = field.closest<HTMLElement>(".mm-node")
+      auto.current = isAutoSized(opened.current, plainText(opened.current))
+    }
+    if (!host.current || !auto.current) {
+      return
+    }
+    const measured = measureFor(opened.current, value)
+    host.current.style.width = `${measured.width}px`
+    host.current.style.height = `${measured.height}px`
+  }, [])
 }
 
 /**

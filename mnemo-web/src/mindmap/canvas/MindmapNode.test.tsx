@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { resetShutdownForTests, runShutdown } from "@/app/shutdown"
 
+import { measureFor } from "./live-box"
 import { MindmapNode } from "./MindmapNode"
 import type { SceneElement } from "../model/scene"
 
@@ -235,6 +236,51 @@ describe("a frame title being edited", () => {
     })
 
     expect(onEditEnd).toHaveBeenCalledWith("f", "Renamed")
+  })
+})
+
+describe("the box under a label being typed into", () => {
+  const hostBox = (): HTMLElement => container.querySelector<HTMLElement>(".mm-node")!
+
+  /** A node whose box is exactly what its own label measures to, which is how the projector makes one. */
+  const autoNode = (text: string) => {
+    const seed = node({ content: { $type: "text", text }, text: { lines: [text], fontSize: 14, fontWeight: 500, lineHeight: 19, letterSpacing: "-0.005em" } })
+    const measured = measureFor(seed, text)
+    return node({ ...seed, width: measured.width, height: measured.height })
+  }
+
+  it("grows with the text, rather than letting it run out through the sides", () => {
+    const element = autoNode("hi")
+    act(() => root.render(<MindmapNode element={element} editing onEditEnd={vi.fn()} />))
+    const before = hostBox().style.width
+
+    const field = container.querySelector("textarea")!
+    type(field, "a much longer label than the one it opened on")
+
+    expect(hostBox().style.width).toBe(`${measureFor(element, "a much longer label than the one it opened on").width}px`)
+    expect(parseFloat(hostBox().style.width)).toBeGreaterThan(parseFloat(before))
+  })
+
+  it("puts the box back when the edit is abandoned, which changed no text at all", () => {
+    const element = autoNode("hi")
+    act(() => root.render(<MindmapNode element={element} editing onEditEnd={vi.fn()} />))
+    const before = hostBox().style.width
+
+    type(container.querySelector("textarea")!, "a much longer label")
+    // Escape leaves the document alone, so this node re-renders on the size it always had.
+    act(() => root.render(<MindmapNode element={element} onEditEnd={vi.fn()} />))
+
+    expect(hostBox().style.width).toBe(before)
+  })
+
+  it("leaves a box that was given a size by hand, which the projector would keep anyway", () => {
+    const element = node({ width: 400, height: 200 })
+    act(() => root.render(<MindmapNode element={element} editing onEditEnd={vi.fn()} />))
+
+    type(container.querySelector("textarea")!, "a much longer label than the one it opened on")
+
+    expect(hostBox().style.width).toBe("400px")
+    expect(hostBox().style.height).toBe("200px")
   })
 })
 
