@@ -1,12 +1,12 @@
-import { memo, useEffect, useRef } from "react"
+import { memo } from "react"
 
-import { onShutdown } from "@/app/shutdown"
 import { cn } from "@/lib/utils"
 
 import { boxOf, anchorsFor, edgeShape, strokeToPathData, isFilled } from "./edge-paths"
 import { strokeFor } from "./edge-canvas"
 import { dashAttribute, strokeStyleFor } from "./edge-style"
 import type { Scene, SceneEdge, SceneElement } from "../model/scene"
+import { useFieldFlush } from "./useFieldFlush"
 
 /**
  * Edges as SVG, for overview zoom.
@@ -189,31 +189,7 @@ function EdgeLabelEditor({
   place: { transform: string }
   onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
 }) {
-  // A cancel blurs the field, and the blur must not then commit what the cancel just threw away.
-  const done = useRef(false)
-  // Tracked alongside the uncontrolled field so an unmount before Enter, Escape, or a blur closed it
-  // (navigating away, or the scene rebuilding under an open field) has something to flush. A blur
-  // never fires for an element that is simply removed from the DOM.
-  const latest = useRef(edge.label ?? "")
-
-  const finish = (value: string | null): void | Promise<unknown> => {
-    if (done.current) {
-      return
-    }
-    done.current = true
-    return onEditEnd?.(edge.id, value)
-  }
-
-  useEffect(() => {
-    // Native window close does not unmount React. Await the write before the shutdown handshake
-    // completes.
-    const unregister = onShutdown(async () => finish(latest.current))
-    return () => {
-      unregister()
-      void finish(latest.current)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const { finish, track } = useFieldFlush(edge.label ?? "", (value) => onEditEnd?.(edge.id, value))
 
   return (
     <input
@@ -227,9 +203,7 @@ function EdgeLabelEditor({
       // select-text against the pane's select-none, or the caret cannot select what it is editing.
       className={cn(LABEL_PILL, "field-sizing-content w-[56px] min-w-[56px] select-text text-ink outline-none")}
       style={place}
-      onChange={(event) => {
-        latest.current = event.currentTarget.value
-      }}
+      onChange={(event) => track(event.currentTarget.value)}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
           // A composing Enter confirms the IME's candidate, not the label; let the IME answer it.

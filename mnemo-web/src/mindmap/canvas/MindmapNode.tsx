@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useRef } from "react"
 import "katex/dist/katex.min.css"
 
-import { onShutdown } from "@/app/shutdown"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
@@ -21,6 +20,7 @@ import {
 import type { ShapeContent, ShapeType } from "../model/document"
 import type { SceneElement } from "../model/scene"
 import { isOpenShape, shapePath, shapeTextInset } from "./shape-path"
+import { useFieldFlush } from "./useFieldFlush"
 
 export interface MindmapNodeProps {
   element: SceneElement
@@ -599,30 +599,7 @@ function FrameTitle({
   title: string
   onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
 }) {
-  const done = useRef(false)
-  // Tracked alongside the uncontrolled field so an unmount before Enter, Escape, or a blur closed it
-  // (navigating away, or the scene rebuilding under an open field) has something to flush. A blur
-  // never fires for an element that is simply removed from the DOM.
-  const latest = useRef(title)
-
-  const finish = (value: string | null): void | Promise<unknown> => {
-    if (done.current) {
-      return
-    }
-    done.current = true
-    return onEditEnd?.(element.id, value)
-  }
-
-  useEffect(() => {
-    // Native window close does not unmount React. Await the write before the shutdown handshake
-    // completes.
-    const unregister = onShutdown(async () => finish(latest.current))
-    return () => {
-      unregister()
-      void finish(latest.current)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const { finish, track } = useFieldFlush(title, (value) => onEditEnd?.(element.id, value))
 
   return (
     <input
@@ -631,9 +608,7 @@ function FrameTitle({
       className="mm-editor pointer-events-auto absolute left-3 top-[3px] w-[60%] select-text bg-transparent text-[11px] font-medium tracking-[0.01em] text-ink outline-none"
       defaultValue={title}
       spellCheck={false}
-      onChange={(event) => {
-        latest.current = event.currentTarget.value
-      }}
+      onChange={(event) => track(event.currentTarget.value)}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
           // A composing Enter confirms the IME's candidate, not the title; let the IME answer it.
@@ -715,12 +690,7 @@ function NodeEditor({
 }) {
   const { text, isRoot } = element
   const body = bodyOf(element.content)
-  // A cancel blurs the field, and the blur must not then commit what the cancel just threw away.
-  const done = useRef(false)
-  // Tracked alongside the uncontrolled field so an unmount before Enter, Escape, or a blur closed it
-  // (navigating away, or the scene rebuilding under an open field) has something to flush. A blur
-  // never fires for an element that is simply removed from the DOM.
-  const latest = useRef(plainText(element))
+  const { finish, track } = useFieldFlush(plainText(element), (value) => onEditEnd?.(element.id, value))
 
   const mount = useCallback((node: HTMLTextAreaElement | null) => {
     if (!node) {
@@ -729,25 +699,6 @@ function NodeEditor({
     node.focus({ preventScroll: true })
     node.select()
     grow(node)
-  }, [])
-
-  const finish = (value: string | null): void | Promise<unknown> => {
-    if (done.current) {
-      return
-    }
-    done.current = true
-    return onEditEnd?.(element.id, value)
-  }
-
-  useEffect(() => {
-    // Native window close does not unmount React. Await the write before the shutdown handshake
-    // completes.
-    const unregister = onShutdown(async () => finish(latest.current))
-    return () => {
-      unregister()
-      void finish(latest.current)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
@@ -776,7 +727,7 @@ function NodeEditor({
       }}
       onInput={(event) => {
         grow(event.currentTarget)
-        latest.current = event.currentTarget.value
+        track(event.currentTarget.value)
       }}
       onKeyDown={(event) => {
         if (event.key === "Enter" && !event.shiftKey) {
