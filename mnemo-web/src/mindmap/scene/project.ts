@@ -18,12 +18,12 @@
  */
 
 import { branchWidth } from "./branch-width"
-import { FREE_CONTEXT, resolveStyle, templateChain, type StyleContext } from "./cascade"
+import { FREE_CONTEXT, resolveStyle, templateChain, type ResolvedStyle, type StyleContext } from "./cascade"
 import { bodyOf, displayText, isRef, refKey, type RefInfo } from "./content"
 import { resolveEdgeStyle, ribbonWidths } from "./edge-cascade"
 import { analyzeHierarchy, childrenIds, hiddenDescendantCount, type Hierarchy } from "./hierarchy"
 import { measureNode, type Measurers } from "./measure"
-import { cssColor } from "./tokens"
+import { cssColor, washOf } from "./tokens"
 import {
   edgeKind,
   elementKind,
@@ -411,7 +411,7 @@ function buildElement(
     collapsed: element.collapsed,
     fill: cssColor(style.fill),
     stroke: cssColor(style.stroke),
-    textColor: cssColor(style.textColor),
+    textColor: cssColor(inkOf(kind, style)),
     depth: context.depth,
     branch: context.branchIndex,
     nodeShape: style.nodeShape,
@@ -433,6 +433,27 @@ function buildElement(
     refBadge: ref?.badge,
     refMissing: ref?.missing,
   }
+}
+
+/**
+ * The ink, which cannot be settled without knowing what will be painted under it.
+ *
+ * A template's root style names `accent` and `onAccent` together with the card rung that paints the
+ * first, so the second has something to read against. The cascade resolves those three one property
+ * at a time, so a root moved onto another rung keeps the pale ink and loses the fill it was for.
+ *
+ * Only the card paints the fill as given. A pill washes over it once the node carries a palette hue,
+ * and the outline and the rule paint nothing, so the ordinary ink is the readable answer on those.
+ */
+function inkOf(kind: ElementKind, style: ResolvedStyle): string {
+  if (style.textColor !== "onAccent" || style.fill !== "accent") {
+    return style.textColor
+  }
+  // A caption, a shape and a picture carry no card of their own whatever rung they resolved to.
+  const carded = kind === "node" && (style.nodeShape === "card" || style.nodeShape === "pill")
+  // Asked the way the renderers ask it, so the ink cannot drift from the colour put under it.
+  const washed = style.nodeShape === "pill" && washOf(cssColor(style.stroke)) !== null
+  return carded && !washed ? style.textColor : "textPrimary"
 }
 
 /** A frame and an image are sized by what they hold, not by a label, so neither can be measured. */

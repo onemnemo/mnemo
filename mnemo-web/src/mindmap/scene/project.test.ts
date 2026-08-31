@@ -102,6 +102,32 @@ describe("a projected element", () => {
   })
 })
 
+describe("the ink on a root", () => {
+  /** The root, styled by a template that pairs the accent fill with the ink that reads on it. */
+  const inkOn = (own: MindmapElement["style"]): string | undefined =>
+    projectScene({ ...SAMPLE, elements: [node("r", { style: own }), node("a")] }, options()).elements.find(
+      (element) => element.id === "r",
+    )!.textColor
+
+  it("is the pale ink the template pairs with the fill, on the rung that paints it", () => {
+    expect(inkOn(undefined)).toBe("var(--accent-fg)")
+  })
+
+  it("is the ordinary ink on a rung that paints nothing, which would leave the label invisible", () => {
+    expect(inkOn({ nodeShape: "plain" })).toBe("var(--ink)")
+    expect(inkOn({ nodeShape: "outline" })).toBe("var(--ink)")
+  })
+
+  it("follows a pill onto the wash it paints when the node carries a hue of its own", () => {
+    expect(inkOn({ nodeShape: "pill" })).toBe("var(--accent-fg)")
+    expect(inkOn({ nodeShape: "pill", stroke: "palette.3" })).toBe("var(--ink)")
+  })
+
+  it("reads a hue written as the literal a hand-made template carries, not just as a token", () => {
+    expect(inkOn({ nodeShape: "pill", stroke: "var(--branch-3)" })).toBe("var(--ink)")
+  })
+})
+
 describe("branch colour", () => {
   it("stays off under a template that does not ask for it", () => {
     const scene = projectScene(SAMPLE, options())

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 /**
- * Checks that node and frame edits flush on blur, unmount, and window shutdown, and that opening
- * one does not close it.
+ * Checks that node and frame edits flush on blur, unmount, and window shutdown, that opening one
+ * does not close it, and that a root is drawn as the rung it resolved to.
  */
 
 import { StrictMode, act } from "react"
@@ -235,5 +235,42 @@ describe("a frame title being edited", () => {
     })
 
     expect(onEditEnd).toHaveBeenCalledWith("f", "Renamed")
+  })
+})
+
+describe("a root's box", () => {
+  /** The body, which is the one child of the host that carries the rung's own look. */
+  const bodyOfNode = (): HTMLElement => container.querySelector<HTMLElement>(".mm-node > div.relative")!
+
+  it("is the lifted card on the rung it resolves to by default", () => {
+    act(() => root.render(<MindmapNode element={node({ isRoot: true, nodeShape: "card" })} />))
+
+    const body = bodyOfNode()
+    expect(body.className).toContain("rounded-[14px]")
+    expect(body.getAttribute("style")).toContain("12px")
+  })
+
+  it("shows the colour it was given, which on the card rung is a ring around the lift", () => {
+    act(() =>
+      root.render(<MindmapNode element={node({ isRoot: true, nodeShape: "card", stroke: "var(--branch-3)" })} />),
+    )
+
+    expect(bodyOfNode().getAttribute("style")).toContain("var(--branch-3)")
+  })
+
+  it("takes another rung when one was chosen, rather than staying a card", () => {
+    act(() => root.render(<MindmapNode element={node({ isRoot: true, nodeShape: "pill" })} />))
+
+    const body = bodyOfNode()
+    expect(body.className).toContain("rounded-full")
+    expect(body.className).not.toContain("rounded-[14px]")
+  })
+
+  it("draws a rule and no box at all on the plain rung", () => {
+    act(() => root.render(<MindmapNode element={node({ isRoot: true, nodeShape: "plain", underline: 7 })} />))
+
+    const body = bodyOfNode()
+    expect(body.getAttribute("style")).toContain("border-bottom: 7px solid")
+    expect(body.className).not.toContain("rounded")
   })
 })

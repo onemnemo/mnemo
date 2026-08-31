@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest"
 
-import type { MindmapDocument, MindmapEdge, MindmapElement, StyleTemplate } from "../model/document"
+import type { MindmapDocument, MindmapEdge, MindmapElement, NodeShape, StyleTemplate } from "../model/document"
 import { estimateWidth, measurersFrom } from "../scene/measure"
 import { projectScene } from "../scene/project"
 import { emitSvg, EXPORT_MARGIN, type SvgOptions } from "./svg"
@@ -117,6 +117,34 @@ describe("the picture", () => {
 })
 
 describe("what a node is drawn as", () => {
+  it("lifts the root off the canvas on the card rung it resolves to by default", () => {
+    const { picture } = draw(document())
+
+    expect(picture!.markup).toContain('filter="url(#mm-root-shadow)"')
+    expect(picture!.markup).toContain('<filter id="mm-root-shadow"')
+  })
+
+  it("rings the root card with the colour it was given, the way the canvas does", () => {
+    const { picture } = draw(document({ elements: [node("r", { style: { stroke: "palette.3" } }), node("a")] }))
+
+    // The ring and the lift belong to one rect, so this reads the element rather than the markup
+    // around it. A lifted root with no ring is the one box on a map that cannot show its own colour.
+    const lifted = /<rect\b[^>]*mm-root-shadow[^>]*>/.exec(picture!.markup)?.[0] ?? ""
+    expect(lifted).toContain("stroke=")
+    expect(lifted).toContain('stroke-width="1"')
+  })
+
+  it("draws the root as the rung it was given, the way the canvas does", () => {
+    const rung = (nodeShape: NodeShape) =>
+      draw(document({ elements: [node("r", { style: { nodeShape } }), node("a")] })).picture!.markup
+
+    // The plain rung is a rule and no box at all, so a root on it is a line rather than a lifted
+    // card, and the filter goes with the card that rung does not draw.
+    expect(rung("plain")).toContain("<line")
+    expect(rung("plain")).not.toContain("mm-root-shadow")
+    expect(rung("pill")).not.toContain("mm-root-shadow")
+  })
+
   it("keeps the lines the box was measured around", () => {
     const long = "one two three four five six seven eight nine ten eleven twelve thirteen"
     const { scene, picture } = draw(

@@ -102,10 +102,12 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
       <div
         className={cn(
           "relative flex h-full w-full items-center",
-          isRoot && "justify-center rounded-[14px]",
+          isRoot && "justify-center",
           element.kind === "shape" && "justify-center",
-          !isRoot && nodeShape === "pill" && "rounded-full",
-          !isRoot && (nodeShape === "card" || nodeShape === "outline") && "rounded-[10px]",
+          nodeShape === "pill" && "rounded-full",
+          // A root is a bigger box and takes a bigger radius, which is the only thing about its
+          // corners that is its own rather than the rung's.
+          (nodeShape === "card" || nodeShape === "outline") && (isRoot ? "rounded-[14px]" : "rounded-[10px]"),
         )}
         style={bodyStyle(element, wash, accentLine)}
       >
@@ -411,7 +413,7 @@ function codeLanguage(element: SceneElement): string | null {
  * beside it. Falls back to the canvas, which is what a node with no fill of its own is showing.
  */
 function surfaceOf(element: SceneElement, wash: string | null): string {
-  if (!element.isRoot && element.nodeShape === "pill" && wash) {
+  if (element.nodeShape === "pill" && wash) {
     return wash
   }
   return element.fill ?? "var(--canvas)"
@@ -441,19 +443,18 @@ function markerFill(
   if (element.kind === "shape") {
     return element.fill ?? accentLine ?? "var(--line)"
   }
-  if (element.isRoot) {
-    return element.fill ?? "var(--accent)"
-  }
 
   switch (element.nodeShape) {
     case "pill":
       return wash ?? element.fill ?? accentLine ?? "var(--line)"
-    // Both draw their whole chrome as a line, so the line is what they are.
+    // Both draw their whole chrome as a line, so the line is what they are. A root on either rung
+    // included: it stopped painting a fill at readable zoom, so a solid accent block down here
+    // would be the map changing shape as it zooms out.
     case "plain":
     case "outline":
       return accentLine ?? "var(--line)"
     default:
-      return element.fill ?? accentLine ?? "var(--line)"
+      return element.fill ?? (element.isRoot ? "var(--accent)" : accentLine ?? "var(--line)")
   }
 }
 
@@ -797,6 +798,9 @@ function plainText(element: SceneElement): string {
   return contentText(element.content) ?? element.text.lines.join(" ")
 }
 
+/** What holds the root above the rest of the map. Every other box sits flat on the canvas. */
+const ROOT_LIFT = "0 1px 2px oklch(0 0 0 / 0.12), 0 4px 12px -4px oklch(0 0 0 / 0.18)"
+
 /**
  * A plain node has no box at all: its rule is its whole chrome, and the branch that arrives lands on
  * that rule rather than on an invisible bounding box.
@@ -813,13 +817,6 @@ function bodyStyle(
     return {}
   }
 
-  if (element.isRoot) {
-    return {
-      background: element.fill,
-      boxShadow: "0 1px 2px oklch(0 0 0 / 0.12), 0 4px 12px -4px oklch(0 0 0 / 0.18)",
-    }
-  }
-
   switch (element.nodeShape) {
     case "plain":
       return { borderBottom: `${element.underline ?? 2}px solid ${accentLine ?? "var(--line)"}` }
@@ -831,6 +828,15 @@ function bodyStyle(
     case "outline":
       return { boxShadow: `inset 0 0 0 1px ${accentLine ?? "var(--line)"}` }
     default:
+      // A root's card is the same rung read louder: it is the one box everything else on the map
+      // hangs off, so it is lifted off the canvas as well as ringed against it. The ring belongs to
+      // the rung and the lift to the root, and a root without the ring cannot show its own colour.
+      if (element.isRoot) {
+        return {
+          background: element.fill,
+          boxShadow: `0 0 0 1px ${mixColor(accentLine ?? "var(--line)", 32)}, ${ROOT_LIFT}`,
+        }
+      }
       return {
         background: element.fill,
         boxShadow: accentLine

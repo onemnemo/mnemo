@@ -110,7 +110,9 @@ export function emitSvg(scene: Scene, options: SvgOptions): SvgPicture | null {
   if (options.style) {
     defs.push(`<style>${options.style}</style>`)
   }
-  if (scene.elements.some((element) => element.isRoot)) {
+  // Only a root on the card rung is drawn with it, and a map whose root is a rule or a pill would
+  // otherwise carry a filter nothing references.
+  if (scene.elements.some((element) => element.isRoot && element.nodeShape === "card")) {
     defs.push(ROOT_SHADOW)
   }
 
@@ -284,12 +286,9 @@ function emitBox(element: SceneElement, accent: string | undefined, paint: Paint
     return ""
   }
 
-  if (element.isRoot) {
-    return rect(x, y, width, height, 14, {
-      fill: element.fill ? paint.color(element.fill) : "none",
-      filter: "url(#mm-root-shadow)",
-    })
-  }
+  // A root is a bigger box and takes a bigger radius, which is the only thing about its corners that
+  // is its own rather than the rung's.
+  const radius = element.isRoot ? 14 : 10
 
   switch (element.nodeShape) {
     case "plain": {
@@ -308,9 +307,18 @@ function emitBox(element: SceneElement, accent: string | undefined, paint: Paint
         ring: accent ? paint.color(mixColor(accent, 16)) : undefined,
       })
     case "outline":
-      return rect(x, y, width, height, 10, { ring: paint.color(accent ?? "var(--line)") })
+      return rect(x, y, width, height, radius, { ring: paint.color(accent ?? "var(--line)") })
     default:
-      return rect(x, y, width, height, 10, {
+      // A root's card is the same rung read louder: it is the one box everything else on the map
+      // hangs off, so it is lifted off the canvas as well as ringed against it.
+      if (element.isRoot) {
+        return rect(x, y, width, height, radius, {
+          fill: fillOf(element, paint),
+          ring: paint.color(mixColor(accent ?? "var(--line)", 32)),
+          filter: "url(#mm-root-shadow)",
+        })
+      }
+      return rect(x, y, width, height, radius, {
         fill: fillOf(element, paint),
         ring: paint.color(accent ? mixColor(accent, 32) : "var(--line-soft)"),
       })
@@ -417,7 +425,7 @@ function emitBody(element: SceneElement, paint: Paint): string {
   const centred = element.isRoot || element.kind === "shape" || body === "math"
 
   // The rule a plain node draws sits inside its box, so the text is centred in what is left above it.
-  const inner = element.nodeShape === "plain" && !element.isRoot ? element.height - (element.underline ?? 2) : element.height
+  const inner = element.nodeShape === "plain" ? element.height - (element.underline ?? 2) : element.height
   const top = element.y + (inner - text.lines.length * text.lineHeight) / 2
 
   const style: TextStyle = {
@@ -669,7 +677,7 @@ function fillOf(element: SceneElement, paint: Paint): string {
 /** The colour the body was painted, which is also what a chip sitting on top of it paints behind. */
 function surfaceOf(element: SceneElement): string {
   const wash = washOf(accentOf(element))
-  if (!element.isRoot && element.nodeShape === "pill" && wash) {
+  if (element.nodeShape === "pill" && wash) {
     return wash
   }
   return element.fill ?? "var(--canvas)"
