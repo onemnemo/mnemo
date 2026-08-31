@@ -18,6 +18,9 @@ import type { Point, SceneEdge } from "../model/scene"
 /** How many straight pieces a curve is measured as. Sub-pixel at any zoom a human clicks at. */
 const CURVE_SAMPLES = 24
 
+/** Click target around an edge's centreline, in screen pixels. Callers divide by zoom to reach canvas. */
+export const EDGE_HIT_PIXELS = 7
+
 export interface EdgeHitInput {
   readonly edges: readonly SceneEdge[]
   readonly boxOf: (id: string) => ElementBox | undefined

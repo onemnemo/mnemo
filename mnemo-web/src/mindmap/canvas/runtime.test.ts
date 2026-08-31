@@ -2,6 +2,13 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+// Pinned rather than read from the runner: isMac is settled at module load from the host's
+// navigator, so an unpinned assertion about the pan modifier tests whichever machine ran it.
+vi.mock("@/keybinds/chord", async (original) => ({
+  ...(await original<typeof import("@/keybinds/chord")>()),
+  isMac: false,
+}))
+
 import type { EdgeCanvasContext } from "./edge-canvas"
 import { backgroundStep, createCanvasRuntime, type CanvasElements, type CanvasRuntimeOptions } from "./runtime"
 import { MAX_SCALE, MIN_SCALE, type Scene, type SceneElement } from "../model/scene"
@@ -95,13 +102,13 @@ describe("backgroundStep", () => {
 const EMPTY_SCENE: Scene = { id: "m", elements: [], edges: [], background: "dots" }
 
 describe("the wheel", () => {
-  it("pans on a plain wheel, the way trackpad scroll reads everywhere else", () => {
+  it("zooms on a plain wheel, with no modifier to reach for", () => {
     const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+    const before = runtime.viewport()
 
     pane.dispatchEvent(
       new WheelEvent("wheel", {
-        deltaX: 20,
-        deltaY: 30,
+        deltaY: -100,
         clientX: 0,
         clientY: 0,
         cancelable: true,
@@ -109,7 +116,51 @@ describe("the wheel", () => {
       }),
     )
 
-    expect(runtime.viewport()).toEqual({ x: 20, y: 30, zoom: 1 })
+    expect(runtime.viewport().zoom).toBeGreaterThan(before.zoom)
+    dispose()
+  })
+
+  it("zooms out on the other direction, so the notch is not one way only", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+    const before = runtime.viewport()
+
+    pane.dispatchEvent(
+      new WheelEvent("wheel", { deltaY: 100, clientX: 0, clientY: 0, cancelable: true, bubbles: true }),
+    )
+
+    expect(runtime.viewport().zoom).toBeLessThan(before.zoom)
+    dispose()
+  })
+
+  it("takes the page's own scrolling out of it, whichever way it turned", () => {
+    const { pane, dispose } = mount(EMPTY_SCENE)
+
+    const event = new WheelEvent("wheel", { deltaY: 100, cancelable: true, bubbles: true })
+    pane.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    dispose()
+  })
+
+  it("pans on a sideways wheel, which is travel rather than distance", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+
+    pane.dispatchEvent(
+      new WheelEvent("wheel", { deltaX: 30, deltaY: 10, cancelable: true, bubbles: true }),
+    )
+
+    expect(runtime.viewport()).toEqual({ x: 30, y: 10, zoom: 1 })
+    dispose()
+  })
+
+  it("pans sideways on shift with a plain wheel, for engines that hand the notch over unturned", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+
+    pane.dispatchEvent(
+      new WheelEvent("wheel", { deltaY: 40, shiftKey: true, cancelable: true, bubbles: true }),
+    )
+
+    expect(runtime.viewport()).toEqual({ x: 40, y: 0, zoom: 1 })
     dispose()
   })
 
@@ -134,6 +185,149 @@ describe("the wheel", () => {
     // that point does not slide.
     expect(after.x).toBe(before.x)
     expect(after.y).toBe(before.y)
+    dispose()
+  })
+})
+
+/** A pointer event jsdom will carry a button and a pointer id on. */
+function pointer(type: string, init: PointerEventInit = {}): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true })
+  Object.assign(event, { pointerId: 1, button: 0, movementX: 0, movementY: 0, ...init })
+  return event
+}
+
+describe("panning the map", () => {
+  /** jsdom has no pointer capture, and the runtime takes one on every pan. */
+  const stubCapture = (pane: HTMLElement) => {
+    pane.setPointerCapture = () => {}
+    pane.releasePointerCapture = () => {}
+  }
+
+  const dragBy = (pane: HTMLElement, down: PointerEventInit, dx: number, dy: number) => {
+    pane.dispatchEvent(pointer("pointerdown", down))
+    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, movementX: dx, movementY: dy }))
+    pane.dispatchEvent(pointer("pointerup", { pointerId: 1 }))
+  }
+
+  it("follows a middle button drag", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+    stubCapture(pane)
+
+    dragBy(pane, { button: 1 }, 40, 25)
+
+    expect(runtime.viewport()).toEqual({ x: -40, y: -25, zoom: 1 })
+    dispose()
+  })
+
+  it("keeps the browser's own middle click scrolling from running alongside it", () => {
+    const { pane, dispose } = mount(EMPTY_SCENE)
+
+    // The autoscroll starts on the mouse event, so a prevented pointerdown never reaches it and the
+    // map would pan while the page slid the other way.
+    const event = new MouseEvent("mousedown", { button: 1, cancelable: true, bubbles: true })
+    pane.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    dispose()
+  })
+
+  it("leaves an ordinary left press alone, which is the marquee's", () => {
+    const { pane, dispose } = mount(EMPTY_SCENE)
+
+    const event = pointer("pointerdown", { button: 0 })
+    pane.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(false)
+    dispose()
+  })
+
+  it("follows an alt held left drag", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+    stubCapture(pane)
+
+    dragBy(pane, { button: 0, altKey: true }, 10, 10)
+
+    expect(runtime.viewport()).toEqual({ x: -10, y: -10, zoom: 1 })
+    dispose()
+  })
+
+  it("follows a left drag while space is held, and lets go when it is released", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+    stubCapture(pane)
+
+    pane.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", bubbles: true, cancelable: true }))
+    dragBy(pane, { button: 0 }, 15, 5)
+    expect(runtime.viewport()).toEqual({ x: -15, y: -5, zoom: 1 })
+
+    pane.dispatchEvent(new KeyboardEvent("keyup", { code: "Space", bubbles: true }))
+    dragBy(pane, { button: 0 }, 15, 5)
+
+    expect(runtime.viewport()).toEqual({ x: -15, y: -5, zoom: 1 })
+    dispose()
+  })
+
+  it("hears the space release wherever the focus went, so pan mode cannot latch on", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+    stubCapture(pane)
+
+    // Held over the map, released with the focus in a dialog: the key-up never reaches the pane.
+    pane.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", bubbles: true, cancelable: true }))
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" }))
+    dragBy(pane, { button: 0 }, 15, 5)
+
+    expect(runtime.viewport()).toEqual({ x: 0, y: 0, zoom: 1 })
+    dispose()
+  })
+
+  it("leaves a press inside an open label field alone, where it is the caret's", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+    stubCapture(pane)
+    const field = document.createElement("input")
+    pane.append(field)
+
+    // The edge-label editor lives outside any node, so without the field guard this press would
+    // read as the modifier over empty canvas and pan instead of placing the caret.
+    field.dispatchEvent(pointer("pointerdown", { button: 0, ctrlKey: true }))
+    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, movementX: 25, movementY: 25 }))
+
+    expect(runtime.viewport()).toEqual({ x: 0, y: 0, zoom: 1 })
+    dispose()
+  })
+
+  it("does not take the space bar out of a label being typed into", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+    stubCapture(pane)
+    const field = document.createElement("textarea")
+    pane.append(field)
+
+    field.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", bubbles: true, cancelable: true }))
+    dragBy(pane, { button: 0 }, 20, 20)
+
+    expect(runtime.viewport()).toEqual({ x: 0, y: 0, zoom: 1 })
+    dispose()
+  })
+
+  it("follows the primary modifier over empty canvas", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+    stubCapture(pane)
+
+    dragBy(pane, { button: 0, ctrlKey: true }, 12, 8)
+
+    expect(runtime.viewport()).toEqual({ x: -12, y: -8, zoom: 1 })
+    dispose()
+  })
+
+  it("leaves the same press on a node alone, where it still means add to the selection", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+    stubCapture(pane)
+    const node = document.createElement("div")
+    node.className = "mm-node"
+    pane.append(node)
+
+    node.dispatchEvent(pointer("pointerdown", { button: 0, ctrlKey: true }))
+    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, movementX: 30, movementY: 30 }))
+
+    expect(runtime.viewport()).toEqual({ x: 0, y: 0, zoom: 1 })
     dispose()
   })
 })
