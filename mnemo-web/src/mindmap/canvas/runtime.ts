@@ -12,7 +12,11 @@
  * module wires those together and adds nothing to the frame.
  */
 
+import { isEditableTarget } from "@/keybinds/chord"
+
 import { panBy, svgCameraTransform, worldTransform, zoomAt } from "./camera"
+import { onNode, panModifier } from "./pan-gesture"
+import { EDGE_HIT_PIXELS, hitEdge } from "../interaction/hit-test"
 import { createCssColorResolver } from "./css-color"
 import { createCuller } from "./culler"
 import { createEdgeCanvasRenderer, type EdgeCanvasRenderer } from "./edge-canvas"
@@ -79,6 +83,12 @@ export interface CanvasRuntime {
   zoomBy(factor: number): void
   /** Hands over the newly mounted edge layer after a substrate swap. */
   rebindEdges(next: EdgeElements): void
+  /**
+   * Whether a held space has claimed the next left press for the pan. The interaction controller
+   * reads this at press time and stands aside, for the same reason the modifier lists are shared:
+   * a press both layers answer is a marquee sliding on a moving camera.
+   */
+  spacePan(): boolean
   /** A client point in canvas coordinates. What a gesture needs to know where it is. */
   toCanvas(clientX: number, clientY: number): Point
   /** The inverse: a canvas point in pixels from the pane's top-left. */
@@ -309,35 +319,118 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
 
   let panning = false
   let panPointer = -1
+  let spaceHeld = false
 
   const onWheel = (event: WheelEvent): void => {
     event.preventDefault()
-    if (event.ctrlKey) {
-      // A trackpad's pinch gesture is delivered as a wheel event with ctrlKey synthesized true,
-      // which is also the platform convention for "this wheel means zoom" on a real ctrl-held wheel.
-      const rect = elements.pane.getBoundingClientRect()
-      viewport = zoomAt(viewport, event.deltaY, event.clientX - rect.left, event.clientY - rect.top)
-    } else {
-      // Plain wheel pans, the way two-finger trackpad scroll and every other canvas surface reads
-      // it. Negated because panBy is calibrated for a hand dragging the surface, where moving the
-      // hand down reveals what is above; a wheel scrolling down should reveal what is below instead.
-      viewport = panBy(viewport, -event.deltaX, -event.deltaY)
+    // A sideways wheel is still travel, not distance: a trackpad's horizontal swipe arrives as
+    // deltaX, and shift on a plain wheel is the mouse's way of asking for the same move. Chromium
+    // has already folded shift into deltaX by the time this runs; the shiftKey arm catches the
+    // engines that hand the notch over unturned.
+    if (event.deltaX !== 0 || event.shiftKey) {
+      viewport =
+        event.deltaX !== 0
+          ? panBy(viewport, -event.deltaX, -event.deltaY)
+          : panBy(viewport, -event.deltaY, 0)
+      applyCamera()
+      return
     }
+    // The wheel zooms, held or not. A map is a surface you move around on rather than a page you
+    // read down, so the notch that means "closer" everywhere else means it here too, and a pinch,
+    // which arrives as a wheel with ctrlKey synthesized true, lands on the same arithmetic.
+    const rect = elements.pane.getBoundingClientRect()
+    viewport = zoomAt(viewport, event.deltaY, event.clientX - rect.left, event.clientY - rect.top)
     applyCamera()
   }
 
-  const onPointerDown = (event: PointerEvent): void => {
-    // Middle button, or an alt-held left drag, pans from anywhere. A plain left press on empty
-    // canvas is a marquee, which belongs to the selection layer and not here.
-    const wantsPan = event.button === 1 || (event.button === 0 && event.altKey)
-    if (!wantsPan) {
-      return
-    }
+  const beginPan = (event: PointerEvent): void => {
     panning = true
     panPointer = event.pointerId
     elements.pane.setPointerCapture(event.pointerId)
     elements.pane.style.cursor = "grabbing"
     event.preventDefault()
+  }
+
+  /**
+   * Whether the press sits on an edge, which has no DOM of its own at readable zoom and so has to
+   * be asked geometrically. The same test, at the same tolerance, the controller answers a click
+   * with; panning over one would slide the map out from under the selection it was reaching for.
+   */
+  const overEdge = (event: PointerEvent): boolean => {
+    const rect = elements.pane.getBoundingClientRect()
+    const point = {
+      x: viewport.x + (event.clientX - rect.left) / viewport.zoom,
+      y: viewport.y + (event.clientY - rect.top) / viewport.zoom,
+    }
+    return (
+      hitEdge({
+        edges: scene.edges,
+        boxOf: (id) => index.boxOf(id),
+        point,
+        tolerance: EDGE_HIT_PIXELS / viewport.zoom,
+      }) != null
+    )
+  }
+
+  const onPointerDown = (event: PointerEvent): void => {
+    // A press inside an open label field is the caret's. The node's field stops its own
+    // propagation, but the edge-label editor lives outside any node, and a pan begun there
+    // prevents the very mousedown that was placing the caret.
+    if (isEditableTarget(event.target)) {
+      return
+    }
+    if (event.button === 1 || (event.button === 0 && (event.altKey || spaceHeld))) {
+      beginPan(event)
+      return
+    }
+    // The primary modifier over empty canvas pans as well, so a pan is always reachable from the
+    // left button alone. Only over empty canvas: on a node the same press toggles it into the
+    // selection, which is the older meaning and the one with nowhere else to go, and an edge is
+    // the same toggle found geometrically.
+    if (event.button === 0 && panModifier(event) && !onNode(event.target) && !overEdge(event)) {
+      beginPan(event)
+    }
+  }
+
+  /**
+   * Chrome starts its middle-click autoscroll on the mouse event, and a prevented `pointerdown`
+   * does not reach it. Left alone the canvas pans and the page slides the other way at once.
+   */
+  const onMouseDown = (event: MouseEvent): void => {
+    if (event.button === 1) {
+      event.preventDefault()
+    }
+  }
+
+  const onKeyDown = (event: KeyboardEvent): void => {
+    // Held space is the pan every canvas tool shares. Not while a label is open, where the space
+    // bar is a space, and not repeating, which would fight the cursor on every auto-repeat.
+    if (event.code !== "Space" || event.repeat || isEditableTarget(event.target)) {
+      return
+    }
+    event.preventDefault()
+    if (!spaceHeld) {
+      spaceHeld = true
+      if (!panning) {
+        elements.pane.style.cursor = "grab"
+      }
+    }
+  }
+
+  const releaseSpace = (): void => {
+    if (!spaceHeld) {
+      return
+    }
+    spaceHeld = false
+    if (!panning) {
+      elements.pane.style.cursor = ""
+    }
+  }
+
+  const onKeyUp = (event: KeyboardEvent): void => {
+    if (event.code === "Space") {
+      releaseSpace()
+    }
   }
 
   const onPointerMove = (event: PointerEvent): void => {
@@ -355,14 +448,24 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
     panning = false
     panPointer = -1
     elements.pane.releasePointerCapture(event.pointerId)
-    elements.pane.style.cursor = ""
+    // Back to the open hand rather than to nothing, when the space that started this is still down.
+    elements.pane.style.cursor = spaceHeld ? "grab" : ""
   }
 
   elements.pane.addEventListener("wheel", onWheel, { passive: false })
+  elements.pane.addEventListener("mousedown", onMouseDown)
   elements.pane.addEventListener("pointerdown", onPointerDown)
   elements.pane.addEventListener("pointermove", onPointerMove)
   elements.pane.addEventListener("pointerup", endPan)
   elements.pane.addEventListener("pointercancel", endPan)
+  elements.pane.addEventListener("keydown", onKeyDown)
+  // The key-up is heard on the window, not the pane: a space held over the map and released with
+  // the focus in a dialog or a panel would otherwise never be heard at all, and the map would pan
+  // on every plain press from then on with no key left to release it.
+  window.addEventListener("keyup", onKeyUp)
+  // A held space that ends while the window is not focused would otherwise leave the pane stuck in
+  // the grab cursor, waiting for a key-up that is never coming to it.
+  window.addEventListener("blur", releaseSpace)
 
   const observer = new ResizeObserver(resize)
   observer.observe(elements.pane)
@@ -391,6 +494,8 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
     },
 
     fit,
+
+    spacePan: () => spaceHeld,
 
     zoomBy(factor) {
       // Through the same anchored arithmetic the wheel uses, about the pane's centre, so a button
@@ -456,10 +561,14 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
       observer.disconnect()
       themeWatcher.disconnect()
       elements.pane.removeEventListener("wheel", onWheel)
+      elements.pane.removeEventListener("mousedown", onMouseDown)
       elements.pane.removeEventListener("pointerdown", onPointerDown)
       elements.pane.removeEventListener("pointermove", onPointerMove)
       elements.pane.removeEventListener("pointerup", endPan)
       elements.pane.removeEventListener("pointercancel", endPan)
+      elements.pane.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("keyup", onKeyUp)
+      window.removeEventListener("blur", releaseSpace)
       closeCanvas()
     },
   }

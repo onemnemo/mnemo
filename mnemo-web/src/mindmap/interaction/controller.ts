@@ -12,9 +12,10 @@
  */
 
 import { planDrag, positionAt, type DragPlan } from "../canvas/drag-plan"
+import { panModifier } from "../canvas/pan-gesture"
 import type { SceneIndex } from "../canvas/scene-index"
 import type { Point, Scene, SceneElement } from "../model/scene"
-import { hitEdge } from "./hit-test"
+import { EDGE_HIT_PIXELS, hitEdge } from "./hit-test"
 import { elementsInRect, rectBetween } from "./marquee"
 import { boxChanged, resizeBox, type ResizeBox, type ResizeDir } from "./resize"
 import type { MindmapTool } from "./tool"
@@ -30,9 +31,6 @@ import {
 
 /** Client pixels of slack, summed across both axes, before a press becomes a drag. */
 const DRAG_THRESHOLD = 4
-
-/** Click target around an edge's centreline, in screen pixels; divided by zoom to reach canvas. */
-const EDGE_HIT_PIXELS = 7
 
 export interface MovedElement {
   readonly id: string
@@ -64,6 +62,8 @@ export interface InteractionSurface {
   /** Holds these elements and edges rendered wherever the gesture takes them. */
   pin(elementIds: readonly string[], edgeIds: readonly string[]): void
   unpin(): void
+  /** Whether a held space has claimed the next left press for the runtime's pan. */
+  spacePan?(): boolean
 }
 
 export interface InteractionHandlers {
@@ -226,9 +226,9 @@ export function installInteraction(
     })
 
   const onPointerDown = (event: PointerEvent): void => {
-    // Middle and alt-left are the runtime's pan, and a secondary click opens a menu rather than
-    // moving anything. Neither is this module's business.
-    if (event.button !== 0 || event.altKey || gesture.kind !== "none") {
+    // Middle, alt-left and space-left are the runtime's pan, and a secondary click opens a menu
+    // rather than moving anything. None of them are this module's business.
+    if (event.button !== 0 || event.altKey || surface.spacePan?.() || gesture.kind !== "none") {
       return
     }
 
@@ -245,6 +245,14 @@ export function installInteraction(
     const startCanvas = surface.toCanvas(event.clientX, event.clientY)
     const elementId = elementAt(event.target)
     const tool = handlers.tool()
+
+    // The modifier the runtime pans on, over what is genuinely empty canvas. Asked here rather
+    // than at the top so a node keeps its additive toggle and an edge, which is only ever found
+    // geometrically, keeps its click. Shift is still the additive marquee, so adding to a
+    // selection by sweeping keeps a key of its own.
+    if (panModifier(event) && !elementId && !edgeAt(startCanvas)) {
+      return
+    }
 
     // Before anything else, including the armed tool: a grip is only on screen because the element
     // is selected, and pressing one can mean nothing but "resize this". Like a connect drag it is a
