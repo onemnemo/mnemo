@@ -1176,7 +1176,14 @@ public sealed class MindmapDocumentService : IMindmapService
             working.SetCluster(op.Root, existing with
             {
                 LayoutAlgorithm = op.Algorithm ?? existing.LayoutAlgorithm,
-                TemplateId = op.TemplateId ?? existing.TemplateId,
+                // An empty string clears the cluster's override, the way an empty set_edge label
+                // clears a label; the cascade then falls through to the document's template again.
+                TemplateId = op.TemplateId switch
+                {
+                    null => existing.TemplateId,
+                    "" => null,
+                    var templateId => templateId,
+                },
                 Options = op.Options ?? existing.Options,
             });
             return null;
@@ -1185,7 +1192,9 @@ public sealed class MindmapDocumentService : IMindmapService
         if (op.Algorithm is not null)
             return Err(MindmapEditErrorCode.InvalidOperation, "A document-level layout requires a root; only defaults apply document-wide.");
 
-        if (op.TemplateId is not null)
+        // Never empty: the clear encoding names a cluster, and a blank document default would
+        // resolve nothing.
+        if (op.TemplateId is { Length: > 0 })
             working.SetCanvas(working.Canvas with { DefaultTemplateId = op.TemplateId });
 
         if (op.Background is not null)

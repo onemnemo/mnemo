@@ -133,6 +133,7 @@ export interface LayoutOp {
   op: "layout"
   root?: string
   algo?: string
+  /** With a `root`, an empty string clears that cluster's override; omitting it leaves it alone. */
   template?: string
   options?: LayoutOptions
   /** Merged onto the canvas defaults, so choosing a material does not clear a colour beside it. */

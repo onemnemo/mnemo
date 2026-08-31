@@ -169,6 +169,7 @@ public sealed record LayoutOp : MindmapEditOp
 
     public string? Algorithm { get; init; }
 
+    /// <summary>With a <see cref="Root"/>, an empty string clears that cluster's override; null leaves it alone.</summary>
     public string? TemplateId { get; init; }
 
     public LayoutOptions? Options { get; init; }
