@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
 /**
- * Checks that edge label edits flush on blur, unmount, and window shutdown.
+ * Checks that edge label edits flush on blur, unmount, and window shutdown, and that opening one
+ * does not close it.
  */
 
-import { act } from "react"
+import { StrictMode, act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -72,16 +73,35 @@ function pressKey(field: HTMLInputElement, key: string, init: KeyboardEventInit 
 }
 
 describe("an edge label being edited", () => {
-  it("flushes the last typed value on an unmount that closed no other way", () => {
+  it("flushes the last typed value on an unmount that closed no other way", async () => {
     const onEditEnd = vi.fn()
     act(() => root.render(<MindmapEdgeLabels scene={SCENE} editingId="e1" onEditEnd={onEditEnd} />))
 
     const field = container.querySelector<HTMLInputElement>('input[data-mm-edge-label="e1"]')!
     type(field, "renamed")
 
-    act(() => root.unmount())
+    await act(async () => root.unmount())
 
     expect(onEditEnd).toHaveBeenCalledWith("e1", "renamed")
+  })
+
+  it("stays open when React tears the mount effect down and sets it back up", async () => {
+    // StrictMode does this in development to prove an effect's teardown is something its setup
+    // undoes. The flush is not, so running it there closes the field in the frame it opens.
+    const onEditEnd = vi.fn()
+    act(() =>
+      root.render(
+        <StrictMode>
+          <MindmapEdgeLabels scene={SCENE} editingId="e1" onEditEnd={onEditEnd} />
+        </StrictMode>,
+      ),
+    )
+    // Past the tick the teardown's flush was queued on, or this passes against a flush that was
+    // only deferred and never called off.
+    await act(async () => {})
+
+    expect(onEditEnd).not.toHaveBeenCalled()
+    expect(container.querySelector('input[data-mm-edge-label="e1"]')).not.toBeNull()
   })
 
   it("does not finish on a composing Enter, which belongs to the input method", () => {

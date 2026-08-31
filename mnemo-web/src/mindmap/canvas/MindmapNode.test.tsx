@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
 /**
- * Checks that node and frame edits flush on blur, unmount, and window shutdown.
+ * Checks that node and frame edits flush on blur, unmount, and window shutdown, and that opening
+ * one does not close it.
  */
 
-import { act } from "react"
+import { StrictMode, act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -86,16 +87,35 @@ function pressKey(
 }
 
 describe("a node label being edited", () => {
-  it("flushes the last typed value on an unmount that closed no other way", () => {
+  it("flushes the last typed value on an unmount that closed no other way", async () => {
     const onEditEnd = vi.fn()
     act(() => root.render(<MindmapNode element={node()} editing onEditEnd={onEditEnd} />))
 
     const field = container.querySelector("textarea")!
     type(field, "goodbye")
 
-    act(() => root.unmount())
+    await act(async () => root.unmount())
 
     expect(onEditEnd).toHaveBeenCalledWith("a", "goodbye")
+  })
+
+  it("stays open when React tears the mount effect down and sets it back up", async () => {
+    // StrictMode does this in development to prove an effect's teardown is something its setup
+    // undoes. The flush is not, so running it there closes the field in the frame it opens.
+    const onEditEnd = vi.fn()
+    act(() =>
+      root.render(
+        <StrictMode>
+          <MindmapNode element={node()} editing onEditEnd={onEditEnd} />
+        </StrictMode>,
+      ),
+    )
+    // Past the tick the teardown's flush was queued on, or this passes against a flush that was
+    // only deferred and never called off.
+    await act(async () => {})
+
+    expect(onEditEnd).not.toHaveBeenCalled()
+    expect(container.querySelector("textarea")).not.toBeNull()
   })
 
   it("does not finish on a composing Enter, which belongs to the input method", () => {
@@ -166,16 +186,31 @@ describe("a node label being edited", () => {
 })
 
 describe("a frame title being edited", () => {
-  it("flushes the last typed value on an unmount that closed no other way", () => {
+  it("flushes the last typed value on an unmount that closed no other way", async () => {
     const onEditEnd = vi.fn()
     act(() => root.render(<MindmapNode element={frame()} editing onEditEnd={onEditEnd} />))
 
     const field = container.querySelector("input")!
     type(field, "Renamed")
 
-    act(() => root.unmount())
+    await act(async () => root.unmount())
 
     expect(onEditEnd).toHaveBeenCalledWith("f", "Renamed")
+  })
+
+  it("stays open when React tears the mount effect down and sets it back up", async () => {
+    const onEditEnd = vi.fn()
+    act(() =>
+      root.render(
+        <StrictMode>
+          <MindmapNode element={frame()} editing onEditEnd={onEditEnd} />
+        </StrictMode>,
+      ),
+    )
+    await act(async () => {})
+
+    expect(onEditEnd).not.toHaveBeenCalled()
+    expect(container.querySelector("input")).not.toBeNull()
   })
 
   it("does not finish on a composing Enter, which belongs to the input method", () => {
