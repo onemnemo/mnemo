@@ -45,6 +45,7 @@ import {
 } from "../edit/clipboard"
 import { carriedText, isPlainKind, linkContent, plainContent } from "../edit/convert"
 import { placeChild, type PlacedBox } from "../edit/placement"
+import { palettePlan } from "../edit/palette"
 import { clearsAnything, restyled } from "../edit/restyle"
 import type { MovedElement, NodeChrome } from "../interaction/controller"
 import type { ResizeBox } from "../interaction/resize"
@@ -731,6 +732,19 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       void editor.apply([op.layout(patch)], { label: t("Mindmap", "StyleMap") })
     },
     [editor, t],
+  )
+
+  /**
+   * The map's palette, on the document and on every cluster that pinned one of its own.
+   *
+   * A cluster's template outranks the document's, so a document-only write leaves a map carrying one
+   * unchanged. `palettePlan` has the rest.
+   */
+  const setPalette = useCallback(
+    (id: string) => {
+      void editor.apply(palettePlan(id, map.data?.clusters ?? []), { label: t("Mindmap", "StyleMap") })
+    },
+    [editor, map.data, t],
   )
 
   /**
@@ -1463,7 +1477,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             onMaterial={(next) => mapStyle({ edge_defaults: edgeDefaultsFor(next) })}
             templates={styling?.templates ?? []}
             templateId={map.data?.canvas?.defaultTemplateId ?? styling?.defaultId ?? null}
-            onTemplate={(id) => mapStyle({ template: id })}
+            onTemplate={setPalette}
             builtInIds={styling?.builtInIds ?? []}
             onDeleteTemplate={(template) => void deleteTemplate(template)}
             background={scene.background}
