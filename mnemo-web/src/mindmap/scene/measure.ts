@@ -94,7 +94,7 @@ const BADGE_GAP = 10
 const CODE_PAD = { x: 8, y: 8 }
 const CODE_LINES = 8
 
-export type TextMeasurer = (text: string, size: number, weight: number) => number
+export type TextMeasurer = (text: string, size: number, weight: number, letterSpacing?: string) => number
 
 /** A rendered equation's box. Only KaTeX can answer this, and only by rendering it. */
 export type MathMeasurer = (latex: string, size: number) => { width: number; height: number }
@@ -131,8 +131,8 @@ export function canvasMeasurer(family: string = FONT_FAMILY): TextMeasurer {
 
   const ctx = context
   const cache = new Map<string, number>()
-  return (text, size, weight) => {
-    const key = `${weight}|${size}|${text}`
+  return (text, size, weight, letterSpacing) => {
+    const key = `${weight}|${size}|${letterSpacing ?? ""}|${text}`
     const hit = cache.get(key)
     if (hit !== undefined) {
       return hit
@@ -143,6 +143,12 @@ export function canvasMeasurer(family: string = FONT_FAMILY): TextMeasurer {
       cache.clear()
     }
     ctx.font = `${weight} ${size}px ${family}`
+    // The label is drawn with the rung's tracking, so a measurement taken without it is a box built
+    // for text nobody renders: a hair too wide on every line, and wrong about where one wraps.
+    // Older engines have no such attribute and simply keep the untracked width.
+    if ("letterSpacing" in ctx) {
+      ctx.letterSpacing = letterSpacing ?? "0px"
+    }
     const width = ctx.measureText(text).width
     cache.set(key, width)
     return width
@@ -251,12 +257,12 @@ export function wrapText(text: string, font: Font, measure: TextMeasurer): Wrapp
 
   const push = (value: string) => {
     lines.push(value)
-    width = Math.max(width, measure(value, font.size, font.weight))
+    width = Math.max(width, measure(value, font.size, font.weight, font.letterSpacing))
   }
 
   for (const word of words) {
     const candidate = line ? `${line} ${word}` : word
-    if (measure(candidate, font.size, font.weight) <= font.maxWidth) {
+    if (measure(candidate, font.size, font.weight, font.letterSpacing) <= font.maxWidth) {
       line = candidate
       continue
     }
@@ -266,14 +272,14 @@ export function wrapText(text: string, font: Font, measure: TextMeasurer): Wrapp
       line = ""
     }
 
-    if (measure(word, font.size, font.weight) <= font.maxWidth) {
+    if (measure(word, font.size, font.weight, font.letterSpacing) <= font.maxWidth) {
       line = word
       continue
     }
 
     let chunk = ""
     for (const char of word) {
-      if (chunk && measure(chunk + char, font.size, font.weight) > font.maxWidth) {
+      if (chunk && measure(chunk + char, font.size, font.weight, font.letterSpacing) > font.maxWidth) {
         push(chunk)
         chunk = char
       } else {
