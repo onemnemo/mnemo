@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type { ComponentProps, ReactNode } from "react"
 import { DropdownMenu } from "radix-ui"
 
 import { AppIcon } from "@/components/icon/AppIcon"
@@ -12,7 +12,11 @@ import { CONTENT_CLASS, ITEM_CLASS, itemClass } from "./menu-styles"
 // column, an optional right-aligned gesture hint, danger and section-header
 // variants, and nested submenus.
 
-export const Menu = DropdownMenu.Root
+/** Not modal, for the reasons ./context-menu states; pass `modal` to override. */
+export function Menu({ modal = false, ...props }: ComponentProps<typeof DropdownMenu.Root>) {
+  return <DropdownMenu.Root modal={modal} {...props} />
+}
+
 export const MenuTrigger = DropdownMenu.Trigger
 export const MenuSub = DropdownMenu.Sub
 

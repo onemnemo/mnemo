@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type { ComponentProps, ReactNode } from "react"
 import { ContextMenu as RadixContextMenu } from "radix-ui"
 
 import { AppIcon } from "@/components/icon/AppIcon"
@@ -14,7 +14,21 @@ import { CONTENT_CLASS, ITEM_CLASS, itemClass } from "./menu-styles"
 // flyout are indistinguishable, which is what the desktop does - the card row's
 // actions live on right-click there, with no per-row button.
 
-export const ContextMenu = RadixContextMenu.Root
+/**
+ * Not modal, unlike radix's default.
+ *
+ * A modal menu locks the page while it is open, and the lock is three document-wide
+ * operations on every open: `pointer-events: none` on the body, which is inherited and so
+ * invalidates style for every element under it, a scroll lock that rewrites the body's own
+ * box, and an aria-hidden walk over everything the menu is not. The cost of all three grows
+ * with the document, and the document here is a note. A menu is not a dialog: it dismisses
+ * on the first press outside and manages its own focus, so it needs none of that, and real
+ * dialogs have `./modal` for it. Pass `modal` to override.
+ */
+export function ContextMenu({ modal = false, ...props }: ComponentProps<typeof RadixContextMenu.Root>) {
+  return <RadixContextMenu.Root modal={modal} {...props} />
+}
+
 export const ContextMenuTrigger = RadixContextMenu.Trigger
 
 export function ContextMenuContent({
