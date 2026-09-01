@@ -19,6 +19,7 @@ import {
 } from "../model/document"
 import type { ShapeContent, ShapeType } from "../model/document"
 import type { SceneElement } from "../model/scene"
+import type { ElementBox } from "./edge-paths"
 import { isAutoSized, measureFor } from "./live-box"
 import { isOpenShape, shapePath, shapeTextInset } from "./shape-path"
 import { useFieldFlush } from "./useFieldFlush"
@@ -29,6 +30,8 @@ export interface MindmapNodeProps {
   editing?: boolean
   /** The typed text, or null when the edit was abandoned. Any promise it returns is the write. */
   onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
+  /** The box this node is taking while it is typed into, so the branches meeting it can follow. */
+  onEditResize?: (id: string, box: ElementBox) => void
 }
 
 /**
@@ -48,7 +51,7 @@ export interface MindmapNodeProps {
  * bled outside it or, for the editor, as a field standing exactly where the label stood. Anything
  * that changed the box would move the node the moment you pointed at it.
  */
-export const MindmapNode = memo(function MindmapNode({ element, editing, onEditEnd }: MindmapNodeProps) {
+export const MindmapNode = memo(function MindmapNode({ element, editing, onEditEnd, onEditResize }: MindmapNodeProps) {
   const t = useT()
   const { nodeShape, isRoot } = element
   const accentLine = accentOf(element)
@@ -128,7 +131,11 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
           </span>
         ) : null}
 
-        {editing ? <NodeEditor element={element} onEditEnd={onEditEnd} /> : <NodeBody element={element} />}
+        {editing ? (
+          <NodeEditor element={element} onEditEnd={onEditEnd} onEditResize={onEditResize} />
+        ) : (
+          <NodeBody element={element} />
+        )}
 
         {element.refBadge ? (
           <span
@@ -686,14 +693,16 @@ const DEFAULT_SHAPE: ShapeType = "rectangle"
 function NodeEditor({
   element,
   onEditEnd,
+  onEditResize,
 }: {
   element: SceneElement
   onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
+  onEditResize?: (id: string, box: ElementBox) => void
 }) {
   const { text, isRoot } = element
   const body = bodyOf(element.content)
   const { finish, track } = useFieldFlush(plainText(element), (value) => onEditEnd?.(element.id, value))
-  const resize = useLiveBox(element)
+  const resize = useLiveBox(element, onEditResize)
 
   const mount = useCallback(
     (node: HTMLTextAreaElement | null) => {
@@ -785,20 +794,29 @@ function grow(node: HTMLTextAreaElement): void {
  * Only for a box that is still the size its own text measures to. One given a size by hand keeps
  * it, because the projector prefers that size and growing it here would be undone by the commit.
  */
-function useLiveBox(element: SceneElement): (field: HTMLTextAreaElement, value: string) => void {
+function useLiveBox(
+  element: SceneElement,
+  onResize?: (id: string, box: ElementBox) => void,
+): (field: HTMLTextAreaElement, value: string) => void {
   const host = useRef<HTMLElement | null>(null)
   const auto = useRef(false)
+  const last = useRef<{ width: number; height: number } | null>(null)
   const opened = useRef(element)
   opened.current = element
+  const report = useRef(onResize)
+  report.current = onResize
 
   useEffect(() => {
     const box = host.current
     return () => {
       // Escape leaves the document untouched, so nothing re-renders this node and the size typing
-      // wrote would otherwise stay on a box whose label went back to what it was.
+      // wrote would otherwise stay on a box whose label went back to what it was. The branches are
+      // told as well, for the same reason they are told while it grows.
       if (box && auto.current) {
-        box.style.width = `${opened.current.width}px`
-        box.style.height = `${opened.current.height}px`
+        const { id, x, y, width, height } = opened.current
+        box.style.width = `${width}px`
+        box.style.height = `${height}px`
+        report.current?.(id, { x, y, width, height })
       }
     }
   }, [])
@@ -806,7 +824,7 @@ function useLiveBox(element: SceneElement): (field: HTMLTextAreaElement, value: 
   return useCallback((field: HTMLTextAreaElement, value: string) => {
     if (!host.current) {
       host.current = field.closest<HTMLElement>(".mm-node")
-      auto.current = isAutoSized(opened.current, plainText(opened.current))
+      auto.current = isAutoSized(opened.current)
     }
     const box = host.current
     if (!box || !auto.current) {
@@ -822,9 +840,29 @@ function useLiveBox(element: SceneElement): (field: HTMLTextAreaElement, value: 
     // Only then the height, and from the field itself. Read before the width lands it answers for
     // the width the box had a keystroke ago, which is a line count that disagrees with what is on
     // screen. Taken from the field rather than from the measurement so the box holds the text even
-    // where the two wrap differently.
+    // where the two wrap differently. Only a label, though: source and LaTeX are drawn as something
+    // other than their lines — code capped at its eight, an equation as its rendering — so for
+    // those the measurement is the height the commit lands on and the field is free to run past it.
     grow(field)
-    box.style.height = `${field.scrollHeight + opened.current.padding.y * 2}px`
+    const height =
+      bodyOf(opened.current.content) === "label"
+        ? field.scrollHeight + opened.current.padding.y * 2
+        : measured.height
+    box.style.height = `${height}px`
+
+    // Once a label has wrapped, most keystrokes land on the width it is clamped to and the line
+    // count it already had, and the branches only need telling when the box actually moved.
+    if (last.current?.width === measured.width && last.current?.height === height) {
+      return
+    }
+    last.current = { width: measured.width, height }
+
+    report.current?.(opened.current.id, {
+      x: opened.current.x,
+      y: opened.current.y,
+      width: measured.width,
+      height,
+    })
   }, [])
 }
 

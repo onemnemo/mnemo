@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react"
 
 import { cn } from "@/lib/utils"
 
 import "./mindmap-lod.css"
 import "./mindmap-motion.css"
 
+import type { ElementBox } from "./edge-paths"
 import { initialHybridMode } from "./edge-strategy"
 import type { EdgeMode } from "./edge-style"
 import { MindmapBackground } from "./MindmapBackground"
@@ -109,6 +110,9 @@ export function MindmapCanvas({
   const overlayCamera = useRef<SVGGElement | null>(null)
   const background = useRef<HTMLDivElement>(null)
   const runtime = useRef<CanvasRuntime | null>(null)
+  // The runtime's redraw with the selection overlay folded in, which is the redraw every mover
+  // wants: a gesture and a growing label both leave a selected edge's highlight behind otherwise.
+  const repaint = useRef<((movedEdgeIds?: readonly string[]) => void) | null>(null)
   // Where the camera was when the last scene was torn down. Every edit reprojects, which rebuilds
   // the runtime, and a runtime that fits on creation would reframe the whole map every time anyone
   // moved a node. Fitting is a thing the user asks for, not a thing an edit does.
@@ -192,6 +196,10 @@ export function MindmapCanvas({
     created.index().setSelected([...live.current.selection.elements])
 
     const repaintSelection = createSelectionRepainter(scene, (id) => created.index().boxOf(id))
+    repaint.current = (movedEdgeIds) => {
+      created.redraw(movedEdgeIds)
+      repaintSelection(overlayCamera.current)
+    }
     const installed = installInteraction(
       {
         pane: pane.current,
@@ -201,12 +209,10 @@ export function MindmapCanvas({
         toCanvas: (x, y) => created.toCanvas(x, y),
         toPane: (point) => created.toPane(point),
         zoom: () => created.viewport().zoom,
-        redraw: (movedEdgeIds) => {
-          created.redraw(movedEdgeIds)
-          repaintSelection(overlayCamera.current)
-        },
+        redraw: (movedEdgeIds) => repaint.current?.(movedEdgeIds),
         pin: (elementIds, edgeIds) => created.pin(elementIds, edgeIds),
         unpin: () => created.unpin(),
+        spacePan: () => created.spacePan(),
       },
       {
         selection: () => live.current.selection,
@@ -228,6 +234,7 @@ export function MindmapCanvas({
       camera.current = { id: scene.id, viewport: created.viewport() }
       created.dispose()
       runtime.current = null
+      repaint.current = null
       if (runtimeRef) {
         runtimeRef.current = null
       }
@@ -255,6 +262,26 @@ export function MindmapCanvas({
   useLayoutEffect(() => {
     runtime.current?.redraw()
   }, [selection.edges])
+
+  /**
+   * The box of the node being typed into, told to the substrate so the branches meeting it follow.
+   *
+   * An edge is routed from the index, not from the DOM, and the scene keeps the old size until the
+   * edit commits. Growing the box alone leaves every branch landing where the shorter label left it.
+   */
+  const editResize = useCallback((id: string, box: ElementBox) => {
+    const created = runtime.current
+    if (!created) {
+      return
+    }
+    const index = created.index()
+    index.writeBox(id, box)
+    const incident = index.incidentEdges([id])
+    index.repaintEdges(incident)
+    // Through the wrapped redraw, not the runtime's own: a selected incident edge's highlight is
+    // routed from the box too, and left out it stays where the shorter label had it.
+    repaint.current?.(incident)
+  }, [])
 
   // A field that closes takes the focus with it, and it lands on the body. Every key the map
   // answers would then do nothing until someone clicked the canvas again, which is the whole
@@ -306,6 +333,7 @@ export function MindmapCanvas({
             element={element}
             editing={element.id === editingId}
             onEditEnd={onEditEnd}
+            onEditResize={editResize}
           />
         ))}
         <MindmapEdgeLabels scene={scene} editingId={editingEdgeId} onEditEnd={onEdgeLabelEnd} />

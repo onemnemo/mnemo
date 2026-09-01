@@ -281,6 +281,44 @@ describe("the box under a label being typed into", () => {
     expect(box.style.height).toBe(`${19 + element.padding.y * 2}px`)
   })
 
+  it("tells the substrate its new box, so the branches meeting it can follow", () => {
+    const element = autoNode("hi")
+    const onEditResize = vi.fn()
+    act(() =>
+      root.render(<MindmapNode element={element} editing onEditEnd={vi.fn()} onEditResize={onEditResize} />),
+    )
+    onEditResize.mockClear()
+
+    const grown = "a label long enough that the box has to widen for it"
+    type(container.querySelector("textarea")!, grown)
+
+    expect(onEditResize).toHaveBeenCalledWith("a", {
+      x: element.x,
+      y: element.y,
+      width: measureFor(element, grown).width,
+      height: parseFloat(hostBox().style.height),
+    })
+  })
+
+  it("tells it again when the edit is abandoned, so they follow the box back", () => {
+    const element = autoNode("hi")
+    const onEditResize = vi.fn()
+    act(() =>
+      root.render(<MindmapNode element={element} editing onEditEnd={vi.fn()} onEditResize={onEditResize} />),
+    )
+    type(container.querySelector("textarea")!, "a label long enough that the box has to widen for it")
+    onEditResize.mockClear()
+
+    act(() => root.render(<MindmapNode element={element} onEditEnd={vi.fn()} onEditResize={onEditResize} />))
+
+    expect(onEditResize).toHaveBeenCalledWith("a", {
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      height: element.height,
+    })
+  })
+
   it("puts the box back when the edit is abandoned, which changed no text at all", () => {
     const element = autoNode("hi")
     act(() => root.render(<MindmapNode element={element} editing onEditEnd={vi.fn()} />))
