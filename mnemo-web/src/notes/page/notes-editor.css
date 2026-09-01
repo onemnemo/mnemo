@@ -1108,47 +1108,48 @@
 /* The equation flyout: the desktop's editing card, a monospace source field
  * with a Done button, floating under the equation. Body-level and
  * viewport-positioned like the toolbar and the slash menu, and drawn in the
- * same floating chrome. */
+ * same surface as the slash menu: canvas plus the popover elevation, so no
+ * literal shadow or border of its own is needed. */
 .notes-equation-flyout {
   position: fixed;
   z-index: 40;
   display: flex;
   align-items: stretch;
-  gap: 10px;
-  min-width: 280px;
-  max-width: 440px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--floating-chrome-divider);
-  background: var(--floating-chrome-background);
-  box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.32);
+  gap: 12px;
+  min-width: 440px;
+  max-width: 520px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--canvas);
+  box-shadow: var(--shadow-pop);
   font-family: var(--font-sans);
 }
 .notes-equation-flyout .notes-equation-editor-source {
   flex: 1;
-  min-width: 180px;
-  padding: 6px 8px;
-  border: 1px solid var(--floating-chrome-divider);
-  border-radius: 6px;
-  background: var(--floating-chrome-hover);
-  color: var(--floating-chrome-foreground-strong);
+  min-width: 320px;
+  padding: 10px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--canvas-sunken);
+  color: var(--ink);
   font-family: var(--font-mono);
   font-size: var(--font-size-body-small);
   outline: none;
+  transition: border-color var(--duration-fast);
 }
 .notes-equation-flyout .notes-equation-editor-source:focus-visible {
-  border-color: var(--floating-chrome-accent);
+  border-color: var(--accent);
 }
 .notes-equation-flyout .notes-equation-editor-source::placeholder {
-  color: var(--floating-chrome-foreground-muted);
+  color: var(--ink-3);
 }
 .notes-equation-flyout-done {
-  min-width: 72px;
-  padding: 6px 12px;
+  min-width: 80px;
+  padding: 10px 18px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--accent);
-  color: var(--accent-button-text);
+  color: var(--accent-fg);
   font-size: var(--font-size-body-small);
   font-weight: 500;
   cursor: pointer;
