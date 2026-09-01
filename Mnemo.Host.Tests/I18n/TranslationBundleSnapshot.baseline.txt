@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 424a43caf134866a6f4b61697f5b961b1449b549aec361223077cef9370e1df0
+sha256 a6ba7e0b09bc6e9d309895f531a8523d28c4e5f18a9bae4bdab100e484febb63
 namespaces 38
-keys 2135
+keys 2163
   App 11
   Chat 132
   Common 90
@@ -18,8 +18,8 @@ keys 2135
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 198
-  NotesEditor 168
+  Notes 200
+  NotesEditor 194
   Onboarding 55
   Overview 31
   Permissions 6
@@ -46,9 +46,9 @@ keys 2135
   WidgetToday 9
 
 culture de
-sha256 3d4325bf4689db1f51b7b8a157167cc4f81473c1a6479decd9d7b1d00825e635
+sha256 7c84bf23c22b4b2e5a6409b9c22f924b2c684777206ee8f3179ff0576b6fdca3
 namespaces 38
-keys 2135
+keys 2163
   App 11
   Chat 132
   Common 90
@@ -61,8 +61,8 @@ keys 2135
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 198
-  NotesEditor 168
+  Notes 200
+  NotesEditor 194
   Onboarding 55
   Overview 31
   Permissions 6
@@ -89,9 +89,9 @@ keys 2135
   WidgetToday 9
 
 culture es
-sha256 134867c02ac67ad519ccd126d51db160eda810077830b8902cc80ab83b03216e
+sha256 aa9c33ba530ac7bff58e782f19830cfb6d62f771e25690e5ae93ac462db7e2f8
 namespaces 38
-keys 2135
+keys 2163
   App 11
   Chat 132
   Common 90
@@ -104,8 +104,8 @@ keys 2135
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 198
-  NotesEditor 168
+  Notes 200
+  NotesEditor 194
   Onboarding 55
   Overview 31
   Permissions 6
@@ -132,9 +132,9 @@ keys 2135
   WidgetToday 9
 
 culture ja
-sha256 87f5efa9eeb2790f17c59c689628ceb7a67da4c5af6ab10a81b223a3163200fa
+sha256 8ca4b7877ec0f6b7fec0d5d43cd2e8cfa84a5c2c3345d9fc7b4312c7114cb263
 namespaces 38
-keys 2135
+keys 2163
   App 11
   Chat 132
   Common 90
@@ -147,8 +147,8 @@ keys 2135
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 198
-  NotesEditor 168
+  Notes 200
+  NotesEditor 194
   Onboarding 55
   Overview 31
   Permissions 6
@@ -175,9 +175,9 @@ keys 2135
   WidgetToday 9
 
 culture nb
-sha256 99c448d177b72e8044fdfd5bf54906f85b60d201e7b745eb9591bf6160048cba
+sha256 a4fa5b173f4795c0c8e73c64d31b63a9302734543014eb05bce9075a88861a17
 namespaces 38
-keys 2135
+keys 2163
   App 11
   Chat 132
   Common 90
@@ -190,8 +190,8 @@ keys 2135
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 198
-  NotesEditor 168
+  Notes 200
+  NotesEditor 194
   Onboarding 55
   Overview 31
   Permissions 6
