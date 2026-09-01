@@ -27,6 +27,8 @@
 
 import type { Node as PMNode } from 'prosemirror-model';
 import type { RealizedBlockView, RealizedBlockViewArgs } from '../registry/types';
+import type { ImageCrop } from '../../../components/ui/image-editor/geometry';
+import { readCrop } from '../../model/image-crop';
 import { asOwnUndoStep } from '../history';
 import { lineText } from './shared';
 import { useI18nStore } from '../../../i18n/store';
@@ -56,6 +58,33 @@ function widthOf(node: PMNode): number {
 function alignOf(node: PMNode): string {
   const align = String(node.attrs.align ?? 'left');
   return align === 'center' || align === 'right' ? align : 'left';
+}
+
+function cropOf(node: PMNode): ImageCrop | null {
+  return readCrop(node.attrs.crop);
+}
+
+/** Whether the media has to be rebuilt, which only a different window calls for. */
+function sameCrop(a: ImageCrop | null, b: ImageCrop | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h && a.aspect === b.aspect;
+}
+
+/**
+ * The stored window drawn without measuring anything.
+ *
+ * The frame reserves the shape from `aspect`, and scaling the source to 100/w by
+ * 100/h percent of it distorts by exactly nothing, because the window always
+ * matches the frame it was cut for. No natural size, no load event, no reflow when
+ * the bytes land. This is the React renderer's math in the vanilla DOM this view
+ * owns; the two are deliberately separate because a NodeView cannot mount a
+ * component for something this small.
+ */
+function applyCropLayout(img: HTMLImageElement, crop: ImageCrop): void {
+  img.style.width = `${String(100 / crop.w)}%`;
+  img.style.height = `${String(100 / crop.h)}%`;
+  img.style.left = `${String((-crop.x * 100) / crop.w)}%`;
+  img.style.top = `${String((-crop.y * 100) / crop.h)}%`;
 }
 
 /** The filename a human can recognize inside any of the reference shapes. */
@@ -121,8 +150,13 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
   if (view.editable) caption.dataset.placeholder = translate('ImageCaptionPlaceholder');
   dom.appendChild(caption);
 
-  // What the media area shows right now. `path` is the doc's say; the rest is runtime.
+  // What the media area shows right now. `path` and `crop` are the doc's say, and the
+  // two together decide the media DOM's shape; the rest is runtime.
   let shownPath = pathOf(args.node);
+  let shownCrop = cropOf(args.node);
+  /** The elements a width write and a resize drag address, while an image is up. */
+  let frameEl: HTMLElement | null = null;
+  let imgEl: HTMLImageElement | null = null;
   let objectUrl: string | null = null;
   let uploading = false;
   let uploadFailed = false;
@@ -229,12 +263,25 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     frame.appendChild(pill);
   }
 
+  /**
+   * What a width is written to, which is not always the image.
+   *
+   * Under a crop the img is an oversized inner layer whose size is dictated by the
+   * window, so writing a width to it would move the crop rather than resize the
+   * picture. The frame is the box the reader sees, and it is the one that carries
+   * the stored width.
+   */
+  function widthTarget(node: PMNode): HTMLElement | null {
+    if (imgEl === null) return null;
+    return cropOf(node) !== null ? frameEl : imgEl;
+  }
+
   function startResize(event: PointerEvent): void {
-    const img = media.querySelector('img');
-    if (!img || !view.editable) return;
+    const target = widthTarget(currentNode);
+    if (!target || !view.editable) return;
     event.preventDefault();
 
-    const startWidth = img.getBoundingClientRect().width;
+    const startWidth = target.getBoundingClientRect().width;
     const startX = event.clientX;
     const maxWidth = Math.min(MAX_WIDTH_CAP, dom.getBoundingClientRect().width || MAX_WIDTH_CAP);
     let lastWidth = startWidth;
@@ -246,7 +293,7 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
       lastWidth = widthAt(move.clientX);
       // Preview only: the model is left alone until release, so nothing re-renders
       // and the drag stays smooth.
-      img.style.width = `${lastWidth}px`;
+      target.style.width = `${lastWidth}px`;
     };
     const stopTracking = () => {
       window.removeEventListener('pointermove', onMove);
@@ -274,16 +321,31 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
   }
 
   function applyDimensions(node: PMNode): void {
-    const img = media.querySelector('img');
+    const img = imgEl;
     if (!img) return;
     const width = widthOf(node);
-    if (width > 0) img.style.width = `${Math.max(MIN_WIDTH, Math.min(MAX_WIDTH_CAP, width))}px`;
-    else img.style.removeProperty('width');
+    const stored = width > 0 ? `${Math.max(MIN_WIDTH, Math.min(MAX_WIDTH_CAP, width))}px` : null;
+    const crop = cropOf(node);
+
+    if (crop !== null && frameEl !== null) {
+      frameEl.style.aspectRatio = String(crop.aspect);
+      // A cropped image that was never resized takes the column, the same width the
+      // PDF export gives it, since a ratio alone cannot produce a height.
+      frameEl.style.width = stored ?? '100%';
+      applyCropLayout(img, crop);
+    } else if (stored !== null) {
+      img.style.width = stored;
+    } else {
+      img.style.removeProperty('width');
+    }
+
     img.alt = lineText(node);
   }
 
   function renderMedia(): void {
     media.replaceChildren();
+    frameEl = null;
+    imgEl = null;
     const path = pathOf(currentNode);
 
     if (uploading) {
@@ -321,11 +383,16 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     // rather than the full-width media row.
     const frame = document.createElement('div');
     frame.className = `${ROOT}-frame`;
+    // The clipping box only exists under a crop; without one the frame is the same
+    // shrink-to-fit wrapper it has always been and the image draws exactly as before.
+    if (cropOf(currentNode) !== null) frame.classList.add('is-cropped');
     const img = document.createElement('img');
     img.src = objectUrl;
     img.draggable = false;
     frame.appendChild(img);
     media.appendChild(frame);
+    frameEl = frame;
+    imgEl = img;
     applyDimensions(currentNode);
     buildChrome(frame);
   }
@@ -373,10 +440,17 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
       if (node.type !== args.node.type) return false;
       sync(node);
       const path = pathOf(node);
+      const crop = cropOf(node);
       if (path !== shownPath) {
         shownPath = path;
+        shownCrop = crop;
         uploadFailed = false;
         loadBytes(path);
+      } else if (!sameCrop(crop, shownCrop)) {
+        // The crop decides the media's shape, so it is rebuilt. The bytes are
+        // already in hand, so nothing is refetched and the rebuild is local.
+        shownCrop = crop;
+        renderMedia();
       } else {
         applyDimensions(node);
         const active = media.querySelectorAll(`.${ROOT}-align`);

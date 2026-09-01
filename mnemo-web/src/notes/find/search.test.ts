@@ -120,7 +120,7 @@ describe('searchDocument', () => {
       blockOf({
         type: 'Image',
         spans: [text('a wolf pack')],
-        payload: { kind: 'image', path: 'p', alt: 'a wolf pack', width: 0, align: 'left' },
+        payload: { kind: 'image', path: 'p', alt: 'a wolf pack', width: 0, align: 'left', crop: null },
       }),
     ]);
     const matches = sd(doc, 'wolf', INSENSITIVE);

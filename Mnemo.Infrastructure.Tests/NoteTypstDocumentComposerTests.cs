@@ -330,6 +330,70 @@ public sealed class NoteTypstDocumentComposerTests
     }
 
     [Fact]
+    public void CroppedImage_WithAStoredWidth_EmitsAClippedFrameAtThatWidth()
+    {
+        var block = Leaf(BlockType.Image, "", new ImagePayload(
+            "attachment:x", "", 200, "center", new ImageCrop(0.25, 0.5, 0.5, 0.25, 2)));
+        var typ = Compose(NoteWith(block), assets: new FakeAssetResolver("/assets/x.png"));
+        Assert.Contains(
+            "#align(center)[#layout(size => { let fw = 150pt; let fh = fw / 2; "
+            + "box(width: fw, height: fh, clip: true, place(top + left, dx: -0.5 * fw, dy: -2 * fh, "
+            + "image(\"/assets/x.png\", width: fw / 0.5, height: fh / 0.25, fit: \"stretch\"))) })",
+            typ,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CroppedImage_NeverResized_TakesTheAvailableWidth()
+    {
+        // Typst cannot derive a height from a ratio without an absolute width, and a width of 0 is
+        // what an image nobody has dragged carries, so the frame reads what `layout` hands it.
+        var block = Leaf(BlockType.Image, "", new ImagePayload(
+            "attachment:x", "", 0, "left", new ImageCrop(0, 0, 0.8, 0.6, 1.5)));
+        var typ = Compose(NoteWith(block), assets: new FakeAssetResolver("/assets/x.png"));
+        Assert.Contains(
+            "#align(left)[#layout(size => { let fw = size.width; let fh = fw / 1.5; "
+            + "box(width: fw, height: fh, clip: true, place(top + left, dx: -0 * fw, dy: -0 * fh, "
+            + "image(\"/assets/x.png\", width: fw / 0.8, height: fh / 0.6, fit: \"stretch\"))) })",
+            typ,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CroppedImage_HoldsItsRatiosFinerThanAPointMeasurement()
+    {
+        // A window pinned to the source's far corner, at thirds. Rounded the way a length is, the
+        // placed image lands short of the clip box and a sliver of page shows along two edges.
+        var block = Leaf(BlockType.Image, "", new ImagePayload(
+            "attachment:x", "", 400, "left", new ImageCrop(2d / 3, 2d / 3, 1d / 3, 1d / 3, 1)));
+        var typ = Compose(NoteWith(block), assets: new FakeAssetResolver("/assets/x.png"));
+        Assert.Contains("dx: -2 * fw, dy: -2 * fh", typ, StringComparison.Ordinal);
+        Assert.Contains("width: fw / 0.333333, height: fh / 0.333333", typ, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CroppedImage_KeepsItsCaption()
+    {
+        var block = Leaf(BlockType.Image, "a detail", new ImagePayload(
+            "attachment:x", "a detail", 200, "center", new ImageCrop(0, 0, 0.5, 0.5, 1)));
+        var typ = Compose(NoteWith(block), assets: new FakeAssetResolver("/assets/x.png"));
+        Assert.Contains("fit: \"stretch\"))) })#v(4pt)#text(size: ", typ, StringComparison.Ordinal);
+        Assert.Contains("a detail", typ, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ImageWithoutACrop_EmitsThePlainImageCall()
+    {
+        // The frame markup is for cropped images only; every other image keeps the bytes it had.
+        var block = Leaf(BlockType.Image, "", new ImagePayload("attachment:x", "", 200, "center"));
+        var typ = Compose(NoteWith(block), assets: new FakeAssetResolver("/assets/x.png"));
+        Assert.Contains(
+            "#align(center)[#image(\"/assets/x.png\", width: 150pt)]",
+            typ,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RenderImagesFalse_OmitsImageAndSketch()
     {
         var options = new NotePdfExportOptions { RenderImages = false };
@@ -395,6 +459,25 @@ public sealed class NoteTypstDocumentComposerTests
         });
 
         var (exit, stderr) = NoteTypstToolchain.Compile(typ);
+        Assert.True(exit == 0, $"typst compile failed (exit {exit}):\n{stderr}\n\n--- source ---\n{typ}");
+    }
+
+    [TypstFact]
+    public void CroppedImages_CompileWithVendoredTypst()
+    {
+        // The clipped frame is the one piece of markup here that nests a closure, a layout query
+        // and a placement, so a string assertion proves the shape and this proves it parses.
+        var note = NoteWith(
+            Leaf(BlockType.Image, "sized", new ImagePayload(
+                "attachment:x", "sized", 200, "center", new ImageCrop(0.25, 0.5, 0.5, 0.25, 2))),
+            Leaf(BlockType.Image, "unsized", new ImagePayload(
+                "attachment:x", "unsized", 0, "left", new ImageCrop(0, 0, 0.8, 0.6, 1.5))));
+        var typ = Compose(note, new NotePdfExportOptions(), new FakeAssetResolver("/img.png"));
+
+        var (exit, stderr) = NoteTypstToolchain.Compile(
+            typ,
+            new Dictionary<string, byte[]> { ["img.png"] = OnePixelPng });
+
         Assert.True(exit == 0, $"typst compile failed (exit {exit}):\n{stderr}\n\n--- source ---\n{typ}");
     }
 

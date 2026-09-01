@@ -201,7 +201,8 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
     if (image) {
       const path = unescapeImageTarget(image[2].trim());
       const alt = unescapeImageAlt(image[1]);
-      emit('Image', [plainSpan(alt)], { kind: 'image', path, alt, width: 0, align: 'left' });
+      // Markdown has no way to spell a crop, so the reference arrives whole.
+      emit('Image', [plainSpan(alt)], { kind: 'image', path, alt, width: 0, align: 'left', crop: null });
       i++;
       continue;
     }

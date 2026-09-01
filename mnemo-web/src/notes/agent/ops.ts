@@ -618,7 +618,7 @@ function convertedPayload(target: BlockType, before: Block, op: TypeOp): BlockPa
       // payload with fields missing.
       return before.payload.kind === 'image'
         ? before.payload
-        : { kind: 'image', path: '', alt: '', width: 0, align: 'left' };
+        : { kind: 'image', path: '', alt: '', width: 0, align: 'left', crop: null };
     case 'Page':
       return before.payload.kind === 'page' ? before.payload : { kind: 'page', referenceNoteId: '' };
     case 'Sketch':

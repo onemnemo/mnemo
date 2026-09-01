@@ -6,11 +6,29 @@ public sealed record EmptyPayload : BlockPayload;
 
 public sealed record EquationPayload(string Latex) : BlockPayload;
 
+/// <summary>
+/// A non-destructive crop on an image. <paramref name="X"/>, <paramref name="Y"/>,
+/// <paramref name="W"/> and <paramref name="H"/> are the sampling window as fractions of the
+/// source's natural size, so the window means the same thing whatever the file's pixel dimensions
+/// are, and reopening an edit crops the original rather than a crop.
+///
+/// <paramref name="Aspect"/> is the frame's width over its height. It is derivable from the
+/// natural size and carried anyway, because that is what lets this side lay a cropped image out
+/// without ever decoding the file: nothing here has access to a natural size.
+/// </summary>
+public sealed record ImageCrop(double X, double Y, double W, double H, double Aspect);
+
+/// <summary>
+/// A reference to an image, how wide it is drawn, and how it sits in the column.
+/// <paramref name="Crop"/> is null both for an image stored before crops existed and for one
+/// showing the whole source, and is written only when set.
+/// </summary>
 public sealed record ImagePayload(
     string Path = "",
     string Alt = "",
     double Width = 0,
-    string Align = "left") : BlockPayload;
+    string Align = "left",
+    ImageCrop? Crop = null) : BlockPayload;
 
 /// <summary>
 /// Source for <see cref="BlockType.Code"/>, plus how it is displayed. Wrap, line numbers and the

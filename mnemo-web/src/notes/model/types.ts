@@ -6,6 +6,8 @@
  * unions keyed on `kind` exactly as the JSON converter writes them.
  */
 
+import type { ImageCrop } from '../../components/ui/image-editor/geometry';
+
 export type BlockType =
   | 'Text'
   | 'Heading1'
@@ -111,7 +113,13 @@ export const fractionAtomChar = '￹';
 export type BlockPayload =
   | { kind: 'empty' }
   | { kind: 'equation'; latex: string }
-  | { kind: 'image'; path: string; alt: string; width: number; align: string }
+  /**
+   * `crop` is required and nullable rather than optional: an image is one of the
+   * few payloads built in code as well as read off the wire, and an optional field
+   * lets a construction site forget it, which reads as "no crop" and quietly
+   * discards one the user had made.
+   */
+  | { kind: 'image'; path: string; alt: string; width: number; align: string; crop: ImageCrop | null }
   /**
    * `wrap`, `numbers` and `caption` are the reader's display choices for this
    * snippet. Optional because the writer omits them at their defaults, so every
