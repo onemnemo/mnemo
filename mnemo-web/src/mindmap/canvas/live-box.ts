@@ -9,7 +9,7 @@
  * box the commit lands on and nothing resettles when the field closes.
  */
 
-import { bodyOf, isRef } from "../scene/content"
+import { bodyOf, displayText, isRef } from "../scene/content"
 import { fontScaleOf, measureNode, type MeasuredNode } from "../scene/measure"
 import { sceneMeasurers } from "../scene/measurers"
 import type { SceneElement } from "../model/scene"
@@ -39,8 +39,12 @@ export function measureFor(element: SceneElement, text: string): MeasuredNode {
  * A node dragged to a size of its own keeps it: the projector reads that size in preference to the
  * measured one, so growing it here would show a box the commit then takes back. Only a frame and a
  * picture are sized by something other than their label, and neither opens this field.
+ *
+ * Asked with the text the projector measured, not the text the field opens on. The two differ for
+ * a link with no title, which is drawn as its address and edited as that empty title; measuring the
+ * title would answer a different width and quietly switch the live box off for exactly that node.
  */
-export function isAutoSized(element: SceneElement, text: string): boolean {
-  const measured = measureFor(element, text)
+export function isAutoSized(element: SceneElement): boolean {
+  const measured = measureFor(element, displayText(element.content))
   return measured.width === element.width && measured.height === element.height
 }
