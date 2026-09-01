@@ -48,6 +48,7 @@ public sealed record NoteMetadata(
     bool IsFavorite,
     string? Emoji,
     string? Cover,
+    string? CoverCrop,
     IReadOnlyList<string> Tags,
     string FolderPath)
 {
@@ -63,6 +64,7 @@ public sealed record NoteMetadata(
             note.IsFavorite,
             note.Emoji,
             note.Cover,
+            note.CoverCrop,
             note.Tags is null ? [] : [.. note.Tags],
             note.FolderPath);
     }
@@ -78,6 +80,7 @@ public sealed record NoteMetadata(
         note.IsFavorite = IsFavorite;
         note.Emoji = Emoji;
         note.Cover = Cover;
+        note.CoverCrop = CoverCrop;
         note.Tags = Tags is null ? [] : [.. Tags];
         note.FolderPath = FolderPath;
     }

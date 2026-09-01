@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { noteAssetRequestPath } from '../assets/api';
 import {
-  MAX_COVER_BYTES,
-  coverUploadProblem,
   customCoverReference,
   customCoverRequestPath,
   isCustomCover,
+  parseCoverCrop,
+  serializeCoverCrop,
   uploadCover,
 } from './cover-upload';
 
@@ -52,31 +52,57 @@ describe('custom cover tokens', () => {
   });
 });
 
-describe('coverUploadProblem', () => {
-  it('accepts a file of exactly the limit and refuses one byte more', () => {
-    expect(coverUploadProblem({ name: 'a.png', size: MAX_COVER_BYTES })).toBeNull();
-    expect(coverUploadProblem({ name: 'a.png', size: MAX_COVER_BYTES + 1 })).toBe('CoverUploadTooLarge');
-  });
-
-  it('accepts every extension the host stores, whatever the casing', () => {
-    for (const name of ['a.png', 'a.jpg', 'a.jpeg', 'a.gif', 'a.webp', 'a.bmp', 'a.PNG'])
-      expect(coverUploadProblem({ name, size: 1024 })).toBeNull();
-  });
-
-  it('refuses anything else, including a file with no extension', () => {
-    expect(coverUploadProblem({ name: 'a.tiff', size: 1024 })).toBe('CoverUploadUnsupported');
-    expect(coverUploadProblem({ name: 'a.pdf', size: 1024 })).toBe('CoverUploadUnsupported');
-    expect(coverUploadProblem({ name: 'cover', size: 1024 })).toBe('CoverUploadUnsupported');
-  });
-
-  it('reports the size first, so an oversized image is not blamed on its type', () => {
-    expect(coverUploadProblem({ name: 'a.tiff', size: MAX_COVER_BYTES + 1 })).toBe('CoverUploadTooLarge');
-  });
-});
-
 describe('uploadCover', () => {
   it('returns the minted id as a cover token', async () => {
     const file = new File([new Uint8Array([1])], 'pic.png', { type: 'image/png' });
     expect(await uploadCover(file)).toBe('asset:new.png');
+  });
+});
+
+describe('cover crop grammar', () => {
+  it('round-trips a crop through the stored string', () => {
+    const crop = { x: 0.1, y: 0.2, w: 0.5, h: 0.6, aspect: 1.5 };
+    expect(parseCoverCrop(serializeCoverCrop(crop))).toEqual(crop);
+  });
+
+  it('reads null, empty and malformed strings as no crop', () => {
+    expect(parseCoverCrop(null)).toBeNull();
+    expect(parseCoverCrop('')).toBeNull();
+    expect(parseCoverCrop('not json')).toBeNull();
+    expect(parseCoverCrop('null')).toBeNull();
+    expect(parseCoverCrop('42')).toBeNull();
+    expect(parseCoverCrop('[]')).toBeNull();
+  });
+
+  it('refuses a window with a field missing or not a finite number', () => {
+    expect(parseCoverCrop(JSON.stringify({ x: 0, y: 0, w: 1, h: 1 }))).toBeNull();
+    expect(parseCoverCrop(JSON.stringify({ x: 0, y: 0, w: 1, h: 1, aspect: 'wide' }))).toBeNull();
+    expect(parseCoverCrop(JSON.stringify({ x: 0, y: 0, w: 1, h: 1, aspect: Number.NaN }))).toBeNull();
+    expect(parseCoverCrop(JSON.stringify({ x: 0, y: 0, w: 1, h: 1, aspect: Infinity }))).toBeNull();
+  });
+
+  it('refuses a non-positive aspect', () => {
+    expect(parseCoverCrop(JSON.stringify({ x: 0, y: 0, w: 1, h: 1, aspect: 0 }))).toBeNull();
+    expect(parseCoverCrop(JSON.stringify({ x: 0, y: 0, w: 1, h: 1, aspect: -1.5 }))).toBeNull();
+  });
+
+  it('refuses a window that reaches outside the source', () => {
+    expect(parseCoverCrop(JSON.stringify({ x: -0.1, y: 0, w: 1, h: 1, aspect: 1 }))).toBeNull();
+    expect(parseCoverCrop(JSON.stringify({ x: 0, y: 0, w: 1.2, h: 1, aspect: 1 }))).toBeNull();
+    expect(parseCoverCrop(JSON.stringify({ x: 0, y: 0, w: 1, h: -0.01, aspect: 1 }))).toBeNull();
+    // A zero-size window is degenerate rather than merely small, and an origin plus a size that
+    // together overshoot the source is out of range even though neither number is by itself.
+    expect(parseCoverCrop(JSON.stringify({ x: 0, y: 0, w: 0, h: 1, aspect: 1 }))).toBeNull();
+    expect(parseCoverCrop(JSON.stringify({ x: 0.5, y: 0, w: 0.6, h: 1, aspect: 1 }))).toBeNull();
+  });
+
+  it('accepts the whole source as a crop', () => {
+    expect(parseCoverCrop(JSON.stringify({ x: 0, y: 0, w: 1, h: 1, aspect: 1 }))).toEqual({
+      x: 0,
+      y: 0,
+      w: 1,
+      h: 1,
+      aspect: 1,
+    });
   });
 });

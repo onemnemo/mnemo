@@ -9,7 +9,10 @@ import type { NoteSummaryDto, UpdateNoteMetadataDto } from '@/api/types';
 export function metadataUpdateOf(
   note: NoteSummaryDto,
   patch: Partial<
-    Pick<NoteSummaryDto, 'title' | 'folderId' | 'parentNoteId' | 'order' | 'isFavorite' | 'emoji' | 'cover' | 'tags'>
+    Pick<
+      NoteSummaryDto,
+      'title' | 'folderId' | 'parentNoteId' | 'order' | 'isFavorite' | 'emoji' | 'cover' | 'coverCrop' | 'tags'
+    >
   >,
 ): UpdateNoteMetadataDto & { id: string } {
   const next = { ...note, ...patch };
@@ -24,6 +27,7 @@ export function metadataUpdateOf(
     // empty forms so the metadata replace is well formed either way.
     emoji: next.emoji ?? null,
     cover: next.cover ?? null,
+    coverCrop: next.coverCrop ?? null,
     tags: next.tags ?? [],
   };
 }

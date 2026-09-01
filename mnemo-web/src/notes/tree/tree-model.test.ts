@@ -19,6 +19,7 @@ function note(over: Partial<NoteSummaryDto> & { id: string }): NoteSummaryDto {
     isFavorite: false,
     emoji: null,
     cover: null,
+    coverCrop: null,
     tags: [],
     createdAt: '2026-01-01T00:00:00Z',
     modifiedAt: `2026-01-0${String((seq % 9) + 1)}T00:00:00Z`,

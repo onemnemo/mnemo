@@ -20,6 +20,7 @@ public sealed class NotesMarkdownFormatAdapterTests
             Title = "Biology",
             Blocks = [NotesMarkdownImportHarness.TextBlock("the original body")],
             Cover = "asset:cover-1",
+            CoverCrop = "{\"x\":0.1,\"y\":0.1,\"w\":0.5,\"h\":0.5,\"aspect\":1.5}",
             Tags = ["science"],
             IsFavorite = true,
         });
@@ -55,6 +56,9 @@ public sealed class NotesMarkdownFormatAdapterTests
         var restored = await h.Notes.GetNoteAsync(entry.ItemId);
         Assert.Equal("the original body", restored!.Blocks!.Single().Content);
         Assert.Equal("Biology", restored.Title);
+        // The trashed backup copy must carry the cover along with its crop, not just the cover token.
+        Assert.Equal(seeded.Cover, restored.Cover);
+        Assert.Equal(seeded.CoverCrop, restored.CoverCrop);
     }
 
     [Fact]

@@ -16,9 +16,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { NoteSummaryDto } from '@/api/types';
+import { useImageEditorStore } from '@/components/ui/image-editor/store';
 import { useSettingsStore } from '@/settings/store';
 import { buildNoteEditState, type NoteEditState } from '../edit/build-edit-state';
 import { block, span } from '../editor/mapper/fixtures';
+import { COVER_BANNER_HEIGHT } from './NoteHeaderChrome';
 import { NoteSurface } from './NoteSurface';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -36,7 +38,7 @@ function withClient(node: ReactNode): ReactNode {
 const note: NoteSummaryDto = {
   id: 'n1', sid: 'n0001', ver: 1, title: 'Note one', folderId: null, parentNoteId: null,
   order: 0, isFavorite: false, createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
-  emoji: null, cover: null, tags: [],
+  emoji: null, cover: null, coverCrop: null, tags: [],
 };
 
 function surfaceOf(over: Partial<NoteSummaryDto>, blocks: Parameters<typeof buildNoteEditState>[0]): ReactNode {
@@ -69,6 +71,7 @@ beforeEach(() => {
   root = createRoot(container);
   disposed = false;
   useSettingsStore.setState({ values: {}, loaded: true });
+  useImageEditorStore.setState({ pending: null });
 });
 
 function dispose(): void {
@@ -119,6 +122,31 @@ function proseMirror(): HTMLElement {
 function headerPadding(): string {
   const column = container.querySelector('div.px-14') as HTMLElement;
   return column.classList.contains('pt-0') ? 'pt-0' : 'pt-10';
+}
+
+/** A button anywhere on the page by its label, which is the i18n key on an empty bundle. */
+function button(label: string): HTMLButtonElement | null {
+  const found = [...document.querySelectorAll('button')].find((el) => (el.textContent ?? '').trim() === label);
+  return (found as HTMLButtonElement | undefined) ?? null;
+}
+
+function click(target: Element | null): void {
+  expect(target).not.toBeNull();
+  act(() => {
+    (target as HTMLElement).click();
+  });
+}
+
+/** jsdom lays nothing out, so clientWidth is always 0 unless a test says otherwise. */
+function withClientWidth(width: number, body: () => void): void {
+  const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => width });
+  try {
+    body();
+  } finally {
+    if (original === undefined) delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+    else Object.defineProperty(HTMLElement.prototype, 'clientWidth', original);
+  }
 }
 
 describe('NoteSurface', () => {
@@ -234,5 +262,24 @@ describe('the save chrome', () => {
     // Last in a right-anchored row means the actions keep their place and the
     // label grows leftwards into empty chrome instead of pushing anything.
     expect(row?.lastElementChild).not.toBe(saveState());
+  });
+});
+
+describe('the cover editor aspect', () => {
+  afterEach(() => {
+    useImageEditorStore.setState({ pending: null });
+  });
+
+  it('frames a first-ever cover against the scroller itself, not the 30/7 fallback', () => {
+    // No cover has ever been set, so CoverBanner has never rendered and never measured a
+    // width: the picker used to see that as "unmeasurable" and open the editor at a fixed
+    // ratio instead of the pane's own real band.
+    withClientWidth(860, () => {
+      render(surface(block('Text', [span('x')])));
+      click(button('AddCover'));
+      click(button('UploadCover'));
+
+      expect(useImageEditorStore.getState().pending?.aspect).toBeCloseTo(860 / COVER_BANNER_HEIGHT);
+    });
   });
 });

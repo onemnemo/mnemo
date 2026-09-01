@@ -93,6 +93,7 @@ public sealed class NoteSummaryResponseTests
             IsFavorite = true,
             Emoji = "*",
             Cover = "asset:cover-1",
+            CoverCrop = """{"x":0,"y":0.1,"w":0.8,"h":0.6,"aspect":1.5}""",
             Tags = ["one", "two"],
             CreatedAt = new DateTime(2024, 8, 9, 12, 0, 0, DateTimeKind.Utc),
             ModifiedAt = new DateTime(2026, 2, 2, 12, 0, 0, DateTimeKind.Utc),

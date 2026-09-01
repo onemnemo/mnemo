@@ -17,7 +17,7 @@ namespace Mnemo.Infrastructure.Services.Notes.Persistence;
 /// <para>
 /// Listing the library by loading every note whole costs one connection and one round trip each
 /// and then throws every body away. On a real corpus that is the whole database parsed to answer a
-/// question about thirteen scalars. This reads the same rows in one statement and never builds a
+/// question about fourteen scalars. This reads the same rows in one statement and never builds a
 /// block.
 /// </para>
 /// <para>
@@ -56,6 +56,7 @@ public sealed partial class NoteCommitStore : INoteSummaryStore
             json_extract(Value, '$.ModifiedAt') AS ModifiedAt,
             json_extract(Value, '$.Emoji') AS Emoji,
             json_extract(Value, '$.Cover') AS Cover,
+            json_extract(Value, '$.CoverCrop') AS CoverCrop,
             json_extract(Value, '$.Tags') AS Tags
         FROM Storage
         WHERE Key IN (SELECT value FROM json_each($keys))
@@ -77,7 +78,8 @@ public sealed partial class NoteCommitStore : INoteSummaryStore
     private const int ModifiedAtColumn = 10;
     private const int EmojiColumn = 11;
     private const int CoverColumn = 12;
-    private const int TagsColumn = 13;
+    private const int CoverCropColumn = 13;
+    private const int TagsColumn = 14;
 
     public async Task<IReadOnlyList<NoteSummary>> ReadSummariesAsync(
         IReadOnlyList<string> noteIds,
@@ -162,6 +164,7 @@ public sealed partial class NoteCommitStore : INoteSummaryStore
             modifiedAt,
             ReadOptional(reader, EmojiColumn),
             ReadOptional(reader, CoverColumn),
+            ReadOptional(reader, CoverCropColumn),
             ReadTags(reader, TagsColumn));
     }
 

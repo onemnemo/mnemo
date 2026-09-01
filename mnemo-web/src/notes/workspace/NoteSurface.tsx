@@ -1,7 +1,7 @@
 import 'katex/dist/katex.min.css';
 import '../page/notes-editor.css';
 
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { EditorState } from 'prosemirror-state';
 
 import { useT } from '@/i18n/useT';
@@ -13,7 +13,7 @@ import type { NoteSummaryDto } from '@/api/types';
 import { useNoteContentCommitter, useUpdateNoteMetadata } from '../api';
 import { metadataUpdateOf } from '../note-metadata';
 import { hasCover } from './covers';
-import { AddHeaderChrome, CoverBanner, NoteIcon } from './NoteHeaderChrome';
+import { AddHeaderChrome, COVER_BANNER_HEIGHT, CoverBanner, NoteIcon } from './NoteHeaderChrome';
 import { NoteTags } from './NoteTags';
 import { PasteProgressOverlay } from '../clipboard/PasteProgressOverlay';
 import type { DocumentMapper } from '../editor/mapper/document';
@@ -79,8 +79,21 @@ export function NoteSurface({
 
   // Metadata edits are a full replace; route every one through the carry so a
   // cover change never blanks the tags, or an emoji change the folder.
-  const patch = (next: Partial<Pick<NoteSummaryDto, 'emoji' | 'cover' | 'tags'>>) =>
+  const patch = (next: Partial<Pick<NoteSummaryDto, 'emoji' | 'cover' | 'coverCrop' | 'tags'>>) =>
     void updateNote.mutateAsync(metadataUpdateOf(note, next));
+
+  // The banner's own measured width, read fresh whenever the cover picker opens the editor.
+  // Zero until a cover exists to measure, which is exactly the first-cover case: nothing has
+  // ever reported a width, so the band the editor should open framed against is read straight
+  // off the scroller instead, since the banner is `w-full` inside it and would measure the
+  // same number once it existed. Both the header affordance and the kebab read this same
+  // closure, so neither entry point can disagree about the band. 0 still means genuinely
+  // unmeasurable (the scroller itself has not mounted), which the picker falls back from.
+  const [bannerWidth, setBannerWidth] = useState(0);
+  const measureBandAspect = () => {
+    const width = bannerWidth > 0 ? bannerWidth : (scrollRef.current?.clientWidth ?? 0);
+    return width > 0 ? width / COVER_BANNER_HEIGHT : 0;
+  };
 
   const persist = useMemo(
     () => createPersist({ fromDoc: (doc) => mapper.fromDoc(doc), commit }),
@@ -129,12 +142,12 @@ export function NoteSurface({
           its own left edge into empty chrome and nothing else. */}
       <div className="absolute right-3 top-2.5 z-30 flex items-center gap-2">
         <SaveStateIndicator state={saveState} autosave={autosave} onReload={onReload} onSave={save} />
-        <PaneActions note={note} />
+        <PaneActions note={note} measureBandAspect={measureBandAspect} />
       </div>
       {/* A stable gutter so the centered column does not jump left the first time
           the note grows tall enough to want a scrollbar (and back when it shrinks). */}
       <div ref={scrollRef} className="scroll-thin relative min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-        <CoverBanner token={note.cover} />
+        <CoverBanner token={note.cover} crop={note.coverCrop} onBandWidth={setBannerWidth} />
         {/* No bottom padding: the space under the document belongs to the
             editable root now, so a press in it reaches the view and appends a
             block instead of landing on the pane. */}
@@ -149,9 +162,11 @@ export function NoteSurface({
           ) : null}
           <AddHeaderChrome
             cover={note.cover}
+            coverCrop={note.coverCrop}
             hasIcon={Boolean(note.emoji)}
-            onCover={(cover) => patch({ cover })}
+            onCover={(next) => patch(next)}
             onIcon={(emoji) => patch({ emoji })}
+            measureBandAspect={measureBandAspect}
           />
           <h1 className="mt-1 text-[2.5rem] font-bold leading-[1.15] tracking-[-0.03em] text-text-primary">{title}</h1>
           <NoteTags tags={note.tags} onChange={(tags) => patch({ tags })} />

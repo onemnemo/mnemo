@@ -729,6 +729,12 @@ export interface NoteSummaryDto {
    * uploaded. Null for no cover, and an unrecognised token reads as no cover too.
    */
   cover: string | null
+  /**
+   * How a custom cover is framed: opaque JSON of `{x,y,w,h,aspect}`, parsed with
+   * `parseCoverCrop` from `@/notes/workspace/cover-upload`. Null draws the cover
+   * uncropped, and a preset ignores this field entirely.
+   */
+  coverCrop: string | null
   /** Page tags, plain labels; the chip colour is derived from the label. */
   tags: string[]
 }
@@ -790,6 +796,8 @@ export interface UpdateNoteMetadataDto {
   emoji: string | null
   /** A preset token or `asset:{assetId}`; see NoteSummaryDto.cover. */
   cover: string | null
+  /** See NoteSummaryDto.coverCrop. */
+  coverCrop: string | null
   tags: string[]
 }
 

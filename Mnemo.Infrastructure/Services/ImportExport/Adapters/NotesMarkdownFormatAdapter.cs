@@ -167,6 +167,7 @@ public sealed class NotesMarkdownFormatAdapter : IContentFormatAdapter
             IsFavorite = victim.IsFavorite,
             Emoji = victim.Emoji,
             Cover = victim.Cover,
+            CoverCrop = victim.CoverCrop,
             Tags = [.. victim.Tags],
             CreatedAt = victim.CreatedAt
         };

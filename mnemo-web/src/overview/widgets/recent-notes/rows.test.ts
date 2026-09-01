@@ -18,6 +18,7 @@ function note(overrides: Partial<NoteSummaryDto> & { id: string }): NoteSummaryD
     isFavorite: false,
     emoji: null,
     cover: null,
+    coverCrop: null,
     tags: [],
     createdAt: new Date(NOW).toISOString(),
     modifiedAt: new Date(NOW).toISOString(),

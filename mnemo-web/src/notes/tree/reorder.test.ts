@@ -14,7 +14,7 @@ function folder(over: Partial<NoteFolderDto> & { id: string }): NoteFolderDto {
 function note(over: Partial<NoteSummaryDto> & { id: string }): NoteSummaryDto {
   return {
     sid: over.id, ver: 1, title: over.id, folderId: null, parentNoteId: null, order: 0,
-    isFavorite: false, emoji: null, cover: null, tags: [],
+    isFavorite: false, emoji: null, cover: null, coverCrop: null, tags: [],
     createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z', ...over,
   };
 }

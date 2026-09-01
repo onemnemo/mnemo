@@ -35,7 +35,14 @@ import { EDITOR_WIDTH_KEY, useEditorMeasure, useEditorWidthOptions } from './use
  * as the block gutter, so the reading surface comes first. Over a cover it takes
  * just enough ground to stay legible.
  */
-export function PaneActions({ note }: { note: NoteSummaryDto }) {
+export function PaneActions({
+  note,
+  measureBandAspect,
+}: {
+  note: NoteSummaryDto;
+  /** The cover banner's live width over its fixed height, read fresh each time its editor opens. */
+  measureBandAspect: () => number;
+}) {
   const t = useT();
   const nt = (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
   const undo = useUndoDelete();
@@ -76,7 +83,7 @@ export function PaneActions({ note }: { note: NoteSummaryDto }) {
   const title = note.title.trim() || nt('Untitled');
   const overCover = hasCover(note.cover);
   const toggleFavourite = () => void updateNote.mutateAsync(metadataUpdateOf(note, { isFavorite: !note.isFavorite }));
-  const patch = (next: Partial<Pick<NoteSummaryDto, 'emoji' | 'cover'>>) =>
+  const patch = (next: Partial<Pick<NoteSummaryDto, 'emoji' | 'cover' | 'coverCrop'>>) =>
     void updateNote.mutateAsync(metadataUpdateOf(note, next));
 
   const rename = async () => {
@@ -188,7 +195,9 @@ export function PaneActions({ note }: { note: NoteSummaryDto }) {
       </EmojiPickerPopover>
       <CoverPicker
         token={note.cover}
-        onChange={(cover) => patch({ cover })}
+        coverCrop={note.coverCrop}
+        measureBandAspect={measureBandAspect}
+        onChange={(next) => patch(next)}
         open={picker === 'cover'}
         onOpenChange={(open) => setPicker(open ? 'cover' : null)}
       >
