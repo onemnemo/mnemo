@@ -36,6 +36,7 @@ import {
   presetImageWidth,
 } from '../blocks/image-attrs';
 import { bakedImageFileName, bakeImage } from '../blocks/image-bake';
+import { imageColumnWidthAt } from '../blocks/image-column';
 import type { CaptionReveal } from '../blocks/image-caption-reveal';
 import { lineText } from '../blocks/shared';
 import type { BlockRegistry } from '../registry/build';
@@ -85,18 +86,6 @@ function commitAttrs(view: EditorView, pos: number, patch: Record<string, unknow
 /** The block again, after an await, or null when it is gone. */
 function relocate(view: EditorView, registry: BlockRegistry, loc: BlockLocation): BlockLocation | null {
   return locateBlock(view.state, registry, loc.pos, String(loc.node.attrs.sid ?? ''));
-}
-
-/**
- * The width of the row the picture sits in, which is what a size preset is a fraction of.
- *
- * The figure rather than the image: the same element the resize drag measures its ceiling against,
- * so a preset and a drag to the same place agree.
- */
-export function imageColumnWidth(view: EditorView, pos: number): number {
-  const dom = view.nodeDOM(pos);
-  if (!(dom instanceof HTMLElement)) return 0;
-  return dom.getBoundingClientRect().width;
 }
 
 /** The width the picture is actually drawn at, for a crop that has to keep it. */
@@ -152,7 +141,7 @@ export function imageMenuItems({
   const path = imagePathOf(node);
   const align = imageAlignOf(node);
   const width = imageWidthOf(node);
-  const columnWidth = location ? imageColumnWidth(view, location.pos) : 0;
+  const columnWidth = location ? imageColumnWidthAt(view, location.pos) : 0;
 
   // Mirrors block-menu-items.ts: a picture that is part of a live multi-block selection has its
   // Delete take the whole selection, not just the block that was right-clicked.
@@ -271,7 +260,7 @@ export function imageMenuItems({
     checked: isPresetImageWidth(width, columnWidth, preset.fraction),
     run: (target, loc) => {
       // Measured again at the click: the pane may have been resized while the menu was open.
-      const measured = imageColumnWidth(target, loc.pos);
+      const measured = imageColumnWidthAt(target, loc.pos);
       if (measured <= 0) return;
       commitAttrs(target, loc.pos, { width: presetImageWidth(measured, preset.fraction) });
     },

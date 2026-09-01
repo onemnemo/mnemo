@@ -830,38 +830,37 @@
  * has text, has been asked for, or holds the caret. Width rides an inline style the resize
  * drag previews and its release persists.
  *
- * Media and caption share one shrink-to-fit stack, and alignment moves that stack. A caption
- * belongs at the picture's width and under the picture's edge, which it cannot be while it is
- * a sibling of the row and the row is the column. The row carries no `justify-content` of its
- * own: two rules placing the same picture eventually place it in two different spots. */
+ * The figure is itself the shrink-to-fit box, so the block hugs its picture and alignment is the
+ * figure's own margin. The block's edges are then the picture's edges, which is what the selection
+ * outline and the gutter's handles are drawn from, and the caption comes along for nothing: it is
+ * inside the box the picture sized. The row carries no `justify-content` of its own: two rules
+ * placing the same picture eventually place it in two different spots. */
 .notes-doc figure[data-image] {
-  margin: 4px 0;
-}
-.notes-doc .notes-image-stack {
   width: fit-content;
   max-width: 100%;
+  margin: 4px 0;
 }
-.notes-doc figure[data-image][data-align="center"] .notes-image-stack {
+.notes-doc figure[data-image][data-align="center"] {
   margin-inline: auto;
 }
-.notes-doc figure[data-image][data-align="right"] .notes-image-stack {
+.notes-doc figure[data-image][data-align="right"] {
   margin-inline-start: auto;
 }
 /* The states with no picture to hug (the cards, the load skeleton) and a cropped frame that was
  * never resized size themselves as a fraction of the row, and a fraction of a shrink-to-fit box
- * is nothing. The view marks those, and the stack takes the column for them. */
-.notes-doc .notes-image-stack.is-column {
+ * is nothing. The view marks those, and the figure takes the column for them. */
+.notes-doc figure[data-image].is-column {
   width: 100%;
 }
-/* A stack holding the column cannot place the picture by its own margins, since it is already
+/* A figure holding the column cannot place the picture by its own margins, since it is already
  * as wide as the row, so in that one mode the row places it. The two never disagree: a hugging
- * stack is exactly its frame's width, which leaves the row nothing to distribute. Without this
+ * figure is exactly its frame's width, which leaves the row nothing to distribute. Without this
  * a resize drag on a cropped picture that was never sized before jumps it to the left edge for
- * the length of the drag, because the preview narrows the frame while the stack still spans. */
-.notes-doc figure[data-image][data-align="center"] .notes-image-stack.is-column .notes-image-media {
+ * the length of the drag, because the preview narrows the frame while the figure still spans. */
+.notes-doc figure[data-image][data-align="center"].is-column .notes-image-media {
   justify-content: center;
 }
-.notes-doc figure[data-image][data-align="right"] .notes-image-stack.is-column .notes-image-media {
+.notes-doc figure[data-image][data-align="right"].is-column .notes-image-media {
   justify-content: flex-end;
 }
 .notes-doc .notes-image-media {
@@ -983,7 +982,7 @@
   opacity: 0;
 }
 /* Zero width, then filled back out. A shrink-to-fit box is as wide as its widest child, so a
- * caption that measured itself would stretch the stack past the picture and pull the alignment
+ * caption that measured itself would stretch the figure past the picture and pull the alignment
  * along with every word typed into it. At zero it adds nothing to that measurement, and the
  * `min-width` hands it back exactly the width the picture settled on. */
 .notes-doc .notes-image-caption {

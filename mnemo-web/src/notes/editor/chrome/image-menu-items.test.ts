@@ -43,12 +43,15 @@ interface Mounted {
 }
 
 /**
- * One image block in a note, plus a fake view over it whose `nodeDOM` answers with an element of
- * `columnWidth` and a frame of `frameWidth`.
+ * One image block in a note, plus a fake view over it whose `nodeDOM` answers with a figure of
+ * `figureWidth`, holding a frame of `frameWidth`, inside a column of `columnWidth`.
+ *
+ * The figure hugs its picture, so it is narrower than the column on purpose: a preset measured off
+ * the figure would be a fraction of the picture the block already is rather than of the column.
  */
 function mount(
   attrs: { path?: string; width?: number; align?: string; crop?: null } = {},
-  layout: { columnWidth?: number; frameWidth?: number } = {},
+  layout: { columnWidth?: number; frameWidth?: number; figureWidth?: number } = {},
 ): Mounted {
   const built = buildNoteEditState([
     block('Text', [span('before')]),
@@ -63,11 +66,14 @@ function mount(
   ]);
   if (!built.ok) throw new Error('fixture did not build');
 
+  const column = document.createElement('div');
   const element = document.createElement('figure');
   const frame = document.createElement('div');
   frame.className = 'notes-image-frame';
   element.appendChild(frame);
-  element.getBoundingClientRect = () => new DOMRect(0, 0, layout.columnWidth ?? 0, 100);
+  column.appendChild(element);
+  column.getBoundingClientRect = () => new DOMRect(0, 0, layout.columnWidth ?? 0, 400);
+  element.getBoundingClientRect = () => new DOMRect(0, 0, layout.figureWidth ?? layout.frameWidth ?? 0, 100);
   frame.getBoundingClientRect = () => new DOMRect(0, 0, layout.frameWidth ?? 0, 100);
 
   const mounted = {
@@ -206,6 +212,23 @@ describe('imageMenuItems', () => {
     action(submenu(items(mounted), 'image.size'), 'image.size.three-quarters').run(mounted.view, loc);
     expect(mounted.dispatched).toBe(1);
     expect(mounted.state.doc.child(1).attrs.width).toBe(450);
+  });
+
+  it('measures the column and not the figure, which is only as wide as its picture', () => {
+    // A 240px picture in a 600px column: the figure hugs it, so half is 300 and not 120, and the
+    // stored 240 reads as no preset at all rather than as a full width.
+    const mounted = mount({ width: 240 }, { columnWidth: 600, figureWidth: 240, frameWidth: 240 });
+    expect(checkedIds(submenu(items(mounted), 'image.size'))).toEqual([]);
+
+    const at = imageAt(mounted);
+    const loc = locateBlock(mounted.state, mounted.registry, at.pos, at.sid);
+    if (!loc) throw new Error('no location');
+    action(submenu(items(mounted), 'image.size'), 'image.size.half').run(mounted.view, loc);
+    expect(mounted.state.doc.child(1).attrs.width).toBe(300);
+
+    // And a full width grows the picture to the column rather than leaving it where it was.
+    action(submenu(items(mounted), 'image.size'), 'image.size.full').run(mounted.view, loc);
+    expect(mounted.state.doc.child(1).attrs.width).toBe(600);
   });
 
   it('commits an alignment once, and not again when it is already there', () => {
