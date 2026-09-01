@@ -702,7 +702,6 @@ function NodeEditor({
       }
       node.focus({ preventScroll: true })
       node.select()
-      grow(node)
       resize(node, node.value)
     },
     [resize],
@@ -733,7 +732,6 @@ function NodeEditor({
         textAlign: isRoot ? "center" : undefined,
       }}
       onInput={(event) => {
-        grow(event.currentTarget)
         resize(event.currentTarget, event.currentTarget.value)
         track(event.currentTarget.value)
       }}
@@ -810,12 +808,23 @@ function useLiveBox(element: SceneElement): (field: HTMLTextAreaElement, value: 
       host.current = field.closest<HTMLElement>(".mm-node")
       auto.current = isAutoSized(opened.current, plainText(opened.current))
     }
-    if (!host.current || !auto.current) {
+    const box = host.current
+    if (!box || !auto.current) {
+      // A box that cannot grow leaves the field the only thing that can.
+      grow(field)
       return
     }
+
+    // Width first, and from the projector, so the field re-wraps at the width the box is keeping.
     const measured = measureFor(opened.current, value)
-    host.current.style.width = `${measured.width}px`
-    host.current.style.height = `${measured.height}px`
+    box.style.width = `${measured.width}px`
+
+    // Only then the height, and from the field itself. Read before the width lands it answers for
+    // the width the box had a keystroke ago, which is a line count that disagrees with what is on
+    // screen. Taken from the field rather than from the measurement so the box holds the text even
+    // where the two wrap differently.
+    grow(field)
+    box.style.height = `${field.scrollHeight + opened.current.padding.y * 2}px`
   }, [])
 }
 

@@ -261,6 +261,26 @@ describe("the box under a label being typed into", () => {
     expect(parseFloat(hostBox().style.width)).toBeGreaterThan(parseFloat(before))
   })
 
+  it("takes the field's height only once the new width has landed", () => {
+    const element = autoNode("hi")
+    act(() => root.render(<MindmapNode element={element} editing onEditEnd={vi.fn()} />))
+    const field = container.querySelector("textarea")!
+    const box = hostBox()
+    const opened = box.style.width
+
+    // A field that answers for the width it has right now, which is what a real one does. Asked
+    // before the new width is written it reports the line count of the box a keystroke ago, and the
+    // box and the text it holds spent every keystroke disagreeing by a line.
+    Object.defineProperty(field, "scrollHeight", {
+      configurable: true,
+      get: () => (box.style.width === opened ? 38 : 19),
+    })
+
+    type(field, "a label long enough that the box has to widen for it")
+
+    expect(box.style.height).toBe(`${19 + element.padding.y * 2}px`)
+  })
+
   it("puts the box back when the edit is abandoned, which changed no text at all", () => {
     const element = autoNode("hi")
     act(() => root.render(<MindmapNode element={element} editing onEditEnd={vi.fn()} />))
