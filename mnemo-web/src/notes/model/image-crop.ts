@@ -57,6 +57,28 @@ export function readCrop(value: unknown): ImageCrop | null {
   return { x, y, w, h, aspect };
 }
 
+/**
+ * How far two windows may differ and still be the same window.
+ *
+ * A reopened editor rebuilds its view from the stored crop and hands a crop back through the same
+ * float arithmetic, so confirming without touching anything can return numbers that differ in the
+ * last bits. Committing those would dirty the note and burn an undo step for a picture nobody
+ * moved, and this is well under a pixel of any real source.
+ */
+const SAME_CROP_EPSILON = 1e-6;
+
+/** Whether two windows describe the same picture, allowing for a round trip through the editor. */
+export function cropsEqual(a: ImageCrop | null, b: ImageCrop | null): boolean {
+  if (a === null || b === null) return a === b;
+  return (
+    Math.abs(a.x - b.x) <= SAME_CROP_EPSILON &&
+    Math.abs(a.y - b.y) <= SAME_CROP_EPSILON &&
+    Math.abs(a.w - b.w) <= SAME_CROP_EPSILON &&
+    Math.abs(a.h - b.h) <= SAME_CROP_EPSILON &&
+    Math.abs(a.aspect - b.aspect) <= SAME_CROP_EPSILON
+  );
+}
+
 /** The crop as the block's own markup carries it, so an internal copy round-trips it. */
 export function cropAttributeOf(crop: ImageCrop | null): string {
   return crop === null ? '' : JSON.stringify(crop);

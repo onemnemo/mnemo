@@ -42,6 +42,7 @@ import { trailingClickPlugin } from '../editor/pipeline/trailing-click';
 import { selectionDragPlugin } from '../editor/pipeline/selection-drag';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
 import { tableHeaderPlugin } from '../editor/table/header-decorations';
+import { imageCaptionCaretPlugin } from '../editor/blocks/image-caption-caret';
 import { codeHighlightPlugin } from '../editor/code/highlight';
 import { slashHintPlugin } from '../editor/pipeline/slash-hint';
 import { findPlugin } from '../find/find-plugin';
@@ -172,6 +173,10 @@ export function editorPlugins(
     // surface on the cells a header row or column covers, computed from the
     // table's own flags, so it claims no key and never dirties the note.
     tableHeaderPlugin(),
+    // Decoration only, and the only one here that reads the selection rather than the document:
+    // it marks the image whose caption the caret is in, which is what reveals a caption that is
+    // clipped for being empty. Editing only, since a note being read has no caret to follow.
+    imageCaptionCaretPlugin(),
     // Another decoration-only neighbour: it colours source and nothing else, so
     // it claims no key, appends no step and never dirties the note.
     codeHighlightPlugin(),

@@ -3,6 +3,7 @@ import type { EditorView } from 'prosemirror-view';
 
 import {
   ContextMenu,
+  ContextMenuCheckItem,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
@@ -13,17 +14,24 @@ import type { TranslateFn } from '@/i18n/types';
 import { useT } from '@/i18n/useT';
 
 import { getBlockSelection } from '../../selection/block-selection-plugin';
+import { captionRevealFor } from '../blocks/image-caption-reveal';
 import { deepestBlockAt } from '../pipeline/block-locate';
 import type { BlockRegistry } from '../registry/build';
+import type { EditorServices } from '../registry/types';
+import { resolveServices } from '../view/nodeviews';
 import { locateBlock } from './block-commands';
 import {
   blockMenuItems,
+  runBlockAction,
   runBlockRequest,
   runBlockVerb,
+  type BlockMenuAction,
+  type BlockMenuChoice,
   type BlockMenuEntry,
   type BlockMenuRequest,
   type BlockMenuVerb,
 } from './block-menu-items';
+import { imageMenuItems } from './image-menu-items';
 import { Announcer } from './Announcer';
 import { useAnnouncer } from './useAnnouncer';
 import { hasClipboardSelection, runClipboardVerb } from './selection-clipboard';
@@ -36,6 +44,10 @@ import { hasClipboardSelection, runClipboardVerb } from './selection-clipboard';
  * nothing and stays out of the way, which is deliberate. The webview's own menu
  * is the only place its spelling suggestions live, and a caret right-click on a
  * misspelled word is exactly how a reader asks for them.
+ *
+ * A picture is the one block that answers about itself. Right-clicking one offers the same rows
+ * its own pill does, in place of the generic block menu, because "crop this" and "align this" are
+ * what a right-click on a figure is asking and the generic list cannot say either.
  *
  * The offer is decided on pointerdown, not on the contextmenu event, for two
  * reasons. Chromium moves the caret (and selects the misspelled word) on the
@@ -54,6 +66,7 @@ interface MenuSnapshot {
 function snapshotAt(
   view: EditorView,
   registry: BlockRegistry,
+  services: EditorServices,
   t: TranslateFn,
   coords: { left: number; top: number },
 ): MenuSnapshot | null {
@@ -66,17 +79,20 @@ function snapshotAt(
     const located = deepestBlockAt(state.doc, registry, at);
     if (!located) return null;
     const sid = String(located.node.attrs.sid ?? '');
-    return {
-      clipboard: false,
-      blocks: blockMenuItems({
-        state,
-        registry,
-        node: located.node,
-        location: locateBlock(state, registry, located.pos, sid),
-        t,
-      }),
-      target: { pos: located.pos, sid },
-    };
+    const location = locateBlock(state, registry, located.pos, sid);
+    const blocks =
+      located.node.type.name === 'image'
+        ? imageMenuItems({
+            view,
+            registry,
+            node: located.node,
+            location,
+            services,
+            t,
+            caption: captionRevealFor(view, sid),
+          })
+        : blockMenuItems({ state, registry, node: located.node, location, t });
+    return { clipboard: false, blocks, target: { pos: located.pos, sid } };
   }
 
   if (hasClipboardSelection(state)) return { clipboard: true, blocks: [], target: null };
@@ -86,10 +102,13 @@ function snapshotAt(
 export function EditorContextMenu({
   view,
   registry,
+  services,
   children,
 }: {
   view: EditorView | null;
   registry: BlockRegistry;
+  /** The same handles the node views get; the image rows upload, fetch and bake through them. */
+  services?: Partial<EditorServices>;
   children: ReactNode;
 }) {
   const t = useT();
@@ -98,13 +117,22 @@ export function EditorContextMenu({
 
   const onPointerDown = (event: ReactPointerEvent) => {
     if (event.button !== 2) return;
-    setSnapshot(view ? snapshotAt(view, registry, t, { left: event.clientX, top: event.clientY }) : null);
+    setSnapshot(
+      view
+        ? snapshotAt(view, registry, resolveServices(services), t, { left: event.clientX, top: event.clientY })
+        : null,
+    );
   };
 
   const run = (verb: BlockMenuVerb) => {
     if (!view || !snapshot?.target) return;
     if (!runBlockVerb(view, registry, snapshot.target, verb)) return;
     if (verb.announce !== null) announce(verb.announce);
+  };
+
+  const act = (action: BlockMenuAction) => {
+    if (!view || !snapshot?.target) return;
+    runBlockAction(view, registry, snapshot.target, action);
   };
 
   const raise = (entry: BlockMenuRequest) => {
@@ -123,6 +151,32 @@ export function EditorContextMenu({
       {verb.label}
     </ContextMenuItem>
   );
+
+  const renderAction = (action: BlockMenuAction) =>
+    action.checked === undefined ? (
+      <ContextMenuItem
+        key={action.id}
+        icon={action.icon}
+        danger={action.danger}
+        disabled={action.disabled}
+        onSelect={() => act(action)}
+      >
+        {action.label}
+      </ContextMenuItem>
+    ) : (
+      <ContextMenuCheckItem
+        key={action.id}
+        checked={action.checked}
+        icon={action.icon}
+        disabled={action.disabled}
+        onSelect={() => act(action)}
+      >
+        {action.label}
+      </ContextMenuCheckItem>
+    );
+
+  const renderChoice = (choice: BlockMenuChoice) =>
+    choice.kind === 'verb' ? renderVerb(choice) : renderAction(choice);
 
   return (
     <>
@@ -148,7 +202,7 @@ export function EditorContextMenu({
               case 'submenu':
                 return (
                   <ContextMenuSubMenu key={entry.id} label={entry.label} icon={entry.icon}>
-                    {entry.items.map(renderVerb)}
+                    {entry.items.map(renderChoice)}
                   </ContextMenuSubMenu>
                 );
               case 'request':
@@ -159,6 +213,8 @@ export function EditorContextMenu({
                 );
               case 'verb':
                 return renderVerb(entry);
+              case 'action':
+                return renderAction(entry);
             }
             // A new entry kind with no case above would render as undefined, which
             // React rejects with an error naming this component rather than the

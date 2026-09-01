@@ -97,7 +97,7 @@ describe('blockMenuItems', () => {
     const { state, registry } = mount([block('Heading2', [span('h')])]);
     const submenu = items(state, registry, 0).find((entry) => entry.kind === 'submenu');
     if (submenu?.kind !== 'submenu') throw new Error('no turn-into submenu');
-    const current = submenu.items.filter((option) => option.emphasis === true);
+    const current = submenu.items.filter((option) => option.kind === 'verb' && option.emphasis === true);
     expect(current.map((option) => option.id)).toEqual(['turn-into.heading2']);
   });
 

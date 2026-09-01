@@ -9,6 +9,9 @@
 // by, and it becomes available as <AppIcon name="that-name" />. Nothing else changes.
 
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   ArrowDown,
   ArrowLeft,
   ArrowRight,
@@ -37,6 +40,7 @@ import {
   Copy,
   CopyPlus,
   CornerDownLeft,
+  Crop,
   Download,
   Ellipsis,
   Eraser,
@@ -217,6 +221,13 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   download: Download,
   // The theme picker's "match system" card.
   monitor: Monitor,
+
+  // The image block's own chrome: where a figure sits, and reframing it. Paragraph alignment
+  // rather than the object-alignment art in common/, which is the mindmap's arrangement tools.
+  "align-left": AlignLeft,
+  "align-center": AlignCenter,
+  "align-right": AlignRight,
+  crop: Crop,
 
   // The code and table blocks' own chrome. No project art exists for any of
   // them, and each one names a display option rather than a Mnemo concept.

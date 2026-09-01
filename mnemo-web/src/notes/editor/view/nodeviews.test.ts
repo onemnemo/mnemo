@@ -50,15 +50,13 @@ describe('toNodeViews', () => {
   it('hands the factory the node, live getPos, attrs, a realized host and services', () => {
     let seen: RealizedBlockViewArgs<Record<string, unknown>> | undefined;
     const services = resolveServices({ resolveNoteTitle: () => 'T' });
-    const nodeViews = toNodeViews(
-      registryWith({
-        widget: (args) => {
-          seen = args;
-          return { dom: document.createElement('span') };
-        },
-      }),
-      services,
-    );
+    const registry = registryWith({
+      widget: (args) => {
+        seen = args;
+        return { dom: document.createElement('span') };
+      },
+    });
+    const nodeViews = toNodeViews(registry, services);
 
     nodeViews.widget(fakeNode, fakeView, () => 5, [], null as never);
 
@@ -66,7 +64,9 @@ describe('toNodeViews', () => {
     expect(seen!.attrs).toBe(fakeNode.attrs);
     expect(seen!.getPos()).toBe(5);
     expect(seen!.host.mode).toBe('realized');
-    expect(seen!.services).toBe(services);
+    expect(seen!.services).toMatchObject(services);
+    // The registry rides along with the services, for a view whose body acts on its own block.
+    expect(seen!.services.registry).toBe(registry);
   });
 
   it('passes contentDOM straight through, present for editable blocks, null for atoms', () => {

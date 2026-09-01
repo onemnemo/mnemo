@@ -58,11 +58,14 @@ export function toNodeViews(
   services: EditorServices,
 ): Record<string, NodeViewConstructor> {
   const nodeViews: Record<string, NodeViewConstructor> = {};
+  // The registry travels with the services rather than beside them, so a view that needs it takes
+  // no second argument and every view that does not is untouched.
+  const withRegistry: EditorServices = { ...services, registry };
 
   for (const [nodeName, factory] of registry.realizedViews) {
     nodeViews[nodeName] = (node, view: EditorView, getPos) => {
       const host = realizedHost();
-      const realized = factory({ node, view, getPos, attrs: node.attrs, host, services });
+      const realized = factory({ node, view, getPos, attrs: node.attrs, host, services: withRegistry });
 
       return {
         dom: realized.dom,

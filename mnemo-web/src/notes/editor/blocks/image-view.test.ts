@@ -5,10 +5,12 @@ import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 
 import { createEditorSchema } from '../schema';
+import { createPortalRegistry, type PortalRegistry } from '../view/portal-registry';
+import { captionRevealFor } from './image-caption-reveal';
 import { imageView } from './image-view';
 import type { BlockShellHost, EditorServices, RealizedBlockViewArgs } from '../registry/types';
 
-const { schema } = createEditorSchema();
+const { schema, registry } = createEditorSchema();
 
 function line(text?: string): PMNode {
   return schema.nodes.line.create(null, text ? schema.text(text) : null);
@@ -21,11 +23,18 @@ const host: BlockShellHost = { mode: 'realized', requestMode() {}, destroy() {} 
 
 function mountImage(
   attrs: Record<string, unknown>,
-  options: { editable?: boolean; load?: EditorServices['loadAssetUrl'] } = {},
+  options: {
+    editable?: boolean;
+    load?: EditorServices['loadAssetUrl'];
+    /** Present in the app, absent in a harness with no React tree to portal into. */
+    portals?: PortalRegistry;
+    caption?: string;
+  } = {},
 ) {
-  const doc = schema.nodes.doc.create(null, [image(attrs)]);
+  const doc = schema.nodes.doc.create(null, [image(attrs, options.caption)]);
   let state = EditorState.create({ schema, doc });
   const dispatched: Transaction[] = [];
+  let focused = 0;
   const view = {
     get state() {
       return state;
@@ -34,6 +43,9 @@ function mountImage(
     dispatch(tr: Transaction) {
       dispatched.push(tr);
       state = state.apply(tr);
+    },
+    focus() {
+      focused += 1;
     },
   } as unknown as EditorView;
 
@@ -46,6 +58,8 @@ function mountImage(
       return load(path);
     },
     uploadAsset: () => Promise.reject(new Error('unused')),
+    registry,
+    portals: options.portals,
   };
 
   const args: RealizedBlockViewArgs<Record<string, unknown>> = {
@@ -57,7 +71,7 @@ function mountImage(
     services,
   };
   const realized = imageView(args);
-  return { realized, dispatched, loadCalls, currentState: () => state };
+  return { realized, view, dispatched, loadCalls, currentState: () => state, focusCount: () => focused };
 }
 
 async function flush(): Promise<void> {
@@ -86,7 +100,6 @@ describe('image NodeView', () => {
     expect(realized.dom.getAttribute('data-align')).toBe('center');
     // The editable chrome hangs off the frame once the bytes are up.
     expect(realized.dom.querySelector('.notes-image-resize')).not.toBeNull();
-    expect(realized.dom.querySelectorAll('.notes-image-align')).toHaveLength(3);
   });
 
   it('shows a labeled missing card when the reference does not resolve', async () => {
@@ -104,11 +117,13 @@ describe('image NodeView', () => {
   });
 
   it('hides the editing chrome in a read-only view', async () => {
-    const { realized } = mountImage({ path: 'aaaa.png' }, { editable: false });
+    const portals = createPortalRegistry();
+    const { realized } = mountImage({ path: 'aaaa.png' }, { editable: false, portals });
     await flush();
     expect(realized.dom.querySelector('img')).not.toBeNull();
     expect(realized.dom.querySelector('.notes-image-resize')).toBeNull();
-    expect(realized.dom.querySelectorAll('.notes-image-align')).toHaveLength(0);
+    expect(realized.dom.querySelector('.notes-image-chrome')).toBeNull();
+    expect(portals.size).toBe(0);
   });
 
   it('reloads the bytes when the path changes and applies attrs in place otherwise', async () => {
@@ -133,13 +148,98 @@ describe('image NodeView', () => {
     expect(realized.update!(para)).toBe(false);
   });
 
-  it('commits an alignment click as one transaction', async () => {
-    const { realized, dispatched, currentState } = mountImage({ path: 'aaaa.png' });
+  it('mounts the pill through the portal bridge, on the live frame', async () => {
+    const portals = createPortalRegistry();
+    const { realized } = mountImage({ path: 'aaaa.png' }, { portals });
     await flush();
-    const buttons = realized.dom.querySelectorAll('.notes-image-align');
-    buttons[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(portals.size).toBe(1);
+    const mount = realized.dom.querySelector('.notes-image-chrome');
+    expect(mount?.parentElement).toBe(realized.dom.querySelector('.notes-image-frame'));
+
+    // A new window rebuilds the frame; the same mount has to end up on the new one rather than
+    // being left behind on the old one or registered a second time.
+    expect(realized.update!(image({ path: 'aaaa.png', crop: { x: 0, y: 0, w: 0.5, h: 1, aspect: 0.5 } }))).toBe(true);
+    expect(portals.size).toBe(1);
+    expect(realized.dom.querySelector('.notes-image-chrome')?.parentElement).toBe(
+      realized.dom.querySelector('.notes-image-frame'),
+    );
+
+    // And a block whose media goes back to a card has nothing to hang the pill on.
+    expect(realized.update!(image({ path: '' }))).toBe(true);
+    await flush();
+    expect(portals.size).toBe(0);
+
+    realized.destroy!();
+    expect(portals.size).toBe(0);
+  });
+
+  it('draws no pill where there is no React tree to portal into', async () => {
+    const { realized } = mountImage({ path: 'aaaa.png' });
+    await flush();
+    expect(realized.dom.querySelector('.notes-image-chrome')).toBeNull();
+    expect(realized.dom.querySelector('.notes-image-resize')).not.toBeNull();
+  });
+
+  it('selects the block on a press on the picture and takes focus back', async () => {
+    // A sid, because the selection is a set of them and a block without one is not selectable.
+    const { realized, dispatched, focusCount } = mountImage({ path: 'aaaa.png', sid: 's1' });
+    await flush();
+    const img = realized.dom.querySelector('img')!;
+    img.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
     expect(dispatched).toHaveLength(1);
-    expect(currentState().doc.firstChild!.attrs.align).toBe('center');
+    expect(focusCount()).toBe(1);
+  });
+
+  it('cancels the caret and the native drag a press on the picture would otherwise start', async () => {
+    const { realized } = mountImage({ path: 'aaaa.png' });
+    await flush();
+    const img = realized.dom.querySelector('img')!;
+    expect(img.draggable).toBe(false);
+    const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    img.dispatchEvent(press);
+    expect(press.defaultPrevented).toBe(true);
+  });
+
+  it('leaves the placeholder card on click to pick, with no selection of its own', () => {
+    const { realized, dispatched } = mountImage({ path: '' });
+    const card = realized.dom.querySelector('.notes-image-card-placeholder')!;
+    card.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+    const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    card.dispatchEvent(press);
+    expect(dispatched).toHaveLength(0);
+    expect(press.defaultPrevented).toBe(false);
+  });
+
+  it('clips an empty caption and keeps one that has text', () => {
+    expect(mountImage({ path: 'aaaa.png' }).realized.dom.getAttribute('data-caption')).toBe('hidden');
+    const written = mountImage({ path: 'aaaa.png' }, { caption: 'Figure 1' });
+    expect(written.realized.dom.getAttribute('data-caption')).toBe('shown');
+  });
+
+  it('lends the caption switch out under the block sid, and takes it back on destroy', () => {
+    const mounted = mountImage({ path: 'aaaa.png', sid: 's1' });
+    const reveal = captionRevealFor(mounted.view, 's1');
+    expect(reveal).not.toBeNull();
+    expect(reveal?.visible()).toBe(false);
+
+    reveal?.toggle();
+    expect(mounted.realized.dom.getAttribute('data-caption')).toBe('shown');
+    expect(reveal?.visible()).toBe(true);
+
+    mounted.realized.destroy!();
+    expect(captionRevealFor(mounted.view, 's1')).toBeNull();
+  });
+
+  it('takes the text with it when the caption is turned off, as one undo step', () => {
+    const mounted = mountImage({ path: 'aaaa.png', sid: 's2' }, { caption: 'Figure 1' });
+    const reveal = captionRevealFor(mounted.view, 's2');
+    expect(reveal?.visible()).toBe(true);
+
+    reveal?.toggle();
+    expect(mounted.dispatched).toHaveLength(1);
+    expect(mounted.currentState().doc.firstChild!.textContent).toBe('');
+    expect(mounted.realized.dom.getAttribute('data-caption')).toBe('hidden');
+    expect(reveal?.visible()).toBe(false);
   });
 
   it('commits a resize drag as one transaction with the released width', async () => {
