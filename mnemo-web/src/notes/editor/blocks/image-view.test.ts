@@ -5,6 +5,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 
 import { createEditorSchema } from '../schema';
+import { takeImagePress } from '../chrome/image-press';
 import { createPortalRegistry, type PortalRegistry } from '../view/portal-registry';
 import { captionRevealFor } from './image-caption-reveal';
 import { imageView } from './image-view';
@@ -188,6 +189,20 @@ describe('image NodeView', () => {
     img.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
     expect(dispatched).toHaveLength(1);
     expect(focusCount()).toBe(1);
+  });
+
+  it('leaves the selection alone on a secondary press, and still names the block it landed on', async () => {
+    const { realized, dispatched, focusCount } = mountImage({ path: 'aaaa.png', sid: 's1' });
+    await flush();
+    // The slot is module state, so anything a previous test armed would answer for this one.
+    takeImagePress();
+    const img = realized.dom.querySelector('img')!;
+    img.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 2 }));
+    // Asking what a picture can do is not choosing it: nothing is selected and nothing is focused.
+    expect(dispatched).toHaveLength(0);
+    expect(focusCount()).toBe(0);
+    // The menu reads the press instead, so it still knows which picture was pressed.
+    expect(takeImagePress()?.sid).toBe('s1');
   });
 
   it('cancels the caret and the native drag a press on the picture would otherwise start', async () => {

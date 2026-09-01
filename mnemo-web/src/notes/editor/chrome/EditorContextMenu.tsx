@@ -52,10 +52,10 @@ import { hasClipboardSelection, runClipboardVerb } from './selection-clipboard';
  * its own pill does, in place of the generic block menu, because "crop this" and "align this" are
  * what a right-click on a figure is asking and the generic list cannot say either.
  *
- * Which block was pressed is asked of the press before it is asked of the
- * pointer's coordinates. A picture's media is its node view's own opaque DOM,
- * so `posAtCoords` can resolve nothing over it, and the coordinate fallback
- * names the caret's block rather than the picture the press just selected.
+ * A picture's press is the one offer that stands without a selection behind it. Its media is the
+ * node view's own opaque DOM, so `posAtCoords` resolves nothing over it, and a right-click on a
+ * picture deliberately selects nothing, so neither the coordinate nor the selection can name what
+ * was pressed. The press itself can, and it is asked first.
  *
  * The offer is decided on pointerdown, not on the contextmenu event, for two
  * reasons. Chromium moves the caret (and selects the misspelled word) on the
@@ -89,6 +89,32 @@ function pressedBlock(
   return located ? { pos: located.pos, node: located.node } : null;
 }
 
+/** The rows one block offers, and the target the menu runs them against. */
+function blockSnapshot(
+  view: EditorView,
+  registry: BlockRegistry,
+  services: EditorServices,
+  t: TranslateFn,
+  located: { pos: number; node: PMNode },
+): MenuSnapshot {
+  const state = view.state;
+  const sid = String(located.node.attrs.sid ?? '');
+  const location = locateBlock(state, registry, located.pos, sid);
+  const blocks =
+    located.node.type.name === 'image'
+      ? imageMenuItems({
+          view,
+          registry,
+          node: located.node,
+          location,
+          services,
+          t,
+          caption: captionRevealFor(view, sid),
+        })
+      : blockMenuItems({ state, registry, node: located.node, location, t });
+  return { clipboard: false, blocks, target: { pos: located.pos, sid } };
+}
+
 function snapshotAt(
   view: EditorView,
   registry: BlockRegistry,
@@ -99,31 +125,21 @@ function snapshotAt(
 ): MenuSnapshot | null {
   const state = view.state;
 
+  // A press on a picture is the whole answer, selection or none: it names its own block, which
+  // is the only thing that can, and offering the picture's rows is the point of the press.
+  const pressed = pressedBlock(state, registry, press);
+  if (pressed) return blockSnapshot(view, registry, services, t, pressed);
+
   if (getBlockSelection(state).selected.size > 0) {
-    // A press on a picture says what it landed on, and it is trusted first: the media is the
-    // node view's own opaque DOM, so `posAtCoords` can answer nothing there and the fallback
-    // would name the caret's block instead of the one just pressed. Everywhere else the block
-    // under the pointer is the one the verbs name, and a click that lands between blocks or in
-    // the page margin falls back to the caret's block.
-    const located =
-      pressedBlock(state, registry, press) ??
-      deepestBlockAt(state.doc, registry, view.posAtCoords(coords)?.pos ?? state.selection.head);
+    // The block under the pointer is the one the verbs name, and a click that lands between
+    // blocks or in the page margin falls back to the caret's block.
+    const located = deepestBlockAt(
+      state.doc,
+      registry,
+      view.posAtCoords(coords)?.pos ?? state.selection.head,
+    );
     if (!located) return null;
-    const sid = String(located.node.attrs.sid ?? '');
-    const location = locateBlock(state, registry, located.pos, sid);
-    const blocks =
-      located.node.type.name === 'image'
-        ? imageMenuItems({
-            view,
-            registry,
-            node: located.node,
-            location,
-            services,
-            t,
-            caption: captionRevealFor(view, sid),
-          })
-        : blockMenuItems({ state, registry, node: located.node, location, t });
-    return { clipboard: false, blocks, target: { pos: located.pos, sid } };
+    return blockSnapshot(view, registry, services, t, located);
   }
 
   if (hasClipboardSelection(state)) return { clipboard: true, blocks: [], target: null };

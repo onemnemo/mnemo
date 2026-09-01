@@ -41,9 +41,10 @@ interface Mounted {
  * A note whose second block is a picture, with the menu mounted over a stand-in for the editor.
  *
  * `coordsIndex` is what the pointer's coordinate resolves to; `null` is the live case over a
- * picture, where jsdom and Chromium agree that there is no position to answer with.
+ * picture, where jsdom and Chromium agree that there is no position to answer with. A `null`
+ * `selectIndex` is the other live case, a press with nothing selected behind it.
  */
-function mount(selectIndex: number, coordsIndex: number | null = selectIndex): Mounted {
+function mount(selectIndex: number | null, coordsIndex: number | null = selectIndex): Mounted {
   const built = buildNoteEditState([
     block('Text', [span('prose')]),
     block('Image', [span('')], { kind: 'image', path: 'a.png', alt: '', width: 0, align: 'left', crop: null }),
@@ -65,10 +66,12 @@ function mount(selectIndex: number, coordsIndex: number | null = selectIndex): M
   };
   const sidOf = (index: number): string => String(mountedView.state.doc.child(index).attrs.sid ?? '');
 
-  const sid = sidOf(selectIndex);
-  act(() => {
-    setBlockSelection(mountedView, { selected: new Set([sid]), anchorSid: sid });
-  });
+  if (selectIndex !== null) {
+    const sid = sidOf(selectIndex);
+    act(() => {
+      setBlockSelection(mountedView, { selected: new Set([sid]), anchorSid: sid });
+    });
+  }
   // jsdom hit tests nothing, so the coordinate the menu resolves its block from is supplied.
   const coordsPos = coordsIndex === null ? null : posOf(coordsIndex);
   mountedView.posAtCoords = () => (coordsPos === null ? null : { pos: coordsPos + 1, inside: coordsPos });
@@ -133,6 +136,22 @@ describe('EditorContextMenu', () => {
     expect(text).toContain('MoveUp');
     expect(text).toContain('TurnInto');
     expect(text).not.toContain('ImageCropReposition');
+  });
+
+  it('offers the picture rows on the press alone, with nothing selected', () => {
+    // The live shape: a right-click on a picture selects nothing, and its media answers no
+    // coordinate, so the press is the only thing left that can name what was pressed.
+    const mounted = mount(null, null);
+    recordImagePress({ pos: mounted.posOf(1), sid: mounted.sidOf(1) });
+    const text = rightClick(mounted.surface);
+    expect(text).toContain('ImageCropReposition');
+    expect(text).not.toContain('MoveUp');
+  });
+
+  it('still offers nothing on a plain caret press, so the webview keeps its spelling menu', () => {
+    const text = rightClick(mount(null, 0).surface);
+    expect(text).not.toContain('ImageCropReposition');
+    expect(text).not.toContain('MoveUp');
   });
 
   it('takes the picture from the press when the coordinate resolves to nothing', () => {

@@ -358,12 +358,16 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
   }
 
   /**
-   * A press on the picture selects the block, and may go on to drag it.
+   * A primary press on the picture selects the block, and may go on to drag it.
    *
-   * Deliberately not stopped: the right-click menu decides what to offer from a pointerdown
-   * snapshot taken at the React root, and it has to see the selection this just made. The press
-   * is not consumed either, the shared drag arms at five pixels of travel, so a release short of
-   * that is simply the click that already selected.
+   * A secondary press changes nothing at all. Asking a picture what it can do is not the same as
+   * choosing it, and a right-click that reassigned the selection would throw away a multi-block
+   * one the reader had just made. The menu still knows which picture it was raised on: every
+   * press records itself below, and the menu reads that rather than the selection.
+   *
+   * Deliberately not stopped: the menu's snapshot is taken from a pointerdown at the React root,
+   * which has to see this press to read it. The press is not consumed either, the shared drag
+   * arms at five pixels of travel, so a release short of that is simply the click that selected.
    */
   function onMediaPointerDown(event: PointerEvent): void {
     if (!view.editable) return;
@@ -374,6 +378,9 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     // one names the block it was on rather than leaving it to a coordinate the media swallows.
     recordImagePress({ pos: live.pos, sid: String(live.node.attrs.sid ?? '') });
 
+    // Nothing selects, focuses or drags off a secondary button; the menu takes it from here.
+    if (event.button !== 0) return;
+
     const registry = services.registry;
     if (registry) {
       const current = getBlockSelection(view.state);
@@ -381,9 +388,6 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
       if (next !== current) setBlockSelection(view, next);
     }
     view.focus();
-
-    // Right-click selects and then leaves the menu to it; nothing drags off a secondary button.
-    if (event.button !== 0) return;
     pressBlockDrag(view, event, live.pos);
   }
 
