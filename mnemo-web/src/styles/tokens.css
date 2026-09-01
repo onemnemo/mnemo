@@ -209,6 +209,15 @@
   --sel-lasso: color-mix(in srgb, var(--accent) 7%, transparent);
   --sel-lasso-line: color-mix(in srgb, var(--accent) 42%, transparent);
 
+  /* Find/replace's match highlights. A separate hue from --sel-* on purpose:
+     the two paint over the same prose and mean different things, a search hit
+     rather than a chosen selection, so they can never read as one another
+     when both are on screen. Yellow-gold for a plain match, warmed toward
+     orange for the active one, same fill/ring pairing as --sel-lasso above. */
+  --find-match: oklch(0.88 0.15 85 / 0.42);
+  --find-match-current: oklch(0.75 0.17 62 / 0.85);
+  --find-match-current-line: oklch(0.5 0.14 55 / 0.65);
+
   /* Distinct from the brand orange on purpose: if "delete" and "mnemo" are the same
      colour, neither means anything. */
   --danger: oklch(0.54 0.2 25);
@@ -359,6 +368,13 @@
   --sel-block: color-mix(in srgb, var(--accent) 17%, transparent);
   --sel-lasso: color-mix(in srgb, var(--accent) 10%, transparent);
   --sel-lasso-line: color-mix(in srgb, var(--accent) 50%, transparent);
+
+  /* Dimmer than light so the wash does not glow against the dark canvas, but
+     the ring lightens rather than darkens: a dark ring is the thing that
+     used to vanish against a dark canvas before this had its own token. */
+  --find-match: oklch(0.62 0.12 85 / 0.32);
+  --find-match-current: oklch(0.7 0.16 62 / 0.78);
+  --find-match-current-line: oklch(0.85 0.13 68 / 0.6);
 
   --danger: oklch(0.68 0.18 25);
   --danger-wash: oklch(0.3 0.07 25);

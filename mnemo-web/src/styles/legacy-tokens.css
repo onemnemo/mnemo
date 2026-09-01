@@ -12,8 +12,8 @@
  *   grep -rhoE "var\(--[a-z0-9-]+" src --include=*.tsx --include=*.ts --include=*.css
  *
  * Most entries are aliases. The exceptions are content colours (editorial swatches,
- * flashcard states, toast accents, floating chrome) which are not chrome and get
- * redesigned with the module that owns them, so they keep literal values for now.
+ * flashcard states, toast accents) which are not chrome and get redesigned with the
+ * module that owns them, so they keep literal values for now.
  */
 
 :root,
@@ -115,22 +115,6 @@
   --flashcard-retention-high: oklch(0.6 0.11 152);
   --flashcard-retention-high-hover: oklch(0.55 0.12 152);
 
-  /* Floating chrome: the dark surface transient UI sits on (formatting toolbar, slash
-     menu, flyouts). Kept literal because the rehaul replaces this surface outright when
-     Notes is ported, and reshading it now would mean doing it twice. */
-  --floating-chrome-background: #232220;
-  --floating-chrome-foreground: #e8e6e3;
-  --floating-chrome-foreground-strong: #ffffff;
-  --floating-chrome-foreground-muted: #8f8b88;
-  --floating-chrome-row-text: #cdcac4;
-  --floating-chrome-accent: #ed8a76;
-  --floating-chrome-hover: #ffffff14;
-  --floating-chrome-active: #ffffff1f;
-  --floating-chrome-pressed: #ffffff29;
-  --floating-chrome-divider: #ffffff1a;
-  --floating-chrome-danger: #d9694a;
-  --floating-chrome-danger-hover: #e07a5c;
-
   /* Toasts. Five kinds, each looked up as var(--toast-accent-{kind}), so all five have
      to exist even where nothing renders them yet. */
   --toast-background-primary: var(--canvas);
@@ -179,8 +163,6 @@
 [data-theme="dark"] {
   --flashcard-retention-high: oklch(0.74 0.11 152);
   --flashcard-retention-high-hover: oklch(0.79 0.11 152);
-
-  --floating-chrome-background: #292827;
 
   --toast-accent-info: oklch(0.72 0.13 245);
   --toast-accent-success: oklch(0.74 0.12 152);
