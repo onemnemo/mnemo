@@ -1171,21 +1171,20 @@
 
 /* The link flyout: an address field with a Done button and, when editing an
  * existing link, a Remove button, floating off either the toolbar's Link
- * button or the caret. Same floating chrome and body-level positioning as
- * the equation flyout. */
+ * button or the caret. Same surface as the equation flyout: canvas plus the
+ * popover elevation, so no literal shadow or border of its own is needed. */
 .notes-link-flyout {
   position: fixed;
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   min-width: 260px;
   max-width: 380px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--floating-chrome-divider);
-  background: var(--floating-chrome-background);
-  box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.32);
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--canvas);
+  box-shadow: var(--shadow-pop);
   font-family: var(--font-sans);
 }
 .notes-link-flyout-row {
@@ -1196,28 +1195,29 @@
 .notes-link-flyout-input {
   flex: 1;
   min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid var(--floating-chrome-divider);
-  border-radius: 6px;
-  background: var(--floating-chrome-hover);
-  color: var(--floating-chrome-foreground-strong);
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--canvas-sunken);
+  color: var(--ink);
   font-family: var(--font-sans);
   font-size: var(--font-size-body-small);
   outline: none;
+  transition: border-color var(--duration-fast);
 }
 .notes-link-flyout-input:focus-visible {
-  border-color: var(--floating-chrome-accent);
+  border-color: var(--accent);
 }
 .notes-link-flyout-input::placeholder {
-  color: var(--floating-chrome-foreground-muted);
+  color: var(--ink-3);
 }
 .notes-link-flyout-done {
   min-width: 64px;
-  padding: 6px 12px;
+  padding: 8px 14px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--accent);
-  color: var(--accent-button-text);
+  color: var(--accent-fg);
   font-size: var(--font-size-body-small);
   font-weight: 500;
   cursor: pointer;
@@ -1226,21 +1226,23 @@
 .notes-link-flyout-done:hover {
   filter: brightness(1.08);
 }
+/* The one destructive action in this card: the danger family the way a menu's
+ * danger row uses it, resting in the colour and only washing on hover. */
 .notes-link-flyout-remove {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
+  width: 34px;
   padding: 0;
-  border: 1px solid var(--floating-chrome-divider);
-  border-radius: 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
   background: transparent;
-  color: var(--floating-chrome-foreground-muted);
+  color: var(--danger);
   cursor: pointer;
+  transition: background-color var(--duration-fast);
 }
 .notes-link-flyout-remove:hover {
-  background: var(--floating-chrome-hover);
-  color: var(--floating-chrome-foreground-strong);
+  background: var(--danger-wash);
 }
 .notes-link-flyout-remove svg {
   width: 16px;
@@ -1632,28 +1634,31 @@
 }
 
 /* Find and replace match highlights. Painted as decorations, so they never
- * enter the document; the current match reads brighter than the rest. */
+ * enter the document; the current match reads brighter than the rest. Their
+ * own token pair (below in tokens.css), never --sel-*: that family means a
+ * chosen selection, this means a search hit, and the two must never be
+ * mistaken for one another when both are on screen at once. */
 .notes-find-match {
-  background-color: rgba(250, 204, 21, 0.32);
+  background-color: var(--find-match);
   border-radius: 2px;
 }
 .notes-find-match-current {
-  background-color: rgba(249, 168, 37, 0.72);
-  box-shadow: 0 0 0 1px rgba(180, 120, 10, 0.55);
+  background-color: var(--find-match-current);
+  box-shadow: 0 0 0 1px var(--find-match-current-line);
 }
 
-/* The find/replace bar. Same floating chrome as the slash menu, pinned to the
- * top-right of the editor viewport. */
+/* The find/replace bar. Same surface as the slash menu: canvas plus the
+ * popover elevation, pinned to the top-right of the editor viewport. */
 .notes-find-replace {
   position: fixed;
   z-index: 41;
   display: flex;
   flex-direction: column;
   border-radius: 12px;
-  background: var(--floating-chrome-background);
-  box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.32);
+  background: var(--canvas);
+  box-shadow: var(--shadow-pop);
   font-family: var(--font-sans);
-  color: var(--floating-chrome-foreground);
+  color: var(--ink);
   overflow: hidden;
 }
 
@@ -1670,12 +1675,13 @@
   gap: 7px;
   height: 34px;
   padding: 0 10px;
+  border: 1px solid var(--line-soft);
   border-radius: 8px;
-  background: var(--floating-chrome-hover);
+  background: var(--canvas-sunken);
 }
 .notes-find-field-icon {
   flex: none;
-  color: var(--floating-chrome-foreground-muted);
+  color: var(--ink-3);
 }
 .notes-find-input {
   flex: 1;
@@ -1683,11 +1689,11 @@
   border: none;
   background: transparent;
   outline: none;
-  color: var(--floating-chrome-foreground-strong);
+  color: var(--ink);
   font-size: var(--font-size-body-extra-small);
 }
 .notes-find-input::placeholder {
-  color: var(--floating-chrome-foreground-muted);
+  color: var(--ink-3);
 }
 
 .notes-find-band {
@@ -1695,14 +1701,14 @@
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  border-top: 1px solid var(--floating-chrome-divider);
-  border-bottom: 1px solid var(--floating-chrome-divider);
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
 }
 .notes-find-count {
   min-width: 40px;
   font-family: var(--font-mono);
   font-size: 11.5px;
-  color: var(--floating-chrome-foreground-muted);
+  color: var(--ink-3);
 }
 .notes-find-nav {
   display: flex;
@@ -1719,17 +1725,18 @@
   height: 28px;
   padding: 0 12px;
   border-radius: 14px;
-  color: var(--floating-chrome-foreground-muted);
+  color: var(--ink-3);
   font-size: var(--font-size-caption);
   font-weight: 500;
+  transition: background-color var(--duration-fast), color var(--duration-fast);
 }
 .notes-find-toggle:hover {
-  background: var(--floating-chrome-hover);
-  color: var(--floating-chrome-foreground-strong);
+  background: var(--frame-hover);
+  color: var(--ink);
 }
 .notes-find-toggle-active {
-  background: var(--floating-chrome-active);
-  color: var(--floating-chrome-foreground-strong);
+  background: var(--frame-active);
+  color: var(--ink);
 }
 
 .notes-find-options,
@@ -1750,43 +1757,46 @@
 .notes-find-replace-input {
   height: 34px;
   padding: 0 10px;
+  border: 1px solid var(--line-soft);
   border-radius: 8px;
-  background: var(--floating-chrome-hover);
+  background: var(--canvas-sunken);
 }
 
 .notes-find-chip {
   height: 26px;
   padding: 0 10px;
   border-radius: 13px;
-  border: 1px solid var(--floating-chrome-divider);
-  color: var(--floating-chrome-foreground-muted);
+  border: 1px solid var(--line-soft);
+  color: var(--ink-3);
   font-size: 11.5px;
   font-weight: 500;
+  transition: background-color var(--duration-fast);
 }
 .notes-find-chip:hover {
-  background: var(--floating-chrome-hover);
+  background: var(--frame-hover);
 }
 .notes-find-chip-active {
-  border-color: var(--floating-chrome-accent);
-  background: var(--floating-chrome-active);
-  color: var(--floating-chrome-foreground-strong);
+  border-color: var(--accent);
+  background: var(--frame-active);
+  color: var(--ink);
 }
 
 .notes-find-action {
   height: 30px;
   padding: 0 14px;
   border-radius: 15px;
-  background: var(--floating-chrome-hover);
-  color: var(--floating-chrome-foreground-strong);
+  background: var(--frame-hover);
+  color: var(--ink);
   font-size: var(--font-size-caption);
   font-weight: 600;
+  transition: background-color var(--duration-fast);
 }
 .notes-find-action:hover:not(:disabled) {
-  background: var(--floating-chrome-active);
+  background: var(--frame-active);
 }
 .notes-find-action-primary {
-  background: var(--floating-chrome-accent);
-  color: var(--floating-chrome-background);
+  background: var(--accent);
+  color: var(--accent-fg);
 }
 .notes-find-action-primary:hover:not(:disabled) {
   filter: brightness(1.08);
