@@ -270,6 +270,22 @@
         outline-offset: 1px;
         border-radius: 4px;
     }
+
+    /* Tailwind v4's preflight no longer gives buttons a pointer, so every control
+       in the app fell back to the arrow. It belongs in the base layer: `cursor-*`
+       utilities and the unlayered component stylesheets both outrank it, so the
+       deliberate drag affordances (the block grip, the image resize pill, the
+       column splitter, the table rails) keep their own cursors. `role="button"`
+       carries its disabled state in `aria-disabled`, having no `:disabled` to
+       match. */
+    button:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]) {
+        cursor: pointer;
+    }
+
+    button:disabled {
+        cursor: not-allowed;
+    }
 }
 
 @layer utilities {
