@@ -1,8 +1,7 @@
 import { useCallback, useRef } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { EditorView } from 'prosemirror-view';
 
-import { usePointerDrag, type Point, type PointerDrag } from '@/lib/dnd/usePointerDrag';
+import { usePointerDrag, type DragPress, type Point, type PointerDrag } from '@/lib/dnd/usePointerDrag';
 
 import { ensureRealized } from '../pipeline/ensure-realized';
 import {
@@ -201,7 +200,7 @@ export function useBlockDrag(view: EditorView | null): PointerDrag<BlockDragHand
   });
 
   const press = useCallback(
-    (event: ReactPointerEvent, handle: BlockDragHandle) => {
+    (event: DragPress, handle: BlockDragHandle) => {
       previousInsertIndex.current = null;
       drag.press(event, handle);
     },

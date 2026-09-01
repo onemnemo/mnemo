@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { PointerEvent as ReactPointerEvent, RefObject } from "react"
+import type { RefObject } from "react"
 
 import { restoreTextSelection, suppressTextSelection } from "./drag-select"
 
@@ -20,6 +20,21 @@ import { restoreTextSelection, suppressTextSelection } from "./drag-select"
 export interface Point {
   x: number
   y: number
+}
+
+/**
+ * The press, as the fields a drag actually reads.
+ *
+ * Structural rather than React's `PointerEvent`, so a native listener can arm a drag with the
+ * event it was handed. A React pointer event satisfies it, so every existing caller is unchanged.
+ */
+export interface DragPress {
+  pointerId: number
+  clientX: number
+  clientY: number
+  button: number
+  pointerType: string
+  target: EventTarget | null
 }
 
 /** Pointer travel on either axis that turns a press into a drag rather than a click. */
@@ -103,7 +118,7 @@ export interface PointerDrag<THandle, TTarget> {
   ghostRef: RefObject<HTMLDivElement | null>
   /** Re-pins the ghost to the cursor. The layer calls this on mount so it never paints at 0,0. */
   placeGhost: () => void
-  press: (event: ReactPointerEvent, handle: THandle) => void
+  press: (event: DragPress, handle: THandle) => void
   /**
    * Whether the click now arriving on `key` is the tail of a drag and should be
    * swallowed rather than treated as a plain click.
@@ -262,7 +277,7 @@ export function usePointerDrag<THandle, TTarget, TPlan>(
   )
 
   const press = useCallback(
-    (event: ReactPointerEvent, source: THandle) => {
+    (event: DragPress, source: THandle) => {
       if (event.button !== 0 || teardown.current) return
       // Touch is left to the browser: a finger crosses the arm threshold well
       // inside the scroll slop, so a touch drag would raise the ghost and then

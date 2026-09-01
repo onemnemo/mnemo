@@ -93,15 +93,40 @@ export interface BlockMenuRequest {
   readonly request: 'calloutIcon';
 }
 
+/**
+ * A row that runs a callback instead of building a transaction.
+ *
+ * A verb is a pure `state -> transaction`, which is what makes the block commands testable
+ * without a view and is worth keeping. Some rows are not that shape: opening the image editor
+ * and waiting on it, baking a picture onto the clipboard, writing a file. They still act on one
+ * block, so they arrive here re-located the way a verb does, and what they do with the view
+ * afterwards is their own business.
+ */
+export interface BlockMenuAction {
+  readonly kind: 'action';
+  readonly id: string;
+  readonly label: string;
+  readonly icon?: IconName;
+  readonly danger?: boolean;
+  /** Draws the row as a toggle and reports its state. */
+  readonly checked?: boolean;
+  readonly disabled?: boolean;
+  run(view: EditorView, loc: BlockLocation): void | Promise<void>;
+}
+
+/** What a submenu may hold. Both kinds so a choice row can carry a tick. */
+export type BlockMenuChoice = BlockMenuVerb | BlockMenuAction;
+
 export type BlockMenuEntry =
   | BlockMenuVerb
+  | BlockMenuAction
   | BlockMenuRequest
   | {
       readonly kind: 'submenu';
       readonly id: string;
       readonly label: string;
       readonly icon?: IconName;
-      readonly items: readonly BlockMenuVerb[];
+      readonly items: readonly BlockMenuChoice[];
     }
   | { readonly kind: 'separator'; readonly id: string };
 
@@ -252,6 +277,25 @@ export function runBlockVerb(
   if (!tr) return false;
   view.dispatch(tr);
   view.focus();
+  return true;
+}
+
+/**
+ * Run an action row against the block it was built for, re-located first for the same reason a
+ * verb is: the snapshot's position may predate an earlier command or an invariant repair.
+ *
+ * Returns whether the block was still there to act on. The work itself may be asynchronous and is
+ * deliberately not awaited here; nothing the menu does afterwards depends on it.
+ */
+export function runBlockAction(
+  view: EditorView,
+  registry: BlockRegistry,
+  target: { pos: number; sid: string },
+  action: BlockMenuAction,
+): boolean {
+  const loc = locateBlock(view.state, registry, target.pos, target.sid);
+  if (!loc) return false;
+  void action.run(view, loc);
   return true;
 }
 

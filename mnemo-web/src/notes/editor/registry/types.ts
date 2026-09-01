@@ -26,6 +26,7 @@ import type { Command, EditorState, Transaction } from 'prosemirror-state';
 import type { EditorView, ViewMutationRecord } from 'prosemirror-view';
 import type { IconName } from '@/components/icon/icon-registry';
 import type { Block, BlockType, TextStyle } from '../../model/types';
+import type { BlockRegistry } from './build';
 import type { PortalRegistry } from '../view/portal-registry';
 
 /** Dispatches a transaction. Mirrors ProseMirror's own command signature. */
@@ -219,6 +220,15 @@ export interface EditorServices {
    * surface that cannot host them is a surface nobody is reaching on.
    */
   readonly portals?: PortalRegistry;
+  /**
+   * The registry the editor was assembled from, for a view whose own body acts on the block
+   * rather than on its content.
+   *
+   * The image is the case: a press on the picture selects the block the way the gutter grip does,
+   * and the selection algebra is registry-shaped (what counts as a block, and in what order).
+   * Absent wherever a view is built without one, and a view that wants it must still render.
+   */
+  readonly registry?: BlockRegistry;
 }
 
 /**

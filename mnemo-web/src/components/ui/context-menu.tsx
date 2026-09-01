@@ -61,6 +61,51 @@ export function ContextMenuItem({
   )
 }
 
+/**
+ * The right-click twin of `MenuCheckItem`, tick in the same trailing slot for the same reason: a
+ * menu mixing toggles, submenus and plain verbs keeps one left edge and one right edge.
+ */
+export function ContextMenuCheckItem({
+  checked,
+  onSelect,
+  icon,
+  hint,
+  disabled,
+  children,
+}: {
+  checked: boolean
+  onSelect?: () => void
+  icon?: IconName
+  hint?: string
+  disabled?: boolean
+  children: ReactNode
+}) {
+  return (
+    <RadixContextMenu.CheckboxItem
+      checked={checked}
+      disabled={disabled}
+      onSelect={onSelect}
+      className={itemClass()}
+    >
+      <MenuItemBody
+        icon={icon}
+        hint={hint}
+        // The slot is reserved whether or not it is ticked, so a row does not
+        // shift sideways as it is toggled.
+        trailing={
+          <span className="grid size-[14px] shrink-0 place-items-center">
+            <RadixContextMenu.ItemIndicator>
+              <AppIcon name="common/check" size={13} className="text-text-secondary" />
+            </RadixContextMenu.ItemIndicator>
+          </span>
+        }
+      >
+        {children}
+      </MenuItemBody>
+    </RadixContextMenu.CheckboxItem>
+  )
+}
+
 export function ContextMenuSubMenu({
   children,
   label,

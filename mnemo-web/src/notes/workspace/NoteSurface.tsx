@@ -177,7 +177,7 @@ export function NoteSurface({
           </div>
           {/* Rendered whether or not the view exists yet: this owns the element
               ProseMirror mounts into, so it must never come and go under it. */}
-          <EditorContextMenu view={view} registry={registry}>
+          <EditorContextMenu view={view} registry={registry} services={viewServices}>
             <div ref={ref} className="notes-doc" lang={lang} spellCheck={spellCheck} />
           </EditorContextMenu>
         </div>

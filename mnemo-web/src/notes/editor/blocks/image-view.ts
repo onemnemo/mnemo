@@ -1,15 +1,28 @@
 /**
  * The image block's renderer: an empty block is a card that opens the file picker, a filled
- * one shows its bytes with resize and alignment chrome, and the caption line stays editable
- * ProseMirror content below the media.
+ * one shows its bytes with a resize pill and the React chrome, and the caption line stays
+ * editable ProseMirror content below the media.
  *
  * ## The media is view-owned, the caption is not
  *
- * Everything above the caption, the placeholder card, the `<img>`, the resize pill, the
- * alignment buttons, is DOM this view draws and mutates outside transactions (a resize drag
- * previews by writing the img's width style). `ignoreMutation` claims all of it; only the
- * caption, the node's mandatory line handed to ProseMirror as `contentDOM`, is editor
- * content. This is the same split the checklist view draws around its checkbox.
+ * Everything above the caption, the placeholder card, the `<img>`, the resize pill, the chrome
+ * mount, is DOM this view draws and mutates outside transactions (a resize drag previews by
+ * writing the img's width style). `ignoreMutation` claims all of it; only the caption, the node's
+ * mandatory line handed to ProseMirror as `contentDOM`, is editor content. This is the same split
+ * the checklist view draws around its checkbox.
+ *
+ * ## The caption is always there, and not always showing
+ *
+ * The line is mandatory in the schema, so an empty caption is clipped rather than removed: zero
+ * height, no ink, still measurable and still somewhere the caret can be arrowed into. What
+ * reveals it is text, the menu asking for it, or the caret arriving, and the last of those comes
+ * from a decoration because a selection change alone never reaches a NodeView.
+ *
+ * ## A press on the picture is a press on the block
+ *
+ * Clicking the image selects the block the way the gutter grip does, and holding and moving
+ * raises the gutter's own drag through the bridge. The press is not stopped: the right-click
+ * menu snapshots the selection at the React root, and it has to see the selection this made.
  *
  * ## The `path` attr is a reference, the bytes come from the services
  *
@@ -21,43 +34,42 @@
  *
  * ## One undo step per gesture
  *
- * Choosing a file, releasing a resize drag, and clicking an alignment each commit a single
+ * Choosing a file, releasing a resize drag, and picking an alignment each commit a single
  * `setNodeMarkup` wrapped as its own undo step, the desktop's Begin/Commit bracket.
  */
 
+import { createElement } from 'react';
 import type { Node as PMNode } from 'prosemirror-model';
+import { TextSelection } from 'prosemirror-state';
 import type { RealizedBlockView, RealizedBlockViewArgs } from '../registry/types';
 import type { ImageCrop } from '../../../components/ui/image-editor/geometry';
 import { readCrop } from '../../model/image-crop';
+import { getBlockSelection, setBlockSelection } from '../../selection/block-selection-plugin';
+import { applyGrip, gripIntent } from '../../selection/grip-selection';
 import { asOwnUndoStep } from '../history';
+import { pressBlockDrag } from '../chrome/block-drag-bridge';
+import { mountPortalNodeView, type PortalNodeView } from '../view/portal-registry';
+import { ImageChrome } from './ImageChrome';
+import { registerCaptionReveal } from './image-caption-reveal';
+import {
+  clampImageWidth,
+  imageAlignOf,
+  imagePathOf,
+  imageWidthOf,
+  MAX_IMAGE_WIDTH,
+  MIN_IMAGE_WIDTH,
+} from './image-attrs';
 import { lineText } from './shared';
 import { useI18nStore } from '../../../i18n/store';
 import { createTranslate } from '../../../i18n/translate';
 
 const ROOT = 'notes-image';
 
-/** The desktop's resize clamp: never below a usable hit target, never past its hard cap. */
-const MIN_WIDTH = 80;
-const MAX_WIDTH_CAP = 1600;
-
 const ACCEPTED_TYPES = 'image/png,image/jpeg,image/gif,image/webp,image/bmp';
 
 /** Reads the active bundle at call time, so it follows a language change. */
 function translate(key: string): string {
   return createTranslate(useI18nStore.getState().bundle)('NotesEditor', key);
-}
-
-function pathOf(node: PMNode): string {
-  return String(node.attrs.path ?? '');
-}
-
-function widthOf(node: PMNode): number {
-  return Number(node.attrs.width) || 0;
-}
-
-function alignOf(node: PMNode): string {
-  const align = String(node.attrs.align ?? 'left');
-  return align === 'center' || align === 'right' ? align : 'left';
 }
 
 function cropOf(node: PMNode): ImageCrop | null {
@@ -126,12 +138,6 @@ function imageIcon(): SVGSVGElement {
   );
 }
 
-const ALIGN_GLYPHS: Record<string, readonly string[]> = {
-  left: ['M1 3.5h12', 'M1 7h8', 'M1 10.5h12'],
-  center: ['M1 3.5h12', 'M3 7h8', 'M1 10.5h12'],
-  right: ['M1 3.5h12', 'M5 7h8', 'M1 10.5h12'],
-};
-
 export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>): RealizedBlockView {
   const { view, services } = args;
 
@@ -152,7 +158,7 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
 
   // What the media area shows right now. `path` and `crop` are the doc's say, and the
   // two together decide the media DOM's shape; the rest is runtime.
-  let shownPath = pathOf(args.node);
+  let shownPath = imagePathOf(args.node);
   let shownCrop = cropOf(args.node);
   /** The elements a width write and a resize drag address, while an image is up. */
   let frameEl: HTMLElement | null = null;
@@ -164,6 +170,18 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
   let destroyed = false;
   /** Guards a resolved fetch against a path that changed while it was in flight. */
   let loadToken = 0;
+  /** The React pill, mounted once and moved onto whichever frame is live. */
+  let chrome: PortalNodeView | null = null;
+  /**
+   * Whether the menu has asked for the caption line. Presentation, not content, so it is
+   * deliberately not stored: a reloaded note starts with its empty captions out of the way.
+   */
+  let captionOpen = false;
+  /** Whether the caret was last seen in this block, so leaving it can put an empty line away. */
+  let captionHadCaret = false;
+  /** The sid the caption switch is currently lent out under, and how to take it back. */
+  let captionSid = '';
+  let releaseCaption: (() => void) | null = null;
 
   /** The node as it is now, at the live position, not the one captured at build. */
   function liveNode(): { pos: number; node: PMNode } | null {
@@ -179,6 +197,71 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     view.dispatch(
       asOwnUndoStep(view.state.tr.setNodeMarkup(live.pos, undefined, { ...live.node.attrs, ...patch })),
     );
+  }
+
+  /** Whether the editor's selection sits inside this block, which is inside its caption line. */
+  function caretInside(pos: number, node: PMNode): boolean {
+    const selection = view.state.selection;
+    return selection.from > pos && selection.to < pos + node.nodeSize;
+  }
+
+  /**
+   * Read off the live node rather than the last one `update()` saw: the menu asks at a moment of
+   * its own choosing, and an edit reaches the document before it reaches this view.
+   */
+  function captionVisible(): boolean {
+    return captionOpen || lineText(liveNode()?.node ?? currentNode).length > 0;
+  }
+
+  /**
+   * Puts the caption line on or off the page.
+   *
+   * Text always wins: a caption with something in it is content, and presentation state may not
+   * hide content. An empty line the caret has left goes away again, so turning it on and clicking
+   * elsewhere is not a way to leave an empty row behind.
+   */
+  function syncCaption(pos: number, node: PMNode): void {
+    const caret = caretInside(pos, node);
+    const hasText = lineText(node).length > 0;
+    if (captionOpen && captionHadCaret && !caret && !hasText) captionOpen = false;
+    captionHadCaret = caret;
+    dom.setAttribute('data-caption', captionOpen || hasText ? 'shown' : 'hidden');
+  }
+
+  function focusCaption(): void {
+    const live = liveNode();
+    if (!live) return;
+    // Nearest forward text position: the caption's line starts one position further in, and
+    // resolving the block's own position would not be a place a caret can be.
+    const selection = TextSelection.near(view.state.doc.resolve(live.pos + 1), 1);
+    view.dispatch(view.state.tr.setSelection(selection));
+    view.focus();
+  }
+
+  /** Empties the caption line, as one undo step, so turning the row off is a thing that happens. */
+  function clearCaption(): void {
+    const live = liveNode();
+    if (!live) return;
+    const from = live.pos + 2;
+    const to = live.pos + live.node.nodeSize - 2;
+    if (to <= from) return;
+    view.dispatch(asOwnUndoStep(view.state.tr.delete(from, to)));
+  }
+
+  function toggleCaption(): void {
+    if (captionVisible()) {
+      // The row reports what is on screen, so turning it off has to take the text with it, the
+      // way the code block's caption does. One undo step puts it back.
+      captionOpen = false;
+      clearCaption();
+    } else {
+      captionOpen = true;
+      // Turning a caption on and then having to find it is the failure here. A frame later, so
+      // the menu that asked has finished closing and handing focus back.
+      requestAnimationFrame(focusCaption);
+    }
+    const live = liveNode();
+    if (live) syncCaption(live.pos, live.node);
   }
 
   function openPicker(): void {
@@ -234,33 +317,67 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     return el;
   }
 
+  /**
+   * The pill on the picture, as React.
+   *
+   * Anchored menus are the reason this is a component rather than more imperative DOM beside the
+   * rest of the view: a flyout that has to flip near the window edge is not something to hand
+   * roll. Absent wherever the editor is mounted without the portal layer or without a registry,
+   * which is a test harness and a preview, and costs those surfaces the chrome and not the block.
+   */
+  function renderChrome(node: PMNode): void {
+    const registry = services.registry;
+    if (!view.editable || !services.portals || !registry || frameEl === null) return;
+    const element = createElement(ImageChrome, {
+      view,
+      registry,
+      services,
+      node,
+      getPos: args.getPos,
+      onAlign: (align: string) => {
+        if (imageAlignOf(currentNode) !== align) commitAttrs({ align });
+      },
+    });
+    if (chrome) chrome.update(element);
+    else chrome = mountPortalNodeView(services.portals, element, { className: `${ROOT}-chrome` });
+    // The frame is rebuilt whenever the window or the reference changes, so the mount is moved
+    // back onto the live one rather than recreated; React keeps rendering into the same container.
+    if (chrome.dom.parentNode !== frameEl) frameEl.appendChild(chrome.dom);
+  }
+
   function buildChrome(frame: HTMLElement): void {
     if (!view.editable) return;
-
-    const aligns = document.createElement('div');
-    aligns.className = `${ROOT}-aligns`;
-    const current = alignOf(currentNode);
-    for (const align of ['left', 'center', 'right'] as const) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.tabIndex = -1;
-      button.className = `${ROOT}-align`;
-      button.title = translate(`ImageAlign${align[0].toUpperCase()}${align.slice(1)}Tooltip`);
-      if (align === current) button.setAttribute('data-active', 'true');
-      button.appendChild(svgIcon(ALIGN_GLYPHS[align], '0 0 14 14'));
-      // preventDefault on mousedown keeps the editor's selection where it was.
-      button.addEventListener('mousedown', (event) => event.preventDefault());
-      button.addEventListener('click', () => {
-        if (alignOf(currentNode) !== align) commitAttrs({ align });
-      });
-      aligns.appendChild(button);
-    }
-    frame.appendChild(aligns);
-
     const pill = document.createElement('div');
     pill.className = `${ROOT}-resize`;
     pill.addEventListener('pointerdown', startResize);
     frame.appendChild(pill);
+    renderChrome(currentNode);
+  }
+
+  /**
+   * A press on the picture selects the block, and may go on to drag it.
+   *
+   * Deliberately not stopped: the right-click menu decides what to offer from a pointerdown
+   * snapshot taken at the React root, and it has to see the selection this just made. The press
+   * is not consumed either, the shared drag arms at five pixels of travel, so a release short of
+   * that is simply the click that already selected.
+   */
+  function onMediaPointerDown(event: PointerEvent): void {
+    if (!view.editable) return;
+    const live = liveNode();
+    if (!live) return;
+
+    const registry = services.registry;
+    if (registry) {
+      const current = getBlockSelection(view.state);
+      const next = applyGrip(view.state.doc, registry, current, live.pos, live.node, gripIntent(event));
+      if (next !== current) setBlockSelection(view, next);
+    }
+    view.focus();
+
+    // Right-click selects and then leaves the menu to it; nothing drags off a secondary button.
+    if (event.button !== 0) return;
+    pressBlockDrag(view, event, live.pos);
   }
 
   /**
@@ -283,11 +400,11 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
 
     const startWidth = target.getBoundingClientRect().width;
     const startX = event.clientX;
-    const maxWidth = Math.min(MAX_WIDTH_CAP, dom.getBoundingClientRect().width || MAX_WIDTH_CAP);
+    const maxWidth = Math.min(MAX_IMAGE_WIDTH, dom.getBoundingClientRect().width || MAX_IMAGE_WIDTH);
     let lastWidth = startWidth;
 
     const widthAt = (clientX: number): number =>
-      Math.round(Math.min(maxWidth, Math.max(MIN_WIDTH, startWidth + (clientX - startX))));
+      Math.round(Math.min(maxWidth, Math.max(MIN_IMAGE_WIDTH, startWidth + (clientX - startX))));
 
     const onMove = (move: PointerEvent) => {
       lastWidth = widthAt(move.clientX);
@@ -323,8 +440,8 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
   function applyDimensions(node: PMNode): void {
     const img = imgEl;
     if (!img) return;
-    const width = widthOf(node);
-    const stored = width > 0 ? `${Math.max(MIN_WIDTH, Math.min(MAX_WIDTH_CAP, width))}px` : null;
+    const width = imageWidthOf(node);
+    const stored = width > 0 ? `${clampImageWidth(width)}px` : null;
     const crop = cropOf(node);
 
     if (crop !== null && frameEl !== null) {
@@ -346,7 +463,17 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     media.replaceChildren();
     frameEl = null;
     imgEl = null;
-    const path = pathOf(currentNode);
+    drawMedia();
+    // A placeholder, a missing card and a load in flight have nothing to hang a pill on, and a
+    // mount left registered would go on rendering into a container no longer in the document.
+    if (frameEl === null) {
+      chrome?.destroy();
+      chrome = null;
+    }
+  }
+
+  function drawMedia(): void {
+    const path = imagePathOf(currentNode);
 
     if (uploading) {
       const el = card('placeholder', translate('ImageImporting'));
@@ -389,6 +516,15 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     const img = document.createElement('img');
     img.src = objectUrl;
     img.draggable = false;
+    if (view.editable) {
+      img.addEventListener('pointerdown', onMediaPointerDown);
+      // ProseMirror places a caret from mousedown and the browser starts a native image drag from
+      // it. Neither is wanted on a picture that answers the press itself, and the focus this
+      // cancels is taken back explicitly by the pointerdown above.
+      img.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+      });
+    }
     frame.appendChild(img);
     media.appendChild(frame);
     frameEl = frame;
@@ -424,10 +560,31 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
   // reading live attrs instead of the mount-time snapshot.
   let currentNode = args.node;
 
+  /**
+   * The menu on the right-click path is built outside this view, so the caption switch is lent out
+   * under the block's sid for as long as this view is up.
+   *
+   * Re-keyed rather than registered once: a block inserted by an edit is given its sid by the
+   * identity pass, so the first node this view sees may not carry one yet.
+   */
+  function syncCaptionReveal(node: PMNode): void {
+    const sid = String(node.attrs.sid ?? '');
+    if (sid === captionSid) return;
+    releaseCaption?.();
+    captionSid = sid;
+    releaseCaption = registerCaptionReveal(view, sid, {
+      visible: captionVisible,
+      toggle: toggleCaption,
+    });
+  }
+
   function sync(node: PMNode): void {
     currentNode = node;
-    dom.setAttribute('data-image', pathOf(node));
-    dom.setAttribute('data-align', alignOf(node));
+    dom.setAttribute('data-image', imagePathOf(node));
+    dom.setAttribute('data-align', imageAlignOf(node));
+    syncCaptionReveal(node);
+    const pos = args.getPos();
+    if (pos !== undefined) syncCaption(pos, node);
   }
 
   sync(args.node);
@@ -439,7 +596,7 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     update(node: PMNode): boolean {
       if (node.type !== args.node.type) return false;
       sync(node);
-      const path = pathOf(node);
+      const path = imagePathOf(node);
       const crop = cropOf(node);
       if (path !== shownPath) {
         shownPath = path;
@@ -453,13 +610,7 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
         renderMedia();
       } else {
         applyDimensions(node);
-        const active = media.querySelectorAll(`.${ROOT}-align`);
-        const align = alignOf(node);
-        active.forEach((button, index) => {
-          const name = (['left', 'center', 'right'] as const)[index];
-          if (name === align) button.setAttribute('data-active', 'true');
-          else button.removeAttribute('data-active');
-        });
+        renderChrome(node);
       }
       return true;
     },
@@ -473,6 +624,9 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     },
     destroy() {
       destroyed = true;
+      releaseCaption?.();
+      chrome?.destroy();
+      chrome = null;
       // Object URLs belong to the session cache, which revokes them together on close.
     },
   };

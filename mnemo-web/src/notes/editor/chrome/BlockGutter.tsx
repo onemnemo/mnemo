@@ -5,9 +5,11 @@ import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorState, Transaction } from 'prosemirror-state';
 
 import { AppIcon } from '@/components/icon/AppIcon';
+import type { DragPress } from '@/lib/dnd/usePointerDrag';
 import { cn } from '@/lib/utils';
 import {
   Menu,
+  MenuCheckItem,
   MenuContent,
   MenuItem,
   MenuSeparator,
@@ -23,11 +25,15 @@ import { getBlockSelection, setBlockSelection } from '../../selection/block-sele
 import { applyGrip, gripIntent } from '../../selection/grip-selection';
 import { useBlockDrag, type BlockDragHandle } from './useBlockDrag';
 import { insertBlockBelow, locateBlock, type BlockLocation } from './block-commands';
+import { registerBlockDragPress } from './block-drag-bridge';
 import {
   blockLabel,
   blockMenuItems,
+  runBlockAction,
   runBlockRequest,
   runBlockVerb,
+  type BlockMenuAction,
+  type BlockMenuChoice,
   type BlockMenuRequest,
   type BlockMenuVerb,
 } from './block-menu-items';
@@ -423,11 +429,47 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     [view, registry, announce, refresh],
   );
 
+  const runAction = useCallback(
+    (action: BlockMenuAction) => {
+      const current = activeRef.current;
+      if (!current) return;
+      const target = { pos: current.pos, sid: String(current.node.attrs.sid ?? '') };
+      runBlockAction(view, registry, target, action);
+    },
+    [view, registry],
+  );
+
   const raise = useCallback((entry: BlockMenuRequest) => {
     const current = activeRef.current;
     if (!current) return;
     runBlockRequest({ pos: current.pos, sid: String(current.node.attrs.sid ?? '') }, entry);
   }, []);
+
+  /**
+   * What a block's own body reaches to start this drag.
+   *
+   * Stable across renders, reading everything it needs from a ref, so the registration is made
+   * once per view rather than replaced on every hover. It resolves the handle here because the
+   * registry and the translator that names a block live here; a NodeView knows only its position.
+   */
+  const latest = useRef({ view, registry, t, press: drag.press });
+  useEffect(() => {
+    latest.current = { view, registry, t, press: drag.press };
+  });
+
+  const pressFromBlock = useCallback((event: DragPress, pos: number) => {
+    const { view: liveView, registry: liveRegistry, t: translate, press } = latest.current;
+    const located = deepestBlockAt(liveView.state.doc, liveRegistry, pos);
+    if (!located) return;
+    press(event, {
+      index: located.depth === 1 ? located.topIndex : null,
+      pos: located.pos,
+      sid: String(located.node.attrs.sid ?? ''),
+      label: blockLabel(located.node, translate),
+    });
+  }, []);
+
+  useEffect(() => registerBlockDragPress(view, pressFromBlock), [view, pressFromBlock]);
 
   const handleBlock = active;
   const handle: BlockDragHandle | null = handleBlock
@@ -462,6 +504,32 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
       {verb.label}
     </MenuItem>
   );
+
+  const renderAction = (action: BlockMenuAction) =>
+    action.checked === undefined ? (
+      <MenuItem
+        key={action.id}
+        icon={action.icon}
+        danger={action.danger}
+        disabled={action.disabled}
+        onSelect={() => runAction(action)}
+      >
+        {action.label}
+      </MenuItem>
+    ) : (
+      <MenuCheckItem
+        key={action.id}
+        checked={action.checked}
+        icon={action.icon}
+        disabled={action.disabled}
+        onSelect={() => runAction(action)}
+      >
+        {action.label}
+      </MenuCheckItem>
+    );
+
+  const renderChoice = (choice: BlockMenuChoice) =>
+    choice.kind === 'verb' ? renderVerb(choice) : renderAction(choice);
 
   // The same two buttons beside every block, in the same place, whatever the
   // block is. A block with its own affordance carries it in the document rather
@@ -593,7 +661,7 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
               case 'submenu':
                 return (
                   <MenuSubMenu key={entry.id} label={entry.label} icon={entry.icon}>
-                    {entry.items.map(renderVerb)}
+                    {entry.items.map(renderChoice)}
                   </MenuSubMenu>
                 );
               case 'request':
@@ -604,6 +672,8 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
                 );
               case 'verb':
                 return renderVerb(entry);
+              case 'action':
+                return renderAction(entry);
             }
             // A new entry kind with no case above would render as undefined, which
             // React rejects with an error naming this component rather than the
