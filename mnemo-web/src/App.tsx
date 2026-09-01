@@ -10,6 +10,7 @@ import { AppShell } from "@/components/shell/AppShell"
 import { useDragRegions } from "@/components/shell/chrome/useDragRegions"
 import { DialogHost } from "@/components/shell/DialogHost"
 import { CommandPalette } from "@/components/shell/palette/CommandPalette"
+import { ImageEditorHost } from "@/components/ui/image-editor/ImageEditorHost"
 import { TooltipHost } from "@/components/ui/tooltip"
 import { CardTypeOverlay } from "@/flashcards/cardtypes/CardTypeOverlay"
 import { FactEditorOverlay } from "@/flashcards/facts/FactEditorOverlay"
@@ -89,6 +90,7 @@ function App() {
       <AppShell />
       <CommandPalette />
       <DialogHost />
+      <ImageEditorHost />
       <FactEditorOverlay />
       <CardTypeOverlay />
       <ReviewSettingsOverlay />

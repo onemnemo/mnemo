@@ -42,6 +42,10 @@ export function Segmented<T extends string>({
   mono?: boolean
   className?: string
 }) {
+  // No option checked has no natural tab stop, so the first one takes it instead, the way a
+  // native radio group with nothing checked still lands on its first member.
+  const checkedIndex = options.findIndex((option) => option.value === value)
+
   return (
     <div
       role="radiogroup"
@@ -50,6 +54,7 @@ export function Segmented<T extends string>({
     >
       {options.map((option, index) => {
         const on = option.value === value
+        const isTabStop = checkedIndex === -1 ? index === 0 : on
         return (
           <button
             key={option.value}
@@ -60,7 +65,7 @@ export function Segmented<T extends string>({
             // A radiogroup is one tab stop whose members are reached with the arrow keys. Without
             // the roving index and the handler below, the role would promise a way of moving
             // between these that does not exist.
-            tabIndex={on ? 0 : -1}
+            tabIndex={isTabStop ? 0 : -1}
             onKeyDown={(event) => {
               const step = ARROW_STEPS[event.key]
               if (!step) return
