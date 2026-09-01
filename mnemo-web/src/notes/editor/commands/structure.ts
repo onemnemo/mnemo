@@ -1,6 +1,7 @@
 /**
  * The structural editing commands: Enter (split), Backspace (merge / de-format),
- * and the in-place block type conversion both of them lean on.
+ * the horizontal arrows across an image caption, and the in-place block type
+ * conversion the first two lean on.
  *
  * These port the Avalonia `KeyboardHandler` + `HandleEnterPressed` +
  * `QuoteEnterBehavior` decision tree, which is where the editor's whole feel
@@ -559,6 +560,67 @@ export const deleteForwardStructural: Command = (state, dispatch) => {
   return dispatchStructural(tr.scrollIntoView(), dispatch);
 };
 
+/**
+ * The caption line's content start, given the position just before an image block.
+ *
+ * The block opens at `pos`, its mandatory line opens one further in, and the line's content
+ * begins one after that, the same base every command here measures a line from.
+ */
+function captionStart(pos: number): number {
+  return pos + 2;
+}
+
+/**
+ * ArrowRight at the very end of the block before a picture: into that picture's caption.
+ *
+ * Document order says the caption comes next and the browser cannot agree while the line is
+ * empty. An empty caption is clipped (no height, no ink), so Chromium finds no next visible
+ * caret position and the key does nothing at all, which is a dead key rather than a skip.
+ * Deriving the target from the node instead of from the DOM is what makes the clipped line
+ * reachable again; the caret-reveal decoration then puts it on screen.
+ *
+ * Claimed by position alone, whether or not the caption holds text. A caption with text is
+ * where the caret was going anyway, so the binding costs that case nothing and there is no
+ * emptiness test to disagree with the CSS. ArrowUp and ArrowDown are deliberately left
+ * unbound: vertical motion follows visual lines, a clipped line is not one of them, and
+ * stepping over the whole picture is what a reader means by "down" here.
+ */
+export const arrowRightIntoCaption: Command = (state, dispatch) => {
+  const sel = state.selection;
+  if (!(sel instanceof TextSelection) || !sel.empty) return false;
+  const ctx = blockContext(state);
+  if (!ctx || ctx.offset !== ctx.line.content.size) return false;
+
+  // The next sibling in whatever holds this block, so an image inside a column cell is
+  // found by the same arithmetic as one at the top level.
+  const afterPos = ctx.blockPos + ctx.block.nodeSize;
+  const next = state.doc.resolve(afterPos).nodeAfter;
+  if (!next || next.type.name !== 'image') return false;
+
+  if (dispatch) {
+    const tr = state.tr.setSelection(TextSelection.create(state.doc, captionStart(afterPos)));
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+};
+
+/** ArrowLeft at the very start of the block after a picture: to the end of its caption. */
+export const arrowLeftIntoCaption: Command = (state, dispatch) => {
+  const sel = state.selection;
+  if (!(sel instanceof TextSelection) || !sel.empty) return false;
+  const ctx = blockContext(state);
+  if (!ctx || ctx.offset !== 0) return false;
+
+  const prev = state.doc.resolve(ctx.blockPos).nodeBefore;
+  if (!prev || prev.type.name !== 'image') return false;
+  const prevLine = lineOf(prev);
+  if (!prevLine) return false;
+
+  const at = captionStart(ctx.blockPos - prev.nodeSize) + prevLine.content.size;
+  if (dispatch) dispatch(state.tr.setSelection(TextSelection.create(state.doc, at)).scrollIntoView());
+  return true;
+};
+
 /** The structural keybindings, in prosemirror-keymap form. */
 export function structureKeyBindings(): Record<string, Command> {
   return {
@@ -569,14 +631,19 @@ export function structureKeyBindings(): Record<string, Command> {
     'Mod-Enter': insertSoftBreak,
     Backspace: backspaceStructural,
     Delete: deleteForwardStructural,
+    // Document-order traversal the browser cannot do on its own, and only across an image
+    // boundary; every other caret is declined and moves natively.
+    ArrowRight: arrowRightIntoCaption,
+    ArrowLeft: arrowLeftIntoCaption,
   };
 }
 
 /**
  * The structural keymap plugin. Mounted above the base keymap so column-0
- * Backspace, end-of-line Delete, and Enter are ours, while every other key,
- * including a mid-line Backspace or Delete, falls through to ProseMirror's
- * own handling.
+ * Backspace, end-of-line Delete, Enter, and the two arrows that step across an
+ * image boundary are ours, while every other key, including a mid-line
+ * Backspace or Delete and every other caret motion, falls through to
+ * ProseMirror's own handling.
  */
 export function structureKeymap(): Plugin {
   return keymap(structureKeyBindings());

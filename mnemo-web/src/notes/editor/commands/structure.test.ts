@@ -7,6 +7,8 @@ import type { Mark, Node as PMNode } from 'prosemirror-model';
 import { createEditorSchema } from '../schema';
 import { invariantPipeline } from '../pipeline/invariants';
 import {
+  arrowLeftIntoCaption,
+  arrowRightIntoCaption,
   backspaceStructural,
   convertBlockType,
   deleteForwardStructural,
@@ -534,5 +536,109 @@ describe('backspace at an image caption start', () => {
     expect(handled).toBe(true);
     expect(state.doc.childCount).toBe(1);
     expect(state.doc.child(0).type.name).toBe('paragraph');
+  });
+});
+
+// --- arrows across an image caption -------------------------------------------
+
+/** Position just before the first block at any depth whose line text is `text`. */
+function blockPosOf(document: PMNode, text: string): number {
+  let found: number | null = null;
+  document.descendants((node, pos) => {
+    if (found !== null) return false;
+    if (node.type.isBlock && node.firstChild?.type.name === 'line' && node.firstChild.textContent === text) {
+      found = pos;
+      return false;
+    }
+    return true;
+  });
+  if (found === null) throw new Error(`no block with line text ${JSON.stringify(text)}`);
+  return found;
+}
+
+function columnCell(...blocks: PMNode[]): PMNode {
+  return schema.nodes.columnGroup.create(null, [line(), ...blocks]);
+}
+function twoColumn(left: PMNode, right: PMNode): PMNode {
+  return schema.nodes.twoColumn.create(null, [line(), left, right]);
+}
+
+describe('arrows across an image caption', () => {
+  it('binds both horizontal arrows, and leaves the vertical ones to the browser', () => {
+    const bindings = structureKeyBindings();
+    expect(bindings.ArrowRight).toBe(arrowRightIntoCaption);
+    expect(bindings.ArrowLeft).toBe(arrowLeftIntoCaption);
+    expect(bindings.ArrowDown).toBeUndefined();
+    expect(bindings.ArrowUp).toBeUndefined();
+  });
+
+  it('ArrowRight at the end of the block before a picture enters its empty caption', () => {
+    const d = doc(para('above'), image({ path: 'a.png' }));
+    const { state, handled } = run(d, arrowRightIntoCaption, { from: caretAt(d, 0, 'above'.length) });
+    expect(handled).toBe(true);
+    // Inside the caption line of the picture, not on the block: this is the position the
+    // browser refuses to find while the empty line is clipped.
+    expect(state.selection.from).toBe(caretAt(state.doc, 1, 0));
+    expect(state.selection.$from.parent.type.name).toBe('line');
+    expect(state.selection.$from.node(1).type.name).toBe('image');
+  });
+
+  it('ArrowRight works the same when the caption already holds text', () => {
+    const d = doc(para('above'), image({ path: 'a.png' }, 'shot'));
+    const { state, handled } = run(d, arrowRightIntoCaption, { from: caretAt(d, 0, 'above'.length) });
+    expect(handled).toBe(true);
+    expect(state.selection.from).toBe(caretAt(state.doc, 1, 0));
+  });
+
+  it('ArrowLeft at the start of the block after a picture lands at the end of its caption', () => {
+    const d = doc(image({ path: 'a.png' }, 'shot'), para('below'));
+    const { state, handled } = run(d, arrowLeftIntoCaption, { from: caretAt(d, 1, 0) });
+    expect(handled).toBe(true);
+    expect(state.selection.from).toBe(caretAt(state.doc, 0, 'shot'.length));
+    expect(state.selection.$from.node(1).type.name).toBe('image');
+  });
+
+  it('ArrowLeft enters an empty caption too, where the clipped line has no end to seek', () => {
+    const d = doc(image({ path: 'a.png' }), para('below'));
+    const { state, handled } = run(d, arrowLeftIntoCaption, { from: caretAt(d, 1, 0) });
+    expect(handled).toBe(true);
+    expect(state.selection.from).toBe(caretAt(state.doc, 0, 0));
+  });
+
+  it('declines a caret that is not at the boundary, so native motion is untouched', () => {
+    const d = doc(para('above'), image({ path: 'a.png' }), para('below'));
+    expect(run(d, arrowRightIntoCaption, { from: caretAt(d, 0, 2) }).handled).toBe(false);
+    expect(run(d, arrowLeftIntoCaption, { from: caretAt(d, 2, 2) }).handled).toBe(false);
+  });
+
+  it('declines a range selection, which the arrows collapse rather than move', () => {
+    const d = doc(para('above'), image({ path: 'a.png' }));
+    const { handled } = run(d, arrowRightIntoCaption, {
+      from: caretAt(d, 0, 1),
+      to: caretAt(d, 0, 'above'.length),
+    });
+    expect(handled).toBe(false);
+  });
+
+  it('declines when the neighbour is not a picture', () => {
+    const d = doc(para('above'), para('below'));
+    expect(run(d, arrowRightIntoCaption, { from: caretAt(d, 0, 'above'.length) }).handled).toBe(false);
+    expect(run(d, arrowLeftIntoCaption, { from: caretAt(d, 1, 0) }).handled).toBe(false);
+  });
+
+  it('declines at either end of the document, where there is no neighbour at all', () => {
+    const d = doc(para('only'));
+    expect(run(d, arrowRightIntoCaption, { from: caretAt(d, 0, 'only'.length) }).handled).toBe(false);
+    expect(run(d, arrowLeftIntoCaption, { from: caretAt(d, 0, 0) }).handled).toBe(false);
+  });
+
+  it('finds a picture that is a sibling inside a column cell, not only at the top level', () => {
+    const d = doc(twoColumn(columnCell(para('above'), image({ path: 'a.png' })), columnCell(para('right'))));
+    const from = blockPosOf(d, 'above') + 2 + 'above'.length;
+    const { state, handled } = run(d, arrowRightIntoCaption, { from });
+    expect(handled).toBe(true);
+    const $from = state.selection.$from;
+    expect($from.parent.type.name).toBe('line');
+    expect($from.node($from.depth - 1).type.name).toBe('image');
   });
 });

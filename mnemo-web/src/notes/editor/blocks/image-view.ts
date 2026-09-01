@@ -22,7 +22,9 @@
  *
  * Clicking the image selects the block the way the gutter grip does, and holding and moving
  * raises the gutter's own drag through the bridge. The press is not stopped: the right-click
- * menu snapshots the selection at the React root, and it has to see the selection this made.
+ * menu snapshots the selection at the React root, and it has to see the selection this made. It
+ * is also handed the block it landed on, because the coordinate under an opaque picture is not
+ * one the editor can resolve a position from.
  *
  * ## The `path` attr is a reference, the bytes come from the services
  *
@@ -48,6 +50,7 @@ import { getBlockSelection, setBlockSelection } from '../../selection/block-sele
 import { applyGrip, gripIntent } from '../../selection/grip-selection';
 import { asOwnUndoStep } from '../history';
 import { pressBlockDrag } from '../chrome/block-drag-bridge';
+import { recordImagePress } from '../chrome/image-press';
 import { mountPortalNodeView, type PortalNodeView } from '../view/portal-registry';
 import { ImageChrome } from './ImageChrome';
 import { registerCaptionReveal } from './image-caption-reveal';
@@ -366,6 +369,10 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     if (!view.editable) return;
     const live = liveNode();
     if (!live) return;
+
+    // Whatever the button: the menu's snapshot reads and clears this, so the press that opens
+    // one names the block it was on rather than leaving it to a coordinate the media swallows.
+    recordImagePress({ pos: live.pos, sid: String(live.node.attrs.sid ?? '') });
 
     const registry = services.registry;
     if (registry) {

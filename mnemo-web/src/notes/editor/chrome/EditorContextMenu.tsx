@@ -1,4 +1,6 @@
 import { useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import type { Node as PMNode } from 'prosemirror-model';
+import type { EditorState } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 
 import {
@@ -32,6 +34,7 @@ import {
   type BlockMenuVerb,
 } from './block-menu-items';
 import { imageMenuItems } from './image-menu-items';
+import { takeImagePress, type ImagePress } from './image-press';
 import { Announcer } from './Announcer';
 import { useAnnouncer } from './useAnnouncer';
 import { hasClipboardSelection, runClipboardVerb } from './selection-clipboard';
@@ -49,6 +52,11 @@ import { hasClipboardSelection, runClipboardVerb } from './selection-clipboard';
  * its own pill does, in place of the generic block menu, because "crop this" and "align this" are
  * what a right-click on a figure is asking and the generic list cannot say either.
  *
+ * Which block was pressed is asked of the press before it is asked of the
+ * pointer's coordinates. A picture's media is its node view's own opaque DOM,
+ * so `posAtCoords` can resolve nothing over it, and the coordinate fallback
+ * names the caret's block rather than the picture the press just selected.
+ *
  * The offer is decided on pointerdown, not on the contextmenu event, for two
  * reasons. Chromium moves the caret (and selects the misspelled word) on the
  * mousedown that precedes the menu, so by contextmenu time the selection is no
@@ -63,20 +71,43 @@ interface MenuSnapshot {
   readonly target: { pos: number; sid: string } | null;
 }
 
+/**
+ * The block a press on a picture named, re-located against the live document.
+ *
+ * `locateBlock` is the verification as well as the lookup: a slot whose sid no longer sits where
+ * it said resolves elsewhere by sid or not at all, and a block that is gone answers null, so a
+ * press left over from a document that has since changed cannot name whatever now occupies its
+ * old position.
+ */
+function pressedBlock(
+  state: EditorState,
+  registry: BlockRegistry,
+  press: ImagePress | null,
+): { pos: number; node: PMNode } | null {
+  if (!press) return null;
+  const located = locateBlock(state, registry, press.pos, press.sid);
+  return located ? { pos: located.pos, node: located.node } : null;
+}
+
 function snapshotAt(
   view: EditorView,
   registry: BlockRegistry,
   services: EditorServices,
   t: TranslateFn,
   coords: { left: number; top: number },
+  press: ImagePress | null,
 ): MenuSnapshot | null {
   const state = view.state;
 
   if (getBlockSelection(state).selected.size > 0) {
-    // The block under the pointer is the one the verbs name; a click that lands
-    // between blocks or in the page margin falls back to the caret's block.
-    const at = view.posAtCoords(coords)?.pos ?? state.selection.head;
-    const located = deepestBlockAt(state.doc, registry, at);
+    // A press on a picture says what it landed on, and it is trusted first: the media is the
+    // node view's own opaque DOM, so `posAtCoords` can answer nothing there and the fallback
+    // would name the caret's block instead of the one just pressed. Everywhere else the block
+    // under the pointer is the one the verbs name, and a click that lands between blocks or in
+    // the page margin falls back to the caret's block.
+    const located =
+      pressedBlock(state, registry, press) ??
+      deepestBlockAt(state.doc, registry, view.posAtCoords(coords)?.pos ?? state.selection.head);
     if (!located) return null;
     const sid = String(located.node.attrs.sid ?? '');
     const location = locateBlock(state, registry, located.pos, sid);
@@ -116,10 +147,21 @@ export function EditorContextMenu({
   const [snapshot, setSnapshot] = useState<MenuSnapshot | null>(null);
 
   const onPointerDown = (event: ReactPointerEvent) => {
+    // Taken on every press, not only the one that opens a menu: a picture records its press
+    // whatever the button, and a left click's would otherwise still be sitting there to answer
+    // for a right click on some other block.
+    const press = takeImagePress();
     if (event.button !== 2) return;
     setSnapshot(
       view
-        ? snapshotAt(view, registry, resolveServices(services), t, { left: event.clientX, top: event.clientY })
+        ? snapshotAt(
+            view,
+            registry,
+            resolveServices(services),
+            t,
+            { left: event.clientX, top: event.clientY },
+            press,
+          )
         : null,
     );
   };
