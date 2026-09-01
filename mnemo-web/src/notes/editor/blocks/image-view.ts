@@ -54,6 +54,7 @@ import { recordImagePress } from '../chrome/image-press';
 import { mountPortalNodeView, type PortalNodeView } from '../view/portal-registry';
 import { ImageChrome } from './ImageChrome';
 import { registerCaptionReveal } from './image-caption-reveal';
+import { imageColumnWidth } from './image-column';
 import {
   clampImageWidth,
   imageAlignOf,
@@ -144,27 +145,24 @@ function imageIcon(): SVGSVGElement {
 export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>): RealizedBlockView {
   const { view, services } = args;
 
+  // The block's own box hugs its picture, so the media row and the caption are both as wide as
+  // the picture and one alignment on the figure moves the pair. Only the media row is taken away
+  // from the editor; a figure marked uneditable takes the caption with it and the caret has
+  // nowhere to land.
   const dom = document.createElement('figure');
   dom.className = ROOT;
-
-  // Media and caption share one shrink-to-fit box, so the caption is as wide as the picture and
-  // one alignment moves both. The stack itself stays editable; only the media row inside it is
-  // view-owned, or the caption below stops taking a caret.
-  const stack = document.createElement('div');
-  stack.className = `${ROOT}-stack`;
-  dom.appendChild(stack);
 
   const media = document.createElement('div');
   media.className = `${ROOT}-media`;
   media.setAttribute('contenteditable', 'false');
-  stack.appendChild(media);
+  dom.appendChild(media);
 
   const caption = document.createElement('div');
   caption.className = `${ROOT}-caption`;
   // The hint rides a data attribute so the CSS can draw it only while the line is empty;
   // read-only notes get no hint, an empty caption there is simply absent.
   if (view.editable) caption.dataset.placeholder = translate('ImageCaptionPlaceholder');
-  stack.appendChild(caption);
+  dom.appendChild(caption);
 
   // What the media area shows right now. `path` and `crop` are the doc's say, and the
   // two together decide the media DOM's shape; the rest is runtime.
@@ -418,7 +416,9 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
 
     const startWidth = target.getBoundingClientRect().width;
     const startX = event.clientX;
-    const maxWidth = Math.min(MAX_IMAGE_WIDTH, dom.getBoundingClientRect().width || MAX_IMAGE_WIDTH);
+    // The column the figure sits in, never the figure: the figure is as wide as the picture, so a
+    // ceiling read off it would be the width the drag started at and the picture could not grow.
+    const maxWidth = Math.min(MAX_IMAGE_WIDTH, imageColumnWidth(dom) || MAX_IMAGE_WIDTH);
     let lastWidth = startWidth;
 
     const widthAt = (clientX: number): number =>
@@ -478,16 +478,16 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
   }
 
   /**
-   * Whether the stack spans the column or hugs the picture.
+   * Whether the figure spans the column or hugs the picture.
    *
-   * The stack is shrink to fit, and a fraction of a shrink-to-fit box is nothing. The states with
+   * The figure is shrink to fit, and a fraction of a shrink-to-fit box is nothing. The states with
    * no picture to hug (the placeholder, the upload in flight, the missing reference, the bytes on
    * their way) and a cropped frame that was never resized are all sized as a fraction of the row,
    * so those take the column instead. Nothing to align there either: the media fills the row.
    */
-  function syncStack(node: PMNode): void {
+  function syncColumnSpan(node: PMNode): void {
     const columnWide = frameEl === null || (cropOf(node) !== null && imageWidthOf(node) <= 0);
-    stack.classList.toggle('is-column', columnWide);
+    dom.classList.toggle('is-column', columnWide);
   }
 
   function renderMedia(): void {
@@ -495,7 +495,7 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     frameEl = null;
     imgEl = null;
     drawMedia();
-    syncStack(currentNode);
+    syncColumnSpan(currentNode);
     // A placeholder, a missing card and a load in flight have nothing to hang a pill on, and a
     // mount left registered would go on rendering into a container no longer in the document.
     if (frameEl === null) {
@@ -614,7 +614,7 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     currentNode = node;
     dom.setAttribute('data-image', imagePathOf(node));
     dom.setAttribute('data-align', imageAlignOf(node));
-    syncStack(node);
+    syncColumnSpan(node);
     syncCaptionReveal(node);
     const pos = args.getPos();
     if (pos !== undefined) syncCaption(pos, node);
