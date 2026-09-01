@@ -99,6 +99,18 @@ public class Note
     public string? Cover { get; set; }
 
     /// <summary>
+    /// Opaque JSON for how a custom cover image is framed: <c>{x,y,w,h,aspect}</c> fractions of
+    /// the source's natural size, plus the frame's aspect ratio. Null draws the cover uncropped.
+    /// This side never parses it; the web client owns the shape and the math over it.
+    /// <para>
+    /// Stored separately from <see cref="Cover"/> rather than folded into its token, because the
+    /// asset sweep's reference source parses that token to find the file a cover names, and a
+    /// crop appended there would not be a file reference it could recognise.
+    /// </para>
+    /// </summary>
+    public string? CoverCrop { get; set; }
+
+    /// <summary>
     /// Page tags shown as chips under the title. Plain labels; the chip colour is derived from
     /// the label so the same tag reads the same everywhere without storing a colour.
     /// </summary>

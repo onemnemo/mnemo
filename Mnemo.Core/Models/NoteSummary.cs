@@ -30,6 +30,7 @@ public sealed record NoteSummary(
     DateTime ModifiedAt,
     string? Emoji,
     string? Cover,
+    string? CoverCrop,
     IReadOnlyList<string> Tags)
 {
     /// <summary>
@@ -52,6 +53,7 @@ public sealed record NoteSummary(
             note.ModifiedAt,
             note.Emoji,
             note.Cover,
+            note.CoverCrop,
             note.Tags is null ? [] : [.. note.Tags]);
     }
 }

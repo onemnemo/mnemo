@@ -19,6 +19,7 @@ public sealed record NoteSummaryDto(
     DateTime ModifiedAt,
     string? Emoji,
     string? Cover,
+    string? CoverCrop,
     IReadOnlyList<string> Tags)
 {
     public static NoteSummaryDto FromSummary(NoteSummary model) => new(
@@ -34,6 +35,7 @@ public sealed record NoteSummaryDto(
         DtoTime.AsUtc(model.ModifiedAt),
         model.Emoji,
         model.Cover,
+        model.CoverCrop,
         model.Tags);
 }
 
@@ -62,6 +64,7 @@ public sealed record NoteDto(
     IReadOnlyList<Block>? Blocks,
     string? Emoji,
     string? Cover,
+    string? CoverCrop,
     IReadOnlyList<string> Tags)
 {
     public static NoteDto FromModel(Note model) => new(
@@ -79,6 +82,7 @@ public sealed record NoteDto(
         model.Blocks,
         model.Emoji,
         model.Cover,
+        model.CoverCrop,
         model.Tags);
 }
 
@@ -107,6 +111,7 @@ public sealed record UpdateNoteMetadataDto(
     bool IsFavorite,
     string? Emoji,
     string? Cover,
+    string? CoverCrop,
     IReadOnlyList<string> Tags);
 
 /// <summary>

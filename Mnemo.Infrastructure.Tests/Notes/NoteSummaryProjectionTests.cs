@@ -117,6 +117,7 @@ public sealed class NoteSummaryProjectionTests
         Assert.Null(summary.ParentNoteId);
         Assert.Null(summary.Emoji);
         Assert.Null(summary.Cover);
+        Assert.Null(summary.CoverCrop);
         Assert.Equal(0, summary.Order);
         Assert.False(summary.IsFavorite);
 
@@ -190,6 +191,7 @@ public sealed class NoteSummaryProjectionTests
             IsFavorite = true,
             Emoji = "*",
             Cover = "asset:cover-1",
+            CoverCrop = """{"x":0,"y":0.1,"w":0.8,"h":0.6,"aspect":1.5}""",
             Tags = ["one", "two"],
             CreatedAt = Utc(2024, 8, 9),
             ModifiedAt = Utc(2026, 2, 2),
@@ -256,6 +258,7 @@ public sealed class NoteSummaryProjectionTests
         $"{summary.ModifiedAt.Ticks}/{summary.ModifiedAt.Kind}",
         summary.Emoji ?? "<none>",
         summary.Cover ?? "<none>",
+        summary.CoverCrop ?? "<none>",
         string.Join(",", summary.Tags));
 
     private static DateTime Utc(int year, int month, int day) => new(year, month, day, 12, 0, 0, DateTimeKind.Utc);

@@ -64,7 +64,7 @@ export const FIT: View = { zoom: 1, ox: 0.5, oy: 0.5 }
 export const ZOOM_MAX = 4
 
 /** Keeps a degenerate crop from dividing by zero; smaller than any window anyone can drag. */
-const MIN_FRACTION = 1e-6
+export const MIN_FRACTION = 1e-6
 
 export function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value))

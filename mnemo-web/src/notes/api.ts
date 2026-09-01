@@ -222,6 +222,7 @@ export function useDuplicateNote() {
         isFavorite: false,
         emoji: source.emoji ?? null,
         cover: source.cover ?? null,
+        coverCrop: source.coverCrop ?? null,
         tags: source.tags ?? [],
       } satisfies UpdateNoteMetadataDto),
       method: "PUT",

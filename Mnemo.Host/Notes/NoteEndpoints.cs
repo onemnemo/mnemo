@@ -122,6 +122,7 @@ public static class NoteEndpoints
                 body.IsFavorite,
                 Blank(body.Emoji),
                 Blank(body.Cover),
+                Blank(body.CoverCrop),
                 body.Tags is null
                     ? []
                     : [.. body.Tags.Select(t => t.Trim()).Where(t => t.Length > 0).Distinct()],
