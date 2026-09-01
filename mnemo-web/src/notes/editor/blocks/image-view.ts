@@ -147,17 +147,24 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
   const dom = document.createElement('figure');
   dom.className = ROOT;
 
+  // Media and caption share one shrink-to-fit box, so the caption is as wide as the picture and
+  // one alignment moves both. The stack itself stays editable; only the media row inside it is
+  // view-owned, or the caption below stops taking a caret.
+  const stack = document.createElement('div');
+  stack.className = `${ROOT}-stack`;
+  dom.appendChild(stack);
+
   const media = document.createElement('div');
   media.className = `${ROOT}-media`;
   media.setAttribute('contenteditable', 'false');
-  dom.appendChild(media);
+  stack.appendChild(media);
 
   const caption = document.createElement('div');
   caption.className = `${ROOT}-caption`;
   // The hint rides a data attribute so the CSS can draw it only while the line is empty;
   // read-only notes get no hint, an empty caption there is simply absent.
   if (view.editable) caption.dataset.placeholder = translate('ImageCaptionPlaceholder');
-  dom.appendChild(caption);
+  stack.appendChild(caption);
 
   // What the media area shows right now. `path` and `crop` are the doc's say, and the
   // two together decide the media DOM's shape; the rest is runtime.
@@ -470,11 +477,25 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     img.alt = lineText(node);
   }
 
+  /**
+   * Whether the stack spans the column or hugs the picture.
+   *
+   * The stack is shrink to fit, and a fraction of a shrink-to-fit box is nothing. The states with
+   * no picture to hug (the placeholder, the upload in flight, the missing reference, the bytes on
+   * their way) and a cropped frame that was never resized are all sized as a fraction of the row,
+   * so those take the column instead. Nothing to align there either: the media fills the row.
+   */
+  function syncStack(node: PMNode): void {
+    const columnWide = frameEl === null || (cropOf(node) !== null && imageWidthOf(node) <= 0);
+    stack.classList.toggle('is-column', columnWide);
+  }
+
   function renderMedia(): void {
     media.replaceChildren();
     frameEl = null;
     imgEl = null;
     drawMedia();
+    syncStack(currentNode);
     // A placeholder, a missing card and a load in flight have nothing to hang a pill on, and a
     // mount left registered would go on rendering into a container no longer in the document.
     if (frameEl === null) {
@@ -593,6 +614,7 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     currentNode = node;
     dom.setAttribute('data-image', imagePathOf(node));
     dom.setAttribute('data-align', imageAlignOf(node));
+    syncStack(node);
     syncCaptionReveal(node);
     const pos = args.getPos();
     if (pos !== undefined) syncCaption(pos, node);

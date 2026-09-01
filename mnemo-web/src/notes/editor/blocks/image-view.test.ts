@@ -92,6 +92,47 @@ describe('image NodeView', () => {
     expect(loadCalls).toHaveLength(0);
   });
 
+  it('stacks the media and the caption in one box, with the caption still the content', () => {
+    const { realized } = mountImage({ path: '' });
+    const stack = realized.dom.querySelector('.notes-image-stack')!;
+    const media = realized.dom.querySelector('.notes-image-media')!;
+    const caption = realized.dom.querySelector('.notes-image-caption')!;
+    expect(stack.parentElement).toBe(realized.dom);
+    // Both inside the stack, the caption second: that is what puts the caption at the picture's
+    // width and moves it with the picture. Neither is a child of the figure any more.
+    expect(Array.from(stack.children)).toEqual([media, caption]);
+    expect(realized.contentDOM).toBe(caption);
+    // Only the row is taken away from the editor; a stack marked uneditable takes the caption
+    // with it and the caret has nowhere to land.
+    expect(stack.getAttribute('contenteditable')).toBeNull();
+    expect(media.getAttribute('contenteditable')).toBe('false');
+  });
+
+  it('takes the column while there is nothing to hug, and hugs the picture once there is', async () => {
+    const { realized } = mountImage({ path: 'aaaa.png' });
+    const stack = realized.dom.querySelector('.notes-image-stack')!;
+    // Bytes in flight: the skeleton is a fraction of the row, so the stack has to be the row.
+    expect(stack.classList.contains('is-column')).toBe(true);
+    await flush();
+    expect(stack.classList.contains('is-column')).toBe(false);
+    // And back to the column when the media loses its frame.
+    expect(realized.update!(image({ path: '' }))).toBe(true);
+    await flush();
+    expect(stack.classList.contains('is-column')).toBe(true);
+  });
+
+  it('keeps the column for a cropped image that was never resized', async () => {
+    const crop = { x: 0, y: 0, w: 0.5, h: 0.5, aspect: 1 };
+    const { realized } = mountImage({ path: 'aaaa.png', crop });
+    await flush();
+    const stack = realized.dom.querySelector('.notes-image-stack')!;
+    // The frame is drawn at 100% here, which needs a column to be a fraction of.
+    expect(stack.classList.contains('is-column')).toBe(true);
+    // A stored width makes the frame a definite size, so the stack hugs it again.
+    expect(realized.update!(image({ path: 'aaaa.png', crop, width: 300 }))).toBe(true);
+    expect(stack.classList.contains('is-column')).toBe(false);
+  });
+
   it('loads the bytes and shows the image with its stored width and alignment', async () => {
     const { realized } = mountImage({ path: 'aaaa.png', width: 320, align: 'center' });
     await flush();

@@ -827,21 +827,46 @@
 
 /* Image. The media row is view-owned DOM (placeholder card, bytes, the resize pill and the
  * React chrome's mount); the caption below it stays editable content, showing only when it
- * has text, has been asked for, or holds the caret. Alignment moves the frame inside the row;
- * width rides an inline style the resize drag previews and its release persists. */
+ * has text, has been asked for, or holds the caret. Width rides an inline style the resize
+ * drag previews and its release persists.
+ *
+ * Media and caption share one shrink-to-fit stack, and alignment moves that stack. A caption
+ * belongs at the picture's width and under the picture's edge, which it cannot be while it is
+ * a sibling of the row and the row is the column. The row carries no `justify-content` of its
+ * own: two rules placing the same picture eventually place it in two different spots. */
 .notes-doc figure[data-image] {
   margin: 4px 0;
+}
+.notes-doc .notes-image-stack {
+  width: fit-content;
+  max-width: 100%;
+}
+.notes-doc figure[data-image][data-align="center"] .notes-image-stack {
+  margin-inline: auto;
+}
+.notes-doc figure[data-image][data-align="right"] .notes-image-stack {
+  margin-inline-start: auto;
+}
+/* The states with no picture to hug (the cards, the load skeleton) and a cropped frame that was
+ * never resized size themselves as a fraction of the row, and a fraction of a shrink-to-fit box
+ * is nothing. The view marks those, and the stack takes the column for them. */
+.notes-doc .notes-image-stack.is-column {
+  width: 100%;
+}
+/* A stack holding the column cannot place the picture by its own margins, since it is already
+ * as wide as the row, so in that one mode the row places it. The two never disagree: a hugging
+ * stack is exactly its frame's width, which leaves the row nothing to distribute. Without this
+ * a resize drag on a cropped picture that was never sized before jumps it to the left edge for
+ * the length of the drag, because the preview narrows the frame while the stack still spans. */
+.notes-doc figure[data-image][data-align="center"] .notes-image-stack.is-column .notes-image-media {
+  justify-content: center;
+}
+.notes-doc figure[data-image][data-align="right"] .notes-image-stack.is-column .notes-image-media {
+  justify-content: flex-end;
 }
 .notes-doc .notes-image-media {
   position: relative;
   display: flex;
-  justify-content: flex-start;
-}
-.notes-doc figure[data-image][data-align="center"] .notes-image-media {
-  justify-content: center;
-}
-.notes-doc figure[data-image][data-align="right"] .notes-image-media {
-  justify-content: flex-end;
 }
 .notes-doc .notes-image-frame {
   position: relative;
@@ -957,8 +982,21 @@
 .notes-doc .notes-image-media.is-resizing .notes-image-chrome {
   opacity: 0;
 }
+/* Zero width, then filled back out. A shrink-to-fit box is as wide as its widest child, so a
+ * caption that measured itself would stretch the stack past the picture and pull the alignment
+ * along with every word typed into it. At zero it adds nothing to that measurement, and the
+ * `min-width` hands it back exactly the width the picture settled on. */
 .notes-doc .notes-image-caption {
   position: relative;
+  width: 0;
+  min-width: 100%;
+  text-align: start;
+}
+.notes-doc figure[data-image][data-align="center"] .notes-image-caption {
+  text-align: center;
+}
+.notes-doc figure[data-image][data-align="right"] .notes-image-caption {
+  text-align: end;
 }
 /* An empty caption nobody has asked for is clipped rather than removed: the line is mandatory
  * in the schema, and `display: none` would leave ProseMirror unable to measure it or put a
@@ -980,12 +1018,14 @@
   font-size: var(--font-size-body-small);
   color: var(--text-tertiary);
 }
-/* The caption hint, drawn only while the line holds nothing but its trailing break. */
+/* The caption hint, drawn only while the line holds nothing but its trailing break. It spans the
+ * caption rather than sitting at its start, so it takes the caption's alignment the way the typed
+ * text does. */
 .notes-doc .notes-image-caption[data-placeholder]:has(> [data-line] > br:only-child)::before {
   content: attr(data-placeholder);
   position: absolute;
   top: 6px;
-  left: 0;
+  inset-inline: 0;
   font-size: var(--font-size-body-small);
   color: var(--text-faded);
   pointer-events: none;
