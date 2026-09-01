@@ -390,7 +390,7 @@ export function CoverPicker({
               onClick={() => void openReposition()}
               className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md py-1 text-[12px] text-text-tertiary hover:bg-frame-hover hover:text-text-primary disabled:pointer-events-none disabled:opacity-45"
             >
-              <AppIcon name="maximize" size={13} />
+              <AppIcon name="crop" size={13} />
               {nt('RepositionCover')}
             </button>
           ) : null}
