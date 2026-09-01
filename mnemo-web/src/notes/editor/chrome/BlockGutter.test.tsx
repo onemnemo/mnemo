@@ -58,6 +58,58 @@ describe('chromeRowGeometry', () => {
     const far = chromeRowGeometry({ blockLeft: 400, rootLeft: 100 });
     expect(260 - (near.left + near.width)).toBe(400 - (far.left + far.width));
   });
+
+  it('takes the page margin as the lane of a block given none', () => {
+    expect(chromeRowGeometry({ blockLeft: 260, rootLeft: 100 })).toEqual(
+      chromeRowGeometry({ blockLeft: 260, rootLeft: 100, laneLeft: 100 - MARGIN }),
+    );
+  });
+
+  it('gives a first cell the same row a top-level block gets', () => {
+    // A first cell starts where the document does, so a block in it reaches the
+    // page's own margin and nothing about its row is a column's business.
+    const cell = chromeRowGeometry({ blockLeft: 100, rootLeft: 100, laneLeft: 100 - MARGIN });
+    expect(cell).toEqual(chromeRowGeometry({ blockLeft: 100, rootLeft: 100 }));
+    expect(cell.stacked).toBe(false);
+  });
+
+  it('keeps the wide row where a later cell leaves room for it', () => {
+    const row = chromeRowGeometry({ blockLeft: 460, rootLeft: 100, laneLeft: 400 });
+    expect(row.stacked).toBe(false);
+    expect(row.left).toBe(414);
+    expect(row.width).toBe(42);
+    expect(row.overContent).toBe(true);
+  });
+
+  it('stacks the buttons where a later cell leaves only a splitter', () => {
+    // The measured layout: a 665px column at 549, split evenly, the left cell's
+    // text ending at 873.5 and the right cell's starting a 16px splitter later.
+    const row = chromeRowGeometry({ blockLeft: 889.5, rootLeft: 549, laneLeft: 873.5 });
+    expect(row.stacked).toBe(true);
+    expect(row.width).toBe(22);
+    expect(row.height).toBe(44);
+    expect(row.left).toBe(863.5);
+    // Twelve pixels of splitter and ten of the neighbour's text, against the
+    // thirty the wide row would have taken out of that text.
+    expect(873.5 - row.left).toBe(10);
+    // Nowhere for it to sit but on someone else's prose, so it is never bare.
+    expect(row.overContent).toBe(true);
+  });
+
+  it('stacks exactly when the wide row would cross out of the lane', () => {
+    const exact = chromeRowGeometry({ blockLeft: 146, rootLeft: 100, laneLeft: 100 });
+    expect(exact.stacked).toBe(false);
+    expect(exact.left).toBe(100);
+    expect(chromeRowGeometry({ blockLeft: 145, rootLeft: 100, laneLeft: 100 }).stacked).toBe(true);
+  });
+
+  it('holds either variant the same distance off the block, the stack reaching less far', () => {
+    const wide = chromeRowGeometry({ blockLeft: 460, rootLeft: 100, laneLeft: 400 });
+    const stacked = chromeRowGeometry({ blockLeft: 460, rootLeft: 100, laneLeft: 450 });
+    expect(stacked.stacked).toBe(true);
+    expect(460 - (wide.left + wide.width)).toBe(460 - (stacked.left + stacked.width));
+    expect(stacked.left).toBeGreaterThan(wide.left);
+  });
 });
 
 type Blocks = Parameters<typeof buildNoteEditState>[0];
@@ -113,10 +165,14 @@ afterEach(() => {
  * own box is the single point (0, 0) and that is the only coordinate inside the
  * hover band; the element under the pointer is the event's target either way.
  */
-function hover(target: Element): void {
+function hoverAt(target: Element, x: number, y: number): void {
   act(() => {
-    target.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 0, clientY: 0 }));
+    target.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: x, clientY: y }));
   });
+}
+
+function hover(target: Element): void {
+  hoverAt(target, 0, 0);
 }
 
 /** Take the pointer off the document entirely and let the hover-clear run. */
@@ -158,6 +214,74 @@ const calloutNote: Blocks = [
   block('Callout', [span('remember')], { kind: 'callout', emoji: '💡', tone: 'info' }),
   block('Text', [span('after')]),
 ];
+
+const columnNote: Blocks = [
+  block('TwoColumn', [span('')], { kind: 'twoColumn', splitRatio: 0.5 }, {
+    children: [
+      block('ColumnGroup', [span('')], { kind: 'empty' }, {
+        children: [block('Text', [span('left cell')])],
+      }),
+      block('ColumnGroup', [span('')], { kind: 'empty' }, {
+        children: [block('Text', [span('right cell')])],
+      }),
+    ],
+  }),
+];
+
+/**
+ * The measured layout of an even two-column split, restated as rects because
+ * jsdom produces none: a 665px content column at 549, cells 324.5 wide, and the
+ * 16px splitter between the left cell's text and the right cell's.
+ */
+const ROOT_LEFT = 549;
+const COLUMN_WIDTH = 665;
+const CELL_WIDTH = 324.5;
+const SPLITTER_WIDTH = 16;
+const RIGHT_CELL_LEFT = ROOT_LEFT + CELL_WIDTH + SPLITTER_WIDTH;
+
+function fakeRect(el: Element, x: number, y: number, width: number, height: number): void {
+  el.getBoundingClientRect = () => new DOMRect(x, y, width, height);
+}
+
+interface FakeColumns {
+  splitter: HTMLElement;
+  leftBlock: HTMLElement;
+  rightBlock: HTMLElement;
+}
+
+/** Write the measured layout onto the four elements the chrome reads a rect from. */
+function layOutColumns(view: EditorView): FakeColumns {
+  const cells = [...view.dom.querySelectorAll<HTMLElement>('[data-column]')];
+  const splitter = view.dom.querySelector<HTMLElement>('.notes-column-splitter');
+  const [leftCell, rightCell] = cells;
+  const leftBlock = leftCell?.lastElementChild;
+  const rightBlock = rightCell?.lastElementChild;
+  if (
+    !splitter ||
+    !leftCell ||
+    !rightCell ||
+    !(leftBlock instanceof HTMLElement) ||
+    !(rightBlock instanceof HTMLElement)
+  ) {
+    throw new Error('the two-column fixture did not render');
+  }
+  fakeRect(view.dom, ROOT_LEFT, 0, COLUMN_WIDTH, 800);
+  fakeRect(leftCell, ROOT_LEFT, 0, CELL_WIDTH, 200);
+  fakeRect(rightCell, RIGHT_CELL_LEFT, 0, CELL_WIDTH, 200);
+  fakeRect(leftBlock, ROOT_LEFT, 0, CELL_WIDTH, 24);
+  fakeRect(rightBlock, RIGHT_CELL_LEFT, 100, CELL_WIDTH, 24);
+  return { splitter, leftBlock, rightBlock };
+}
+
+/** Where the row is drawn, which is the one thing that says which block it is on. */
+function rowBox(): Record<string, string> {
+  const el = mounted?.chrome.querySelector('[data-block-gutter]');
+  if (!(el instanceof HTMLElement)) throw new Error('no chrome row');
+  return { left: el.style.left, top: el.style.top, width: el.style.width, height: el.style.height };
+}
+
+/** The row beside the right cell's block, stacked into the splitter lane. */
+const STACKED = { left: '863.5px', top: '100px', width: '22px', height: '44px' };
 
 describe('BlockGutter', () => {
   it('offers a callout the same row as any other block', () => {
@@ -234,6 +358,44 @@ describe('BlockGutter', () => {
     // The grip normally takes the focus back when its menu closes, which would
     // dismiss the picker the row just asked for.
     expect(document.activeElement).not.toBe(grip);
+  });
+
+  it('stacks the row into the splitter lane beside a later cell', () => {
+    const { view } = mount(columnNote);
+    const columns = layOutColumns(view);
+    hoverAt(columns.rightBlock, 900, 110);
+    expect(rowBox()).toEqual(STACKED);
+    expect(buttons()).toEqual(['InsertBlockBelow', 'BlockActionsFormat']);
+  });
+
+  it('keeps the row on its block while the pointer is on the splitter', () => {
+    const { view } = mount(columnNote);
+    const columns = layOutColumns(view);
+    hoverAt(columns.rightBlock, 900, 110);
+    // Far below the block, so nothing but the splitter rule can hold the row:
+    // the splitter is drawn by the view, and resolving it answered with the
+    // *left* cell's first block, which threw the row to the other side.
+    hoverAt(columns.splitter, 881, 400);
+    expect(rowBox()).toEqual(STACKED);
+  });
+
+  it('keeps the row on its block while the pointer crosses to it', () => {
+    const { view } = mount(columnNote);
+    const columns = layOutColumns(view);
+    hoverAt(columns.rightBlock, 900, 110);
+    // Beside the row, on the left cell's text: the row is being reached for, so
+    // it must not move to whatever the pointer passes over on the way.
+    hoverAt(columns.leftBlock, 870, 112);
+    expect(rowBox()).toEqual(STACKED);
+  });
+
+  it('offers the neighbour again the moment the pointer leaves the crossing', () => {
+    const { view } = mount(columnNote);
+    const columns = layOutColumns(view);
+    hoverAt(columns.rightBlock, 900, 110);
+    hoverAt(columns.leftBlock, 700, 400);
+    // The first cell reaches the page's own margin, so its row is the wide one.
+    expect(rowBox()).toEqual({ left: '503px', top: '0px', width: '42px', height: '28px' });
   });
 
   it('lets go of a block that is deleted from under it', () => {

@@ -32,7 +32,7 @@ import {
   type BlockMenuVerb,
 } from './block-menu-items';
 import { calloutIconRequest } from './callout-icon-request';
-import { chromeMinLeft, chromeRowGeometry } from './chrome-row';
+import { chromeMinLeft, chromeRowGeometry, type ChromeRow } from './chrome-row';
 import { Announcer } from './Announcer';
 import { useAnnouncer } from './useAnnouncer';
 
@@ -75,6 +75,13 @@ import { useAnnouncer } from './useAnnouncer';
 /** Where in the text column a lane hover probes for the block on that row. */
 const PROBE_INSET = 8;
 
+/** A row's cell, and the divider drawn between two of them. */
+const COLUMN_CELL = '[data-column]';
+const COLUMN_SPLITTER = '.notes-column-splitter';
+
+/** How far past the row's own box the corridor that protects it reaches. */
+const CORRIDOR_MARGIN = 4;
+
 /** Every button in the chrome row reads the same; only the grip adds a cursor. */
 const CHROME_BUTTON =
   'grid h-5 w-5 place-items-center rounded text-text-faded hover:bg-surface-subtle hover:text-text-secondary';
@@ -92,6 +99,8 @@ interface ActiveBlock {
   rect: DOMRect;
   /** The document's own left edge, for deciding whether the chrome has margin to sit in. */
   rootLeft: number;
+  /** Where the free space beside the block starts: the page margin, or the previous cell's edge. */
+  laneLeft: number;
   /**
    * Whether block children live inside this block's DOM. False for a leaf,
    * which lets hover skip re-resolving while the pointer crosses the leaf's
@@ -133,12 +142,33 @@ function posOfElement(view: EditorView, el: Element): number | null {
   }
 }
 
+/**
+ * Where the free space beside a block begins.
+ *
+ * The page's own margin for a top-level block, and for one in a row's first
+ * cell, which reaches that margin through the cell. A later cell has no margin
+ * in front of it, only the previous cell, so its free space starts at that
+ * cell's right edge and is the splitter lane wide. Reading nothing but the
+ * space to the block's own left keeps this right at any cell count and at any
+ * nesting depth, since the innermost cell is the one that bounds it.
+ */
+function laneLeftOf(dom: HTMLElement, rootLeft: number): number {
+  const cell = dom.parentElement?.closest(COLUMN_CELL);
+  if (!cell) return chromeMinLeft(rootLeft);
+  // The splitter widget sits between the two cells, so the previous cell is a
+  // general sibling rather than the adjacent one.
+  let previous = cell.previousElementSibling;
+  while (previous && !previous.matches(COLUMN_CELL)) previous = previous.previousElementSibling;
+  return previous ? previous.getBoundingClientRect().right : chromeMinLeft(rootLeft);
+}
+
 /** The active-block record for the deepest block containing a document position. */
 function blockFromPos(view: EditorView, registry: BlockRegistry, pos: number): ActiveBlock | null {
   const located = deepestBlockAt(view.state.doc, registry, pos);
   if (!located) return null;
   const dom = view.nodeDOM(located.pos);
   if (!(dom instanceof HTMLElement)) return null;
+  const rootLeft = view.dom.getBoundingClientRect().left;
   return {
     pos: located.pos,
     node: located.node,
@@ -146,10 +176,38 @@ function blockFromPos(view: EditorView, registry: BlockRegistry, pos: number): A
     topIndex: located.topIndex,
     dom,
     rect: dom.getBoundingClientRect(),
-    rootLeft: view.dom.getBoundingClientRect().left,
+    rootLeft,
+    laneLeft: laneLeftOf(dom, rootLeft),
     hasNestedBlocks: blockChildrenOf(located.node).length > 0,
     doc: view.state.doc,
   };
+}
+
+/** Where the row beside a block is drawn, from the measurements the record already holds. */
+function rowOf(active: ActiveBlock): ChromeRow {
+  return chromeRowGeometry({
+    blockLeft: active.rect.left,
+    rootLeft: active.rootLeft,
+    laneLeft: active.laneLeft,
+  });
+}
+
+/**
+ * The strip a pointer crosses on its way from a block to its own row.
+ *
+ * Only ever claimed when the row is drawn over content: those pixels belong to
+ * another block, and resolving them moves the row away from the pointer that is
+ * reaching for it. A row in the page margin has nothing under it to resolve to,
+ * and the lane probe there answers by height on purpose, so the corridor stays
+ * out of that case entirely. It reaches no further than the row, the gap it
+ * keeps off the block, and a few pixels above and below, so a pointer that
+ * leaves resolves normally on its next move.
+ */
+function inChromeCorridor(active: ActiveBlock, x: number, y: number): boolean {
+  const row = rowOf(active);
+  if (!row.overContent) return false;
+  if (x < row.left || x > active.rect.left) return false;
+  return y >= active.rect.top - CORRIDOR_MARGIN && y <= active.rect.top + row.height + CORRIDOR_MARGIN;
 }
 
 /** The active-block record for the deepest block whose DOM contains `el`. */
@@ -207,10 +265,12 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
       setActive(null);
       return;
     }
+    const rootLeft = view.dom.getBoundingClientRect().left;
     const next: ActiveBlock = {
       ...chosen,
       rect: chosen.dom.getBoundingClientRect(),
-      rootLeft: view.dom.getBoundingClientRect().left,
+      rootLeft,
+      laneLeft: laneLeftOf(chosen.dom, rootLeft),
     };
     activeRef.current = next;
     setActive(next);
@@ -236,6 +296,11 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
       // neighbouring cell): a pointer on it stays on the block it belongs to
       // rather than retargeting to whatever it happens to cover.
       if (event.target instanceof Node && overlayRef.current?.contains(event.target)) return;
+      // And the pixels between a block and a row drawn over the neighbouring
+      // cell are that neighbour's, so crossing them has to keep the block whose
+      // row is being reached for rather than answer with what is underneath.
+      const current = activeRef.current;
+      if (current && inChromeCorridor(current, event.clientX, event.clientY)) return;
       const bounds = root.getBoundingClientRect();
       const inBand =
         event.clientY >= bounds.top &&
@@ -257,8 +322,13 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
             : null
           : document.elementFromPoint(bounds.left + PROBE_INSET, event.clientY);
       // The gaps between blocks, and any floating chrome the probe lands on,
-      // resolve to nothing; the row keeps whichever block it had.
-      if (!el || el === root || !root.contains(el)) return;
+      // resolve to nothing; the row keeps whichever block it had. So does the
+      // splitter between two cells: it is drawn by the view rather than by the
+      // document, so it maps to no position of its own and resolving it falls
+      // back to the row that contains it, whose first block is in the *other*
+      // cell. Held here, before the cache, so it neither resolves nor becomes
+      // the element a later move is compared against.
+      if (!el || el === root || !root.contains(el) || el.closest(COLUMN_SPLITTER)) return;
       // A move within the same element is the common case and does nothing.
       if (el === hoveredElRef.current) return;
       hoveredElRef.current = el;
@@ -395,10 +465,10 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
 
   // The same two buttons beside every block, in the same place, whatever the
   // block is. A block with its own affordance carries it in the document rather
-  // than in this row.
-  const row = handleBlock
-    ? chromeRowGeometry({ blockLeft: handleBlock.rect.left, rootLeft: handleBlock.rootLeft })
-    : null;
+  // than in this row. Beside a block whose lane is a splitter wide they stack
+  // instead of sitting side by side, which is the same two buttons in the same
+  // order, narrow enough to leave most of the neighbour's text showing.
+  const row = handleBlock ? rowOf(handleBlock) : null;
 
   /**
    * Fades in, and then moves without animating.
@@ -423,10 +493,11 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
       // strip beside it into somewhere a marquee cannot begin.
       data-block-gutter
       className={cn(
-        'animate-fade-in fixed z-40 flex h-7 items-center gap-0.5 rounded',
+        'animate-fade-in fixed z-40 flex items-center gap-0.5 rounded',
+        row.stacked && 'flex-col justify-center p-px',
         row.overContent && 'bg-canvas shadow-elevation-1',
       )}
-      style={{ left: row.left, top: handleBlock.rect.top }}
+      style={{ left: row.left, top: handleBlock.rect.top, width: row.width, height: row.height }}
       onPointerEnter={() => {
         overChromeRef.current = true;
       }}
