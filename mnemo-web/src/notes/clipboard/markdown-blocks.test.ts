@@ -65,7 +65,14 @@ describe('parseMarkdownToBlocks: atomic blocks', () => {
     // representable through the shared regex, on either side, so it is not tested.
     const img = one('![a\\\\b](<img/x.png>)');
     expect(img.type).toBe('Image');
-    expect(img.payload).toEqual({ kind: 'image', path: 'img/x.png', alt: 'a\\b', width: 0, align: 'left' });
+    expect(img.payload).toEqual({
+      kind: 'image',
+      path: 'img/x.png',
+      alt: 'a\\b',
+      width: 0,
+      align: 'left',
+      crop: null,
+    });
     expect(textOf(img)).toBe('a\\b');
   });
 });

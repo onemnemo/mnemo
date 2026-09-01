@@ -850,6 +850,19 @@
   max-width: 100%;
   border-radius: var(--radius-md, 8px);
 }
+/* Under a crop the frame becomes the clipping box: it carries the shape, the
+ * rounding and the stored width, and the image inside it is an oversized layer the
+ * view positions from the stored window. The layer has to be free of the 100% cap,
+ * or the clamp shrinks it back to the frame and the crop draws the whole picture. */
+.notes-doc .notes-image-frame.is-cropped {
+  overflow: hidden;
+  border-radius: var(--radius-md, 8px);
+}
+.notes-doc .notes-image-frame.is-cropped img {
+  position: absolute;
+  max-width: none;
+  border-radius: 0;
+}
 .notes-doc .notes-image-card {
   display: flex;
   flex-direction: column;

@@ -178,6 +178,7 @@ export function structuralFixtures(): readonly Fixture[] {
           alt: 'A diagram of the pipeline',
           width: 480,
           align: 'center',
+          crop: null,
         }),
         block('Image', [span('')], {
           kind: 'image',
@@ -185,6 +186,7 @@ export function structuralFixtures(): readonly Fixture[] {
           alt: '',
           width: 0,
           align: 'left',
+          crop: null,
         }),
         // The shape the web app's own uploads store: a managed asset id.
         block('Image', [span('uploaded')], {
@@ -193,6 +195,41 @@ export function structuralFixtures(): readonly Fixture[] {
           alt: 'uploaded',
           width: 320,
           align: 'right',
+          crop: null,
+        }),
+      ],
+    },
+    {
+      // Every image saved before crops existed is the second block here, and it
+      // has to keep serializing without the field at all, which is what makes the
+      // bytes of an untouched note identical to the ones it was stored as.
+      name: 'image with a crop, beside one from before crops existed',
+      blocks: [
+        block('Image', [span('the interesting corner')], {
+          kind: 'image',
+          path: 'attachment:cropped01',
+          alt: 'the interesting corner',
+          width: 420,
+          align: 'center',
+          crop: { x: 0.12, y: 0.34, w: 0.5, h: 0.25, aspect: 1.7777777777777777 },
+        }),
+        block('Image', [span('untouched')], {
+          kind: 'image',
+          path: 'attachment:legacy01',
+          alt: 'untouched',
+          width: 260,
+          align: 'left',
+          crop: null,
+        }),
+        // A window pinned to the source's far corner, which is where an off-by-one
+        // in the offset math shows up rather than in a centred one.
+        block('Image', [span('')], {
+          kind: 'image',
+          path: 'e1c0ffee00004b9c8f6d7e5a4c3b2a10.png',
+          alt: '',
+          width: 0,
+          align: 'right',
+          crop: { x: 0.75, y: 0.8, w: 0.25, h: 0.2, aspect: 1 },
         }),
       ],
     },
@@ -213,7 +250,7 @@ export function structuralFixtures(): readonly Fixture[] {
             span('link', { linkUrl: 'https://example.com' }),
             { kind: 'equation', latex: '\\pi r^2', style: styled({}) },
           ],
-          { kind: 'image', path: 'attachment:def456', alt: '', width: 200, align: 'left' },
+          { kind: 'image', path: 'attachment:def456', alt: '', width: 200, align: 'left', crop: null },
         ),
       ],
     },

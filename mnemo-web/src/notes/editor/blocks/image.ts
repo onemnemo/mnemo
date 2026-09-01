@@ -17,6 +17,8 @@
 
 import type { AiSegment, AnyBlockModule } from '../registry/types';
 import type { Block, BlockType, InlineSpan } from '../../model/types';
+import type { ImageCrop } from '../../../components/ui/image-editor/geometry';
+import { cropAttributeOf, readCrop, readCropAttribute } from '../../model/image-crop';
 import { plainSpan } from '../../model/spans';
 import { defineBlock, lineText, type BlockDeps } from './shared';
 import { imageView } from './image-view';
@@ -48,7 +50,13 @@ function captionSpans(alt: string, spans: readonly InlineSpan[]): readonly Inlin
 }
 
 export function imageBlock(deps: BlockDeps): AnyBlockModule {
-  return defineBlock<{ path: string; alt: string; width: number; align: string }>(
+  return defineBlock<{
+    path: string;
+    alt: string;
+    width: number;
+    align: string;
+    crop: ImageCrop | null;
+  }>(
     {
       nodeName: 'image',
       wireTypes: ['Image'],
@@ -57,6 +65,10 @@ export function imageBlock(deps: BlockDeps): AnyBlockModule {
         alt: { default: '' },
         width: { default: 0 },
         align: { default: 'left' },
+        // Declared even though its default is the common case: `computeAttrs`
+        // iterates the spec's names, so an undeclared attr is dropped by
+        // `fromJSON` without a warning and the crop is gone by the next save.
+        crop: { default: null },
       },
       nodeOptions: {
         parseDOM: [
@@ -74,6 +86,7 @@ export function imageBlock(deps: BlockDeps): AnyBlockModule {
                 alt: '',
                 width: Number(el.getAttribute('data-width')) || 0,
                 align: el.getAttribute('data-align') ?? 'left',
+                crop: readCropAttribute(el.getAttribute('data-crop')),
               };
             },
           },
@@ -86,6 +99,8 @@ export function imageBlock(deps: BlockDeps): AnyBlockModule {
                 alt: el.getAttribute('alt') ?? '',
                 width: Number(el.getAttribute('width')) || 0,
                 align: el.getAttribute('data-align') ?? 'left',
+                // Foreign markup carries the whole picture by definition.
+                crop: null,
               };
             },
           },
@@ -94,21 +109,26 @@ export function imageBlock(deps: BlockDeps): AnyBlockModule {
         // `attachment:` references and absolute paths. Resolving it belongs to
         // the realized view, which has the services handle; a raw `src` here
         // would simply fail to load.
-        toDOM: (node) => [
-          'figure',
-          {
-            'data-image': String(node.attrs.path),
-            'data-align': String(node.attrs.align),
-            ...(Number(node.attrs.width) > 0 ? { 'data-width': String(node.attrs.width) } : {}),
-          },
-          0,
-        ],
+        toDOM: (node) => {
+          const crop = cropAttributeOf(readCrop(node.attrs.crop));
+          return [
+            'figure',
+            {
+              'data-image': String(node.attrs.path),
+              'data-align': String(node.attrs.align),
+              ...(Number(node.attrs.width) > 0 ? { 'data-width': String(node.attrs.width) } : {}),
+              ...(crop.length > 0 ? { 'data-crop': crop } : {}),
+            },
+            0,
+          ];
+        },
       },
       attrsFrom: (block) => ({
         path: block.payload.kind === 'image' ? block.payload.path : '',
         alt: block.payload.kind === 'image' ? block.payload.alt : '',
         width: block.payload.kind === 'image' ? block.payload.width : 0,
         align: block.payload.kind === 'image' ? block.payload.align : 'left',
+        crop: block.payload.kind === 'image' ? block.payload.crop : null,
       }),
       spansFor: (block: Block) =>
         captionSpans(block.payload.kind === 'image' ? block.payload.alt : '', block.spans),
@@ -122,6 +142,9 @@ export function imageBlock(deps: BlockDeps): AnyBlockModule {
           alt: lineText(node),
           width: Number(node.attrs.width) || 0,
           align: String(node.attrs.align ?? 'left'),
+          // Revalidated rather than passed through: a document restored from JSON
+          // can carry anything at all in an attr.
+          crop: readCrop(node.attrs.crop),
         },
       }),
       toMarkdown: (node, ctx, inline) =>
@@ -129,10 +152,13 @@ export function imageBlock(deps: BlockDeps): AnyBlockModule {
       segmentsFor: (_node, text): readonly AiSegment[] =>
         text.length > 0 ? [{ kind: 'imageAlt', text, offset: 0 }] : [],
       estimate: (node, ctx) => {
-        const width = Number(node.attrs.width) || ctx.availableWidth;
-        // No stored aspect ratio, so assume a common one. The measured height
-        // replaces this as soon as the image realizes and decodes.
-        return Math.round(Math.min(width, ctx.availableWidth) * 0.66) + 32;
+        const width = Math.min(Number(node.attrs.width) || ctx.availableWidth, ctx.availableWidth);
+        const crop = readCrop(node.attrs.crop);
+        // A crop states the frame's shape, so a cropped image reserves its real
+        // height and does not jump when it scrolls into view. Without one there is
+        // no stored ratio, so assume a common one and let the measured height
+        // replace it as soon as the image realizes and decodes.
+        return Math.round(crop === null ? width * 0.66 : width / crop.aspect) + 32;
       },
       realizedView: imageView,
       slash: [

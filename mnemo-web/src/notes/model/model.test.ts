@@ -104,6 +104,70 @@ describe('wire round-trip', () => {
     const again = parseBlock(serializeBlock(parsed));
     expect(again.payload).toEqual(parsed.payload);
   });
+
+  it('keeps an image crop, and writes nothing at all for an image without one', () => {
+    const crop = { x: 0.125, y: 0.25, w: 0.5, h: 0.375, aspect: 1.5 };
+    const cropped = parseBlock({
+      id: 'i1', type: 'Image', order: 0,
+      payload: { kind: 'image', path: 'a.png', alt: '', width: 0, align: 'left', crop },
+    });
+    expect(cropped.payload).toMatchObject({ crop });
+    expect(parseBlock(serializeBlock(cropped)).payload).toEqual(cropped.payload);
+
+    // The byte parity rule: an image saved before crops existed keeps the exact
+    // payload it was stored with, with no null field appended.
+    const plain = parseBlock({
+      id: 'i2', type: 'Image', order: 0,
+      payload: { kind: 'image', path: 'a.png', alt: '', width: 0, align: 'left' },
+    });
+    expect(serializeBlock(plain).payload).toEqual({
+      kind: 'image', path: 'a.png', alt: '', width: 0, align: 'left',
+    });
+    expect(Object.keys(serializeBlock(plain).payload as object)).not.toContain('crop');
+  });
+
+  it('writes the exact crop bytes and key order BlockJsonConverter writes', () => {
+    // Matches BlockJsonImageTests.RoundTrip_Image_CarriesTheCropWindow byte for byte, key order
+    // included: a reorder on either side would still pass a structural equality check.
+    const cropped = parseBlock({
+      id: 'img2', type: 'Image', order: 0,
+      payload: {
+        kind: 'image', path: '/x/photo.png', alt: 'cropped', width: 420, align: 'center',
+        crop: { x: 0.125, y: 0.25, w: 0.5, h: 0.375, aspect: 1.5 },
+      },
+    });
+    expect(JSON.stringify(serializeBlock(cropped).payload)).toBe(
+      '{"kind":"image","path":"/x/photo.png","alt":"cropped","width":420,"align":"center",' +
+        '"crop":{"x":0.125,"y":0.25,"w":0.5,"h":0.375,"aspect":1.5}}',
+    );
+  });
+
+  it('reads a crop that is not five usable numbers as no crop', () => {
+    // Partial, out of range, degenerate and mistyped alike: the window means
+    // nothing apart, so half of one is worse than none.
+    const unusable: unknown[] = [
+      undefined,
+      null,
+      'x=0.1',
+      { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
+      { x: 0.1, y: 0.1, w: 0.5, h: 0.5, aspect: 0 },
+      { x: 1.5, y: 0.1, w: 0.5, h: 0.5, aspect: 1 },
+      { x: 0.1, y: 0.1, w: 0, h: 0.5, aspect: 1 },
+      { x: 0.1, y: 0.1, w: 0.5, h: 0.5, aspect: 'wide' },
+      // Below the 1e-6 floor but still positive: too small for the Typst ratio math to
+      // compile through, so it reads as no crop the same way an outright zero does.
+      { x: 0.1, y: 0.1, w: 1e-7, h: 0.5, aspect: 1 },
+      { x: 0.1, y: 0.1, w: 0.5, h: 1e-7, aspect: 1 },
+      { x: 0.1, y: 0.1, w: 0.5, h: 0.5, aspect: 1e-7 },
+    ];
+    for (const crop of unusable) {
+      const parsed = parseBlock({
+        id: 'i', type: 'Image', order: 0,
+        payload: { kind: 'image', path: 'a.png', alt: '', width: 0, align: 'left', crop },
+      });
+      expect(parsed.payload).toMatchObject({ kind: 'image', path: 'a.png', crop: null });
+    }
+  });
 });
 
 describe('legacy shapes still on disk', () => {
@@ -137,7 +201,14 @@ describe('legacy shapes still on disk', () => {
       id: 'x', type: 'Image',
       meta: { imagePath: 'a.png', imageAlt: 'alt', imageWidth: 300, imageAlign: 'center' },
     });
-    expect(image.payload).toEqual({ kind: 'image', path: 'a.png', alt: 'alt', width: 300, align: 'center' });
+    expect(image.payload).toEqual({
+      kind: 'image',
+      path: 'a.png',
+      alt: 'alt',
+      width: 300,
+      align: 'center',
+      crop: null,
+    });
 
     const code = parseBlock({ id: 'y', type: 'Code', content: 'print(1)', meta: { language: 'python' } });
     expect(code.payload).toEqual({ kind: 'code', language: 'python', source: 'print(1)' });

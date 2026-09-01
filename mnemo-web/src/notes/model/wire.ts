@@ -8,6 +8,7 @@
  * the rest of the block survives.
  */
 
+import { readCrop } from './image-crop';
 import { normalizeSpans, plainSpan } from './spans';
 import {
   allBlockTypes,
@@ -188,6 +189,9 @@ function parsePayload(value: unknown): BlockPayload {
         alt: str(prop(value, 'alt')),
         width: num(prop(value, 'width')),
         align: str(prop(value, 'align'), 'left'),
+        // Last, because the serializer spreads this object and the C# writer emits
+        // crop after align. The two have to produce the same bytes for one block.
+        crop: readCrop(prop(value, 'crop')),
       };
     case 'code':
       return {
@@ -266,6 +270,8 @@ function payloadFromLegacyMeta(type: BlockType, meta: Json, legacyContent: strin
         alt: str(prop(meta, 'imageAlt')),
         width: num(prop(meta, 'imageWidth')),
         align: str(prop(meta, 'imageAlign'), 'left'),
+        // Nothing stored this way has one: the meta shape predates the field entirely.
+        crop: null,
       };
     case 'Checklist':
       return { kind: 'checklist', checked: bool(prop(meta, 'checked')) };
@@ -459,12 +465,31 @@ function backfillPayload(block: Block): BlockPayload {
   return block.payload;
 }
 
+/**
+ * A payload's fields, minus the ones whose null means absence.
+ *
+ * Spreading the payload verbatim would put `"crop": null` on every image ever saved,
+ * which is bytes no earlier version wrote and the C# writer does not produce either.
+ * Same reason the code block's display fields are written only when set.
+ *
+ * Below roughly 1e-4 a crop number's JSON text can differ from what `BlockJsonConverter`
+ * writes: .NET's writer falls to scientific notation for a small enough double and
+ * `JSON.stringify` never does. That has no consumer, the Host re-serializes every commit, so
+ * the bytes on disk are always the C# writer's, and `readCrop`'s floor matches it on both sides
+ * regardless of which one wrote the number.
+ */
+function serializePayload(payload: BlockPayload): Json {
+  const out: Json = { ...payload };
+  if (payload.kind === 'image' && payload.crop === null) delete out.crop;
+  return out;
+}
+
 export function serializeBlock(block: Block): Json {
   const out: Json = {
     id: block.id,
     type: block.type,
     spans: block.spans.map(serializeSpan),
-    payload: { ...backfillPayload(block) },
+    payload: serializePayload(backfillPayload(block)),
     meta: serializeMeta(block),
     order: block.order,
   };

@@ -180,6 +180,82 @@ describe('image NodeView', () => {
     expect(realized.ignoreMutation!(selection)).toBe(false);
   });
 
+  it('draws a crop as a shaped frame with the source offset behind it', async () => {
+    // A window a quarter wide and an eighth tall, offset a quarter across and half down.
+    const crop = { x: 0.25, y: 0.5, w: 0.25, h: 0.125, aspect: 2 };
+    const { realized } = mountImage({ path: 'aaaa.png', crop });
+    await flush();
+
+    const frame = realized.dom.querySelector('.notes-image-frame') as HTMLElement;
+    expect(frame.classList.contains('is-cropped')).toBe(true);
+    // The CSSOM normalizes a bare ratio to its two-part form.
+    expect(frame.style.aspectRatio).toBe('2 / 1');
+    // Never resized, so the frame takes the column, matching the PDF export.
+    expect(frame.style.width).toBe('100%');
+
+    const img = realized.dom.querySelector('img')!;
+    expect(img.style.width).toBe('400%');
+    expect(img.style.height).toBe('800%');
+    expect(img.style.left).toBe('-100%');
+    expect(img.style.top).toBe('-400%');
+  });
+
+  it('writes a stored width to the frame under a crop and to the image without one', async () => {
+    const cropped = mountImage({ path: 'aaaa.png', width: 300, crop: { x: 0, y: 0, w: 0.5, h: 0.5, aspect: 1 } });
+    await flush();
+    const frame = cropped.realized.dom.querySelector('.notes-image-frame') as HTMLElement;
+    expect(frame.style.width).toBe('300px');
+    // The inner layer's size belongs to the window; a px width there would move the crop.
+    expect(cropped.realized.dom.querySelector('img')!.style.width).toBe('200%');
+
+    const plain = mountImage({ path: 'aaaa.png', width: 300 });
+    await flush();
+    const plainFrame = plain.realized.dom.querySelector('.notes-image-frame') as HTMLElement;
+    expect(plainFrame.classList.contains('is-cropped')).toBe(false);
+    expect(plainFrame.style.width).toBe('');
+    expect(plain.realized.dom.querySelector('img')!.style.width).toBe('300px');
+  });
+
+  it('resizes the frame, not the image, when there is a crop', async () => {
+    const crop = { x: 0, y: 0, w: 0.5, h: 0.5, aspect: 1 };
+    const { realized, dispatched, currentState } = mountImage({ path: 'aaaa.png', crop });
+    await flush();
+    const frame = realized.dom.querySelector('.notes-image-frame') as HTMLElement;
+    const img = realized.dom.querySelector('img')!;
+
+    const pill = realized.dom.querySelector('.notes-image-resize')!;
+    // jsdom draws nothing, so the drag starts from width 0 and the clamp floor applies.
+    pill.dispatchEvent(new MouseEvent('pointerdown', { clientX: 100, bubbles: true }));
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 340 }));
+    window.dispatchEvent(new MouseEvent('pointerup', { clientX: 340 }));
+
+    expect(dispatched).toHaveLength(1);
+    expect(currentState().doc.firstChild!.attrs.width).toBe(240);
+    expect(frame.style.width).toBe('240px');
+    expect(img.style.width).toBe('200%');
+  });
+
+  it('rebuilds the media for a new crop without refetching the bytes', async () => {
+    const { realized, loadCalls } = mountImage({ path: 'aaaa.png' });
+    await flush();
+    expect(realized.dom.querySelector('.notes-image-frame')!.classList.contains('is-cropped')).toBe(false);
+
+    const crop = { x: 0, y: 0, w: 0.5, h: 1, aspect: 0.5 };
+    expect(realized.update!(image({ path: 'aaaa.png', crop }))).toBe(true);
+    expect(loadCalls).toEqual(['aaaa.png']);
+    expect(realized.dom.querySelector('.notes-image-frame')!.classList.contains('is-cropped')).toBe(true);
+    expect(realized.dom.querySelector('img')!.style.width).toBe('200%');
+
+    // Same window again: nothing is rebuilt, so the element identity survives.
+    const before = realized.dom.querySelector('img');
+    expect(realized.update!(image({ path: 'aaaa.png', crop: { ...crop }, width: 200 }))).toBe(true);
+    expect(realized.dom.querySelector('img')).toBe(before);
+
+    expect(realized.update!(image({ path: 'aaaa.png' }))).toBe(true);
+    expect(realized.dom.querySelector('.notes-image-frame')!.classList.contains('is-cropped')).toBe(false);
+    expect(loadCalls).toEqual(['aaaa.png']);
+  });
+
   it('drops a stale fetch that resolves after the path moved on', async () => {
     const loads: Array<(url: string) => void> = [];
     const { realized } = mountImage(

@@ -115,6 +115,23 @@ describe('numeric payload fields', () => {
   });
 });
 
+describe('image crop through the mapper', () => {
+  it('keeps a crop through toDoc, a JSON round trip, and fromDoc, back to the wire', () => {
+    const crop = { x: 0.125, y: 0.25, w: 0.5, h: 0.375, aspect: 1.5 };
+    const before = parseBlock({
+      id: 'img-1',
+      type: 'Image',
+      order: 0,
+      spans: [],
+      payload: { kind: 'image', path: 'a.png', alt: '', width: 200, align: 'left', crop },
+    });
+    const [after] = cycle([before]);
+    const wire = serializeBlock(after);
+    const wireCrop = (wire.payload as { crop?: unknown }).crop;
+    expect(wireCrop).toEqual(crop);
+  });
+});
+
 describe('wire reader and writer parity with BlockJsonConverter', () => {
   it('backfills a two-column payload from meta before stripping the shadow key', () => {
     // The C# writer backfills then strips. Stripping alone destroys the ratio.

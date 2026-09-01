@@ -519,7 +519,10 @@ internal static class NoteTypstDocumentComposer
             : string.Empty;
 
         sb.Append("#align(").Append(align).Append(")[");
-        sb.Append("#image(\"").Append(EscapeString(resolved)).Append('"').Append(widthAttr).Append(')');
+        if (payload?.Crop is { } crop)
+            AppendCroppedImage(sb, resolved, crop, payload.Width);
+        else
+            sb.Append("#image(\"").Append(EscapeString(resolved)).Append('"').Append(widthAttr).Append(')');
         if (captionSpans.Count > 0)
         {
             sb.Append("#v(4pt)#text(size: ").Append(Pt(Math.Max(8f, options.BaseFontSizePt - 1f)))
@@ -528,6 +531,36 @@ internal static class NoteTypstDocumentComposer
             sb.Append(']');
         }
         sb.Append("]\n\n");
+    }
+
+    /// <summary>
+    /// A cropped image, as a frame the picture is placed behind and clipped to.
+    ///
+    /// Typst has no crop, so the window is built from what it does have: a box of the frame's shape
+    /// with <c>clip</c>, holding the whole image scaled up by the reciprocal of the window and
+    /// shifted so the window's top left lands on the frame's. <c>fit: "stretch"</c> is not optional:
+    /// the default re-fits the image inside the box and undoes exactly the scaling this depends on.
+    ///
+    /// The frame needs an absolute width, because Typst cannot derive a height from a ratio without
+    /// one, and an image that was never resized has no stored width. That case reads the available
+    /// width off <c>layout</c> instead, which is the same rule the editor draws by, where an
+    /// unresized cropped image takes the column.
+    /// </summary>
+    private static void AppendCroppedImage(StringBuilder sb, string resolved, ImageCrop crop, double width)
+    {
+        var frame = width > 0
+            ? Pt((float)Math.Clamp(width * 0.75, 48, 520))
+            : "size.width";
+
+        sb.Append("#layout(size => { let fw = ").Append(frame)
+          .Append("; let fh = fw / ").Append(Ratio(crop.Aspect))
+          .Append("; box(width: fw, height: fh, clip: true, place(top + left, dx: -")
+          .Append(Ratio(crop.X / crop.W)).Append(" * fw, dy: -")
+          .Append(Ratio(crop.Y / crop.H)).Append(" * fh, image(\"")
+          .Append(EscapeString(resolved))
+          .Append("\", width: fw / ").Append(Ratio(crop.W))
+          .Append(", height: fh / ").Append(Ratio(crop.H))
+          .Append(", fit: \"stretch\"))) })");
     }
 
     private static void EmitSketch(StringBuilder sb, Block block, NotePdfExportOptions options)
@@ -843,4 +876,16 @@ internal static class NoteTypstDocumentComposer
 
     private static string Num(double value) =>
         Math.Round(value, 3).ToString("0.###", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// A dimensionless ratio, held finer than a point measurement needs to be.
+    ///
+    /// These are multiplied by a length before they become one, so three decimals here is not a
+    /// thousandth of a point, it is a thousandth of the frame. A crop pinned to the source's right
+    /// or bottom edge is where that shows: the placed image lands a hair short of the clip box and
+    /// a sliver of background appears along the edge, which is precisely the crop nobody would
+    /// suspect the formatter of.
+    /// </summary>
+    private static string Ratio(double value) =>
+        Math.Round(value, 6).ToString("0.######", CultureInfo.InvariantCulture);
 }
