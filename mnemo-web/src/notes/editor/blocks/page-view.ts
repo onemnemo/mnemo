@@ -147,7 +147,8 @@ export function pageBlockView(
     // rather than routing to a note id the app cannot resolve.
     if (reference.length === 0 || dom.getAttribute('data-page-state') === 'missing') return;
     // The browser will not follow a link inside a contenteditable, so the route
-    // is set here. The href is still there for the status bar and for focus.
+    // is set here. The href stays: it is what makes the row focusable and read
+    // as a link.
     event.preventDefault();
     navigate('notes', reference);
   }
