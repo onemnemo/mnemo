@@ -331,6 +331,10 @@ public static class Program
             .SetSize(bounds.Width, bounds.Height)
             .SetMinSize(bounds.MinWidth, bounds.MinHeight)
             .SetDevToolsEnabled(options.DevMode)
+            // WebView2 otherwise shows a status bubble with the destination URL
+            // whenever a link is hovered. The shell is a window, not a browser, and
+            // the routes behind it are not something to read off the bottom edge.
+            .SetStatusBarEnabled(false)
             .Center();
 
         if (OperatingSystem.IsWindows())
