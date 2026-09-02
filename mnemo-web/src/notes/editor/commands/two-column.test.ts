@@ -25,6 +25,18 @@ function heading(text: string, level = 1): PMNode {
 function cell(...blocks: PMNode[]): PMNode {
   return schema.nodes.columnGroup.create(null, [line(), ...blocks]);
 }
+function divider(): PMNode {
+  return schema.nodes.divider.create(null, line());
+}
+function tableCell(text: string): PMNode {
+  return schema.nodes.tableCell.create(null, line(text));
+}
+function tableRow(...cells: PMNode[]): PMNode {
+  return schema.nodes.tableRow.create(null, [line(), ...cells]);
+}
+function table(...rows: PMNode[]): PMNode {
+  return schema.nodes.table.create({ columnWidths: [] }, [line(), ...rows]);
+}
 function twoColumn(left: PMNode, right: PMNode, sid = 'tc'): PMNode {
   return schema.nodes.twoColumn.create({ sid }, [line(), left, right]);
 }
@@ -212,5 +224,93 @@ describe('two-column Backspace leaves ordinary cases alone', () => {
     const { state } = backspaceAtStartOf(document, 'b');
     expect(state.doc.childCount).toBe(1);
     expect(lineText(state.doc.child(0))).toBe('ab');
+  });
+});
+
+// --- merge targets ----------------------------------------------------------
+
+/** The text sitting in the first divider's line, which nothing on screen draws. */
+function dividerText(document: PMNode): string {
+  let text: string | null = null;
+  document.descendants((node) => {
+    if (text !== null) return false;
+    if (node.type.name !== 'divider') return true;
+    text = lineText(node);
+    return false;
+  });
+  return text ?? '';
+}
+
+/** Every table cell's text, in document order. */
+function tableCellTexts(document: PMNode): string[] {
+  const out: string[] = [];
+  document.descendants((node) => {
+    if (node.type.name === 'tableCell') out.push(lineText(node));
+    return true;
+  });
+  return out;
+}
+
+describe('two-column Backspace refuses a merge target the caret cannot reach', () => {
+  it('leaves a divider above the split alone rather than writing into its hidden line', () => {
+    const document = doc(divider(), twoColumn(cell(para('left one')), cell(para('right one'))));
+    const before = stateWith(document);
+    const { handled, state } = backspaceAtStartOf(document, 'left one');
+
+    // Swallowed, so no character delete follows either, and the text is still
+    // where the user can see it rather than in a line rendered as a bare rule.
+    expect(handled).toBe(true);
+    expect(state.doc.eq(before.doc)).toBe(true);
+    expect(dividerText(state.doc)).toBe('');
+  });
+
+  it('does the same for a divider at the foot of the left column, from the right cell', () => {
+    const document = doc(
+      para('above'),
+      twoColumn(cell(para('left one'), divider()), cell(para('right one'))),
+    );
+    const before = stateWith(document);
+    const { handled, state } = backspaceAtStartOf(document, 'right one');
+
+    expect(handled).toBe(true);
+    expect(state.doc.eq(before.doc)).toBe(true);
+    expect(dividerText(state.doc)).toBe('');
+  });
+
+  it('treats a table above the split as one object, never appending into its last cell', () => {
+    const document = doc(
+      table(tableRow(tableCell('a'), tableCell('b'))),
+      twoColumn(cell(para('left one')), cell(para('right one'))),
+    );
+    const before = stateWith(document);
+    const { handled, state } = backspaceAtStartOf(document, 'left one');
+
+    expect(handled).toBe(true);
+    expect(state.doc.eq(before.doc)).toBe(true);
+    expect(tableCellTexts(state.doc)).toEqual(['a', 'b']);
+  });
+
+  it('still merges into the block above the split when it can hold a caret', () => {
+    const document = doc(para('above'), twoColumn(cell(para('left one')), cell(para('right one'))));
+    const { state } = backspaceAtStartOf(document, 'left one');
+    expect(lineText(state.doc.child(0))).toBe('aboveleft one');
+  });
+
+  it('still merges into the last block of a split above, which is one', () => {
+    const document = doc(
+      twoColumn(cell(para('A')), cell(para('B'))),
+      twoColumn(cell(para('C')), cell(para('D'))),
+    );
+    const { state } = backspaceAtStartOf(document, 'C');
+    expect(cellTexts(state.doc.child(0), false)).toEqual(['BC']);
+  });
+
+  it('leaves a divider alone outside a split too, the case this now matches', () => {
+    const document = doc(divider(), para('hello'));
+    const { handled, state } = backspaceAtStartOf(document, 'hello');
+
+    expect(handled).toBe(true);
+    expect(dividerText(state.doc)).toBe('');
+    expect(lineText(state.doc.child(1))).toBe('hello');
   });
 });

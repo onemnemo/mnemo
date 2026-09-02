@@ -3,7 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { EditorState, TextSelection, type Transaction } from 'prosemirror-state';
 
 import { createEditorSchema } from '../schema';
-import { convertHere, insertAtomicBlock, insertPageBlock, insertTwoColumn } from './slash-insert';
+import {
+  convertHere,
+  insertAtomicBlock,
+  insertPageBlock,
+  insertTable,
+  insertTwoColumn,
+} from './slash-insert';
 import type { EditorServices, SlashInsertContext } from '../registry/types';
 
 const { schema } = createEditorSchema();
@@ -197,5 +203,63 @@ describe('the table-cell guard shared by every conversion row', () => {
     insertTwoColumn(picker.state, picker.dispatch);
     expect(picker.dispatched).toHaveLength(0);
     expect(picker.state.doc.firstChild!.type.name).toBe('table');
+  });
+
+  it('insertTable leaves the cell untouched', () => {
+    const picker = pickedInCell('/table');
+    insertTable(picker.state, picker.dispatch);
+    expect(picker.dispatched).toHaveLength(0);
+    expect(picker.state.doc.firstChild!.type.name).toBe('table');
+  });
+});
+
+/**
+ * A two-column whose left cell holds one block, with the caret in the cell's own
+ * structural line. The caret guard keeps a selection out of that line, but a
+ * range anchored there reaches a row with `$from` still inside it.
+ */
+function pickedInColumnLine() {
+  const cell = (text: string) =>
+    schema.nodes.columnGroup.create(null, [
+      schema.nodes.line.create(),
+      schema.nodes.paragraph.create(null, schema.nodes.line.create(null, schema.text(text))),
+    ]);
+  const doc = schema.nodes.doc.create(null, [
+    schema.nodes.twoColumn.create(null, [schema.nodes.line.create(), cell('left'), cell('right')]),
+  ]);
+  let cellPos = -1;
+  doc.descendants((node, pos) => {
+    if (cellPos >= 0) return false;
+    if (node.type.name === 'columnGroup') cellPos = pos;
+    return true;
+  });
+  let state = EditorState.create({ schema, doc, selection: TextSelection.create(doc, cellPos + 2) });
+  const dispatched: Transaction[] = [];
+  const dispatch = (tr: Transaction) => {
+    dispatched.push(tr);
+    state = state.apply(tr);
+  };
+  return {
+    get state() {
+      return state;
+    },
+    dispatch,
+    dispatched,
+  };
+}
+
+describe('the same guard on a container line', () => {
+  it('insertTable refuses a column cell rather than splitting the split around a table', () => {
+    const picker = pickedInColumnLine();
+    const before = picker.state.doc.toJSON();
+    insertTable(picker.state, picker.dispatch);
+    expect(picker.dispatched).toHaveLength(0);
+    expect(picker.state.doc.toJSON()).toEqual(before);
+  });
+
+  it('insertTwoColumn refuses it as well', () => {
+    const picker = pickedInColumnLine();
+    insertTwoColumn(picker.state, picker.dispatch);
+    expect(picker.dispatched).toHaveLength(0);
   });
 });
