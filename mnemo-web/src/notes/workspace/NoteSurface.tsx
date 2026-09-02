@@ -2,7 +2,7 @@ import 'katex/dist/katex.min.css';
 import '../page/notes-editor.css';
 
 import { useMemo, useRef, useState } from 'react';
-import type { EditorState } from 'prosemirror-state';
+import { Selection, type EditorState } from 'prosemirror-state';
 
 import { useT } from '@/i18n/useT';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ import { metadataUpdateOf } from '../note-metadata';
 import { hasCover } from './covers';
 import { AddHeaderChrome, COVER_BANNER_HEIGHT, CoverBanner, NoteIcon } from './NoteHeaderChrome';
 import { NoteTags } from './NoteTags';
+import { NoteTitle } from './NoteTitle';
 import { PasteProgressOverlay } from '../clipboard/PasteProgressOverlay';
 import type { DocumentMapper } from '../editor/mapper/document';
 import type { BlockRegistry } from '../editor/registry/build';
@@ -79,7 +80,7 @@ export function NoteSurface({
 
   // Metadata edits are a full replace; route every one through the carry so a
   // cover change never blanks the tags, or an emoji change the folder.
-  const patch = (next: Partial<Pick<NoteSummaryDto, 'emoji' | 'cover' | 'coverCrop' | 'tags'>>) =>
+  const patch = (next: Partial<Pick<NoteSummaryDto, 'title' | 'emoji' | 'cover' | 'coverCrop' | 'tags'>>) =>
     void updateNote.mutateAsync(metadataUpdateOf(note, next));
 
   // The banner's own measured width, read fresh whenever the cover picker opens the editor.
@@ -129,7 +130,6 @@ export function NoteSurface({
     [view, registry, saveState],
   );
 
-  const title = note.title.trim() || nt('Untitled');
   const coverSet = hasCover(note.cover);
   const { maxWidth } = useEditorMeasure();
   const { spellCheck, lang } = useSpellcheck();
@@ -168,7 +168,16 @@ export function NoteSurface({
             onIcon={(emoji) => patch({ emoji })}
             measureBandAspect={measureBandAspect}
           />
-          <h1 className="mt-1 text-[2.5rem] font-bold leading-[1.15] tracking-[-0.03em] text-text-primary">{title}</h1>
+          <NoteTitle
+            title={note.title}
+            placeholder={nt('Untitled')}
+            onCommit={(next) => patch({ title: next })}
+            onEnter={() => {
+              if (!view) return;
+              view.dispatch(view.state.tr.setSelection(Selection.atStart(view.state.doc)));
+              view.focus();
+            }}
+          />
           <NoteTags tags={note.tags} onChange={(tags) => patch({ tags })} />
           <div className="mb-6 mt-2 text-[0.8125rem] text-ink-3">
             {nt('WordCountFormat', { 0: wordCount.toLocaleString() })}
