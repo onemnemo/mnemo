@@ -48,6 +48,12 @@ public interface IMindmapService
     Task<Result<IReadOnlyList<MindmapDocumentSummary>>> ListAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Resolves a sid or a raw document id to the map's identity, for a caller such as the AI tools that
+    /// addresses a map by its short id. The value is null, not a failure, when nothing live matches.
+    /// </summary>
+    Task<Result<MindmapIdentity?>> ResolveAsync(string sidOrId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes a map, under the same per-map write gate every other mutation takes, so a delete racing an
     /// in-flight batch cannot leave the row behind with only that batch's elements indexed.
     /// </summary>

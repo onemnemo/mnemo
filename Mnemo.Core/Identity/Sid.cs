@@ -23,6 +23,9 @@ public static class Sid
     /// <summary>Note sids are unique across the corpus, since nothing encloses a note.</summary>
     public const int NoteLength = 6;
 
+    /// <summary>Mindmap sids are unique across the corpus, in their own namespace from note sids.</summary>
+    public const int MindmapLength = 6;
+
     /// <summary>
     /// True when <paramref name="value"/> could have been minted by this contract. Length is a floor,
     /// not an equality check, so ids minted after a future widening still validate.
@@ -44,4 +47,6 @@ public static class Sid
     public static bool IsWellFormedBlockSid(string? value) => IsWellFormed(value, BlockLength);
 
     public static bool IsWellFormedNoteSid(string? value) => IsWellFormed(value, NoteLength);
+
+    public static bool IsWellFormedMindmapSid(string? value) => IsWellFormed(value, MindmapLength);
 }

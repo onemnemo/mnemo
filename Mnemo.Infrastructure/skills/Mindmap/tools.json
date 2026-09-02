@@ -43,7 +43,7 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "map_id": { "type": "string" },
+          "map_id": { "type": "string", "description": "The map's short id, as returned by search_mindmaps or create_mindmap." },
           "subtree_of": { "type": "string", "description": "Scope to this node's subtree." },
           "depth": { "type": "integer", "description": "Levels to expand; deeper descendants collapse into +n." }
         },
@@ -57,7 +57,7 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "map_id": { "type": "string" },
+          "map_id": { "type": "string", "description": "The map's short id, as returned by search_mindmaps or create_mindmap." },
           "query": { "type": "string" },
           "limit": { "type": "integer", "description": "Max hits (default 20, max 100)." }
         },
@@ -71,7 +71,7 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "map_id": { "type": "string" },
+          "map_id": { "type": "string", "description": "The map's short id, as returned by search_mindmaps or create_mindmap." },
           "ids": { "type": "array", "items": { "type": "string" }, "description": "Element ids to read (max 100)." },
           "subtree_of": { "type": "string", "description": "Read a node and its whole subtree." },
           "kinds": { "type": "array", "items": { "type": "string" }, "description": "Filter to kinds: node, shape, text, image, frame." }
@@ -86,7 +86,7 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "map_id": { "type": "string" },
+          "map_id": { "type": "string", "description": "The map's short id, as returned by search_mindmaps or create_mindmap." },
           "rev": { "type": "integer", "description": "Revision the ops were composed against (from outline/find/read)." },
           "ops": {
             "type": "array",

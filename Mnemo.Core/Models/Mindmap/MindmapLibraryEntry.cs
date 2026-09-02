@@ -17,4 +17,7 @@ public sealed record MindmapLibraryEntry
 
     /// <summary>Flashcard deck ids linked to this map; their due counts surface as a library badge.</summary>
     public IReadOnlyList<string> LinkedDeckIds { get; init; } = Array.Empty<string>();
+
+    /// <summary>The corpus-unique short id external callers, such as the AI tools, address this map by.</summary>
+    public string Sid { get; init; } = string.Empty;
 }

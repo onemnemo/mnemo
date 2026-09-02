@@ -167,6 +167,20 @@ public sealed class MindmapDocumentService : IMindmapService
         }
     }
 
+    public async Task<Result<MindmapIdentity?>> ResolveAsync(string sidOrId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var identity = await _store.ResolveAsync(sidOrId, cancellationToken).ConfigureAwait(false);
+            return Result<MindmapIdentity?>.Success(identity);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Mindmap", $"Failed to resolve mindmap '{sidOrId}'.", ex);
+            return Result<MindmapIdentity?>.Failure($"Failed to resolve mindmap '{sidOrId}'.", ex);
+        }
+    }
+
     public async Task<Result> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
         // Under the gate like every other mutation. Without it a delete can land between an in-flight

@@ -57,7 +57,7 @@ public sealed class MindmapToolService
         var results = maps
             .OrderByDescending(m => m.ModifiedAt)
             .Take(limit)
-            .Select(m => new { id = m.Id, title = m.Title, rev = m.Revision, modified = m.ModifiedAt })
+            .Select(m => new { id = m.Sid, title = m.Title, rev = m.Revision, modified = m.ModifiedAt })
             .ToList();
 
         return ToolInvocationResult.Success($"{results.Count} mindmap(s).", new { maps = results });
@@ -82,9 +82,12 @@ public sealed class MindmapToolService
             return ToolInvocationResult.Failure(ToolResultCodes.InternalError, created.ErrorMessage ?? "Failed to create mindmap.");
 
         var doc = created.Value;
-        return ToolInvocationResult.Success($"Mindmap created (id: {doc.Id}).", new
+        var resolved = await _mindmaps.ResolveAsync(doc.Id).ConfigureAwait(false);
+        var sid = resolved.Value?.Sid is { Length: > 0 } s ? s : doc.Id;
+
+        return ToolInvocationResult.Success($"Mindmap created (id: {sid}).", new
         {
-            id = doc.Id,
+            id = sid,
             rev = doc.Revision,
             node_count = doc.Elements.Count(e => e.Kind == ElementKind.Node),
         });
@@ -94,7 +97,7 @@ public sealed class MindmapToolService
 
     public async Task<ToolInvocationResult> OutlineMindmapAsync(OutlineMindmapParameters p)
     {
-        var (doc, error) = await LoadAsync(p.MapId).ConfigureAwait(false);
+        var (doc, sid, error) = await LoadAsync(p.MapId).ConfigureAwait(false);
         if (error != null) return error;
 
         var byId = doc!.Elements.ToDictionary(e => e.Id);
@@ -134,7 +137,7 @@ public sealed class MindmapToolService
 
         var result = new Dictionary<string, object?>
         {
-            ["map_id"] = doc.Id,
+            ["map_id"] = sid,
             ["rev"] = doc.Revision,
             ["layout"] = DocumentLayout(doc, roots),
             ["nodes"] = doc.Elements.Count(e => e.Kind == ElementKind.Node),
@@ -191,11 +194,11 @@ public sealed class MindmapToolService
 
     public async Task<ToolInvocationResult> FindInMapAsync(FindInMapParameters p)
     {
-        if (string.IsNullOrWhiteSpace(p.MapId))
-            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "map_id is required.");
+        var (identity, resolveError) = await ResolveMapAsync(p.MapId).ConfigureAwait(false);
+        if (resolveError != null) return resolveError;
 
         var limit = p.Limit is > 0 and <= 100 ? p.Limit!.Value : 20;
-        var found = await _mindmaps.FindInMapAsync(p.MapId.Trim(), p.Query ?? string.Empty, limit).ConfigureAwait(false);
+        var found = await _mindmaps.FindInMapAsync(identity!.Id, p.Query ?? string.Empty, limit).ConfigureAwait(false);
         if (!found.IsSuccess || found.Value is null)
             return ToolInvocationResult.Failure(ToolResultCodes.NotFound, found.ErrorMessage ?? "Mindmap not found.");
 
@@ -215,7 +218,7 @@ public sealed class MindmapToolService
 
     public async Task<ToolInvocationResult> ReadElementsAsync(ReadElementsParameters p)
     {
-        var (doc, error) = await LoadAsync(p.MapId).ConfigureAwait(false);
+        var (doc, sid, error) = await LoadAsync(p.MapId).ConfigureAwait(false);
         if (error != null) return error;
 
         var byId = doc!.Elements.ToDictionary(e => e.Id);
@@ -271,7 +274,7 @@ public sealed class MindmapToolService
 
         return ToolInvocationResult.Success($"{selected.Count} element(s).", new
         {
-            map_id = doc.Id,
+            map_id = sid,
             rev = doc.Revision,
             elements = selected.Select(ElementToWire).ToList(),
             edges = edges.Count > 0 ? edges : null,
@@ -283,8 +286,8 @@ public sealed class MindmapToolService
 
     public async Task<ToolInvocationResult> EditMindmapAsync(EditMindmapParameters p)
     {
-        if (string.IsNullOrWhiteSpace(p.MapId))
-            return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "map_id is required.");
+        var (identity, resolveError) = await ResolveMapAsync(p.MapId).ConfigureAwait(false);
+        if (resolveError != null) return resolveError;
 
         if (!MindmapToolOpParser.TryParse(p.Ops, out var ops, out var parseError, out var failedIndex))
         {
@@ -293,7 +296,7 @@ public sealed class MindmapToolService
             return ToolInvocationResult.Failure(ToolResultCodes.ValidationError, message, data);
         }
 
-        var applied = await _mindmaps.ApplyAsync(p.MapId.Trim(), p.Rev, ops).ConfigureAwait(false);
+        var applied = await _mindmaps.ApplyAsync(identity!.Id, p.Rev, ops).ConfigureAwait(false);
         if (!applied.IsSuccess || applied.Value is null)
             return ToolInvocationResult.Failure(ToolResultCodes.InternalError, applied.ErrorMessage ?? "Failed to apply edit.");
 
@@ -463,17 +466,35 @@ public sealed class MindmapToolService
 
     // ---------------------------------------------------------------- helpers
 
-    private async Task<(MindmapDocument? doc, ToolInvocationResult? error)> LoadAsync(string rawId)
+    /// <summary>
+    /// Resolves a sid or a raw document id to the map's identity. Every entry point that takes a
+    /// <c>map_id</c> starts here so the rest of the call, and everything it reports back, works in
+    /// the sid the caller gave it.
+    /// </summary>
+    private async Task<(MindmapIdentity? identity, ToolInvocationResult? error)> ResolveMapAsync(string rawId)
     {
-        var id = rawId?.Trim() ?? string.Empty;
-        if (id.Length == 0)
+        var raw = rawId?.Trim() ?? string.Empty;
+        if (raw.Length == 0)
             return (null, ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "map_id is required."));
 
-        var loaded = await _mindmaps.GetAsync(id).ConfigureAwait(false);
-        if (!loaded.IsSuccess || loaded.Value is null)
-            return (null, ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No mindmap with id \"{id}\"."));
+        var resolved = await _mindmaps.ResolveAsync(raw).ConfigureAwait(false);
+        if (!resolved.IsSuccess || resolved.Value is null)
+            return (null, ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No mindmap with id \"{raw}\"."));
 
-        return (loaded.Value, null);
+        return (resolved.Value, null);
+    }
+
+    private async Task<(MindmapDocument? doc, string sid, ToolInvocationResult? error)> LoadAsync(string rawId)
+    {
+        var (identity, resolveError) = await ResolveMapAsync(rawId).ConfigureAwait(false);
+        if (resolveError != null)
+            return (null, string.Empty, resolveError);
+
+        var loaded = await _mindmaps.GetAsync(identity!.Id).ConfigureAwait(false);
+        if (!loaded.IsSuccess || loaded.Value is null)
+            return (null, string.Empty, ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No mindmap with id \"{identity.Sid}\"."));
+
+        return (loaded.Value, identity.Sid, null);
     }
 
     private static MindmapNodeSpec ToNodeSpec(MindmapOutlineNode node) => new()
