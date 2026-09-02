@@ -26,6 +26,31 @@ internal static class NoteTypstDocumentComposer
     // marker is drawn rather than typeset. This renders on every machine regardless of system fonts.
     private const string BulletMarker = "box(baseline: -0.05em, circle(radius: 0.11em, fill: black))";
 
+    /// <summary>
+    /// The ring and the square the editor draws one and two levels down a nested list; past the
+    /// third level the cycle repeats, as it does on screen.
+    /// </summary>
+    private const string RingMarker = "box(baseline: -0.05em, circle(radius: 0.11em, stroke: 0.6pt + black))";
+    private const string SquareMarker = "box(baseline: -0.05em, rect(width: 0.2em, height: 0.2em, fill: black))";
+
+    private static string BulletMarkerAt(int listDepth) => (listDepth % 3) switch
+    {
+        1 => RingMarker,
+        2 => SquareMarker,
+        _ => BulletMarker
+    };
+
+    /// <summary>
+    /// Letters one level down and roman numerals two, matching the editor's labels; null at the
+    /// top, which keeps Typst's default and the exact output every existing list has.
+    /// </summary>
+    private static string? EnumNumberingAt(int listDepth) => (listDepth % 3) switch
+    {
+        1 => "a.",
+        2 => "i.",
+        _ => null
+    };
+
     public static string Compose(Note note, NotePdfExportOptions options, INoteTypstAssetResolver? assets = null)
     {
         var blocks = GetOrderedBlocksForExport(note);
@@ -212,7 +237,11 @@ internal static class NoteTypstDocumentComposer
         ];
     }
 
-    private static void EmitBlock(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets)
+    /// <summary>
+    /// <paramref name="listDepth"/> is how many list items enclose the block, which decides a
+    /// nested item's marker and numbering style.
+    /// </summary>
+    private static void EmitBlock(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets, int listDepth = 0)
     {
         switch (block.Type)
         {
@@ -224,16 +253,30 @@ internal static class NoteTypstDocumentComposer
                 if (block.Children is { Count: > 0 })
                 {
                     foreach (var child in block.Children.OrderBy(c => c.Order).ThenBy(c => c.Id))
-                        EmitBlock(sb, child, options, assets);
+                        EmitBlock(sb, child, options, assets, listDepth);
                 }
                 return;
             case BlockType.TwoColumn:
                 EmitTwoColumn(sb, block, options, assets);
                 return;
             default:
-                EmitLeafBlock(sb, block, options, assets);
+                EmitLeafBlock(sb, block, options, assets, listDepth);
                 return;
         }
+    }
+
+    /// <summary>
+    /// An item's nested list, inside the item's own content so Typst indents it under the text.
+    /// Nothing is emitted for a leaf, so an item without children keeps its exact output.
+    /// </summary>
+    private static void EmitNestedItems(StringBuilder sb, Block item, NotePdfExportOptions options, INoteTypstAssetResolver? assets, int listDepth)
+    {
+        if (item.Children is not { Count: > 0 })
+            return;
+
+        sb.Append('\n');
+        foreach (var child in item.Children.OrderBy(c => c.Order).ThenBy(c => c.Id))
+            EmitBlock(sb, child, options, assets, listDepth);
     }
 
     private static void EmitTwoColumn(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets)
@@ -268,7 +311,7 @@ internal static class NoteTypstDocumentComposer
         return cell.ToString();
     }
 
-    private static void EmitLeafBlock(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets)
+    private static void EmitLeafBlock(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets, int listDepth = 0)
     {
         block.EnsureSpans();
 
@@ -287,20 +330,36 @@ internal static class NoteTypstDocumentComposer
                 EmitHeading(sb, block, options, options.BaseFontSizePt + 1.5f);
                 break;
             case BlockType.BulletList:
-                sb.Append("#list(marker: ").Append(BulletMarker).Append(")[");
+                sb.Append("#list(marker: ").Append(BulletMarkerAt(listDepth)).Append(")[");
                 EmitInline(sb, block.Spans, options);
+                EmitNestedItems(sb, block, options, assets, listDepth + 1);
                 sb.Append("]\n\n");
                 break;
             case BlockType.NumberedList:
-                sb.Append("#enum(start: ").Append(ReadListNumberIndex(block)).Append(")[");
+            {
+                sb.Append("#enum(start: ").Append(ReadListNumberIndex(block));
+                var numbering = EnumNumberingAt(listDepth);
+                if (numbering != null)
+                    sb.Append(", numbering: \"").Append(numbering).Append('"');
+                sb.Append(")[");
                 EmitInline(sb, block.Spans, options);
+                EmitNestedItems(sb, block, options, assets, listDepth + 1);
                 sb.Append("]\n\n");
                 break;
+            }
             case BlockType.Checklist:
                 // ASCII markers render on every font; a real checkbox glyph would not.
                 sb.Append(IsChecklistChecked(block) ? "\\[x\\] " : "\\[ \\] ");
                 EmitInline(sb, block.Spans, options);
                 sb.Append("\n\n");
+                if (block.Children is { Count: > 0 })
+                {
+                    // A checkbox item is a paragraph, not a list function, so its nested list is
+                    // indented by hand to sit where a list's own would.
+                    sb.Append("#pad(left: 1.5em)[\n");
+                    EmitNestedItems(sb, block, options, assets, listDepth + 1);
+                    sb.Append("]\n\n");
+                }
                 break;
             case BlockType.Quote:
                 sb.Append("#block(inset: (left: 10pt), stroke: (left: 3pt + rgb(\"#9e9e9e\")))[#emph[");
