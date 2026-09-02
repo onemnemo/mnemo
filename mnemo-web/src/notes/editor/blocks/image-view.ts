@@ -51,6 +51,7 @@ import { applyGrip, gripIntent } from '../../selection/grip-selection';
 import { asOwnUndoStep } from '../history';
 import { pressBlockDrag } from '../chrome/block-drag-bridge';
 import { recordImagePress } from '../chrome/image-press';
+import { imageFiles, uploadAndInsert } from '../pipeline/image-clipboard';
 import { mountPortalNodeView, type PortalNodeView } from '../view/portal-registry';
 import { ImageChrome } from './ImageChrome';
 import { registerCaptionReveal } from './image-caption-reveal';
@@ -322,7 +323,62 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
       el.appendChild(hint);
     }
     el.addEventListener('click', openPicker);
+    attachDropTarget(el);
     return el;
+  }
+
+  /**
+   * A card takes a dropped picture into this block. Left to the editor's own drop handling, the
+   * drop would put a new block beside the card and leave the card empty, which is the one thing
+   * a reader dropping a picture onto an empty image block did not mean. Only a drag carrying
+   * files is claimed; text dragged across the card stays the editor's business.
+   *
+   * Counted rather than a boolean, the way the image editor dialog does it: the icon and the
+   * label are children, and moving between them fires leave then enter, which a boolean would
+   * flicker on.
+   */
+  function attachDropTarget(el: HTMLElement): void {
+    if (!view.editable) return;
+    let over = 0;
+    const carriesFiles = (event: DragEvent): boolean =>
+      Array.from(event.dataTransfer?.types ?? []).includes('Files');
+    const clear = (): void => {
+      over = 0;
+      el.classList.remove('is-drop-target');
+    };
+    el.addEventListener('dragenter', (event) => {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      over += 1;
+      el.classList.add('is-drop-target');
+    });
+    el.addEventListener('dragover', (event) => {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    });
+    el.addEventListener('dragleave', () => {
+      over = Math.max(0, over - 1);
+      if (over === 0) el.classList.remove('is-drop-target');
+    });
+    el.addEventListener('drop', (event) => {
+      clear();
+      const files = imageFiles(event.dataTransfer);
+      if (files.length === 0) return;
+      // Claimed here, and stopped, so the editor's own drop handler does not also insert
+      // these as new blocks.
+      event.preventDefault();
+      event.stopPropagation();
+      // A card that is already importing keeps what it has; the drop is swallowed rather than
+      // handed on, or the picture would land as a stray block under an upload in flight.
+      if (uploading) return;
+      const [first, ...rest] = files;
+      upload(first);
+      // The rest become blocks of their own, below this one, through the same path a drop on
+      // the page takes.
+      const live = liveNode();
+      if (rest.length > 0 && live) uploadAndInsert(view, services, rest, live.pos + live.node.nodeSize);
+    });
   }
 
   /**
