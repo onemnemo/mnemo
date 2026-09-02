@@ -910,6 +910,13 @@
 .notes-doc .notes-image-card:hover {
   border-color: var(--text-tertiary);
 }
+/* A picture being dragged over the card: the card is what takes it, so it says so, in the
+ * image editor dialog's own drop colours. */
+.notes-doc .notes-image-card.is-drop-target {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
 .notes-doc .notes-image-card.is-busy {
   cursor: progress;
   animation: notes-image-busy 1.2s ease-in-out infinite;

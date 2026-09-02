@@ -10,6 +10,10 @@
  * Files win over any accompanying HTML on purpose. Copying an image in a browser puts both
  * a bitmap and an `<img src="http…">` fragment on the clipboard; the fragment would paste a
  * hotlink to a remote server, the bitmap becomes a local asset like the desktop makes.
+ *
+ * A drop onto an image block's own card never reaches this plugin: the card claims it and
+ * fills its block, and hands any further files back through {@link uploadAndInsert} so they
+ * land below it as blocks of their own.
  */
 
 import { Plugin, TextSelection } from 'prosemirror-state';
@@ -20,7 +24,8 @@ import { asOwnUndoStep } from '../history';
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp']);
 
-function imageFiles(data: DataTransfer | null): File[] {
+/** The image files a transfer carries, in order; anything else it holds is left alone. */
+export function imageFiles(data: DataTransfer | null): File[] {
   if (!data) return [];
   return Array.from(data.files).filter((file) => IMAGE_TYPES.has(file.type));
 }
@@ -48,7 +53,11 @@ function insertUploaded(view: EditorView, assetIds: readonly string[], requested
   view.dispatch(asOwnUndoStep(tr).scrollIntoView());
 }
 
-function uploadAndInsert(
+/**
+ * Uploads `files` and inserts one image block per stored asset at the top-level boundary
+ * after `requestedPos`, as one undo step, once every upload has answered.
+ */
+export function uploadAndInsert(
   view: EditorView,
   services: EditorServices,
   files: readonly File[],

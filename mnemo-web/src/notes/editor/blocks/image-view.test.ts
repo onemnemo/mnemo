@@ -30,6 +30,7 @@ function mountImage(
     /** Present in the app, absent in a harness with no React tree to portal into. */
     portals?: PortalRegistry;
     caption?: string;
+    upload?: EditorServices['uploadAsset'];
   } = {},
 ) {
   const doc = schema.nodes.doc.create(null, [image(attrs, options.caption)]);
@@ -58,7 +59,7 @@ function mountImage(
       loadCalls.push(path);
       return load(path);
     },
-    uploadAsset: () => Promise.reject(new Error('unused')),
+    uploadAsset: options.upload ?? (() => Promise.reject(new Error('unused'))),
     registry,
     portals: options.portals,
   };
@@ -78,6 +79,38 @@ function mountImage(
 async function flush(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
+}
+
+/** A macrotask later, for the paths that chain more than two promises before they dispatch. */
+async function settle(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+const png = (name: string): File => new File([new Uint8Array([1])], name, { type: 'image/png' });
+
+/**
+ * A drag event carrying `files`. jsdom has no DragEvent or DataTransfer, and a real transfer
+ * cannot be given files outside a live drag, so only what the handlers read is faked: the
+ * `types` a dragover can see and the `files` a drop can.
+ */
+function dragEvent(type: string, files: readonly File[] | null): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'dataTransfer', {
+    value: files === null ? null : { files, types: ['Files'], dropEffect: 'none' },
+  });
+  return event;
+}
+
+/** Uploads that answer in order, each with its own asset id, and remember what they were given. */
+function recordingUploads(): { upload: EditorServices['uploadAsset']; given: File[] } {
+  const given: File[] = [];
+  return {
+    given,
+    upload: (file) => {
+      given.push(file);
+      return Promise.resolve(`asset-${String(given.length)}`);
+    },
+  };
 }
 
 describe('image NodeView', () => {
@@ -260,6 +293,105 @@ describe('image NodeView', () => {
     card.dispatchEvent(press);
     expect(dispatched).toHaveLength(0);
     expect(press.defaultPrevented).toBe(false);
+  });
+
+  it('fills the block from a picture dropped on the placeholder, not a new block beside it', async () => {
+    const uploads = recordingUploads();
+    const { realized, currentState } = mountImage({ path: '' }, { upload: uploads.upload });
+    const card = realized.dom.querySelector('.notes-image-card-placeholder')!;
+    // The editor listens above the figure; a drop the card took must never reach it.
+    let reachedEditor = false;
+    realized.dom.addEventListener('drop', () => {
+      reachedEditor = true;
+    });
+
+    const drop = dragEvent('drop', [png('one.png')]);
+    card.dispatchEvent(drop);
+    expect(drop.defaultPrevented).toBe(true);
+    expect(reachedEditor).toBe(false);
+    expect(uploads.given.map((file) => file.name)).toEqual(['one.png']);
+
+    await settle();
+    expect(currentState().doc.childCount).toBe(1);
+    expect(currentState().doc.firstChild!.attrs.path).toBe('asset-1');
+  });
+
+  it('sends the further files of one drop on as blocks below, one upload each', async () => {
+    const uploads = recordingUploads();
+    const { realized, currentState } = mountImage({ path: '' }, { upload: uploads.upload });
+    const card = realized.dom.querySelector('.notes-image-card-placeholder')!;
+
+    card.dispatchEvent(dragEvent('drop', [png('first.png'), png('second.png'), png('third.png')]));
+    expect(uploads.given.map((file) => file.name)).toEqual(['first.png', 'second.png', 'third.png']);
+
+    await settle();
+    const doc = currentState().doc;
+    expect(doc.childCount).toBe(3);
+    expect(doc.child(0).attrs.path).toBe('asset-1');
+    expect(doc.child(1).type.name).toBe('image');
+    expect(doc.child(1).attrs.path).toBe('asset-2');
+    expect(doc.child(2).attrs.path).toBe('asset-3');
+  });
+
+  it('relinks a missing picture from a dropped file', async () => {
+    const uploads = recordingUploads();
+    const { realized, currentState } = mountImage(
+      { path: 'gone.png' },
+      { load: () => Promise.reject(new Error('missing')), upload: uploads.upload },
+    );
+    await flush();
+    const card = realized.dom.querySelector('.notes-image-card-missing')!;
+    card.dispatchEvent(dragEvent('drop', [png('found.png')]));
+    await settle();
+    expect(currentState().doc.firstChild!.attrs.path).toBe('asset-1');
+  });
+
+  it('marks the card while a file drag is over it and clears the mark when the drag leaves', () => {
+    const { realized } = mountImage({ path: '' });
+    const card = realized.dom.querySelector('.notes-image-card-placeholder')!;
+
+    const enter = dragEvent('dragenter', []);
+    card.dispatchEvent(enter);
+    expect(enter.defaultPrevented).toBe(true);
+    expect(card.classList.contains('is-drop-target')).toBe(true);
+
+    // Into a child and back out again: one leave against two enters keeps the mark.
+    card.dispatchEvent(dragEvent('dragenter', []));
+    card.dispatchEvent(dragEvent('dragleave', []));
+    expect(card.classList.contains('is-drop-target')).toBe(true);
+    card.dispatchEvent(dragEvent('dragleave', []));
+    expect(card.classList.contains('is-drop-target')).toBe(false);
+
+    const over = dragEvent('dragover', []);
+    card.dispatchEvent(over);
+    expect(over.defaultPrevented).toBe(true);
+  });
+
+  it('leaves a drag that carries no files, and a drop with no picture in it, to the editor', () => {
+    const uploads = recordingUploads();
+    const { realized } = mountImage({ path: '' }, { upload: uploads.upload });
+    const card = realized.dom.querySelector('.notes-image-card-placeholder')!;
+
+    const textDrag = new Event('dragenter', { bubbles: true, cancelable: true });
+    Object.defineProperty(textDrag, 'dataTransfer', { value: { files: [], types: ['text/plain'] } });
+    card.dispatchEvent(textDrag);
+    expect(textDrag.defaultPrevented).toBe(false);
+    expect(card.classList.contains('is-drop-target')).toBe(false);
+
+    const drop = dragEvent('drop', [new File([new Uint8Array([1])], 'notes.txt', { type: 'text/plain' })]);
+    card.dispatchEvent(drop);
+    expect(drop.defaultPrevented).toBe(false);
+    expect(uploads.given).toHaveLength(0);
+  });
+
+  it('takes no drops in a read-only view', () => {
+    const uploads = recordingUploads();
+    const { realized } = mountImage({ path: '' }, { editable: false, upload: uploads.upload });
+    const card = realized.dom.querySelector('.notes-image-card-placeholder')!;
+    const drop = dragEvent('drop', [png('one.png')]);
+    card.dispatchEvent(drop);
+    expect(drop.defaultPrevented).toBe(false);
+    expect(uploads.given).toHaveLength(0);
   });
 
   it('clips an empty caption and keeps one that has text', () => {
