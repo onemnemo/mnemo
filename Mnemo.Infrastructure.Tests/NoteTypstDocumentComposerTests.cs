@@ -491,6 +491,71 @@ public sealed class NoteTypstDocumentComposerTests
         Assert.True(exit == 0, $"typst compile failed (exit {exit}):\n{stderr}\n\n--- source ---\n{typ}");
     }
 
+    [Fact]
+    public void NestedList_EmitsChildrenInsideTheItemWithDepthMarkers()
+    {
+        var parent = Leaf(BlockType.BulletList, "parent");
+        var child = Leaf(BlockType.NumberedList, "child");
+        var deep = Leaf(BlockType.BulletList, "deep");
+        child.Children = [deep];
+        parent.Children = [child];
+
+        var typ = Compose(NoteWith(parent));
+
+        // The sub-list sits inside its parent's content block; the marker and numbering style
+        // follow the depth the editor draws: dot, then letters, then a square.
+        Assert.Contains(
+            "#list(marker: box(baseline: -0.05em, circle(radius: 0.11em, fill: black)))[parent\n" +
+            "#enum(start: 1, numbering: \"a.\")[child\n" +
+            "#list(marker: box(baseline: -0.05em, rect(width: 0.2em, height: 0.2em, fill: black)))[deep]\n\n" +
+            "]\n\n" +
+            "]\n\n",
+            typ);
+    }
+
+    [Fact]
+    public void NestedChecklist_IndentsItsChildrenByHand()
+    {
+        var todo = Leaf(BlockType.Checklist, "todo", new ChecklistPayload(false));
+        todo.Children = [Leaf(BlockType.BulletList, "step")];
+
+        var typ = Compose(NoteWith(todo));
+
+        Assert.Contains(
+            "\\[ \\] todo\n\n#pad(left: 1.5em)[\n\n" +
+            "#list(marker: box(baseline: -0.05em, circle(radius: 0.11em, stroke: 0.6pt + black)))[step]\n\n" +
+            "]\n\n",
+            typ);
+    }
+
+    [Fact]
+    public void FlatList_OutputIsUnchangedByNesting()
+    {
+        // No children, no extra bytes: every existing note's list renders as before.
+        var typ = Compose(NoteWith(Leaf(BlockType.BulletList, "point"), Leaf(BlockType.NumberedList, "one")));
+        Assert.Contains("#list(marker: box(baseline: -0.05em, circle(radius: 0.11em, fill: black)))[point]\n\n", typ);
+        Assert.Contains("#enum(start: 1)[one]\n\n", typ);
+    }
+
+    [TypstFact]
+    public void NestedLists_CompileWithVendoredTypst()
+    {
+        var bullet = Leaf(BlockType.BulletList, "bullet");
+        var numbered = Leaf(BlockType.NumberedList, "numbered");
+        var deeper = Leaf(BlockType.NumberedList, "deeper");
+        var deepest = Leaf(BlockType.BulletList, "deepest");
+        var todo = Leaf(BlockType.Checklist, "todo", new ChecklistPayload(true));
+        deeper.Children = [deepest, Leaf(BlockType.Text, "a nested paragraph")];
+        numbered.Children = [deeper];
+        todo.Children = [Leaf(BlockType.Checklist, "sub-task", new ChecklistPayload(false))];
+        bullet.Children = [numbered, todo];
+
+        var typ = Compose(NoteWith(bullet, Leaf(BlockType.Text, "after")));
+
+        var (exit, stderr) = NoteTypstToolchain.Compile(typ);
+        Assert.True(exit == 0, $"typst compile failed (exit {exit}):\n{stderr}\n\n--- source ---\n{typ}");
+    }
+
     private static Note BuildKitchenSinkNote()
     {
         var numbered = Leaf(BlockType.NumberedList, "second");

@@ -48,9 +48,9 @@ public static class NoteBlockMarkdownConverter
             BlockType.Heading2 => $"## {body}",
             BlockType.Heading3 => $"### {body}",
             BlockType.Heading4 => $"#### {body}",
-            BlockType.BulletList => $"- {body}",
-            BlockType.NumberedList => $"{listNum}. {body}",
-            BlockType.Checklist => isChecked ? $"- [x] {body}" : $"- [ ] {body}",
+            BlockType.BulletList => WithNestedItems($"- {body}", block, BulletChildIndent),
+            BlockType.NumberedList => WithNestedItems($"{listNum}. {body}", block, NumberedChildIndent),
+            BlockType.Checklist => WithNestedItems(isChecked ? $"- [x] {body}" : $"- [ ] {body}", block, BulletChildIndent),
             BlockType.Quote => "> " + body.Replace("\n", "\n> ", StringComparison.Ordinal),
             BlockType.Callout => SerializeCallout(block, body),
             BlockType.Code => SerializeCodeFence(block),
@@ -63,6 +63,43 @@ public static class NoteBlockMarkdownConverter
             BlockType.Table => SerializeTable(block),
             _ => body
         };
+    }
+
+    /// <summary>
+    /// Two spaces under a bullet or a checkbox and three under a numbered item: the child lands at
+    /// its parent's content column, which is what CommonMark readers nest on too. Our own reader
+    /// accepts anything deeper than the parent's own indent.
+    /// </summary>
+    private const string BulletChildIndent = "  ";
+    private const string NumberedChildIndent = "   ";
+
+    /// <summary>A list item followed by its nested items, each indented one level under it.</summary>
+    private static string WithNestedItems(string head, Block item, string indent)
+    {
+        if (item.Children is not { Count: > 0 } children)
+            return head;
+
+        var sb = new System.Text.StringBuilder(head);
+        foreach (var child in children.OrderBy(c => c.Order))
+        {
+            sb.AppendLine();
+            sb.Append(IndentLines(SerializeBlock(child), indent));
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>Prefixes every non-empty line; a blank line stays blank so it still reads as a break.</summary>
+    private static string IndentLines(string text, string indent)
+    {
+        var lines = text.Split('\n');
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (lines[i].Length > 0 && lines[i] != "\r")
+                lines[i] = indent + lines[i];
+        }
+
+        return string.Join("\n", lines);
     }
 
     /// <summary>
@@ -126,17 +163,46 @@ public static class NoteBlockMarkdownConverter
 
         var lines = markdown.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
         var result = new List<Block>();
-        var order = 0;
         var i = 0;
+
+        // The list items still open for nesting, outermost first, each with the indent it was
+        // found at. A list line indented past the innermost becomes its child; anything that is
+        // not a list item closes the lot. Orders are assigned per container as blocks land.
+        var open = new List<(int Indent, Block Item)>();
+        void AddTop(Block block)
+        {
+            open.Clear();
+            block.Order = result.Count;
+            result.Add(block);
+        }
+        void AddListItem(Block item, int indent)
+        {
+            while (open.Count > 0 && open[^1].Indent >= indent)
+                open.RemoveAt(open.Count - 1);
+            if (open.Count > 0)
+            {
+                var parent = open[^1].Item;
+                parent.Children ??= new List<Block>();
+                item.Order = parent.Children.Count;
+                parent.Children.Add(item);
+            }
+            else
+            {
+                item.Order = result.Count;
+                result.Add(item);
+            }
+            open.Add((indent, item));
+        }
 
         while (i < lines.Length)
         {
             var line = lines[i];
+            var indent = IndentWidth(line);
             var trimmed = line.TrimStart();
 
             if (trimmed == "---" || line.Trim() == "---")
             {
-                result.Add(CreateDivider(order++));
+                AddTop(CreateDivider(0));
                 i++;
                 continue;
             }
@@ -158,12 +224,12 @@ public static class NoteBlockMarkdownConverter
                     {
                         Id = Guid.NewGuid().ToString(),
                         Type = BlockType.Equation,
-                        Order = order++
+                        Order = 0
                     };
                     var latex = eqContent.ToString().Trim();
                     eqBlock.Payload = new EquationPayload(latex);
                     eqBlock.Spans = new List<InlineSpan> { InlineSpan.Plain(string.Empty) };
-                    result.Add(eqBlock);
+                    AddTop(eqBlock);
                 }
                 else
                 {
@@ -172,11 +238,11 @@ public static class NoteBlockMarkdownConverter
                     {
                         Id = Guid.NewGuid().ToString(),
                         Type = BlockType.Equation,
-                        Order = order++
+                        Order = 0
                     };
                     eqBlock.Payload = new EquationPayload(inner);
                     eqBlock.Spans = new List<InlineSpan> { InlineSpan.Plain(string.Empty) };
-                    result.Add(eqBlock);
+                    AddTop(eqBlock);
                     i++;
                 }
                 continue;
@@ -208,12 +274,12 @@ public static class NoteBlockMarkdownConverter
                 {
                     Id = Guid.NewGuid().ToString(),
                     Type = isSketch ? BlockType.Sketch : BlockType.Code,
-                    Order = order++,
+                    Order = 0,
                     Spans = new List<InlineSpan> { new TextSpan(source, TextStyle.Default) },
                     Payload = isSketch ? new EmptyPayload() : new CodePayload(language, source),
                     Meta = new Dictionary<string, object>()
                 };
-                result.Add(codeBlock);
+                AddTop(codeBlock);
                 continue;
             }
 
@@ -225,11 +291,11 @@ public static class NoteBlockMarkdownConverter
                 {
                     Id = Guid.NewGuid().ToString(),
                     Type = BlockType.Page,
-                    Order = order++,
+                    Order = 0,
                     Payload = new PagePayload(refId),
                     Spans = new List<InlineSpan> { InlineSpan.Plain(string.Empty) }
                 };
-                result.Add(pageBlock);
+                AddTop(pageBlock);
                 i++;
                 continue;
             }
@@ -244,39 +310,39 @@ public static class NoteBlockMarkdownConverter
                 {
                     Id = Guid.NewGuid().ToString(),
                     Type = BlockType.Image,
-                    Order = order++,
+                    Order = 0,
                     Payload = new ImagePayload(UnwrapImageTarget(imageRef.Groups[2].Value), alt),
                     Spans = new List<InlineSpan> { InlineSpan.Plain(alt) }
                 };
-                result.Add(imageBlock);
+                AddTop(imageBlock);
                 i++;
                 continue;
             }
 
             if (trimmed.StartsWith("#### ", StringComparison.Ordinal))
             {
-                result.Add(CreateRichBlock(BlockType.Heading4, trimmed["#### ".Length..].Trim(), order++));
+                AddTop(CreateRichBlock(BlockType.Heading4, trimmed["#### ".Length..].Trim(), 0));
                 i++;
                 continue;
             }
 
             if (trimmed.StartsWith("### ", StringComparison.Ordinal))
             {
-                result.Add(CreateRichBlock(BlockType.Heading3, trimmed["### ".Length..].Trim(), order++));
+                AddTop(CreateRichBlock(BlockType.Heading3, trimmed["### ".Length..].Trim(), 0));
                 i++;
                 continue;
             }
 
             if (trimmed.StartsWith("## ", StringComparison.Ordinal))
             {
-                result.Add(CreateRichBlock(BlockType.Heading2, trimmed["## ".Length..].Trim(), order++));
+                AddTop(CreateRichBlock(BlockType.Heading2, trimmed["## ".Length..].Trim(), 0));
                 i++;
                 continue;
             }
 
             if (trimmed.StartsWith("# ", StringComparison.Ordinal))
             {
-                result.Add(CreateRichBlock(BlockType.Heading1, trimmed["# ".Length..].Trim(), order++));
+                AddTop(CreateRichBlock(BlockType.Heading1, trimmed["# ".Length..].Trim(), 0));
                 i++;
                 continue;
             }
@@ -284,9 +350,9 @@ public static class NoteBlockMarkdownConverter
             if (Regex.IsMatch(trimmed, @"^-\s*\[\s*[xX]\s*\]"))
             {
                 var content = Regex.Replace(trimmed, @"^-\s*\[\s*[xX]\s*\]\s*", "", RegexOptions.None).Trim();
-                var b = CreateRichBlock(BlockType.Checklist, content, order++);
+                var b = CreateRichBlock(BlockType.Checklist, content, 0);
                 b.Payload = new ChecklistPayload(true);
-                result.Add(b);
+                AddListItem(b, indent);
                 i++;
                 continue;
             }
@@ -294,16 +360,16 @@ public static class NoteBlockMarkdownConverter
             if (Regex.IsMatch(trimmed, @"^-\s*\[\s*\]"))
             {
                 var content = Regex.Replace(trimmed, @"^-\s*\[\s*\]\s*", "", RegexOptions.None).Trim();
-                var b = CreateRichBlock(BlockType.Checklist, content, order++);
+                var b = CreateRichBlock(BlockType.Checklist, content, 0);
                 b.Payload = new ChecklistPayload(false);
-                result.Add(b);
+                AddListItem(b, indent);
                 i++;
                 continue;
             }
 
             if (trimmed.StartsWith("- ", StringComparison.Ordinal))
             {
-                result.Add(CreateRichBlock(BlockType.BulletList, trimmed["- ".Length..].Trim(), order++));
+                AddListItem(CreateRichBlock(BlockType.BulletList, trimmed["- ".Length..].Trim(), 0), indent);
                 i++;
                 continue;
             }
@@ -311,7 +377,7 @@ public static class NoteBlockMarkdownConverter
             var starOrPlusBullet = Regex.Match(trimmed, @"^(\*|\+)\s+(.*)$");
             if (starOrPlusBullet.Success)
             {
-                result.Add(CreateRichBlock(BlockType.BulletList, starOrPlusBullet.Groups[2].Value.Trim(), order++));
+                AddListItem(CreateRichBlock(BlockType.BulletList, starOrPlusBullet.Groups[2].Value.Trim(), 0), indent);
                 i++;
                 continue;
             }
@@ -346,11 +412,11 @@ public static class NoteBlockMarkdownConverter
                     }
                 }
 
-                var callout = CreateRichBlock(BlockType.Callout, string.Join("\n", calloutLines), order++);
+                var callout = CreateRichBlock(BlockType.Callout, string.Join("\n", calloutLines), 0);
                 callout.Payload = new CalloutPayload(
                     calloutHead.Groups[2].Value.Trim(),
                     calloutHead.Groups[1].Value.Trim().ToLowerInvariant());
-                result.Add(callout);
+                AddTop(callout);
                 continue;
             }
 
@@ -382,7 +448,7 @@ public static class NoteBlockMarkdownConverter
                     }
                 }
 
-                result.Add(CreateRichBlock(BlockType.Quote, string.Join("\n", quoteLines), order++));
+                AddTop(CreateRichBlock(BlockType.Quote, string.Join("\n", quoteLines), 0));
                 continue;
             }
 
@@ -391,22 +457,39 @@ public static class NoteBlockMarkdownConverter
                 var content = Regex.Replace(trimmed, @"^\d+\.\s*", "", RegexOptions.None).Trim();
                 var m = Regex.Match(trimmed, @"^(\d+)\.\s");
                 var n = m.Success && int.TryParse(m.Groups[1].Value, out var num) ? num : 1;
-                var nb = CreateRichBlock(BlockType.NumberedList, content, order++);
+                var nb = CreateRichBlock(BlockType.NumberedList, content, 0);
                 // Written under the canonical key the editor and PDF composer read. The legacy
                 // "listNumber" key nothing else looks at is never emitted again, so a numbered
                 // list imported from markdown keeps its start value instead of silently
                 // renumbering from 1 the moment it opens.
                 nb.Meta["listNumberIndex"] = n;
-                result.Add(nb);
+                AddListItem(nb, indent);
                 i++;
                 continue;
             }
 
-            result.Add(CreateRichBlock(BlockType.Text, line, order++));
+            AddTop(CreateRichBlock(BlockType.Text, line, 0));
             i++;
         }
 
         return result;
+    }
+
+    /// <summary>Leading indentation in columns, a tab counting as four, the CommonMark reading.</summary>
+    private static int IndentWidth(string line)
+    {
+        var width = 0;
+        foreach (var ch in line)
+        {
+            if (ch == ' ')
+                width += 1;
+            else if (ch == '\t')
+                width += 4;
+            else
+                break;
+        }
+
+        return width;
     }
 
     private static Block CreateDivider(int order) =>

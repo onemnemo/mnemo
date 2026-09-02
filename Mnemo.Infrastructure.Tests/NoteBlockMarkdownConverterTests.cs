@@ -353,6 +353,90 @@ public class NoteBlockMarkdownConverterTests
         Assert.Contains("![A chart](old.png)", NoteBlockMarkdownConverter.Serialize(new List<Block> { block }));
     }
 
+    [Fact]
+    public void Serialize_NestedList_IndentsChildrenUnderTheirParent()
+    {
+        var parent = new Block
+        {
+            Type = BlockType.BulletList,
+            Order = 0,
+            Spans = new List<InlineSpan> { InlineSpan.Plain("parent") },
+            Children =
+            [
+                new Block
+                {
+                    Type = BlockType.NumberedList,
+                    Order = 0,
+                    Spans = new List<InlineSpan> { InlineSpan.Plain("child") },
+                    Children =
+                    [
+                        new Block
+                        {
+                            Type = BlockType.Checklist,
+                            Order = 0,
+                            Spans = new List<InlineSpan> { InlineSpan.Plain("deep") },
+                            Payload = new ChecklistPayload(true)
+                        }
+                    ]
+                },
+                new Block { Type = BlockType.BulletList, Order = 1, Spans = new List<InlineSpan> { InlineSpan.Plain("second") } }
+            ]
+        };
+
+        var md = NoteBlockMarkdownConverter.Serialize(new List<Block> { parent, Text("after", 1) });
+
+        // Two spaces under a bullet, three under a numbered item: each child sits at its
+        // parent's content column. Line endings are the platform's, as they are between
+        // top-level blocks.
+        Assert.Equal("- parent\n  1. child\n     - [x] deep\n  - second\nafter", md.Replace("\r\n", "\n"));
+    }
+
+    [Fact]
+    public void Deserialize_IndentedListLines_NestUnderTheItemAbove()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("- a\n  - b\n    1. c\n\t- tabbed\n- d\nplain\n  - e");
+
+        Assert.Equal(4, back.Count);
+        Assert.Equal(new[] { 0, 1, 2, 3 }, back.Select(b => b.Order));
+        var a = back[0];
+        Assert.Equal(BlockType.BulletList, a.Type);
+        Assert.NotNull(a.Children);
+        Assert.Equal(1, a.Children!.Count);
+        Assert.Equal("b", a.Children[0].Content);
+        Assert.Equal(0, a.Children[0].Order);
+        Assert.Equal(2, a.Children[0].Children!.Count);
+        var c = a.Children[0].Children![0];
+        Assert.Equal(BlockType.NumberedList, c.Type);
+        Assert.Equal("c", c.Content);
+        // A tab reads as four columns: as deep as "c", not deeper, so it closes "c" and lands
+        // beside it under "b".
+        Assert.Equal("tabbed", a.Children[0].Children![1].Content);
+        Assert.Equal(1, a.Children[0].Children![1].Order);
+        Assert.Equal("d", back[1].Content);
+        Assert.Null(back[1].Children);
+        Assert.Equal(BlockType.Text, back[2].Type);
+        // A non-list line ends the nesting, so the indented item after it is top-level.
+        Assert.Equal(BlockType.BulletList, back[3].Type);
+        Assert.Equal("e", back[3].Content);
+    }
+
+    [Fact]
+    public void RoundTrip_NestedList_KeepsTheTree()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("- a\n  1. b\n     - [ ] c\n  - d\n- e");
+        var md = NoteBlockMarkdownConverter.Serialize(back);
+        Assert.Equal("- a\n  1. b\n     - [ ] c\n  - d\n- e", md.Replace("\r\n", "\n"));
+
+        var again = NoteBlockMarkdownConverter.Deserialize(md);
+        Assert.Equal(2, again.Count);
+        Assert.Equal(BlockType.BulletList, again[0].Type);
+        Assert.Equal(2, again[0].Children!.Count);
+        Assert.Equal(BlockType.NumberedList, again[0].Children![0].Type);
+        Assert.Equal(BlockType.Checklist, Assert.Single(again[0].Children![0].Children!).Type);
+        Assert.Equal("e", again[^1].Content);
+        Assert.Null(again[^1].Children);
+    }
+
     private static Block Text(string text, int order) => new()
     {
         Type = BlockType.Text,
