@@ -184,7 +184,15 @@ export function blockSelectionPlugin(registry: BlockRegistry): Plugin<BlockSelec
             if (tr) {
               view.dispatch(tr);
               view.focus();
+              return true;
             }
+            // Nothing in the set can be removed, which a selection reaching
+            // across a table produces: a lone covered cell is a shape only the
+            // table's own commands change. Handing the key on would delete a
+            // character at whatever caret the selection left behind, out of
+            // sight under a highlight pointing somewhere else, so the press
+            // ends the selection instead, exactly as Escape does.
+            clearBlockSelection(view);
             return true;
           }
         }

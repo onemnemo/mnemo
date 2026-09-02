@@ -33,9 +33,9 @@ export function gripIntent(event: { ctrlKey: boolean; metaKey: boolean; shiftKey
  * opens can act on all of it (clicking into your own selection must not
  * collapse it). Toggle flips the whole block: if all its leaves are selected it
  * removes them, otherwise it adds them, so a second Ctrl-click on the same
- * block deselects it. Range and range-add extend from the current anchor to the
- * block's last leaf; with no anchor yet they select the block itself, additive
- * keeping the rest.
+ * block deselects it. Range and range-add extend from the current anchor over
+ * the whole of the clicked block, whichever side of the anchor it lies on; with
+ * no usable anchor they select the block itself, additive keeping the rest.
  */
 export function applyGrip(
   doc: PMNode,
@@ -63,12 +63,23 @@ export function applyGrip(
     return { selected: next, anchorSid: leaves[0] };
   }
 
-  // Range with nothing to extend from selects the block itself.
-  if (current.anchorSid === null) {
-    const base = intent === 'range-add' ? current.selected : [];
+  const order = orderedSids(doc, registry);
+  const additive = intent === 'range-add';
+
+  // Range with nothing to extend from selects the block itself. An anchor whose
+  // block has since gone counts as nothing.
+  if (current.anchorSid === null || !order.includes(current.anchorSid)) {
+    const base = additive ? current.selected : [];
     return { selected: new Set([...base, ...leaves]), anchorSid: leaves[0] };
   }
 
-  const order = orderedSids(doc, registry);
-  return selectRange(order, current, leaves[leaves.length - 1], intent === 'range-add');
+  // To both ends of the block, not to one of them. A run stopping at the last
+  // leaf covers a single column or table cell when the block sits above the
+  // anchor, and the Backspace that follows then takes half a row away.
+  const toFirst = selectRange(order, current, leaves[0], additive);
+  const toLast = selectRange(order, current, leaves[leaves.length - 1], additive);
+  return {
+    selected: new Set([...toFirst.selected, ...toLast.selected]),
+    anchorSid: current.anchorSid,
+  };
 }
