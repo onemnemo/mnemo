@@ -79,24 +79,38 @@ function planCuts(node: PMNode, nodePos: number, from: number, to: number, out: 
 /**
  * Whether the two ends can come out as one block.
  *
- * They can when they are siblings under a parent holding ordinary blocks, hold
- * the same kind of line, and both draw a caret. That is the one shape
- * ProseMirror's own replace gets right, and it is the one the user means by
- * selecting across a paragraph boundary: what is left of the two ends ends up in
- * one block. Everything else (a cell, a grid, source against prose) has no join
- * to make, and asking for one is what tears a container open or throws.
+ * They can when nothing between either end and the block they share is a
+ * container or a container's structure, both lines are the same kind, and both
+ * draw a caret. That covers siblings under ordinary blocks and a range that runs
+ * from a list item down into its nested items: ProseMirror's own replace joins
+ * what is left of the tail into the head and drops the emptied items between,
+ * which is what the user means by selecting across them. Left to the cut
+ * planner instead, every item the range merely reached into would survive as
+ * an empty husk with its marker still drawn. Everything else (a cell, a grid,
+ * source against prose) has no join to make, and asking for one is what tears
+ * a container open or throws.
  */
 function endsCanJoin($from: ResolvedPos, $to: ResolvedPos): boolean {
-  if ($from.depth !== $to.depth || $from.depth < 2) return false;
-  if ($from.node($from.depth - 2) !== $to.node($to.depth - 2)) return false;
-  const head = $from.node($from.depth - 1);
-  const tail = $to.node($to.depth - 1);
-  for (const block of [head, tail]) {
-    if (NEVER_BARE.has(block.type.name)) return false;
-    if (containerBlockNames.has(block.type.name)) return false;
-    if (!lineIsCaretTarget(block.type)) return false;
+  if ($from.depth < 2 || $to.depth < 2) return false;
+  const shared = $from.sharedDepth($to.pos);
+  for (const $end of [$from, $to]) {
+    // The end's own block first, then every block up to but not including the
+    // shared one: each of them is cut open by the join.
+    for (let depth = $end.depth - 1; depth > shared; depth--) {
+      if (!joinable($end.node(depth))) return false;
+    }
+    if (!lineIsCaretTarget($end.node($end.depth - 1).type)) return false;
   }
+  // The shared node is cut open too when it is the head's own block, one end in
+  // its line and the other down among its children; two ends that are merely
+  // its children leave it standing, whatever it is.
+  if (shared === $from.depth - 1 && !joinable($from.node(shared))) return false;
   return $from.parent.type === $to.parent.type;
+}
+
+/** A block a join may cut through: not a container, not a container's structure. */
+function joinable(block: PMNode): boolean {
+  return !NEVER_BARE.has(block.type.name) && !containerBlockNames.has(block.type.name);
 }
 
 export interface CrossBlockDelete {

@@ -162,6 +162,65 @@ function shape(document: PMNode): string {
   return parts.join(' | ');
 }
 
+// --- a range that runs down a nested list -----------------------------------
+
+function bullet(text: string, ...children: PMNode[]): PMNode {
+  return schema.nodes.bulletItem.create(null, [line(text), ...children]);
+}
+
+/** The block children of the first bullet whose line reads `text`. */
+function childrenOfBullet(document: PMNode, text: string): PMNode[] {
+  let found: PMNode | null = null;
+  document.descendants((node) => {
+    if (found) return false;
+    if (node.type.name === 'bulletItem' && lineText(node) === text) found = node;
+    return !found;
+  });
+  if (!found) throw new Error(`no bullet reading ${JSON.stringify(text)}`);
+  const out: PMNode[] = [];
+  (found as PMNode).forEach((child) => {
+    if (child.type.name !== 'line') out.push(child);
+  });
+  return out;
+}
+
+describe('a range that runs from a list item down into its nested items', () => {
+  const nested = () => doc(bullet('top', bullet('fff', bullet('q', bullet('ff', bullet('f'))))));
+
+  it('joins into one item rather than leaving an empty husk per level', () => {
+    const d = nested();
+    const next = deleteRange(d, posIn(d, 'fff', 0), posIn(d, 'f', 1));
+    const rest = childrenOfBullet(next.doc, 'top');
+    expect(rest.map((node) => `${node.type.name}(${JSON.stringify(lineText(node))})`)).toEqual([
+      'bulletItem("")',
+    ]);
+    expect(childrenOfBullet(next.doc, '')).toEqual([]);
+    expect(next.selection.from).toBe(posIn(next.doc, '', 0));
+  });
+
+  it('keeps the tail text that was outside the range on the head item, and its children', () => {
+    const d = nested();
+    const next = deleteRange(d, posIn(d, 'fff', 1), posIn(d, 'ff', 1));
+    const rest = childrenOfBullet(next.doc, 'top');
+    expect(rest.map((node) => lineText(node))).toEqual(['ff']);
+    // The deepest item's own child survives under the head, however the join
+    // rebuilt the levels between; nothing the range did not cover is lost.
+    const texts: string[] = [];
+    next.doc.descendants((node) => {
+      if (node.type.name === 'bulletItem') texts.push(lineText(node));
+      return true;
+    });
+    expect(texts).toContain('f');
+    expect(strandedParts(next.doc)).toEqual([]);
+  });
+
+  it('reports the join so Enter over the range still splits', () => {
+    const d = nested();
+    const result = buildCrossBlockDelete(stateWith(d, posIn(d, 'fff', 0), posIn(d, 'f', 1)));
+    expect(result?.joined).toBe(true);
+  });
+});
+
 // --- a range that reaches into a container ----------------------------------
 
 describe('a range that runs from a block into a table', () => {

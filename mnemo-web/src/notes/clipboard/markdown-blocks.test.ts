@@ -29,6 +29,59 @@ describe('parseMarkdownToBlocks: nothing', () => {
   });
 });
 
+describe('parseMarkdownToBlocks: pipe tables', () => {
+  const cellTexts = (table: Block): string[][] =>
+    (table.children ?? []).map((row) => (row.children ?? []).map((cell) => textOf(cell)));
+
+  it('reads a header, a delimiter and body rows into a table between its prose', () => {
+    const blocks = parseMarkdownToBlocks(
+      [
+        'Intro paragraph.',
+        '',
+        '| Feature | Category | Test Status |',
+        '| :--- | :--- | :--- |',
+        '| Table Parsing | Core Editor | Success |',
+        '| Selection | Clipboard | Active |',
+        '',
+        'Closing paragraph.',
+      ].join('\n'),
+    );
+    expect(blocks.map((b) => b.type)).toEqual(['Text', 'Text', 'Table', 'Text', 'Text']);
+    const table = blocks[2];
+    expect(cellTexts(table)).toEqual([
+      ['Feature', 'Category', 'Test Status'],
+      ['Table Parsing', 'Core Editor', 'Success'],
+      ['Selection', 'Clipboard', 'Active'],
+    ]);
+    expect(table.payload).toMatchObject({ kind: 'table', headerRows: [true, false, false] });
+    expect((table.payload as { columnWidths: number[] }).columnWidths).toHaveLength(3);
+    for (const row of table.children ?? []) {
+      expect(row.type).toBe('TableRow');
+      for (const cell of row.children ?? []) expect(cell.payload).toEqual({ kind: 'tableCell', fill: '' });
+    }
+  });
+
+  it('keeps an escaped pipe literal and pads a short row to the widest', () => {
+    const table = one('| a \\| b | c |\n|---|---|\n| only |');
+    expect(cellTexts(table)).toEqual([
+      ['a | b', 'c'],
+      ['only', ''],
+    ]);
+  });
+
+  it('reads inline markdown inside a cell', () => {
+    const table = one('| **bold** | x |\n| --- | --- |');
+    const first = table.children?.[0]?.children?.[0];
+    expect(first?.spans.some((span) => isTextSpan(span) && span.style.bold)).toBe(true);
+  });
+
+  it('leaves a line that merely starts with a pipe as text', () => {
+    const block = one('| not a table');
+    expect(block.type).toBe('Text');
+    expect(textOf(block)).toBe('| not a table');
+  });
+});
+
 describe('parseMarkdownToBlocks: atomic blocks', () => {
   it('reads a divider, tolerating trailing whitespace', () => {
     expect(one('---').type).toBe('Divider');

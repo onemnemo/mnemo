@@ -231,6 +231,34 @@ describe('a paste over a range that runs into a table', () => {
   });
 });
 
+describe('a plain text paste that carries a pipe table', () => {
+  beforeEach(() => clearStashedSlice());
+  afterEach(() => {
+    for (const view of views.splice(0)) view.destroy();
+    document.body.innerHTML = '';
+  });
+
+  it('lands as a table block with the prose around it', () => {
+    const view = mount(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 2)));
+    const text = ['Above the table.', '', '| A | B |', '| --- | --- |', '| 1 | 2 |', '', 'Below the table.'].join('\n');
+
+    expect(firePaste(view, clipboardOf({ 'text/plain': text }))).toBe(true);
+
+    const types: string[] = [];
+    view.state.doc.forEach((node) => types.push(node.type.name));
+    expect(types).toContain('table');
+    const cells: string[] = [];
+    view.state.doc.descendants((node) => {
+      if (node.type.name === 'tableCell') cells.push(node.textContent);
+      return true;
+    });
+    expect(cells).toEqual(['A', 'B', '1', '2']);
+    expect(view.state.doc.textContent).toContain('Above the table.');
+    expect(view.state.doc.textContent).toContain('Below the table.');
+  });
+});
+
 describe('a paste into the middle of a code block', () => {
   beforeEach(() => clearStashedSlice());
   afterEach(() => {
