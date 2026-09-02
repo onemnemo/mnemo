@@ -41,10 +41,10 @@ public class Block
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
     /// <summary>
-    /// Short identifier, unique within the owning note. This is the block id the editor addresses
-    /// blocks by across the wire; the agent tools address them by a prefix of <see cref="Id"/>
-    /// instead. Empty until the sid migration has run over the owning note, since a block minted in
-    /// memory has no scope to be unique against yet, so whoever attaches it to a note assigns it.
+    /// Short identifier, unique within the owning note. This is the block id both the editor and the
+    /// agent tools address blocks by across the wire. Empty until the sid migration has run over the
+    /// owning note, since a block minted in memory has no scope to be unique against yet, so whoever
+    /// attaches it to a note assigns it.
     /// </summary>
     public string Sid { get; set; } = string.Empty;
 

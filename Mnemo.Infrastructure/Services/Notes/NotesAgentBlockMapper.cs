@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Mnemo.Core.Models;
 using Mnemo.Infrastructure.Services.Notes.Markdown;
@@ -25,20 +26,26 @@ internal static class NotesAgentBlockMapper
         return new Dictionary<string, object?>
         {
             ["n"] = ordinal,
-            ["id"] = NoteBlockTree.ShortId(block.Id),
+            ["id"] = NoteBlockTree.Handle(block),
             ["type"] = block.Type.ToString(),
             ["len"] = text.Length,
             ["preview"] = preview
         };
     }
 
-    /// <summary>A lossless read entry with markdown plus any typed payload and nested children.</summary>
-    public static Dictionary<string, object?> ToReadEntry(Block block, int depth)
+    /// <summary>
+    /// A lossless read entry with markdown plus any typed payload and nested children.
+    /// </summary>
+    /// <param name="noteHandle">
+    /// Maps a referenced note's GUID to the handle to report for it (its sid, or the GUID unchanged
+    /// when the note is unknown). Only consulted for a <see cref="BlockType.Page"/> block.
+    /// </param>
+    public static Dictionary<string, object?> ToReadEntry(Block block, int depth, Func<string, string> noteHandle)
     {
         block.EnsureSpans();
         var dto = new Dictionary<string, object?>
         {
-            ["id"] = NoteBlockTree.ShortId(block.Id),
+            ["id"] = NoteBlockTree.Handle(block),
             ["type"] = block.Type.ToString(),
             ["order"] = block.Order,
             ["depth"] = depth
@@ -66,9 +73,10 @@ internal static class NotesAgentBlockMapper
                     };
                 break;
             case BlockType.Page:
+                var referenced = block.Payload is PagePayload pp ? pp.ReferenceNoteId : "";
                 dto["page"] = new Dictionary<string, object?>
                 {
-                    ["reference_note_id"] = block.Payload is PagePayload pp ? pp.ReferenceNoteId : ""
+                    ["reference_note_id"] = string.IsNullOrEmpty(referenced) ? referenced : noteHandle(referenced)
                 };
                 break;
             case BlockType.Sketch:
@@ -93,7 +101,7 @@ internal static class NotesAgentBlockMapper
         {
             var children = new List<object>(block.Children.Count);
             foreach (var child in block.Children)
-                children.Add(ToReadEntry(child, depth + 1));
+                children.Add(ToReadEntry(child, depth + 1, noteHandle));
             dto["children"] = children;
         }
 

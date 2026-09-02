@@ -29,7 +29,7 @@ public static class NotesToolRegistrar
             svc.ReadNoteAsync);
 
         Reg<EditNoteParameters>("edit_note",
-            "Apply a batch of block ops atomically: set_text, replace, insert, delete, move, convert, set_checked. Target blocks by id or short-id prefix. Pass expected_version from outline/read to avoid clobbering.",
+            "Apply a batch of block ops atomically: set_text, replace, insert, delete, move, convert, set_checked. Target blocks by short id from outline_note or read_note. Pass expected_version from outline/read to avoid clobbering.",
             svc.EditNoteAsync);
 
         Reg<CreateNoteParameters>("create_note",
