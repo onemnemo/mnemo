@@ -18,6 +18,7 @@
 import type { AnyBlockModule, InvariantContribution } from '../registry/types';
 import type { BlockType } from '../../model/types';
 import { blockChildrenOf, defineBlock, lineOf, type BlockDeps } from './shared';
+import { containmentInvariant } from './containment';
 import { insertTwoColumn } from './slash-insert';
 import { twoColumnView } from './two-column-view';
 
@@ -30,10 +31,13 @@ import { twoColumnView } from './two-column-view';
  * placeholder Text on delete and on paste.
  *
  * It runs early (before the cosmetic heading-bold pass) because it moves content;
- * a later invariant then sees the repaired document. Dissolving the split when a
- * cell empties beside a filled one, or collapsing the whole two-column back to a
- * single block, are delete-command behaviours, not this universal net, they land
- * with the two-column editing commands.
+ * a later invariant then sees the repaired document. It runs after the
+ * containment rule for the same reason from the other side: unwrapping a
+ * stranded node is one of the things that can leave a cell with nothing in it,
+ * so the cell is read as it stands rather than as the edit left it. Dissolving
+ * the split when a cell empties beside a filled one, or collapsing the whole
+ * two-column back to a single block, are delete-command behaviours, not this
+ * universal net, they land with the two-column editing commands.
  */
 const columnNeverEmpty: InvariantContribution = {
   id: 'column.neverEmpty',
@@ -50,16 +54,20 @@ const columnNeverEmpty: InvariantContribution = {
       if (from > to) continue;
       ctx.state.doc.nodesBetween(from, to, (node, pos) => {
         if (node.type.name !== 'columnGroup') return true;
+        // Map the position through the accumulating transaction, so repairs to
+        // earlier cells in the same pass do not shift this one out from under
+        // us, and take the cell from there rather than from the state: an
+        // earlier invariant may have emptied it, or taken it away entirely.
+        const at = tr.mapping.map(pos);
+        const cell = tr.doc.nodeAt(at);
+        if (!cell || cell.type.name !== 'columnGroup') return false;
         // A cell with block children is fine; keep descending in case a nested
         // one was emptied.
-        if (blockChildrenOf(node).length > 0) return true;
-        const cellLine = lineOf(node);
+        if (blockChildrenOf(cell).length > 0) return true;
+        const cellLine = lineOf(cell);
         if (!cellLine) return false;
-        // Seed the placeholder right after the cell's mandatory line. Map the
-        // position through the accumulating transaction so repairs to earlier
-        // cells in the same pass do not shift this one out from under us.
-        const insertAt = tr.mapping.map(pos + 1 + cellLine.nodeSize);
-        tr.insert(insertAt, paragraph.create(null, line.create()));
+        // The placeholder goes right after the cell's mandatory line.
+        tr.insert(at + 1 + cellLine.nodeSize, paragraph.create(null, line.create()));
         touched = true;
         return false;
       });
@@ -174,7 +182,7 @@ export function columnGroupBlock(deps: BlockDeps): AnyBlockModule {
       attrsFrom: () => ({}),
       wireFrom: () => ({ type: 'ColumnGroup' as BlockType, payload: { kind: 'empty' as const } }),
       toMarkdown: (node, ctx) => ctx.serializeChildren(node),
-      invariants: [columnNeverEmpty],
+      invariants: [containmentInvariant('columnGroup'), columnNeverEmpty],
     },
     deps,
   );

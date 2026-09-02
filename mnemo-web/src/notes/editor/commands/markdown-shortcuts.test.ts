@@ -7,6 +7,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { createEditorSchema } from '../schema';
 import { invariantPipeline } from '../pipeline/invariants';
 import { inputTriggerPlugin } from '../pipeline/input-triggers';
+import { lineIsCaretTarget } from '../blocks/shared';
 
 const { schema, registry } = createEditorSchema();
 const strong = schema.marks.strong.create();
@@ -147,6 +148,40 @@ describe('markdown whole-line shortcuts', () => {
     const { state, handled } = type(d, caretAt(d, 0, 3), ' ');
     expect(handled).toBe(true);
     expect(blockAt(state.doc, 0).type.name).toBe('divider');
+  });
+
+  it('lands the caret in a Text block below the divider, which holds no caret itself', () => {
+    const d = doc(para('---'));
+    const { state } = type(d, caretAt(d, 0, 3), ' ');
+    // A divider draws as a bare rule with no content hole, so a caret left in
+    // its line is invisible and everything typed next is saved into it unseen.
+    expect(state.doc.childCount).toBe(2);
+    expect(blockAt(state.doc, 1).type.name).toBe('paragraph');
+    expect(state.selection.from).toBe(caretAt(state.doc, 1, 0));
+    expect(lineIsCaretTarget(state.selection.$from.node(1).type)).toBe(true);
+  });
+
+  it('types on into that block rather than into the divider', () => {
+    const d = doc(para('---'));
+    const { state } = type(d, caretAt(d, 0, 3), ' ');
+    const typed = state.apply(state.tr.insertText('and then'));
+    expect(blockAt(typed.doc, 0).textContent).toBe('');
+    expect(blockAt(typed.doc, 1).textContent).toBe('and then');
+  });
+
+  it('reuses the block already below rather than adding a second one', () => {
+    const d = doc(para('---'), para('after'));
+    const { state } = type(d, caretAt(d, 0, 3), ' ');
+    expect(state.doc.childCount).toBe(2);
+    expect(state.selection.from).toBe(caretAt(state.doc, 1, 0));
+    expect(blockAt(state.doc, 1).textContent).toBe('after');
+  });
+
+  it('leaves the caret in the converted block when that block can hold one', () => {
+    const d = doc(para('>'));
+    const { state } = type(d, caretAt(d, 0, 1), ' ');
+    expect(state.doc.childCount).toBe(1);
+    expect(state.selection.from).toBe(caretAt(state.doc, 0, 0));
   });
 
   it('does not fire when text follows the caret (whole line is not the marker)', () => {

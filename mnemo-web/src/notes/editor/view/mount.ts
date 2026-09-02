@@ -42,19 +42,31 @@
  * that as the entire note, so a read taken mid-load would persist the blocks
  * that had arrived and delete every block that had not.
  *
- * So the partial state stays private to the view. Anything that asks this
- * mount for the document, through the handle or by touching the editor,
- * finishes the load synchronously first and gets the whole thing:
+ * So the partial state stays private to the view. Nothing that asks this mount
+ * for the document is answered with less than all of it, and no edit is left
+ * sitting on less than all of it:
  *
- *  - The **handle** drains before every `state` read and every `apply`. That
- *    covers saving, and it covers programmatic writers, which read the state
- *    to build their transaction and so are handed a complete document before
- *    they build anything.
+ *  - The **handle** drains before every `state` read. That covers saving, and
+ *    it covers programmatic writers, which read the state to build their
+ *    transaction and so are handed a complete document before they build
+ *    anything.
+ *  - An **apply** goes in against the document its caller built from, and the
+ *    load finishes immediately after, in the same call. Draining first would
+ *    swap the document out from under a transaction that already exists, and
+ *    ProseMirror rejects one whose base document is no longer current; a file
+ *    drop and the block gutter both build from `view.state` with no focus,
+ *    press or keystroke ahead of them to have drained it. Appends land at the
+ *    live end, so the edit and the blocks still to come cannot collide.
  *  - **Touching the editor** drains too, before ProseMirror can build a
  *    transaction of its own. A keystroke's transaction is constructed from
  *    `view.state` deep inside PM's DOM reader, far too late to intervene, so
  *    the load is finished at the first sign of a user, on focus or on the
  *    press that precedes the focus.
+ *  - **Teardown** puts what is left into the state the handle keeps answering
+ *    with, which is the document a save outliving the view commits. Into that
+ *    state only, never the view: the view is on its way out, and rendering the
+ *    rest of a large note into it would spend the freeze this arrangement
+ *    exists to avoid, on the beat the note closes.
  *
  * The cost is a synchronous finish for a user who starts editing a very large
  * note within the first moment of opening it, which is the correct trade: the
@@ -110,8 +122,8 @@ export interface MountEditorOptions {
   readonly schedule?: (run: () => void) => void;
 }
 
-/** Appends `nodes` at the document's live end, invisibly to the authority. */
-function appendNodes(view: EditorView, nodes: readonly PMNode[]): void {
+/** The state this view would hold with `nodes` appended at the document's live end. */
+function stateWithAppended(view: EditorView, nodes: readonly PMNode[]): EditorState {
   // Read the live state, not one captured when this was scheduled: a user's
   // edit to the already-mounted prefix must not be discarded by an append that
   // assumed the document was still exactly as it was.
@@ -119,7 +131,12 @@ function appendNodes(view: EditorView, nodes: readonly PMNode[]): void {
   const tr = live.tr
     .insert(live.doc.content.size, nodes as PMNode[])
     .setMeta('addToHistory', false);
-  view.updateState(live.apply(tr));
+  return live.apply(tr);
+}
+
+/** Appends `nodes` at the document's live end, invisibly to the authority. */
+function appendNodes(view: EditorView, nodes: readonly PMNode[]): void {
+  view.updateState(stateWithAppended(view, nodes));
 }
 
 export interface MountedEditor {
@@ -170,6 +187,8 @@ export function mountEditor(options: MountEditorOptions): MountedEditor {
   let destroyed = false;
   /** Blocks not yet in the view's state. Empty whenever the load is complete. */
   let pending: PMNode[][] = [];
+  /** The whole document, kept at teardown when blocks were still outstanding. */
+  let finalState: EditorState | null = null;
 
   /** Puts every outstanding block into the view at once. Idempotent. */
   function finishLoad(): void {
@@ -182,20 +201,28 @@ export function mountEditor(options: MountEditorOptions): MountedEditor {
   }
 
   // Every read drains first, so a partial state is never something the
-  // authority, a save, or a command can observe. Draining on the *read* is
-  // what makes it safe: ProseMirror rejects a transaction whose base document
-  // is not the current one, so a caller that built a transaction from a
-  // half-loaded state could not have applied it anyway.
+  // authority, a save, or a command can observe.
   const handle: EditorHandle = {
     get state() {
       finishLoad();
-      return viewHandle.state;
+      return finalState ?? viewHandle.state;
     },
     apply(tr) {
+      // The transaction lands on the document it was built from, and the rest
+      // of the note follows it in. The other order rejects the caller's work:
+      // `tr` exists already, and ProseMirror refuses a transaction whose base
+      // document is no longer the current one.
+      const applied = viewHandle.apply(tr);
       finishLoad();
-      return viewHandle.apply(tr);
+      return { state: viewHandle.state, transactions: applied.transactions };
     },
     destroy(): void {
+      // A save can still read this handle after the view is gone, and what it
+      // reads is what it commits, so the outstanding blocks have to be in that
+      // document. They go into the state alone; rendering them into a view
+      // that is being thrown away would buy nothing and cost the freeze the
+      // chunked mount exists to avoid.
+      if (pending.length > 0) finalState = stateWithAppended(view, pending.flat());
       pending = [];
       viewHandle.destroy();
     },

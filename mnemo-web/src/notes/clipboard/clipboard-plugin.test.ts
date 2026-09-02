@@ -91,6 +91,18 @@ function paragraphsReading(view: EditorView, text: string): { sid: string; id: s
   return out;
 }
 
+/** Every link mark's href in the document, in order. */
+function hrefsIn(view: EditorView): string[] {
+  const out: string[] = [];
+  view.state.doc.descendants((node) => {
+    for (const mark of node.marks) {
+      if (mark.type.name === 'link') out.push(String(mark.attrs.href));
+    }
+    return true;
+  });
+  return out;
+}
+
 const nonceOf = (html: string): string | undefined =>
   new RegExp(`${MNEMO_NONCE_ATTR}="([^"]+)"`).exec(html)?.[1];
 
@@ -303,6 +315,39 @@ describe('clipboardPlugin external paste', () => {
     expect(view.state.doc.child(0).type.name).toBe('heading');
     expect(view.state.doc.child(0).textContent).toBe('Real Heading');
   });
+
+  it('keeps rich HTML when a line of its rendered text merely reads like markdown', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    // A numbered step on a docs page: the rendered text carries the literal "1. ",
+    // which is no reason to throw away the page's heading and its link.
+    const clip = fakeClipboard();
+    clip.setData('text/plain', 'Setup\n1. Install the CLI first.');
+    clip.setData('text/html', '<h1>Setup</h1><p>1. Install the <a href="https://cli.test">CLI</a> first.</p>');
+
+    expect(firePaste(view, clip)).toBe(true);
+    const types: string[] = [];
+    view.state.doc.forEach((node) => types.push(node.type.name));
+    expect(types).toContain('heading');
+    expect(hrefsIn(view)).toEqual(['https://cli.test']);
+  });
+
+  it('keeps the links of a list whose plain text carries its own numbering', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    const clip = fakeClipboard();
+    clip.setData('text/plain', '1. First\n2. Second');
+    clip.setData(
+      'text/html',
+      '<ol><li><a href="https://one.test">First</a></li><li><a href="https://two.test">Second</a></li></ol>',
+    );
+
+    expect(firePaste(view, clip)).toBe(true);
+    expect(view.state.doc.textContent).toContain('First');
+    expect(hrefsIn(view)).toEqual(['https://one.test', 'https://two.test']);
+  });
 });
 
 describe('clipboardPlugin plain-text markdown paste', () => {
@@ -432,16 +477,6 @@ describe('clipboardPlugin paste hardening', () => {
     return JSON.stringify({ v: 1, nonce: 'attacker', mode: 'blocks', slice: slice.toJSON() });
   }
 
-  function linkHrefs(view: EditorView): string[] {
-    const out: string[] = [];
-    view.state.doc.descendants((node) => {
-      for (const mark of node.marks) {
-        if (mark.type.name === 'link') out.push(String(mark.attrs.href));
-      }
-      return true;
-    });
-    return out;
-  }
 
   it('strips a javascript: link carried in a crafted private-MIME payload', () => {
     const view = mountFull(docOf(para('start', 's1')));
@@ -453,7 +488,7 @@ describe('clipboardPlugin paste hardening', () => {
     expect(firePaste(view, hostile)).toBe(true);
     // The text lands, but no link mark (and certainly no javascript: href) with it.
     expect(view.state.doc.textContent).toContain('click me');
-    expect(linkHrefs(view)).toEqual([]);
+    expect(hrefsIn(view)).toEqual([]);
   });
 
   it('keeps a safe link from a private-MIME payload', () => {
@@ -464,7 +499,7 @@ describe('clipboardPlugin paste hardening', () => {
     clip.setData(MNEMO_CLIPBOARD_MIME, craftedPayload('https://ok.test'));
 
     expect(firePaste(view, clip)).toBe(true);
-    expect(linkHrefs(view)).toEqual(['https://ok.test']);
+    expect(hrefsIn(view)).toEqual(['https://ok.test']);
   });
 
   it('does not throw on a malformed private-MIME payload; it degrades to the sanitised HTML', () => {

@@ -13,9 +13,10 @@
  * Three properties make that safe rather than a source of loops:
  *
  *  - **Range-local.** Each invariant reads only what the transaction changed
- *    (`changedRanges`, in the *new* document's coordinates). Scanning the whole
- *    document per keystroke would miss the frame budget the moment a note is
- *    large, which is the size Notes is built for.
+ *    (`changedRanges`, in the *new* document's coordinates, opened by one
+ *    position on each side). Scanning the whole document per keystroke would
+ *    miss the frame budget the moment a note is large, which is the size Notes
+ *    is built for.
  *
  *  - **Ordered, single-pass.** Invariants run low `order` first, and structural
  *    ones (which move content) are ordered before cosmetic ones (which mark it),
@@ -100,6 +101,23 @@ function mergeRanges(ranges: DocRange[]): DocRange[] {
 }
 
 /**
+ * Each range opened by one position on each side.
+ *
+ * A replace that cannot fit becomes a step that rewrites *around* what it kept,
+ * and the part it kept is reported as unchanged even when its parent is not the
+ * one it had. That content sits immediately outside the range that moved it, so
+ * a rule about where a node is allowed to sit would never see the node it is
+ * about. One position is exactly the distance to it, and the cost is one extra
+ * sibling per range for every other rule.
+ */
+function openEnds(ranges: readonly DocRange[], doc: PMNode): DocRange[] {
+  return ranges.map((range) => ({
+    from: Math.max(0, range.from - 1),
+    to: Math.min(doc.content.size, range.to + 1),
+  }));
+}
+
+/**
  * Whether any node of `nodeName` overlaps a changed range, the fast skip that
  * keeps an invariant from running when its block type was not touched at all.
  *
@@ -147,7 +165,7 @@ export function invariantPipeline(registry: BlockRegistry): Plugin {
       // undo the undo.
       if (transactions.some(isHistoryRestore)) return null;
 
-      const ranges = changedRanges(transactions);
+      const ranges = openEnds(changedRanges(transactions), newState.doc);
       if (ranges.length === 0) return null;
 
       const tr = newState.tr;

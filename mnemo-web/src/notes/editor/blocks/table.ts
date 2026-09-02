@@ -24,6 +24,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import type { AnyBlockModule, InvariantContribution, MdContext } from '../registry/types';
 import type { BlockType } from '../../model/types';
 import { blockChildrenOf, defineBlock, lineText, metrics, type BlockDeps } from './shared';
+import { containmentInvariant } from './containment';
 import { insertTable } from './slash-insert';
 import { columnWidths, headerColumnsOf, headerRowsOf, squareUp, TABLE_COL_W } from '../table/model';
 import { tableView } from '../table/table-view';
@@ -54,10 +55,15 @@ const tableRectangular: InvariantContribution = {
       if (from > to) continue;
       ctx.state.doc.nodesBetween(from, to, (node, pos) => {
         if (node.type.name !== 'table') return true;
-        const repaired = squareUp(node);
+        // Squared up as the table stands, not as the edit left it: the
+        // containment rule ahead of this one can take a stranded node out from
+        // inside a cell, which changes both the shape and the size.
+        const at = tr.mapping.map(pos);
+        const live = tr.doc.nodeAt(at);
+        if (!live || live.type.name !== 'table') return false;
+        const repaired = squareUp(live);
         if (repaired) {
-          const at = tr.mapping.map(pos);
-          tr.replaceWith(at, at + node.nodeSize, repaired);
+          tr.replaceWith(at, at + live.nodeSize, repaired);
           touched = true;
         }
         // A table inside a table is not a shape the commands make, and descending
@@ -185,6 +191,7 @@ export function tableRowBlock(deps: BlockDeps): AnyBlockModule {
       // The table writes the whole grid, so a row asked on its own writes nothing
       // rather than a stray pipe line in the middle of a document.
       toMarkdown: () => '',
+      invariants: [containmentInvariant('tableRow')],
     },
     deps,
   );
@@ -219,6 +226,7 @@ export function tableCellBlock(deps: BlockDeps): AnyBlockModule {
       }),
       // Likewise the table's job; a cell asked on its own is just its text.
       toMarkdown: (_node, _ctx, inline) => inline,
+      invariants: [containmentInvariant('tableCell')],
       estimate: (node) =>
         Math.max(
           ROW_HEIGHT,

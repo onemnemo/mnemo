@@ -6,7 +6,7 @@
  * by the same arithmetic as a top-level one.
  */
 
-import type { Node as PMNode } from 'prosemirror-model';
+import type { Node as PMNode, ResolvedPos } from 'prosemirror-model';
 import type { EditorState } from 'prosemirror-state';
 
 export interface BlockContext {
@@ -25,7 +25,15 @@ export interface BlockContext {
  * editable line (a node selection on an atom, say).
  */
 export function blockContext(state: EditorState): BlockContext | null {
-  const { $from } = state.selection;
+  return blockContextAt(state.selection.$from);
+}
+
+/**
+ * The same coordinates for any resolved position, so a command that has already
+ * changed the document can ask about the caret its own transaction produced
+ * rather than about the one the state started with.
+ */
+export function blockContextAt($from: ResolvedPos): BlockContext | null {
   const line = $from.parent;
   // The caret must be in inline content; doc > block > line means the line's
   // parent is always the block, one level up.
