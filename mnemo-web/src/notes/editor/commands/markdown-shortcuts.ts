@@ -30,7 +30,12 @@
 
 import { TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
 import type { InputTriggerContribution } from '../registry/types';
-import { blockContext, convertBlockType, isContentVisuallyEmpty } from './structure';
+import {
+  blockContext,
+  convertBlockType,
+  isContentVisuallyEmpty,
+  landCaretAfterConversion,
+} from './structure';
 
 /**
  * Converts the caret's paragraph to a list item, dropping the leading marker and
@@ -58,6 +63,9 @@ function convertLeadingMarker(state: EditorState, targetNodeName: string): Trans
  * Converts the caret's paragraph to `targetNodeName`, clearing its content,
  * only when nothing follows the caret, so a whole-line marker like `# ` converts
  * but `#foo` (caret after the `#`) is left alone to become literal text.
+ *
+ * The caret is landed rather than parked at the converted block's own line: a
+ * `--- ` makes a divider, and a divider is not somewhere a caret can be.
  */
 function convertWholeLine(
   state: EditorState,
@@ -78,8 +86,7 @@ function convertWholeLine(
 
   const tr = state.tr;
   convertBlockType(tr, blockPos, block, target, { attrs, content: 'clear' });
-  tr.setSelection(TextSelection.create(tr.doc, blockPos + 2));
-  return tr;
+  return landCaretAfterConversion(tr, blockPos);
 }
 
 /**
@@ -133,8 +140,6 @@ export function markdownShortcutTriggers(): readonly InputTriggerContribution[] 
     {
       id: 'markdown.divider',
       match: /^--- $/,
-      // Caret stays in the divider's now-empty line; the divider NodeView
-      // is responsible for making it atomic and escaping the caret to a block below.
       handler: (state) => convertWholeLine(state, 'divider'),
     },
   ];

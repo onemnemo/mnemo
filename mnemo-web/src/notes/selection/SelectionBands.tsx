@@ -5,6 +5,7 @@ import type { EditorView } from 'prosemirror-view';
 
 import type { BlockRegistry } from '../editor/registry/build';
 import { getBlockSelection, subscribeBlockSelection } from './block-selection-plugin';
+import { coveredBlockRanges } from './delete-selected';
 import { firstRowTouching, lastRowTouching, marqueeRows } from './marquee-hit';
 import { selectionBands, type Band, type Rect } from './selection-bands';
 
@@ -27,6 +28,14 @@ import { selectionBands, type Band, type Rect } from './selection-bands';
  * handful. The blocks off screen need no band, because there is nothing there
  * to see; one row of margin on each side keeps the band that spans the fold
  * dividing its gap correctly.
+ *
+ * A row is painted whole only when the selection covers all of it. Anything
+ * less is painted from the delete plan, so the highlight and the key can never
+ * disagree: a table with one cell in the selection changes nothing on Backspace
+ * and so lights up nothing, where claiming the row would promise to remove a
+ * table that is about to survive. The plan is a walk of the document, so it is
+ * built only when a partly covered row turns up, which an ordinary selection of
+ * whole rows never produces.
  */
 
 /** One measured block: its rect, and which top-level row it belongs to. */
@@ -62,21 +71,27 @@ function measureBands(
   const first = Math.max(0, firstRowTouching(count, (index) => rectOf(index).bottom, bounds.top) - 1);
   const last = Math.min(count - 1, lastRowTouching(count, (index) => rectOf(index).top, bounds.bottom) + 1);
 
+  let plan: ReturnType<typeof coveredBlockRanges> | null = null;
+  const coveredWithin = (from: number, to: number) => {
+    plan ??= coveredBlockRanges(view.state.doc, registry, selected);
+    return plan.filter((range) => range.from >= from && range.from < to);
+  };
+
   const entries: Entry[] = [];
   for (let index = first; index <= last; index++) {
     const row = rows[index];
-    if (row.cellChildren) {
-      // Only the cells that are actually selected: a band across the whole row
-      // would claim the neighbouring lane as well.
-      for (const child of row.cellChildren) {
-        if (!child.sids.some((sid) => selected.has(sid))) continue;
-        const el = view.nodeDOM(child.pos);
-        if (el instanceof HTMLElement) entries.push({ rect: toRect(el), row: index });
-      }
+    if (row.sids.length > 0 && row.sids.every((sid) => selected.has(sid))) {
+      entries.push({ rect: toRect(root.children[index]), row: index });
       continue;
     }
     if (!row.sids.some((sid) => selected.has(sid))) continue;
-    entries.push({ rect: toRect(root.children[index]), row: index });
+    // Partly covered: one band per block the delete plan would take, which is
+    // the selected lane of a two-column row, and nothing at all inside a table.
+    const end = rows[index + 1]?.pos ?? view.state.doc.content.size;
+    for (const range of coveredWithin(row.pos, end)) {
+      const el = view.nodeDOM(range.from);
+      if (el instanceof HTMLElement) entries.push({ rect: toRect(el), row: index });
+    }
   }
 
   return selectionBands(

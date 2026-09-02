@@ -11,8 +11,9 @@
  *  3. HTML from another app: sanitised, parsed with our schema, and dropped in
  *     with ProseMirror's own fitting, the way any browser paste behaves. An
  *     over-large paste degrades to plain text rather than being parsed. A markdown
- *     editor's HTML is skipped here when the plain text alongside it parses to real
- *     block structure, so pasted markdown becomes blocks rather than literal syntax.
+ *     editor's HTML is skipped here when it carries no structure of its own and
+ *     the plain text beside it reads as markdown, so pasted markdown becomes
+ *     blocks rather than literal syntax.
  *  4. Plain text: read as Mnemo markdown, the desktop's only paste dialect, so a
  *     pasted markdown document becomes real blocks. One line folds inline at the
  *     caret; a run of blocks is placed like an Enter split. Only genuinely empty
@@ -50,8 +51,7 @@ import { withFreshIdentity } from './clear-identity';
 import { dropUnsafeLinks } from './scrub-marks';
 import { parseMarkdownToBlocks } from './markdown-blocks';
 import { parseExternalHtml } from './parse-html';
-import { placeBlockRun, replaceSelectedBlocks } from './place-blocks';
-import { getBlockSelection } from '../selection/block-selection-plugin';
+import { inSourceLine, placePaste } from './place-paste';
 import {
   collectStageablePaths,
   remapImagePaths,
@@ -67,18 +67,18 @@ import { cellAtPos, cellCaretPos, gridToTable, writeCells } from '../editor/tabl
 const MAX_PLAIN_TEXT_LENGTH = 2_000_000;
 
 /**
- * Whether the clipboard's plain text parses to real block structure.
+ * Whether the clipboard's plain text is the truer reading of what was copied.
  *
  * A markdown editor puts the literal markdown on text/plain and a trivially
  * wrapped copy of that same text on text/html (`<p># Heading</p>`), so the HTML
- * path would paste the syntax verbatim. When the plain text yields at least one
- * non-Text block the markdown reading is the truer one and should win over that
- * HTML. A source that emits semantic HTML (a web page, a word processor) puts only
- * rendered text on text/plain, which holds no markdown syntax and so never trips
- * this, leaving its rich HTML to win as before. A purely inline-formatted line
- * (just bold or a link) stays a single Text block and is left to the HTML too.
+ * path would paste the syntax verbatim. The comparison is what makes that safe:
+ * the plain text wins only when the HTML has no structure of its own to lose,
+ * because rendered page text routinely holds a line that reads as markdown (a
+ * numbered step, a quoted mail line, a rule of dashes) and a semantic fragment
+ * must not lose its headings and links to that coincidence.
  */
-function plainTextIsStructuredMarkdown(data: DataTransfer): boolean {
+function markdownReadsRicher(data: DataTransfer, html: Slice): boolean {
+  if (htmlCarriesStructure(html)) return false;
   const text = data.getData('text/plain');
   if (text.trim() === '') return false;
   try {
@@ -86,6 +86,23 @@ function plainTextIsStructuredMarkdown(data: DataTransfer): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Whether a parsed HTML fragment carries anything a markdown reading of the
+ * plain text beside it would destroy: a block type other than a bare paragraph,
+ * or any mark. A fragment of plain paragraphs carries nothing, which is exactly
+ * the shape a markdown editor's wrapped syntax arrives in.
+ */
+function htmlCarriesStructure(slice: Slice): boolean {
+  let rich = false;
+  slice.content.descendants((node) => {
+    if (rich) return false;
+    if (node.marks.length > 0) rich = true;
+    else if (node.isBlock && node.type.name !== 'paragraph' && node.type.name !== 'line') rich = true;
+    return !rich;
+  });
+  return rich;
 }
 
 export function handleInternalPaste(
@@ -117,29 +134,28 @@ export function handleInternalPaste(
   // where a tab is content, so an ordinary paste still folds in as text below.
   if (!inSourceLine(view.state)) {
     const parsed = parseClipboardGrid(data);
-    if (parsed && isMultiCell(parsed.grid) && pasteGrid(view, parsed.grid, parsed.fromHtml)) {
+    if (parsed && isMultiCell(parsed.grid) && pasteGrid(view, parsed.grid, parsed.fromHtml, registry)) {
       return true;
     }
   }
 
   const html = data.getData('text/html');
   if (html.trim() !== '') {
-    // A markdown editor emits the literal markdown on text/plain and a trivially
-    // wrapped copy of it on text/html; when that plain text carries real block
-    // structure the markdown reading is the truer one, so skip the HTML and let
-    // the markdown path below turn it into blocks.
-    if (!plainTextIsStructuredMarkdown(data)) {
-      let placed = false;
-      try {
-        const parsed = parseExternalHtml(html, schema);
-        placed = parsed !== 'too-large' && parsed !== null && placeExternal(view, parsed.slice);
-      } catch {
-        // Even the parser is fed attacker input; a throw here must not escape, or
-        // the browser would native-paste the raw HTML.
-        placed = false;
+    let placed = false;
+    try {
+      const parsed = parseExternalHtml(html, schema);
+      // A markdown editor emits the literal markdown on text/plain and a
+      // trivially wrapped copy of it on text/html; when the markdown reading is
+      // the richer one, the plain-text path below turns it into blocks instead.
+      if (parsed !== 'too-large' && parsed !== null && !markdownReadsRicher(data, parsed.slice)) {
+        placed = placeExternal(view, parsed.slice, registry);
       }
-      if (placed) return true;
+    } catch {
+      // Even the parser is fed attacker input; a throw here must not escape, or
+      // the browser would native-paste the raw HTML.
+      placed = false;
     }
+    if (placed) return true;
     return pastePlainText(view, data, registry, support, progress);
   }
 
@@ -179,11 +195,8 @@ function placeInternal(
 ): boolean {
   try {
     const prepared = dropUnsafeLinks(withFreshIdentity(slice, registry));
-    const place: Placement = (state, content) => {
-      const selected = getBlockSelection(state).selected;
-      if (selected.size > 0) return replaceSelectedBlocks(state, content, registry, selected);
-      return mode === 'blocks' ? placeBlockRun(state, content) : state.tr.replaceSelection(content);
-    };
+    const place: Placement = (state, content) =>
+      placePaste(state, content, mode === 'blocks' ? 'blocks' : 'merge', registry);
     return commitPaste(view, prepared, place, support, progress);
   } catch {
     // A structurally invalid payload can throw only when placed, not when
@@ -192,9 +205,9 @@ function placeInternal(
   }
 }
 
-function placeExternal(view: EditorView, slice: Slice): boolean {
+function placeExternal(view: EditorView, slice: Slice, registry: BlockRegistry): boolean {
   try {
-    return dispatchPaste(view, view.state.tr.replaceSelection(slice));
+    return dispatchPaste(view, placePaste(view.state, slice, 'merge', registry));
   } catch {
     return false;
   }
@@ -238,18 +251,13 @@ function pastePlainText(
     if (blocks.length === 1 && blocks[0].type === 'Text') {
       const line = lineOf(mapper.toNode(blocks[0]));
       const inline = dropUnsafeLinks(new Slice(line ? line.content : Fragment.empty, 0, 0));
-      dispatchPaste(view, view.state.tr.replaceSelection(inline));
+      dispatchPaste(view, placePaste(view.state, inline, 'merge', registry));
       return true;
     }
 
     const nodes = blocks.map((block) => mapper.toNode(block));
     const run = dropUnsafeLinks(new Slice(Fragment.fromArray(nodes), 0, 0));
-    const place: Placement = (state, content) => {
-      const selected = getBlockSelection(state).selected;
-      return selected.size > 0
-        ? replaceSelectedBlocks(state, content, registry, selected)
-        : placeBlockRun(state, content);
-    };
+    const place: Placement = (state, content) => placePaste(state, content, 'blocks', registry);
     return commitPaste(view, run, place, support, progress);
   } catch {
     // A hostile or malformed paste threw while parsing or placing: fall back to a
@@ -333,7 +341,12 @@ async function runStagedPaste(
  * separated paste outside a table returns false so the text path keeps it as
  * ordinary text, tabs and all, rather than a table nobody asked for.
  */
-function pasteGrid(view: EditorView, grid: string[][], fromHtml: boolean): boolean {
+function pasteGrid(
+  view: EditorView,
+  grid: string[][],
+  fromHtml: boolean,
+  registry: BlockRegistry,
+): boolean {
   const at = tableCellUnderCaret(view.state);
   if (at) {
     const next = writeCells(at.node, { row: at.row, col: at.col }, grid);
@@ -345,7 +358,8 @@ function pasteGrid(view: EditorView, grid: string[][], fromHtml: boolean): boole
   }
   if (!fromHtml) return false;
   const table = gridToTable(view.state.schema, grid);
-  return dispatchPaste(view, placeBlockRun(view.state, new Slice(Fragment.from(table), 0, 0)));
+  const run = new Slice(Fragment.from(table), 0, 0);
+  return dispatchPaste(view, placePaste(view.state, run, 'blocks', registry));
 }
 
 /** The table cell the caret sits in, with the enclosing table's position, or null. */
@@ -361,11 +375,6 @@ function tableCellUnderCaret(
     return cell ? { tablePos, node, row: cell.row, col: cell.col } : null;
   }
   return null;
-}
-
-/** True when the caret sits in a code or sketch line, where content is literal. */
-function inSourceLine(state: EditorState): boolean {
-  return state.selection.$from.parent.type.name === 'codeLine';
 }
 
 function dispatchPaste(view: EditorView, tr: Transaction): boolean {

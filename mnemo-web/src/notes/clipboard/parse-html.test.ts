@@ -49,4 +49,50 @@ describe('parseExternalHtml', () => {
   it('reports too-large without parsing', () => {
     expect(parseExternalHtml('a'.repeat(2_000_001), schema)).toBe('too-large');
   });
+
+  it('parses a data table into a real table, cell marks and all', () => {
+    const parsed = parseExternalHtml(
+      '<p>before</p><table><tr><td><b>a</b></td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>',
+      schema,
+    );
+    if (parsed === null || parsed === 'too-large') throw new Error('expected a slice');
+    expect(typeNames(childrenOf(parsed.slice))).toEqual(['paragraph', 'table']);
+
+    const cells: string[] = [];
+    const marks: string[] = [];
+    parsed.slice.content.descendants((node) => {
+      if (node.type.name === 'tableCell') cells.push(node.textContent);
+      for (const mark of node.marks) marks.push(mark.type.name);
+      return true;
+    });
+    expect(cells).toEqual(['a', 'b', 'c', 'd']);
+    expect(marks).toContain('strong');
+  });
+
+  it('flattens a cell that wraps its text in blocks rather than nesting them in it', () => {
+    const parsed = parseExternalHtml('<table><tr><td><p>one</p><p>two</p></td></tr></table>', schema);
+    if (parsed === null || parsed === 'too-large') throw new Error('expected a slice');
+
+    const nested: string[] = [];
+    parsed.slice.content.descendants((node) => {
+      if (node.type.name !== 'tableCell') return true;
+      node.forEach((child, _offset, index) => {
+        if (index > 0) nested.push(child.type.name);
+      });
+      return true;
+    });
+    expect(nested).toEqual([]);
+    expect(parsed.slice.content.textBetween(0, parsed.slice.content.size, '')).toContain('one\ntwo');
+  });
+
+  it('walks through a layout table so the article inside it stays blocks', () => {
+    const parsed = parseExternalHtml(
+      '<table><tr><td><h1>Title</h1><p>Body.</p></td></tr></table>',
+      schema,
+    );
+    if (parsed === null || parsed === 'too-large') throw new Error('expected a slice');
+    const types = typeNames(childrenOf(parsed.slice));
+    expect(types).toContain('heading');
+    expect(types).not.toContain('table');
+  });
 });

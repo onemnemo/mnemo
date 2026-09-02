@@ -314,12 +314,19 @@ describe('the table keymap', () => {
     expect(caretCellIndex()).toEqual({ row: 0, col: 1 });
   });
 
-  it('leaves the arrows alone at the edges, so the caret can get out of the table', () => {
+  it('leaves the arrows alone at the leading edge, so the caret can get out of the table', () => {
     putCaret(0, 0);
     expect(press('ArrowUp')).toBe(false);
     expect(press('ArrowLeft')).toBe(false);
+  });
+
+  it('gets the caret out past the last cell, where the note ends with the table', () => {
     putCaret(1, 1, 'end');
-    expect(press('ArrowRight')).toBe(false);
+    // Nothing follows the table, so there is no caret position for the browser
+    // to move to; the structural keymap makes the block instead.
+    expect(press('ArrowRight')).toBe(true);
+    expect(harness!.view.state.doc.childCount).toBe(2);
+    expect(harness!.view.state.doc.child(1).type.name).toBe('paragraph');
   });
 
   /**

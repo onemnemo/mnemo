@@ -57,11 +57,44 @@ function placed(doc: PMNode, caret: number, slice: Slice): { texts: string[]; do
   return { texts: texts(next), doc: next.doc };
 }
 
+const typesOf = (doc: PMNode): string[] => {
+  const out: string[] = [];
+  doc.forEach((node) => out.push(node.type.name));
+  return out;
+};
+
 describe('placeBlockRun', () => {
   it('replaces a blank line rather than leaving it behind', () => {
     // doc: para(""), caret inside its line (pos 2).
     const { texts: out } = placed(docOf(para('')), 2, run('pasted'));
     expect(out).toEqual(['pasted']);
+  });
+
+  it('replaces any empty prose block, not only an empty paragraph', () => {
+    const blanks = [
+      schema.nodes.bulletItem.create({ sid: 'b', id: 'b' }, line()),
+      schema.nodes.numberedItem.create({ sid: 'n', id: 'n' }, line()),
+      schema.nodes.checklistItem.create({ sid: 'c', id: 'c', checked: false }, line()),
+      schema.nodes.heading.create({ sid: 'h', id: 'h', level: 1 }, line()),
+      schema.nodes.quote.create({ sid: 'q', id: 'q' }, line()),
+    ];
+    for (const blank of blanks) {
+      const { doc } = placed(docOf(blank), 2, run('one', 'two'));
+      expect(typesOf(doc), blank.type.name).toEqual(['paragraph', 'paragraph']);
+    }
+  });
+
+  it('keeps an empty block whose emptiness is its content, placing the run above it', () => {
+    const divider = schema.nodes.divider.create({ sid: 'd', id: 'd' }, line());
+    const { doc } = placed(docOf(divider), 2, run('one'));
+    expect(typesOf(doc)).toEqual(['paragraph', 'divider']);
+  });
+
+  it('keeps an empty list item that has blocks nested under it', () => {
+    const parent = schema.nodes.bulletItem.create({ sid: 'b', id: 'b' }, [line(), para('child', 'c')]);
+    const { doc } = placed(docOf(parent), 2, run('one'));
+    expect(typesOf(doc)).toEqual(['paragraph', 'bulletItem']);
+    expect(doc.textContent).toContain('child');
   });
 
   it('inserts above when the caret is at the start of a non-empty block', () => {
@@ -219,19 +252,18 @@ describe('placeBlockRun folds into a table cell', () => {
 describe('replaceSelectedBlocks', () => {
   it('replaces the covered blocks with the pasted run', () => {
     const state = stateWith(docOf(para('one', 's1'), para('two', 's2'), para('three', 's3')), 2);
-    const next = state.apply(replaceSelectedBlocks(state, run('X', 'Y'), registry, new Set(['s1', 's2'])));
+    const next = state.apply(replaceSelectedBlocks(state, run('X', 'Y'), registry, new Set(['s1', 's2']))!);
     expect(texts(next)).toEqual(['X', 'Y', 'three']);
   });
 
   it('replaces the whole document when every block is selected', () => {
     const state = stateWith(docOf(para('one', 's1'), para('two', 's2')), 2);
-    const next = state.apply(replaceSelectedBlocks(state, run('only'), registry, new Set(['s1', 's2'])));
+    const next = state.apply(replaceSelectedBlocks(state, run('only'), registry, new Set(['s1', 's2']))!);
     expect(texts(next)).toEqual(['only']);
   });
 
-  it('falls back to a caret placement when the set covers nothing', () => {
+  it('reports nothing when the set covers no range, leaving the caller to place at the caret', () => {
     const state = stateWith(docOf(para('one', 's1')), 4); // caret mid "one"
-    const next = state.apply(replaceSelectedBlocks(state, run('X'), registry, new Set(['ghost'])));
-    expect(texts(next)).toEqual(['on', 'X', 'e']);
+    expect(replaceSelectedBlocks(state, run('X'), registry, new Set(['ghost']))).toBeNull();
   });
 });

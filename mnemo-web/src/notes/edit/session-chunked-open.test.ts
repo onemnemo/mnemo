@@ -119,4 +119,19 @@ describe('opening a note past the chunk threshold', () => {
     // And the drain went through the view, so nothing is left outstanding.
     expect(h.session.view.state.doc.childCount).toBe(BLOCK_COUNT);
   });
+
+  it('takes an edit dispatched before anything has touched the editor', () => {
+    // What a file drop does, through the whole chain a real one goes through:
+    // the transaction is built from `view.state` and dispatched, with no
+    // focus, press or keystroke ahead of it to have finished the load.
+    const h = openLargeNote();
+    expect(h.session.view.state.doc.childCount).toBe(FIRST_CHUNK);
+
+    h.session.view.dispatch(h.session.view.state.tr.insertText('x', 2));
+
+    const saved = h.session.authority.snapshot();
+    expect(saved.doc.childCount).toBe(BLOCK_COUNT);
+    expect(saved.doc.child(0).textContent).toContain('x');
+    expect(h.session.view.state.doc.childCount).toBe(BLOCK_COUNT);
+  });
 });
