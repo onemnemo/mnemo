@@ -742,7 +742,7 @@ internal static class NoteTypstDocumentComposer
     // with a leading newline so Typst does not read leading LaTeX as a raw language tag.
     private static void EmitMitex(StringBuilder sb, string? latex, bool displayStyle)
     {
-        var body = (latex ?? string.Empty).Trim();
+        var body = LatexUnicode.Normalize((latex ?? string.Empty).Trim());
         if (displayStyle && body.Length > 0)
             body = "\\displaystyle " + body;
 
