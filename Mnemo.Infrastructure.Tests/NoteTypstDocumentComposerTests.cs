@@ -110,6 +110,30 @@ public sealed class NoteTypstDocumentComposerTests
     }
 
     [Fact]
+    public void Unicode_scripts_and_operators_in_an_equation_become_grouped_latex()
+    {
+        var block = new Block
+        {
+            Type = BlockType.Text,
+            Spans =
+            [
+                new EquationSpan("Zn(OH)₂(s) ⇌ Zn²⁺(aq) + 2OH⁻(aq)"),
+                new EquationSpan("4.5 · 10⁻¹⁷"),
+            ]
+        };
+        var typ = Compose(NoteWith(block));
+        Assert.Contains("#mitex(`Zn(OH)_{2}(s) \\rightleftharpoons Zn^{2+}(aq) + 2OH^{-}(aq)`)", typ);
+        Assert.Contains("#mitex(`4.5 \\cdot 10^{-17}`)", typ);
+    }
+
+    [Fact]
+    public void Latex_that_is_already_latex_is_left_alone()
+    {
+        var typ = Compose(NoteWith(Leaf(BlockType.Equation, "", new EquationPayload("\\frac{a^{2}}{b_{1}}"))));
+        Assert.Contains("#mitex(`\\displaystyle \\frac{a^{2}}{b_{1}}`)", typ);
+    }
+
+    [Fact]
     public void SafeLinkEmitsLink_UnsafeLinkDoesNot()
     {
         var block = new Block
