@@ -57,6 +57,7 @@ public sealed class SearchNotesParameters
 /// <summary>Parameters for <c>outline_note</c>: a compact structural map of a note.</summary>
 public sealed class OutlineNoteParameters
 {
+    /// <summary>The note's short id, as returned by search_notes, outline_note, or create_note. The note's GUID is also accepted.</summary>
     [JsonPropertyName("note_id")] public string NoteId { get; set; } = string.Empty;
 
     /// <summary>When true, only heading blocks are returned.</summary>
@@ -69,9 +70,10 @@ public sealed class OutlineNoteParameters
 /// <summary>Parameters for <c>read_note</c>: a lossless read of specific parts of a note.</summary>
 public sealed class ReadNoteParameters
 {
+    /// <summary>The note's short id, as returned by search_notes, outline_note, or create_note. The note's GUID is also accepted.</summary>
     [JsonPropertyName("note_id")] public string NoteId { get; set; } = string.Empty;
 
-    /// <summary>Read only these blocks (ids or short-id prefixes from outline/read).</summary>
+    /// <summary>Read only these blocks (short block ids from outline_note or read_note).</summary>
     [JsonPropertyName("block_ids")] public List<string>? BlockIds { get; set; }
 
     /// <summary>Read a heading block and everything under it until the next same/higher heading.</summary>
@@ -88,16 +90,16 @@ public sealed class ReadNoteParameters
 /// <remarks>
 /// Supported ops: <c>set_text</c> (replace a block's inline text), <c>replace</c> (replace a whole
 /// block), <c>insert</c> (add blocks at an anchor), <c>delete</c>, <c>move</c>, <c>convert</c>
-/// (change block type), <c>set_checked</c>. Targets are addressed by block id or short-id prefix.
+/// (change block type), <c>set_checked</c>. Targets are addressed by the short block id.
 /// </remarks>
 public sealed class NoteEditOp
 {
     [JsonPropertyName("op")] public string Op { get; set; } = string.Empty;
 
-    /// <summary>Target block id/prefix for set_text, replace, convert, set_checked, move.</summary>
+    /// <summary>Target block's short id for set_text, replace, convert, set_checked, move.</summary>
     [JsonPropertyName("id")] public string? Id { get; set; }
 
-    /// <summary>Target block ids/prefixes for delete.</summary>
+    /// <summary>Target blocks' short ids for delete.</summary>
     [JsonPropertyName("ids")] public List<string>? Ids { get; set; }
 
     /// <summary>Inline markdown for set_text and single-block replace/insert.</summary>
@@ -115,7 +117,7 @@ public sealed class NoteEditOp
     /// <summary>Checked state for set_checked.</summary>
     [JsonPropertyName("checked")] public bool? Checked { get; set; }
 
-    /// <summary>Anchor block id/prefix for insert and move.</summary>
+    /// <summary>Anchor block's short id for insert and move.</summary>
     [JsonPropertyName("anchor")] public string? Anchor { get; set; }
 
     /// <summary>Placement relative to the anchor: before, after, start, end. Default end (top of doc has start).</summary>
@@ -128,6 +130,7 @@ public sealed class NoteEditOp
 /// <summary>Parameters for <c>edit_note</c>: an atomic batch of block operations.</summary>
 public sealed class EditNoteParameters
 {
+    /// <summary>The note's short id, as returned by search_notes, outline_note, or create_note. The note's GUID is also accepted.</summary>
     [JsonPropertyName("note_id")] public string NoteId { get; set; } = string.Empty;
 
     /// <summary>Optional version token from outline/read; the edit is rejected if the note changed since.</summary>
@@ -158,6 +161,7 @@ public sealed class CreateNoteParameters
 /// <summary>Parameters for <c>manage_note</c>: rename, move, favorite, or delete a note.</summary>
 public sealed class ManageNoteParameters
 {
+    /// <summary>The note's short id, as returned by search_notes, outline_note, or create_note. The note's GUID is also accepted.</summary>
     [JsonPropertyName("note_id")] public string NoteId { get; set; } = string.Empty;
 
     /// <summary>New title.</summary>
@@ -179,5 +183,6 @@ public sealed class ManageNoteParameters
 /// <summary>Parameters for <c>open_note</c>.</summary>
 public sealed class OpenNoteParameters
 {
+    /// <summary>The note's short id, as returned by search_notes, outline_note, or create_note. The note's GUID is also accepted.</summary>
     [JsonPropertyName("note_id")] public string NoteId { get; set; } = string.Empty;
 }

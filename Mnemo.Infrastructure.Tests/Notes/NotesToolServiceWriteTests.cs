@@ -180,8 +180,9 @@ public class NotesToolServiceWriteTests
         });
 
         Assert.True(result.Ok, result.Message);
-        var stored = (await h.Notes.GetNoteAsync(Field(result, "note_id")))!;
+        var stored = (await h.Notes.GetAllNotesAsync()).Single();
         Assert.True(Sid.IsWellFormedNoteSid(stored.Sid));
+        Assert.Equal(stored.Sid, Field(result, "note_id"));
 
         var sids = AllBlockSids(stored.Blocks!);
         Assert.Equal(2, sids.Count);

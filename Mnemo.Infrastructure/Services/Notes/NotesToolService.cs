@@ -20,8 +20,8 @@ namespace Mnemo.Infrastructure.Services.Notes;
 /// <remarks>
 /// The surface follows an editor-agent loop: <c>search_notes</c> to discover, <c>outline_note</c>
 /// to map a note cheaply, <c>read_note</c> to pull only the parts that matter, and <c>edit_note</c>
-/// to apply a batch of surgical block operations atomically. Blocks are addressed by id or short-id
-/// prefix and resolved across the whole tree (including nested two-column cells). Reads are lossless
+/// to apply a batch of surgical block operations atomically. Blocks are addressed by sid and
+/// resolved across the whole tree (including nested two-column cells). Reads are lossless
 /// (markdown + typed payloads) so edits are never made blind.
 /// <para>
 /// A body edit is a body edit whoever makes it, so <c>edit_note</c> goes through the same
@@ -136,7 +136,7 @@ public sealed class NotesToolService
 
         return ToolInvocationResult.Success($"{entries.Count} block(s).", new
         {
-            note_id = note.NoteId,
+            note_id = Handle(note),
             title = note.Title,
             version = Version(note),
             folder = note.FolderPath,
@@ -183,15 +183,37 @@ public sealed class NotesToolService
             selected.AddRange(roots);
         }
 
-        var blocks = selected.Select(b => NotesAgentBlockMapper.ToReadEntry(b, 0)).ToList();
+        var noteHandle = await BuildNoteHandleResolverAsync(selected).ConfigureAwait(false);
+        var blocks = selected.Select(b => NotesAgentBlockMapper.ToReadEntry(b, 0, noteHandle)).ToList();
         return ToolInvocationResult.Success($"{blocks.Count} block(s).", new
         {
-            note_id = note.NoteId,
+            note_id = Handle(note),
             title = note.Title,
             version = Version(note),
             blocks,
             unresolved = unresolved.Count > 0 ? unresolved : null
         });
+    }
+
+    /// <summary>
+    /// A GUID-to-handle lookup for <c>Page</c> block references, built only when one of the selected
+    /// blocks (or its descendants) actually is a Page block. An ordinary read has nothing to resolve
+    /// and should not pay for scanning the library.
+    /// </summary>
+    private async Task<Func<string, string>> BuildNoteHandleResolverAsync(List<Block> selected)
+    {
+        if (!NoteBlockTree.Walk(selected).Any(l => l.Block.Type == BlockType.Page))
+            return static id => id;
+
+        var summaries = await _notes.GetAllNoteSummariesAsync().ConfigureAwait(false);
+        var sidByNoteId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in summaries)
+        {
+            if (!string.IsNullOrEmpty(s.Sid))
+                sidByNoteId[s.NoteId] = s.Sid;
+        }
+
+        return id => !string.IsNullOrEmpty(id) && sidByNoteId.TryGetValue(id, out var sid) ? sid : id;
     }
 
     // ---------------------------------------------------------------- editing
@@ -208,7 +230,7 @@ public sealed class NotesToolService
         {
             return ToolInvocationResult.Failure(ToolResultCodes.Conflict,
                 "The note changed since it was read. Re-read it (outline_note/read_note) and retry with the new version.",
-                new { note_id = note!.NoteId, version = Version(note) });
+                new { note_id = Handle(note!), version = Version(note) });
         }
 
         // Apply to a clone so a failure mid-batch leaves the note untouched (all-or-nothing).
@@ -219,7 +241,7 @@ public sealed class NotesToolService
             var opError = ApplyOp(working, p.Ops[i]);
             if (opError != null)
                 return ToolInvocationResult.Failure(opError.Value.code, $"op[{i}] ({p.Ops[i].Op}): {opError.Value.message}",
-                    new { note_id = note.NoteId });
+                    new { note_id = Handle(note) });
         }
 
         NoteBlockTree.ReindexByPosition(working);
@@ -236,9 +258,9 @@ public sealed class NotesToolService
             case NoteCommitOutcome.Stale:
                 return ToolInvocationResult.Failure(ToolResultCodes.Conflict,
                     "The note changed while this edit was being applied. Re-read it (outline_note/read_note) and retry with the new version.",
-                    new { note_id = note.NoteId, version = VersionOf(commit.Ver) });
+                    new { note_id = Handle(note), version = VersionOf(commit.Ver) });
             case NoteCommitOutcome.NotFound:
-                return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{note.NoteId}\".");
+                return ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{Handle(note)}\".");
             case NoteCommitOutcome.Applied or NoteCommitOutcome.AlreadyApplied:
                 break;
             default:
@@ -247,7 +269,7 @@ public sealed class NotesToolService
 
         return ToolInvocationResult.Success($"Applied {p.Ops.Count} op(s).", new
         {
-            note_id = note.NoteId,
+            note_id = Handle(note),
             version = VersionOf(commit.Ver),
             applied = p.Ops.Count,
             block_count = working.Count
@@ -283,8 +305,8 @@ public sealed class NotesToolService
 
         var res = await _notes.SaveNoteAsync(note).ConfigureAwait(false);
         return res.IsSuccess
-            ? ToolInvocationResult.Success($"Note created (id: {note.NoteId}).",
-                new { note_id = note.NoteId, title = note.Title, version = Version(note), block_count = note.Blocks.Count })
+            ? ToolInvocationResult.Success($"Note created (id: {Handle(note)}).",
+                new { note_id = Handle(note), title = note.Title, version = Version(note), block_count = note.Blocks.Count })
             : ToolInvocationResult.Failure(ToolResultCodes.InternalError, res.ErrorMessage ?? "Save failed.");
     }
 
@@ -299,7 +321,7 @@ public sealed class NotesToolService
         {
             var del = await _notes.DeleteNoteAsync(note!.NoteId).ConfigureAwait(false);
             return del.IsSuccess
-                ? ToolInvocationResult.Success($"Note deleted (id: {note.NoteId}).", new { note_id = note.NoteId, deleted = true })
+                ? ToolInvocationResult.Success($"Note deleted (id: {Handle(note)}).", new { note_id = Handle(note), deleted = true })
                 : ToolInvocationResult.Failure(ToolResultCodes.InternalError, del.ErrorMessage ?? "Delete failed.");
         }
 
@@ -339,9 +361,9 @@ public sealed class NotesToolService
         var result = await _commits.UpdateMetadataAsync(note!.NoteId, metadata).ConfigureAwait(false);
         return result.Outcome switch
         {
-            NoteCommitOutcome.Applied => ToolInvocationResult.Success($"Note updated (id: {note.NoteId}).",
-                new { note_id = note.NoteId, title = metadata.Title, favorite = metadata.IsFavorite, folder = metadata.FolderPath }),
-            NoteCommitOutcome.NotFound => ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{note.NoteId}\"."),
+            NoteCommitOutcome.Applied => ToolInvocationResult.Success($"Note updated (id: {Handle(note)}).",
+                new { note_id = Handle(note), title = metadata.Title, favorite = metadata.IsFavorite, folder = metadata.FolderPath }),
+            NoteCommitOutcome.NotFound => ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{Handle(note)}\"."),
             _ => ToolInvocationResult.Failure(ToolResultCodes.InternalError, "Save failed."),
         };
     }
@@ -359,7 +381,7 @@ public sealed class NotesToolService
             return Task.CompletedTask;
         }).ConfigureAwait(false);
 
-        return ToolInvocationResult.Success($"Opened note \"{note!.Title}\" (id: {note.NoteId}).", new { note_id = note.NoteId });
+        return ToolInvocationResult.Success($"Opened note \"{note!.Title}\" (id: {Handle(note)}).", new { note_id = Handle(note) });
     }
 
     // ---------------------------------------------------------------- edit ops
@@ -440,6 +462,7 @@ public sealed class NotesToolService
 
         var replacement = NoteToolBlockFactory.FromSpec(spec, loc.Block.Order);
         replacement.Id = loc.Block.Id;
+        replacement.Sid = loc.Block.Sid;
         loc.Container[loc.Index] = replacement;
         return null;
     }
@@ -567,19 +590,33 @@ public sealed class NotesToolService
                 $"id \"{id}\" is ambiguous; candidates: {string.Join(", ", candidates)}.")
             : ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"no block matching \"{id}\".");
 
+    /// <summary>
+    /// Resolves <paramref name="rawId"/> as a note sid first, then as its GUID. A sid is the address
+    /// the model was handed back by every other tool, but the GUID still works so a caller holding
+    /// one from before the sid migration, or from storage, is not left stranded.
+    /// </summary>
     private async Task<(Note? note, ToolInvocationResult? error)> LoadAsync(string rawId)
     {
         var id = rawId?.Trim() ?? string.Empty;
         if (id.Length == 0)
             return (null, ToolInvocationResult.Failure(ToolResultCodes.ValidationError, "note_id is required."));
 
-        var note = await _notes.GetNoteAsync(id).ConfigureAwait(false);
+        Note? note = null;
+        var summaries = await _notes.GetAllNoteSummariesAsync().ConfigureAwait(false);
+        var bySid = summaries.FirstOrDefault(s => string.Equals(s.Sid, id, StringComparison.OrdinalIgnoreCase));
+        if (bySid != null)
+            note = await _notes.GetNoteAsync(bySid.NoteId).ConfigureAwait(false);
+
+        note ??= await _notes.GetNoteAsync(id).ConfigureAwait(false);
         if (note == null)
             return (null, ToolInvocationResult.Failure(ToolResultCodes.NotFound, $"No note with id \"{id}\"."));
 
         NoteDocumentHelper.EnsureBlocks(note);
         return (note, null);
     }
+
+    /// <summary>The model-facing handle for a note: its sid, or its GUID when no sid has been minted yet.</summary>
+    private static string Handle(Note note) => string.IsNullOrEmpty(note.Sid) ? note.NoteId : note.Sid;
 
     private async Task<(string? folderId, string? folderName)> ResolveFolderAsync(string value)
     {
@@ -667,9 +704,9 @@ public sealed class NotesToolService
 
             hits.Add((score, note.ModifiedAt, new Dictionary<string, object?>
             {
-                ["note_id"] = note.NoteId,
+                ["note_id"] = Handle(note),
                 ["title"] = note.Title,
-                ["block_id"] = NoteBlockTree.ShortId(b.Id),
+                ["block_id"] = NoteBlockTree.Handle(b),
                 ["type"] = b.Type.ToString(),
                 ["heading_path"] = string.Join(" > ", path.Where(s => s.Length > 0)),
                 ["snippet"] = snippet
@@ -679,7 +716,7 @@ public sealed class NotesToolService
 
     private static object NoteSummary(Note n) => new
     {
-        id = n.NoteId,
+        id = Handle(n),
         title = n.Title,
         folder = n.FolderPath,
         favorite = n.IsFavorite,

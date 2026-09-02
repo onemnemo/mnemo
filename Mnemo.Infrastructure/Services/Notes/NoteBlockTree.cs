@@ -9,19 +9,23 @@ namespace Mnemo.Infrastructure.Services.Notes;
 /// Traversal and addressing helpers over a note's block tree.
 /// </summary>
 /// <remarks>
-/// Blocks are addressed by their full id or by any unique prefix of it (a short id, like a
-/// git short SHA). This keeps the tokens a small model has to reproduce minimal while staying
-/// stable across edits. Resolution walks the whole tree, including nested children such as
-/// two-column cells, so edits are not limited to the top-level list.
+/// Blocks are addressed by their sid, the short id minted for the tool boundary, or by any unique
+/// prefix of it. A block stored before the sid migration falls back to a prefix of its GUID. This
+/// keeps the tokens a small model has to reproduce minimal while staying stable across edits.
+/// Resolution walks the whole tree, including nested children such as two-column cells, so edits
+/// are not limited to the top-level list.
 /// </remarks>
 internal static class NoteBlockTree
 {
     /// <summary>A block together with the list that contains it and its position within that list.</summary>
     internal readonly record struct Located(Block Block, List<Block> Container, int Index, int Depth);
 
-    /// <summary>Short, human/model-friendly form of a block id.</summary>
-    public static string ShortId(string id) =>
-        string.IsNullOrEmpty(id) ? string.Empty : (id.Length > 8 ? id[..8] : id);
+    /// <summary>
+    /// The model-facing handle for a block: its sid, or an 8-character prefix of its id when the
+    /// block predates the sid migration.
+    /// </summary>
+    public static string Handle(Block block) =>
+        !string.IsNullOrEmpty(block.Sid) ? block.Sid : (block.Id.Length > 8 ? block.Id[..8] : block.Id);
 
     /// <summary>Depth-first walk over every block, yielding its container list and index.</summary>
     public static IEnumerable<Located> Walk(List<Block> roots, int depth = 0)
@@ -39,9 +43,10 @@ internal static class NoteBlockTree
     }
 
     /// <summary>
-    /// Resolves a block id or short-id prefix to its location. Exact id matches win; otherwise a
-    /// single prefix match is accepted. Returns false (with <paramref name="ambiguous"/> /
-    /// <paramref name="candidates"/>) when nothing matches or the prefix is not unique.
+    /// Resolves a block sid, a unique sid prefix, a block id, or a unique id prefix to its location,
+    /// tried in that order. Returns false (with <paramref name="ambiguous"/> / <paramref name="candidates"/>)
+    /// when nothing matches; ambiguity is reported for the first of those tiers that matched more than
+    /// one block, without falling through to a later tier.
     /// </summary>
     public static bool TryLocate(
         List<Block> roots,
@@ -60,27 +65,49 @@ internal static class NoteBlockTree
 
         var all = Walk(roots).ToList();
 
-        var exact = all.Where(l => string.Equals(l.Block.Id, key, StringComparison.OrdinalIgnoreCase)).ToList();
-        if (exact.Count == 1)
+        if (TryTier(all.Where(l => string.Equals(l.Block.Sid, key, StringComparison.OrdinalIgnoreCase)), out located, out ambiguous, out candidates))
+            return true;
+        if (ambiguous)
+            return false;
+
+        if (TryTier(all.Where(l => !string.IsNullOrEmpty(l.Block.Sid) && l.Block.Sid.StartsWith(key, StringComparison.OrdinalIgnoreCase)), out located, out ambiguous, out candidates))
+            return true;
+        if (ambiguous)
+            return false;
+
+        if (TryTier(all.Where(l => string.Equals(l.Block.Id, key, StringComparison.OrdinalIgnoreCase)), out located, out ambiguous, out candidates))
+            return true;
+        if (ambiguous)
+            return false;
+
+        return TryTier(all.Where(l => l.Block.Id.StartsWith(key, StringComparison.OrdinalIgnoreCase)), out located, out ambiguous, out candidates);
+    }
+
+    /// <summary>
+    /// A single addressing tier: matches this candidate set if there is exactly one, reports
+    /// ambiguity if there is more than one, and otherwise leaves both false for the next tier.
+    /// </summary>
+    private static bool TryTier(
+        IEnumerable<Located> matches,
+        out Located located,
+        out bool ambiguous,
+        out IReadOnlyList<string> candidates)
+    {
+        located = default;
+        ambiguous = false;
+        candidates = Array.Empty<string>();
+
+        var list = matches.ToList();
+        if (list.Count == 1)
         {
-            located = exact[0];
+            located = list[0];
             return true;
         }
 
-        var prefix = all
-            .Where(l => l.Block.Id.StartsWith(key, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        if (prefix.Count == 1)
-        {
-            located = prefix[0];
-            return true;
-        }
-
-        if (prefix.Count > 1)
+        if (list.Count > 1)
         {
             ambiguous = true;
-            candidates = prefix.Select(l => ShortId(l.Block.Id)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            candidates = list.Select(l => Handle(l.Block)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         return false;

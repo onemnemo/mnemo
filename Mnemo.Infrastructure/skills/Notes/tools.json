@@ -18,11 +18,11 @@
     },
     {
       "name": "outline_note",
-      "description": "Compact map of a note: each block as { n, id, type, depth, len, preview }. Use it to locate the blocks you want before reading or editing — keeps context small. Returns a version token to pass to edit_note. Set headings_only for a table of contents.",
+      "description": "Compact map of a note: each block as { n, id, type, depth, len, preview }. Use it to locate the blocks you want before reading or editing. Keeps context small. Returns a version token to pass to edit_note. Set headings_only for a table of contents.",
       "parameters": {
         "type": "object",
         "properties": {
-          "note_id": { "type": "string" },
+          "note_id": { "type": "string", "description": "The note's short id, as returned by search_notes, outline_note, or create_note." },
           "headings_only": { "type": "boolean" },
           "preview_chars": { "type": "integer", "description": "Preview length per block (default 60)." }
         },
@@ -32,13 +32,13 @@
     },
     {
       "name": "read_note",
-      "description": "Read specific parts of a note losslessly. Provide block_ids (ids or short-id prefixes), OR section (a heading id — returns that heading and its content), OR from/to (1-based block window). With none, returns the whole note (capped). Each block includes markdown plus typed payload (latex, code, image, page, checked).",
+      "description": "Read specific parts of a note losslessly. Provide block_ids (short ids), OR section (a heading's short id, returns that heading and its content), OR from/to (1-based block window). With none, returns the whole note (capped). Each block includes markdown plus typed payload (latex, code, image, page, checked).",
       "parameters": {
         "type": "object",
         "properties": {
-          "note_id": { "type": "string" },
-          "block_ids": { "type": "array", "items": { "type": "string" } },
-          "section": { "type": "string", "description": "Heading block id." },
+          "note_id": { "type": "string", "description": "The note's short id, as returned by search_notes, outline_note, or create_note." },
+          "block_ids": { "type": "array", "items": { "type": "string" }, "description": "Short block ids to read, from outline_note or read_note." },
+          "section": { "type": "string", "description": "The heading block's short id, from outline_note or read_note." },
           "from": { "type": "integer" },
           "to": { "type": "integer" }
         },
@@ -48,11 +48,11 @@
     },
     {
       "name": "edit_note",
-      "description": "Apply a batch of block operations atomically (all-or-nothing). Each op has an 'op' field: set_text {id, markdown} edits a block's inline text; replace {id, type?, markdown?} swaps a block; insert {blocks|markdown, anchor?, position: before|after|start|end} adds blocks; delete {ids|id}; move {id, anchor, position: before|after}; convert {id, type}; set_checked {id, checked}. Address blocks by id or short-id prefix from outline/read. Pass expected_version (from outline/read) so you never overwrite a note that changed.",
+      "description": "Apply a batch of block operations atomically (all-or-nothing). Each op has an 'op' field: set_text {id, markdown} edits a block's inline text; replace {id, type?, markdown?} swaps a block; insert {blocks|markdown, anchor?, position: before|after|start|end} adds blocks; delete {ids|id}; move {id, anchor, position: before|after}; convert {id, type}; set_checked {id, checked}. Address blocks by short id from outline_note or read_note. Pass expected_version (from outline/read) so you never overwrite a note that changed.",
       "parameters": {
         "type": "object",
         "properties": {
-          "note_id": { "type": "string" },
+          "note_id": { "type": "string", "description": "The note's short id, as returned by search_notes, outline_note, or create_note." },
           "expected_version": { "type": "string" },
           "ops": {
             "type": "array",
@@ -60,14 +60,14 @@
               "type": "object",
               "properties": {
                 "op": { "type": "string", "enum": ["set_text", "replace", "insert", "delete", "move", "convert", "set_checked"] },
-                "id": { "type": "string" },
-                "ids": { "type": "array", "items": { "type": "string" } },
+                "id": { "type": "string", "description": "The target block's short id, from outline_note or read_note." },
+                "ids": { "type": "array", "items": { "type": "string" }, "description": "The target blocks' short ids, from outline_note or read_note." },
                 "markdown": { "type": "string" },
                 "type": { "type": "string" },
                 "latex": { "type": "string" },
                 "language": { "type": "string" },
                 "checked": { "type": "boolean" },
-                "anchor": { "type": "string" },
+                "anchor": { "type": "string", "description": "The anchor block's short id, from outline_note or read_note." },
                 "position": { "type": "string", "enum": ["before", "after", "start", "end"] },
                 "blocks": {
                   "type": "array",
@@ -126,7 +126,7 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "note_id": { "type": "string" },
+          "note_id": { "type": "string", "description": "The note's short id, as returned by search_notes, outline_note, or create_note." },
           "rename": { "type": "string" },
           "move_to_folder": { "type": "string" },
           "clear_folder": { "type": "boolean" },
@@ -142,7 +142,7 @@
       "description": "Open a note in the Notes editor UI.",
       "parameters": {
         "type": "object",
-        "properties": { "note_id": { "type": "string" } },
+        "properties": { "note_id": { "type": "string", "description": "The note's short id, as returned by search_notes, outline_note, or create_note." } },
         "required": ["note_id"]
       },
       "enabled": true
