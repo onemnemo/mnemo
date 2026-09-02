@@ -4,6 +4,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 
 import { createEditorSchema } from '../editor/schema';
 import { EMPTY_SELECTION, selectSingle } from './block-selection';
+import { coveredBlockRanges } from './delete-selected';
 import { applyGrip, gripIntent } from './grip-selection';
 
 const { schema, registry } = createEditorSchema();
@@ -19,6 +20,14 @@ function mixedDoc(): PMNode {
     column(para('b', 'sB')),
   ]);
   return schema.nodes.doc.create(null, [para('one', 's1'), twoColumn, para('three', 's3')]);
+}
+
+/** A table above a paragraph: two leaves in one top-level block, as a row has. */
+function tableDoc(): PMNode {
+  const cell = (text: string, sid: string) => schema.nodes.tableCell.create({ sid, id: sid }, line(text));
+  const row = schema.nodes.tableRow.create(null, [line(), cell('a', 'c1'), cell('b', 'c2')]);
+  const table = schema.nodes.table.create({ columnWidths: [] }, [line(), row]);
+  return schema.nodes.doc.create(null, [table, para('below', 's2')]);
 }
 
 describe('gripIntent', () => {
@@ -103,5 +112,44 @@ describe('applyGrip', () => {
     const start = selectSingle('s3');
     const added = applyGrip(doc, registry, start, 0, p1, 'range-add');
     expect(added.selected).toEqual(new Set(['s1', 'sA', 'sB', 's3']));
+  });
+});
+
+/**
+ * A block above the anchor is still the whole block. Covering only the leaf the
+ * run happens to end on leaves one column or one table cell selected, and the
+ * Backspace that follows takes half a row away.
+ */
+describe('applyGrip extending onto a multi leaf block above the anchor', () => {
+  it('takes both cells of a two-column row, as extending downward does', () => {
+    const doc = mixedDoc();
+    const tc = doc.child(1);
+    const tcPos = doc.child(0).nodeSize;
+    const next = applyGrip(doc, registry, selectSingle('s3'), tcPos, tc, 'range');
+    expect(next.selected).toEqual(new Set(['sA', 'sB', 's3']));
+  });
+
+  it('keeps the anchor, so a second shift-click re-extends from it', () => {
+    const doc = mixedDoc();
+    const tcPos = doc.child(0).nodeSize;
+    const first = applyGrip(doc, registry, selectSingle('s3'), tcPos, doc.child(1), 'range');
+    expect(first.anchorSid).toBe('s3');
+    const second = applyGrip(doc, registry, first, 0, doc.child(0), 'range');
+    expect(second.selected).toEqual(new Set(['s1', 'sA', 'sB', 's3']));
+  });
+
+  it('range-add takes the whole block too', () => {
+    const doc = mixedDoc();
+    const tcPos = doc.child(0).nodeSize;
+    const next = applyGrip(doc, registry, selectSingle('s3'), tcPos, doc.child(1), 'range-add');
+    expect(next.selected).toEqual(new Set(['sA', 'sB', 's3']));
+  });
+
+  it('takes the whole table, so the delete plan removes what was highlighted', () => {
+    const doc = tableDoc();
+    const next = applyGrip(doc, registry, selectSingle('s2'), 0, doc.child(0), 'range');
+    expect(next.selected).toEqual(new Set(['c1', 'c2', 's2']));
+    const ranges = coveredBlockRanges(doc, registry, next.selected);
+    expect(ranges.map((range) => doc.nodeAt(range.from)?.type.name)).toEqual(['table', 'paragraph']);
   });
 });
