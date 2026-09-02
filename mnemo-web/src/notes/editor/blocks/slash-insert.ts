@@ -19,10 +19,10 @@
 
 import type { Node as PMNode } from 'prosemirror-model';
 import { TextSelection } from 'prosemirror-state';
-import { blockContext, convertBlockType } from '../commands/structure';
+import { blockContext, convertBlockType, landCaretAfterConversion } from '../commands/structure';
 import type { SlashContribution } from '../registry/types';
 import { createTable } from '../table/model';
-import { containerBlockNames, lineIsCaretTarget } from './shared';
+import { containerBlockNames } from './shared';
 
 /**
  * Whether `block`, as resolved by {@link blockContext}, is scenery a slash
@@ -133,10 +133,14 @@ export const insertTwoColumn: SlashContribution['insert'] = (state, dispatch) =>
  * AI may already have quoted. Refused inside a table, because a table in a cell
  * is a shape the chrome has no way to point at and nothing in the product creates
  * one deliberately; imported data still renders, since the schema permits it.
+ * Refused on scenery for the reason every other row is: a container's own line
+ * resolves the container as the caret's block, and a `twoColumn` cannot hold a
+ * table where a cell belongs, so the fitting splits the container instead and
+ * both halves come away carrying the same id and sid.
  */
 export const insertTable: SlashContribution['insert'] = (state, dispatch) => {
   const ctx = blockContext(state);
-  if (!ctx) return;
+  if (!ctx || isTableScenery(ctx.block)) return;
   const { $from } = state.selection;
   for (let depth = $from.depth; depth >= 0; depth--) {
     if ($from.node(depth).type.name === 'table') return;
@@ -207,21 +211,12 @@ export function insertAtomicBlock(
     if (!ctx || isTableScenery(ctx.block)) return;
     const target = state.schema.nodes[nodeName];
     if (!target) return;
-    const { paragraph, line } = state.schema.nodes;
 
     const tr = state.tr;
     convertBlockType(tr, ctx.blockPos, ctx.block, target, { attrs, content: 'clear' });
-
-    // Read after the conversion: it can change the block's size, and the next
-    // sibling's position moves with it.
-    const converted = tr.doc.nodeAt(ctx.blockPos);
-    const below = ctx.blockPos + (converted?.nodeSize ?? ctx.block.nodeSize);
-    const next = tr.doc.resolve(below).nodeAfter;
-
-    if (!next || !lineIsCaretTarget(next.type)) {
-      tr.insert(below, paragraph.create(null, line.create()));
-    }
-    tr.setSelection(TextSelection.create(tr.doc, below + 2));
+    // The same landing the whole-line shortcuts use, so the two ways of making
+    // a caret-less block cannot drift apart.
+    landCaretAfterConversion(tr, ctx.blockPos);
     dispatch(tr.scrollIntoView());
   };
 }

@@ -21,7 +21,13 @@
 
 import { Fragment, type Node as PMNode } from 'prosemirror-model';
 import { TextSelection, type Command, type Transaction } from 'prosemirror-state';
-import { blockChildrenOf, containerBlockNames, lineOf } from '../blocks/shared';
+import {
+  blockChildrenOf,
+  containerBlockNames,
+  lineIsCaretTarget,
+  lineOf,
+  opaqueBlockNames,
+} from '../blocks/shared';
 import { asOwnUndoStep } from '../history';
 import { stripMarks, type BlockContext } from './structure';
 
@@ -69,6 +75,13 @@ function previousContentBlock(doc: PMNode, before: number): { node: PMNode; pos:
   doc.nodesBetween(0, before, (node, pos) => {
     // A line holds inline content, never a block to merge into: do not descend.
     if (node.isTextblock) return false;
+    // A table is one object to everything outside it: its cells are its own
+    // structure rather than blocks somebody put there, so the block before a
+    // split is the table itself, not the last cell of its last row.
+    if (opaqueBlockNames.has(node.type.name)) {
+      if (pos + node.nodeSize <= before) found = { node, pos };
+      return false;
+    }
     if (containerBlockNames.has(node.type.name)) return true;
     if (node.type.isBlock && lineOf(node)) {
       if (pos + node.nodeSize <= before) found = { node, pos };
@@ -105,6 +118,12 @@ function rebuildTwoColumn(tc: PMNode, leftCell: PMNode, rightCell: PMNode): PMNo
  * the cell, dissolves the split by promoting the other cell's blocks to the
  * two-column's own place. With nothing before it in the whole document the key
  * is swallowed, exactly as the desktop does nothing there.
+ *
+ * The merge target has to be a block whose line the caret can reach, the same
+ * question the top-level merge asks: a divider, a block equation, a page card
+ * and a table all draw from their payload, and text appended to one of those
+ * leaves the screen while staying in the note on the next save. Swallowing the
+ * key is what the top level does there too, so the two paths agree.
  */
 export function backspaceAtCellStart(
   state: Parameters<Command>[0],
@@ -114,7 +133,7 @@ export function backspaceAtCellStart(
 ): boolean {
   const { blockPos, line } = ctx;
   const prev = previousContentBlock(state.doc, blockPos);
-  if (!prev || !lineOf(prev.node)) return true;
+  if (!prev || !lineOf(prev.node) || !lineIsCaretTarget(prev.node.type)) return true;
 
   const tc = cell.twoColumn;
   const tcPos = cell.twoColumnPos;
