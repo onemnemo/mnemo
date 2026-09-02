@@ -10,7 +10,7 @@ namespace Mnemo.Infrastructure.Services.Mindmap.Persistence;
 internal static class MindmapStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 5;
+    public const int TargetVersion = 6;
 
     /// <summary>Every table and the FTS virtual table, created if absent (fresh databases).</summary>
     public const string CreateSql = """
@@ -32,7 +32,8 @@ internal static class MindmapStoreSchema
             ModifiedAt      TEXT NOT NULL,
             FolderId        TEXT NULL,
             LinkedDecksJson TEXT NOT NULL DEFAULT '[]',
-            TrashId         TEXT NULL
+            TrashId         TEXT NULL,
+            Sid             TEXT NULL
         );
 
         -- Library folders. Subfolders cascade on delete; a deleted folder's maps keep a dangling FolderId
@@ -102,4 +103,14 @@ internal static class MindmapStoreSchema
     /// </summary>
     public const string FoldersLiveIndexSql =
         "CREATE INDEX IF NOT EXISTS IX_MindmapFolders_Live ON MindmapFolders(TrashId, SortOrder);";
+
+    /// <summary>v5 to v6: the corpus-unique short id the AI tools address a map by.</summary>
+    public const string AddMapSidColumnSql = "ALTER TABLE Mindmaps ADD COLUMN Sid TEXT NULL;";
+
+    /// <summary>
+    /// Applied unconditionally alongside the column, on both a database upgrading into it and a fresh
+    /// one that already has it from <see cref="CreateSql"/>.
+    /// </summary>
+    public const string MapSidIndexSql =
+        "CREATE UNIQUE INDEX IF NOT EXISTS IX_Mindmaps_Sid ON Mindmaps(Sid) WHERE Sid IS NOT NULL;";
 }

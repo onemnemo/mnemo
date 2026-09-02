@@ -22,6 +22,7 @@ public class SidTests
     {
         Assert.Equal(5, Sid.BlockLength);
         Assert.Equal(6, Sid.NoteLength);
+        Assert.Equal(6, Sid.MindmapLength);
     }
 
     [Theory]
@@ -48,6 +49,13 @@ public class SidTests
     }
 
     [Fact]
+    public void Mindmap_sids_are_the_same_length_as_note_sids_but_a_different_namespace()
+    {
+        Assert.True(Sid.IsWellFormedMindmapSid("abcdef"));
+        Assert.False(Sid.IsWellFormedMindmapSid("abcde"));
+    }
+
+    [Fact]
     public void Minted_sids_are_well_formed_at_the_requested_length()
     {
         var generator = new SidGenerator();
@@ -58,6 +66,21 @@ public class SidTests
             var sid = generator.NextBlockSid(taken);
             Assert.True(Sid.IsWellFormedBlockSid(sid), $"'{sid}' is not a well-formed block sid.");
             Assert.Equal(Sid.BlockLength, sid.Length);
+            Assert.True(taken.Add(sid), $"'{sid}' was minted twice.");
+        }
+    }
+
+    [Fact]
+    public void Minted_mindmap_sids_are_well_formed_and_unique()
+    {
+        var generator = new SidGenerator();
+        var taken = new HashSet<string>();
+
+        for (var i = 0; i < 500; i++)
+        {
+            var sid = generator.NextMindmapSid(taken);
+            Assert.True(Sid.IsWellFormedMindmapSid(sid), $"'{sid}' is not a well-formed mindmap sid.");
+            Assert.Equal(Sid.MindmapLength, sid.Length);
             Assert.True(taken.Add(sid), $"'{sid}' was minted twice.");
         }
     }

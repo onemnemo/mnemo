@@ -15,4 +15,7 @@ public sealed record MindmapDocumentSummary
     public long Revision { get; init; }
 
     public DateTime ModifiedAt { get; init; }
+
+    /// <summary>The corpus-unique short id external callers, such as the AI tools, address this map by.</summary>
+    public string Sid { get; init; } = string.Empty;
 }

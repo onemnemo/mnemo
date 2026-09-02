@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Mnemo.Core.Identity;
 using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Models.Tools;
 using Mnemo.Infrastructure.Services.Mindmap;
@@ -76,6 +77,20 @@ public sealed class MindmapToolServiceTests
 
         Assert.False(result.Ok);
         Assert.Equal(ToolResultCodes.ValidationError, result.Code);
+    }
+
+    [Fact]
+    public async Task Create_ReportsTheSidNotTheDocumentId()
+    {
+        await using var h = new MindmapTestHarness();
+        var svc = new MindmapToolService(h.Service);
+
+        var result = await svc.CreateMindmapAsync(new CreateMindmapParameters { Title = "Plants" });
+
+        var data = Data(result);
+        var id = data.GetProperty("id").GetString();
+        Assert.True(Sid.IsWellFormedMindmapSid(id), $"'{id}' is not a well-formed mindmap sid.");
+        Assert.Contains(id!, result.Message);
     }
 
     // ---------------------------------------------------------------- outline
@@ -177,6 +192,20 @@ public sealed class MindmapToolServiceTests
         Assert.Equal("box", free[0].GetProperty("t").GetString());
     }
 
+    [Fact]
+    public async Task Outline_AcceptsEitherAddress_AndReportsTheSid()
+    {
+        await using var h = new MindmapTestHarness();
+        var (svc, mapId, _) = await SeedAsync(h, new MindmapNodeSpec { Ref = "n", Text = "node" });
+        var sid = await SidOfAsync(h, mapId);
+
+        var bySid = Data(await svc.OutlineMindmapAsync(new OutlineMindmapParameters { MapId = sid }));
+        var byId = Data(await svc.OutlineMindmapAsync(new OutlineMindmapParameters { MapId = mapId }));
+
+        Assert.Equal(sid, bySid.GetProperty("map_id").GetString());
+        Assert.Equal(sid, byId.GetProperty("map_id").GetString());
+    }
+
     // ---------------------------------------------------------------- find
 
     [Fact]
@@ -224,6 +253,22 @@ public sealed class MindmapToolServiceTests
 
         Assert.False(result.Ok);
         Assert.Equal(ToolResultCodes.NotFound, result.Code);
+    }
+
+    [Fact]
+    public async Task Find_AcceptsEitherAddress()
+    {
+        await using var h = new MindmapTestHarness();
+        var (svc, mapId, _) = await SeedAsync(h, new MindmapNodeSpec { Ref = "n", Text = "aurora" });
+        var sid = await SidOfAsync(h, mapId);
+
+        var bySid = await svc.FindInMapAsync(new FindInMapParameters { MapId = sid, Query = "aurora" });
+        var byId = await svc.FindInMapAsync(new FindInMapParameters { MapId = mapId, Query = "aurora" });
+
+        Assert.True(bySid.Ok);
+        Assert.True(byId.Ok);
+        Assert.Equal(1, Data(bySid).GetProperty("hits").GetArrayLength());
+        Assert.Equal(1, Data(byId).GetProperty("hits").GetArrayLength());
     }
 
     // ---------------------------------------------------------------- read
@@ -300,6 +345,20 @@ public sealed class MindmapToolServiceTests
         Assert.Equal(ToolResultCodes.ValidationError, result.Code);
     }
 
+    [Fact]
+    public async Task Read_AcceptsEitherAddress_AndReportsTheSid()
+    {
+        await using var h = new MindmapTestHarness();
+        var (svc, mapId, ids) = await SeedAsync(h, new MindmapNodeSpec { Ref = "n", Text = "hello" });
+        var sid = await SidOfAsync(h, mapId);
+
+        var bySid = Data(await svc.ReadElementsAsync(new ReadElementsParameters { MapId = sid, Ids = new List<string> { ids["n"] } }));
+        var byId = Data(await svc.ReadElementsAsync(new ReadElementsParameters { MapId = mapId, Ids = new List<string> { ids["n"] } }));
+
+        Assert.Equal(sid, bySid.GetProperty("map_id").GetString());
+        Assert.Equal(sid, byId.GetProperty("map_id").GetString());
+    }
+
     // ---------------------------------------------------------------- edit
 
     [Fact]
@@ -320,6 +379,24 @@ public sealed class MindmapToolServiceTests
         Assert.Equal(3, data.GetProperty("rev").GetInt64());
         Assert.True(data.GetProperty("created").TryGetProperty("child", out var childId));
         Assert.False(string.IsNullOrEmpty(childId.GetString()));
+    }
+
+    [Fact]
+    public async Task Edit_AcceptsEitherAddress()
+    {
+        await using var h = new MindmapTestHarness();
+        var (svc, mapId, ids) = await SeedAsync(h, new MindmapNodeSpec { Ref = "r", Text = "R" });
+        var sid = await SidOfAsync(h, mapId);
+
+        var result = await svc.EditMindmapAsync(new EditMindmapParameters
+        {
+            MapId = sid,
+            Rev = 2,
+            Ops = Ops($$"""[{ "op": "set", "id": "{{ids["r"]}}", "t": "renamed" }]"""),
+        });
+
+        Assert.True(result.Ok);
+        Assert.Equal(3, Data(result).GetProperty("rev").GetInt64());
     }
 
     [Fact]
@@ -467,6 +544,21 @@ public sealed class MindmapToolServiceTests
         Assert.Equal(2, limited.GetProperty("maps").GetArrayLength());
     }
 
+    [Fact]
+    public async Task Search_ListsTheSidNotTheDocumentId()
+    {
+        await using var h = new MindmapTestHarness();
+        var svc = new MindmapToolService(h.Service);
+        var map = (await h.Service.CreateAsync("Biology Notes")).Value!;
+        var sid = await SidOfAsync(h, map.Id);
+
+        var data = Data(await svc.SearchMindmapsAsync(new SearchMindmapsParameters()));
+
+        var listedId = data.GetProperty("maps")[0].GetProperty("id").GetString();
+        Assert.Equal(sid, listedId);
+        Assert.NotEqual(map.Id, listedId);
+    }
+
     // ---------------------------------------------------------------- integrity warnings
 
     [Fact]
@@ -523,4 +615,8 @@ public sealed class MindmapToolServiceTests
         new(h.Service, new MindmapIntegrityService(h.Service, notes, decks, new TestLogger()));
 
     private static string Mutate(string id) => id[..^1] + (id[^1] == 'a' ? 'b' : 'a');
+
+    /// <summary>The sid a document id was minted with, for a test that needs to call a tool by sid.</summary>
+    private static async Task<string> SidOfAsync(MindmapTestHarness h, string mapId) =>
+        (await h.Service.ResolveAsync(mapId)).Value!.Sid;
 }

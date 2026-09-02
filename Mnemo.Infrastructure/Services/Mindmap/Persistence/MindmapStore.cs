@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
+using Mnemo.Core.Identity;
 using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
@@ -25,6 +26,7 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
 
     private readonly string _connectionString;
     private readonly ILoggerService _logger;
+    private readonly SidGenerator _sids;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
     private readonly SemaphoreSlim _initGate = new(1, 1);
 
@@ -32,9 +34,11 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
     private bool _initialized;
 
     /// <param name="databasePath">Optional absolute DB path (tests). Defaults to app user data <c>mnemo.db</c>.</param>
-    public MindmapStore(ILoggerService logger, string? databasePath = null)
+    /// <param name="sids">Optional generator, so a test can force a collision deterministically.</param>
+    public MindmapStore(ILoggerService logger, string? databasePath = null, SidGenerator? sids = null)
     {
         _logger = logger;
+        _sids = sids ?? new SidGenerator();
         var dbPath = databasePath ?? MnemoAppPaths.GetLocalUserDataFile("mnemo.db");
         var dbDir = Path.GetDirectoryName(dbPath);
         if (!string.IsNullOrWhiteSpace(dbDir))
@@ -64,6 +68,7 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
             }
 
             await EnsureSchemaVersionAsync(writer, cancellationToken).ConfigureAwait(false);
+            await BackfillMindmapSidsAsync(writer, cancellationToken).ConfigureAwait(false);
             await ExecuteAsync(writer, MindmapStoreSchema.TrashIndexSql, cancellationToken).ConfigureAwait(false);
 
             _writer = writer;
@@ -108,7 +113,7 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
         await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Id, Title, Revision, ModifiedAt FROM Mindmaps WHERE TrashId IS NULL ORDER BY ModifiedAt DESC;";
+        cmd.CommandText = "SELECT Id, Title, Revision, ModifiedAt, Sid FROM Mindmaps WHERE TrashId IS NULL ORDER BY ModifiedAt DESC;";
 
         var results = new List<MindmapDocumentSummary>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -124,6 +129,7 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
                 Title = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
                 Revision = reader.IsDBNull(2) ? 0 : reader.GetInt64(2),
                 ModifiedAt = ReadDate(reader, 3),
+                Sid = reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
             });
         }
 
@@ -133,6 +139,10 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
     public Task SaveAsync(MindmapDocument document, MindmapSearchDelta searchDelta, CancellationToken cancellationToken = default) =>
         WriteAsync(async (writer, tx) =>
         {
+            // Null when a row for this id is already stored: the update half below never touches Sid,
+            // so an existing map keeps whatever it was minted. Only a first insert needs one.
+            var sid = await MintSidForInsertAsync(writer, tx, document.Id, cancellationToken).ConfigureAwait(false);
+
             int applied;
             await using (var upsert = writer.CreateCommand())
             {
@@ -141,8 +151,8 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
                 // writing through the trash. It answers zero rows rather than failing, and the caller
                 // has already been told the map is gone by the read that returned nothing.
                 upsert.CommandText = """
-                    INSERT INTO Mindmaps (Id, Title, SchemaVersion, Revision, Doc, CreatedAt, ModifiedAt)
-                    VALUES ($id, $title, $schema, $revision, $doc, $created, $modified)
+                    INSERT INTO Mindmaps (Id, Title, SchemaVersion, Revision, Doc, CreatedAt, ModifiedAt, Sid)
+                    VALUES ($id, $title, $schema, $revision, $doc, $created, $modified, $sid)
                     ON CONFLICT(Id) DO UPDATE SET
                         Title = excluded.Title,
                         SchemaVersion = excluded.SchemaVersion,
@@ -158,6 +168,7 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
                 upsert.Parameters.AddWithValue("$doc", MindmapDocumentSerializer.Serialize(document));
                 upsert.Parameters.AddWithValue("$created", document.CreatedAt.ToString(DateFormat, CultureInfo.InvariantCulture));
                 upsert.Parameters.AddWithValue("$modified", document.ModifiedAt.ToString(DateFormat, CultureInfo.InvariantCulture));
+                upsert.Parameters.AddWithValue("$sid", (object?)sid ?? DBNull.Value);
                 applied = await upsert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
@@ -229,7 +240,7 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
         await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Doc, FolderId, LinkedDecksJson, Id FROM Mindmaps WHERE TrashId IS NULL;";
+        cmd.CommandText = "SELECT Doc, FolderId, LinkedDecksJson, Id, Sid FROM Mindmaps WHERE TrashId IS NULL;";
 
         var entries = new List<MindmapLibraryEntry>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -247,6 +258,7 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
                 Document = document,
                 FolderId = reader.IsDBNull(1) ? null : reader.GetString(1),
                 LinkedDeckIds = reader.IsDBNull(2) ? Array.Empty<string>() : ParseDeckIds(reader.GetString(2)),
+                Sid = reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
             });
         }
 
@@ -590,6 +602,12 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
         // v4 → v5: the folder listing's live-row index. No new column, so the statement's own IF
         // NOT EXISTS is guard enough.
         await ExecuteAsync(writer, MindmapStoreSchema.FoldersLiveIndexSql, cancellationToken).ConfigureAwait(false);
+
+        // v5 → v6: the sid column and its uniqueness index. Existing rows get NULL here; the backfill
+        // step that runs right after this mints one for every row still missing it.
+        if (!await ColumnExistsAsync(writer, "Mindmaps", "Sid", cancellationToken).ConfigureAwait(false))
+            await ExecuteAsync(writer, MindmapStoreSchema.AddMapSidColumnSql, cancellationToken).ConfigureAwait(false);
+        await ExecuteAsync(writer, MindmapStoreSchema.MapSidIndexSql, cancellationToken).ConfigureAwait(false);
 
         await using var insert = writer.CreateCommand();
         insert.CommandText = "INSERT OR IGNORE INTO MindmapSchemaVersion (Version, AppliedAt) VALUES ($v, $at);";

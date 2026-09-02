@@ -42,6 +42,7 @@ public sealed class CreateMindmapParameters
 /// <summary>Parameters for <c>outline_mindmap</c>: a compact tree of a map (or one subtree).</summary>
 public sealed class OutlineMindmapParameters
 {
+    /// <summary>The map's short id, as returned by search_mindmaps or create_mindmap.</summary>
     [JsonPropertyName("map_id")] public string MapId { get; set; } = string.Empty;
 
     /// <summary>Scope the outline to this node's subtree instead of the whole map.</summary>
@@ -54,6 +55,7 @@ public sealed class OutlineMindmapParameters
 /// <summary>Parameters for <c>find_in_map</c>: full-text search within one map.</summary>
 public sealed class FindInMapParameters
 {
+    /// <summary>The map's short id, as returned by search_mindmaps or create_mindmap.</summary>
     [JsonPropertyName("map_id")] public string MapId { get; set; } = string.Empty;
 
     [JsonPropertyName("query")] public string Query { get; set; } = string.Empty;
@@ -65,6 +67,7 @@ public sealed class FindInMapParameters
 /// <summary>Parameters for <c>read_elements</c>: full detail for selected elements.</summary>
 public sealed class ReadElementsParameters
 {
+    /// <summary>The map's short id, as returned by search_mindmaps or create_mindmap.</summary>
     [JsonPropertyName("map_id")] public string MapId { get; set; } = string.Empty;
 
     /// <summary>Read exactly these element ids (max 100).</summary>
@@ -80,6 +83,7 @@ public sealed class ReadElementsParameters
 /// <summary>Parameters for <c>edit_mindmap</c>: an atomic op batch. <see cref="Ops"/> is parsed by the op parser.</summary>
 public sealed class EditMindmapParameters
 {
+    /// <summary>The map's short id, as returned by search_mindmaps or create_mindmap.</summary>
     [JsonPropertyName("map_id")] public string MapId { get; set; } = string.Empty;
 
     /// <summary>The revision the ops were composed against (from outline/find/read).</summary>

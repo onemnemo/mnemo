@@ -60,6 +60,8 @@ public sealed class SidGenerator
 
     public string NextNoteSid(IReadOnlySet<string> taken) => Next(taken, Sid.NoteLength);
 
+    public string NextMindmapSid(IReadOnlySet<string> taken) => Next(taken, Sid.MindmapLength);
+
     private static string RandomCandidate(int length)
     {
         var builder = new StringBuilder(length);

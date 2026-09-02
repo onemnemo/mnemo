@@ -22,6 +22,12 @@ public interface IMindmapStore
     Task<IReadOnlyList<MindmapDocumentSummary>> ListAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Resolves a sid or a raw document id to the map's identity (id plus sid), or null when neither
+    /// matches a live map.
+    /// </summary>
+    Task<MindmapIdentity?> ResolveAsync(string sidOrId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Upserts the document row and applies the FTS <paramref name="searchDelta"/> in a single transaction.
     /// </summary>
     Task SaveAsync(MindmapDocument document, MindmapSearchDelta searchDelta, CancellationToken cancellationToken = default);
