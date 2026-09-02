@@ -118,6 +118,38 @@ describe('parseClipboardGrid', () => {
   it('is nothing for plain text without a tab', () => {
     expect(parseClipboardGrid(transfer({ 'text/plain': 'just words' }))).toBeNull();
   });
+
+  it('is nothing when the fragment carries prose around the table', () => {
+    // The tab separated text of such a fragment is the article's own tabs, so it
+    // is no grid either and the whole clipboard belongs to the HTML path.
+    const parsed = parseClipboardGrid(
+      transfer({
+        'text/html': '<p>Intro.</p><table><tr><td>a</td><td>b</td></tr></table>',
+        'text/plain': 'Intro.\na\tb',
+      }),
+    );
+    expect(parsed).toBeNull();
+  });
+
+  it('is nothing for a layout table wrapping an article', () => {
+    const parsed = parseClipboardGrid(
+      transfer({
+        'text/html':
+          '<table><tr><td><h1>Title</h1><p>Body.</p></td><td><p>Aside.</p></td></tr></table>',
+      }),
+    );
+    expect(parsed).toBeNull();
+  });
+
+  it('still reads a table a spreadsheet wraps in markup of its own', () => {
+    const parsed = parseClipboardGrid(
+      transfer({
+        'text/html':
+          '<meta charset="utf-8"><style>td{}</style><div><table><tr><td>a</td><td>b</td></tr></table></div>',
+      }),
+    );
+    expect(parsed).toEqual({ grid: [['a', 'b']], fromHtml: true });
+  });
 });
 
 // --- paste ------------------------------------------------------------------
@@ -183,5 +215,49 @@ describe('pasting a grid', () => {
     // No table was conjured from plain tab text; it stayed in the paragraph.
     expect(firstTable(view.state.doc)).toBeNull();
     expect(view.state.doc.textContent).toContain('a');
+  });
+
+  it('keeps the prose a web page put around its table', () => {
+    const document = doc(para(''));
+    const view = fakeView(document, 2);
+
+    const handled = handleInternalPaste(
+      view,
+      transfer({
+        'text/html':
+          '<p>Intro paragraph.</p><table><tr><td>a</td><td>b</td></tr></table><p>Closing paragraph.</p>',
+        'text/plain': 'Intro paragraph.\na\tb\nClosing paragraph.',
+      }),
+      registry,
+    );
+
+    expect(handled).toBe(true);
+    const text = view.state.doc.textContent;
+    expect(text).toContain('Intro paragraph.');
+    expect(text).toContain('Closing paragraph.');
+    // The table came through the HTML path as a table, not as loose cell text.
+    expect(textGrid(firstTable(view.state.doc)!)).toEqual([['a', 'b']]);
+  });
+
+  it('keeps the article body when a page wraps it in a layout table', () => {
+    const document = doc(para(''));
+    const view = fakeView(document, 2);
+
+    const handled = handleInternalPaste(
+      view,
+      transfer({
+        'text/html':
+          '<table><tr><td><h1>Title</h1><p>First body paragraph.</p></td><td><p>Sidebar.</p></td></tr></table>',
+        'text/plain': 'Title\nFirst body paragraph.\tSidebar.',
+      }),
+      registry,
+    );
+
+    expect(handled).toBe(true);
+    const types: string[] = [];
+    view.state.doc.forEach((node) => types.push(node.type.name));
+    // A heading in a cell is the page's structure, not a cell's text.
+    expect(types).toContain('heading');
+    expect(view.state.doc.textContent).toContain('First body paragraph.');
   });
 });

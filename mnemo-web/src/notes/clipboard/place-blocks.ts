@@ -13,8 +13,8 @@
  * `replaceSelection`, which still inserts the identity-cleared slice (so nothing
  * collides) even where the placement is only approximate:
  *
- *  - caret in an empty paragraph: the blocks replace it, so a paste onto a blank
- *    line fills it rather than pushing an empty block around;
+ *  - caret on a blank prose line: the blocks replace it, so a paste onto an empty
+ *    paragraph, list item or heading fills it rather than pushing a husk around;
  *  - caret at the start or end of a block: the blocks go before or after it whole;
  *  - caret in the middle, or a selection within one line: the block splits and the
  *    run lands in the gap, the selected text (if any) dropped;
@@ -68,7 +68,7 @@ export function placeBlockRun(state: EditorState, slice: Slice): Transaction {
   const collapsed = sel.empty;
 
   // A blank line: the run takes its place.
-  if (collapsed && isContentVisuallyEmpty(line.content) && block.type.name === 'paragraph') {
+  if (collapsed && isContentVisuallyEmpty(line.content) && isBlankLineBlock(block)) {
     const tr = state.tr.replaceWith(blockPos, blockPos + block.nodeSize, nodes);
     return caretAfterRun(tr, blockPos, nodes);
   }
@@ -100,6 +100,31 @@ export function placeBlockRun(state: EditorState, slice: Slice): Transaction {
     : [schema.nodes.paragraph.create(null, schema.nodes.line.create(null, after))];
   tr.insert(gap, [...nodes, ...trailing]);
   return caretAfterRun(tr, gap, nodes);
+}
+
+/**
+ * The prose blocks whose empty line is nothing but an empty line.
+ *
+ * A block type here is one the user reaches by pressing Enter for a fresh line,
+ * so a paste onto it fills it rather than pushing an empty husk around. Every
+ * other type is left alone, because its emptiness carries something: a divider
+ * and an empty code block are not blank lines, and an image without a caption
+ * still holds a picture. Named as a set rather than derived from the node,
+ * because nothing on the node tells those two kinds of empty apart.
+ */
+const blankLineBlocks: ReadonlySet<string> = new Set([
+  'paragraph',
+  'heading',
+  'quote',
+  'bulletItem',
+  'numberedItem',
+  'checklistItem',
+]);
+
+/** Whether an empty `block` is a blank line the paste should take the place of. */
+function isBlankLineBlock(block: PMNode): boolean {
+  // Only the line, nothing nested: replacing a block takes its children with it.
+  return blankLineBlocks.has(block.type.name) && block.childCount === 1;
 }
 
 /**
@@ -180,22 +205,22 @@ function replaceSpanningSelection(state: EditorState, nodes: readonly PMNode[]):
  * When whole blocks are selected, a paste takes their place rather than dropping
  * in beside the collapsed text caret the block selection leaves behind. The
  * covered blocks are removed by the same outermost-coverage rule delete uses and
- * the run lands where the first of them was. Falls back to {@link placeBlockRun}
- * when the set resolves to no coverable range, so an empty or stale selection
- * still pastes rather than doing nothing.
+ * the run lands where the first of them was. Null when the set covers no range,
+ * so an empty or stale selection leaves the caller to place the paste at the
+ * caret rather than the paste doing nothing.
  */
 export function replaceSelectedBlocks(
   state: EditorState,
   slice: Slice,
   registry: BlockRegistry,
   selected: ReadonlySet<string>,
-): Transaction {
+): Transaction | null {
   const nodes: PMNode[] = [];
   slice.content.forEach((node) => nodes.push(node));
-  if (nodes.length === 0) return state.tr;
+  if (nodes.length === 0) return null;
 
   const ranges = coveredBlockRanges(state.doc, registry, selected);
-  if (ranges.length === 0) return placeBlockRun(state, slice);
+  if (ranges.length === 0) return null;
 
   const tr = state.tr;
   // Disjoint, ascending ranges, so later ones do not shift the first. Delete the

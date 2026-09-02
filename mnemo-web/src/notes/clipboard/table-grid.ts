@@ -7,11 +7,13 @@
  * reads either one back, preferring the HTML because it keeps a cell's own line
  * breaks that the tab separated form has to flatten to keep its rows and columns.
  *
- * Only these two shapes count as a grid: a real `<table>`, or plain text that
- * actually carries a tab. Ordinary multi line text is not a grid, so pasting a
- * paragraph into a cell still folds in as text rather than spilling across rows
- * nobody asked for.
+ * Only these two shapes count as a grid: a clipboard whose whole content is one
+ * data `<table>`, or plain text that actually carries a tab. Ordinary multi line
+ * text is not a grid, so pasting a paragraph into a cell still folds in as text
+ * rather than spilling across rows nobody asked for.
  */
+
+import { sanitizeExternalHtml } from './html-sanitize';
 
 const TAB = '\t';
 
@@ -44,16 +46,41 @@ function cellText(cell: Element): string {
 }
 
 /**
- * The first HTML table in `html` as a grid, or null when there is none.
+ * Block level tags a data grid's cells never hold, and a layout table's do.
  *
- * Parsed through `DOMParser`, whose document is inert: no script runs and no
- * `src` loads, so reading attacker supplied clipboard HTML for its cell text is
- * safe. Only text is taken; the cells' own markup is not carried into the note.
+ * A mail client and an older page wrap a whole article in a table for its
+ * columns. Reading that as a grid flattens the headings and the lists into cell
+ * text, so a table holding any of these is prose that happens to be in a table.
+ */
+const CELL_STRUCTURE = 'h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre, table, hr, figure';
+
+/** Whether `table` is a grid of values rather than an article laid out in cells. */
+export function isDataTable(table: Element): boolean {
+  return table.querySelector(CELL_STRUCTURE) === null;
+}
+
+/** Cheap enough to run before sanitising, which is the expensive part. */
+const HAS_TABLE = /<table[\s>]/i;
+
+/**
+ * The clipboard's one data table, when that is all the clipboard holds.
+ *
+ * Sanitised first, so the `<meta>` and `<style>` a spreadsheet writes beside its
+ * table do not count as content next to it, and because a template's contents
+ * are inert: no script runs and no `src` loads while attacker supplied clipboard
+ * HTML is read for its cell text. A fragment that also carries prose is a page
+ * excerpt rather than a grid and belongs to the HTML paste path, which keeps
+ * what surrounds the table instead of discarding it.
  */
 function parseHtmlTable(html: string): string[][] | null {
-  if (!/<table[\s>]/i.test(html)) return null;
-  const table = new DOMParser().parseFromString(html, 'text/html').querySelector('table');
-  if (!table) return null;
+  const outcome = sanitizeExternalHtml(html);
+  if ('tooLarge' in outcome) return null;
+
+  const tables = outcome.fragment.querySelectorAll('table');
+  if (tables.length !== 1) return null;
+  const table = tables[0];
+  if (!isDataTable(table) || hasTextOutside(outcome.fragment, table)) return null;
+
   const out: string[][] = [];
   table.querySelectorAll('tr').forEach((tr) => {
     const cells: string[] = [];
@@ -61,6 +88,15 @@ function parseHtmlTable(html: string): string[][] | null {
     if (cells.length > 0) out.push(cells);
   });
   return out.length > 0 ? out : null;
+}
+
+/** Whether anything outside `table` carries text of its own. */
+function hasTextOutside(fragment: DocumentFragment, table: Element): boolean {
+  const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!table.contains(node) && (node.nodeValue ?? '').trim() !== '') return true;
+  }
+  return false;
 }
 
 /** Tab separated text as a grid: rows by newline, cells by tab. */
@@ -80,9 +116,11 @@ function parseTsv(text: string): string[][] {
  */
 export function parseClipboardGrid(data: DataTransfer): { grid: string[][]; fromHtml: boolean } | null {
   const html = data.getData('text/html');
-  if (html) {
+  // A clipboard whose HTML holds a table it is not entirely made of has no grid
+  // at all: its tab separated text is the article's own tabs, not a rectangle.
+  if (html && HAS_TABLE.test(html)) {
     const grid = parseHtmlTable(html);
-    if (grid) return { grid, fromHtml: true };
+    return grid ? { grid, fromHtml: true } : null;
   }
   const text = data.getData('text/plain');
   if (text && text.includes(TAB)) return { grid: parseTsv(text), fromHtml: false };
