@@ -225,3 +225,69 @@ describe('parseMarkdownToBlocks: whole documents', () => {
     expect(blocks.map((b) => b.order)).toEqual([0, 1, 2, 3, 4, 5, 6]);
   });
 });
+
+describe('parseMarkdownToBlocks: nested lists', () => {
+  /** The parsed blocks as an indented outline of type and text. */
+  function outline(blocks: readonly Block[], depth = 0): string[] {
+    const out: string[] = [];
+    for (const block of blocks) {
+      out.push(`${'  '.repeat(depth)}${block.type}:${textOf(block)}`);
+      if (block.children) out.push(...outline(block.children, depth + 1));
+    }
+    return out;
+  }
+
+  it('nests a list line indented past the item above it', () => {
+    const blocks = parseMarkdownToBlocks('- a\n  - b\n    - c\n  - d\n- e');
+    expect(outline(blocks)).toEqual([
+      'BulletList:a',
+      '  BulletList:b',
+      '    BulletList:c',
+      '  BulletList:d',
+      'BulletList:e',
+    ]);
+  });
+
+  it('nests any list kind under any other, at whatever indent the writer chose', () => {
+    // A tab reads as four columns: deeper than "done" at three, so it goes under
+    // it, and no deeper than "star" at six, so it lands beside that one.
+    const blocks = parseMarkdownToBlocks('1. one\n   - [x] done\n      * star\n\t2. tabbed');
+    expect(outline(blocks)).toEqual([
+      'NumberedList:one',
+      '  Checklist:done',
+      '    BulletList:star',
+      '    NumberedList:tabbed',
+    ]);
+  });
+
+  it('numbers children per container, so each list starts its order at zero', () => {
+    const blocks = parseMarkdownToBlocks('- a\n  - b\n  - c\n- d');
+    expect(blocks.map((b) => b.order)).toEqual([0, 1]);
+    expect(blocks[0].children?.map((b) => b.order)).toEqual([0, 1]);
+  });
+
+  it('ends the nesting at anything that is not a list item', () => {
+    const blocks = parseMarkdownToBlocks('- a\n  - b\nplain\n  - c');
+    expect(outline(blocks)).toEqual(['BulletList:a', '  BulletList:b', 'Text:plain', 'BulletList:c']);
+  });
+
+  it('leaves a flat list flat, with no children arrays at all', () => {
+    const blocks = parseMarkdownToBlocks('- a\n- b');
+    expect(blocks.map((b) => b.children)).toEqual([null, null]);
+  });
+
+  it('counts nested items toward the block cap', () => {
+    const lines: string[] = [];
+    for (let i = 0; i < MAX_BLOCKS + 5; i++) lines.push(i % 2 === 0 ? '- a' : '  - b');
+    const blocks = parseMarkdownToBlocks(lines.join('\n'));
+    let total = 0;
+    const count = (list: readonly Block[]): void => {
+      for (const b of list) {
+        total += 1;
+        if (b.children) count(b.children);
+      }
+    };
+    count(blocks);
+    expect(total).toBe(MAX_BLOCKS + 1);
+  });
+});

@@ -49,6 +49,7 @@ import { findPlugin } from '../find/find-plugin';
 import { blockSelectionPlugin } from '../selection/block-selection-plugin';
 import { resolveServices } from '../editor/view/nodeviews';
 import type { EditorServices } from '../editor/registry/types';
+import { listNestingKeymap } from '../editor/commands/list-nesting';
 import { structureKeymap } from '../editor/commands/structure';
 import { editorKeymap } from '../editor/commands';
 import { editorHistory, historyBoundaryPlugin } from '../editor/history';
@@ -162,6 +163,10 @@ export function editorPlugins(
     blockSelectionPlugin(registry),
     inputTriggerPlugin(registry),
     structureKeymap(),
+    // Tab and Shift+Tab, which nothing else here binds. Beside the structural
+    // keymap because it is one: it claims the keys only inside a list, and a
+    // declined Tab has to reach the browser for focus to move as it always has.
+    listNestingKeymap(),
     editorKeymap(),
     keymap(baseKeymap),
     invariantPipeline(registry),

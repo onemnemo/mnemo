@@ -27,19 +27,16 @@ import { Fragment, Mark, type Node as PMNode, type NodeType } from 'prosemirror-
 import { TextSelection, type Command, type Transaction } from 'prosemirror-state';
 import { keymap } from 'prosemirror-keymap';
 import type { Plugin } from 'prosemirror-state';
-import { blockChildrenOf, containerBlockNames, lineIsCaretTarget, lineOf } from '../blocks/shared';
+import { blockChildrenOf, containerBlockNames, isListItem, lineIsCaretTarget, lineOf } from '../blocks/shared';
 import { asOwnUndoStep } from '../history';
+import { blockContext, type BlockContext } from './caret-block';
+import { isNested, outdentTransaction } from './list-nesting';
 import { backspaceAtCellStart, cellStartContext } from './two-column';
+
+export { blockContext, type BlockContext } from './caret-block';
 
 /** Earlier builds stored a U+200B in empty paragraphs; it is never visible text. */
 const ZERO_WIDTH_SPACE = String.fromCharCode(0x200b);
-
-/** The list item node types, the ones a split keeps as a same-type sibling. */
-const LIST_NODE_NAMES: ReadonlySet<string> = new Set([
-  'bulletItem',
-  'numberedItem',
-  'checklistItem',
-]);
 
 /**
  * "Visually empty" the way the desktop's `BlockEditorContentPolicy` meant it:
@@ -77,37 +74,6 @@ export function hasInlineAtom(content: Fragment): boolean {
     if (!child.isText) found = true;
   });
   return found;
-}
-
-export interface BlockContext {
-  /** The block whose line holds the caret, the innermost one, so a nested cell works. */
-  readonly block: PMNode;
-  /** Position immediately before `block`. */
-  readonly blockPos: number;
-  /** The block's line (or codeLine) node. */
-  readonly line: PMNode;
-  /** Caret offset within the line's content. */
-  readonly offset: number;
-}
-
-/**
- * The block the caret sits in, or null when the selection is not inside an
- * editable line (a node selection on an atom, say). Every structural command
- * needs the same three coordinates, computed once here.
- */
-export function blockContext(state: Parameters<Command>[0]): BlockContext | null {
-  const { $from } = state.selection;
-  const line = $from.parent;
-  // The caret must be in inline content; doc > block > line means the line's
-  // parent is always the block, one level up.
-  if (!line.isTextblock || $from.depth < 1) return null;
-  const blockDepth = $from.depth - 1;
-  return {
-    block: $from.node(blockDepth),
-    blockPos: $from.before(blockDepth),
-    line,
-    offset: $from.parentOffset,
-  };
 }
 
 /**
@@ -328,8 +294,18 @@ export const splitBlock: Command = (state, dispatch) => {
     return insertSoftBreak(state, dispatch);
   }
 
-  // Empty list item: leave the list, converting in place to Text.
-  if (LIST_NODE_NAMES.has(block.type.name) && blank) {
+  // Empty list item: leave the list. A nested one steps out one level first and
+  // keeps its type, so a run of Enters walks back up to the top before the last
+  // one turns the item into Text.
+  if (isListItem(block) && blank) {
+    if (isNested(state, blockPos)) {
+      const lifted = outdentTransaction(state, blockPos, block);
+      if (lifted) {
+        // The lifted item opens one position later, past its parent's closing token.
+        lifted.setSelection(TextSelection.create(lifted.doc, blockPos + 3));
+        return dispatchStructural(lifted.scrollIntoView(), dispatch);
+      }
+    }
     const tr = convertBlockType(state.tr, blockPos, block, schema.nodes.paragraph, {
       content: 'clear',
     });
@@ -354,84 +330,164 @@ export const splitBlock: Command = (state, dispatch) => {
   // General split: current block keeps its type and the text before the caret;
   // the block below gets the text after, a same-type sibling for a list, a Text
   // block for everything else (a split heading does not spawn another heading).
-  const belowType = LIST_NODE_NAMES.has(block.type.name) ? block.type : schema.nodes.paragraph;
+  const belowType = isListItem(block) ? block.type : schema.nodes.paragraph;
   const lineContentStart = blockPos + 2;
   const lineContentEnd = lineContentStart + line.content.size;
   const blockEnd = blockPos + block.nodeSize;
 
   const tr = state.tr;
   tr.replaceWith(lineContentStart, lineContentEnd, before);
-  const insertAt = blockEnd - (line.content.size - before.size);
+  // A block with a nested list beneath it puts the new block at the head of that
+  // list rather than after it: the caret was on the parent's line, and the block
+  // that appears has to be the next one the eye reaches, not one below every
+  // child. The head is the position right after the line's closing token.
+  const insertAt =
+    blockChildrenOf(block).length > 0
+      ? lineContentStart + before.size + 1
+      : blockEnd - (line.content.size - before.size);
   const belowBlock = belowType.create(null, schema.nodes.line.create(null, after));
   tr.insert(insertAt, belowBlock);
   tr.setSelection(TextSelection.create(tr.doc, insertAt + 2));
   return dispatchStructural(tr.scrollIntoView(), dispatch);
 };
 
-/** Deletes the caret's empty block, focusing the previous one, but never empties the doc. */
+/**
+ * The block whose line comes right before `blockPos` in document order: the
+ * previous sibling's deepest last item when that sibling holds a nested list,
+ * else the sibling itself, or, for the first child of a list item, the item,
+ * whose line is the one directly above. Null at the start of a run whose parent
+ * holds no line of its own, the document or a column cell.
+ */
+function precedingLineBlock(doc: PMNode, blockPos: number): { node: PMNode; pos: number } | null {
+  const $block = doc.resolve(blockPos);
+  const before = $block.nodeBefore;
+  if (before && !before.isTextblock) {
+    let node = before;
+    let pos = blockPos - before.nodeSize;
+    // The line the eye sees directly above is the last one of the block's
+    // nested list, however deep it goes. A container is never entered: its
+    // cells are their own merge world, and a caret target it is not.
+    for (;;) {
+      if (containerBlockNames.has(node.type.name)) break;
+      const children = blockChildrenOf(node);
+      const last = children[children.length - 1];
+      if (!last) break;
+      pos = pos + node.nodeSize - 1 - last.nodeSize;
+      node = last;
+    }
+    return { node, pos };
+  }
+  // Nothing but the parent's own line precedes us. The parent is the target when
+  // it is a block the caret can sit in, a list item holding its sub-list; a
+  // container's line is scenery and never a merge target.
+  if ($block.depth >= 1 && !containerBlockNames.has($block.parent.type.name)) {
+    return { node: $block.parent, pos: $block.before($block.depth) };
+  }
+  return null;
+}
+
+/**
+ * The block whose line comes right after the caret's block in document order:
+ * its first child when it holds a nested list, else its next sibling, else, at
+ * the end of a list item's sub-list, whatever follows that item, climbing as far
+ * as list items go. Null at the end of the document or of a container.
+ */
+function followingLineBlock(doc: PMNode, ctx: BlockContext): { node: PMNode; pos: number } | null {
+  const children = blockChildrenOf(ctx.block);
+  if (children.length > 0) return { node: children[0], pos: ctx.blockPos + 1 + ctx.line.nodeSize };
+  let pos = ctx.blockPos;
+  let node = ctx.block;
+  for (;;) {
+    const afterPos = pos + node.nodeSize;
+    const $after = doc.resolve(afterPos);
+    const next = $after.nodeAfter;
+    if (next) return { node: next, pos: afterPos };
+    if ($after.depth < 1 || !isListItem($after.parent)) return null;
+    node = $after.parent;
+    pos = $after.before($after.depth);
+  }
+}
+
+/**
+ * Deletes the caret's empty block, focusing the line above it, but never empties
+ * the doc. A block holding a nested list is dissolved rather than deleted: its
+ * children take its place, keeping their position and losing one level, and
+ * the caret still lands on the line above.
+ */
 function deleteEmptyBlock(
   state: Parameters<Command>[0],
   ctx: BlockContext,
   dispatch?: (tr: Transaction) => void,
 ): boolean {
   const { block, blockPos } = ctx;
-  const $block = state.doc.resolve(blockPos);
-  const prev = $block.nodeBefore;
-  const prevLine = prev ? lineOf(prev) : null;
+  const target = precedingLineBlock(state.doc, blockPos);
+  const children = blockChildrenOf(block);
 
-  if (prev && prevLine && lineIsCaretTarget(prev.type)) {
-    const prevStart = blockPos - prev.nodeSize;
-    const prevLineEnd = prevStart + 2 + prevLine.content.size;
-    const tr = state.tr.delete(blockPos, blockPos + block.nodeSize);
-    tr.setSelection(TextSelection.create(tr.doc, prevLineEnd));
+  if (target) {
+    const targetLine = lineOf(target.node);
+    // A previous block exists but is not somewhere the caret can land: a
+    // divider, a table, an atom drawing from its payload. Deleting our empty
+    // block would strand the caret in scenery the user cannot see or reach, so
+    // swallow the key instead, the same as when there is no previous block at
+    // all.
+    if (!targetLine || !lineIsCaretTarget(target.node.type)) return true;
+    const targetLineEnd = target.pos + 2 + targetLine.content.size;
+    const tr = state.tr.replaceWith(blockPos, blockPos + block.nodeSize, children);
+    tr.setSelection(TextSelection.create(tr.doc, targetLineEnd));
     return dispatchStructural(tr.scrollIntoView(), dispatch);
   }
 
-  // A previous sibling exists but is not somewhere the caret can land: a
-  // divider, a table, an atom drawing from its payload. Deleting our empty
-  // block would strand the caret in scenery the user cannot see or reach, so
-  // swallow the key instead, the same as when there is no previous sibling
-  // at all.
-  if (prev) return true;
-
-  // No previous sibling. Delete only if a sibling remains after us, so the
-  // document never drops below one block; otherwise the last block stays put.
-  if ($block.parent.childCount > 1) {
-    const tr = state.tr.delete(blockPos, blockPos + block.nodeSize);
+  // No line above. Delete only if a block remains after us, a sibling or our
+  // own promoted children, so the document never drops below one block;
+  // otherwise the last block stays put.
+  const $block = state.doc.resolve(blockPos);
+  if ($block.parent.childCount > 1 || children.length > 0) {
+    const tr = state.tr.replaceWith(blockPos, blockPos + block.nodeSize, children);
     tr.setSelection(TextSelection.create(tr.doc, blockPos + 2));
     return dispatchStructural(tr.scrollIntoView(), dispatch);
   }
   return true;
 }
 
-/** Appends the caret's block content into the previous block, which keeps its type. */
+/**
+ * Appends the caret's block content into the block whose line precedes it,
+ * which keeps its type. The absorbed block's own nested list stays exactly where
+ * it was in document order: a parent that melts into the block above hands that
+ * block its children, and a first child that melts into its parent leaves its
+ * children at the head of the parent's list.
+ */
 function mergeIntoPrevious(
   state: Parameters<Command>[0],
   ctx: BlockContext,
   dispatch?: (tr: Transaction) => void,
 ): boolean {
   const { block, blockPos, line } = ctx;
-  const $block = state.doc.resolve(blockPos);
-  const prev = $block.nodeBefore;
-  const prevLine = prev ? lineOf(prev) : null;
-  // Nothing to merge into: no previous block, a previous block with no line,
-  // or a previous block whose line is not somewhere the caret can land (a
-  // divider, a table, an atom drawing from its payload). Merging into one of
-  // those would write the caret's text into a line the user can never see or
-  // reach again, though it would still be sitting there on save. The
-  // desktop's MergeWithPrevious does nothing here either; swallow the key so
-  // a stray join does not happen instead.
-  if (!prev || !prevLine || !lineIsCaretTarget(prev.type)) return true;
+  const target = precedingLineBlock(state.doc, blockPos);
+  const targetLine = target ? lineOf(target.node) : null;
+  // Nothing to merge into: no line above, or one that is not somewhere the
+  // caret can land (a divider, a table, an atom drawing from its payload).
+  // Merging into one of those would write the caret's text into a line the user
+  // can never see or reach again, though it would still be sitting there on
+  // save. The desktop's MergeWithPrevious does nothing here either; swallow the
+  // key so a stray join does not happen instead.
+  if (!target || !targetLine || !lineIsCaretTarget(target.node.type)) return true;
 
-  const prevStart = blockPos - prev.nodeSize;
-  const prevLineEnd = prevStart + 2 + prevLine.content.size;
+  const targetLineEnd = target.pos + 2 + targetLine.content.size;
   // A code block's line forbids marks; drop them so the appended prose is valid.
   const content =
-    prevLine.type.name === 'codeLine' ? stripMarks(line.content) : line.content;
+    targetLine.type.name === 'codeLine' ? stripMarks(line.content) : line.content;
+  const children = blockChildrenOf(block);
+  // The children follow the text: into the target's own list, at its end, so
+  // they stay indented under the line they now belong to. When the target is
+  // our parent that end would put them after our former siblings, so there they
+  // keep our slot instead, right after the parent's line.
+  const isParent = target.pos < blockPos && blockPos < target.pos + target.node.nodeSize;
+  const childrenAt = isParent ? blockPos : target.pos + target.node.nodeSize - 1;
 
   const tr = state.tr.delete(blockPos, blockPos + block.nodeSize);
-  tr.insert(prevLineEnd, content);
-  tr.setSelection(TextSelection.create(tr.doc, prevLineEnd));
+  if (children.length > 0) tr.insert(childrenAt, children);
+  tr.insert(targetLineEnd, content);
+  tr.setSelection(TextSelection.create(tr.doc, targetLineEnd));
   return dispatchStructural(tr.scrollIntoView(), dispatch);
 }
 
@@ -543,9 +599,9 @@ export const deleteForwardStructural: Command = (state, dispatch) => {
   if (block.type.name === 'tableCell') return true;
   if (block.type.name === 'image') return true;
 
-  const afterPos = blockPos + block.nodeSize;
-  const next = state.doc.resolve(afterPos).nodeAfter;
-  if (!next || next.type.name !== 'paragraph') return true;
+  const following = followingLineBlock(state.doc, ctx);
+  if (!following || following.node.type.name !== 'paragraph') return true;
+  const next = following.node;
 
   const nextLine = lineOf(next);
   if (!nextLine) return true;
@@ -553,8 +609,12 @@ export const deleteForwardStructural: Command = (state, dispatch) => {
   const lineContentEnd = blockPos + 2 + line.content.size;
   // A code block's line forbids marks; drop them so the appended prose is valid.
   const content = line.type.name === 'codeLine' ? stripMarks(nextLine.content) : nextLine.content;
+  // The absorbed block's nested list keeps its slot, as Backspace leaves it:
+  // what follows the joined text is what followed the block.
+  const children = blockChildrenOf(next);
 
-  const tr = state.tr.delete(afterPos, afterPos + next.nodeSize);
+  const tr = state.tr.delete(following.pos, following.pos + next.nodeSize);
+  if (children.length > 0) tr.insert(following.pos, children);
   tr.insert(lineContentEnd, content);
   tr.setSelection(TextSelection.create(tr.doc, lineContentEnd));
   return dispatchStructural(tr.scrollIntoView(), dispatch);

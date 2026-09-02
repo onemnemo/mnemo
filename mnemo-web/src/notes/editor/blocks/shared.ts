@@ -178,6 +178,22 @@ export const containerBlockNames: ReadonlySet<string> = new Set([
 export const opaqueBlockNames: ReadonlySet<string> = new Set(['table']);
 
 /**
+ * The list item block types. A run of these is a list, and an item's block
+ * children are its nested list, so these are the blocks the nesting commands
+ * move in and out of a neighbour and the ones a split keeps as a same-type
+ * sibling.
+ */
+export const listItemBlockNames: ReadonlySet<string> = new Set([
+  'bulletItem',
+  'numberedItem',
+  'checklistItem',
+]);
+
+export function isListItem(node: PMNode): boolean {
+  return listItemBlockNames.has(node.type.name);
+}
+
+/**
  * Whether a block of this type has a line the caret can actually land in and the
  * user can actually see: not a container's structural scenery, and not an atomic
  * block whose realized view renders no editable content for its line at all.

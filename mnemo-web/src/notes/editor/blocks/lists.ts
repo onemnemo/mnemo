@@ -1,19 +1,32 @@
 /**
  * The three list item types.
  *
- * **These are flat sibling nodes, not a ProseMirror list.** No wrapping `<ul>`,
- * no `listItem` nesting. PM's list schema is good, and using it would let a user
- * build nested lists that the storage format has no way to persist, the C#
- * lifecycle code writes list items as flat siblings and nothing more. A schema
- * that permits states the wire cannot hold is a data-loss bug waiting for the
- * first user who presses Tab.
+ * **Sibling nodes, not a ProseMirror list.** There is no wrapping `<ul>` and no
+ * `listItem` node: a run of items is a list because the items sit next to each
+ * other, exactly as the wire format stores them. A nested list is the block
+ * children every block already carries, so an item's sub-list is its `children`
+ * on the wire and its trailing block nodes in the document, and the nesting
+ * commands (`commands/list-nesting.ts`) only ever move whole items in and out
+ * of a neighbour. Both readers of the format walk children generically, so no
+ * depth is ever a state the wire cannot hold.
  */
 
-import type { AnyBlockModule } from '../registry/types';
+import type { Node as PMNode } from 'prosemirror-model';
+import type { AnyBlockModule, MdContext } from '../registry/types';
 import type { BlockType } from '../../model/types';
 import { defineBlock, type BlockDeps } from './shared';
 import { convertHere } from './slash-insert';
 import { checklistView } from './checklist-view';
+
+/**
+ * An item's sub-list, indented under it. Two spaces per level under a bullet or
+ * a checkbox and three under a numbered item, so a child line sits at its
+ * parent's content column and CommonMark readers nest it too; our own parsers
+ * accept anything deeper than the parent's own indent.
+ */
+function nestedMarkdown(node: PMNode, ctx: MdContext, indent: string): string {
+  return ctx.serializeChildren(node).replace(/^(?=.)/gm, indent);
+}
 
 export function bulletItemBlock(deps: BlockDeps): AnyBlockModule {
   return defineBlock(
@@ -26,7 +39,7 @@ export function bulletItemBlock(deps: BlockDeps): AnyBlockModule {
       },
       attrsFrom: () => ({}),
       wireFrom: () => ({ type: 'BulletList' as BlockType, payload: { kind: 'empty' as const } }),
-      toMarkdown: (_node, _ctx, inline) => `- ${inline}\n`,
+      toMarkdown: (node, ctx, inline) => `- ${inline}\n${nestedMarkdown(node, ctx, '  ')}`,
       slash: [
         {
           label: 'BulletList',
@@ -69,7 +82,7 @@ export function numberedItemBlock(deps: BlockDeps): AnyBlockModule {
       attrsFrom: () => ({}),
       wireFrom: () => ({ type: 'NumberedList' as BlockType, payload: { kind: 'empty' as const } }),
       // Markdown renumbers on its own, so a literal `1.` is correct output.
-      toMarkdown: (_node, _ctx, inline) => `1. ${inline}\n`,
+      toMarkdown: (node, ctx, inline) => `1. ${inline}\n${nestedMarkdown(node, ctx, '   ')}`,
       slash: [
         {
           label: 'NumberedList',
@@ -116,8 +129,8 @@ export function checklistItemBlock(deps: BlockDeps): AnyBlockModule {
       // A real clickable checkbox in front of the text; the toDOM marker alone
       // is decoration a click passes straight through.
       realizedView: checklistView,
-      toMarkdown: (node, _ctx, inline) =>
-        `- [${node.attrs.checked === true ? 'x' : ' '}] ${inline}\n`,
+      toMarkdown: (node, ctx, inline) =>
+        `- [${node.attrs.checked === true ? 'x' : ' '}] ${inline}\n${nestedMarkdown(node, ctx, '  ')}`,
       slash: [
         {
           // The desktop names the row "To-do" but describes it as a checklist.
