@@ -290,6 +290,63 @@ describe('chunked mount for large notes', () => {
     expect(mounted.handle.state.doc.child(0).textContent).toContain('!');
   });
 
+  it('accepts an edit built against the loaded prefix, having never been read through the handle', () => {
+    // How a file drop arrives: the transaction is built from `view.state`, and
+    // a drop is preceded by no focus, press or keystroke to have finished the
+    // load, so it is a transaction over a document that is still growing.
+    const el = container();
+    const built = editState(10);
+    const q = stepQueue();
+    const mounted = mountEditor({
+      mount: el,
+      state: built.state,
+      registry: built.registry,
+      chunkThreshold: 3,
+      firstChunkSize: 3,
+      chunkSize: 3,
+      schedule: q.schedule,
+    });
+    expect(mounted.view.state.doc.childCount).toBe(3);
+
+    const applied = mounted.handle.apply(mounted.view.state.tr.insertText('!', 2));
+
+    // The edit landed, and the note is whole by the time the apply returns.
+    expect(applied.state.doc.childCount).toBe(10);
+    expect(mounted.handle.state.doc.childCount).toBe(10);
+    expect(mounted.handle.state.doc.child(0).textContent).toContain('!');
+
+    // A step scheduled before the apply drained finds nothing left to append.
+    while (q.pending > 0) q.runNext();
+    expect(mounted.view.state.doc.childCount).toBe(10);
+  });
+
+  it('still reads the whole document out of the handle after a teardown mid-load', () => {
+    // Closing a note destroys the view at once and lets the final save commit
+    // what the handle still answers with, so a truncated document here is the
+    // note truncated in the store.
+    const el = container();
+    const built = editState(10);
+    const q = stepQueue();
+    const mounted = mountEditor({
+      mount: el,
+      state: built.state,
+      registry: built.registry,
+      chunkThreshold: 3,
+      firstChunkSize: 3,
+      chunkSize: 3,
+      schedule: q.schedule,
+    });
+    expect(mounted.view.state.doc.childCount).toBe(3);
+
+    mounted.destroy();
+
+    expect(mounted.handle.state.doc.childCount).toBe(10);
+    // Into the state the handle answers with, and not into the view: a
+    // teardown that rendered the rest would pay the freeze chunking avoids,
+    // for an editor already on its way out.
+    expect(mounted.view.state.doc.childCount).toBe(3);
+  });
+
   it('touching the editor finishes the load before any keystroke can build a transaction', () => {
     const el = container();
     const built = editState(10);
