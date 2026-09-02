@@ -33,6 +33,7 @@
 
 import { parseInlineMarkdown } from '../model/markdown';
 import { plainSpan } from '../model/spans';
+import { TABLE_COL_W } from '../editor/table/model';
 import type { Block, BlockPayload, BlockType, InlineSpan } from '../model/types';
 
 /** A page reference in either the desktop or the port's own emitted form. */
@@ -43,6 +44,36 @@ const STAR_BULLET = /^(?:\*|\+)\s+(.*)$/;
 const NUMBERED = /^(\d+)\.\s/;
 /** `![alt](target)` on a line of its own. */
 const IMAGE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/;
+
+/**
+ * The delimiter row under a pipe table's header: dashes per column, with the
+ * optional colons that mark alignment, which this reader accepts and drops.
+ */
+const TABLE_DELIMITER = /^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+
+/** The cells of one pipe table row, a backslash keeping a pipe literal. */
+function splitPipeRow(row: string): string[] {
+  let body = row.trim();
+  if (body.startsWith('|')) body = body.slice(1);
+  if (body.endsWith('|') && !body.endsWith('\\|')) body = body.slice(0, -1);
+  const cells: string[] = [];
+  let current = '';
+  for (let k = 0; k < body.length; k++) {
+    const ch = body[k];
+    if (ch === '\\' && body[k + 1] === '|') {
+      current += '|';
+      k++;
+    } else if (ch === '|') {
+      cells.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
 
 /**
  * A ceiling on how many blocks one paste produces.
@@ -103,6 +134,33 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
       place(item, out);
     }
     open.push({ indent, item });
+  };
+
+  // A pipe table, the shape `tableMarkdown` writes: the first row is the header,
+  // every row is padded to the widest one, and the widths are the editor's
+  // default since markdown carries none.
+  const emitTable = (rows: readonly string[][]): void => {
+    open.length = 0;
+    const width = rows.reduce((widest, cells) => Math.max(widest, cells.length), 0);
+    const table = makeBlock('Table', [plainSpan('')], {
+      kind: 'table',
+      columnWidths: Array.from({ length: width }, () => TABLE_COL_W),
+      headerRows: rows.map((_cells, index) => index === 0),
+      headerColumns: Array.from({ length: width }, () => false),
+      fullWidth: false,
+    });
+    table.children = [];
+    for (const cells of rows) {
+      const row = makeBlock('TableRow', [plainSpan('')], { kind: 'empty' });
+      row.children = [];
+      for (let column = 0; column < width; column++) {
+        const text = cells[column] ?? '';
+        const cell = makeBlock('TableCell', parseInlineMarkdown(text), { kind: 'tableCell', fill: '' });
+        place(cell, row.children);
+      }
+      place(row, table.children);
+    }
+    place(table, out);
   };
 
   while (i < lines.length) {
@@ -251,8 +309,23 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
       continue;
     }
 
+    // Pipe table: a row followed by a delimiter row opens one, and it runs while
+    // the lines keep starting with a pipe. A lone line starting with a pipe is
+    // text, since nothing says it meant to be a grid.
+    if (trimmed.startsWith('|') && i + 1 < lines.length && TABLE_DELIMITER.test(lines[i + 1])) {
+      const rows: string[][] = [splitPipeRow(trimmed)];
+      i += 2;
+      while (i < lines.length && lines[i].replace(/^\s+/, '').startsWith('|')) {
+        rows.push(splitPipeRow(lines[i]));
+        i++;
+      }
+      emitTable(rows);
+      continue;
+    }
+
     // Plain text: the raw line, so leading indentation is not silently trimmed,
     // still through the inline parser so pasted markdown styling survives.
+
     emit('Text', parseInlineMarkdown(line), { kind: 'empty' });
     i++;
   }
