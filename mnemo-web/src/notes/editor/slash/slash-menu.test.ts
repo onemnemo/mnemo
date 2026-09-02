@@ -150,6 +150,44 @@ describe('when the menu opens', () => {
   });
 
   /**
+   * A path, a route or a date starts with a slash and is ordinary content. The
+   * menu belongs to the keystroke that typed the slash, not to the shape of the
+   * line the caret happens to be in.
+   */
+  it('stays closed when the caret is put in a line that already starts with a slash', () => {
+    const view = mount([block('Text', [span('/etc/hosts is the file')])]);
+    caretAtStart(view);
+    expect(isOpen()).toBe(false);
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 8)));
+    expect(isOpen()).toBe(false);
+  });
+
+  it('stays closed while such a line goes on being edited', () => {
+    const view = mount([block('Text', [span('/etc/hosts')])]);
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 12)));
+    type(view, ' is the file');
+    expect(isOpen()).toBe(false);
+  });
+
+  it('closes when the caret leaves the query for another block', () => {
+    const view = mount([block('Text', [span('')]), block('Text', [span('after')])]);
+    caretAtStart(view);
+    type(view, '/quo');
+    expect(isOpen()).toBe(true);
+    const nextLine = view.state.doc.child(0).nodeSize + 2;
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, nextLine)));
+    expect(isOpen()).toBe(false);
+  });
+
+  it('closes when the caret goes back in front of the slash', () => {
+    const view = mount([block('Text', [span('')])]);
+    caretAtStart(view);
+    type(view, '/quo');
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 2)));
+    expect(isOpen()).toBe(false);
+  });
+
+  /**
    * Picking a row clears the line. An inline atom holds a position but no
    * text, so nothing in the query would have hinted it was about to go.
    */
@@ -283,6 +321,37 @@ describe('keyboard', () => {
     expect(press(view, 'ArrowDown')).toBe(false);
     expect(press(view, 'Enter')).toBe(false);
     expect(press(view, 'Escape')).toBe(false);
+  });
+
+  /** There is no way to put the caret in such a line and use those keys if the
+   * menu claims them, which is what a line beginning with a path costs. */
+  it('hands them back on a line it did not raise', () => {
+    const view = mount([block('Text', [span('/usr/local/bin')]), block('Text', [span('next')])]);
+    caretAtStart(view);
+    expect(press(view, 'ArrowDown')).toBe(false);
+    expect(press(view, 'ArrowUp')).toBe(false);
+    expect(press(view, 'Home')).toBe(false);
+    expect(press(view, 'End')).toBe(false);
+    expect(press(view, 'Enter')).toBe(false);
+  });
+
+  it('stays dismissed after Escape while the query goes on being typed', () => {
+    const view = openMenu('quo');
+    press(view, 'Escape');
+    type(view, 'te');
+    expect(isOpen()).toBe(false);
+    expect(press(view, 'Enter')).toBe(false);
+    expect(firstBlock(view).type.name).toBe('paragraph');
+    expect(lineText(firstBlock(view))).toBe('/quote');
+  });
+
+  /** A dismissal is of one trigger, not of the block it was typed in. */
+  it('a slash typed afresh raises it again after a dismissal', () => {
+    const view = openMenu('quo');
+    press(view, 'Escape');
+    view.dispatch(view.state.tr.delete(2, 6));
+    type(view, '/');
+    expect(isOpen()).toBe(true);
   });
 
   it('still swallows Enter with no rows, so it cannot split the block underneath', () => {
