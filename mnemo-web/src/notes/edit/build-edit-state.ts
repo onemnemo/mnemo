@@ -44,6 +44,8 @@ import { numberedListPlugin } from '../editor/pipeline/list-numbers';
 import { tableHeaderPlugin } from '../editor/table/header-decorations';
 import { imageCaptionCaretPlugin } from '../editor/blocks/image-caption-caret';
 import { codeHighlightPlugin } from '../editor/code/highlight';
+import { codeKeymap } from '../editor/code/code-keymap';
+import { crossBlockRangePlugin } from '../editor/commands/range-delete';
 import { slashHintPlugin } from '../editor/pipeline/slash-hint';
 import { findPlugin } from '../find/find-plugin';
 import { blockSelectionPlugin } from '../selection/block-selection-plugin';
@@ -98,13 +100,19 @@ export type NoteEditState =
  *    takes the whole document in one press) must never be reached.
  *  - `inputTriggerPlugin` runs on text input, not on a key chord, so it sits
  *    before the keymaps without competing with them.
+ *  - `crossBlockRangePlugin` owns Backspace, Delete and typing over a text
+ *    range that runs from one block into another, for the same reason the
+ *    structural keymap owns the caret cases: the generic replace below it reads
+ *    the schema alone, and `line block*` lets it re-parent a cut container's
+ *    rows or cells into the block the range started in. It declines every other
+ *    selection, including a range inside one block.
  *  - `structureKeymap` must precede `baseKeymap`: both bind Enter, Backspace
  *    and Delete, and ours has to win so a split or a join lands our block
  *    shapes instead of `baseKeymap`'s generic `joinForward`, which does not
  *    know this schema's line/block split and re-parents instead of merging.
  *    It declines (returns false) for the cases it does not own, a mid-line
- *    Backspace or Delete, a cross-block selection, and those fall through to
- *    the base behaviour.
+ *    Backspace or Delete among them, and those fall through to the base
+ *    behaviour.
  *  - `editorKeymap` carries the formatting chords, which collide with nothing
  *    structural; its place before `baseKeymap` is for tidiness, not correctness.
  *  - `baseKeymap` is the ProseMirror default of last resort.
@@ -161,6 +169,12 @@ export function editorPlugins(
     // step, so it never dirties the note.
     blockSelectionPlugin(registry),
     inputTriggerPlugin(registry),
+    // Before every keymap and before the generic replace they fall through to:
+    // it claims only a text range that spans two blocks.
+    crossBlockRangePlugin(),
+    // Answers for one caret only, a caret in source, and declines every other,
+    // so Tab keeps whatever meaning the keymaps below give it elsewhere.
+    codeKeymap(),
     structureKeymap(),
     editorKeymap(),
     keymap(baseKeymap),

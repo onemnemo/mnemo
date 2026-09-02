@@ -204,6 +204,107 @@ describe('splitBlock (Enter)', () => {
     expect(state.doc.child(1).type.name).toBe('paragraph');
     expect(state.doc.child(1).textContent).toBe('tle');
   });
+
+  it('at the end of a soft-wrapped line takes the break with it', () => {
+    // The break at the split point is the one being turned into a block
+    // boundary; kept, it renders as a blank line the user never typed.
+    const document = doc(para('one\ntwo'));
+    const { state } = run(document, splitBlock, { from: caretAt(document, 0, 3) });
+    expect(state.doc.child(0).textContent).toBe('one');
+    expect(state.doc.child(1).textContent).toBe('two');
+  });
+
+  it('at the start of a soft-wrapped line takes the same break', () => {
+    const document = doc(para('one\ntwo'));
+    const { state } = run(document, splitBlock, { from: caretAt(document, 0, 4) });
+    expect(state.doc.child(0).textContent).toBe('one');
+    expect(state.doc.child(1).textContent).toBe('two');
+  });
+
+  it('takes a CRLF pair as the single break it draws as', () => {
+    const document = doc(para('one\r\ntwo'));
+    const { state } = run(document, splitBlock, { from: caretAt(document, 0, 3) });
+    expect(state.doc.child(0).textContent).toBe('one');
+    expect(state.doc.child(1).textContent).toBe('two');
+  });
+
+  it('leaves the breaks that are not at the split point alone', () => {
+    const document = doc(para('one\ntwo'));
+    const { state } = run(document, splitBlock, { from: caretAt(document, 0, 1) });
+    expect(state.doc.child(0).textContent).toBe('o');
+    expect(state.doc.child(1).textContent).toBe('ne\ntwo');
+  });
+});
+
+// --- Enter over a range -----------------------------------------------------
+
+describe('splitBlock (Enter) over a selection', () => {
+  it('deletes a range spanning two blocks and splits at the join', () => {
+    const document = doc(para('abcd'), para('efgh'));
+    const { state, handled } = run(document, splitBlock, {
+      from: caretAt(document, 0, 2),
+      to: caretAt(document, 1, 2),
+    });
+    expect(handled).toBe(true);
+    expect(state.doc.childCount).toBe(2);
+    expect(state.doc.child(0).textContent).toBe('ab');
+    expect(state.doc.child(1).textContent).toBe('gh');
+  });
+
+  it('deletes a range inside one block and splits where it was', () => {
+    const document = doc(para('abcd'));
+    const { state } = run(document, splitBlock, {
+      from: caretAt(document, 0, 1),
+      to: caretAt(document, 0, 3),
+    });
+    expect(state.doc.child(0).textContent).toBe('a');
+    expect(state.doc.child(1).textContent).toBe('d');
+  });
+
+  it('keeps a fully selected list item a list item', () => {
+    // "Empty list item leaves the list" reads a block the user has emptied,
+    // which a selected range is not.
+    const document = doc(bullet('hello'));
+    const { state } = run(document, splitBlock, {
+      from: caretAt(document, 0, 0),
+      to: caretAt(document, 0, 5),
+    });
+    expect(state.doc.childCount).toBe(2);
+    expect(state.doc.child(0).type.name).toBe('bulletItem');
+    expect(state.doc.child(0).textContent).toBe('');
+    expect(state.doc.child(1).type.name).toBe('bulletItem');
+  });
+
+  it('replaces a range inside a code block with a newline', () => {
+    const document = doc(code('abcd'));
+    const { state } = run(document, splitBlock, {
+      from: caretAt(document, 0, 1),
+      to: caretAt(document, 0, 3),
+    });
+    expect(state.doc.childCount).toBe(1);
+    expect(state.doc.child(0).textContent).toBe('a\nd');
+  });
+
+  it('replaces a range in a quote with a newline, staying one block', () => {
+    const document = doc(quote('hi there'));
+    const { state } = run(document, splitBlock, {
+      from: caretAt(document, 0, 2),
+      to: caretAt(document, 0, 3),
+    });
+    expect(state.doc.childCount).toBe(1);
+    expect(state.doc.child(0).type.name).toBe('quote');
+    expect(state.doc.child(0).textContent).toBe('hi\nthere');
+  });
+
+  it('replaces a range in a table cell with a newline, never splitting the row', () => {
+    const document = doc(table(tableRow(cell('abcd'))));
+    const at = blockPosOf(document, 'abcd') + 2;
+    const { state } = run(document, splitBlock, { from: at + 1, to: at + 3 });
+    expect(state.doc.childCount).toBe(1);
+    expect(state.doc.child(0).type.name).toBe('table');
+    expect(state.doc.child(0).textContent).toBe('a\nd');
+    state.doc.check();
+  });
 });
 
 describe('insertSoftBreak (Shift-Enter, Mod-Enter)', () => {
@@ -564,13 +665,28 @@ function twoColumn(left: PMNode, right: PMNode): PMNode {
 }
 
 describe('arrows across an image caption', () => {
-  it('binds both horizontal arrows, and leaves the vertical ones to the browser', () => {
+  it('binds both horizontal arrows, and leaves ArrowUp to the browser', () => {
     const bindings = structureKeyBindings();
-    expect(bindings.ArrowRight).toBe(arrowRightIntoCaption);
     expect(bindings.ArrowLeft).toBe(arrowLeftIntoCaption);
-    expect(bindings.ArrowDown).toBeUndefined();
     expect(bindings.ArrowUp).toBeUndefined();
+    // ArrowRight carries the end-of-note escape as well, the caption step first.
+    const d = doc(para('above'), image({ path: 'a.png' }));
+    const { state, handled } = run(d, bindings.ArrowRight, { from: caretAt(d, 0, 'above'.length) });
+    expect(handled).toBe(true);
+    expect(state.selection.from).toBe(caretAt(state.doc, 1, 0));
   });
+
+  it('offers the end-of-note escape on ArrowDown and ArrowRight alike', () => {
+    const bindings = structureKeyBindings();
+    for (const key of ['ArrowDown', 'ArrowRight']) {
+      const d = doc(code('x'));
+      const { state, handled } = run(d, bindings[key], { from: caretAt(d, 0, 1) });
+      expect(handled).toBe(true);
+      expect(state.doc.childCount).toBe(2);
+      expect(state.doc.child(1).type.name).toBe('paragraph');
+    }
+  });
+
 
   it('ArrowRight at the end of the block before a picture enters its empty caption', () => {
     const d = doc(para('above'), image({ path: 'a.png' }));
