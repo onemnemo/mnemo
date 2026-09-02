@@ -2,10 +2,12 @@
  * The slash menu: type `/` at the start of a block and pick what it becomes.
  *
  * The query lives in the document, exactly as on the desktop. There is no
- * search field: the menu reads the block's own line, opens while that line
- * starts with `/`, and closes when it stops. That is why Backspacing over the
- * slash dismisses it without needing a rule of its own, and why the typed text
- * is still there to be edited if the menu is escaped.
+ * search field: the menu reads the block's own line for what was typed after
+ * the slash. What raises it is the edit that inserted that slash, never the
+ * shape of the line, so a path or a route the caret is merely placed in stays
+ * ordinary content and keeps Enter, the arrows, Home and End. Backspacing over
+ * the slash dismisses the menu, and so does Escape, in both cases leaving the
+ * typed text there to be edited.
  *
  * Rows come from the block registry, so a block type offers itself and the menu
  * has no list of its own to drift from. Their order is the registry's, which
@@ -16,11 +18,12 @@
  * there.
  */
 
-import { Plugin, PluginKey } from 'prosemirror-state';
+import { Plugin, PluginKey, type EditorState, type Transaction } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import type { BlockRegistry, SlashEntry } from '../registry/build';
 import type { EditorServices, SlashInsertContext } from '../registry/types';
 import { asOwnUndoStep } from '../history';
+import { changedRanges } from '../pipeline/invariants';
 import { blockContext, hasInlineAtom } from '../commands/structure';
 import { placeMenu, type Rect } from '../floating/position';
 import { useI18nStore } from '../../../i18n/store';
@@ -28,7 +31,24 @@ import { createTranslate } from '../../../i18n/translate';
 import { createSlashMenuView, type MenuRow } from './menu-view';
 import { matchesQuery, searchCandidates } from './search';
 
-export const slashMenuKey = new PluginKey('mnemo-slash-menu');
+/**
+ * Where the `/` that raised the menu sits, or null while nothing raised it.
+ *
+ * The line's own text cannot answer this on its own: a path, a route or a date
+ * starts with a slash too, so a menu opened from the shape of the line stands
+ * over content written days ago and takes Enter and the caret keys with it. The
+ * trigger is armed by the edit that inserts the slash and lives only while that
+ * same slash is still in front of the caret, which is what lets Escape drop it
+ * for good and lets a new slash raise it again.
+ */
+interface SlashTrigger {
+  readonly pos: number;
+}
+
+export const slashMenuKey = new PluginKey<SlashTrigger | null>('mnemo-slash-menu');
+
+/** Carried on the transaction Escape dispatches, the only way to drop a trigger early. */
+const DISMISS = 'dismiss';
 
 export interface SlashMenuOptions {
   /** Injected so a test asserts on stable keys, not on the shipped bundle. */
@@ -61,6 +81,39 @@ function readQuery(state: EditorView['state']): string | null {
 
   const text = ctx.line.textBetween(0, ctx.line.content.size);
   return text.startsWith('/') ? text.slice(1) : null;
+}
+
+/**
+ * The slash `tr` has just written at the start of the caret's line, if it wrote
+ * one. Asking the changed ranges rather than the line text is the whole point:
+ * a slash the transaction did not produce was already there.
+ */
+function armedTrigger(tr: Transaction, state: EditorState): SlashTrigger | null {
+  if (!tr.docChanged) return null;
+  if (readQuery(state) === null) return null;
+  const pos = state.selection.$from.start();
+  return changedRanges([tr]).some((range) => range.from <= pos && pos < range.to) ? { pos } : null;
+}
+
+function nextTrigger(
+  tr: Transaction,
+  current: SlashTrigger | null,
+  state: EditorState,
+): SlashTrigger | null {
+  if (tr.getMeta(slashMenuKey) === DISMISS) return null;
+
+  let trigger = current;
+  if (trigger && tr.docChanged) {
+    const mapped = tr.mapping.mapResult(trigger.pos, 1);
+    trigger = mapped.deleted ? null : { pos: mapped.pos };
+  }
+  trigger ??= armedTrigger(tr, state);
+  if (!trigger) return null;
+
+  // The caret typing the query has to still be in it. Anywhere else, including
+  // the offset in front of the slash, is the user having gone back to the text.
+  const { $from, empty } = state.selection;
+  return empty && $from.start() === trigger.pos && $from.pos > trigger.pos ? trigger : null;
 }
 
 function anchorRect(view: EditorView): Rect | null {
@@ -208,7 +261,8 @@ function createController(
 
   return {
     sync(): void {
-      const query = readQuery(view.state);
+      const trigger = slashMenuKey.getState(view.state);
+      const query = trigger ? readQuery(view.state) : null;
       if (query === null) {
         close();
         return;
@@ -250,7 +304,10 @@ function createController(
           pick(index);
           return true;
         case 'Escape':
-          close();
+          // The dismissal belongs to the document, not to this view: held here
+          // it would last exactly one keystroke, since the next transaction
+          // would find the same slash still at the start of the line.
+          view.dispatch(view.state.tr.setMeta(slashMenuKey, DISMISS));
           return true;
         default:
           return false;
@@ -273,8 +330,12 @@ export function slashMenuPlugin(registry: BlockRegistry, options: SlashMenuOptio
   // from more than one view, and the open menu is a property of the view.
   const controllers = new WeakMap<EditorView, MenuController>();
 
-  return new Plugin({
+  return new Plugin<SlashTrigger | null>({
     key: slashMenuKey,
+    state: {
+      init: () => null,
+      apply: (tr, value, _oldState, newState) => nextTrigger(tr, value, newState),
+    },
     view(editorView) {
       const controller = createController(editorView, allRows, translate, options.services);
       controllers.set(editorView, controller);
