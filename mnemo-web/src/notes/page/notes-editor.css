@@ -688,10 +688,13 @@
   margin: 24px 0;
 }
 
-/* Lists are flat siblings, so the marker is drawn on the item itself. The
- * numbered sequence is column-aware, insert-stable and run-resetting, none of
- * which a CSS counter can express, so the number is computed by the list-number
- * decoration plugin and read here off the `data-list-number` it paints. */
+/* List items are siblings, so the marker is drawn on the item itself, and a
+ * nested list is the item's own block children, so it sits inside the item's
+ * padding and indents one level per ancestor with no rule of its own. The
+ * numbered sequence is column-aware, insert-stable, run-resetting and labelled
+ * by depth, none of which a CSS counter can express, so the number is computed
+ * by the list-number decoration plugin and read here off the `data-list-number`
+ * it paints. */
 .notes-doc li {
   list-style: none;
   padding-left: 1.5em;
@@ -706,15 +709,38 @@
   top: 0.62em;
   width: 5px;
   height: 5px;
+  box-sizing: border-box;
   border-radius: 999px;
   background: var(--text-tertiary);
+}
+/* Nested bullets alternate dot, ring, square by depth, the way every outliner
+ * does, so a reader tells levels apart without counting the indent. The
+ * selectors count list-item ancestors and the cycle repeats past three; the
+ * longer selector wins on specificity, so the order here does not matter. */
+.notes-doc li li[data-bullet]::before,
+.notes-doc li li li li li[data-bullet]::before {
+  background: transparent;
+  border: 1px solid var(--text-tertiary);
+  border-radius: 999px;
+}
+.notes-doc li li li[data-bullet]::before,
+.notes-doc li li li li li li[data-bullet]::before {
+  background: var(--text-tertiary);
+  border: none;
+  border-radius: 1px;
+}
+.notes-doc li li li li[data-bullet]::before {
+  background: var(--text-tertiary);
+  border: none;
+  border-radius: 999px;
 }
 .notes-doc li[data-numbered]::before {
   content: attr(data-list-number) ".";
   position: absolute;
-  left: 0;
-  width: 1.4em;
-  text-align: right;
+  /* Anchored by its right edge, so a wide label (a third-level "viii.") grows
+   * into the empty space on its left rather than over the item's text. */
+  right: calc(100% - 1.4em);
+  white-space: nowrap;
   color: var(--text-secondary);
 }
 /* Checklist. The box is a real button rendered by the checklist NodeView, not

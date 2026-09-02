@@ -16,6 +16,12 @@
  * identity plugin mints against once the run is dispatched, the same contract
  * the exact-slice paste path relies on.
  *
+ * List items nest by indentation, the one place a line's leading whitespace
+ * means something: a list line indented past the item above it becomes that
+ * item's child, at whatever width the writer chose, and anything that is not a
+ * list item ends the nesting. The host's reader applies the same rule, so a
+ * nested list survives the trip through markdown in either direction.
+ *
  * Two dialects are read where they diverge. The port emits a numbered item as a
  * literal `1.` and renumbers on render, so the stored index is not read back.
  * Sketch is accepted under both the desktop's ```sketch and the port's own
@@ -49,28 +55,66 @@ const IMAGE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/;
  */
 export const MAX_BLOCKS = 10_000;
 
+/** Leading indentation in columns, a tab counting as four, the CommonMark reading. */
+function indentWidth(line: string): number {
+  let width = 0;
+  for (const ch of line) {
+    if (ch === ' ') width += 1;
+    else if (ch === '\t') width += 4;
+    else break;
+  }
+  return width;
+}
+
 /** Parses a Mnemo-markdown string into wire blocks, empty of identity. */
 export function parseMarkdownToBlocks(markdown: string): Block[] {
   if (markdown.trim() === '') return [];
 
   const lines = markdown.split(/\r\n|\r|\n/);
   const out: Block[] = [];
-  let order = 0;
+  // The list items still open for nesting, outermost first, each with the indent
+  // it was found at. A list line deeper than the innermost becomes its child.
+  const open: { indent: number; item: Block }[] = [];
+  let count = 0;
   let i = 0;
 
+  const place = (block: Block, container: Block[]): void => {
+    block.order = container.length;
+    container.push(block);
+    count += 1;
+  };
   const emit = (type: BlockType, spans: readonly InlineSpan[], payload: BlockPayload): void => {
-    out.push(makeBlock(type, spans, payload, order++));
+    open.length = 0;
+    place(makeBlock(type, spans, payload), out);
+  };
+  const emitItem = (
+    type: BlockType,
+    spans: readonly InlineSpan[],
+    payload: BlockPayload,
+    indent: number,
+  ): void => {
+    while (open.length > 0 && open[open.length - 1].indent >= indent) open.pop();
+    const item = makeBlock(type, spans, payload);
+    const parent = open.length > 0 ? open[open.length - 1].item : null;
+    if (parent) {
+      parent.children ??= [];
+      place(item, parent.children);
+    } else {
+      place(item, out);
+    }
+    open.push({ indent, item });
   };
 
   while (i < lines.length) {
     // Past the cap the rest of the paste lands as one verbatim block rather than a
     // block per line, so a pathologically long paste cannot freeze the tab.
-    if (out.length >= MAX_BLOCKS) {
+    if (count >= MAX_BLOCKS) {
       emit('Text', [plainSpan(lines.slice(i).join('\n'))], { kind: 'empty' });
       break;
     }
 
     const line = lines[i];
+    const indent = indentWidth(line);
     const trimmed = line.replace(/^\s+/, '');
 
     // Divider.
@@ -144,26 +188,26 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
     // Checklist, checked then unchecked.
     if (/^-\s*\[\s*[xX]\s*\]/.test(trimmed)) {
       const content = trimmed.replace(/^-\s*\[\s*[xX]\s*\]\s*/, '').trim();
-      emit('Checklist', parseInlineMarkdown(content), { kind: 'checklist', checked: true });
+      emitItem('Checklist', parseInlineMarkdown(content), { kind: 'checklist', checked: true }, indent);
       i++;
       continue;
     }
     if (/^-\s*\[\s*\]/.test(trimmed)) {
       const content = trimmed.replace(/^-\s*\[\s*\]\s*/, '').trim();
-      emit('Checklist', parseInlineMarkdown(content), { kind: 'checklist', checked: false });
+      emitItem('Checklist', parseInlineMarkdown(content), { kind: 'checklist', checked: false }, indent);
       i++;
       continue;
     }
 
     // Bullet: `- `, then the CommonMark `*`/`+` markers.
     if (trimmed.startsWith('- ')) {
-      emit('BulletList', parseInlineMarkdown(trimmed.slice(2).trim()), { kind: 'empty' });
+      emitItem('BulletList', parseInlineMarkdown(trimmed.slice(2).trim()), { kind: 'empty' }, indent);
       i++;
       continue;
     }
     const star = STAR_BULLET.exec(trimmed);
     if (star) {
-      emit('BulletList', parseInlineMarkdown(star[1].trim()), { kind: 'empty' });
+      emitItem('BulletList', parseInlineMarkdown(star[1].trim()), { kind: 'empty' }, indent);
       i++;
       continue;
     }
@@ -191,7 +235,7 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
     // Numbered item. The index is read to confirm the match but not stored.
     if (NUMBERED.test(trimmed)) {
       const content = trimmed.replace(/^\d+\.\s*/, '').trim();
-      emit('NumberedList', parseInlineMarkdown(content), { kind: 'empty' });
+      emitItem('NumberedList', parseInlineMarkdown(content), { kind: 'empty' }, indent);
       i++;
       continue;
     }
@@ -230,15 +274,11 @@ function headingOf(trimmed: string): { type: BlockType; content: string } | null
   return null;
 }
 
-function makeBlock(
-  type: BlockType,
-  spans: readonly InlineSpan[],
-  payload: BlockPayload,
-  order: number,
-): Block {
+function makeBlock(type: BlockType, spans: readonly InlineSpan[], payload: BlockPayload): Block {
   // Empty id/sid is the contract: the identity plugin mints fresh, note-scoped
   // ids on the paste transaction, so nothing collides with an existing block.
-  return { id: '', sid: '', type, spans: [...spans], payload, meta: {}, order, children: null };
+  // The order is assigned where the block lands, per container.
+  return { id: '', sid: '', type, spans: [...spans], payload, meta: {}, order: 0, children: null };
 }
 
 /** `<target>` angle-bracket wrapping is stripped, matching the desktop reader. */

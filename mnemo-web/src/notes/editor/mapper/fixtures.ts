@@ -115,6 +115,20 @@ export function structuralFixtures(): readonly Fixture[] {
       ],
     },
     {
+      name: 'nested lists, three deep and mixed',
+      blocks: [
+        block('BulletList', [span('parent')], { kind: 'empty' }, {
+          children: [
+            block('NumberedList', [span('child')], { kind: 'empty' }, {
+              children: [block('Checklist', [span('grandchild')], { kind: 'checklist', checked: true })],
+            }),
+            block('BulletList', [span('second child')]),
+          ],
+        }),
+        block('BulletList', [span('sibling')]),
+      ],
+    },
+    {
       name: 'quote and divider',
       blocks: [
         block('Quote', [span('a quoted line')]),

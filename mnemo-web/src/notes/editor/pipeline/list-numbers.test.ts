@@ -5,7 +5,7 @@ import { DecorationSet } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 
 import { createEditorSchema } from '../schema';
-import { listNumberDecorations, numberedListPlugin } from './list-numbers';
+import { listLabel, listNumberDecorations, numberedListPlugin } from './list-numbers';
 
 const { schema } = createEditorSchema();
 
@@ -95,12 +95,12 @@ describe('numbered-list numbering across two columns', () => {
     expect(numbers(d)).toEqual(['1', '1', '2']);
   });
 
-  it('treats a nested two-column as a single non-numbered block (resets, no descent)', () => {
+  it('stays transparent through a nested two-column as well', () => {
     const nested = twoColumn(column(num('deep')), column(num('deeper')));
     const d = doc(num('a'), twoColumn(column(nested), column(num('r'))));
-    // top 'a' -> 1; the nested container resets and is not descended into; the
-    // right cell then starts a fresh run at 1.
-    expect(numbers(d)).toEqual(['1', '1']);
+    // A container is transparent at any depth: top 'a' -> 1, the inner cells
+    // continue with 2 and 3, and the outer right cell carries on with 4.
+    expect(numbers(d)).toEqual(['1', '2', '3', '4']);
   });
 });
 
@@ -118,5 +118,68 @@ describe('numberedListPlugin', () => {
     state = state.apply(state.tr.insert(between, para('x')));
     const after = numbers(state.doc);
     expect(after).toEqual(['1', '1']);
+  });
+});
+
+// --- nesting ----------------------------------------------------------------
+
+function numWith(text: string, ...children: PMNode[]): PMNode {
+  return schema.nodes.numberedItem.create(null, [line(text), ...children]);
+}
+function bulletWith(text: string, ...children: PMNode[]): PMNode {
+  return schema.nodes.bulletItem.create(null, [line(text), ...children]);
+}
+
+describe('numbered-list numbering in nested lists', () => {
+  it('gives a sub-list its own run and lets the parent run carry on past it', () => {
+    const d = doc(numWith('one', num('x'), num('y')), num('two'));
+    expect(numbers(d)).toEqual(['1', 'a', 'b', '2']);
+  });
+
+  it('labels by depth: decimal, letters, roman, then decimal again', () => {
+    const d = doc(numWith('1', numWith('a', numWith('i', num('deep')))));
+    expect(numbers(d)).toEqual(['1', 'a', 'i', '1']);
+  });
+
+  it('resets only the inner run when a bullet sits between nested items', () => {
+    const d = doc(numWith('one', num('x'), bullet('gap'), num('y')), num('two'));
+    expect(numbers(d)).toEqual(['1', 'a', 'a', '2']);
+  });
+
+  it('counts depth by list-item ancestors, so a list under a bullet is one level down', () => {
+    const d = doc(bulletWith('b', num('x'), num('y')));
+    expect(numbers(d)).toEqual(['a', 'b']);
+  });
+
+  it('numbers the children of a de-formatted parent at its own depth', () => {
+    const p = schema.nodes.paragraph.create(null, [line('was a list'), num('x'), num('y')]);
+    expect(numbers(doc(p))).toEqual(['1', '2']);
+  });
+
+  it('keeps a two-column transparent inside a sub-list', () => {
+    const d = doc(numWith('one', num('x'), twoColumn(column(num('l')), column(num('r'))), num('y')));
+    expect(numbers(d)).toEqual(['1', 'a', 'b', 'c', 'd']);
+  });
+});
+
+describe('listLabel', () => {
+  it('spells the three styles and cycles past them', () => {
+    expect(listLabel(1, 0)).toBe('1');
+    expect(listLabel(12, 0)).toBe('12');
+    expect(listLabel(1, 1)).toBe('a');
+    expect(listLabel(26, 1)).toBe('z');
+    expect(listLabel(27, 1)).toBe('aa');
+    expect(listLabel(28, 1)).toBe('ab');
+    expect(listLabel(1, 2)).toBe('i');
+    expect(listLabel(4, 2)).toBe('iv');
+    expect(listLabel(9, 2)).toBe('ix');
+    expect(listLabel(14, 2)).toBe('xiv');
+    expect(listLabel(1994, 2)).toBe('mcmxciv');
+    expect(listLabel(3, 3)).toBe('3');
+    expect(listLabel(2, 4)).toBe('b');
+  });
+
+  it('falls back to decimal where roman numerals stop being legible', () => {
+    expect(listLabel(4000, 2)).toBe('4000');
   });
 });

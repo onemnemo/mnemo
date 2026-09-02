@@ -4,6 +4,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 
 import { asBlockSchema, createEditorSchema } from '../schema';
 import { createMarkdownSerializer } from './serialize-markdown';
+import { parseMarkdownToBlocks } from '../../clipboard/markdown-blocks';
 import { serializeInlineMarkdown } from '../../model/markdown-serialize';
 import { defaultTextStyle, type InlineSpan } from '../../model/types';
 
@@ -126,5 +127,32 @@ describe('createMarkdownSerializer', () => {
   it('serializes a block caption and inline atoms through the real inline mapper', () => {
     const para = block('paragraph', {}, text('e='), { kind: 'equation', latex: 'mc^2', style: style() }, text(' done'));
     expect(md.document(doc(para))).toBe('e=$mc^2$ done');
+  });
+});
+
+describe('nested lists', () => {
+  const item = (nodeName: string, t: string, ...children: PMNode[]): PMNode =>
+    schema.nodes[nodeName].create(
+      { sid: 'x', id: 'x', ...(nodeName === 'checklistItem' ? { checked: true } : {}) },
+      [line(text(t)), ...children],
+    );
+
+  it('indents a sub-list two spaces under a bullet and three under a numbered item', () => {
+    const d = doc(
+      item('bulletItem', 'a', item('bulletItem', 'b', item('numberedItem', 'c'))),
+      item('numberedItem', 'd', item('bulletItem', 'e')),
+      item('checklistItem', 'f', item('checklistItem', 'g')),
+    );
+    expect(md.document(d)).toBe(
+      ['- a', '  - b', '    1. c', '1. d', '   - e', '- [x] f', '  - [x] g'].join('\n'),
+    );
+  });
+
+  it('reads back through the block parser as the same tree', () => {
+    const d = doc(item('bulletItem', 'a', item('numberedItem', 'b', item('bulletItem', 'c'))), item('bulletItem', 'd'));
+    const blocks = parseMarkdownToBlocks(md.document(d));
+    expect(blocks.map((b) => b.type)).toEqual(['BulletList', 'BulletList']);
+    expect(blocks[0].children?.map((b) => b.type)).toEqual(['NumberedList']);
+    expect(blocks[0].children?.[0].children?.map((b) => b.type)).toEqual(['BulletList']);
   });
 });

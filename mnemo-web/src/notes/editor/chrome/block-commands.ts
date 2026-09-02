@@ -21,6 +21,8 @@
 import { TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 
+import { isListItem } from '../blocks/shared';
+import { indentTransaction, outdentTransaction } from '../commands/list-nesting';
 import { convertBlockType } from '../commands/structure';
 import type { BlockRegistry } from '../registry/build';
 import { walkBlocks } from '../projection/document';
@@ -152,6 +154,28 @@ export function moveBlockDown(state: EditorState, loc: BlockLocation): Transacti
   if (!loc.next) return null;
   const tr = state.tr.delete(loc.pos, loc.pos + loc.node.nodeSize);
   return tr.insert(loc.next.pos - loc.node.nodeSize + loc.next.node.nodeSize, loc.node);
+}
+
+/**
+ * Nest the block under the list item above it, or null when it is not a list
+ * item or the block above is not one. The move is the keyboard's own, so the
+ * menu and Tab can never disagree about where an item goes.
+ */
+export function indentBlock(state: EditorState, loc: BlockLocation): Transaction | null {
+  return indentTransaction(state, loc.pos, loc.node);
+}
+
+/** Lift the block out of the list item holding it, or null when it is not nested. */
+export function outdentBlock(state: EditorState, loc: BlockLocation): Transaction | null {
+  return outdentTransaction(state, loc.pos, loc.node);
+}
+
+export function canIndent(loc: BlockLocation): boolean {
+  return isListItem(loc.node) && loc.prev !== null && isListItem(loc.prev.node);
+}
+
+export function canOutdent(loc: BlockLocation): boolean {
+  return isListItem(loc.parent);
 }
 
 /**

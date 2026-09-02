@@ -19,14 +19,19 @@ import { sidsWithin } from '../../selection/block-selection';
 import { getBlockSelection } from '../../selection/block-selection-plugin';
 import { buildDeleteSelected } from '../../selection/delete-selected';
 import type { BlockRegistry } from '../registry/build';
+import { isListItem } from '../blocks/shared';
 import {
+  canIndent,
+  canOutdent,
   canTurnInto,
   deleteBlock,
   duplicateBlock,
+  indentBlock,
   isCurrentType,
   locateBlock,
   moveBlockDown,
   moveBlockUp,
+  outdentBlock,
   turnInto,
   TURN_INTO_OPTIONS,
   type BlockLocation,
@@ -191,6 +196,32 @@ export function blockMenuItems({
       build: (s, loc) => duplicateBlock(s, loc),
     },
   );
+
+  // Only where nesting is something the block can do: a list item, or a block
+  // that sits under one and can come back out. The moves are the keyboard's
+  // own, so Tab and the menu can never disagree about where an item goes.
+  if (isListItem(node) || (location !== null && canOutdent(location))) {
+    entries.push(
+      {
+        kind: 'verb',
+        id: 'indent',
+        label: t('Notes', 'Indent'),
+        icon: 'common/chevron-right',
+        disabled: !location || !canIndent(location),
+        announce: ne('BlockIndented'),
+        build: (s, loc) => indentBlock(s, loc),
+      },
+      {
+        kind: 'verb',
+        id: 'outdent',
+        label: t('Notes', 'Outdent'),
+        icon: 'common/chevron-left',
+        disabled: !location || !canOutdent(location),
+        announce: ne('BlockOutdented'),
+        build: (s, loc) => outdentBlock(s, loc),
+      },
+    );
+  }
 
   // The glyph itself is the pointer affordance; this is the same verb for a
   // reader who is not holding a pointer, and the only way back to a glyph on a

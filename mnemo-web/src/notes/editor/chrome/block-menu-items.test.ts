@@ -166,3 +166,63 @@ describe('blockMenuItems', () => {
     }
   });
 });
+
+describe('blockMenuItems: nesting', () => {
+  function nestedList(): { state: EditorState; registry: BlockRegistry } {
+    return mount([
+      block('BulletList', [span('a')], { kind: 'empty' }, {
+        children: [block('BulletList', [span('b')])],
+      }),
+      block('BulletList', [span('c')]),
+      block('Text', [span('p')]),
+    ]);
+  }
+
+  /** Position and sid of the first nested child of the top-level block at `index`. */
+  function childAt(state: EditorState, index: number): { pos: number; sid: string } {
+    const top = at(state, index);
+    const node = state.doc.child(index);
+    const line = node.firstChild!;
+    const child = node.child(1);
+    return { pos: top.pos + 1 + line.nodeSize, sid: String(child.attrs.sid ?? '') };
+  }
+
+  it('offers indent and outdent on a list item, enabled by what is around it', () => {
+    const { state, registry } = nestedList();
+    const top = items(state, registry, 0);
+    // The first item has nothing above it and nothing to come out of.
+    expect(verb(top, 'indent').disabled).toBe(true);
+    expect(verb(top, 'outdent').disabled).toBe(true);
+    // The item below can go under the first; it is not nested.
+    const second = items(state, registry, 1);
+    expect(verb(second, 'indent').disabled).toBe(false);
+    expect(verb(second, 'outdent').disabled).toBe(true);
+  });
+
+  it('enables outdent on a nested item', () => {
+    const { state, registry } = nestedList();
+    const { pos, sid } = childAt(state, 0);
+    const node = state.doc.child(0).child(1);
+    const entries = blockMenuItems({ state, registry, node, location: locateBlock(state, registry, pos, sid), t });
+    expect(verb(entries, 'outdent').disabled).toBe(false);
+    expect(verb(entries, 'indent').disabled).toBe(true);
+    expect(verb(entries, 'outdent').announce).toBe('BlockOutdented');
+  });
+
+  it('omits both rows on a plain block', () => {
+    const { state, registry } = nestedList();
+    const ids = items(state, registry, 2).map((entry) => entry.id);
+    expect(ids).not.toContain('indent');
+    expect(ids).not.toContain('outdent');
+  });
+
+  it('builds the same move the keyboard makes', () => {
+    const { state, registry } = nestedList();
+    const second = items(state, registry, 1);
+    const loc = locateBlock(state, registry, at(state, 1).pos, at(state, 1).sid)!;
+    const tr = verb(second, 'indent').build(state, loc)!;
+    expect(tr.doc.childCount).toBe(2);
+    expect(tr.doc.child(0).childCount).toBe(3);
+    expect(tr.doc.child(0).child(2).textContent).toBe('c');
+  });
+});
