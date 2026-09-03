@@ -745,7 +745,12 @@ internal static class NoteTypstDocumentComposer
         if (hasLink && IsSafeLinkUrl(style.LinkUrl!))
             fragment = $"#link(\"{EscapeString(style.LinkUrl!.Trim())}\")[{fragment}]";
 
-        return fragment;
+        // In markup an embedded expression keeps parsing past its own end: `#strong[a](b)` reads
+        // the parenthesis as call arguments and `#mi(..).c` as a field access, and the note fails
+        // to compile. A semicolon ends the expression and is not printed, so whatever the next
+        // span starts with is text again. Every wrapper above and every expression handed in
+        // starts with a hash; escaped text never does.
+        return fragment.StartsWith('#') ? fragment + ";" : fragment;
     }
 
     // Emits a mitex call, guarding the raw block against backticks in the LaTeX. No backtick uses a
