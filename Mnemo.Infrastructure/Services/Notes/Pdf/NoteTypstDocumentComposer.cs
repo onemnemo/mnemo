@@ -213,7 +213,7 @@ internal static class NoteTypstDocumentComposer
     {
         if (note.Blocks is { Count: > 0 })
         {
-            var list = note.Blocks.OrderBy(b => b.Order).ThenBy(b => b.Id).ToList();
+            var list = note.Blocks.OrderBy(b => b.Order).ToList();
             foreach (var b in list)
                 b.EnsureSpans();
             NoteDocumentHelper.NormalizeOrders(list);
@@ -254,7 +254,7 @@ internal static class NoteTypstDocumentComposer
             case BlockType.ColumnGroup:
                 if (block.Children is { Count: > 0 })
                 {
-                    foreach (var child in block.Children.OrderBy(c => c.Order).ThenBy(c => c.Id))
+                    foreach (var child in block.Children.OrderBy(c => c.Order))
                         EmitBlock(sb, child, options, assets, listDepth);
                 }
                 return;
@@ -277,7 +277,7 @@ internal static class NoteTypstDocumentComposer
             return;
 
         sb.Append('\n');
-        foreach (var child in item.Children.OrderBy(c => c.Order).ThenBy(c => c.Id))
+        foreach (var child in item.Children.OrderBy(c => c.Order))
             EmitBlock(sb, child, options, assets, listDepth);
     }
 
@@ -304,7 +304,7 @@ internal static class NoteTypstDocumentComposer
         var cell = new StringBuilder();
         if (group.Type == BlockType.ColumnGroup && group.Children is { Count: > 0 })
         {
-            foreach (var child in group.Children.OrderBy(c => c.Order).ThenBy(c => c.Id))
+            foreach (var child in group.Children.OrderBy(c => c.Order))
                 EmitBlock(cell, child, options, assets);
         }
         else

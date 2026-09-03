@@ -356,7 +356,7 @@ export function structuralFixtures(): readonly Fixture[] {
       ],
     },
     {
-      name: 'order values that must survive as inert passthrough',
+      name: 'order values, which a save rewrites to document position',
       blocks: [
         block('Text', [span('first')], { kind: 'empty' }, { order: 40 }),
         block('Text', [span('second')], { kind: 'empty' }, { order: 10 }),

@@ -61,9 +61,15 @@ internal static class NoteDocumentHelper
         NormalizeOrders(note.Blocks);
     }
 
+    /// <summary>
+    /// Sorts by <see cref="Block.Order"/> and rewrites the orders to 0..n. The sort is stable and
+    /// ties keep their list position: the web editor writes the list in document order, and a
+    /// note it saved before it wrote positions carries the same order on every block, which an
+    /// id tie-break used to shuffle into a sequence nobody wrote.
+    /// </summary>
     public static void NormalizeOrders(List<Block> blocks)
     {
-        var ordered = blocks.OrderBy(b => b.Order).ThenBy(b => b.Id).ToList();
+        var ordered = blocks.OrderBy(b => b.Order).ToList();
         for (var i = 0; i < ordered.Count; i++)
             ordered[i].Order = i;
         blocks.Clear();

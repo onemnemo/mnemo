@@ -238,13 +238,12 @@ describe('negative controls', () => {
     expect(wireBytes(brokenCycle(blocks))).not.toBe(wireBytes(cycle(blocks)));
   });
 
-  it('goes red when the order attr declaration is removed', () => {
+  it('writes document position as the order on the first cycle, whatever was stored', () => {
+    // Not a passthrough any more: every reader on the other side of the wire sorts
+    // by this field, so the value that leaves here is the position, not the one loaded.
     const blocks = structuralFixtures().find((f) => f.name.startsWith('order values'))!.blocks;
-    const brokenCycle = cycleWith((nodes) => {
-      const paragraph = nodes.paragraph as { attrs: Record<string, unknown> };
-      delete paragraph.attrs.order;
-    });
-    expect(wireBytes(brokenCycle(blocks))).not.toBe(wireBytes(cycle(blocks)));
+    expect(blocks.map((b) => b.order)).toEqual([40, 10, 30]);
+    expect(cycle(blocks).map((b) => b.order)).toEqual([0, 1, 2]);
   });
 });
 
