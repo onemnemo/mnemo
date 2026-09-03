@@ -73,8 +73,7 @@ internal static class NoteTypstDocumentComposer
         if (titled || tagged)
             sb.Append("#line(length: 100%, stroke: 0.5pt + rgb(\"#d0d0d0\"))\n\n");
 
-        foreach (var block in blocks)
-            EmitBlock(sb, block, options, assets);
+        EmitBlocks(sb, blocks, options, assets, 0, new NumberRun());
 
         return sb.ToString();
     }
@@ -238,31 +237,95 @@ internal static class NoteTypstDocumentComposer
     }
 
     /// <summary>
-    /// <paramref name="listDepth"/> is how many list items enclose the block, which decides a
-    /// nested item's marker and numbering style.
+    /// Where a run of numbered items stands: the number the next one takes. A numbered item's
+    /// number is never stored, the editor counts it from its position on every change, so the
+    /// composer counts the same way and reads no index off the block.
     /// </summary>
-    private static void EmitBlock(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets, int listDepth = 0)
+    private sealed class NumberRun
+    {
+        public int Next = 1;
+    }
+
+    /// <summary>
+    /// Sibling blocks in order. Consecutive numbered items become one enumeration, so their
+    /// numbers align on the widest label, and the run they form continues through a column
+    /// container the way it does on screen.
+    /// </summary>
+    private static void EmitBlocks(StringBuilder sb, IEnumerable<Block> blocks, NotePdfExportOptions options, INoteTypstAssetResolver? assets, int listDepth, NumberRun run)
+    {
+        var ordered = blocks.OrderBy(b => b.Order).ToList();
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            if (ordered[i].Type != BlockType.NumberedList)
+            {
+                EmitBlock(sb, ordered[i], options, assets, listDepth, run);
+                continue;
+            }
+
+            var end = i;
+            while (end + 1 < ordered.Count && ordered[end + 1].Type == BlockType.NumberedList)
+                end++;
+            EmitNumberedItems(sb, ordered.GetRange(i, end - i + 1), options, assets, listDepth, run);
+            i = end;
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="listDepth"/> is how many list items enclose the block, which decides a
+    /// nested item's marker and numbering style. Any block that is neither a numbered item nor a
+    /// column container restarts the numbering, as it does in the editor.
+    /// </summary>
+    private static void EmitBlock(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets, int listDepth, NumberRun run)
     {
         switch (block.Type)
         {
             case BlockType.Page:
+                run.Next = 1;
                 if (options.RenderSubpageLinks)
                     EmitSubpage(sb, block, options);
                 return;
             case BlockType.ColumnGroup:
+                // Transparent to the numbering: its blocks continue the run they sit in, and
+                // the container itself neither counts nor restarts it.
                 if (block.Children is { Count: > 0 })
-                {
-                    foreach (var child in block.Children.OrderBy(c => c.Order))
-                        EmitBlock(sb, child, options, assets, listDepth);
-                }
+                    EmitBlocks(sb, block.Children, options, assets, listDepth, run);
                 return;
             case BlockType.TwoColumn:
-                EmitTwoColumn(sb, block, options, assets);
+                EmitTwoColumn(sb, block, options, assets, listDepth, run);
+                return;
+            case BlockType.NumberedList:
+                EmitNumberedItems(sb, [block], options, assets, listDepth, run);
                 return;
             default:
+                run.Next = 1;
                 EmitLeafBlock(sb, block, options, assets, listDepth);
                 return;
         }
+    }
+
+    /// <summary>
+    /// A run of numbered items as one enumeration, wide so its items sit a block apart like every
+    /// other block on the page. Each item's children are a run of their own, one level down.
+    /// </summary>
+    private static void EmitNumberedItems(StringBuilder sb, List<Block> items, NotePdfExportOptions options, INoteTypstAssetResolver? assets, int listDepth, NumberRun run)
+    {
+        sb.Append("#enum(start: ").Append(run.Next);
+        var numbering = EnumNumberingAt(listDepth);
+        if (numbering != null)
+            sb.Append(", numbering: \"").Append(numbering).Append('"');
+        sb.Append(", tight: false)");
+
+        foreach (var item in items)
+        {
+            item.EnsureSpans();
+            sb.Append('[');
+            EmitInline(sb, item.Spans, options);
+            EmitNestedItems(sb, item, options, assets, listDepth + 1);
+            sb.Append(']');
+            run.Next++;
+        }
+
+        sb.Append("\n\n");
     }
 
     /// <summary>
@@ -277,11 +340,11 @@ internal static class NoteTypstDocumentComposer
             return;
 
         sb.Append("\n\n");
-        foreach (var child in item.Children.OrderBy(c => c.Order))
-            EmitBlock(sb, child, options, assets, listDepth);
+        EmitBlocks(sb, item.Children, options, assets, listDepth, new NumberRun());
     }
 
-    private static void EmitTwoColumn(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets)
+    // Transparent to the numbering, left column first and then the right, as on screen.
+    private static void EmitTwoColumn(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets, int listDepth, NumberRun run)
     {
         var ratio = 0.5;
         if (MatchedPayload<TwoColumnPayload>(block) is { } tcp)
@@ -292,24 +355,18 @@ internal static class NoteTypstDocumentComposer
         var right = children is { Count: > 1 } ? children[1] : null;
 
         sb.Append("#grid(columns: (").Append(Num(ratio)).Append("fr, ").Append(Num(1 - ratio)).Append("fr), gutter: 12pt,\n");
-        sb.Append("[\n").Append(RenderColumnCell(left, options, assets)).Append("],\n");
-        sb.Append("[\n").Append(RenderColumnCell(right, options, assets)).Append("])\n\n");
+        sb.Append("[\n").Append(RenderColumnCell(left, options, assets, listDepth, run)).Append("],\n");
+        sb.Append("[\n").Append(RenderColumnCell(right, options, assets, listDepth, run)).Append("])\n\n");
     }
 
-    private static string RenderColumnCell(Block? group, NotePdfExportOptions options, INoteTypstAssetResolver? assets)
+    private static string RenderColumnCell(Block? group, NotePdfExportOptions options, INoteTypstAssetResolver? assets, int listDepth, NumberRun run)
     {
         if (group == null)
             return string.Empty;
 
         var cell = new StringBuilder();
-        if (group.Type == BlockType.ColumnGroup && group.Children is { Count: > 0 })
-        {
-            foreach (var child in group.Children.OrderBy(c => c.Order))
-                EmitBlock(cell, child, options, assets);
-        }
-        else
-            EmitBlock(cell, group, options, assets);
-
+        IEnumerable<Block> blocks = group.Type == BlockType.ColumnGroup ? group.Children ?? [] : [group];
+        EmitBlocks(cell, blocks, options, assets, listDepth, run);
         return cell.ToString();
     }
 
@@ -337,18 +394,6 @@ internal static class NoteTypstDocumentComposer
                 EmitNestedItems(sb, block, options, assets, listDepth + 1);
                 sb.Append("]\n\n");
                 break;
-            case BlockType.NumberedList:
-            {
-                sb.Append("#enum(start: ").Append(ReadListNumberIndex(block));
-                var numbering = EnumNumberingAt(listDepth);
-                if (numbering != null)
-                    sb.Append(", numbering: \"").Append(numbering).Append('"');
-                sb.Append(")[");
-                EmitInline(sb, block.Spans, options);
-                EmitNestedItems(sb, block, options, assets, listDepth + 1);
-                sb.Append("]\n\n");
-                break;
-            }
             case BlockType.Checklist:
                 // ASCII markers render on every font; a real checkbox glyph would not.
                 sb.Append(IsChecklistChecked(block) ? "\\[x\\] " : "\\[ \\] ");
@@ -419,11 +464,12 @@ internal static class NoteTypstDocumentComposer
                 break;
         }
 
-        // Any block may hold block children on the wire, not only a list item. The list
-        // kinds print theirs inside their own marker above, and a table's children are its
-        // rows and cells, which the table has already drawn; everything else prints them in
-        // flow right after itself, as the editor draws them.
-        if (block.Type is not (BlockType.BulletList or BlockType.NumberedList or BlockType.Checklist or BlockType.Table))
+        // Any block may hold block children on the wire, not only a list item. A bullet or a
+        // checkbox item prints its children inside its own marker above, a numbered item is
+        // drawn by its run and never comes through here, and a table's children are its rows
+        // and cells, which the table has already drawn; everything else prints them in flow
+        // right after itself, as the editor draws them.
+        if (block.Type is not (BlockType.BulletList or BlockType.Checklist or BlockType.Table))
             EmitNestedItems(sb, block, options, assets, listDepth);
     }
 
@@ -873,17 +919,6 @@ internal static class NoteTypstDocumentComposer
         string.Equals(align, "center", StringComparison.OrdinalIgnoreCase) ? "center"
         : string.Equals(align, "right", StringComparison.OrdinalIgnoreCase) ? "right"
         : "left";
-
-    private static int ReadListNumberIndex(Block b)
-    {
-        if (!b.Meta.TryGetValue("listNumberIndex", out var v) || v == null)
-            return 1;
-        if (v is int i) return Math.Max(1, i);
-        if (v is long l) return Math.Max(1, (int)l);
-        if (v is JsonElement je && je.ValueKind == JsonValueKind.Number && je.TryGetInt32(out var n))
-            return Math.Max(1, n);
-        return int.TryParse(v.ToString(), out var p) ? Math.Max(1, p) : 1;
-    }
 
     private static bool IsChecklistChecked(Block b)
     {
