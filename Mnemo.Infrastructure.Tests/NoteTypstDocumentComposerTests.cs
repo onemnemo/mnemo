@@ -27,10 +27,11 @@ public sealed class NoteTypstDocumentComposerTests
     // === Golden output per block type ===
 
     [Fact]
-    public void Heading1_EmitsBoldSizedText()
+    public void Heading1_EmitsARealHeadingStyledByThePreamble()
     {
         var typ = Compose(NoteWith(Leaf(BlockType.Heading1, "Chapter")), new NotePdfExportOptions { BaseFontSizePt = 11f });
-        Assert.Contains("#text(weight: \"bold\", size: 21pt)[Chapter]", typ);
+        Assert.Contains("#heading(level: 1)[Chapter]", typ);
+        Assert.Contains("#show heading.where(level: 1): set text(size: 19.25pt, weight: 700, tracking: -0.02em)", typ);
     }
 
     [Fact]
@@ -552,8 +553,8 @@ public sealed class NoteTypstDocumentComposerTests
         // The sub-list sits inside its parent's content block; the marker and numbering style
         // follow the depth the editor draws: dot, then letters, then a square.
         Assert.Contains(
-            "#list(marker: box(baseline: -0.05em, circle(radius: 0.11em, fill: black)))[parent\n" +
-            "#enum(start: 1, numbering: \"a.\")[child\n" +
+            "#list(marker: box(baseline: -0.05em, circle(radius: 0.11em, fill: black)))[parent\n\n" +
+            "#enum(start: 1, numbering: \"a.\")[child\n\n" +
             "#list(marker: box(baseline: -0.05em, rect(width: 0.2em, height: 0.2em, fill: black)))[deep]\n\n" +
             "]\n\n" +
             "]\n\n",
