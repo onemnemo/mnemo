@@ -51,7 +51,11 @@ export const commonBlockAttrs = {
   id: { default: '' },
   /** Short id, unique within the note; the only id crossing the AI boundary. */
   sid: { default: '' },
-  /** Inert passthrough. Never derived from position, never drives position. */
+  /**
+   * Never read by the editor, whose order is document position. The mapper
+   * rewrites it to that position on every save, because every reader on the
+   * other side of the wire sorts by it.
+   */
   order: { default: 0 },
   /** Opaque passthrough bag. Never destructured by the editor. */
   meta: { default: {} as Record<string, unknown> },

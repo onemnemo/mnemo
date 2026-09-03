@@ -53,9 +53,11 @@ function wireTable(text: string[][], fills: Record<string, string> = {}): Block 
     children: text.map((row, r) =>
       block('TableRow', '', {
         id: `row-${r}`,
+        order: r,
         children: row.map((value, c) =>
           block('TableCell', value, {
             id: `cell-${r}-${c}`,
+            order: c,
             payload: { kind: 'tableCell', fill: fills[`${r}:${c}`] ?? '' },
           }),
         ),
@@ -66,13 +68,15 @@ function wireTable(text: string[][], fills: Record<string, string> = {}): Block 
 
 const sample = (): Block[] => [
   block('Heading2', 'Doses'),
-  wireTable(
+  // A save writes document position as the order at every level, which the
+  // fixture states outright so the comparison below is exact.
+  { ...wireTable(
     [
       ['Drug', 'Class'],
       ['Levodopa', 'Precursor'],
     ],
     { '1:1': 'amber' },
-  ),
+  ), order: 1 },
 ];
 
 describe('the table wire round trip', () => {

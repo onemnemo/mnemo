@@ -72,6 +72,8 @@ export function createDocumentMapper(
   // outputs can never share a node reference, because a node can only
   // change by becoming a different object.
   const fromChildCache = new WeakMap<PMNode, Block>();
+  /** The same block with its document position written in, keyed the same way. */
+  const positionedCache = new WeakMap<PMNode, { index: number; block: Block }>();
 
   /**
    * The dispatcher every container converts its children through.
@@ -140,13 +142,22 @@ export function createDocumentMapper(
 
     fromDoc(doc) {
       const blocks: Block[] = [];
-      doc.forEach((child) => {
+      doc.forEach((child, _offset, index) => {
         let block = fromChildCache.get(child);
         if (!block) {
           block = ctx.fromChild(child);
           fromChildCache.set(child, block);
         }
-        blocks.push(block);
+        // Positioned per node and index, so a save with nothing moved hands back
+        // the very same objects as the last one, which is what the cache is for.
+        const positioned = positionedCache.get(child);
+        if (positioned && positioned.index === index) {
+          blocks.push(positioned.block);
+          return;
+        }
+        const placed = withDocumentOrder([block], index)[0];
+        positionedCache.set(child, { index, block: placed });
+        blocks.push(placed);
       });
       return blocks;
     },
@@ -154,6 +165,27 @@ export function createDocumentMapper(
     toNode: (block) => ctx.toChild(block),
     fromNode: (node) => ctx.fromChild(node),
   };
+}
+
+/**
+ * The blocks with `order` set to their position, at every level.
+ *
+ * The editor never reads `order`; document position is its order. Every reader
+ * on the other side of the wire sorts by the field, though: the PDF and
+ * markdown exports, the plain text projection, and the note tools, which commit
+ * the sorted list back. A block the editor creates carries the schema default
+ * and the rest keep whatever they were loaded with, so without this a note
+ * edited here exports with its new blocks sorted to the front. Position is the
+ * one truth both sides can agree on, and writing it on every save also heals a
+ * note whose stored sequence had already drifted. Shallow copies, so the cached
+ * blocks above stay the pure function of their node that the cache relies on.
+ */
+function withDocumentOrder(blocks: readonly Block[], first = 0): Block[] {
+  return blocks.map((block, offset) => {
+    const index = first + offset;
+    const children = block.children ? withDocumentOrder(block.children) : block.children;
+    return block.order === index && children === block.children ? block : { ...block, order: index, children };
+  });
 }
 
 /** Distinguishes an unmapped wire type from a schema rejection, for the reason code. */
