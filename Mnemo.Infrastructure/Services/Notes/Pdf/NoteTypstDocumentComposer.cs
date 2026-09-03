@@ -81,7 +81,7 @@ internal static class NoteTypstDocumentComposer
 
     private static void EmitPreamble(StringBuilder sb, Note note, NotePdfExportOptions options)
     {
-        sb.Append("#import \"").Append(MitexImport).Append("\": mitex\n");
+        sb.Append("#import \"").Append(MitexImport).Append("\": mitex, mi\n");
 
         if (!string.IsNullOrWhiteSpace(note.Title))
             sb.Append("#set document(title: \"").Append(EscapeString(note.Title.Trim())).Append("\")\n");
@@ -120,7 +120,9 @@ internal static class NoteTypstDocumentComposer
         sb.Append("#set text(font: (\"Geist\", \"New Computer Modern\"), size: ")
           .Append(Pt(options.BaseFontSizePt)).Append(", fill: rgb(\"#000000\"))\n");
         sb.Append("#show raw: set text(font: (\"Geist Mono\", \"DejaVu Sans Mono\"))\n");
-        sb.Append("#set par(leading: 0.65em)\n");
+        // One rhythm for everything: a paragraph, a list item, an equation and a quote are each
+        // a block to the reader, and a gap that changes with the block kind reads as a mistake.
+        sb.Append("#set par(leading: 0.65em, spacing: 10pt)\n");
         sb.Append("#set block(spacing: 10pt)\n\n");
     }
 
@@ -405,13 +407,21 @@ internal static class NoteTypstDocumentComposer
                 break;
             case BlockType.Text:
             default:
-                if (!string.IsNullOrWhiteSpace(block.Content))
+                // An equation or a fraction has no display text of its own, so a paragraph
+                // holding only one of those still has something to print.
+                if (!string.IsNullOrWhiteSpace(block.Content) || block.Spans.Any(span => span is not TextSpan))
                 {
                     EmitInline(sb, block.Spans, options);
                     sb.Append("\n\n");
                 }
                 break;
         }
+
+        // Any block may hold block children on the wire, not only a list item. The list
+        // kinds print theirs inside their own marker above; everything else prints them in
+        // flow right after itself, as the editor draws them.
+        if (block.Type is not (BlockType.BulletList or BlockType.NumberedList or BlockType.Checklist))
+            EmitNestedItems(sb, block, options, assets, listDepth);
     }
 
     /// <summary>
@@ -746,7 +756,10 @@ internal static class NoteTypstDocumentComposer
         if (displayStyle && body.Length > 0)
             body = "\\displaystyle " + body;
 
-        sb.Append("#mitex(");
+        // `mitex` is a block: it breaks the paragraph and centres its content, which is right
+        // for an equation block and wrong for an equation inside a sentence. `mi` is the
+        // inline form, so an inline span keeps its place in the line and its left alignment.
+        sb.Append(displayStyle ? "#mitex(" : "#mi(");
         if (!body.Contains('`'))
         {
             sb.Append('`').Append(body).Append('`');
