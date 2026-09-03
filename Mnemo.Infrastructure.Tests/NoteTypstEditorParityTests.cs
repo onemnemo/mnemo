@@ -177,6 +177,17 @@ public sealed class NoteTypstEditorParityTests
         Assert.Contains("[If Q \\= K\n\nThe system is at equilibrium\\.\n\n]\n\n", typ);
     }
 
+    [Fact]
+    public void Quote_and_callout_stand_off_their_neighbours_as_on_screen()
+    {
+        // A 10px margin and the padding the editor gives each, with the line box's slack inside.
+        var typ = Compose(NoteWith(
+            Leaf(BlockType.Quote, InlineSpan.Plain("a voice")),
+            Leaf(BlockType.Callout, InlineSpan.Plain("an aside"))), new NotePdfExportOptions { BaseFontSizePt = 11f });
+        Assert.Contains("#block(above: 12.045pt, below: 12.045pt, inset: (top: 6.545pt, bottom: 6.545pt, left: 11pt), stroke: (left: 3pt + rgb(\"#9e9e9e\")))[#emph[a voice]]", typ);
+        Assert.Contains("#block(width: 100%, above: 12.045pt, below: 12.045pt, inset: (top: 13.42pt, bottom: 13.42pt, x: 11pt), radius: 3pt, fill: rgb(\"#f2f2f3\"))[an aside]", typ);
+    }
+
     // === The composer's own output parses ===
 
     [TypstFact]
