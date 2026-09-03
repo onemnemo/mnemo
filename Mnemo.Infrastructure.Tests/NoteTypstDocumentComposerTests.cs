@@ -63,7 +63,7 @@ public sealed class NoteTypstDocumentComposerTests
     public void Quote_EmitsLeftBorderedItalicBlock()
     {
         var typ = Compose(NoteWith(Leaf(BlockType.Quote, "wise words")));
-        Assert.Contains("#block(inset: (left: 10pt), stroke: (left: 3pt + rgb(\"#9e9e9e\")))[#emph[wise words]]", typ);
+        Assert.Contains("#block(above: 12.045pt, below: 12.045pt, inset: (top: 6.545pt, bottom: 6.545pt, left: 11pt), stroke: (left: 3pt + rgb(\"#9e9e9e\")))[#emph[wise words]]", typ);
     }
 
     [Fact]

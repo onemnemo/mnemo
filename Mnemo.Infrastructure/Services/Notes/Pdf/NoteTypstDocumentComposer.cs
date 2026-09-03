@@ -364,7 +364,8 @@ internal static class NoteTypstDocumentComposer
                 }
                 break;
             case BlockType.Quote:
-                sb.Append("#block(inset: (left: 10pt), stroke: (left: 3pt + rgb(\"#9e9e9e\")))[#emph[");
+                sb.Append("#block(").Append(NoteTypstRhythm.QuoteArguments(options.BaseFontSizePt))
+                  .Append(", stroke: (left: 3pt + rgb(\"#9e9e9e\")))[#emph[");
                 EmitInline(sb, block.Spans, options);
                 sb.Append("]]\n\n");
                 break;
@@ -373,7 +374,8 @@ internal static class NoteTypstDocumentComposer
                 // The embedded fonts carry no emoji glyphs, so the tone is carried by the tint
                 // rather than by the leading character the editor draws.
                 var warn = string.Equals(MatchedPayload<CalloutPayload>(block)?.Tone, "warn", StringComparison.OrdinalIgnoreCase);
-                sb.Append("#block(width: 100%, inset: 8pt, radius: 3pt, fill: rgb(\"")
+                sb.Append("#block(width: 100%, ").Append(NoteTypstRhythm.CalloutArguments(options.BaseFontSizePt))
+                  .Append(", radius: 3pt, fill: rgb(\"")
                   .Append(warn ? "#fbf0d5" : "#f2f2f3")
                   .Append("\"))[");
                 EmitInline(sb, block.Spans, options);

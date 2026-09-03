@@ -28,6 +28,14 @@ internal static class NoteTypstRhythm
     private const double BodyLineHeight = 1.65;
     private const double BlockGap = 6.0 / 16.0;
 
+    // The editor's quote and callout both stand 10px off their neighbours. A quote pads its
+    // text 2px above and below with 16px before it; a callout pads 12px and 16px.
+    private const double AsideMargin = 10.0 / 16.0;
+    private const double QuotePaddingY = 2.0 / 16.0;
+    private const double QuotePaddingLeft = 16.0 / 16.0;
+    private const double CalloutPaddingY = 12.0 / 16.0;
+    private const double CalloutPaddingX = 16.0 / 16.0;
+
     /// <summary>One level of the editor's heading scale, in em of the body text.</summary>
     private sealed record HeadingScale(
         int Level,
@@ -82,6 +90,27 @@ internal static class NoteTypstRhythm
         }
     }
 
+    /// <summary>
+    /// The block arguments that give a quote the editor's room: its margin against the lines
+    /// either side, and its padding, which holds the slack of the line box inside it so the rule
+    /// on the left spans what the border spans on screen.
+    /// </summary>
+    public static string QuoteArguments(float baseFontSizePt) =>
+        AsideArguments(baseFontSizePt, QuotePaddingY, "left: " + Pt(QuotePaddingLeft * baseFontSizePt));
+
+    /// <summary>The same for a callout, whose tint is padded on every side.</summary>
+    public static string CalloutArguments(float baseFontSizePt) =>
+        AsideArguments(baseFontSizePt, CalloutPaddingY, "x: " + Pt(CalloutPaddingX * baseFontSizePt));
+
+    private static string AsideArguments(float baseFontSizePt, double paddingY, string horizontalInset)
+    {
+        var above = Pt((SlackBelow(BodyLineHeight) + AsideMargin) * baseFontSizePt);
+        var below = Pt((AsideMargin + SlackAbove(BodyLineHeight)) * baseFontSizePt);
+        var top = Pt((paddingY + SlackAbove(BodyLineHeight)) * baseFontSizePt);
+        var bottom = Pt((paddingY + SlackBelow(BodyLineHeight)) * baseFontSizePt);
+        return $"above: {above}, below: {below}, inset: (top: {top}, bottom: {bottom}, {horizontalInset})";
+    }
+
     /// <summary>Between two lines of body text, from one baseline to the next cap height.</summary>
     internal static double BodyLeading => BodyLineHeight - CapHeight;
 
@@ -99,4 +128,6 @@ internal static class NoteTypstRhythm
     private static double SlackBelow(double lineHeight) => (lineHeight + Descender - Ascender) / 2;
 
     private static string Em(double value) => NoteTypstDocumentComposer.Num(value) + "em";
+
+    private static string Pt(double value) => NoteTypstDocumentComposer.Pt(value);
 }
