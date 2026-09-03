@@ -105,8 +105,31 @@ public sealed class NoteTypstDocumentComposerTests
             ]
         };
         var typ = Compose(NoteWith(block));
-        Assert.Contains("#mitex(`\\alpha`)", typ);
-        Assert.Contains("#mitex(`\\frac{1}{2}`)", typ);
+        Assert.Contains("#mi(`\\alpha`)", typ);
+        Assert.Contains("#mi(`\\frac{1}{2}`)", typ);
+        // Inline, never the block form: that would break the sentence and centre the maths.
+        Assert.DoesNotContain("#mitex(", typ);
+    }
+
+    [Fact]
+    public void Children_of_a_paragraph_are_emitted_after_it()
+    {
+        var parent = new Block
+        {
+            Id = "parent",
+            Type = BlockType.Text,
+            Spans = [new EquationSpan("aA + bB")],
+            Children =
+            [
+                new Block { Id = "c1", Type = BlockType.Text, Order = 0, Spans = [new EquationSpan("K = 1")] },
+                new Block { Id = "c2", Type = BlockType.Text, Order = 1, Spans = [new EquationSpan("K = 2")] },
+            ]
+        };
+        var typ = Compose(NoteWith(parent));
+        var first = typ.IndexOf("#mi(`aA + bB`)", StringComparison.Ordinal);
+        var second = typ.IndexOf("#mi(`K = 1`)", StringComparison.Ordinal);
+        var third = typ.IndexOf("#mi(`K = 2`)", StringComparison.Ordinal);
+        Assert.True(first >= 0 && second > first && third > second, typ);
     }
 
     [Fact]
@@ -122,8 +145,8 @@ public sealed class NoteTypstDocumentComposerTests
             ]
         };
         var typ = Compose(NoteWith(block));
-        Assert.Contains("#mitex(`Zn(OH)_{2}(s) \\rightleftharpoons Zn^{2+}(aq) + 2OH^{-}(aq)`)", typ);
-        Assert.Contains("#mitex(`4.5 \\cdot 10^{-17}`)", typ);
+        Assert.Contains("#mi(`Zn(OH)_{2}(s) \\rightleftharpoons Zn^{2+}(aq) + 2OH^{-}(aq)`)", typ);
+        Assert.Contains("#mi(`4.5 \\cdot 10^{-17}`)", typ);
     }
 
     [Fact]
