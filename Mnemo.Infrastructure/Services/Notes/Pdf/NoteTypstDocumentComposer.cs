@@ -418,9 +418,10 @@ internal static class NoteTypstDocumentComposer
         }
 
         // Any block may hold block children on the wire, not only a list item. The list
-        // kinds print theirs inside their own marker above; everything else prints them in
+        // kinds print theirs inside their own marker above, and a table's children are its
+        // rows and cells, which the table has already drawn; everything else prints them in
         // flow right after itself, as the editor draws them.
-        if (block.Type is not (BlockType.BulletList or BlockType.NumberedList or BlockType.Checklist))
+        if (block.Type is not (BlockType.BulletList or BlockType.NumberedList or BlockType.Checklist or BlockType.Table))
             EmitNestedItems(sb, block, options, assets, listDepth);
     }
 
