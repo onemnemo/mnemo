@@ -188,6 +188,72 @@ public sealed class NoteTypstEditorParityTests
         Assert.Contains("#block(width: 100%, above: 12.045pt, below: 12.045pt, inset: (top: 13.42pt, bottom: 13.42pt, x: 11pt), radius: 3pt, fill: rgb(\"#f2f2f3\"))[an aside]", typ);
     }
 
+    // === Numbered items count as the editor counts them ===
+
+    [Fact]
+    public void Numbered_items_count_up_in_document_order()
+    {
+        var typ = Compose(NoteWith(
+            Leaf(BlockType.NumberedList, InlineSpan.Plain("Prevent waste.")),
+            Leaf(BlockType.NumberedList, InlineSpan.Plain("Atom economy.")),
+            Leaf(BlockType.NumberedList, InlineSpan.Plain("Catalysis."))));
+        Assert.Contains("#enum(start: 1, tight: false)[Prevent waste\\.][Atom economy\\.][Catalysis\\.]\n\n", typ);
+    }
+
+    [Fact]
+    public void Any_other_block_restarts_the_run()
+    {
+        var typ = Compose(NoteWith(
+            Leaf(BlockType.NumberedList, InlineSpan.Plain("one")),
+            Leaf(BlockType.NumberedList, InlineSpan.Plain("two")),
+            Paragraph(InlineSpan.Plain("an interruption")),
+            Leaf(BlockType.NumberedList, InlineSpan.Plain("three"))));
+        Assert.Contains("#enum(start: 1, tight: false)[one][two]\n\n", typ);
+        Assert.Contains("#enum(start: 1, tight: false)[three]\n\n", typ);
+        Assert.DoesNotContain("start: 3", typ);
+    }
+
+    [Fact]
+    public void A_run_flows_through_a_two_column()
+    {
+        var twoColumn = new Block
+        {
+            Type = BlockType.TwoColumn,
+            Payload = new TwoColumnPayload(0.5),
+            Children =
+            [
+                new Block
+                {
+                    Type = BlockType.ColumnGroup,
+                    Order = 0,
+                    Children = [Leaf(BlockType.NumberedList, InlineSpan.Plain("two")), Leaf(BlockType.NumberedList, InlineSpan.Plain("three"))]
+                },
+                new Block { Type = BlockType.ColumnGroup, Order = 1, Children = [Leaf(BlockType.NumberedList, InlineSpan.Plain("four"))] }
+            ]
+        };
+        var typ = Compose(NoteWith(
+            Leaf(BlockType.NumberedList, InlineSpan.Plain("one")),
+            twoColumn,
+            Leaf(BlockType.NumberedList, InlineSpan.Plain("five"))));
+        Assert.Contains("#enum(start: 1, tight: false)[one]\n\n", typ);
+        Assert.Contains("#enum(start: 2, tight: false)[two][three]\n\n", typ);
+        Assert.Contains("#enum(start: 4, tight: false)[four]\n\n", typ);
+        Assert.Contains("#enum(start: 5, tight: false)[five]\n\n", typ);
+    }
+
+    [Fact]
+    public void Nested_items_are_a_run_of_their_own()
+    {
+        var first = Leaf(BlockType.NumberedList, InlineSpan.Plain("first"));
+        first.Children = [Leaf(BlockType.NumberedList, InlineSpan.Plain("x")), Leaf(BlockType.NumberedList, InlineSpan.Plain("y"))];
+        var typ = Compose(NoteWith(first, Leaf(BlockType.NumberedList, InlineSpan.Plain("second"))));
+        Assert.Contains(
+            "#enum(start: 1, tight: false)[first\n\n" +
+            "#enum(start: 1, numbering: \"a.\", tight: false)[x][y]\n\n" +
+            "][second]\n\n",
+            typ);
+    }
+
     // === The composer's own output parses ===
 
     [TypstFact]
@@ -226,6 +292,9 @@ public sealed class NoteTypstEditorParityTests
                     ]
                 },
                 Leaf(BlockType.Heading4, InlineSpan.Plain("Trailing")),
+                Leaf(BlockType.NumberedList, InlineSpan.Plain("nine")),
+                Leaf(BlockType.NumberedList, new TextSpan("ten", new TextStyle(Bold: true)), InlineSpan.Plain(" (bold)")),
+                Leaf(BlockType.NumberedList, InlineSpan.Plain("eleven")),
                 Paragraph(InlineSpan.Plain("last"))
             ]
         };

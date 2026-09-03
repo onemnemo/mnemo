@@ -42,12 +42,13 @@ public sealed class NoteTypstDocumentComposerTests
     }
 
     [Fact]
-    public void NumberedList_PreservesStartIndex()
+    public void NumberedList_CountsFromItsPositionNotAStoredIndex()
     {
+        // The editor never stores a number and ignores this key; a lone item is a run of one.
         var block = Leaf(BlockType.NumberedList, "third");
         block.Meta["listNumberIndex"] = 3;
         var typ = Compose(NoteWith(block));
-        Assert.Contains("#enum(start: 3)[third]", typ);
+        Assert.Contains("#enum(start: 1, tight: false)[third]", typ);
     }
 
     [Fact]
@@ -554,7 +555,7 @@ public sealed class NoteTypstDocumentComposerTests
         // follow the depth the editor draws: dot, then letters, then a square.
         Assert.Contains(
             "#list(marker: box(baseline: -0.05em, circle(radius: 0.11em, fill: black)))[parent\n\n" +
-            "#enum(start: 1, numbering: \"a.\")[child\n\n" +
+            "#enum(start: 1, numbering: \"a.\", tight: false)[child\n\n" +
             "#list(marker: box(baseline: -0.05em, rect(width: 0.2em, height: 0.2em, fill: black)))[deep]\n\n" +
             "]\n\n" +
             "]\n\n",
@@ -582,7 +583,7 @@ public sealed class NoteTypstDocumentComposerTests
         // No children, no extra bytes: every existing note's list renders as before.
         var typ = Compose(NoteWith(Leaf(BlockType.BulletList, "point"), Leaf(BlockType.NumberedList, "one")));
         Assert.Contains("#list(marker: box(baseline: -0.05em, circle(radius: 0.11em, fill: black)))[point]\n\n", typ);
-        Assert.Contains("#enum(start: 1)[one]\n\n", typ);
+        Assert.Contains("#enum(start: 1, tight: false)[one]\n\n", typ);
     }
 
     [TypstFact]
@@ -607,7 +608,6 @@ public sealed class NoteTypstDocumentComposerTests
     private static Note BuildKitchenSinkNote()
     {
         var numbered = Leaf(BlockType.NumberedList, "second");
-        numbered.Meta["listNumberIndex"] = 2;
 
         return new Note
         {
