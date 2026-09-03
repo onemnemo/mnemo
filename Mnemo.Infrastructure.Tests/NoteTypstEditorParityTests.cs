@@ -92,6 +92,91 @@ public sealed class NoteTypstEditorParityTests
         Assert.Contains("a #emph[b]; c\n\n", typ);
     }
 
+    // === A newline inside a line is the soft break the editor shows ===
+
+    [Fact]
+    public void Newline_before_an_inline_equation_breaks_the_line()
+    {
+        var typ = Compose(NoteWith(Paragraph(
+            InlineSpan.Plain("For a reaction of the form:\n"),
+            new EquationSpan("aA + bB \\rightleftharpoons cC + dD"))));
+        Assert.Contains("For a reaction of the form:\\\n#mi(`aA + bB \\rightleftharpoons cC + dD`);\n\n", typ);
+    }
+
+    [Fact]
+    public void Newline_after_an_inline_equation_breaks_the_line()
+    {
+        var typ = Compose(NoteWith(Leaf(BlockType.BulletList,
+            InlineSpan.Plain("In pure water:\n"),
+            new EquationSpan("Ksp = x^2"),
+            InlineSpan.Plain("\nHere, x is the solubility."))));
+        Assert.Contains("[In pure water:\\\n#mi(`Ksp = x^2`);\\\nHere, x is the solubility\\.]", typ);
+    }
+
+    [Fact]
+    public void Trailing_newline_at_the_end_of_a_block_is_not_a_break()
+    {
+        var typ = Compose(NoteWith(Paragraph(InlineSpan.Plain("Then we get:\n"))));
+        Assert.Contains("Then we get:\n\n", typ);
+        Assert.DoesNotContain("\\\n", typ);
+    }
+
+    [Fact]
+    public void Either_line_ending_breaks_once()
+    {
+        var typ = Compose(NoteWith(Paragraph(InlineSpan.Plain("first\r\nsecond\rthird\n"))));
+        Assert.Contains("first\\\nsecond\\\nthird\n\n", typ);
+        Assert.DoesNotContain("\r", typ);
+    }
+
+    // === The page's rhythm is the editor's ===
+
+    [Fact]
+    public void Preamble_sets_the_editor_rhythm()
+    {
+        var typ = Compose(NoteWith(), new NotePdfExportOptions { BaseFontSizePt = 11f });
+        // A 1.65 line height over a 0.71em cap height, and a 6px gap between blocks on a 16px body.
+        Assert.Contains("#set par(leading: 0.94em, spacing: 14.465pt)\n#set block(spacing: 14.465pt)\n", typ);
+        Assert.Contains("#show heading: set strong(delta: 0)\n", typ);
+    }
+
+    [Theory]
+    [InlineData(1, "size: 19.25pt, weight: 700, tracking: -0.02em", "0.54em", "32.368pt", "13.118pt")]
+    [InlineData(2, "size: 15.125pt, weight: 600, tracking: -0.015em", "0.59em", "28.882pt", "11.007pt")]
+    [InlineData(3, "size: 12.375pt, weight: 600, tracking: -0.01em", "0.64em", "22.88pt", "10.505pt")]
+    [InlineData(4, "size: 11pt, weight: 600", "0.69em", "19.965pt", "10.34pt")]
+    public void Headings_take_the_editor_scale(int level, string text, string leading, string above, string below)
+    {
+        var typ = Compose(NoteWith(), new NotePdfExportOptions { BaseFontSizePt = 11f });
+        Assert.Contains($"#show heading.where(level: {level}): set text({text})\n", typ);
+        Assert.Contains($"#show heading.where(level: {level}): set par(leading: {leading})\n", typ);
+        Assert.Contains($"#show heading.where(level: {level}): set block(above: {above}, below: {below})\n", typ);
+    }
+
+    [Fact]
+    public void Rhythm_scales_with_the_base_size()
+    {
+        var typ = Compose(NoteWith(), new NotePdfExportOptions { BaseFontSizePt = 12f });
+        Assert.Contains("#set par(leading: 0.94em, spacing: 15.78pt)\n", typ);
+        Assert.Contains("#show heading.where(level: 1): set text(size: 21pt, weight: 700, tracking: -0.02em)\n", typ);
+    }
+
+    [Fact]
+    public void Heading_blocks_are_real_headings()
+    {
+        var typ = Compose(NoteWith(Leaf(BlockType.Heading2, InlineSpan.Plain("The reaction quotient (Q)"))));
+        Assert.Contains("#heading(level: 2)[The reaction quotient (Q)]\n\n", typ);
+    }
+
+    [Fact]
+    public void Paragraph_nested_under_a_list_item_starts_its_own_paragraph()
+    {
+        var item = Leaf(BlockType.BulletList, InlineSpan.Plain("If Q = K"));
+        item.Children = [Paragraph(InlineSpan.Plain("The system is at equilibrium."))];
+        var typ = Compose(NoteWith(item));
+        Assert.Contains("[If Q \\= K\n\nThe system is at equilibrium\\.\n\n]\n\n", typ);
+    }
+
     // === The composer's own output parses ===
 
     [TypstFact]

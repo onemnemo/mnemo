@@ -120,10 +120,8 @@ internal static class NoteTypstDocumentComposer
         sb.Append("#set text(font: (\"Geist\", \"New Computer Modern\"), size: ")
           .Append(Pt(options.BaseFontSizePt)).Append(", fill: rgb(\"#000000\"))\n");
         sb.Append("#show raw: set text(font: (\"Geist Mono\", \"DejaVu Sans Mono\"))\n");
-        // One rhythm for everything: a paragraph, a list item, an equation and a quote are each
-        // a block to the reader, and a gap that changes with the block kind reads as a mistake.
-        sb.Append("#set par(leading: 0.65em, spacing: 10pt)\n");
-        sb.Append("#set block(spacing: 10pt)\n\n");
+        NoteTypstRhythm.AppendPreamble(sb, options.BaseFontSizePt);
+        sb.Append('\n');
     }
 
     /// <summary>
@@ -268,15 +266,17 @@ internal static class NoteTypstDocumentComposer
     }
 
     /// <summary>
-    /// An item's nested list, inside the item's own content so Typst indents it under the text.
-    /// Nothing is emitted for a leaf, so an item without children keeps its exact output.
+    /// A block's children, after its own content: inside a list item's content, so Typst indents
+    /// them under the text. Nothing is emitted for a leaf, so a block without children keeps its
+    /// exact output. The break before them is a paragraph break, because a nested paragraph is a
+    /// block of its own on screen and one newline would only be a space in front of it.
     /// </summary>
     private static void EmitNestedItems(StringBuilder sb, Block item, NotePdfExportOptions options, INoteTypstAssetResolver? assets, int listDepth)
     {
         if (item.Children is not { Count: > 0 })
             return;
 
-        sb.Append('\n');
+        sb.Append("\n\n");
         foreach (var child in item.Children.OrderBy(c => c.Order))
             EmitBlock(sb, child, options, assets, listDepth);
     }
@@ -320,16 +320,16 @@ internal static class NoteTypstDocumentComposer
         switch (block.Type)
         {
             case BlockType.Heading1:
-                EmitHeading(sb, block, options, options.BaseFontSizePt + 10f);
+                EmitHeading(sb, block, options, 1);
                 break;
             case BlockType.Heading2:
-                EmitHeading(sb, block, options, options.BaseFontSizePt + 6f);
+                EmitHeading(sb, block, options, 2);
                 break;
             case BlockType.Heading3:
-                EmitHeading(sb, block, options, options.BaseFontSizePt + 3f);
+                EmitHeading(sb, block, options, 3);
                 break;
             case BlockType.Heading4:
-                EmitHeading(sb, block, options, options.BaseFontSizePt + 1.5f);
+                EmitHeading(sb, block, options, 4);
                 break;
             case BlockType.BulletList:
                 sb.Append("#list(marker: ").Append(BulletMarkerAt(listDepth)).Append(")[");
@@ -358,7 +358,7 @@ internal static class NoteTypstDocumentComposer
                 {
                     // A checkbox item is a paragraph, not a list function, so its nested list is
                     // indented by hand to sit where a list's own would.
-                    sb.Append("#pad(left: 1.5em)[\n");
+                    sb.Append("#pad(left: 1.5em)[");
                     EmitNestedItems(sb, block, options, assets, listDepth + 1);
                     sb.Append("]\n\n");
                 }
@@ -455,9 +455,11 @@ internal static class NoteTypstDocumentComposer
         return options.MissingSubpageTitle;
     }
 
-    private static void EmitHeading(StringBuilder sb, Block block, NotePdfExportOptions options, float sizePt)
+    // A real heading rather than sized text: it stays with the paragraph it introduces across a
+    // page break and the PDF gets an outline. Its size, weight and spacing are the preamble's.
+    private static void EmitHeading(StringBuilder sb, Block block, NotePdfExportOptions options, int level)
     {
-        sb.Append("#text(weight: \"bold\", size: ").Append(Pt(sizePt)).Append(")[");
+        sb.Append("#heading(level: ").Append(level).Append(")[");
         EmitInline(sb, block.Spans, options);
         sb.Append("]\n\n");
     }
@@ -678,13 +680,19 @@ internal static class NoteTypstDocumentComposer
 
     private static void EmitInline(StringBuilder sb, IReadOnlyList<InlineSpan> spans, NotePdfExportOptions options)
     {
-        foreach (var span in spans)
+        for (var i = 0; i < spans.Count; i++)
         {
-            switch (span)
+            switch (spans[i])
             {
                 case TextSpan text:
-                    sb.Append(StyleFragment(BaseText(text.Text, text.Style), text.Style, options));
+                {
+                    // A newline inside the line is a soft break the editor shows. One at the very
+                    // end of the block is not shown there, so it is not printed here either.
+                    var content = i == spans.Count - 1 ? text.Text.TrimEnd('\r', '\n') : text.Text;
+                    if (content.Length > 0)
+                        sb.Append(StyleFragment(BaseText(content, text.Style), text.Style, options));
                     break;
+                }
                 case EquationSpan equation:
                 {
                     var inner = new StringBuilder();
@@ -801,14 +809,25 @@ internal static class NoteTypstDocumentComposer
             return string.Empty;
 
         var sb = new StringBuilder(text.Length + 8);
-        foreach (var c in text)
+        for (var i = 0; i < text.Length; i++)
         {
+            var c = text[i];
             switch (c)
             {
                 case '\\': case '#': case '$': case '*': case '_': case '`':
                 case '[': case ']': case '<': case '>': case '@': case '~':
                 case '=': case '-': case '+': case '/': case '.':
                     sb.Append('\\').Append(c);
+                    break;
+                // A bare newline in markup is a space. The editor shows it as a line break, so
+                // it becomes one; either line ending counts once.
+                case '\r':
+                    if (i + 1 < text.Length && text[i + 1] == '\n')
+                        i++;
+                    sb.Append("\\\n");
+                    break;
+                case '\n':
+                    sb.Append("\\\n");
                     break;
                 default:
                     sb.Append(c);
@@ -950,9 +969,9 @@ internal static class NoteTypstDocumentComposer
 
     // === Formatting ===
 
-    private static string Pt(double value) => Num(value) + "pt";
+    internal static string Pt(double value) => Num(value) + "pt";
 
-    private static string Num(double value) =>
+    internal static string Num(double value) =>
         Math.Round(value, 3).ToString("0.###", CultureInfo.InvariantCulture);
 
     /// <summary>
