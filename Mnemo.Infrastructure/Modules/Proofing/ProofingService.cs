@@ -191,14 +191,20 @@ public sealed class ProofingService : IProofingService
         var ignored = string.IsNullOrWhiteSpace(noteId)
             ? []
             : await _ignores.ListAsync(noteId, ct).ConfigureAwait(false);
-        var ignoredSet = new HashSet<string>(ignored, StringComparer.OrdinalIgnoreCase);
+        // Composed, like the personal list, so a word ignored from the editor still matches the text
+        // it was ignored from however the two encoded its accents.
+        var ignoredSet = new HashSet<string>(
+            ignored.Select(PersonalWordLookup.Normalize),
+            StringComparer.OrdinalIgnoreCase);
+
+        var personal = await _personal.LookupAsync(ct).ConfigureAwait(false);
 
         var kept = new List<ProofingIssue>(merged.Count);
         foreach (var issue in merged)
         {
-            if (ignoredSet.Contains(issue.Text))
+            if (ignoredSet.Contains(PersonalWordLookup.Normalize(issue.Text)))
                 continue;
-            if (await IsPersonalAsync(issue.Text, contributing, ct).ConfigureAwait(false))
+            if (personal.Accepts(issue.Text, contributing))
                 continue;
             kept.Add(issue);
         }
@@ -290,21 +296,6 @@ public sealed class ProofingService : IProofingService
 
     private static HashSet<(int Start, int End)> Spans(List<ProofingIssue> issues) =>
         [.. issues.Where(IsSpelling).Select(i => (i.Start, i.End))];
-
-    /// <summary>
-    /// Whether the user has vouched for this word in any of the languages that answered. A word is
-    /// added once and meant for the document, so it counts wherever the document is being checked.
-    /// </summary>
-    private async Task<bool> IsPersonalAsync(string word, List<string> languages, CancellationToken ct)
-    {
-        foreach (var language in languages)
-        {
-            if (await _personal.ContainsAsync(word, language, ct).ConfigureAwait(false))
-                return true;
-        }
-
-        return false;
-    }
 
     private string StateOf(ProofingDictionaryEntry entry)
     {

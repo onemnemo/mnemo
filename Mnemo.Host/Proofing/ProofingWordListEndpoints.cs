@@ -37,8 +37,11 @@ internal static class ProofingWordListEndpoints
             if (BadWordOrNull(body?.Word) is { } invalid)
                 return invalid;
 
-            await personal.AddAsync(body!.Word!, body.Language, cancellationToken).ConfigureAwait(false);
-            return await PersonalWordsAsync(personal, cancellationToken).ConfigureAwait(false);
+            var outcome = await personal.AddAsync(body!.Word!, body.Language, cancellationToken).ConfigureAwait(false);
+            if (RefusedAddOrNull(outcome, personal.MaxWords) is { } refused)
+                return refused;
+
+            return await PersonalWordsAsync(personal, cancellationToken, outcome).ConfigureAwait(false);
         });
 
         // A removal is a POST with the word in the body rather than a DELETE with it in the path.
@@ -108,11 +111,38 @@ internal static class ProofingWordListEndpoints
         });
     }
 
-    private static async Task<IResult> PersonalWordsAsync(IPersonalDictionaryService personal, CancellationToken ct)
+    private static async Task<IResult> PersonalWordsAsync(
+        IPersonalDictionaryService personal,
+        CancellationToken ct,
+        PersonalWordAddResult? outcome = null)
     {
         var words = await personal.ListAsync(ct).ConfigureAwait(false);
-        return Results.Json(new ProofingPersonalWordsDto([.. words.Select(ToDto)]));
+        var label = outcome switch
+        {
+            PersonalWordAddResult.Added => "added",
+            PersonalWordAddResult.AlreadyPresent => "alreadyPresent",
+            _ => null
+        };
+
+        return Results.Json(new ProofingPersonalWordsDto([.. words.Select(ToDto)], label));
     }
+
+    /// <summary>
+    /// Null when the addition may answer with the list, otherwise the refusal to return. A word the
+    /// tokenizer would never produce cannot be stored: nothing would ever be compared against it, so
+    /// the list would grow an entry that silently does nothing.
+    /// </summary>
+    private static IResult? RefusedAddOrNull(PersonalWordAddResult outcome, int maxWords) => outcome switch
+    {
+        PersonalWordAddResult.NotCheckable => ProofingEndpoints.Refuse(
+            "proofing_word_not_checkable",
+            "A word is one run of at least two letters, with no digits and no spaces."),
+        PersonalWordAddResult.LimitReached => ProofingEndpoints.Refuse(
+            "proofing_word_limit",
+            $"The dictionary holds at most {maxWords} words.",
+            StatusCodes.Status409Conflict),
+        _ => null
+    };
 
     private static async Task<IResult> NoteIgnoresAsync(INoteIgnoreService ignores, string noteId, CancellationToken ct)
     {

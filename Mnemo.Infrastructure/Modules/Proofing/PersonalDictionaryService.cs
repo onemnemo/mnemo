@@ -34,11 +34,19 @@ public sealed class PersonalDictionaryService : IPersonalDictionaryService
     private readonly ISettingsService _settings;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private List<PersonalWord>? _cache;
+    private PersonalWordLookup? _lookup;
 
     public PersonalDictionaryService(ISettingsService settings)
     {
         _settings = settings;
     }
+
+    /// <summary>
+    /// The whole list is rewritten on every addition and read back into a lookup on every check, so
+    /// this bounds both. A person adding a word at a time is nowhere near it, and a list this long
+    /// wants a dictionary of its own rather than a settings value.
+    /// </summary>
+    public int MaxWords => 5_000;
 
     public async Task<IReadOnlyList<PersonalWord>> ListAsync(CancellationToken ct)
     {
@@ -54,11 +62,11 @@ public sealed class PersonalDictionaryService : IPersonalDictionaryService
         }
     }
 
-    public async Task AddAsync(string word, string? language, CancellationToken ct)
+    public async Task<PersonalWordAddResult> AddAsync(string word, string? language, CancellationToken ct)
     {
         var trimmed = (word ?? string.Empty).Trim();
-        if (trimmed.Length == 0)
-            return;
+        if (!ProofingTokenizer.IsCheckableWord(trimmed))
+            return PersonalWordAddResult.NotCheckable;
 
         var scope = NormalizeLanguage(language);
 
@@ -67,10 +75,14 @@ public sealed class PersonalDictionaryService : IPersonalDictionaryService
         {
             var words = await LoadAsync().ConfigureAwait(false);
             if (words.Any(w => Matches(w, trimmed, scope)))
-                return;
+                return PersonalWordAddResult.AlreadyPresent;
+
+            if (words.Count >= MaxWords)
+                return PersonalWordAddResult.LimitReached;
 
             words.Add(new PersonalWord(trimmed, scope, DateTimeOffset.UtcNow));
             await PersistAsync(words).ConfigureAwait(false);
+            return PersonalWordAddResult.Added;
         }
         finally
         {
@@ -99,19 +111,13 @@ public sealed class PersonalDictionaryService : IPersonalDictionaryService
         }
     }
 
-    public async Task<bool> ContainsAsync(string word, string language, CancellationToken ct)
+    public async Task<PersonalWordLookup> LookupAsync(CancellationToken ct)
     {
-        var trimmed = (word ?? string.Empty).Trim();
-        if (trimmed.Length == 0)
-            return false;
-
         await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             var words = await LoadAsync().ConfigureAwait(false);
-            return words.Any(w =>
-                string.Equals(w.Word, trimmed, StringComparison.OrdinalIgnoreCase)
-                && (w.Language is null || SameLanguage(w.Language, language)));
+            return _lookup ??= new PersonalWordLookup(words);
         }
         finally
         {
@@ -119,23 +125,17 @@ public sealed class PersonalDictionaryService : IPersonalDictionaryService
         }
     }
 
-    private static bool Matches(PersonalWord stored, string word, string? language) =>
-        string.Equals(stored.Word, word, StringComparison.OrdinalIgnoreCase)
-        && string.Equals(stored.Language, language, StringComparison.OrdinalIgnoreCase);
-
     /// <summary>
-    /// Compares scopes by their primary subtag, so a word scoped to <c>en</c> is accepted while
-    /// checking <c>en-US</c>. Words seeded from the older editor setting carry bare codes, and a word
-    /// the user vouched for in English is not a mistake in American English.
+    /// Whether two entries are the same one. The word compares in composed form, so a word typed
+    /// with a precomposed accent and the same word typed with a combining one are not stored twice
+    /// and cannot be left behind by a removal aimed at the other spelling.
     /// </summary>
-    private static bool SameLanguage(string scope, string language) =>
-        string.Equals(PrimarySubtag(scope), PrimarySubtag(language), StringComparison.OrdinalIgnoreCase);
-
-    private static string PrimarySubtag(string tag)
-    {
-        var cut = tag.IndexOfAny(['-', '_']);
-        return cut < 0 ? tag : tag[..cut];
-    }
+    private static bool Matches(PersonalWord stored, string word, string? language) =>
+        string.Equals(
+            PersonalWordLookup.Normalize(stored.Word),
+            PersonalWordLookup.Normalize(word),
+            StringComparison.OrdinalIgnoreCase)
+        && string.Equals(stored.Language, language, StringComparison.OrdinalIgnoreCase);
 
     private static string? NormalizeLanguage(string? language) =>
         string.IsNullOrWhiteSpace(language) ? null : language.Trim();
@@ -187,6 +187,8 @@ public sealed class PersonalDictionaryService : IPersonalDictionaryService
                 var trimmed = (word ?? string.Empty).Trim();
                 if (trimmed.Length == 0)
                     continue;
+                if (seeded.Count >= MaxWords)
+                    return seeded;
                 if (seeded.Any(w => Matches(w, trimmed, scope)))
                     continue;
                 seeded.Add(new PersonalWord(trimmed, scope, now));
@@ -200,6 +202,7 @@ public sealed class PersonalDictionaryService : IPersonalDictionaryService
     private Task PersistAsync(List<PersonalWord> words)
     {
         _cache = words;
+        _lookup = null;
         return _settings.SetAsync(StorageKey, words);
     }
 }
