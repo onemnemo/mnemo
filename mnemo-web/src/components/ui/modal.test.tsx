@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 
-
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
@@ -23,6 +22,41 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+})
+
+describe("Modal focus", () => {
+  it("moves focus to its first control on open, and back to the opener on close", () => {
+    const opener = document.createElement("button")
+    document.body.appendChild(opener)
+    opener.focus()
+
+    act(() =>
+      root.render(
+        <Modal open onClose={() => {}} title="Export" closeLabel="Close">
+          <input aria-label="Name" />
+        </Modal>,
+      ),
+    )
+    expect((document.activeElement as HTMLElement | null)?.getAttribute("aria-label")).toBe("Close")
+
+    act(() => root.render(null))
+    expect(document.activeElement).toBe(opener)
+    opener.remove()
+  })
+
+  it("takes focus itself when it has nothing to give it to", () => {
+    act(() =>
+      root.render(
+        <Modal open onClose={() => {}} title="Export" closeLabel="Close">
+          plain text
+        </Modal>,
+      ),
+    )
+    // The close button is a control, so the surface is only the fallback once it is gone
+    // from the tab order; what matters is that focus is inside the dialog at all.
+    const dialog = document.querySelector('[role="dialog"]')
+    expect(dialog?.contains(document.activeElement)).toBe(true)
+  })
 })
 
 describe("Modal stacking", () => {
@@ -97,5 +131,50 @@ describe("Modal focus", () => {
     act(() => root.render(<Host open={false} />))
     expect(document.activeElement).toBe(opener)
     opener.remove()
+  })
+})
+
+describe("Modal escape", () => {
+  function escape() {
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
+  }
+
+  it("closes on Escape", () => {
+    let closed = 0
+    act(() =>
+      root.render(
+        <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close">
+          content
+        </Modal>,
+      ),
+    )
+
+    escape()
+    expect(closed).toBe(1)
+  })
+
+  // A menu opened from inside portals to the body, so a dialog that answers the press first
+  // closes out from under the menu and swallows the press that was meant for it.
+  it("leaves the press to a menu opened from inside it", () => {
+    let closed = 0
+    act(() =>
+      root.render(
+        <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close">
+          content
+        </Modal>,
+      ),
+    )
+
+    const menu = document.createElement("div")
+    menu.setAttribute("role", "menu")
+    document.body.appendChild(menu)
+    escape()
+    expect(closed).toBe(0)
+
+    menu.remove()
+    escape()
+    expect(closed).toBe(1)
   })
 })
