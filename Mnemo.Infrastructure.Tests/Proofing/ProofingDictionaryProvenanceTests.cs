@@ -5,6 +5,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Mnemo.Infrastructure.Modules.Proofing;
+using WeCantSpell.Hunspell;
 using Xunit;
 
 namespace Mnemo.Infrastructure.Tests.Proofing;
@@ -117,6 +118,28 @@ public sealed class ProofingDictionaryProvenanceTests
     }
 
     [Fact]
+    public void EveryBundledDictionaryLoadsWithNoAffixWarnings()
+    {
+        // CreateFromFiles is extremely lenient: it builds a usable word list out of a malformed affix
+        // file without throwing and without logging, so the warning list is the only place a broken
+        // dictionary announces itself. A code page it cannot resolve shows up here and nowhere else,
+        // and the visible symptom would be every accented word flagged.
+        foreach (var language in Manifest().GetProperty("languages").EnumerateArray())
+        {
+            var id = language.GetProperty("id").GetString()!;
+            var files = language.GetProperty("files").EnumerateObject().Select(f => f.Name).ToArray();
+            var affix = files.Single(f => f.EndsWith(".aff", StringComparison.OrdinalIgnoreCase));
+            var words = files.Single(f => f.EndsWith(".dic", StringComparison.OrdinalIgnoreCase));
+
+            var loaded = WordList.CreateFromFiles(
+                Path.Combine(Root, id, words),
+                Path.Combine(Root, id, affix));
+
+            Assert.Empty(loaded.Affix.Warnings);
+        }
+    }
+
+    [Fact]
     public void TheCatalogAgreesWithTheManifest()
     {
         var catalog = new ProofingDictionaryCatalog();
@@ -125,6 +148,46 @@ public sealed class ProofingDictionaryProvenanceTests
             .ToArray();
 
         Assert.Equal([.. expected.Order()], [.. catalog.InstalledLanguages.Order()]);
+    }
+
+    [Fact]
+    public void AManifestThatCannotBeParsedLeavesACatalogWithNoLanguages()
+    {
+        // The catalog is a singleton that a settings route resolves, so a throw out of its constructor
+        // answered every settings write with an internal error, not only the proofing ones.
+        var folder = Path.Combine(Path.GetTempPath(), $"mnemo_proofing_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(folder);
+        try
+        {
+            File.WriteAllText(Path.Combine(folder, "manifest.json"), "{\"languages\": [ {\"id\": ");
+
+            var catalog = new ProofingDictionaryCatalog(folder);
+
+            Assert.Empty(catalog.InstalledLanguages);
+            // The languages that never ship files are unaffected, so the wire shape does not change.
+            Assert.Equal(["de-DE", "nb-NO"], catalog.Entries.Select(e => e.Id).Order());
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AMissingManifestIsTreatedTheSameWay()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"mnemo_proofing_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var catalog = new ProofingDictionaryCatalog(folder);
+
+            Assert.Empty(catalog.InstalledLanguages);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
     }
 
     [Fact]

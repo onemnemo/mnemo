@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using Mnemo.Infrastructure.Modules.Proofing;
 using Xunit;
 
@@ -108,6 +110,69 @@ public sealed class ProofingTokenizerTests
         Assert.Equal(["Ask"], Words("Ask alice@example.com"));
         Assert.Empty(Words("https://example.com/some/path"));
         Assert.Empty(Words("www.example.com"));
+    }
+
+    [Fact]
+    public void AWordLongerThanTheCapIsSkipped()
+    {
+        var atCap = new string('a', ProofingTokenizer.MaxWordLength);
+        var overCap = new string('a', ProofingTokenizer.MaxWordLength + 1);
+
+        Assert.Equal([atCap], Words(atCap));
+        Assert.Empty(Words(overCap));
+    }
+
+    [Fact]
+    public void TextThatIsAllAddressesIsStillLinear()
+    {
+        // Every whitespace run here is an address, so every candidate token has to be tested against
+        // the skip list. Rescanning that list per token made 200k characters of this take seconds.
+        var text = string.Concat(Enumerable.Repeat("ab@cd ", 33_000));
+        Assert.True(text.Length > 190_000);
+
+        var clock = Stopwatch.StartNew();
+        var tokens = ProofingTokenizer.Tokenize(text);
+        clock.Stop();
+
+        Assert.Empty(tokens);
+        Assert.True(clock.ElapsedMilliseconds < 1000, $"Tokenizing took {clock.ElapsedMilliseconds} ms.");
+    }
+
+    [Fact]
+    public void ALinkDenseParagraphIsStillLinear()
+    {
+        var text = string.Concat(Enumerable.Repeat("some ordinary words here https://example.com/a/b ", 4_000));
+
+        var clock = Stopwatch.StartNew();
+        var tokens = ProofingTokenizer.Tokenize(text);
+        clock.Stop();
+
+        Assert.NotEmpty(tokens);
+        Assert.True(clock.ElapsedMilliseconds < 1000, $"Tokenizing took {clock.ElapsedMilliseconds} ms.");
+    }
+
+    [Fact]
+    public void ACancelledTokenStopsALargeScan()
+    {
+        // A single paragraph can be big enough that a caller's deadline has to reach inside the scan.
+        var text = string.Concat(Enumerable.Repeat("some ordinary words here ", 40_000));
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() => ProofingTokenizer.Tokenize(text, cancelled.Token));
+    }
+
+    [Fact]
+    public void ShortTextIgnoresACancelledToken()
+    {
+        // The check is interval based, so a paragraph shorter than one interval never looks at the
+        // token. That is deliberate: the cost of checking would exceed the work being interrupted.
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        Assert.Equal(["hello", "there"], Words("hello there"));
+        Assert.Equal(["hello", "there"], ProofingTokenizer.Tokenize("hello there", cancelled.Token)
+            .Select(t => "hello there"[t.Start..t.End]));
     }
 
     [Fact]

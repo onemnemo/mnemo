@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using System.Threading;
 
 namespace Mnemo.Infrastructure.Modules.Proofing;
 
@@ -28,21 +29,52 @@ public readonly record struct ProofingToken(int Start, int End)
 public static class ProofingTokenizer
 {
     /// <summary>
-    /// Every checkable word in <paramref name="text"/>, in order. Skips anything holding a digit,
-    /// anything inside a URL or an email address, and any word with fewer than two letters, because
-    /// none of those is a spelling mistake a dictionary can rule on.
+    /// Longest word a dictionary is asked about. The longest entry in either bundled word list is far
+    /// below this, so anything longer is a run of glued characters rather than a word, and checking it
+    /// costs more than the answer is worth.
     /// </summary>
-    public static IReadOnlyList<ProofingToken> Tokenize(string text)
+    public const int MaxWordLength = 100;
+
+    // How often the walk looks at the cancellation token. Checking every code unit costs more than the
+    // work between checks; this is fine grained enough that a caller waiting on a deadline is not held
+    // for longer than a few hundred microseconds.
+    private const int CancellationCheckInterval = 4096;
+
+    /// <summary>
+    /// Every checkable word in <paramref name="text"/>, in order. Skips anything holding a digit,
+    /// anything inside a URL or an email address, any word with fewer than two letters, and anything
+    /// longer than <see cref="MaxWordLength"/>, because none of those is a spelling mistake a
+    /// dictionary can rule on.
+    /// </summary>
+    /// <exception cref="OperationCanceledException">
+    /// <paramref name="ct"/> was cancelled. A single paragraph can be large enough that a caller's
+    /// deadline has to be able to interrupt the scan, not just the checking that follows it.
+    /// </exception>
+    public static IReadOnlyList<ProofingToken> Tokenize(string text, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(text))
             return [];
 
         var tokens = new List<ProofingToken>();
-        var skips = FindAddressSpans(text);
+        var skips = FindAddressSpans(text, ct);
+
+        // Both lists are built left to right and neither overlaps itself, and a token is always wholly
+        // inside one address span or wholly outside every one, because a span is a whitespace delimited
+        // run and a token never crosses whitespace. So one forward cursor answers every overlap
+        // question. Rescanning the span list per token is quadratic, and 200k characters of
+        // address-dense text took seconds.
+        var skip = 0;
+        var nextCheck = CancellationCheckInterval;
 
         var i = 0;
         while (i < text.Length)
         {
+            if (i >= nextCheck)
+            {
+                ct.ThrowIfCancellationRequested();
+                nextCheck = i + CancellationCheckInterval;
+            }
+
             if (!TryDecode(text, i, out var rune, out var consumed) || !IsWordish(rune))
             {
                 i += consumed;
@@ -85,7 +117,13 @@ public static class ProofingTokenizer
 
             i = j;
 
-            if (hasDigit || letters < 2 || OverlapsAny(skips, start, j))
+            if (hasDigit || letters < 2 || j - start > MaxWordLength)
+                continue;
+
+            while (skip < skips.Count && skips[skip].End <= start)
+                skip++;
+
+            if (skip < skips.Count && skips[skip].Start < j)
                 continue;
 
             tokens.Add(new ProofingToken(start, j));
@@ -131,12 +169,19 @@ public static class ProofingTokenizer
     /// separator, an at sign, or a leading <c>www.</c>. Their pieces are real words often enough
     /// (<c>github</c>, <c>com</c>) that checking them would flag half of every link.
     /// </summary>
-    private static List<ProofingToken> FindAddressSpans(string text)
+    private static List<ProofingToken> FindAddressSpans(string text, CancellationToken ct)
     {
         var spans = new List<ProofingToken>();
+        var nextCheck = CancellationCheckInterval;
         var i = 0;
         while (i < text.Length)
         {
+            if (i >= nextCheck)
+            {
+                ct.ThrowIfCancellationRequested();
+                nextCheck = i + CancellationCheckInterval;
+            }
+
             while (i < text.Length && char.IsWhiteSpace(text[i]))
                 i++;
             if (i >= text.Length)
@@ -156,16 +201,5 @@ public static class ProofingTokenizer
         }
 
         return spans;
-    }
-
-    private static bool OverlapsAny(List<ProofingToken> spans, int start, int end)
-    {
-        foreach (var span in spans)
-        {
-            if (start < span.End && end > span.Start)
-                return true;
-        }
-
-        return false;
     }
 }

@@ -25,6 +25,7 @@ using Mnemo.Host.Mindmap;
 using Mnemo.Host.Nav;
 using Mnemo.Host.Notes;
 using Mnemo.Host.Overview;
+using Mnemo.Host.Proofing;
 using Mnemo.Host.Profile;
 using Mnemo.Host.Settings;
 using Mnemo.Host.Startup;
@@ -214,6 +215,7 @@ public static class Program
         app.MapFlashcardTests();
         app.MapFlashcardPresets();
         app.MapFlashcardTransfer();
+        app.MapProofing();
         app.MapNotes();
         app.MapNoteFolders();
         app.MapNoteAssets();

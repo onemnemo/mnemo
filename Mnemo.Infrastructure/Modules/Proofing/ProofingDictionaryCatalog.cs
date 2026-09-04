@@ -4,7 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Mnemo.Core.Enums;
 using Mnemo.Core.Models.Proofing;
+using Mnemo.Core.Services;
 
 namespace Mnemo.Infrastructure.Modules.Proofing;
 
@@ -40,6 +42,8 @@ public sealed class ProofingDictionaryCatalog
 
     private const string ManifestFileName = "manifest.json";
 
+    private const string LogCategory = "Proofing";
+
     private static readonly JsonSerializerOptions ManifestJson = new(JsonSerializerDefaults.Web);
 
     // Languages the settings page must be able to list even though no files ship for them, so the
@@ -56,16 +60,16 @@ public sealed class ProofingDictionaryCatalog
 
     private readonly List<ProofingDictionaryEntry> _entries;
 
-    public ProofingDictionaryCatalog()
-        : this(Path.Combine(AppContext.BaseDirectory, "Dictionaries", FolderName))
+    public ProofingDictionaryCatalog(ILoggerService? logger = null)
+        : this(Path.Combine(AppContext.BaseDirectory, "Dictionaries", FolderName), logger)
     {
     }
 
     /// <summary>Reads a specific folder, which is how the tests point at the repository copy.</summary>
-    public ProofingDictionaryCatalog(string root)
+    public ProofingDictionaryCatalog(string root, ILoggerService? logger = null)
     {
         Root = root;
-        _entries = [.. ReadManifest(root), .. NotBundled];
+        _entries = [.. ReadManifest(root, logger), .. NotBundled];
     }
 
     /// <summary>The directory the manifest and the per-language folders live in.</summary>
@@ -84,13 +88,27 @@ public sealed class ProofingDictionaryCatalog
             ? null
             : _entries.FirstOrDefault(e => string.Equals(e.Id, id, StringComparison.OrdinalIgnoreCase));
 
-    private static List<ProofingDictionaryEntry> ReadManifest(string root)
+    private static List<ProofingDictionaryEntry> ReadManifest(string root, ILoggerService? logger)
     {
         var manifestPath = Path.Combine(root, ManifestFileName);
         if (!File.Exists(manifestPath))
             return [];
 
-        var manifest = JsonSerializer.Deserialize<ManifestFile>(File.ReadAllText(manifestPath), ManifestJson);
+        ManifestFile? manifest;
+        try
+        {
+            manifest = JsonSerializer.Deserialize<ManifestFile>(File.ReadAllText(manifestPath), ManifestJson);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            // This runs in the constructor of a singleton that a settings route resolves, so throwing
+            // here answered every settings write with an internal error, not only the proofing ones.
+            // A manifest that cannot be read is the same situation as one that is not there: no
+            // languages, and the status endpoint says so.
+            logger?.Log(LogLevel.Error, LogCategory, $"The proofing dictionary manifest at '{manifestPath}' could not be read.", ex);
+            return [];
+        }
+
         var entries = new List<ProofingDictionaryEntry>();
         foreach (var language in manifest?.Languages ?? [])
         {
