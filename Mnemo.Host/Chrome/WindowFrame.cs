@@ -35,12 +35,12 @@ namespace Mnemo.Host.Chrome;
 internal static class WindowFrame
 {
     /// <summary>
-    /// Keeps the subclass delegate rooted. Mnemo has one window; a second call
-    /// would need this per handle.
+    /// Each subclassed window's predecessor, and the delegate standing in front of
+    /// it. Per handle: a window forwards to the procedure that was on its own handle,
+    /// and the delegate behind an installed function pointer has to stay reachable
+    /// for as long as that handle can be sent a message.
     /// </summary>
-    private static WndProcDelegate? s_subclass;
-
-    private static IntPtr s_previousProc;
+    private static readonly WindowSubclassTable s_subclasses = new();
 
     public static void Attach(PhotinoWindow window, ILoggerService? logger = null)
     {
@@ -64,9 +64,8 @@ internal static class WindowFrame
 
             // Before the styles, so the first WM_NCCALCSIZE that SWP_FRAMECHANGED
             // provokes is already ours and no caption is ever drawn.
-            s_previousProc = GetWindowLongPtrW(hwnd, GWLP_WNDPROC);
-            s_subclass = SubclassProc;
-            SetWindowLongPtrW(hwnd, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(s_subclass));
+            var subclass = s_subclasses.Add(hwnd, SubclassProc, GetWindowLongPtrW(hwnd, GWLP_WNDPROC));
+            SetWindowLongPtrW(hwnd, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(subclass));
 
             var style = (long)GetWindowLongPtrW(hwnd, GWL_STYLE);
             style &= ~WS_POPUP;
@@ -128,8 +127,29 @@ internal static class WindowFrame
             return IntPtr.Zero;
         }
 
-        return CallWindowProcW(s_previousProc, hwnd, msg, wParam, lParam);
+        if (msg == WM_NCDESTROY)
+        {
+            // The last message this window will ever get, so the entry goes after the
+            // predecessor has dealt with it rather than before: whatever a teardown
+            // dispatches back to this window has to find the chain still whole. Once
+            // the call returns there is nothing left that can reach the procedure.
+            var result = Forward(s_subclasses.PreviousProc(hwnd), hwnd, msg, wParam, lParam);
+            s_subclasses.Remove(hwnd);
+            return result;
+        }
+
+        return Forward(s_subclasses.PreviousProc(hwnd), hwnd, msg, wParam, lParam);
     }
+
+    /// <remarks>
+    /// A handle with no entry is not something that should happen, but passing a
+    /// null procedure to CallWindowProcW would fault, so an unknown window is
+    /// handled the way an unsubclassed one would be.
+    /// </remarks>
+    private static IntPtr Forward(IntPtr previous, IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam) =>
+        previous == IntPtr.Zero
+            ? DefWindowProcW(hwnd, msg, wParam, lParam)
+            : CallWindowProcW(previous, hwnd, msg, wParam, lParam);
 
     /// <summary>
     /// Leaves a hairline of the monitor uncovered on whichever edge holds an
@@ -217,8 +237,6 @@ internal static class WindowFrame
         return null;
     }
 
-    private delegate IntPtr WndProcDelegate(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
-
     private const int GWL_STYLE = -16;
     private const int GWLP_WNDPROC = -4;
 
@@ -236,6 +254,7 @@ internal static class WindowFrame
     private const uint SWP_FRAMECHANGED = 0x0020;
 
     private const uint WM_NCCALCSIZE = 0x0083;
+    private const uint WM_NCDESTROY = 0x0082;
 
     private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     private const int DWMWCP_ROUND = 2;
@@ -290,6 +309,9 @@ internal static class WindowFrame
 
     [DllImport("user32.dll")]
     private static extern IntPtr CallWindowProcW(IntPtr previous, IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr DefWindowProcW(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
