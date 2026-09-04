@@ -1,0 +1,143 @@
+/* The mark and the card that answers for it.
+
+   Straight underline, not wavy. Three signals carry one message here, the
+   word's colour, a wash behind it and the underline, and once each tone has
+   its own hue the squiggle is spending legibility on a distinction the colour
+   already makes. The open mark takes an outline rather than a deeper tint,
+   because outline takes no room in the line box and marking the active word
+   must not reflow the paragraph the card is pointing at. */
+
+.proof-mark {
+  border-radius: 2px;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.proof-mark[data-tone='error'] {
+  color: var(--proof-error);
+  background-color: var(--proof-error-wash);
+  text-decoration-color: var(--proof-error);
+}
+.proof-mark[data-tone='unknown'] {
+  color: var(--proof-unknown);
+  background-color: var(--proof-unknown-wash);
+  text-decoration-color: var(--proof-unknown);
+}
+.proof-mark.is-open[data-tone='error'] {
+  outline: 1px solid var(--proof-error);
+  outline-offset: 1px;
+}
+.proof-mark.is-open[data-tone='unknown'] {
+  outline: 1px solid var(--proof-unknown);
+  outline-offset: 1px;
+}
+
+/* Same surface as the link flyout: canvas plus the popover elevation. */
+.notes-proof-card {
+  position: fixed;
+  z-index: 40;
+  width: 268px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--canvas);
+  box-shadow: var(--shadow-pop);
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+.notes-proof-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notes-proof-card-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 999px;
+}
+.notes-proof-card-dot[data-tone='error'] {
+  background: var(--proof-error);
+}
+.notes-proof-card-dot[data-tone='unknown'] {
+  background: var(--proof-unknown);
+}
+.notes-proof-card-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.notes-proof-card-word {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.notes-proof-card-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.notes-proof-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.notes-proof-card-chip {
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--solid);
+  color: var(--solid-fg);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--duration-fast);
+}
+.notes-proof-card-chip:hover {
+  background: var(--solid-hover);
+}
+.notes-proof-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+.notes-proof-card-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--canvas-sunken);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast),
+    color var(--duration-fast);
+}
+.notes-proof-card-action:hover {
+  background: var(--frame-hover);
+  color: var(--ink);
+}
+.notes-proof-card-action-icon {
+  display: inline-flex;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-icon);
+}
+.notes-proof-card-action-icon > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

@@ -218,6 +218,16 @@
   --find-match-current: oklch(0.75 0.17 62 / 0.85);
   --find-match-current-line: oklch(0.5 0.14 55 / 0.65);
 
+  /* Proofing marks. The ink colours the word and its straight underline, the
+     wash sits behind it, pitched to be unmistakable on one word and quiet in a
+     paragraph holding twenty. Red is a word the dictionary says is wrong and
+     amber one it has never seen. Named by tone rather than by check, so a
+     third tone can join them without renaming these two. */
+  --proof-error: oklch(0.54 0.2 25);
+  --proof-error-wash: oklch(0.93 0.05 25 / 0.55);
+  --proof-unknown: oklch(0.58 0.13 75);
+  --proof-unknown-wash: oklch(0.93 0.06 80 / 0.55);
+
   /* Distinct from the brand orange on purpose: if "delete" and "mnemo" are the same
      colour, neither means anything. */
   --danger: oklch(0.54 0.2 25);
@@ -380,6 +390,13 @@
   --find-match: oklch(0.62 0.12 85 / 0.32);
   --find-match-current: oklch(0.7 0.16 62 / 0.78);
   --find-match-current-line: oklch(0.85 0.13 68 / 0.6);
+
+  /* Lifted, not inverted: the mark still has to read as red or as amber, and
+     the wash drops to a fraction of its light alpha or it glows. */
+  --proof-error: oklch(0.7 0.17 25);
+  --proof-error-wash: oklch(0.45 0.11 25 / 0.35);
+  --proof-unknown: oklch(0.76 0.13 80);
+  --proof-unknown-wash: oklch(0.5 0.1 80 / 0.32);
 
   --danger: oklch(0.68 0.18 25);
   --danger-wash: oklch(0.3 0.07 25);

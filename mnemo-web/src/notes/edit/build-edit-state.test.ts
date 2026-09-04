@@ -46,7 +46,7 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry, inline } = editorSchema();
     const plugins = editorPlugins(registry, inline);
-    expect(plugins).toHaveLength(28);
+    expect(plugins).toHaveLength(29);
     // Input guards run before handlers that could claim the same event. The
     // history boundary stays last so repairs join the transaction they normalize.
     expect(plugins[0].props.handleDOMEvents?.keydown).toBeTypeOf('function');

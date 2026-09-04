@@ -1,5 +1,6 @@
 import 'katex/dist/katex.min.css';
 import '../page/notes-editor.css';
+import '../proofing/proofing.css';
 
 import { useMemo, useRef, useState } from 'react';
 import { Selection, type EditorState } from 'prosemirror-state';
@@ -23,6 +24,7 @@ import type { EditorServices } from '../editor/registry/types';
 import { documentWordCount } from '../editor/projection/word-count';
 import { useNoteSession } from '../edit/useNoteSession';
 import { useSpellcheck } from '../edit/useSpellcheck';
+import { useProofing } from '../proofing/useProofing';
 import { BlockGutter } from '../editor/chrome/BlockGutter';
 import { CalloutIconPicker } from '../editor/chrome/CalloutIconPicker';
 import { EditorContextMenu } from '../editor/chrome/EditorContextMenu';
@@ -132,7 +134,10 @@ export function NoteSurface({
 
   const coverSet = hasCover(note.cover);
   const { maxWidth } = useEditorMeasure();
-  const { spellCheck, lang } = useSpellcheck();
+  // Given the view rather than the session: reading the session's state drains
+  // a chunked mount on the spot, and proofing must never be what does that.
+  const proofing = useProofing({ view, registry, noteId });
+  const { spellCheck, lang } = useSpellcheck(proofing.active);
 
   return (
     <div ref={paneRef} className="group/pane relative flex h-full min-h-0 flex-col">

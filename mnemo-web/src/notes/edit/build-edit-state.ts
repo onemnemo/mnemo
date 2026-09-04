@@ -48,6 +48,7 @@ import { codeKeymap } from '../editor/code/code-keymap';
 import { crossBlockRangePlugin } from '../editor/commands/range-delete';
 import { slashHintPlugin } from '../editor/pipeline/slash-hint';
 import { findPlugin } from '../find/find-plugin';
+import { proofingPlugin } from '../proofing/proofing-plugin';
 import { blockSelectionPlugin } from '../selection/block-selection-plugin';
 import { resolveServices } from '../editor/view/nodeviews';
 import type { EditorServices } from '../editor/registry/types';
@@ -209,6 +210,11 @@ export function editorPlugins(
     // handleKeyDown claims only Ctrl+F, and Escape while find is open, neither of
     // which any earlier plugin takes.
     findPlugin(),
+    // The last of the decoration-only neighbours: it underlines what the
+    // proofreader flagged. Its apply only maps its set and installs answers a
+    // meta brings in, so a chunked mount appending a thousand blocks at once
+    // costs it a remap and nothing else.
+    proofingPlugin(),
     intrinsicSizePlugin(registry),
     columnSplitterPlugin(),
     blockIdentityPlugin(registry),
