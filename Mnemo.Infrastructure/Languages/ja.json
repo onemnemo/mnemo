@@ -746,6 +746,7 @@
     "TransferScopeAllNotes": "すべてのノート"
   },
   "NotesEditor": {
+    "ProofingPausedNotice": "1 つのノートに対して印が多すぎるため、ここではスペルチェックを一時停止しています",
     "ProofingMisspelledTitle": "つづりの誤り",
     "ProofingUnknownWordTitle": "未知の単語",
     "ProofingSuggestionsLoading": "候補を検索しています",

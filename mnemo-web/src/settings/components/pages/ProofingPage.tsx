@@ -3,11 +3,9 @@ import { useState } from "react"
 import { useT } from "@/i18n/useT"
 import { useI18nStore } from "@/i18n/store"
 import { Switch } from "@/components/ui/switch"
-import { putSettingValue } from "@/settings/api"
 import { useSettingsStore, useSettingValue } from "@/settings/store"
 import { useInvalidateProofing, useProofingStatus } from "@/notes/proofing/status"
 import type { ProofingLanguage } from "@/notes/proofing/types"
-import { toast } from "@/stores/toast"
 
 import { SelectControl } from "../controls/SelectControl"
 import { labelOf, languageChoices } from "./proofing-languages"
@@ -44,15 +42,13 @@ export function ProofingPage() {
   const offered = languageChoices(languages, st("ProofingStateLoading"))
   const selected = pendingLanguage ?? status?.language ?? ""
 
+  // Through the settings store like every other written key, so one cache holds
+  // the stored value and the store's own rollback covers a failed write. The
+  // host still owns which language is *effective*, which is why the status is
+  // invalidated rather than assumed to follow.
   async function chooseLanguage(next: string) {
     setPendingLanguage(next)
-    try {
-      await putSettingValue("Proofing.Language", next)
-    } catch {
-      setPendingLanguage(null)
-      toast.warning(t("Common", "Error"))
-      return
-    }
+    await setValue("Proofing.Language", next)
     setPendingLanguage(null)
     invalidate()
   }

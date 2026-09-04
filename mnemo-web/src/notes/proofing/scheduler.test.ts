@@ -12,7 +12,12 @@ import type { EditorView } from 'prosemirror-view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { blockOf, docOf, registry, schema, text } from './fixtures';
-import { getProofingState, proofingPlugin } from './proofing-plugin';
+import {
+  MAX_ISSUES_PER_NOTE,
+  getProofingState,
+  proofingIssues,
+  proofingPlugin,
+} from './proofing-plugin';
 import { createProofingScheduler, type ProofingSchedule } from './scheduler';
 import type { ProofingCheckRequest, ProofingCheckResponse } from './types';
 import type { ProofingClient } from './client';
@@ -90,6 +95,42 @@ const flagFirstWord: CheckHandler = (request) =>
     }),
   });
 
+/** Flags exactly the words in `set`, wherever they appear. */
+function flagWords(set: ReadonlySet<string>): CheckHandler {
+  return (request) =>
+    Promise.resolve({
+      language: request.language,
+      paragraphs: request.paragraphs.map((paragraph) => ({
+        id: paragraph.id,
+        issues: [...paragraph.text.matchAll(/\p{L}[\p{L}\d]*/gu)]
+          .filter((match) => set.has(match[0]))
+          .map((match) => ({
+            start: match.index,
+            end: match.index + match[0].length,
+            text: match[0],
+            kind: 'spelling',
+            tone: 'error' as const,
+          })),
+      })),
+    });
+}
+
+/** Flags every word, the way an English dictionary reads a German note. */
+const flagEveryWord: CheckHandler = (request) =>
+  Promise.resolve({
+    language: request.language,
+    paragraphs: request.paragraphs.map((paragraph) => ({
+      id: paragraph.id,
+      issues: [...paragraph.text.matchAll(/\p{L}[\p{L}\d]*/gu)].map((match) => ({
+        start: match.index,
+        end: match.index + match[0].length,
+        text: match[0],
+        kind: 'spelling',
+        tone: 'error' as const,
+      })),
+    })),
+  });
+
 function stubClient(handler: CheckHandler) {
   const requests: ProofingCheckRequest[] = [];
   const client = {
@@ -143,7 +184,7 @@ describe('the proofing scheduler', () => {
     await flush();
 
     expect(requests.map((request) => request.paragraphs.length)).toEqual([50, 50, 20]);
-    expect(getProofingState(host.current()).issues).toHaveLength(120);
+    expect(proofingIssues(host.current())).toHaveLength(120);
     scheduler.destroy();
   });
 
@@ -214,7 +255,7 @@ describe('the proofing scheduler', () => {
     gate.release?.();
     await flush();
 
-    expect(getProofingState(host.current()).issues).toHaveLength(0);
+    expect(proofingIssues(host.current())).toHaveLength(0);
     scheduler.destroy();
   });
 
@@ -238,7 +279,7 @@ describe('the proofing scheduler', () => {
     clock.run();
     await flush();
 
-    expect(getProofingState(host.current()).issues).toHaveLength(0);
+    expect(proofingIssues(host.current())).toHaveLength(0);
     scheduler.destroy();
   });
 
@@ -273,7 +314,7 @@ describe('the proofing scheduler', () => {
     });
     await flush();
 
-    expect(getProofingState(host.current()).issues).toHaveLength(0);
+    expect(proofingIssues(host.current())).toHaveLength(0);
     expect(clock.pending()).toBe(0);
   });
 
@@ -304,7 +345,7 @@ describe('the proofing scheduler', () => {
     }
 
     expect(requests).toHaveLength(1);
-    expect(getProofingState(host.current()).issues).toHaveLength(1);
+    expect(proofingIssues(host.current())).toHaveLength(1);
     second.destroy();
   });
 
@@ -328,7 +369,7 @@ describe('the proofing scheduler', () => {
     clock.run();
     await flush();
     expect(requests).toHaveLength(1);
-    expect(getProofingState(host.current()).issues).toHaveLength(0);
+    expect(proofingIssues(host.current())).toHaveLength(0);
 
     await vi.advanceTimersByTimeAsync(2000);
     await flush();
@@ -374,6 +415,76 @@ describe('the proofing scheduler', () => {
     scheduler.destroy();
   });
 
+  it('costs one batch when a batch is rejected, not the tail of the note', async () => {
+    const host = fakeView(stateOf(Array.from({ length: 120 }, (_unused, i) => `block ${String(i)} teh`)));
+    const clock = manualSchedule();
+    const rejected = Object.assign(new Error('too large'), { status: 413 });
+    // The middle batch is refused every time it is asked.
+    const { client, requests } = stubClient((request) =>
+      request.paragraphs[0].id === 's50:0' ? Promise.reject(rejected) : flagFirstWord(request),
+    );
+
+    const scheduler = createProofingScheduler({
+      view: host.view,
+      registry,
+      noteId: 'note',
+      language: 'en-US',
+      client,
+      schedule: clock.schedule,
+      batchSize: 50,
+    });
+
+    scheduler.start();
+    while (clock.pending() > 0) {
+      clock.run();
+      await flush();
+    }
+
+    // Three batches, the middle one asked twice: one retry, then it is retired
+    // so the last twenty blocks still get checked.
+    expect(requests.map((request) => request.paragraphs[0].id)).toEqual([
+      's0:0',
+      's50:0',
+      's50:0',
+      's100:0',
+    ]);
+    expect(proofingIssues(host.current()).map((located) => located.issue.segmentId)).toContain('s100:0');
+    scheduler.destroy();
+  });
+
+  it('stops asking once the note holds as many marks as it may', async () => {
+    // Forty flagged words in each of a hundred blocks: four thousand offered
+    // against a cap of two thousand, which is the shape of a note written in a
+    // language no installed dictionary covers.
+    const words = Array.from({ length: 40 }, (_unused, i) => `w${String(i).padStart(3, '0')}`).join(' ');
+    const host = fakeView(stateOf(Array.from({ length: 100 }, () => words)));
+    const clock = manualSchedule();
+    const { client, requests } = stubClient(flagEveryWord);
+
+    const scheduler = createProofingScheduler({
+      view: host.view,
+      registry,
+      noteId: 'note',
+      language: 'en-US',
+      client,
+      schedule: clock.schedule,
+      batchSize: 10,
+    });
+
+    scheduler.start();
+    while (clock.pending() > 0) {
+      clock.run();
+      await flush();
+    }
+
+    expect(getProofingState(host.current()).paused).toBe(true);
+    // Ten batches were available; it stopped as soon as there was nowhere left
+    // to put an answer rather than asking for the rest of the note.
+    expect(requests.length).toBeLessThan(10);
+    expect(proofingIssues(host.current()).length).toBeLessThanOrEqual(MAX_ISSUES_PER_NOTE);
+    scheduler.destroy();
+  });
+
   it('asks about a segment once per text, however many ticks go by', async () => {
     const host = fakeView(stateOf(['alpha teh', 'beta recieve']));
     const clock = manualSchedule();
@@ -399,6 +510,79 @@ describe('the proofing scheduler', () => {
     await vi.advanceTimersByTimeAsync(400);
     await flush();
     expect(requests).toHaveLength(1);
+    scheduler.destroy();
+  });
+
+  it('re-marks a word a correction removed and an undo brought back', async () => {
+    const host = fakeView(stateOf(['teh cat']));
+    const clock = manualSchedule();
+    const { client } = stubClient(flagWords(new Set(['teh'])));
+
+    const scheduler = createProofingScheduler({
+      view: host.view,
+      registry,
+      noteId: 'note',
+      language: 'en-US',
+      client,
+      schedule: clock.schedule,
+    });
+
+    scheduler.start();
+    clock.run();
+    await flush();
+    expect(proofingIssues(host.current())).toHaveLength(1);
+
+    // The fix: "teh" -> "the". Its content goes, so its mark goes with it, and
+    // the re-check finds the segment clean.
+    host.edit((tr) => tr.replaceWith(2, 5, schema.text('the')));
+    scheduler.noteEdit();
+    await vi.advanceTimersByTimeAsync(400);
+    await flush();
+    expect(proofingIssues(host.current())).toHaveLength(0);
+
+    // Undo brings the misspelling back. The word was flagged the first time, and
+    // it is still a mistake, so the mark has to come back with it rather than the
+    // note deciding it has already answered for this text and staying quiet.
+    host.edit((tr) => tr.replaceWith(2, 5, schema.text('teh')));
+    scheduler.noteEdit();
+    await vi.advanceTimersByTimeAsync(400);
+    await flush();
+    expect(proofingIssues(host.current()).map((located) => located.issue.text)).toEqual(['teh']);
+    scheduler.destroy();
+  });
+
+  it('answers a state it has already seen from memory, without the network', async () => {
+    const host = fakeView(stateOf(['teh cat']));
+    const clock = manualSchedule();
+    const { client, requests } = stubClient(flagWords(new Set(['teh'])));
+
+    const scheduler = createProofingScheduler({
+      view: host.view,
+      registry,
+      noteId: 'note',
+      language: 'en-US',
+      client,
+      schedule: clock.schedule,
+    });
+
+    scheduler.start();
+    clock.run();
+    await flush();
+
+    // Correct, then undo. Two texts have been asked about: "teh cat" and
+    // "the cat", so two requests, no more.
+    host.edit((tr) => tr.replaceWith(2, 5, schema.text('the')));
+    scheduler.noteEdit();
+    await vi.advanceTimersByTimeAsync(400);
+    await flush();
+
+    host.edit((tr) => tr.replaceWith(2, 5, schema.text('teh')));
+    scheduler.noteEdit();
+    await vi.advanceTimersByTimeAsync(400);
+    await flush();
+
+    expect(requests).toHaveLength(2);
+    expect(proofingIssues(host.current())).toHaveLength(1);
     scheduler.destroy();
   });
 });

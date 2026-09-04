@@ -188,6 +188,12 @@ export function NoteSurface({
             {nt('WordCountFormat', { 0: wordCount.toLocaleString() })}
             {' · '}
             {nt('EditedRelativeFormat', { 0: formatRelative(note.modifiedAt, Date.now(), t) })}
+            {proofing.paused ? (
+              <>
+                {' · '}
+                {t('NotesEditor', 'ProofingPausedNotice')}
+              </>
+            ) : null}
           </div>
           {/* Rendered whether or not the view exists yet: this owns the element
               ProseMirror mounts into, so it must never come and go under it. */}

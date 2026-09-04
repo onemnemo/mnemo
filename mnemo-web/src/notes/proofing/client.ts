@@ -20,9 +20,11 @@
  *   GET  /proofing/personal -> { words: [{ word, language | null, addedAt }] }
  *   POST /proofing/personal { word, language? }
  *   POST /proofing/personal/remove { word, language? }
- *   GET  /proofing/notes/{noteId}/ignores -> { words }
  *   POST /proofing/notes/{noteId}/ignores { word }
- *   POST /proofing/notes/{noteId}/ignores/remove { word }
+ *
+ * The host also serves a read and a removal for a note's ignore list. Nothing
+ * here calls them, because no surface lists a note's ignored words yet, and a
+ * method with no caller is a method nobody notices going wrong.
  *
  * `id` is `"<blockSid>:<segmentIndex>"`, offsets are UTF-16 code units local to
  * the segment and `end` is exclusive. A check answers 503 while a dictionary is
@@ -32,7 +34,6 @@
 
 import { apiFetch, apiSend } from '@/api/client';
 import type {
-  NoteIgnores,
   PersonalWords,
   ProofingCheckRequest,
   ProofingCheckResponse,
@@ -48,9 +49,7 @@ export interface ProofingClient {
   personal(signal?: AbortSignal): Promise<PersonalWords>;
   addPersonalWord(word: string, language?: string | null): Promise<void>;
   removePersonalWord(word: string, language?: string | null): Promise<void>;
-  noteIgnores(noteId: string, signal?: AbortSignal): Promise<NoteIgnores>;
   addNoteIgnore(noteId: string, word: string): Promise<void>;
-  removeNoteIgnore(noteId: string, word: string): Promise<void>;
 }
 
 /**
@@ -113,11 +112,7 @@ export function createProofingClient(
     addPersonalWord: (word, language) => post(transport, '/proofing/personal', { word, language }),
     removePersonalWord: (word, language) =>
       post(transport, '/proofing/personal/remove', { word, language }),
-    noteIgnores: (noteId, signal) =>
-      transport.json<NoteIgnores>(`/proofing/notes/${encodeURIComponent(noteId)}/ignores`, { signal }),
     addNoteIgnore: (noteId, word) =>
       post(transport, `/proofing/notes/${encodeURIComponent(noteId)}/ignores`, { word }),
-    removeNoteIgnore: (noteId, word) =>
-      post(transport, `/proofing/notes/${encodeURIComponent(noteId)}/ignores/remove`, { word }),
   };
 }

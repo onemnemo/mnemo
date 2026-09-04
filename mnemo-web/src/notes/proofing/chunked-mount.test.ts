@@ -22,7 +22,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { buildNoteEditState } from '../edit/build-edit-state';
 import { mountEditor } from '../editor/view/mount';
 import { blockOf, text } from './fixtures';
-import { subscribeProofingEdits } from './proofing-plugin';
+import { subscribeProofing } from './proofing-plugin';
 import { createProofingScheduler, type ProofingSchedule } from './scheduler';
 import type { ProofingCheckRequest, ProofingCheckResponse } from './types';
 import type { ProofingClient } from './client';
@@ -128,7 +128,9 @@ describe('proofing over a chunked mount', () => {
       schedule: clock.schedule,
       debounceMs: 0,
     });
-    const unsubscribe = subscribeProofingEdits(mounted.view, () => scheduler.noteEdit());
+    const unsubscribe = subscribeProofing(mounted.view, (_state, docChanged) => {
+      if (docChanged) scheduler.noteEdit();
+    });
 
     // Reading the handle is what a careless consumer does, and it appends every
     // remaining block in one transaction.

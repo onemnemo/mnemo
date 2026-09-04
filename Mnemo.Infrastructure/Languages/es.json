@@ -746,6 +746,7 @@
     "TransferScopeAllNotes": "Todas las notas"
   },
   "NotesEditor": {
+    "ProofingPausedNotice": "Demasiadas marcas para una nota, así que la ortografía está en pausa aquí",
     "ProofingMisspelledTitle": "Mal escrito",
     "ProofingUnknownWordTitle": "Palabra desconocida",
     "ProofingSuggestionsLoading": "Buscando sugerencias",

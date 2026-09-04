@@ -10,12 +10,19 @@
  * its LaTeX source into the surrounding text. Both are replaced with spaces
  * rather than removed, so every offset in the answer still indexes the segment
  * the caller holds, and the words either side of them are not glued together.
+ *
+ * A segment carries its own position function. The document-level
+ * `documentPositionOf` walks from the start of the document and projects every
+ * block it passes, which is the right shape for a one-off lookup and the wrong
+ * one for an answer: a batch late in a long note would pay that walk twice for
+ * every flagged word. The owning block is already known here, so the crossing
+ * is `blockPos + positionOf(node, offset)` and costs nothing beyond the block's
+ * own line.
  */
 
 import type { Node as PMNode } from 'prosemirror-model';
 import { atomProjector, lineOf } from '../editor/blocks/shared';
-import { documentPositionOf, projectDocument } from '../editor/projection/document';
-import type { DocumentProjection } from '../editor/projection/document';
+import { projectDocument } from '../editor/projection/document';
 import type { BlockRegistry } from '../editor/registry/build';
 
 /** One checkable slice of the document, addressed the way the wire addresses it. */
@@ -24,11 +31,11 @@ export interface CheckableSegment {
   readonly id: string;
   readonly sid: string;
   readonly segmentIndex: number;
-  /** Where the segment starts in the joined document projection. */
-  readonly docOffset: number;
   /** The text as sent: inline code and inline atoms blanked, length preserved. */
   readonly text: string;
   readonly hash: string;
+  /** The absolute document position of a segment-local text offset. */
+  positionAt(offset: number): number;
 }
 
 const CODE_MARK = 'codeMark';
@@ -70,6 +77,14 @@ function maskedBlockText(node: PMNode, projectAtom: (node: PMNode) => string): s
 }
 
 /**
+ * Cached by document identity, the way the projection under it is. A
+ * ProseMirror document is immutable, so the same doc always segments to the
+ * same answer, and the scheduler asks twice per batch, once to choose one and
+ * once to place its answer, over a list that is O(document) to build.
+ */
+const segmentCache = new WeakMap<PMNode, CheckableSegment[]>();
+
+/**
  * Every segment worth checking, in document order.
  *
  * Prose and image captions only. Source is not prose, and an equation's LaTeX
@@ -82,6 +97,9 @@ function maskedBlockText(node: PMNode, projectAtom: (node: PMNode) => string): s
  * it: its text does not appear at its own offset in the joined projection.
  */
 export function checkableSegments(doc: PMNode, registry: BlockRegistry): CheckableSegment[] {
+  const cached = segmentCache.get(doc);
+  if (cached) return cached;
+
   const projection = projectDocument(doc, registry);
   const projectAtom = atomProjector(registry.inlines);
   const blockByPos = new Map(projection.blocks.map((block) => [block.pos, block]));
@@ -114,16 +132,22 @@ export function checkableSegments(doc: PMNode, registry: BlockRegistry): Checkab
     const text = blockText.slice(segment.offset, segment.offset + segment.text.length);
     if (text.trim().length === 0) continue;
 
+    const blockPos = block.pos;
+    const node = block.node;
+    const project = block.module.project;
+    const base = segment.offset;
+
     out.push({
       id: segmentIdOf(segment.sid, segmentIndex),
       sid: segment.sid,
       segmentIndex,
-      docOffset: segment.docOffset,
       text,
       hash: hashText(text),
+      positionAt: (offset) => blockPos + project.positionOf(node, base + offset),
     });
   }
 
+  segmentCache.set(doc, out);
   return out;
 }
 
@@ -138,16 +162,15 @@ export function checkableSegments(doc: PMNode, registry: BlockRegistry): Checkab
  */
 export function resolveRange(
   doc: PMNode,
-  projection: DocumentProjection,
   segment: CheckableSegment,
   start: number,
   end: number,
   text: string,
 ): { from: number; to: number } | null {
   if (end <= start) return null;
-  const from = documentPositionOf(projection, segment.docOffset + start);
-  const to = documentPositionOf(projection, segment.docOffset + end);
-  if (from === null || to === null || from >= to) return null;
+  const from = segment.positionAt(start);
+  const to = segment.positionAt(end);
+  if (from >= to) return null;
   if (doc.textBetween(from, to) !== text) return null;
   return { from, to };
 }

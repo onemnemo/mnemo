@@ -16,6 +16,21 @@
  * A fix that came with the answer is a chip immediately. Suggestions are asked
  * for when the card opens, because computing them is an order of magnitude
  * dearer than finding the mistake and almost every mark is never opened.
+ *
+ * Where the keyboard goes on open depends on how it was opened, and both
+ * answers matter. A pointer open takes no focus at all: clicking into a
+ * misspelled word to repair it by hand is the commonest thing anyone does with
+ * a red underline, and the caret has to stay where it was put. A keyboard open
+ * takes focus, but never onto an action that writes something: until the
+ * suggestions arrive it sits on Close, and Enter does nothing at all, because
+ * the alternative was a card whose first key press taught the dictionary the
+ * misspelling. Once they land it moves to the first replacement, which is what
+ * the card exists to offer.
+ *
+ * The arrows and Tab then move between the controls without leaving the card,
+ * and every path that closes it puts the caret back, because the actions that
+ * are not a replacement would otherwise leave the writer with no caret and a
+ * page they have to click back into.
  */
 
 import type { EditorView } from 'prosemirror-view';
@@ -30,7 +45,8 @@ import {
   currentIssue,
   dispatchProofing,
   issueIdOf,
-  type PlacedIssue,
+  type LocatedIssue,
+  type ProofingIssue,
 } from './proofing-plugin';
 import type { ProofingSuggestion } from './types';
 
@@ -39,6 +55,10 @@ const ROOT = 'notes-proof-card';
 /** Reads the active bundle at call time, so it follows a language change. */
 function translate(key: string): string {
   return createTranslate(useI18nStore.getState().bundle)('NotesEditor', key);
+}
+
+function common(key: string): string {
+  return createTranslate(useI18nStore.getState().bundle)('Common', key);
 }
 
 /**
@@ -62,7 +82,7 @@ function placeAt(dom: HTMLElement, anchor: Rect): void {
   dom.style.top = `${String(top)}px`;
 }
 
-function titleFor(issue: PlacedIssue): string {
+function titleFor(issue: ProofingIssue): string {
   return (
     hostString(issue.titleKey) ??
     translate(issue.tone === 'unknown' ? 'ProofingUnknownWordTitle' : 'ProofingMisspelledTitle')
@@ -96,10 +116,17 @@ export interface ProofingCardOptions {
   onWordResolved(word: string): void;
 }
 
+/** How the card was asked for, which decides whether it may take the keyboard. */
+export type ProofingCardTrigger = 'pointer' | 'keyboard';
+
 export interface ProofingCardHandle {
-  openFor(issue: PlacedIssue, anchor: Rect): void;
+  openFor(located: LocatedIssue, anchor: Rect, trigger?: ProofingCardTrigger): void;
   contains(node: Node): boolean;
-  close(): void;
+  isOpen(): boolean;
+  /** Closes without touching focus, for a press that has already claimed it. */
+  dismiss(): void;
+  /** Closes and puts the caret back in the document. */
+  cancel(): void;
   destroy(): void;
 }
 
@@ -108,39 +135,102 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
 
   let dom: HTMLElement | null = null;
   let focusScope: TransientFocusScope | null = null;
-  let openIssue: PlacedIssue | null = null;
+  let openIssue: ProofingIssue | null = null;
   let requestId = 0;
+  /** Suggestions are still on their way, so nothing on the card may be pressed. */
+  let loading = false;
+  let closeButton: HTMLButtonElement | null = null;
+  let openTrigger: ProofingCardTrigger = 'pointer';
 
   function contains(node: Node): boolean {
     return dom?.contains(node) ?? false;
   }
 
-  function close(): void {
+  function isOpen(): boolean {
+    return dom !== null;
+  }
+
+  /** The controls the arrows and Tab cycle through, in the order they read. */
+  function controls(): HTMLButtonElement[] {
+    return [...(dom?.querySelectorAll('button') ?? [])].filter(
+      (element): element is HTMLButtonElement => element instanceof HTMLButtonElement,
+    );
+  }
+
+  /**
+   * Tears the card down. The scope's resolution is the caller's, because the
+   * two answers are genuinely different: an action taken through the card
+   * leaves the selection somewhere deliberate and stands the scope down, while
+   * abandoning the card has to put the caret back where the writer left it.
+   */
+  function teardown(outcome: 'release' | 'restore'): void {
     if (!dom) return;
     requestId += 1;
     document.removeEventListener('pointerdown', onOutsidePointer, true);
-    document.removeEventListener('keydown', onKeydown, true);
-    window.removeEventListener('scroll', close, true);
-    window.removeEventListener('resize', close);
+    document.removeEventListener('keydown', onEscape, true);
+    window.removeEventListener('scroll', onScroll, true);
+    window.removeEventListener('resize', onScroll);
     dom.remove();
     dom = null;
     openIssue = null;
+    loading = false;
+    closeButton = null;
     const scope = focusScope;
     focusScope = null;
-    scope?.release();
     if (!view.isDestroyed) dispatchProofing(view, { type: 'open', openId: null });
+    if (outcome === 'restore' && !view.isDestroyed) scope?.restore();
+    else scope?.release();
+  }
+
+  function dismiss(): void {
+    teardown('release');
+  }
+
+  function cancel(): void {
+    teardown('restore');
   }
 
   function onOutsidePointer(event: PointerEvent): void {
     if (event.target instanceof Node && contains(event.target)) return;
-    close();
+    // The press has already chosen where focus goes; restoring would take it
+    // straight back off whatever the writer just clicked.
+    dismiss();
   }
 
-  function onKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Escape') return;
+  function onScroll(): void {
+    cancel();
+  }
+
+  function onEscape(event: KeyboardEvent): void {
+    if (event.key !== 'Escape' || !dom) return;
     event.preventDefault();
-    close();
-    view.focus();
+    event.stopPropagation();
+    cancel();
+  }
+
+  /** Arrows move between the controls; Tab cycles inside the card rather than out of it. */
+  function onCardKeydown(event: KeyboardEvent): void {
+    // Nothing on the card is worth pressing before its suggestions exist, and
+    // the alternative to swallowing this is a first Enter that writes to the
+    // personal dictionary.
+    if (loading && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      return;
+    }
+
+    const buttons = controls();
+    if (buttons.length === 0) return;
+    const at = buttons.findIndex((button) => button === document.activeElement);
+
+    let step = 0;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') step = 1;
+    else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') step = -1;
+    else if (event.key === 'Tab') step = event.shiftKey ? -1 : 1;
+    else return;
+
+    event.preventDefault();
+    const from = at < 0 ? (step > 0 ? -1 : 0) : at;
+    buttons[(from + step + buttons.length) % buttons.length].focus();
   }
 
   /**
@@ -154,13 +244,19 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
    */
   function apply(replacement: string): void {
     const issue = openIssue;
-    close();
+    // The write puts the caret at the repaired word, so there is nothing to
+    // restore; `view.focus()` below is the whole of the focus story.
+    teardown('release');
     if (!issue) return;
     const live = currentIssue(view.state, issue);
     if (!live) return;
-    if (view.state.doc.textBetween(live.from, live.to) !== live.text) return;
+    if (view.state.doc.textBetween(live.from, live.to) !== issue.text) return;
 
-    const marks = view.state.doc.resolve(live.from).marks();
+    // One past the start, so the marks come from the text node the word is
+    // actually in. At the start itself a resolved position answers with the
+    // marks of the node *before* it, which turns a plain word after a bold run
+    // bold and strips the italic off a word that follows an atom.
+    const marks = view.state.doc.resolve(live.from + 1).marks();
     const tr = view.state.tr;
     if (replacement.length === 0) tr.delete(live.from, live.to);
     else tr.replaceWith(live.from, live.to, view.state.schema.text(replacement, marks));
@@ -169,7 +265,8 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
   }
 
   function resolveWord(word: string, work: Promise<void>): void {
-    close();
+    // The word stays where it is and the caret belongs back in it.
+    teardown('restore');
     void work
       .then(() => {
         if (view.isDestroyed) return;
@@ -180,6 +277,33 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
         // The word stays marked, which is the honest report of a write that
         // did not land. The toast belongs to whoever owns the failure surface.
       });
+  }
+
+  /** The first replacement, which is the only control worth opening on. */
+  function firstChip(): HTMLButtonElement | null {
+    const chip = dom?.querySelector(`.${ROOT}-chip`);
+    return chip instanceof HTMLButtonElement ? chip : null;
+  }
+
+  /**
+   * Where a keyboard open puts focus: a replacement if there is one, and Close
+   * otherwise. Never an action that writes, because the first key press after
+   * the card appears must not be able to change anything.
+   */
+  function focusOnOpen(): void {
+    (firstChip() ?? closeButton ?? dom)?.focus();
+  }
+
+/**
+   * Focus once the chips are rebuilt. A card the pointer opened never takes it,
+   * whatever arrives; a card the keyboard opened takes it only if the writer
+   * has not already chosen a control for themselves, which is exactly the case
+   * where focus is still parked on Close waiting for this.
+   */
+  function settleFocus(held: Element | null): void {
+    if (!dom || openTrigger !== 'keyboard') return;
+    if (dom.contains(held) && held !== closeButton) return;
+    focusOnOpen();
   }
 
   function chipsInto(host: HTMLElement, suggestions: readonly ProofingSuggestion[]): void {
@@ -203,14 +327,17 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
     }
   }
 
-  function openFor(issue: PlacedIssue, anchor: Rect): void {
-    close();
+  function openFor(located: LocatedIssue, anchor: Rect, trigger: ProofingCardTrigger = 'pointer'): void {
+    if (dom) cancel();
+    const issue = located.issue;
 
     const card = document.createElement('div');
     card.className = ROOT;
     // Never let ProseMirror read this card's own DOM as document content.
     card.setAttribute('contenteditable', 'false');
     card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.tabIndex = -1;
     card.setAttribute('aria-label', translate('ProofingCardLabel'));
 
     const heading = document.createElement('div');
@@ -234,13 +361,14 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
 
     const chips = document.createElement('div');
     chips.className = `${ROOT}-chips`;
-    const fixes = issue.fixes ?? [];
-    if (fixes.length > 0) chipsInto(chips, fixes.map((fix) => ({ replacement: fix.replacement, label: fix.label })));
+    const fixes = (issue.fixes ?? []).map((fix) => ({ replacement: fix.replacement, label: fix.label }));
+    loading = fixes.length === 0;
+    if (fixes.length > 0) chipsInto(chips, fixes);
     else {
-      const loading = document.createElement('p');
-      loading.className = `${ROOT}-note`;
-      loading.textContent = translate('ProofingSuggestionsLoading');
-      chips.appendChild(loading);
+      const pending = document.createElement('p');
+      pending.className = `${ROOT}-note`;
+      pending.textContent = translate('ProofingSuggestionsLoading');
+      chips.appendChild(pending);
     }
 
     const addWord = actionButton('common/book-plus', translate('ProofingAddToDictionary'));
@@ -253,23 +381,35 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
       resolveWord(issue.text, client.addNoteIgnore(noteId, issue.text));
     });
 
+    const close = actionButton('common/x', common('Close'));
+    close.addEventListener('click', () => {
+      cancel();
+    });
+    closeButton = close;
+
     const actions = document.createElement('div');
     actions.className = `${ROOT}-actions`;
-    actions.append(addWord, ignore);
+    actions.append(addWord, ignore, close);
 
     card.append(heading, word, message, chips, actions);
+    card.addEventListener('keydown', onCardKeydown);
     document.body.appendChild(card);
 
     dom = card;
     openIssue = issue;
+    openTrigger = trigger;
     focusScope = openTransientFocus(view);
     placeAt(card, anchor);
     dispatchProofing(view, { type: 'open', openId: issueIdOf(issue) });
 
     document.addEventListener('pointerdown', onOutsidePointer, true);
-    document.addEventListener('keydown', onKeydown, true);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
+    document.addEventListener('keydown', onEscape, true);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+
+    // A pointer open leaves the caret alone: the click that opened this card is
+    // the same gesture that puts the caret in the word being repaired.
+    if (trigger === 'keyboard') focusOnOpen();
 
     requestId += 1;
     const token = requestId;
@@ -283,21 +423,29 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
       })
       .then((answer) => {
         if (token !== requestId || !dom) return;
-        chipsInto(chips, [...fixes.map((fix) => ({ replacement: fix.replacement, label: fix.label })), ...answer.suggestions]);
+        const held = document.activeElement;
+        chipsInto(chips, [...fixes, ...answer.suggestions]);
+        loading = false;
         placeAt(card, anchor);
+        settleFocus(held);
       })
       .catch(() => {
         if (token !== requestId || !dom) return;
-        chipsInto(chips, fixes.map((fix) => ({ replacement: fix.replacement, label: fix.label })));
+        const held = document.activeElement;
+        chipsInto(chips, fixes);
+        loading = false;
+        settleFocus(held);
       });
   }
 
   return {
     openFor,
     contains,
-    close,
+    isOpen,
+    dismiss,
+    cancel,
     destroy(): void {
-      close();
+      teardown('release');
     },
   };
 }

@@ -17,9 +17,9 @@ import type { EditorView } from 'prosemirror-view';
 
 import { useSettingValue } from '@/settings/store';
 import type { BlockRegistry } from '../editor/registry/build';
-import type { Rect } from '../editor/floating/position';
+import { installCardTriggers } from './card-triggers';
 import { createProofingCard, type ProofingCardHandle } from './issue-card';
-import { dispatchProofing, issueAt, subscribeProofingEdits } from './proofing-plugin';
+import { dispatchProofing, subscribeProofing } from './proofing-plugin';
 import { createProofingScheduler, type ProofingSchedule } from './scheduler';
 import { proofingClient, readyLanguage, useInvalidateProofing, useProofingStatus } from './status';
 import type { ProofingClient } from './client';
@@ -38,13 +38,8 @@ export interface UseProofingOptions {
 export interface ProofingSurface {
   /** True while marks are live, which is also when the browser's own checker stands down. */
   readonly active: boolean;
-}
-
-function markUnder(view: EditorView, target: EventTarget | null): { pos: number; rect: Rect } | null {
-  if (!(target instanceof HTMLElement)) return null;
-  const mark = target.closest('.proof-mark');
-  if (!(mark instanceof HTMLElement)) return null;
-  return { pos: view.posAtDOM(mark, 0), rect: mark.getBoundingClientRect() };
+  /** The note holds as many marks as one note may, so nothing more is checked. */
+  readonly paused: boolean;
 }
 
 export function useProofing(options: UseProofingOptions): ProofingSurface {
@@ -64,8 +59,7 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
   invalidateRef.current = invalidate;
 
   const [card, setCard] = useState<ProofingCardHandle | null>(null);
-  const cardRef = useRef<ProofingCardHandle | null>(null);
-  cardRef.current = card;
+  const [paused, setPaused] = useState(false);
 
   const schedule = options.schedule;
   const languageRef = useRef<string | null>(language);
@@ -90,8 +84,12 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
       onWordResolved: () => invalidateRef.current(),
     });
     setCard(handle);
+    setPaused(false);
 
-    const unsubscribe = subscribeProofingEdits(view, () => scheduler.noteEdit());
+    const unsubscribe = subscribeProofing(view, (state, docChanged) => {
+      setPaused(state.paused);
+      if (docChanged) scheduler.noteEdit();
+    });
     scheduler.start();
 
     return () => {
@@ -99,43 +97,20 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
       scheduler.destroy();
       handle.destroy();
       setCard(null);
+      setPaused(false);
       if (!view.isDestroyed) dispatchProofing(view, { type: 'clear' });
     };
   }, [view, registry, noteId, language, active, client, schedule]);
 
-  // The card opens from the document rather than from the plugin, because it
-  // needs the network and the plugin is not allowed to.
+  // The triggers live on the document rather than in the plugin stack, because
+  // opening the card needs the network and the plugin is not allowed to.
   useEffect(() => {
     if (!view || !card) return;
-
-    const open = (event: MouseEvent) => {
-      const hit = markUnder(view, event.target);
-      if (!hit) return false;
-      const issue = issueAt(view.state, hit.pos);
-      if (!issue) return false;
-      card.openFor(issue, hit.rect);
-      return true;
-    };
-
-    const onClick = (event: MouseEvent) => {
-      if (event.button !== 0) return;
-      open(event);
-    };
-    const onContextMenu = (event: MouseEvent) => {
-      // Claimed before the editor's own context menu sees it: a right click on
-      // a marked word is a question about the word, not about the block.
-      if (!open(event)) return;
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
-    view.dom.addEventListener('click', onClick);
-    view.dom.addEventListener('contextmenu', onContextMenu, true);
-    return () => {
-      view.dom.removeEventListener('click', onClick);
-      view.dom.removeEventListener('contextmenu', onContextMenu, true);
-    };
+    return installCardTriggers(view, {
+      isOpen: () => card.isOpen(),
+      open: (hit) => card.openFor(hit.located, hit.rect, hit.trigger),
+    });
   }, [view, card]);
 
-  return useMemo(() => ({ active }), [active]);
+  return useMemo(() => ({ active, paused: active && paused }), [active, paused]);
 }
