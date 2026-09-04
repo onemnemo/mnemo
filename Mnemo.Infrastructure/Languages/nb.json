@@ -743,7 +743,14 @@
     "TransferFromFormat": "Fra {0}",
     "TransferScopeThisNote": "Dette notatet",
     "TransferScopeFolder": "Mappe",
-    "TransferScopeAllNotes": "Alle notater"
+    "TransferScopeAllNotes": "Alle notater",
+    "SpellingLanguage": "Stavekontroll",
+    "SpellingOff": "Ikke kontrollert",
+    "SpellingNoneInstalled": "Ingen språk installert",
+    "SpellingUseDefaults": "Bruk standardspråkene mine",
+    "SpellingNoLanguagesOn": "Ingen språk er slått på",
+    "SpellingSkipNote": "Ikke kontroller dette notatet",
+    "SpellingSettings": "Innstillinger for stavekontroll"
   },
   "NotesEditor": {
     "ProofingPausedNotice": "For mange merker for ett notat, så stavekontrollen er satt på pause her",

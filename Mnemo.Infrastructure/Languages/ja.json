@@ -743,7 +743,14 @@
     "TransferFromFormat": "{0} から",
     "TransferScopeThisNote": "このノート",
     "TransferScopeFolder": "フォルダ",
-    "TransferScopeAllNotes": "すべてのノート"
+    "TransferScopeAllNotes": "すべてのノート",
+    "SpellingLanguage": "スペルチェック",
+    "SpellingOff": "確認しない",
+    "SpellingNoneInstalled": "インストール済みの言語なし",
+    "SpellingUseDefaults": "既定の言語を使う",
+    "SpellingNoLanguagesOn": "有効な言語がありません",
+    "SpellingSkipNote": "このノートを確認しない",
+    "SpellingSettings": "スペルチェックの設定"
   },
   "NotesEditor": {
     "ProofingPausedNotice": "1 つのノートに対して印が多すぎるため、ここではスペルチェックを一時停止しています",

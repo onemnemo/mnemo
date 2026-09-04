@@ -26,6 +26,7 @@ import { createProofingCard } from './issue-card';
 import { proofingIssues, proofingKey, type LocatedIssue } from './proofing-plugin';
 import type { InlineSpan } from '../model/types';
 import type { ProofingClient } from './client';
+import type { ProofingSuggestRequest } from './types';
 
 const ANCHOR = { top: 100, bottom: 120, left: 40, right: 90 };
 
@@ -43,16 +44,21 @@ const BUNDLE = {
 };
 
 interface Calls {
-  personal: string[];
+  /** The scope goes in too: a word added from the card is meant to be unscoped. */
+  personal: { word: string; language: string | null | undefined }[];
   ignores: string[];
   resolved: string[];
+  suggests: ProofingSuggestRequest[];
 }
 
 function stubClient(calls: Calls) {
   return {
-    suggest: () => Promise.resolve({ suggestions: [{ replacement: 'wrong' }, { replacement: 'world' }] }),
-    addPersonalWord: (word: string) => {
-      calls.personal.push(word);
+    suggest: (request: ProofingSuggestRequest) => {
+      calls.suggests.push(request);
+      return Promise.resolve({ suggestions: [{ replacement: 'wrong' }, { replacement: 'world' }] });
+    },
+    addPersonalWord: (word: string, language?: string | null) => {
+      calls.personal.push({ word, language });
       return Promise.resolve();
     },
     addNoteIgnore: (_noteId: string, word: string) => {
@@ -82,9 +88,16 @@ interface Harness {
   destroy(): void;
 }
 
+/**
+ * What the card is told the note is checked in. A `let` because the card reads
+ * it through a callback at open time, so a settings change reaches an open
+ * note, and a constant here would not tell the two apart.
+ */
+let noteLanguages: string[] = ['en-US'];
+
 function harness(...spans: InlineSpan[]): Harness {
   const view = mountNote(...spans);
-  const calls: Calls = { personal: [], ignores: [], resolved: [] };
+  const calls: Calls = { personal: [], ignores: [], resolved: [], suggests: [] };
   // Spied rather than observed through document.activeElement: a contenteditable
   // is not reliably focusable under jsdom, and the claim being made is that the
   // card hands the caret back at all.
@@ -93,7 +106,7 @@ function harness(...spans: InlineSpan[]): Harness {
     view,
     client: stubClient(calls),
     noteId: 'note',
-    languages: () => ['en-US'],
+    languages: () => noteLanguages,
     onWordResolved: (word) => calls.resolved.push(word),
   });
 
@@ -168,6 +181,7 @@ function marksOn(view: EditorView, word: string): string[] {
 
 beforeEach(() => {
   useI18nStore.setState({ bundle: BUNDLE });
+  noteLanguages = ['en-US'];
 });
 
 afterEach(() => {
@@ -259,7 +273,29 @@ describe('the suggestion card', () => {
     h.destroy();
   });
 
+  it('asks for suggestions in every language the note is checked in', async () => {
+    noteLanguages = ['es-ES', 'en-US'];
+    const h = harness(text('wrold cat sat'));
+    const located = h.open('wrold');
+    await settle();
+
+    // The note id goes with it because the note may be checked in a set of its
+    // own, and the host resolves the note before it looks at this list.
+    expect(h.calls.suggests).toEqual([
+      {
+        languages: ['es-ES', 'en-US'],
+        noteId: 'note',
+        text: located.issue.segmentText,
+        start: located.issue.segmentStart,
+        end: located.issue.segmentEnd,
+        ruleId: undefined,
+      },
+    ]);
+    h.destroy();
+  });
+
   it('adds the word to the dictionary, clears its marks and hands the caret back', async () => {
+    noteLanguages = ['es-ES', 'en-US'];
     const h = harness(text('wrold cat wrold'));
     h.open('wrold');
     expect(proofingIssues(h.view.state)).toHaveLength(1);
@@ -268,7 +304,10 @@ describe('the suggestion card', () => {
     actionLabelled('Add to dictionary').click();
     await settle();
 
-    expect(h.calls.personal).toEqual(['wrold']);
+    // Unscoped, whatever the note is checked in: the answer is "this is a
+    // word", and two dictionaries reading the same paragraph leave no single
+    // one to attribute it to.
+    expect(h.calls.personal).toEqual([{ word: 'wrold', language: null }]);
     expect(h.calls.resolved).toEqual(['wrold']);
     expect(proofingIssues(h.view.state)).toHaveLength(0);
     expect(card()).toBeNull();

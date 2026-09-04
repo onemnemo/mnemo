@@ -25,6 +25,7 @@ import { metadataUpdateOf } from '../note-metadata';
 import { useNotePdf } from '../pdf/store';
 import { useNoteTransfer } from '../transfer/store';
 import { hasCover } from './covers';
+import { NoteLanguageMenu } from './NoteLanguageMenu';
 import { CoverPicker } from './NoteHeaderChrome';
 import { EDITOR_WIDTH_KEY, useEditorMeasure, useEditorWidthOptions } from './useEditorMeasure';
 
@@ -161,6 +162,7 @@ export function PaneActions({
               ))}
             </MenuRadioGroup>
           </MenuSubMenu>
+          <NoteLanguageMenu noteId={note.id} />
           <MenuSeparator />
           <MenuItem
             icon="common/upload"

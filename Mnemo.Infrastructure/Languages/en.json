@@ -743,7 +743,14 @@
     "TransferFromFormat": "From {0}",
     "TransferScopeThisNote": "This note",
     "TransferScopeFolder": "Folder",
-    "TransferScopeAllNotes": "All notes"
+    "TransferScopeAllNotes": "All notes",
+    "SpellingLanguage": "Spelling",
+    "SpellingOff": "Not checked",
+    "SpellingNoneInstalled": "None installed",
+    "SpellingUseDefaults": "Use my defaults",
+    "SpellingNoLanguagesOn": "No languages switched on",
+    "SpellingSkipNote": "Don't check this note",
+    "SpellingSettings": "Spelling settings"
   },
   "NotesEditor": {
     "ProofingPausedNotice": "Too many marks for one note, so spelling is paused here",

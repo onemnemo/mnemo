@@ -743,7 +743,14 @@
     "TransferFromFormat": "Aus {0}",
     "TransferScopeThisNote": "Diese Notiz",
     "TransferScopeFolder": "Ordner",
-    "TransferScopeAllNotes": "Alle Notizen"
+    "TransferScopeAllNotes": "Alle Notizen",
+    "SpellingLanguage": "Rechtschreibung",
+    "SpellingOff": "Nicht geprüft",
+    "SpellingNoneInstalled": "Keine Sprache installiert",
+    "SpellingUseDefaults": "Meine Standardsprachen verwenden",
+    "SpellingNoLanguagesOn": "Keine Sprachen aktiviert",
+    "SpellingSkipNote": "Diese Notiz nicht prüfen",
+    "SpellingSettings": "Rechtschreibeinstellungen"
   },
   "NotesEditor": {
     "ProofingPausedNotice": "Zu viele Markierungen für eine Notiz, daher pausiert die Rechtschreibprüfung hier",
