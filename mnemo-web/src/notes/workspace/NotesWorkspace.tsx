@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useT } from '@/i18n/useT';
 import { isMac } from '@/keybinds/chord';
 import { usePublishTrail } from '@/nav/trail';
+import { openNoteInPeek } from '@/peek/store';
 import type { NoteSummaryDto } from '@/api/types';
 
 import { useCreateNote, useNoteFoldersQuery, useNoteQuery, useNotesQuery } from '../api';
@@ -264,6 +265,7 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
             onCloseScope={closeTabs}
             onReorder={moveTab}
             onExpandSidebar={sidebarOpen ? undefined : () => setSidebarOpen(true)}
+            onOpenInPeek={openNoteInPeek}
           />
         ) : null}
         {noteId && !noteGone ? (
