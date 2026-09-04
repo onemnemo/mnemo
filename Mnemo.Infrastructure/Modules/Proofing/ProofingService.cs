@@ -90,7 +90,9 @@ public sealed class ProofingService : IProofingService
             .Select(entry => new ProofingLanguageStatus(
                 entry.Id,
                 entry.Name,
+                entry.NameKey,
                 entry.Region,
+                entry.RegionKey,
                 entry.Installed,
                 entry.Bundled,
                 StateOf(entry),

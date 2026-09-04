@@ -3,12 +3,12 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 09a9c40ad2ed77e76fb9f89debc634d32df3d9f589223e926a99ff0759f59312
+sha256 de0ca9cfc578e7d69f74a47794b645f52ffb26f3f5b3e75aa7a2326c48aef5fc
 namespaces 38
-keys 2258
+keys 2268
   App 28
   Chat 132
-  Common 92
+  Common 102
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -46,12 +46,12 @@ keys 2258
   WidgetToday 9
 
 culture de
-sha256 6705330d763ccf06915eb2f83f50795e6bc29451e55cb3c53a56da5b5f586574
+sha256 68be0c5a0bd73a9f444c71adbf5a99785f1fb084ee11f87fcc217e827c2756bd
 namespaces 38
-keys 2258
+keys 2268
   App 28
   Chat 132
-  Common 92
+  Common 102
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -89,12 +89,12 @@ keys 2258
   WidgetToday 9
 
 culture es
-sha256 79e92edbc5853c7d569c8fadb4de04f2afc64cc64516417dc7eb668fd6ef3c8a
+sha256 4baba95350774f538297c5bd6320c87b586f2508ec437a1d880e3edd28f30848
 namespaces 38
-keys 2258
+keys 2268
   App 28
   Chat 132
-  Common 92
+  Common 102
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -132,12 +132,12 @@ keys 2258
   WidgetToday 9
 
 culture ja
-sha256 c1d9de666329a37bee6e0f86252343f36c56c6a01cdb848c562c737949fdfe57
+sha256 f3940e9fc34feb99f957b73ad0a9045a93e68d80de9f1d34bbac8694e1e73dd0
 namespaces 38
-keys 2258
+keys 2268
   App 28
   Chat 132
-  Common 92
+  Common 102
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -175,12 +175,12 @@ keys 2258
   WidgetToday 9
 
 culture nb
-sha256 f571256f93185cebde18c3e7e5b072f307e966b42651456156625c176bc8e4fa
+sha256 2dcb7e320c59476a5b2b5ed1383b57f56f9a03817336a7c4e1880980b48dfe1f
 namespaces 38
-keys 2258
+keys 2268
   App 28
   Chat 132
-  Common 92
+  Common 102
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8

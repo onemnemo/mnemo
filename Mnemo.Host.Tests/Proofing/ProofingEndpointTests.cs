@@ -80,6 +80,8 @@ public sealed class ProofingEndpointTests
         Assert.Equal("proofing.language.unsupportedByEngine", japanese.ReasonKey);
         Assert.Equal("Japanese", japanese.Name);
         Assert.Equal("Japan", japanese.Region);
+        Assert.Equal("proofing.language.name.ja-JP", japanese.NameKey);
+        Assert.Equal("proofing.language.region.ja-JP", japanese.RegionKey);
     }
 
     [Fact]
@@ -221,7 +223,8 @@ public sealed class ProofingEndpointTests
 
         var english = root.GetProperty("languages").EnumerateArray()
             .Single(l => l.GetProperty("id").GetString() == "en-US");
-        foreach (var name in new[] { "id", "name", "region", "installed", "bundled", "state", "reasonKey", "license" })
+        foreach (var name in new[]
+                 { "id", "name", "nameKey", "region", "regionKey", "installed", "bundled", "state", "reasonKey", "license" })
             Assert.True(english.TryGetProperty(name, out _), $"The status wire is missing '{name}'.");
 
         Assert.Equal("ready", english.GetProperty("state").GetString());

@@ -6,6 +6,7 @@ import { MenuCheckItem, MenuItem, MenuSeparator, MenuSubMenu } from '@/component
 import { useT } from '@/i18n/useT';
 
 import type { ProofingClient } from '../proofing/client';
+import { languageNameLookup } from '../proofing/language-names';
 import {
   PROOFING_STATUS_KEY,
   proofingClient,
@@ -47,6 +48,7 @@ export function NoteLanguageMenu({
 }) {
   const t = useT();
   const nt = (key: string) => t('Notes', key);
+  const named = languageNameLookup(t);
   const { data: status } = useProofingStatus(noteId);
   const invalidate = useInvalidateProofing();
   const queryClient = useQueryClient();
@@ -101,13 +103,13 @@ export function NoteLanguageMenu({
       icon="common/spell-check"
       hint={
         status
-          ? languageSummary(state, { off: nt('SpellingOff'), none: nt('SpellingNoneInstalled') })
+          ? languageSummary(state, { off: nt('SpellingOff'), none: nt('SpellingNoneInstalled') }, named)
           : undefined
       }
     >
       <MenuCheckItem
         checked={mode === 'default'}
-        description={activeLanguagesLabel(state, nt('SpellingNoLanguagesOn'))}
+        description={activeLanguagesLabel(state, nt('SpellingNoLanguagesOn'), named)}
         onSelect={() => write({ mode: 'default' })}
       >
         {nt('SpellingUseDefaults')}
@@ -120,7 +122,7 @@ export function NoteLanguageMenu({
           closeOnSelect={false}
           onSelect={() => write(noteLanguageChoice(state, language.id))}
         >
-          {languageLabel(language.id, state.catalogue)}
+          {languageLabel(language.id, state.catalogue, named)}
         </MenuCheckItem>
       ))}
       <MenuSeparator />

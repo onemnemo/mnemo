@@ -95,7 +95,17 @@
     "TransferExportFinished": "Exportación finalizada.",
     "TransferExportFailed": "Error al exportar.",
     "Copy": "Copiar",
-    "Cut": "Cortar"
+    "Cut": "Cortar",
+    "proofing.language.name.en-US": "Inglés",
+    "proofing.language.region.en-US": "Estados Unidos",
+    "proofing.language.name.es-ES": "Español",
+    "proofing.language.region.es-ES": "España",
+    "proofing.language.name.de-DE": "Alemán",
+    "proofing.language.region.de-DE": "Alemania",
+    "proofing.language.name.nb-NO": "Noruego (bokmål)",
+    "proofing.language.region.nb-NO": "Noruega",
+    "proofing.language.name.ja-JP": "Japonés",
+    "proofing.language.region.ja-JP": "Japón"
   },
   "EmojiPicker": {
     "SearchPlaceholder": "Buscar iconos",

@@ -6,12 +6,18 @@ namespace Mnemo.Host.Contracts;
 public sealed record ProofingLicenseDto(string Name, string Url);
 
 /// <summary>One language, whether or not this build can check it.</summary>
+/// <param name="Name">The English name. The client prints it when its bundle has no entry for
+/// <paramref name="NameKey"/>, so a dictionary added after a translation pass still reads as a word.</param>
+/// <param name="NameKey">Translation key naming the language.</param>
+/// <param name="RegionKey">Translation key naming the region, null when the language names none.</param>
 /// <param name="State"><c>ready</c>, <c>loading</c> or <c>absent</c>.</param>
 /// <param name="ReasonKey">Translation key explaining an absence. Serialised as null when there is none.</param>
 public sealed record ProofingLanguageDto(
     string Id,
     string Name,
+    string NameKey,
     string Region,
+    string? RegionKey,
     bool Installed,
     bool Bundled,
     string State,

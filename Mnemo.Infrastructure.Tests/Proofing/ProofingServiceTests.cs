@@ -346,6 +346,14 @@ public sealed class ProofingServiceTests
         Assert.True(english.Bundled);
         Assert.Null(english.ReasonKey);
         Assert.False(string.IsNullOrWhiteSpace(english.License.Name));
+
+        // The names on the status are English, and the keys beside them are what a screen in
+        // another language reads. They follow from the tag, so a manifest that grows a language
+        // carries one without anybody editing the catalog.
+        Assert.Equal("proofing.language.name.en-US", english.NameKey);
+        Assert.Equal("proofing.language.region.en-US", english.RegionKey);
+        Assert.Equal("proofing.language.name.de-DE", german.NameKey);
+        Assert.Equal("proofing.language.region.de-DE", german.RegionKey);
     }
 
     [Fact]

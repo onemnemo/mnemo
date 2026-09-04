@@ -265,7 +265,7 @@ public static class ProofingEndpoints
         status.Enabled,
         status.Active,
         [.. status.Languages.Select(l => new ProofingLanguageDto(
-            l.Id, l.Name, l.Region, l.Installed, l.Bundled, l.State, l.ReasonKey,
+            l.Id, l.Name, l.NameKey, l.Region, l.RegionKey, l.Installed, l.Bundled, l.State, l.ReasonKey,
             new ProofingLicenseDto(l.License.Name, l.License.Url)))],
         status.PersonalWordCount,
         status.Note is null ? null : ToDto(status.Note));
