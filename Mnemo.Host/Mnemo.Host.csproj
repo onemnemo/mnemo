@@ -63,8 +63,10 @@
   <!--
     Redistribution terms have to travel with the binary. vpk packs the publish directory, so a
     licence text that only exists in the repo is absent from every installed copy. Apache-2.0
-    section 4(a) covers the bundled Typst and mitex, the Geist fonts are OFL, and the German
-    Hunspell dictionary asks in its own header for the GPL texts to ship with every distribution.
+    section 4(a) covers the bundled Typst and mitex, the Geist fonts are OFL, and MPL 1.1 covers
+    both the spell checking engine and the Spanish dictionary, whose section 3.6 notice lives in
+    THIRD-PARTY-NOTICES. Each proofing dictionary also keeps its own notice file beside its word
+    list, which reaches the output as ordinary content.
   -->
   <Target Name="PublishLicenseTexts" AfterTargets="ComputeFilesToPublish">
     <ItemGroup>
@@ -85,12 +87,15 @@
   </Target>
 
   <!--
-    The Hunspell dictionaries back ISpellcheckService, which nothing resolves any more. They
-    arrive in the publish output through Mnemo.Infrastructure regardless, so shipping them
+    The older Hunspell dictionaries back ISpellcheckService, which nothing resolves any more.
+    They arrive in the publish output through Mnemo.Infrastructure regardless, so shipping them
     buys nothing and carries a real cost, en, es and nb are of unverified license, and de is
-    GPL-licensed with no GPL text bundled to satisfy it. The packaged app relies on the
-    WebView2 profile's own spell checking instead. The files and the service registration stay
-    in the tree for the in-house implementation planned to replace both.
+    GPL-licensed with no GPL text bundled to satisfy it. Spell checking is served by the
+    proofing dictionaries instead, which live under Dictionaries/Proofing and are meant to ship.
+
+    The match below is an ordinal substring test on the relative path, not a folder test, so
+    anything ever placed below a path containing "Dictionaries/Spellcheck" disappears from every
+    packaged build with no error. Keep new dictionary assets out of that name.
   -->
   <Target Name="TrimPublishDictionaries" AfterTargets="ComputeFilesToPublish">
     <ItemGroup>

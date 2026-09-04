@@ -7,7 +7,8 @@ It supplements, and does not replace, the license each package already carries.
 
 Full license texts that are not already short enough to quote in full live under
 LICENSES/ at the repository root, or travel directly alongside the asset they cover
-(the bundled fonts each carry their own copy; see the Fonts section).
+(the bundled fonts each carry their own copy; see the Fonts section, and each proofing
+dictionary keeps its own notice file beside its word list).
 
 This list was built from the dependency manifests in this repository (package.json,
 the .csproj files, scripts/typst-manifest.json) as of this writing. It is not a
@@ -70,21 +71,63 @@ vendors the mitex Typst package, used together to render Notes documents to PDF.
                Mnemo.Host/TypstRuntime/typst-packages/preview/mitex/0.2.7/LICENSE
 
 
-SPELLCHECK DICTIONARIES
+PROOFING DICTIONARIES
 
-Mnemo.Infrastructure/Dictionaries/Spellcheck/ holds Hunspell dictionary files
-(.aff/.dic pairs) for en, de, es, and nb, used by the WeCantSpell.Hunspell package
-(see below) through ISpellcheckService. Nothing resolves that service any more; the
-packaged app relies on the operating system's own web view for spell checking
-instead, and its publish step excludes the dictionary folder, so none of these
-files are redistributed in a built copy of Mnemo.
+Mnemo.Infrastructure/Dictionaries/Proofing/ holds the Hunspell dictionaries the
+spell checker uses. They are redistributed in every packaged build. Each was
+downloaded from the immutable release below and copied out unmodified;
+manifest.json beside them records the archive URL, its version, the SHA-256 of the
+archive as downloaded and the SHA-256 of every extracted file, and a test recomputes
+those file hashes on each run. PROVENANCE.md in the same folder carries the same
+record in prose.
 
-They remain in the repository for a planned in-house spellchecker. Before that
-ships with its own bundled dictionaries, their licenses need clearing: de.aff
-states its own header, "Copyright (C) 1998-2015 Bjoern Jacke <bjoern@j3e.de>",
-derived from the igerman98 dictionary, "License: GPLv2, GPLv3", while en, es, and
-nb carry no license header of their own and their provenance could not be
-established from the files themselves.
+  English (United States)
+    Files:     Mnemo.Infrastructure/Dictionaries/Proofing/en-US/
+               en_US.aff, en_US.dic, README_en_US.txt
+    Source:    https://github.com/en-wl/wordlist/releases/download/rel-2026.02.25/hunspell-en_US-2026.02.25.zip
+    Version:   2026.02.25
+    SHA-256:   ac8e73310e951d88c52c2cf2ba54ceaca34f8486a81630ac8a75dc5f931179f9 (archive)
+    License:   Permissive. The dictionary is generated from SCOWL and is a collective
+               work whose terms require the copyright and permission notices to be
+               kept in all copies, including the UKACD text verbatim, and forbid using
+               Geoff Kuenning's or Princeton University's names to endorse derived
+               products. README_en_US.txt is the only place those notices exist, so it
+               ships beside the files unmodified. No copyleft, no source offer.
+
+  Spanish (Spain)
+    Files:     Mnemo.Infrastructure/Dictionaries/Proofing/es-ES/
+               es_ES.aff, es_ES.dic, LICENSE.md, README.txt
+    Source:    https://github.com/sbosio/rla-es/releases/download/v2.9/es_ES.oxt
+    Version:   2.9
+    SHA-256:   3eea87836b24b6004aa1ee6fd285b6c71774b0996aec70d096d75d5526efb4ac (archive)
+    License:   Offered under GNU GPL v3 or later, GNU LGPL v3 or later, or Mozilla
+               Public License 1.1 or later, at the recipient's choice. Mnemo exercises
+               the MPL 1.1 option. The full text ships at LICENSES/MPL-1.1.txt, and per
+               MPL 1.1 section 3.6 the Source Code form of these files is available
+               under the same license from https://github.com/sbosio/rla-es at tag v2.9.
+               The files are redistributed unmodified.
+
+German, Norwegian Bokmal and Japanese are not bundled. The German and Norwegian
+Bokmal dictionaries in practical circulation carry GPL terms whose source obligation
+is not met by shipping the generated word list alone, and no Hunspell dictionary for
+Japanese exists in any distribution, the format being unable to express Japanese
+segmentation.
+
+
+LEGACY SPELLCHECK DICTIONARIES
+
+Mnemo.Infrastructure/Dictionaries/Spellcheck/ holds an older set of Hunspell
+dictionary files (.aff/.dic pairs) for en, de, es, and nb, reached through
+ISpellcheckService. Nothing resolves that service, and the publish step excludes the
+whole folder, so none of these files are redistributed in a built copy of Mnemo. They
+are superseded by the proofing dictionaries above and are kept only until that path
+has been proven in the field.
+
+Their licenses were never cleared, which is why they are not shipped: de.aff states
+in its own header, "Copyright (C) 1998-2015 Bjoern Jacke <bjoern@j3e.de>", derived
+from the igerman98 dictionary, "License: GPLv2, GPLv3", while en, es, and nb carry no
+license header of their own and their provenance could not be established from the
+files themselves.
 
 
 FRONTEND (mnemo-web) NPM DEPENDENCIES
@@ -139,8 +182,14 @@ enumerated individually here; see "What this does not cover" below.
     Markdig
 
   MPL-1.1 / GPL-2.0 / LGPL-2.1 (tri-licensed, choose one)
-    WeCantSpell.Hunspell. The package is a C# port of the original Hunspell project
-    and inherits its license; a copy ships with the package's own NuGet metadata.
+    WeCantSpell.Hunspell 7.0.1. The package is a C# port of the original Hunspell
+    project and inherits its license; a copy ships with the package's own NuGet
+    metadata. Mnemo exercises the Mozilla Public License 1.1 option, whose full text
+    ships at LICENSES/MPL-1.1.txt. Per MPL 1.1 section 3.6, the Source Code form of
+    this assembly is available under the same license from
+    https://github.com/aarondandy/WeCantSpell.Hunspell.git at commit
+    ab5709d95b2d23541984d22baa0ab2d1e783582f, which is the commit the published
+    package records. The assembly is redistributed unmodified.
 
   Custom fork, upstream license Apache-2.0
     UglyToad.PdfPig, restored from a private feed at version 1.7.0-custom-5. That
