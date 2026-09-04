@@ -168,6 +168,7 @@ export function MindmapLibraryRoute() {
             folderNames={names}
             templates={templates}
             defaultTemplateId={defaultTemplateId}
+            actions={actions}
             onOpen={openMap}
           />
         ) : null}

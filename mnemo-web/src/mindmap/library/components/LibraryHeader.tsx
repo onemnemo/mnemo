@@ -8,7 +8,8 @@ import { formatSmart } from "@/lib/relative-date"
 import { useMindmapTransfer } from "../../transfer/store"
 import type { FolderCardModel } from "../shelf"
 import type { LibraryActions } from "../useLibraryActions"
-import { FolderMenuItems } from "./FolderCard"
+import { LibraryMenuItems } from "./LibraryMenu"
+import { useFolderMenuEntries } from "./useLibraryMenuEntries"
 
 /**
  * The page head: what you are looking at, what is in it, and what you can add.
@@ -66,18 +67,7 @@ export function LibraryHeader({
 
       <div className="flex shrink-0 items-center gap-2">
         {folder ? (
-          <Menu>
-            <MenuTrigger asChild>
-              <Button variant="outline" aria-label={mm("FolderActions")} title={mm("FolderActions")} className="px-2">
-                <AppIcon name="common/dots-vertical" size={16} />
-              </Button>
-            </MenuTrigger>
-            <MenuContent align="end">
-              {/* Deleting the folder you are standing in has to walk out of it first, which is what
-                  the flag tells the action. */}
-              <FolderMenuItems folder={folder} actions={actions} leaving />
-            </MenuContent>
-          </Menu>
+          <FolderHeaderMenu folder={folder} actions={actions} />
         ) : (
           // Root only. An imported package restores the folders its maps were filed in, so there is
           // nothing a folder's own Transfer button would do differently than this one.
@@ -112,5 +102,28 @@ export function LibraryHeader({
         </Menu>
       </div>
     </header>
+  )
+}
+
+/**
+ * The open folder's verbs, behind the header's own button. Deleting the folder you are standing in
+ * has to walk out of it first, which is what the flag tells the action.
+ */
+function FolderHeaderMenu({ folder, actions }: { folder: FolderCardModel; actions: LibraryActions }) {
+  const t = useT()
+  const label = t("Mindmap", "FolderActions")
+  const entries = useFolderMenuEntries(folder, actions, true)
+
+  return (
+    <Menu>
+      <MenuTrigger asChild>
+        <Button variant="outline" aria-label={label} title={label} className="px-2">
+          <AppIcon name="common/dots-vertical" size={16} />
+        </Button>
+      </MenuTrigger>
+      <MenuContent align="end">
+        <LibraryMenuItems entries={entries} />
+      </MenuContent>
+    </Menu>
   )
 }
