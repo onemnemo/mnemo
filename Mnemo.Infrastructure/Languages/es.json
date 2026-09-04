@@ -4,6 +4,8 @@
     "ModelTierMismatchMessage": "La VRAM detectada sugiere un nivel inferior al de algunos modelos que ha instalado. El enrutamiento podría preferir modelos más pequeños hasta que la memoria de la GPU se lea correctamente. Si ha cambiado recientemente de GPU o de controladores, reinicie la aplicación."
   },
   "Common": {
+    "Undo": "Deshacer",
+    "Retry": "Reintentar",
     "OK": "Aceptar",
     "Error": "Algo ha salido mal",
     "Cancel": "Cancelar",
@@ -112,6 +114,13 @@
     "NoMatchFormat": "Ningún icono coincide con «{0}»."
   },
   "Settings": {
+    "ProofingPersonalLoading": "Cargando tus palabras.",
+    "ProofingPersonalFailed": "No se pudieron cargar tus palabras.",
+    "ProofingPersonalNotAWord": "Eso no es una palabra que el corrector pueda buscar.",
+    "ProofingPersonalFull": "Tu diccionario está lleno.",
+    "ProofingPersonalAddedFormat": "Se añadió {0}.",
+    "ProofingPersonalRemovedFormat": "Se quitó {0}.",
+    "ProofingScopeAppliesTo": "Se aplica a",
     "ProofingCategoryTitle": "Ortografía",
     "ProofingSubtitle": "Cómo se revisa tu ortografía.",
     "ProofingEnable": "Corrector ortográfico",
@@ -705,6 +714,14 @@
     "SummaryUsedTools": "usó {0} herramientas"
   },
   "Notes": {
+    "SpellingManageIgnored": "Palabras ignoradas aquí",
+    "SpellingIgnoredTitle": "Ignoradas en esta nota",
+    "SpellingIgnoredSubtitle": "Palabras que esta nota acepta.",
+    "SpellingIgnoredEmpty": "Aquí todavía no se ignora nada.",
+    "SpellingIgnoredLoading": "Cargando.",
+    "SpellingIgnoredFailed": "No se pudo cargar la lista.",
+    "SpellingIgnoreLiftFormat": "Volver a corregir {0}",
+    "SpellingIgnoreLiftedFormat": "{0} vuelve a corregirse.",
     "SearchNotesPlaceholder": "Buscar notas",
     "NoSearchResults": "No hay notas coincidentes",
     "Saved": "Guardado",
@@ -1469,6 +1486,8 @@
     "PurgeBlockedByFormat": "{0} también está en la papelera y vive dentro de este. Restáuralo o elimínalo para siempre primero."
   },
   "TransferWarnings": {
+    "ProofingPayloadMissingFile": "Al paquete de ortografía le falta su archivo proofing.json.",
+    "ProofingWordsSkipped": "No se pudieron añadir {count} palabras a tu diccionario.",
     "AnkiPackageUnreadable": "No se pudo leer el paquete de Anki: {error}",
     "AnkiDeckImportFailed": "No se pudo importar el mazo «{deckName}»: {error}",
     "AnkiDecksImportFailedCount": "No se pudieron importar {failedCount} de {totalCount} mazo(s) del paquete.",

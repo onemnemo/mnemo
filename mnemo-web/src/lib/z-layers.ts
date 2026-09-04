@@ -20,6 +20,14 @@ export const Z_LAYERS = {
   menu: 95,
   onboarding: 130,
   modal: 140,
+  /**
+   * A menu opened from inside a modal. Menus portal to the body and compare against the
+   * whole app, so at their own tier one opened inside a dialog paints behind it and reads
+   * as a control that does nothing. Only those opt up: leaving every menu here would put
+   * them over the window resize edges, which is not where they have ever been. Spelled as
+   * a utility class in components/ui/modal-menu.ts, which is pinned to this number.
+   */
+  modalMenu: 150,
   toast: 220,
   dialog: 230,
 } as const

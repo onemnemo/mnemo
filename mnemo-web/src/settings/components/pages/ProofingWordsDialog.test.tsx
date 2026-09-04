@@ -32,8 +32,8 @@ import { ProofingWordsDialog } from "./ProofingWordsDialog"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-// Radix's select measures and scrolls its list and captures the pointer, none of
-// which the pinned jsdom implements. Scoped to this file.
+// Radix measures and scrolls its menu and captures the pointer, none of which the
+// pinned jsdom implements. Scoped to this file.
 Element.prototype.scrollIntoView = () => {}
 Element.prototype.hasPointerCapture = () => false
 Element.prototype.setPointerCapture = () => {}
@@ -71,7 +71,7 @@ const CATALOG: ProofingLanguage[] = [
 ]
 
 const BUNDLE = {
-  Common: { Close: "Close", Error: "Something went wrong" },
+  Common: { Close: "Close", Error: "Something went wrong", Undo: "Undo", Retry: "Try again" },
   Settings: {
     ProofingPersonalTitle: "Your dictionary",
     ProofingPersonalSubtitle: "Words the checker accepts.",
@@ -83,7 +83,12 @@ const BUNDLE = {
     ProofingPersonalRemoveFormat: "Remove {0}",
     ProofingPersonalAlreadyAdded: "That word is already in your dictionary.",
     ProofingScopeAll: "All languages",
+    ProofingScopeAppliesTo: "Applies to",
     ProofingScopeLabelFormat: "Languages {0} applies to",
+    ProofingPersonalAddedFormat: "Added {0}.",
+    ProofingPersonalRemovedFormat: "Removed {0}.",
+    ProofingPersonalLoading: "Loading your words.",
+    ProofingPersonalFailed: "Your words could not be loaded.",
   },
 }
 
@@ -110,9 +115,9 @@ const mocks = vi.hoisted(() => {
     addPersonalWord: vi.fn((word: string, language?: string | null) => {
       calls.push(`add ${word} ${scopeName(language)}`)
       if (failing.add) return Promise.reject(new Error("the host said no"))
-      if (!state.some((entry) => same(entry.word, word) && same(entry.language, language)))
-        state.push({ word, language: language ?? null, addedAt: "2026-02-02" })
-      return Promise.resolve(list())
+      const known = state.some((entry) => same(entry.word, word) && same(entry.language, language))
+      if (!known) state.push({ word, language: language ?? null, addedAt: "2026-02-02" })
+      return Promise.resolve({ ...list(), outcome: known ? ("alreadyPresent" as const) : ("added" as const) })
     }),
     removePersonalWord: vi.fn((word: string, language?: string | null) => {
       calls.push(`remove ${word} ${scopeName(language)}`)
@@ -186,19 +191,32 @@ async function flush() {
   })
 }
 
-/** One word's scope select, found by the accessible name it carries. */
-function scopeSelect(text: string): HTMLElement {
+/** One word's overflow trigger, found by the accessible name it carries. */
+function scopeMenu(text: string): HTMLElement {
   const trigger = document.body.querySelector<HTMLElement>(`[aria-label="Languages ${text} applies to"]`)
-  if (!trigger) throw new Error(`no scope select for ${text}`)
+  if (!trigger) throw new Error(`no scope menu for ${text}`)
   return trigger
 }
 
-/** Opens a word's scope select and returns the options it offers, in order. */
+/** The muted label a row carries, which a word for every language does not have one of. */
+function scopeLabel(text: string): string {
+  const row = scopeMenu(text).closest("div")
+  return row?.querySelector("span")?.textContent?.trim() ?? ""
+}
+
+/** Opens a word's scope menu and returns the choices it offers, in order. */
 function optionsFor(text: string): HTMLElement[] {
   act(() => {
-    scopeSelect(text).dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }))
+    scopeMenu(text).dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }))
   })
-  return [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+  return [...document.body.querySelectorAll<HTMLElement>('[role="menuitemradio"]')]
+}
+
+/** The choice a word's menu shows as its current one. */
+function chosen(text: string): string | undefined {
+  return optionsFor(text)
+    .find((node) => node.getAttribute("data-state") === "checked")
+    ?.textContent?.trim()
 }
 
 function labelsOf(options: HTMLElement[]): (string | undefined)[] {
@@ -217,6 +235,13 @@ async function choose(text: string, label: string) {
     option.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
   })
   await flush()
+}
+
+/** Closes whatever menu a choice left open, so the next row is reachable. */
+function closeMenus() {
+  act(() => {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+  })
 }
 
 /** The words as the list renders them, in order. */
@@ -250,7 +275,8 @@ describe("a word seeded from the older editor setting", () => {
   // Offering the bare code as well would list English twice.
   it("sits on the dictionary that answers for its bare code", () => {
     render()
-    expect(scopeSelect("sillage").textContent).toContain("English")
+    expect(scopeLabel("sillage")).toBe("English")
+    expect(chosen("sillage")).toBe("English")
   })
 
   it("is offered every language on the machine and nothing else", () => {
@@ -264,6 +290,7 @@ describe("a word seeded from the older editor setting", () => {
     render()
     await choose("sillage", "English")
     expect(mocks.calls).toEqual([])
+    closeMenus()
 
     await choose("sillage", "Spanish")
     expect(mocks.calls).toHaveLength(2)
@@ -292,9 +319,12 @@ describe("a word with no scope", () => {
     mocks.setWords([word("mnemo", null)])
   })
 
-  it("sits on every language", () => {
+  // No label on the row: every word applies to every language unless it says
+  // otherwise, and printing that on every row is a column of the same word.
+  it("sits on every language, and says nothing about it", () => {
     render()
-    expect(scopeSelect("mnemo").textContent).toContain("All languages")
+    expect(scopeLabel("mnemo")).toBe("")
+    expect(chosen("mnemo")).toBe("All languages")
   })
 
   it("is given a scope by an add at the new one and a removal at no scope", async () => {
@@ -318,7 +348,8 @@ describe("a word scoped to a language this machine does not have", () => {
 
   it("sits on that scope rather than on nothing", () => {
     render()
-    expect(scopeSelect("strasse").textContent).toContain("German")
+    expect(scopeLabel("strasse")).toBe("German")
+    expect(chosen("strasse")).toBe("German")
   })
 })
 
@@ -343,6 +374,19 @@ describe("adding a word", () => {
     await flush()
 
     expect(mocks.toastInfo).toHaveBeenCalledWith("That word is already in your dictionary.")
+  })
+
+  it("offers the way back after adding one", async () => {
+    render()
+    type("cafe")
+    clickAdd()
+    await flush()
+
+    const [title, options] = mocks.toastInfo.mock.calls[0] as [string, { primary: { onClick: () => void } }]
+    expect(title).toBe("Added cafe.")
+    await act(async () => options.primary.onClick())
+    await flush()
+    expect(mocks.removePersonalWord).toHaveBeenCalledWith("cafe", null)
   })
 
   it("puts the word back when the add fails", async () => {
@@ -374,6 +418,28 @@ describe("the list", () => {
 
     expect(mocks.removePersonalWord).toHaveBeenCalledWith("sillage", "en")
     expect(renderedWords()).toEqual([])
+  })
+
+  // The two rows share one mutation, and a mutation's observer follows only its
+  // latest call, so a receipt handed to the call itself would be lost the moment
+  // the second row was clicked.
+  it("offers the way back from every removal, even two in quick succession", async () => {
+    mocks.setWords([word("apple", null), word("banana", null)])
+    render()
+    act(() => {
+      document.body.querySelector<HTMLElement>('[aria-label="Remove apple"]')?.click()
+      document.body.querySelector<HTMLElement>('[aria-label="Remove banana"]')?.click()
+    })
+    await flush()
+
+    expect(renderedWords()).toEqual([])
+    expect(mocks.toastInfo.mock.calls.map((call) => call[0])).toEqual(["Removed apple.", "Removed banana."])
+
+    const [, options] = mocks.toastInfo.mock.calls[0] as [string, { primary: { onClick: () => void } }]
+    await act(async () => options.primary.onClick())
+    await flush()
+    expect(mocks.addPersonalWord).toHaveBeenLastCalledWith("apple", null)
+    expect(renderedWords()).toEqual(["apple"])
   })
 
   // The add field is the body's first control and the search is up in the header;

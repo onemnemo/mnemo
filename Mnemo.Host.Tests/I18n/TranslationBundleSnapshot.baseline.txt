@@ -3,12 +3,12 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 bd91fae48ea3595a45cab62d1ddfee49083272698bc1471a69c2e16ccb60703d
+sha256 c92b9284a681df518b982555ecb791104b447f7e8c41604775d52caf37808a50
 namespaces 38
-keys 2245
+keys 2264
   App 28
   Chat 132
-  Common 90
+  Common 92
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -18,18 +18,18 @@ keys 2245
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 214
+  Notes 222
   NotesEditor 204
   Onboarding 55
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 321
+  Settings 328
   Sidebar 14
   StudyGoals 11
   Topbar 28
-  TransferWarnings 43
+  TransferWarnings 45
   Trash 47
   UsageSummary 22
   WidgetActivity 6
@@ -46,12 +46,12 @@ keys 2245
   WidgetToday 9
 
 culture de
-sha256 fa8daf713f4d1a82eff54bcbfe8f54354f45c157f7f52d5311c13d54c18ffa16
+sha256 3a58d635ebb8b42bd7919623e743c4a7d357cfbc311f01dec453e0876384fcd1
 namespaces 38
-keys 2245
+keys 2264
   App 28
   Chat 132
-  Common 90
+  Common 92
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -61,18 +61,18 @@ keys 2245
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 214
+  Notes 222
   NotesEditor 204
   Onboarding 55
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 321
+  Settings 328
   Sidebar 14
   StudyGoals 11
   Topbar 28
-  TransferWarnings 43
+  TransferWarnings 45
   Trash 47
   UsageSummary 22
   WidgetActivity 6
@@ -89,12 +89,12 @@ keys 2245
   WidgetToday 9
 
 culture es
-sha256 fc8117540ceb85c5177b99eb1c628896a75e532bd0d185aaa6de0fdefbac8342
+sha256 94ce37b514ebf19431824af1415b4e45d687258e9051194ff6400f8993c7ddc1
 namespaces 38
-keys 2245
+keys 2264
   App 28
   Chat 132
-  Common 90
+  Common 92
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -104,18 +104,18 @@ keys 2245
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 214
+  Notes 222
   NotesEditor 204
   Onboarding 55
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 321
+  Settings 328
   Sidebar 14
   StudyGoals 11
   Topbar 28
-  TransferWarnings 43
+  TransferWarnings 45
   Trash 47
   UsageSummary 22
   WidgetActivity 6
@@ -132,12 +132,12 @@ keys 2245
   WidgetToday 9
 
 culture ja
-sha256 a9c341e3451b918a3f31bc894529ad9d237079c85bd5c6f144f729af5b363fdc
+sha256 b14467dfca26e11d2e1c16687ee300d5aac55eec323f25324d46ab56e6c98160
 namespaces 38
-keys 2245
+keys 2264
   App 28
   Chat 132
-  Common 90
+  Common 92
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -147,18 +147,18 @@ keys 2245
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 214
+  Notes 222
   NotesEditor 204
   Onboarding 55
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 321
+  Settings 328
   Sidebar 14
   StudyGoals 11
   Topbar 28
-  TransferWarnings 43
+  TransferWarnings 45
   Trash 47
   UsageSummary 22
   WidgetActivity 6
@@ -175,12 +175,12 @@ keys 2245
   WidgetToday 9
 
 culture nb
-sha256 1c5e384313801e6826e16111715874ba100e206eb2e1ec6b68102bd8cae4839d
+sha256 11f0bb3a1feb0c847e241c0c87b39ebdfc39b291eaf0a522ce004a183e556fb7
 namespaces 38
-keys 2245
+keys 2264
   App 28
   Chat 132
-  Common 90
+  Common 92
   EmojiPicker 14
   FlashcardMemory 8
   FlashcardStats 8
@@ -190,18 +190,18 @@ keys 2245
   Hardware 2
   Keybinds 102
   Mindmap 331
-  Notes 214
+  Notes 222
   NotesEditor 204
   Onboarding 55
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 321
+  Settings 328
   Sidebar 14
   StudyGoals 11
   Topbar 28
-  TransferWarnings 43
+  TransferWarnings 45
   Trash 47
   UsageSummary 22
   WidgetActivity 6

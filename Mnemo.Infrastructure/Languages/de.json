@@ -4,6 +4,8 @@
     "ModelTierMismatchMessage": "Die erkannte VRAM deutet auf eine niedrigere Stufe als bei einigen installierten Modellen hin. Routing kann kleinere Modelle bevorzugen, bis der GPU-Speicher korrekt erkannt wird. Nach GPU-/Treiberwechsel die App neu starten."
   },
   "Common": {
+    "Undo": "Rückgängig",
+    "Retry": "Erneut versuchen",
     "OK": "OK",
     "Error": "Etwas ist schiefgelaufen",
     "Cancel": "Abbrechen",
@@ -112,6 +114,13 @@
     "NoMatchFormat": "Kein Symbol passt zu „{0}“."
   },
   "Settings": {
+    "ProofingPersonalLoading": "Deine Wörter werden geladen.",
+    "ProofingPersonalFailed": "Deine Wörter konnten nicht geladen werden.",
+    "ProofingPersonalNotAWord": "Das ist kein Wort, das die Prüfung nachschlagen kann.",
+    "ProofingPersonalFull": "Dein Wörterbuch ist voll.",
+    "ProofingPersonalAddedFormat": "{0} hinzugefügt.",
+    "ProofingPersonalRemovedFormat": "{0} entfernt.",
+    "ProofingScopeAppliesTo": "Gilt für",
     "ProofingCategoryTitle": "Rechtschreibung",
     "ProofingSubtitle": "Wie Mnemo deine Rechtschreibung prüft.",
     "ProofingEnable": "Rechtschreibprüfung",
@@ -705,6 +714,14 @@
     "SummaryUsedTools": "{0} Tools verwendet"
   },
   "Notes": {
+    "SpellingManageIgnored": "Hier ignorierte Wörter",
+    "SpellingIgnoredTitle": "In dieser Notiz ignoriert",
+    "SpellingIgnoredSubtitle": "Wörter, die diese Notiz akzeptiert.",
+    "SpellingIgnoredEmpty": "Hier wird noch nichts ignoriert.",
+    "SpellingIgnoredLoading": "Wird geladen.",
+    "SpellingIgnoredFailed": "Die Liste konnte nicht geladen werden.",
+    "SpellingIgnoreLiftFormat": "{0} wieder prüfen",
+    "SpellingIgnoreLiftedFormat": "{0} wird wieder geprüft.",
     "SearchNotesPlaceholder": "Notizen durchsuchen",
     "NoSearchResults": "Keine passenden Notizen",
     "Saved": "Gespeichert",
@@ -1469,6 +1486,8 @@
     "PurgeBlockedByFormat": "{0} ist ebenfalls im Papierkorb und liegt darin. Stelle es zuerst wieder her oder lösche es endgültig."
   },
   "TransferWarnings": {
+    "ProofingPayloadMissingFile": "Im Rechtschreibpaket fehlt die Datei proofing.json.",
+    "ProofingWordsSkipped": "{count} Wörter konnten deinem Wörterbuch nicht hinzugefügt werden.",
     "AnkiPackageUnreadable": "Das Anki-Paket konnte nicht gelesen werden: {error}",
     "AnkiDeckImportFailed": "Der Stapel „{deckName}“ konnte nicht importiert werden: {error}",
     "AnkiDecksImportFailedCount": "{failedCount} von {totalCount} Stapel(n) im Paket konnten nicht importiert werden.",

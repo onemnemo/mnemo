@@ -4,6 +4,8 @@
     "ModelTierMismatchMessage": "Gjenkjent VRAM antyder et lavere nivå enn enkelte av modellene du har installert. Ruting kan foretrekke mindre modeller inntil GPU-minnet blir lest korrekt. Hvis du nylig har byttet GPU eller drivere, start appen på nytt."
   },
   "Common": {
+    "Undo": "Angre",
+    "Retry": "Prøv igjen",
     "OK": "OK",
     "Error": "Noe gikk galt",
     "Cancel": "Avbryt",
@@ -112,6 +114,13 @@
     "NoMatchFormat": "Ingen ikon passer til «{0}»."
   },
   "Settings": {
+    "ProofingPersonalLoading": "Laster ordene dine.",
+    "ProofingPersonalFailed": "Ordene dine kunne ikke lastes.",
+    "ProofingPersonalNotAWord": "Det er ikke et ord kontrollen kan slå opp.",
+    "ProofingPersonalFull": "Ordboken din er full.",
+    "ProofingPersonalAddedFormat": "La til {0}.",
+    "ProofingPersonalRemovedFormat": "Fjernet {0}.",
+    "ProofingScopeAppliesTo": "Gjelder for",
     "ProofingCategoryTitle": "Stavekontroll",
     "ProofingSubtitle": "Hvordan Mnemo kontrollerer stavingen din.",
     "ProofingEnable": "Stavekontroll",
@@ -705,6 +714,14 @@
     "SummaryUsedTools": "brukte {0} verktøy"
   },
   "Notes": {
+    "SpellingManageIgnored": "Ord som ignoreres her",
+    "SpellingIgnoredTitle": "Ignorert i dette notatet",
+    "SpellingIgnoredSubtitle": "Ord dette notatet godtar.",
+    "SpellingIgnoredEmpty": "Ingenting ignoreres her ennå.",
+    "SpellingIgnoredLoading": "Laster.",
+    "SpellingIgnoredFailed": "Listen kunne ikke lastes.",
+    "SpellingIgnoreLiftFormat": "Kontroller {0} igjen",
+    "SpellingIgnoreLiftedFormat": "{0} kontrolleres igjen.",
     "SearchNotesPlaceholder": "Søk i notater",
     "NoSearchResults": "Ingen samsvarende notater",
     "Saved": "Lagret",
@@ -1469,6 +1486,8 @@
     "PurgeBlockedByFormat": "{0} er også i papirkurven og ligger inni dette. Gjenopprett eller slett det for godt først."
   },
   "TransferWarnings": {
+    "ProofingPayloadMissingFile": "Stavepakken mangler filen proofing.json.",
+    "ProofingWordsSkipped": "{count} ord kunne ikke legges til i ordboken din.",
     "AnkiPackageUnreadable": "Kunne ikke lese Anki-pakken: {error}",
     "AnkiDeckImportFailed": "Kunne ikke importere bunken «{deckName}»: {error}",
     "AnkiDecksImportFailedCount": "{failedCount} av {totalCount} bunke(r) i pakken kunne ikke importeres.",

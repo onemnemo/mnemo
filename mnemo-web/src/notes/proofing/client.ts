@@ -24,11 +24,12 @@
  *   GET  /proofing/personal -> { words: [{ word, language | null, addedAt }] }
  *   POST /proofing/personal { word, language? }         -> { words: [...] }
  *   POST /proofing/personal/remove { word, language? }  -> { words: [...] }
- *   POST /proofing/notes/{noteId}/ignores { word }
+ *   GET  /proofing/notes/{noteId}/ignores               -> { words: [...] }
+ *   POST /proofing/notes/{noteId}/ignores { word }        -> { words: [...] }
+ *   POST /proofing/notes/{noteId}/ignores/remove { word } -> { words: [...] }
  *
- * The host also serves a read and a removal for a note's ignore list. Nothing
- * here calls them, because no surface lists a note's ignored words yet, and a
- * method with no caller is a method nobody notices going wrong.
+ * Every write to a word list answers with the whole list as it now stands, so a
+ * caller reconciles its cache from the reply rather than fetching again.
  *
  * `id` is `"<blockSid>:<segmentIndex>"`, offsets are UTF-16 code units local to
  * the segment and `end` is exclusive. A check answers 503 while a dictionary is
@@ -42,8 +43,9 @@
  * from the one asked about describes a state the caller no longer holds.
  */
 
-import { apiFetch, apiSend } from '@/api/client';
+import { apiFetch } from '@/api/client';
 import type {
+  NoteIgnores,
   NoteProofing,
   NoteProofingChoice,
   PersonalWords,
@@ -63,7 +65,9 @@ export interface ProofingClient {
   /** Both answer with the whole list as it now stands, so a caller updates its cache from the reply. */
   addPersonalWord(word: string, language?: string | null): Promise<PersonalWords>;
   removePersonalWord(word: string, language?: string | null): Promise<PersonalWords>;
-  addNoteIgnore(noteId: string, word: string): Promise<void>;
+  noteIgnores(noteId: string, signal?: AbortSignal): Promise<NoteIgnores>;
+  addNoteIgnore(noteId: string, word: string): Promise<NoteIgnores>;
+  removeNoteIgnore(noteId: string, word: string): Promise<NoteIgnores>;
   noteLanguages(noteId: string, signal?: AbortSignal): Promise<NoteProofing>;
   setNoteLanguages(noteId: string, choice: NoteProofingChoice): Promise<NoteProofing>;
 }
@@ -74,12 +78,10 @@ export interface ProofingClient {
  */
 export interface ProofingTransport {
   json<T>(path: string, init?: RequestInit): Promise<T>;
-  send(path: string, init?: RequestInit): Promise<void>;
 }
 
 export const defaultProofingTransport: ProofingTransport = {
   json: apiFetch,
-  send: apiSend,
 };
 
 /**
@@ -91,14 +93,6 @@ export const defaultProofingTransport: ProofingTransport = {
  */
 export function isDictionaryLoading(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { status?: number }).status === 503;
-}
-
-function post(transport: ProofingTransport, path: string, body: unknown): Promise<void> {
-  return transport.send(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
 }
 
 function sendJson<T>(
@@ -120,6 +114,10 @@ function noteLanguagesPath(noteId: string): string {
   return `/proofing/notes/${encodeURIComponent(noteId)}/languages`;
 }
 
+function noteIgnoresPath(noteId: string): string {
+  return `/proofing/notes/${encodeURIComponent(noteId)}/ignores`;
+}
+
 export function createProofingClient(
   transport: ProofingTransport = defaultProofingTransport,
 ): ProofingClient {
@@ -138,8 +136,12 @@ export function createProofingClient(
       sendJson<PersonalWords>(transport, 'POST', '/proofing/personal', { word, language }),
     removePersonalWord: (word, language) =>
       sendJson<PersonalWords>(transport, 'POST', '/proofing/personal/remove', { word, language }),
+    noteIgnores: (noteId, signal) =>
+      transport.json<NoteIgnores>(noteIgnoresPath(noteId), { signal }),
     addNoteIgnore: (noteId, word) =>
-      post(transport, `/proofing/notes/${encodeURIComponent(noteId)}/ignores`, { word }),
+      sendJson<NoteIgnores>(transport, 'POST', noteIgnoresPath(noteId), { word }),
+    removeNoteIgnore: (noteId, word) =>
+      sendJson<NoteIgnores>(transport, 'POST', `${noteIgnoresPath(noteId)}/remove`, { word }),
     noteLanguages: (noteId, signal) =>
       transport.json<NoteProofing>(noteLanguagesPath(noteId), { signal }),
     setNoteLanguages: (noteId, choice) =>
