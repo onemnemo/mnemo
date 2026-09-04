@@ -114,8 +114,13 @@ public class NoteService : INoteService
     {
         try
         {
-            await _commits.DeleteAsync(noteId);
-            return Result.Success();
+            // The one way this delete is refused is a note the trash is holding, the same rule
+            // SaveNoteAsync maps above. Reporting success would leave a caller believing the row
+            // is gone when the store still holds it.
+            var deleted = await _commits.DeleteAsync(noteId);
+            return deleted
+                ? Result.Success()
+                : Result.Failure($"Note {noteId} is in the trash and cannot be deleted.");
         }
         catch (Exception ex)
         {
