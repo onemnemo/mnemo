@@ -56,6 +56,14 @@ public sealed class ProofingDictionaryCatalog
         new("nb-NO", "Norwegian Bokmal", "Norway", Installed: false, Bundled: false,
             new ProofingLicense("CC BY 4.0 and GPLv2", "https://creativecommons.org/licenses/by/4.0/"),
             "proofing.language.notAvailableYet", null, null),
+        // Japanese is a different answer from the two above: they are dictionaries that have not been
+        // bundled yet, this is one that cannot exist. Hunspell has no way to express Japanese word
+        // segmentation, so no dictionary for it exists in any distribution and none is coming. It is
+        // listed so the settings page can say that rather than leave a gap someone tries to fill, and
+        // it carries no licence because there is nothing to license.
+        new("ja-JP", "Japanese", "Japan", Installed: false, Bundled: false,
+            new ProofingLicense(string.Empty, string.Empty),
+            "proofing.language.unsupportedByEngine", null, null),
     ];
 
     private readonly List<ProofingDictionaryEntry> _entries;

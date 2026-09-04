@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
+using Mnemo.Core.Services.Proofing;
 using Mnemo.Host.Ai;
 using Mnemo.Host.Chat;
 using Mnemo.Host.Chrome;
@@ -261,9 +262,16 @@ public static class Program
         // thread with a Task.Run/GetResult in RunWindow blocks window creation on a
         // settings read. The service provider is already live at this point, so the
         // resolved value rides along on ServerHandle.
+        var active = await app.Services.GetRequiredService<IProofingService>()
+            .ResolveActiveAsync(CancellationToken.None).ConfigureAwait(false);
         var language = await app.Services.GetRequiredService<ISettingsService>()
             .GetAsync("Editor.SpellCheckLanguages", "en").ConfigureAwait(false);
-        var spellcheckLanguage = string.IsNullOrWhiteSpace(language) ? "en" : language;
+        // The window's own checker is keyed by bare language, so the first proofing language is cut
+        // back to its primary subtag. Handing it a full tag enables no dictionary at all. The editor
+        // setting is the fallback for a profile with no dictionary installed.
+        var spellcheckLanguage = active.Count > 0
+            ? PrimarySubtag(active[0])
+            : string.IsNullOrWhiteSpace(language) ? "en" : language;
 
         // Kestrel cannot bind a port this process is still listening on, so the handover
         // happens here and nowhere earlier.
@@ -310,6 +318,13 @@ public static class Program
         logger.Info(CrashLog.Category,
             $"MODE={(options.DevMode ? "DEV" : "PROD")} API_BASE={apiBaseUrl} WINDOW_URL={windowUrl}");
         return new ServerHandle(app, apiBaseUrl, windowUrl, spellcheckLanguage);
+    }
+
+    /// <summary>The language part of a tag, so <c>en-US</c> becomes <c>en</c>.</summary>
+    private static string PrimarySubtag(string tag)
+    {
+        var cut = tag.IndexOfAny(['-', '_']);
+        return cut < 0 ? tag : tag[..cut];
     }
 
     /// <summary>

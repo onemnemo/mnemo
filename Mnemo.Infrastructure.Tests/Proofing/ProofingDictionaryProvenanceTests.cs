@@ -165,7 +165,7 @@ public sealed class ProofingDictionaryProvenanceTests
 
             Assert.Empty(catalog.InstalledLanguages);
             // The languages that never ship files are unaffected, so the wire shape does not change.
-            Assert.Equal(["de-DE", "nb-NO"], catalog.Entries.Select(e => e.Id).Order());
+            Assert.Equal(["de-DE", "ja-JP", "nb-NO"], catalog.Entries.Select(e => e.Id).Order());
         }
         finally
         {

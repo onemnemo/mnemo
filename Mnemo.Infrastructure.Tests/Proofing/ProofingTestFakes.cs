@@ -76,24 +76,45 @@ internal sealed class StubProofingEngine : IProofingEngine
 
     public bool Ready { get; set; } = true;
 
+    /// <summary>What this engine reports its issues as, for the merge rules that turn on the kind.</summary>
+    public string Kind { get; set; } = "spelling";
+
+    /// <summary>Words flagged for one language only, instead of the ones flagged for all of them.</summary>
+    public Dictionary<string, string[]> FlaggedFor { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Languages whose word list could not be read: they answer with nothing and never turn ready,
+    /// which is what a failed read leaves behind in the real engine.
+    /// </summary>
+    public HashSet<string> Unreadable { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>False for an engine with nothing to offer, so the caller moves on to the next one.</summary>
+    public bool Suggests { get; set; } = true;
+
+    /// <summary>What this engine's suggestion says, so a test can tell which of two answered.</summary>
+    public string? SuggestionLabel { get; set; }
+
     /// <summary>Blocks every check until set, standing in for a word list that is still being read.</summary>
     public TaskCompletionSource? Gate { get; set; }
 
-    public bool IsReady(string language) => Ready;
+    public bool IsReady(string language) => Ready && !Unreadable.Contains(language);
 
     public async ValueTask<IReadOnlyList<ProofingIssue>> CheckAsync(string language, string text, CancellationToken ct)
     {
         if (Gate is not null)
             await Gate.Task.WaitAsync(ct).ConfigureAwait(false);
 
+        if (Unreadable.Contains(language))
+            return [];
+
         var issues = new List<ProofingIssue>();
-        foreach (var word in _flagged)
+        foreach (var word in FlaggedFor.TryGetValue(language, out var only) ? only : _flagged)
         {
             var at = text.IndexOf(word, StringComparison.Ordinal);
             if (at < 0)
                 continue;
 
-            issues.Add(new ProofingIssue(at, at + word.Length, word, "spelling", "error", null, null, null, []));
+            issues.Add(new ProofingIssue(at, at + word.Length, word, Kind, "error", null, null, null, []));
         }
 
         return issues;
@@ -104,5 +125,6 @@ internal sealed class StubProofingEngine : IProofingEngine
         ProofingIssue issue,
         string text,
         CancellationToken ct)
-        => ValueTask.FromResult<IReadOnlyList<ProofingFix>>([new ProofingFix(issue.Text.ToUpperInvariant(), null)]);
+        => ValueTask.FromResult<IReadOnlyList<ProofingFix>>(
+            Suggests ? [new ProofingFix(SuggestionLabel ?? issue.Text.ToUpperInvariant(), null)] : []);
 }
