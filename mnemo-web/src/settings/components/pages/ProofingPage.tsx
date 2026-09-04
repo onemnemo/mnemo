@@ -73,7 +73,7 @@ export function ProofingPage() {
         : words.map((entry) => entry.word).join(", ")
 
   return (
-    <SettingsPageShell title={st("ProofingCategoryTitle")} description={st("ProofingSubtitle")}>
+    <SettingsPageShell>
       <Section>
         <Row label={st("ProofingEnable")} description={st("ProofingEnableDescription")}>
           <Switch

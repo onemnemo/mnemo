@@ -24,7 +24,11 @@ export function labelOf(language: ProofingLanguage, pool: readonly ProofingLangu
 }
 
 /**
- * What a dictionary is doing, in one line.
+ * What a dictionary is doing, or null when there is nothing worth saying.
+ *
+ * A dictionary that works gets no caption. "Ready" under every row is noise the
+ * reader has to skip, and it buried the only lines that matter: one still being
+ * read, and one that cannot be used at all.
  *
  * An absent one answers with the host's own reason key. It is rendered only
  * when this build ships a translation for it: a key that does not resolve
@@ -39,8 +43,8 @@ export function describeState(
   language: ProofingLanguage,
   st: (key: string) => string,
   shipped: (key: string) => boolean,
-): string {
-  if (language.state === "ready") return st("ProofingStateReady")
+): string | null {
+  if (language.state === "ready") return null
   if (language.state === "loading") return st("ProofingStateLoading")
   if (language.reasonKey && shipped(language.reasonKey)) return st(language.reasonKey)
   return st("ProofingStateAbsent")

@@ -16,14 +16,15 @@ export function SettingsPageShell({
   description,
   children,
 }: {
-  title: string
+  /** Omitted by a page the settings chrome already titles, so the heading is not printed twice. */
+  title?: string
   description?: string
   children: ReactNode
 }) {
   return (
     <div className="scroll-thin h-full overflow-y-auto">
       <div className="mx-auto px-10 pb-24 pt-9" style={{ maxWidth: MEASURE }}>
-        <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-ink">{title}</h1>
+        {title && <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-ink">{title}</h1>}
         {description && <p className="mt-1 text-[13.5px] text-ink-2">{description}</p>}
         {children}
       </div>
