@@ -105,7 +105,7 @@ describe('the proofing plugin', () => {
     const located = issueFor(state, 'a', 'sat');
     state = send(state, answers(state, ['a:0'], [located]));
 
-    // Split the line between "cat" and "sat", the case that used to leave a
+    // Split the line between "cat" and "sat", the case that would leave a
     // decoration reaching across two blocks.
     state = state.apply(state.tr.split(located.from - 1, 2));
 

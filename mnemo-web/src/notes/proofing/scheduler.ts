@@ -352,9 +352,9 @@ export function createProofingScheduler(options: ProofingSchedulerOptions): Proo
         }
 
         // Anything else is about this batch, not about the note. One retry, and
-        // then it is retired so the rest of the pass still happens: a single
-        // rejected batch used to leave every segment after it unchecked until
-        // the user happened to type, which on a long note is most of it. A
+        // then it is retired so the rest of the pass still happens: left in
+        // place, a single rejected batch keeps every segment after it unchecked
+        // until the user happens to type, which on a long note is most of it. A
         // retired batch is filed as answered-clean so nothing re-asks about it.
         const keys = batch.map(keyOf);
         if (keys.every((key) => failedOnce.has(key))) {

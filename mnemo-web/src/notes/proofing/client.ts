@@ -5,32 +5,10 @@
  * scheduler a stub and the app hands it this, and pointing the app at a
  * different origin is a change to `transport` alone.
  *
- * The contract, as both halves implement it:
- *
- *   GET  /proofing/status   (?noteId=... adds that note's own answer)
- *        -> { enabled, active: string[], languages: [{ id, name, nameKey,
- *             region, regionKey, installed, bundled,
- *             state: "ready" | "loading" | "absent", reasonKey?,
- *             license: { name, url } }], personalWordCount,
- *             note: { mode, languages, effective } | null }
- *   POST /proofing/check   { languages, noteId | null, paragraphs: [{ id, text }] }
- *        -> { languages, paragraphs: [{ id, issues: [{ start, end, text, kind,
- *             tone: "error" | "unknown", ruleId?, titleKey?, messageKey?,
- *             fixes?: [{ label?, replacement }] }] }] }
- *   POST /proofing/suggest { languages, noteId | null, text, start, end, ruleId? }
- *        -> { suggestions: [{ replacement, label? }] }
- *   GET  /proofing/notes/{noteId}/languages -> { mode, languages, effective }
- *   PUT  /proofing/notes/{noteId}/languages { mode, languages? }
- *        -> { mode, languages, effective }
- *   GET  /proofing/personal -> { words: [{ word, language | null, addedAt }] }
- *   POST /proofing/personal { word, language? }         -> { words: [...] }
- *   POST /proofing/personal/remove { word, language? }  -> { words: [...] }
- *   GET  /proofing/notes/{noteId}/ignores               -> { words: [...] }
- *   POST /proofing/notes/{noteId}/ignores { word }        -> { words: [...] }
- *   POST /proofing/notes/{noteId}/ignores/remove { word } -> { words: [...] }
- *
- * Every write to a word list answers with the whole list as it now stands, so a
- * caller reconciles its cache from the reply rather than fetching again.
+ * The shapes on the wire are `./types`; the host's side of the same contract is
+ * ProofingDto in the host. Every write to a word list answers with the whole
+ * list as it now stands, so a caller reconciles its cache from the reply rather
+ * than fetching again.
  *
  * `id` is `"<blockSid>:<segmentIndex>"`, offsets are UTF-16 code units local to
  * the segment and `end` is exclusive. A check answers 503 while a dictionary is

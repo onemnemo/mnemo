@@ -92,7 +92,7 @@ describe('opening a note past the chunk threshold', () => {
     expect(h.session.view.state.doc.childCount).toBe(FIRST_CHUNK);
   });
 
-  it('runs the scheduled append at least once, which is what used to never happen', GENEROUS, async () => {
+  it('runs the scheduled append at least once', GENEROUS, async () => {
     const h = openLargeNote();
     const atOpen = h.session.view.state.doc.childCount;
 
