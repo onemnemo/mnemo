@@ -59,11 +59,6 @@ export function usePeekSubject(item: PeekItem | null): PeekSubject {
         title: entry?.title.trim() || t("Notes", "Untitled"),
         openFull: promote("notes", item.id),
       }
-    case "mindmap":
-      return {
-        title: item.title.trim() || t("Mindmap", "UntitledMap"),
-        openFull: promote("mindmap", item.id),
-      }
     case "card":
       return {
         title: t("Flashcards", "PeekCard"),

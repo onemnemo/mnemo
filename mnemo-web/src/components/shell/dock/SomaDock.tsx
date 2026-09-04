@@ -7,6 +7,7 @@ import { FrameButton } from "@/components/shell/topbar/FrameButton"
 import { useT } from "@/i18n/useT"
 import { useShortcutLabel } from "@/keybinds/store"
 import { restoreTextSelection, suppressTextSelection } from "@/lib/dnd/drag-select"
+import { usePeekStore } from "@/peek/store"
 import { useSettingValue } from "@/settings/store"
 import { clampDockWidth, DOCK_MAX_WIDTH, DOCK_MIN_WIDTH, useSomaStore } from "@/stores/soma"
 
@@ -112,6 +113,14 @@ export function SomaDock() {
         <SomaMark size={18} />
         <span className="flex-1 truncate text-[13px] font-medium text-ink">Soma</span>
         <FrameButton icon="common/plus" label={t("Chat", "NewChat")} onClick={newChat} className="size-7" />
+        {/* The conversation moves with it: the peek's store closes this dock as it opens,
+            so there is only ever one composer over the one conversation. */}
+        <FrameButton
+          icon="common/panel-right"
+          label={t("App", "PeekOpenInSidePeek")}
+          onClick={() => usePeekStore.getState().openPeek({ kind: "soma" })}
+          className="size-7"
+        />
         <FrameButton icon="maximize" label={t("Chat", "OpenFullSoma")} onClick={openFull} className="size-7" />
         <FrameButton
           icon="x"

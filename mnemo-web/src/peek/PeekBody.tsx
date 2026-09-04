@@ -12,9 +12,6 @@ const NotePeek = lazy(() => import("./renderers/NotePeek").then((m) => ({ defaul
 const CardPeekPane = lazy(() =>
   import("./renderers/CardPeekPane").then((m) => ({ default: m.CardPeekPane })),
 )
-const MindmapPeek = lazy(() =>
-  import("./renderers/MindmapPeek").then((m) => ({ default: m.MindmapPeek })),
-)
 const SomaPeek = lazy(() => import("./renderers/SomaPeek").then((m) => ({ default: m.SomaPeek })))
 
 /** Surfaces that manage their own scrolling and pinned chrome. */
@@ -41,8 +38,6 @@ function renderItem(item: PeekItem, refresh: number) {
       return <NotePeek noteId={item.id} refresh={refresh} />
     case "card":
       return <CardPeekPane view={item.view} />
-    case "mindmap":
-      return <MindmapPeek mapId={item.id} />
     case "soma":
       return <SomaPeek />
   }
