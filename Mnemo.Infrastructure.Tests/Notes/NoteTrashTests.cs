@@ -55,6 +55,19 @@ public sealed class NoteTrashTests
     }
 
     [Fact]
+    public async Task A_held_note_cannot_be_deleted()
+    {
+        await using var h = new NoteSidMigrationHarness();
+        var note = await NoteAsync(h, "Rock cycle");
+        await h.Store.CaptureNoteAsync(note.NoteId, "e1");
+
+        var deleted = await h.Notes.DeleteNoteAsync(note.NoteId);
+
+        Assert.False(deleted.IsSuccess);
+        Assert.NotNull((await h.Storage.LoadAsync<Note>($"note_{note.NoteId}")).Value);
+    }
+
+    [Fact]
     public async Task Deleting_a_held_note_outright_is_refused()
     {
         await using var h = new NoteSidMigrationHarness();
