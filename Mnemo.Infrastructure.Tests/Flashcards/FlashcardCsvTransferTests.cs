@@ -141,6 +141,32 @@ public sealed class FlashcardCsvTransferTests
     }
 
     [Fact]
+    public async Task PreviewImportAsync_CountsRealCards_MatchingWhatImportCreates()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var library = NewLibrary(h);
+        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+
+        var csvPath = NewCsvPath();
+        await File.WriteAllTextAsync(csvPath,
+            "front,back\n\"Q1\",\"A1\"\n\n\"\",\"orphan\"\n\"Q2\",\"A2\"\n\n\"Q3\",\"A3\"\n");
+        try
+        {
+            var adapter = NewAdapter(h, library, cards);
+            var preview = await adapter.PreviewImportAsync(new ImportExportRequest { FilePath = csvPath });
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = csvPath });
+
+            Assert.True(result.Success, result.ErrorMessage);
+            Assert.Equal(3, preview.DiscoveredCounts["flashcards"]);
+            Assert.Equal(result.ProcessedCounts["flashcards"], preview.DiscoveredCounts["flashcards"]);
+        }
+        finally
+        {
+            File.Delete(csvPath);
+        }
+    }
+
+    [Fact]
     public async Task Import_ManyUnreadableRows_WarnsFiveTimesAndCountsTheRest()
     {
         await using var h = new FlashcardStoreHarness();

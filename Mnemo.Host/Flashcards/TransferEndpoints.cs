@@ -37,14 +37,14 @@ public static class TransferEndpoints
     private const string PackageFormatId = "flashcards.mnemo";
 
     /// <summary>
-    /// Formats whose <em>preview</em> genuinely opens the file and counts cards. Only the Anki
-    /// adapter does; the CSV adapter returns a hardcoded 1 without reading anything, and a package
-    /// reports its manifest's deck count. Anything not listed reports no count before importing
-    /// rather than a number the import would then contradict.
+    /// Formats whose <em>preview</em> genuinely opens the file and counts cards, rather than
+    /// reporting the manifest's deck count or nothing at all. Anything not listed reports no count
+    /// before importing rather than a number the import would then contradict.
     /// </summary>
     private static readonly HashSet<string> FormatsWithTrustedPreview = new(StringComparer.OrdinalIgnoreCase)
     {
         "flashcards.anki",
+        "flashcards.csv",
     };
 
     public static void MapFlashcardTransfer(this IEndpointRouteBuilder endpoints)

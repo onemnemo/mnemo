@@ -45,15 +45,53 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
     /// <summary>A row carries no id, so nothing in a file can collide with anything already saved.</summary>
     public bool SupportsConflictPolicy => false;
 
-    public Task<ImportExportPreview> PreviewImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
+    public async Task<ImportExportPreview> PreviewImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(new ImportExportPreview
+        var cardCount = await CountImportableRowsAsync(request.FilePath, cancellationToken).ConfigureAwait(false);
+
+        return new ImportExportPreview
         {
             CanImport = true,
             ContentType = ContentType,
             FormatId = FormatId,
-            DiscoveredCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["flashcards"] = 1 }
-        });
+            DiscoveredCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["flashcards"] = cardCount }
+        };
+    }
+
+    /// <summary>
+    /// Counts the rows the import would turn into a card: every non-blank record after an
+    /// optional header, excluding rows whose mapped front cell is empty. Opens its own reader,
+    /// because <see cref="CsvRecordReader"/> is forward-only and cannot be shared with the reader
+    /// <see cref="ImportAsync"/> uses.
+    /// </summary>
+    private static async Task<int> CountImportableRowsAsync(string filePath, CancellationToken cancellationToken)
+    {
+        using var text = new StreamReader(filePath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        var reader = new CsvRecordReader(text);
+        var frontColumn = 0;
+        var atFirstRecord = true;
+        var count = 0;
+
+        await foreach (var record in reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (record.Fields.All(string.IsNullOrWhiteSpace))
+                continue;
+
+            if (atFirstRecord)
+            {
+                atFirstRecord = false;
+                if (TryReadHeader(record.Fields, out _, out var headerFront, out _))
+                {
+                    frontColumn = headerFront;
+                    continue;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(Cell(record.Fields, frontColumn)))
+                count++;
+        }
+
+        return count;
     }
 
     public async Task<ImportExportResult> ImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
