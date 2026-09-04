@@ -49,9 +49,11 @@ export function ProofingLanguagePicker({
             <div className="[&>*+*]:border-t [&>*+*]:border-line-soft">
               {groups.installed.map((entry) => (
                 <div key={entry.language.id} className="flex items-center gap-4 py-2.5">
+                  {/* No state caption here. Whether a dictionary this machine already has is
+                      loaded right now says nothing about whether you want to write in it, and
+                      "Preparing" on a language you have not added yet reads as a fault. */}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13.5px] text-ink">{labelOf(entry.language, languages)}</p>
-                    <p className="mt-0.5 text-[12px] text-ink-3">{describeState(entry.language, st, shipped)}</p>
                   </div>
                   {entry.active ? (
                     <span className="flex shrink-0 items-center gap-1.5 text-[12.5px] text-ink-3">

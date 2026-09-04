@@ -37,9 +37,16 @@ function keysIn(source: string): string[] {
   return [...source.matchAll(/\bst\("([A-Za-z0-9_.]+)"/g)].map((match) => match[1])
 }
 
-/** The title and subtitle the nav row and the search index read. */
+/**
+ * The title and subtitle the nav row, the page heading and the search index read.
+ *
+ * The schema is the only place they are named: the settings chrome draws the
+ * heading, not the page. Line endings are normalised first, because the checkout
+ * is CRLF and a `\n\n` in the block terminator matches nothing there, which
+ * would leave this scrape returning an empty list.
+ */
 function schemaKeys(source: string): string[] {
-  const category = /\{\s*id: "Proofing",[\s\S]*?\},\s*\n\n/.exec(source)?.[0] ?? ""
+  const category = /\{\s*id: "Proofing",[\s\S]*?\},\s*\n\n/.exec(source.replace(/\r\n/g, "\n"))?.[0] ?? ""
   return [...category.matchAll(/(?:title|subtitle): "([A-Za-z0-9_.]+)"/g)].map((match) => match[1])
 }
 

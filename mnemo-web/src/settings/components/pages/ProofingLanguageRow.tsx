@@ -25,7 +25,8 @@ export function ProofingLanguageRow({
   onRemove,
 }: {
   label: string
-  state: string
+  /** Null on a dictionary that simply works, which needs no caption of its own. */
+  state: string | null
   primary: boolean
   canMoveUp: boolean
   canMoveDown: boolean
@@ -48,7 +49,7 @@ export function ProofingLanguageRow({
           )}
         </span>
       }
-      description={state}
+      description={state ?? undefined}
     >
       <Menu>
         <MenuTrigger asChild>

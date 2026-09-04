@@ -75,8 +75,10 @@ describe("naming a language", () => {
 })
 
 describe("what a dictionary is doing", () => {
-  it("reports ready and loading from the state alone", () => {
-    expect(describeState(CATALOG[0], st, () => true)).toBe("t:ProofingStateReady")
+  // A working dictionary says nothing: "Ready" under every row is noise that buries
+  // the one caption worth reading.
+  it("says nothing about a ready one and reports a loading one", () => {
+    expect(describeState(CATALOG[0], st, () => true)).toBeNull()
     expect(describeState(CATALOG[1], st, () => true)).toBe("t:ProofingStateLoading")
   })
 

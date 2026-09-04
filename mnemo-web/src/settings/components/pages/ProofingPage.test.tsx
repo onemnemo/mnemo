@@ -64,7 +64,6 @@ const BUNDLE = {
   Settings: {
     ProofingCategoryTitle: "Spelling",
     ProofingLanguagesTitle: "Languages you write in",
-    ProofingStateReady: "Ready",
     ProofingStateLoading: "Preparing",
     ProofingSuggestsFirst: "Suggests first",
     ProofingLanguageOptionsFormat: "Options for {0}",
@@ -196,10 +195,12 @@ describe("the spelling page with two languages on", () => {
     expect(textOf(tags[0].closest("div") ?? container)).toContain("English")
   })
 
-  it("puts each language's own state under its name", () => {
+  // A dictionary that works needs no caption; saying "Ready" under every row buried
+  // the one line that matters, which is the dictionary still being read.
+  it("captions only the dictionary that is not ready yet", () => {
     render()
-    expect(textOf(container)).toContain("Ready")
     expect(textOf(container)).toContain("Preparing")
+    expect(textOf(container)).not.toContain("Ready")
   })
 
   it("previews the added words beside their count and a manage button", () => {
