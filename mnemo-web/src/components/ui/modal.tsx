@@ -76,6 +76,10 @@ export function Modal({
       }
 
       if (event.key !== "Escape") return
+      // A menu or a select opened from inside owns the press first, and this listener runs in the
+      // capture phase, so without this the dialog closed out from under an open menu and took the
+      // press with it.
+      if (layerOpenOutside(surfaceRef.current)) return
       // Stopped here so a page that also answers Escape (the board's edit session does) does not
       // act on the same press that closed the dialog.
       event.stopPropagation()
@@ -86,9 +90,14 @@ export function Modal({
   }, [open, onClose])
 
   // Read on the way in rather than on the way out: by then focus is wherever the dialog left it.
+  // Then focus moves inside, to the first control or to the surface itself, because the Tab
+  // trap only guards focus that is already in here and a dialog nobody is standing in is one
+  // the keyboard walks straight past.
   useEffect(() => {
     if (!open) return
     const opener = document.activeElement
+    const surface = surfaceRef.current
+    if (surface && !surface.contains(opener)) (tabbable(surface)[0] ?? surface).focus()
     return () => {
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
     }
@@ -111,6 +120,7 @@ export function Modal({
         aria-label={title}
         data-state="open"
         ref={surfaceRef}
+        tabIndex={-1}
         style={{ width, maxHeight }}
         {...surface}
         className={cn(
@@ -153,6 +163,18 @@ export function Modal({
     </div>,
     document.body,
   )
+}
+
+/**
+ * Whether something that answers Escape itself is open outside the dialog.
+ *
+ * Radix takes its menu and select surfaces out of the tree when they close, so one being in the
+ * document is one being open, and they portal to the body rather than into the dialog they were
+ * opened from.
+ */
+function layerOpenOutside(surface: HTMLElement | null): boolean {
+  const layers = document.querySelectorAll<HTMLElement>('[role="menu"],[role="listbox"]')
+  return [...layers].some((layer) => !surface?.contains(layer))
 }
 
 /** Anything focusable and on screen, in the order Tab would visit it. */
