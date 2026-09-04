@@ -1254,8 +1254,8 @@
     "category.general": "General",
     "global.search": "Búsqueda global",
     "global.search.description": "Abrir la búsqueda en todo el espacio de trabajo.",
-    "global.assistant": "Abrir chat",
-    "global.assistant.description": "Ir al chat de IA desde cualquier lugar.",
+    "global.assistant": "Alternar Soma",
+    "global.assistant.description": "Mostrar u ocultar el panel de Soma sin salir de la página actual.",
     "global.quick-actions": "Acciones rápidas",
     "global.quick-actions.description": "Abrir el catálogo de acciones rápidas (atajos de teclado)."
   },

@@ -1256,8 +1256,8 @@
     "global.search.description": "Open search across the workspace.",
     "global.quick-actions": "Keyboard shortcuts",
     "global.quick-actions.description": "Open the list of every action and the keys it answers to.",
-    "global.assistant": "Open chat",
-    "global.assistant.description": "Jump to the AI chat from anywhere."
+    "global.assistant": "Toggle Soma",
+    "global.assistant.description": "Show or hide the Soma panel without leaving the page you're on."
   },
   "WidgetToday": {
     "Title": "Today",

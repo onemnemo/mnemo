@@ -1254,8 +1254,8 @@
     "category.general": "一般",
     "global.search": "全体検索",
     "global.search.description": "ワークスペース全体で検索を開きます。",
-    "global.assistant": "チャットを開く",
-    "global.assistant.description": "どこからでもAIチャットに移動します。",
+    "global.assistant": "Somaの切り替え",
+    "global.assistant.description": "現在のページを離れずにSomaパネルの表示を切り替えます。",
     "global.quick-actions": "クイックアクション",
     "global.quick-actions.description": "クイックアクションとキーボードショートカットの一覧を開きます。"
   },

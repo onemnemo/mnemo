@@ -2,7 +2,7 @@
  * PasteProgressOverlay reads its three strings from the Keybinds namespace (see the
  * comment on `nt` in PasteProgressOverlay.tsx), because that is where the editor's
  * clipboard action labels, and the paste-staging copy filed alongside them, actually
- * live: Mnemo.UI/Modules/Notes/Translations/en.json. translate.ts returns a miss as
+ * live: Mnemo.Infrastructure/Modules/Notes/Translations/en.json. translate.ts returns a miss as
  * the bare key, so a namespace typo here renders as `editor.clipboard.pasteStagingImage`
  * instead of failing a build. This pins both the namespace and the keys against the
  * real bundle so that regression shows up here first.

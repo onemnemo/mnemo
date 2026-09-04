@@ -38,7 +38,7 @@ export function PasteProgressOverlay() {
 
   // The clipboard paste keys (editor.clipboard.*) live under the Keybinds namespace
   // alongside the rest of the editor's shortcut labels, not under Notes, see
-  // Mnemo.UI/Modules/Notes/Translations/en.json.
+  // Mnemo.Infrastructure/Modules/Notes/Translations/en.json.
   const nt = (key: string, params?: Record<string, string | number>) => t('Keybinds', key, params);
   const label =
     snapshot.total > 1

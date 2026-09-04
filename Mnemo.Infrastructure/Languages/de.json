@@ -1254,8 +1254,8 @@
     "category.general": "Allgemein",
     "global.search": "Globale Suche",
     "global.search.description": "Suche in der gesamten Arbeitsumgebung öffnen.",
-    "global.assistant": "Chat öffnen",
-    "global.assistant.description": "Von überall zum KI-Chat wechseln.",
+    "global.assistant": "Soma umschalten",
+    "global.assistant.description": "Das Soma-Panel ein- oder ausblenden, ohne die aktuelle Seite zu verlassen.",
     "global.quick-actions": "Schnellaktionen",
     "global.quick-actions.description": "Katalog der Schnellaktionen und Tastenkürzel öffnen."
   },
