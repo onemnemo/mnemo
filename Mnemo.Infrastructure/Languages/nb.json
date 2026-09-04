@@ -1254,8 +1254,8 @@
     "category.general": "Generelt",
     "global.search": "Globalt søk",
     "global.search.description": "Åpne søk i hele arbeidsområdet.",
-    "global.assistant": "Åpne chat",
-    "global.assistant.description": "Gå til AI-chatten fra hvor som helst.",
+    "global.assistant": "Slå av/på Soma",
+    "global.assistant.description": "Vis eller skjul Soma-panelet uten å forlate siden du er på.",
     "global.quick-actions": "Hurtighandlinger",
     "global.quick-actions.description": "Åpne katalogen over hurtighandlinger (tastatursnarveier)."
   },

@@ -2,10 +2,10 @@
  * KeyboardPage renders one row per server-side keybind action, and every row's label
  * and category come from t(NS, action.labelKey) / t(NS, action.categoryKey) with
  * NS = "Keybinds" (see labelsFor / groupByCategory in KeyboardPage.tsx). The actions
- * themselves are declared across three separate C# modules (CoreBackendModule,
- * NotesBackendModule, MindmapBackendModule), and nothing connects a manifest
- * entry's DisplayLabelKey / DisplayCategoryKey to whether that key actually
- * exists in a bundle. A new action
+ * themselves are declared across four separate C# modules (CoreBackendModule,
+ * NotesBackendModule, MindmapBackendModule, FlashcardsBackendModule), and nothing
+ * connects a manifest entry's DisplayLabelKey / DisplayCategoryKey to whether that
+ * key actually exists in a bundle. A new action
  * shipped without a translation renders its own id, e.g. `editor.bold`, and its
  * section header renders `category.formatting`: this is the single most visible way
  * the Keyboard page can look broken to a new user, so this test enumerates every
@@ -19,6 +19,7 @@ const PAGE_SOURCE = readRepoText("mnemo-web", "src", "settings", "components", "
 const CORE_MODULE = readRepoText("Mnemo.Infrastructure", "Modules", "Core", "CoreBackendModule.cs")
 const NOTES_MODULE = readRepoText("Mnemo.Infrastructure", "Modules", "Notes", "NotesBackendModule.cs")
 const MINDMAP_MODULE = readRepoText("Mnemo.Infrastructure", "Modules", "Mindmap", "MindmapBackendModule.cs")
+const FLASHCARDS_MODULE = readRepoText("Mnemo.Infrastructure", "Modules", "Flashcards", "FlashcardsBackendModule.cs")
 
 interface ActionLabel {
   actionId: string
@@ -76,12 +77,33 @@ function parseMindmapChords(source: string): ActionLabel[] {
   return ids.map((actionId) => ({ actionId, labelKey: actionId, categoryKey: "category.mindmap" }))
 }
 
+/**
+ * FlashcardsKeybindManifest.Definitions: every entry is `Chords(SessionNamespace |
+ * TestNamespace, "id", ...gestures)`. The local Chords helper always sets
+ * DisplayLabelKey to the action id and DisplayCategoryKey to `category.<namespace>`,
+ * where the namespace argument is a constant rather than a string literal, unlike the
+ * other manifests, so the constants are resolved from their own declarations first.
+ */
+function parseFlashcardsChords(source: string): ActionLabel[] {
+  const namespaces = new Map(
+    [...source.matchAll(/const string (\w+)\s*=\s*"([^"]+)"/g)].map((entry) => [entry[1], entry[2]] as const),
+  )
+  const array = source.match(/Definitions\s*=\s*\[([\s\S]*?)\];/)?.[1] ?? ""
+  const entries = [...array.matchAll(/Chords\((\w+),\s*"([^"]+)"/g)]
+  return entries.map((entry) => ({
+    actionId: entry[2],
+    labelKey: entry[2],
+    categoryKey: `category.${namespaces.get(entry[1]) ?? entry[1]}`,
+  }))
+}
+
 function allKeybindActions(): ActionLabel[] {
   return [
     ...parseExplicitDefinitions(CORE_MODULE),
     ...parseEditorChords(CORE_MODULE),
     ...parseExplicitDefinitions(NOTES_MODULE),
     ...parseMindmapChords(MINDMAP_MODULE),
+    ...parseFlashcardsChords(FLASHCARDS_MODULE),
   ]
 }
 
@@ -101,7 +123,7 @@ describe("KeyboardPage translations", () => {
   it("finds a non-trivial number of actions to check", () => {
     // A parsing regression that silently matched nothing would make every test below
     // pass vacuously.
-    expect(actions.length).toBeGreaterThan(30)
+    expect(actions.length).toBeGreaterThan(50)
   })
 
   it("still resolves its own chrome strings under Keybinds", () => {
