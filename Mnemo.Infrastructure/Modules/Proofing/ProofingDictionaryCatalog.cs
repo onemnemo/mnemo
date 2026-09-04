@@ -133,7 +133,7 @@ public sealed class ProofingDictionaryCatalog
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
             // This runs in the constructor of a singleton that a settings route resolves, so throwing
-            // here answered every settings write with an internal error, not only the proofing ones.
+            // here would answer every settings write with an internal error, not only the proofing ones.
             // A manifest that cannot be read is the same situation as one that is not there: no
             // languages, and the status endpoint says so.
             logger?.Log(LogLevel.Error, LogCategory, $"The proofing dictionary manifest at '{manifestPath}' could not be read.", ex);

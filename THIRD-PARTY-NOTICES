@@ -183,7 +183,9 @@ enumerated individually here; see "What this does not cover" below.
 
   MPL-1.1 / GPL-2.0 / LGPL-2.1 (tri-licensed, choose one)
     WeCantSpell.Hunspell 7.0.1. The package is a C# port of the original Hunspell
-    project and inherits its license; a copy ships with the package's own NuGet
+    project and inherits its license, which is offered under the Mozilla Public
+    License 1.1, the GNU General Public License 2.0 or the GNU Lesser General Public
+    License 2.1 at the recipient's choice; a copy ships with the package's own NuGet
     metadata. Mnemo exercises the Mozilla Public License 1.1 option, whose full text
     ships at LICENSES/MPL-1.1.txt. Per MPL 1.1 section 3.6, the Source Code form of
     this assembly is available under the same license from

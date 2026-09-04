@@ -9,7 +9,7 @@ import { MathText } from "../../MathText"
 /**
  * One card's two sides and its tags, with no chrome of its own.
  *
- * Its own component because a card is read in two places now, the browser's quick look
+ * Its own component because a card is read in two places, the browser's quick look
  * and the side peek, and the reading has to be identical in both: the same MathText the
  * editor and study use, and an attachment this card cannot serve shown as a named,
  * non-interactive pill rather than a broken frame.

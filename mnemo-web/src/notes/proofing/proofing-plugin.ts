@@ -146,7 +146,7 @@ function removedContent(tr: Transaction): boolean {
  * later answer naming that segment would have taken it back. Nothing ever
  * names a segment that is no longer checkable, so a range delete across two
  * blocks, an inline code span over a whole line or a paragraph turned into a
- * block equation each used to strand an underline over text that is not the
+ * block equation would each strand an underline over text that is not the
  * flagged word, for as long as the note stayed open.
  */
 function withoutOrphans(set: DecorationSet, live: ReadonlySet<string>): DecorationSet {

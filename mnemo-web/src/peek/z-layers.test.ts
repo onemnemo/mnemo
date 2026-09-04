@@ -7,9 +7,9 @@
  * fails the day one of them moves.
  *
  * The direction that is not obvious is the one above. Every menu in the app portals to the
- * body, so it compares against the whole app from the root stacking context, and the panel
- * used to win: the peek painted over the tab menu, the tree row menu, and its own options
- * menu, which opens inside its own rectangle over an opaque background.
+ * body, so it compares against the whole app from the root stacking context, and a panel
+ * above the menu tier wins: the peek would paint over the tab menu, the tree row menu, and
+ * its own options menu, which opens inside its own rectangle over an opaque background.
  */
 
 import { describe, expect, it } from "vitest"

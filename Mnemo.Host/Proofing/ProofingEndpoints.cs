@@ -31,7 +31,7 @@ public static class ProofingEndpoints
 
     /// <summary>
     /// Most characters one batch may carry, counted across every paragraph's id and text together.
-    /// Counting only the text left the ids unbounded, and they are echoed back verbatim.
+    /// The ids count too: they are echoed back verbatim, so a bound on the text alone leaves them unbounded.
     /// </summary>
     public const int MaxCharacters = 200_000;
 

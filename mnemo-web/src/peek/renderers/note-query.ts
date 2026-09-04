@@ -17,8 +17,8 @@ import type { NoteDto } from "@/api/types"
  *
  * The refresh counter is part of the key, and that is what makes Refresh a read. A
  * remount alone cannot be one: the entry is never stale and the remount does not ask, and
- * a key change unmounts and remounts inside a single synchronous commit, so the eviction
- * this once relied on is a timer that has no gap to run in. A counter the panel owns is
+ * a key change unmounts and remounts inside a single synchronous commit, so React Query's
+ * own eviction is a timer that has no gap to run in. A counter the panel owns is
  * an entry nothing has fetched yet, which is the only thing that reliably asks the server
  * again. Nothing else moves the document under the reader: this key sits outside
  * `["notes", ...]`, so the invalidation every note mutation runs cannot reach it.

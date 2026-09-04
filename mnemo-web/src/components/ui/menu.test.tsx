@@ -3,8 +3,8 @@
 /**
  * Radix closes a menu after every select, which is wrong for a row that is one
  * tick among several: switching two languages on would cost two trips through
- * the menu. The wrapper used to discard the select event, so `preventDefault`
- * was unreachable from a caller. Checked here because the symptom is a menu
+ * the menu. The wrapper has to hand the select event through, or `preventDefault`
+ * is unreachable from a caller. Checked here because the symptom is a menu
  * that vanishes rather than anything that throws.
  */
 

@@ -9,11 +9,11 @@
  * the cache key silently breaks.
  *
  * The second case counts document walks rather than milliseconds. Placing an
- * answer used to convert every flagged word with a walk from the start of the
- * document, projecting every block it passed, so a note where most words are
- * flagged cost O(issues x blocks) and froze for over a second on one tick. A
- * count is the honest measurement here: it is the same number on every machine
- * and it says exactly which shape the code has.
+ * answer by walking from the start of the document for every flagged word,
+ * projecting every block passed, costs O(issues x blocks) on a note where most
+ * words are flagged and freezes for over a second on one tick. A count is the
+ * honest measurement here: it is the same number on every machine and it says
+ * exactly which shape the code has.
  */
 
 import { EditorState, type Transaction } from 'prosemirror-state';
