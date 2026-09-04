@@ -5,8 +5,8 @@
  *
  * Two spellcheckers on one paragraph underline the same word twice, from two
  * dictionaries that disagree, and only one of them answers to the settings
- * page. So the browser's stands down exactly while Mnemo's is marking, and
- * comes straight back when it is not.
+ * page. So the browser's stands down whenever Mnemo's is marking or the note is
+ * meant to go unchecked, and comes straight back otherwise.
  */
 
 import { StrictMode, act } from 'react';
@@ -22,13 +22,13 @@ import { useSpellcheck } from './useSpellcheck';
 let container: HTMLElement;
 let root: Root;
 
-function Probe({ proofingActive }: { proofingActive: boolean }) {
-  const { spellCheck, lang } = useSpellcheck(proofingActive);
+function Probe({ standDown }: { standDown: boolean }) {
+  const { spellCheck, lang } = useSpellcheck(standDown);
   return <div data-testid="probe" data-spellcheck={String(spellCheck)} data-lang={lang} />;
 }
 
-function render(proofingActive: boolean): void {
-  act(() => root.render(<StrictMode><Probe proofingActive={proofingActive} /></StrictMode>));
+function render(standDown: boolean): void {
+  act(() => root.render(<StrictMode><Probe standDown={standDown} /></StrictMode>));
 }
 
 function read(): { spellCheck: string | null; lang: string | null } {

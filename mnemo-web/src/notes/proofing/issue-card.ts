@@ -109,8 +109,8 @@ function actionButton(iconName: string, label: string): HTMLButtonElement {
 export interface ProofingCardOptions {
   readonly view: EditorView;
   readonly client: ProofingClient;
-  /** The effective language, read at open time so a settings change is picked up. */
-  language(): string;
+  /** The note's languages, read at open time so a settings change is picked up. */
+  languages(): readonly string[];
   readonly noteId: string;
   /** Called after the word stops being checkable, so its other marks can go. */
   onWordResolved(word: string): void;
@@ -373,7 +373,10 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
 
     const addWord = actionButton('common/book-plus', translate('ProofingAddToDictionary'));
     addWord.addEventListener('click', () => {
-      resolveWord(issue.text, client.addPersonalWord(issue.text, options.language()));
+      // Unscoped: from here the answer is "this is a word", not "this is a word
+      // in whichever dictionary happened to flag it", and a note checked in two
+      // languages has no single one to attribute it to anyway.
+      resolveWord(issue.text, client.addPersonalWord(issue.text, null));
     });
 
     const ignore = actionButton('common/eye-off', translate('ProofingIgnoreInNote'));
@@ -415,7 +418,8 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
     const token = requestId;
     void client
       .suggest({
-        language: options.language(),
+        languages: options.languages(),
+        noteId,
         text: issue.segmentText,
         start: issue.segmentStart,
         end: issue.segmentEnd,

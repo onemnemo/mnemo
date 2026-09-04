@@ -232,8 +232,12 @@ export interface SettingsCategory {
 // Mirrors Mnemo.Host/Contracts/SettingsValuesDto.cs and ThemeDto.cs; the C# side
 // is authoritative.
 
-/** The stored value of a settings key: a boolean or a string, matching its registered kind. */
-export type SettingValue = boolean | string
+/**
+ * The stored value of a settings key: a boolean, a string, or a list of strings,
+ * matching the kind the key is registered under. A value sent in another kind is
+ * refused by the PUT rather than coerced.
+ */
+export type SettingValue = boolean | string | readonly string[]
 
 /**
  * A snapshot of the settings the SPA renders. Keys with nothing stored are absent,

@@ -33,12 +33,31 @@ export interface ProofingLanguage {
   readonly license: ProofingLicense;
 }
 
+/** Whether a note follows the active set, carries its own list, or is not checked. */
+export type NoteProofingMode = 'default' | 'custom' | 'off';
+
+export interface NoteProofing {
+  readonly mode: NoteProofingMode;
+  /** What the note stores. Empty in every mode but `custom`. */
+  readonly languages: readonly string[];
+  /** What the note is actually checked in, once the stored list meets what is installed. */
+  readonly effective: readonly string[];
+}
+
+/** What a write to a note's languages says. `languages` is required by `custom` alone. */
+export interface NoteProofingChoice {
+  readonly mode: NoteProofingMode;
+  readonly languages?: readonly string[];
+}
+
 export interface ProofingStatus {
   readonly enabled: boolean;
-  /** The effective language, resolved by the host. The only source of truth for it. */
-  readonly language: string;
+  /** The ordered active set, resolved by the host. The only source of truth for it. */
+  readonly active: readonly string[];
   readonly languages: readonly ProofingLanguage[];
   readonly personalWordCount: number;
+  /** Present only when a note was asked about. */
+  readonly note?: NoteProofing | null;
 }
 
 export interface ProofingFix {
@@ -65,7 +84,8 @@ export interface ProofingParagraph {
 }
 
 export interface ProofingCheckRequest {
-  readonly language: string;
+  /** A word is correct when any of these knows it. The host may only narrow this list. */
+  readonly languages: readonly string[];
   readonly noteId: string | null;
   readonly paragraphs: readonly ProofingParagraph[];
 }
@@ -76,12 +96,14 @@ export interface ProofingParagraphAnswer {
 }
 
 export interface ProofingCheckResponse {
-  readonly language: string;
+  /** The set the host actually checked in, in order. */
+  readonly languages: readonly string[];
   readonly paragraphs: readonly ProofingParagraphAnswer[];
 }
 
 export interface ProofingSuggestRequest {
-  readonly language: string;
+  readonly languages: readonly string[];
+  readonly noteId?: string | null;
   readonly text: string;
   readonly start: number;
   readonly end: number;

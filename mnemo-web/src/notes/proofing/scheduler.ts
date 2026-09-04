@@ -99,7 +99,8 @@ export interface ProofingSchedulerOptions {
   readonly view: EditorView;
   readonly registry: BlockRegistry;
   readonly noteId: string;
-  readonly language: string;
+  /** Ordered, and every one of them ready. A word is correct when any of them knows it. */
+  readonly languages: readonly string[];
   readonly client: ProofingClient;
   readonly schedule?: ProofingSchedule;
   readonly batchSize?: number;
@@ -117,7 +118,9 @@ export interface ProofingScheduler {
 }
 
 export function createProofingScheduler(options: ProofingSchedulerOptions): ProofingScheduler {
-  const { view, registry, noteId, language, client } = options;
+  const { view, registry, noteId, languages, client } = options;
+  /** The set this scheduler exists for, in the form the answer echoes back. */
+  const identity = languages.join(',');
   const schedule = options.schedule ?? idleSchedule;
   const batchSize = Math.min(options.batchSize ?? DEFAULT_BATCH_SIZE, MAX_PARAGRAPHS_PER_REQUEST);
   const debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
@@ -299,7 +302,7 @@ export function createProofingScheduler(options: ProofingSchedulerOptions): Proo
     void client
       .check(
         {
-          language,
+          languages,
           noteId,
           paragraphs: batch.map((segment) => ({ id: segment.id, text: segment.text })),
         },
@@ -346,9 +349,15 @@ export function createProofingScheduler(options: ProofingSchedulerOptions): Proo
 
   function applyAnswers(batch: readonly CheckableSegment[], response: ProofingCheckResponse): void {
     // A language change tears this scheduler down and builds another, so an
-    // answer in a different language describes a document state nothing here
-    // asked about.
-    if (response.language !== language) return;
+    // answer over a different set describes a document state nothing here asked
+    // about. The batch is filed as answered-clean rather than left open,
+    // because a mismatch means the status this was built from is already stale
+    // and its refetch will replace this scheduler outright: re-queuing the
+    // batch here would spend the whole interval asking the same question.
+    if (response.languages.join(',') !== identity) {
+      for (const key of batch.map(keyOf)) answers.set(key, []);
+      return;
+    }
 
     const doc = view.state.doc;
     const live = new Map(checkableSegments(doc, registry).map((segment) => [segment.id, segment]));

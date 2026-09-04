@@ -80,7 +80,7 @@ describe('a full pass over a six hundred block note', () => {
       check(request: ProofingCheckRequest): Promise<ProofingCheckResponse> {
         requests.push(request);
         return Promise.resolve({
-          language: request.language,
+          languages: request.languages,
           paragraphs: request.paragraphs.map((paragraph) => ({ id: paragraph.id, issues: [] })),
         });
       },
@@ -90,7 +90,7 @@ describe('a full pass over a six hundred block note', () => {
       view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule,
       batchSize: BATCH,
@@ -193,7 +193,7 @@ describe('what placing an answer costs', () => {
     const client = {
       check(request: ProofingCheckRequest): Promise<ProofingCheckResponse> {
         return Promise.resolve({
-          language: request.language,
+          languages: request.languages,
           paragraphs: request.paragraphs.map((paragraph) => ({
             id: paragraph.id,
             issues: [...paragraph.text.matchAll(/\p{L}+/gu)].map((match) => ({
@@ -216,7 +216,7 @@ describe('what placing an answer costs', () => {
       view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule,
       batchSize: BATCH,

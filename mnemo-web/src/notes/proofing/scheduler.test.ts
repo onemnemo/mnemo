@@ -75,7 +75,7 @@ type CheckHandler = (request: ProofingCheckRequest) => Promise<ProofingCheckResp
 /** Flags the first word of every paragraph it is asked about. */
 const flagFirstWord: CheckHandler = (request) =>
   Promise.resolve({
-    language: request.language,
+    languages: request.languages,
     paragraphs: request.paragraphs.map((paragraph) => {
       const word = /\p{L}+/u.exec(paragraph.text);
       return {
@@ -99,7 +99,7 @@ const flagFirstWord: CheckHandler = (request) =>
 function flagWords(set: ReadonlySet<string>): CheckHandler {
   return (request) =>
     Promise.resolve({
-      language: request.language,
+      languages: request.languages,
       paragraphs: request.paragraphs.map((paragraph) => ({
         id: paragraph.id,
         issues: [...paragraph.text.matchAll(/\p{L}[\p{L}\d]*/gu)]
@@ -118,7 +118,7 @@ function flagWords(set: ReadonlySet<string>): CheckHandler {
 /** Flags every word, the way an English dictionary reads a German note. */
 const flagEveryWord: CheckHandler = (request) =>
   Promise.resolve({
-    language: request.language,
+    languages: request.languages,
     paragraphs: request.paragraphs.map((paragraph) => ({
       id: paragraph.id,
       issues: [...paragraph.text.matchAll(/\p{L}[\p{L}\d]*/gu)].map((match) => ({
@@ -164,7 +164,7 @@ describe('the proofing scheduler', () => {
       view: host.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
       batchSize: 50,
@@ -197,7 +197,7 @@ describe('the proofing scheduler', () => {
       view: host.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
     });
@@ -240,7 +240,7 @@ describe('the proofing scheduler', () => {
       view: host.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
     });
@@ -259,18 +259,18 @@ describe('the proofing scheduler', () => {
     scheduler.destroy();
   });
 
-  it('drops an answer in a language that is no longer the one being checked', async () => {
+  it('drops an answer over languages that are no longer the ones being checked', async () => {
     const host = fakeView(stateOf(['alpha teh']));
     const clock = manualSchedule();
     const { client } = stubClient((request) =>
-      flagFirstWord(request).then((answer) => ({ ...answer, language: 'de-DE' })),
+      flagFirstWord(request).then((answer) => ({ ...answer, languages: ['de-DE'] })),
     );
 
     const scheduler = createProofingScheduler({
       view: host.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
     });
@@ -279,6 +279,41 @@ describe('the proofing scheduler', () => {
     clock.run();
     await flush();
 
+    expect(proofingIssues(host.current())).toHaveLength(0);
+    scheduler.destroy();
+  });
+
+  it('files a mismatched answer rather than asking the same question again', async () => {
+    // The failure this covers is not a dropped answer, it is a loop: a dropped
+    // answer that leaves its batch unanswered puts the same batch back at the
+    // head of the queue, and the host keeps answering the same way, so the
+    // note spends the rest of the session re-asking about one batch.
+    const host = fakeView(stateOf(['alpha teh', 'beta recieve', 'gamma seperate']));
+    const clock = manualSchedule();
+    const { client, requests } = stubClient((request) =>
+      flagFirstWord(request).then((answer) => ({ ...answer, languages: ['en-US', 'es-ES'] })),
+    );
+
+    const scheduler = createProofingScheduler({
+      view: host.view,
+      registry,
+      noteId: 'note',
+      languages: ['en-US'],
+      client,
+      schedule: clock.schedule,
+      batchSize: 1,
+    });
+
+    scheduler.start();
+    // Bounded, because a scheduler that never settles would otherwise hang the
+    // run rather than fail it.
+    for (let attempt = 0; attempt < 50 && clock.pending() > 0; attempt += 1) {
+      clock.run();
+      await flush();
+    }
+
+    expect(clock.pending()).toBe(0);
+    expect(requests).toHaveLength(3);
     expect(proofingIssues(host.current())).toHaveLength(0);
     scheduler.destroy();
   });
@@ -298,7 +333,7 @@ describe('the proofing scheduler', () => {
       view: host.view,
       registry,
       noteId: 'note-a',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
     });
@@ -309,7 +344,7 @@ describe('the proofing scheduler', () => {
 
     scheduler.destroy();
     gate.release?.({
-      language: 'en-US',
+      languages: ['en-US'],
       paragraphs: [{ id: requests[0].paragraphs[0].id, issues: [{ start: 6, end: 9, text: 'teh', kind: 'spelling', tone: 'error' }] }],
     });
     await flush();
@@ -326,7 +361,7 @@ describe('the proofing scheduler', () => {
       view: host.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
     };
@@ -359,7 +394,7 @@ describe('the proofing scheduler', () => {
       view: host.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
       retryMs: 2000,
@@ -400,7 +435,7 @@ describe('the proofing scheduler', () => {
       view: host.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
     });
@@ -428,7 +463,7 @@ describe('the proofing scheduler', () => {
       view: host.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
       batchSize: 50,
@@ -465,7 +500,7 @@ describe('the proofing scheduler', () => {
       view: host.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
       batchSize: 10,
@@ -494,7 +529,7 @@ describe('the proofing scheduler', () => {
       view: host.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
     });
@@ -522,7 +557,7 @@ describe('the proofing scheduler', () => {
       view: host.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
     });
@@ -560,7 +595,7 @@ describe('the proofing scheduler', () => {
       view: host.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client,
       schedule: clock.schedule,
     });

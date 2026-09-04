@@ -84,9 +84,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 /**
  * The base type behind a literal fallback. Without it `useSettingValue(key, "")` reads
  * back as the type `""` rather than `string`, since the fallback is what the type
- * parameter is inferred from.
+ * parameter is inferred from. A list fallback widens the same way, so an empty array
+ * literal does not read back as `never[]`.
  */
-type Widen<T> = T extends string ? string : T extends boolean ? boolean : T
+type Widen<T> = T extends string
+  ? string
+  : T extends boolean
+    ? boolean
+    : T extends readonly string[]
+      ? readonly string[]
+      : T
 
 /** Reads one setting, falling back to the schema default while nothing is stored. */
 export function useSettingValue<T extends SettingValue>(key: string, fallback: T): Widen<T> {

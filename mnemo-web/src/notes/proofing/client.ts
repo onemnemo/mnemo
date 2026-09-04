@@ -7,16 +7,20 @@
  *
  * The contract, as both halves implement it:
  *
- *   GET  /proofing/status
- *        -> { enabled, language, languages: [{ id, name, region, installed,
- *             bundled, state: "ready" | "loading" | "absent", reasonKey?,
- *             license: { name, url } }], personalWordCount }
- *   POST /proofing/check   { language, noteId | null, paragraphs: [{ id, text }] }
- *        -> { language, paragraphs: [{ id, issues: [{ start, end, text, kind,
+ *   GET  /proofing/status   (?noteId=... adds that note's own answer)
+ *        -> { enabled, active: string[], languages: [{ id, name, region,
+ *             installed, bundled, state: "ready" | "loading" | "absent",
+ *             reasonKey?, license: { name, url } }], personalWordCount,
+ *             note: { mode, languages, effective } | null }
+ *   POST /proofing/check   { languages, noteId | null, paragraphs: [{ id, text }] }
+ *        -> { languages, paragraphs: [{ id, issues: [{ start, end, text, kind,
  *             tone: "error" | "unknown", ruleId?, titleKey?, messageKey?,
  *             fixes?: [{ label?, replacement }] }] }] }
- *   POST /proofing/suggest { language, text, start, end, ruleId? }
+ *   POST /proofing/suggest { languages, noteId | null, text, start, end, ruleId? }
  *        -> { suggestions: [{ replacement, label? }] }
+ *   GET  /proofing/notes/{noteId}/languages -> { mode, languages, effective }
+ *   PUT  /proofing/notes/{noteId}/languages { mode, languages? }
+ *        -> { mode, languages, effective }
  *   GET  /proofing/personal -> { words: [{ word, language | null, addedAt }] }
  *   POST /proofing/personal { word, language? }
  *   POST /proofing/personal/remove { word, language? }
@@ -30,10 +34,18 @@
  * the segment and `end` is exclusive. A check answers 503 while a dictionary is
  * still loading; the caller leaves those segments unchecked rather than
  * recording them as clean.
+ *
+ * The `languages` a check sends may only narrow the set the host resolved for
+ * the note, never widen or replace it, and the answer echoes the set actually
+ * used. That is what lets the editor check with the dictionaries already read
+ * while another is still loading, and it is why an answer whose set differs
+ * from the one asked about describes a state the caller no longer holds.
  */
 
 import { apiFetch, apiSend } from '@/api/client';
 import type {
+  NoteProofing,
+  NoteProofingChoice,
   PersonalWords,
   ProofingCheckRequest,
   ProofingCheckResponse,
@@ -43,13 +55,16 @@ import type {
 } from './types';
 
 export interface ProofingClient {
-  status(signal?: AbortSignal): Promise<ProofingStatus>;
+  /** With a note id the answer also carries what that note is checked in. */
+  status(noteId?: string | null, signal?: AbortSignal): Promise<ProofingStatus>;
   check(request: ProofingCheckRequest, signal?: AbortSignal): Promise<ProofingCheckResponse>;
   suggest(request: ProofingSuggestRequest, signal?: AbortSignal): Promise<ProofingSuggestResponse>;
   personal(signal?: AbortSignal): Promise<PersonalWords>;
   addPersonalWord(word: string, language?: string | null): Promise<void>;
   removePersonalWord(word: string, language?: string | null): Promise<void>;
   addNoteIgnore(noteId: string, word: string): Promise<void>;
+  noteLanguages(noteId: string, signal?: AbortSignal): Promise<NoteProofing>;
+  setNoteLanguages(noteId: string, choice: NoteProofingChoice): Promise<NoteProofing>;
 }
 
 /**
@@ -85,34 +100,47 @@ function post(transport: ProofingTransport, path: string, body: unknown): Promis
   });
 }
 
-function postJson<T>(
+function sendJson<T>(
   transport: ProofingTransport,
+  method: 'POST' | 'PUT',
   path: string,
   body: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
   return transport.json<T>(path, {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal,
   });
 }
 
+function noteLanguagesPath(noteId: string): string {
+  return `/proofing/notes/${encodeURIComponent(noteId)}/languages`;
+}
+
 export function createProofingClient(
   transport: ProofingTransport = defaultProofingTransport,
 ): ProofingClient {
   return {
-    status: (signal) => transport.json<ProofingStatus>('/proofing/status', { signal }),
+    status: (noteId, signal) =>
+      transport.json<ProofingStatus>(
+        noteId ? `/proofing/status?noteId=${encodeURIComponent(noteId)}` : '/proofing/status',
+        { signal },
+      ),
     check: (request, signal) =>
-      postJson<ProofingCheckResponse>(transport, '/proofing/check', request, signal),
+      sendJson<ProofingCheckResponse>(transport, 'POST', '/proofing/check', request, signal),
     suggest: (request, signal) =>
-      postJson<ProofingSuggestResponse>(transport, '/proofing/suggest', request, signal),
+      sendJson<ProofingSuggestResponse>(transport, 'POST', '/proofing/suggest', request, signal),
     personal: (signal) => transport.json<PersonalWords>('/proofing/personal', { signal }),
     addPersonalWord: (word, language) => post(transport, '/proofing/personal', { word, language }),
     removePersonalWord: (word, language) =>
       post(transport, '/proofing/personal/remove', { word, language }),
     addNoteIgnore: (noteId, word) =>
       post(transport, `/proofing/notes/${encodeURIComponent(noteId)}/ignores`, { word }),
+    noteLanguages: (noteId, signal) =>
+      transport.json<NoteProofing>(noteLanguagesPath(noteId), { signal }),
+    setNoteLanguages: (noteId, choice) =>
+      sendJson<NoteProofing>(transport, 'PUT', noteLanguagesPath(noteId), choice),
   };
 }
