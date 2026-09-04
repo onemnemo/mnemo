@@ -415,7 +415,7 @@
     "ProofingAddLanguage": "Add a language",
     "ProofingNoLanguages": "No language is switched on",
     "ProofingNoLanguagesDescription": "Nothing is checked until you add one.",
-    "ProofingPickerInstalled": "On this machine",
+    "ProofingPickerInstalled": "Available",
     "ProofingPickerUnavailable": "Not available",
     "ProofingPickerAdd": "Add",
     "ProofingPickerAddFormat": "Add {0}",
@@ -429,8 +429,11 @@
     "ProofingPersonalRemoveFormat": "Remove {0}",
     "ProofingScopeAll": "All languages",
     "ProofingScopeLabelFormat": "Languages {0} applies to",
+    "ProofingScopeAppliesTo": "Applies to",
+    "ProofingPersonalManage": "Manage",
+    "ProofingPersonalAlreadyAdded": "That word is already in your dictionary.",
     "proofing.language.notAvailableYet": "No dictionary ships for this language yet.",
-    "proofing.language.unsupportedByEngine": "The checker cannot read a dictionary for this language.",
+    "proofing.language.unsupportedByEngine": "The checker does not support this language.",
     "proofing.language.filesMissing": "The dictionary files are not on this machine."
   },
   "Onboarding": {

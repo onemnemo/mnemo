@@ -415,7 +415,7 @@
     "ProofingAddLanguage": "言語を追加",
     "ProofingNoLanguages": "有効な言語がありません",
     "ProofingNoLanguagesDescription": "追加するまで何も確認されません。",
-    "ProofingPickerInstalled": "このパソコン内",
+    "ProofingPickerInstalled": "利用できます",
     "ProofingPickerUnavailable": "利用できません",
     "ProofingPickerAdd": "追加",
     "ProofingPickerAddFormat": "{0} を追加",
@@ -429,8 +429,11 @@
     "ProofingPersonalRemoveFormat": "{0} を削除",
     "ProofingScopeAll": "すべての言語",
     "ProofingScopeLabelFormat": "{0} を適用する言語",
+    "ProofingScopeAppliesTo": "適用対象",
+    "ProofingPersonalManage": "管理",
+    "ProofingPersonalAlreadyAdded": "その単語はすでに辞書に登録されています。",
     "proofing.language.notAvailableYet": "この言語の辞書はまだ同梱されていません。",
-    "proofing.language.unsupportedByEngine": "この言語の辞書はスペルチェックが読み取れません。",
+    "proofing.language.unsupportedByEngine": "スペルチェックはこの言語に対応していません。",
     "proofing.language.filesMissing": "辞書ファイルがこのパソコンにありません。"
   },
   "Onboarding": {

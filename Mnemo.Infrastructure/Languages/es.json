@@ -415,7 +415,7 @@
     "ProofingAddLanguage": "Añadir un idioma",
     "ProofingNoLanguages": "No hay ningún idioma activado",
     "ProofingNoLanguagesDescription": "No se revisa nada hasta que añadas uno.",
-    "ProofingPickerInstalled": "En este equipo",
+    "ProofingPickerInstalled": "Disponible",
     "ProofingPickerUnavailable": "No disponible",
     "ProofingPickerAdd": "Añadir",
     "ProofingPickerAddFormat": "Añadir {0}",
@@ -429,8 +429,11 @@
     "ProofingPersonalRemoveFormat": "Quitar {0}",
     "ProofingScopeAll": "Todos los idiomas",
     "ProofingScopeLabelFormat": "Idiomas a los que se aplica {0}",
+    "ProofingScopeAppliesTo": "Se aplica a",
+    "ProofingPersonalManage": "Gestionar",
+    "ProofingPersonalAlreadyAdded": "Esa palabra ya está en tu diccionario.",
     "proofing.language.notAvailableYet": "Todavía no se incluye ningún diccionario para este idioma.",
-    "proofing.language.unsupportedByEngine": "El corrector no puede leer un diccionario para este idioma.",
+    "proofing.language.unsupportedByEngine": "El corrector no admite este idioma.",
     "proofing.language.filesMissing": "Los archivos del diccionario no están en este equipo."
   },
   "Onboarding": {

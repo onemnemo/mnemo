@@ -13,10 +13,10 @@
  * change to the global set moves all of them.
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { createProofingClient, type ProofingClient } from './client';
-import type { ProofingStatus } from './types';
+import type { PersonalWords, ProofingStatus } from './types';
 
 export const PROOFING_STATUS_KEY = ['proofing', 'status'] as const;
 export const PROOFING_PERSONAL_KEY = ['proofing', 'personal'] as const;
@@ -76,4 +76,52 @@ export function useInvalidateProofing(): () => void {
     void client.invalidateQueries({ queryKey: PROOFING_STATUS_KEY });
     void client.invalidateQueries({ queryKey: PROOFING_PERSONAL_KEY });
   };
+}
+
+/**
+ * The writes to the personal word list.
+ *
+ * Every host reply carries the whole list as it now stands, so success
+ * reconciles PROOFING_PERSONAL_KEY straight from the answer with no follow-up
+ * fetch. It deliberately never touches PROOFING_STATUS_KEY: the editor and the
+ * language picker read that, and a personal word is not a language change, so
+ * the old code's full status refetch on every add was pure waste. A failure
+ * rereads the word list alone to settle the cache back to the host's truth.
+ */
+function usePersonalWordWrite<V>(run: (vars: V) => Promise<PersonalWords>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: run,
+    onSuccess: (words) => client.setQueryData(PROOFING_PERSONAL_KEY, words),
+    onError: () => {
+      void client.invalidateQueries({ queryKey: PROOFING_PERSONAL_KEY });
+    },
+  });
+}
+
+export function useAddPersonalWord() {
+  return usePersonalWordWrite<{ word: string; language?: string | null }>(({ word, language }) =>
+    proofingClient.addPersonalWord(word, language),
+  );
+}
+
+export function useRemovePersonalWord() {
+  return usePersonalWordWrite<{ word: string; language: string | null }>(({ word, language }) =>
+    proofingClient.removePersonalWord(word, language),
+  );
+}
+
+/**
+ * A scope change, as the two calls the host actually offers: add at the new
+ * scope, then drop the old. The order is load-bearing. A failure between them
+ * leaves the word under both scopes rather than under neither, and the write's
+ * own onError reread then settles the list.
+ */
+export function useRescopePersonalWord() {
+  return usePersonalWordWrite<{ word: string; from: string | null; to: string | null }>(
+    async ({ word, from, to }) => {
+      await proofingClient.addPersonalWord(word, to);
+      return proofingClient.removePersonalWord(word, from);
+    },
+  );
 }

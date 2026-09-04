@@ -22,8 +22,8 @@
  *   PUT  /proofing/notes/{noteId}/languages { mode, languages? }
  *        -> { mode, languages, effective }
  *   GET  /proofing/personal -> { words: [{ word, language | null, addedAt }] }
- *   POST /proofing/personal { word, language? }
- *   POST /proofing/personal/remove { word, language? }
+ *   POST /proofing/personal { word, language? }         -> { words: [...] }
+ *   POST /proofing/personal/remove { word, language? }  -> { words: [...] }
  *   POST /proofing/notes/{noteId}/ignores { word }
  *
  * The host also serves a read and a removal for a note's ignore list. Nothing
@@ -60,8 +60,9 @@ export interface ProofingClient {
   check(request: ProofingCheckRequest, signal?: AbortSignal): Promise<ProofingCheckResponse>;
   suggest(request: ProofingSuggestRequest, signal?: AbortSignal): Promise<ProofingSuggestResponse>;
   personal(signal?: AbortSignal): Promise<PersonalWords>;
-  addPersonalWord(word: string, language?: string | null): Promise<void>;
-  removePersonalWord(word: string, language?: string | null): Promise<void>;
+  /** Both answer with the whole list as it now stands, so a caller updates its cache from the reply. */
+  addPersonalWord(word: string, language?: string | null): Promise<PersonalWords>;
+  removePersonalWord(word: string, language?: string | null): Promise<PersonalWords>;
   addNoteIgnore(noteId: string, word: string): Promise<void>;
   noteLanguages(noteId: string, signal?: AbortSignal): Promise<NoteProofing>;
   setNoteLanguages(noteId: string, choice: NoteProofingChoice): Promise<NoteProofing>;
@@ -133,9 +134,10 @@ export function createProofingClient(
     suggest: (request, signal) =>
       sendJson<ProofingSuggestResponse>(transport, 'POST', '/proofing/suggest', request, signal),
     personal: (signal) => transport.json<PersonalWords>('/proofing/personal', { signal }),
-    addPersonalWord: (word, language) => post(transport, '/proofing/personal', { word, language }),
+    addPersonalWord: (word, language) =>
+      sendJson<PersonalWords>(transport, 'POST', '/proofing/personal', { word, language }),
     removePersonalWord: (word, language) =>
-      post(transport, '/proofing/personal/remove', { word, language }),
+      sendJson<PersonalWords>(transport, 'POST', '/proofing/personal/remove', { word, language }),
     addNoteIgnore: (noteId, word) =>
       post(transport, `/proofing/notes/${encodeURIComponent(noteId)}/ignores`, { word }),
     noteLanguages: (noteId, signal) =>

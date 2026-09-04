@@ -134,13 +134,16 @@ export function ProofingPage() {
 
       <Section title={st("ProofingPersonalTitle")}>
         <Row label={st("ProofingPersonalAddedWords")} description={preview}>
-          <Button
-            variant="outline"
-            icon={<AppIcon name="book-open" size={14} strokeWidth={1.7} />}
-            onClick={() => setDialog("words")}
-          >
-            {count}
-          </Button>
+          <div className="flex items-center gap-2.5">
+            <span className="shrink-0 text-[12.5px] text-ink-3 tabular-nums">{count}</span>
+            <Button
+              variant="outline"
+              icon={<AppIcon name="book-open" size={14} strokeWidth={1.7} />}
+              onClick={() => setDialog("words")}
+            >
+              {st("ProofingPersonalManage")}
+            </Button>
+          </div>
         </Row>
       </Section>
 
