@@ -100,6 +100,14 @@
 .notes-proof-card-chip:hover {
   background: var(--solid-hover);
 }
+/* The card is opened from the keyboard as often as from the mouse, and its
+   controls are the only way to reach the two actions that are not a
+   replacement, so the ring is not optional chrome. */
+.notes-proof-card-chip:focus-visible,
+.notes-proof-card-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
 .notes-proof-card-actions {
   display: flex;
   flex-direction: column;

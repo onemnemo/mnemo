@@ -746,6 +746,7 @@
     "TransferScopeAllNotes": "Alle notater"
   },
   "NotesEditor": {
+    "ProofingPausedNotice": "For mange merker for ett notat, så stavekontrollen er satt på pause her",
     "ProofingMisspelledTitle": "Feilstavet",
     "ProofingUnknownWordTitle": "Ukjent ord",
     "ProofingSuggestionsLoading": "Leter etter forslag",

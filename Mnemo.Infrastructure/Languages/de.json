@@ -746,6 +746,7 @@
     "TransferScopeAllNotes": "Alle Notizen"
   },
   "NotesEditor": {
+    "ProofingPausedNotice": "Zu viele Markierungen für eine Notiz, daher pausiert die Rechtschreibprüfung hier",
     "ProofingMisspelledTitle": "Falsch geschrieben",
     "ProofingUnknownWordTitle": "Unbekanntes Wort",
     "ProofingSuggestionsLoading": "Vorschläge werden gesucht",

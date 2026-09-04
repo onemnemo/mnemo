@@ -8,6 +8,8 @@
 
 import type { Node as PMNode } from 'prosemirror-model';
 import { createDocumentMapper } from '../editor/mapper/document';
+import type { LocatedIssue, ProofingIssue } from './proofing-plugin';
+import { checkableSegments, resolveRange } from './segments';
 import { createEditorSchema } from '../editor/schema';
 import { defaultTextStyle, type Block, type InlineSpan } from '../model/types';
 
@@ -41,6 +43,18 @@ export const codeText = (value: string): InlineSpan => ({
   kind: 'text',
   text: value,
   style: { ...defaultTextStyle, code: true },
+});
+
+export const boldText = (value: string): InlineSpan => ({
+  kind: 'text',
+  text: value,
+  style: { ...defaultTextStyle, bold: true },
+});
+
+export const italicText = (value: string): InlineSpan => ({
+  kind: 'text',
+  text: value,
+  style: { ...defaultTextStyle, italic: true },
 });
 
 export const linkText = (value: string, href: string): InlineSpan => ({
@@ -97,4 +111,38 @@ export function tableOf(rows: readonly (readonly string[])[], sidPrefix: string)
       }),
     ),
   });
+}
+
+/** Every segment id the document currently has, as an answer meta carries them. */
+export function liveSegmentIds(doc: PMNode): string[] {
+  return checkableSegments(doc, registry).map((segment) => segment.id);
+}
+
+/** The answer a stubbed check would give for one word, already located. */
+export function locatedIssueFor(
+  doc: PMNode,
+  sid: string,
+  word: string,
+  over: Partial<ProofingIssue> = {},
+): LocatedIssue {
+  const segment = checkableSegments(doc, registry).find((entry) => entry.sid === sid);
+  if (!segment) throw new Error(`no segment for ${sid}`);
+  const start = segment.text.indexOf(word);
+  if (start < 0) throw new Error(`"${word}" is not in ${sid}`);
+  const range = resolveRange(doc, segment, start, start + word.length, word);
+  if (!range) throw new Error(`could not resolve "${word}"`);
+  return {
+    from: range.from,
+    to: range.to,
+    issue: {
+      segmentId: segment.id,
+      text: word,
+      kind: 'spelling',
+      tone: 'error',
+      segmentText: segment.text,
+      segmentStart: start,
+      segmentEnd: start + word.length,
+      ...over,
+    },
+  };
 }

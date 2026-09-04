@@ -746,6 +746,7 @@
     "TransferScopeAllNotes": "All notes"
   },
   "NotesEditor": {
+    "ProofingPausedNotice": "Too many marks for one note, so spelling is paused here",
     "ProofingMisspelledTitle": "Misspelled",
     "ProofingUnknownWordTitle": "Unknown word",
     "ProofingSuggestionsLoading": "Finding suggestions",

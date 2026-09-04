@@ -17,7 +17,6 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { projectDocument } from '../editor/projection/document';
 import {
   blockOf,
   codeText,
@@ -87,13 +86,12 @@ function wordsOf(value: string): { start: number; end: number; text: string }[] 
 describe('resolving an answer against the document it was asked about', () => {
   it('lands every stubbed issue on a range holding exactly the flagged text', () => {
     const doc = mixedDocument();
-    const projection = projectDocument(doc, registry);
     const segments = checkableSegments(doc, registry);
 
     let checked = 0;
     for (const segment of segments) {
       for (const word of wordsOf(segment.text)) {
-        const range = resolveRange(doc, projection, segment, word.start, word.end, word.text);
+        const range = resolveRange(doc, segment, word.start, word.end, word.text);
         expect(range, `${segment.id} "${word.text}"`).not.toBeNull();
         if (!range) continue;
         expect(doc.textBetween(range.from, range.to)).toBe(word.text);
@@ -122,26 +120,24 @@ describe('resolving an answer against the document it was asked about', () => {
 
   it('drops an issue whose text no longer matches the document', () => {
     const doc = mixedDocument();
-    const projection = projectDocument(doc, registry);
     const segment = checkableSegments(doc, registry).find((entry) => entry.sid === 'head');
     expect(segment).toBeDefined();
     if (!segment) return;
 
     // The same offsets, a different word: the answer describes text that has
     // been edited away, and applying it would underline whatever moved in.
-    expect(resolveRange(doc, projection, segment, 0, 8, 'Reaction')).not.toBeNull();
-    expect(resolveRange(doc, projection, segment, 0, 8, 'Reacshun')).toBeNull();
+    expect(resolveRange(doc, segment, 0, 8, 'Reaction')).not.toBeNull();
+    expect(resolveRange(doc, segment, 0, 8, 'Reacshun')).toBeNull();
   });
 
   it('drops an issue whose range covers an atom, whose text is not there to replace', () => {
     const doc = mixedDocument();
-    const projection = projectDocument(doc, registry);
     const segment = checkableSegments(doc, registry).find((entry) => entry.sid === 'prose');
     expect(segment).toBeDefined();
     if (!segment) return;
 
     const latex = '\\frac{dc}{dt}';
     const at = 'The rate '.length;
-    expect(resolveRange(doc, projection, segment, at, at + latex.length, latex)).toBeNull();
+    expect(resolveRange(doc, segment, at, at + latex.length, latex)).toBeNull();
   });
 });
