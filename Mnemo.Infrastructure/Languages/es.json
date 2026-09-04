@@ -726,6 +726,13 @@
     "TransferScopeAllNotes": "Todas las notas"
   },
   "NotesEditor": {
+    "ProofingMisspelledTitle": "Mal escrito",
+    "ProofingUnknownWordTitle": "Palabra desconocida",
+    "ProofingSuggestionsLoading": "Buscando sugerencias",
+    "ProofingNoSuggestions": "Sin sugerencias",
+    "ProofingAddToDictionary": "Añadir al diccionario",
+    "ProofingIgnoreInNote": "Ignorar en esta nota",
+    "ProofingCardLabel": "Ortografía",
     "Assist": "Asistente",
     "BoldTooltip": "Negrita (Ctrl+B)",
     "ItalicTooltip": "Cursiva (Ctrl+I)",

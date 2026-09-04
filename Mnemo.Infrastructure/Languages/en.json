@@ -726,6 +726,13 @@
     "TransferScopeAllNotes": "All notes"
   },
   "NotesEditor": {
+    "ProofingMisspelledTitle": "Misspelled",
+    "ProofingUnknownWordTitle": "Unknown word",
+    "ProofingSuggestionsLoading": "Finding suggestions",
+    "ProofingNoSuggestions": "No suggestions",
+    "ProofingAddToDictionary": "Add to dictionary",
+    "ProofingIgnoreInNote": "Ignore in this note",
+    "ProofingCardLabel": "Spelling",
     "Assist": "Assist",
     "BoldTooltip": "Bold (Ctrl+B)",
     "ItalicTooltip": "Italic (Ctrl+I)",

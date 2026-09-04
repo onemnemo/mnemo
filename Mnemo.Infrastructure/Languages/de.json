@@ -726,6 +726,13 @@
     "TransferScopeAllNotes": "Alle Notizen"
   },
   "NotesEditor": {
+    "ProofingMisspelledTitle": "Falsch geschrieben",
+    "ProofingUnknownWordTitle": "Unbekanntes Wort",
+    "ProofingSuggestionsLoading": "Vorschläge werden gesucht",
+    "ProofingNoSuggestions": "Keine Vorschläge",
+    "ProofingAddToDictionary": "Zum Wörterbuch hinzufügen",
+    "ProofingIgnoreInNote": "In dieser Notiz ignorieren",
+    "ProofingCardLabel": "Rechtschreibung",
     "Assist": "Assistent",
     "BoldTooltip": "Fett (Strg+B)",
     "ItalicTooltip": "Kursiv (Strg+I)",

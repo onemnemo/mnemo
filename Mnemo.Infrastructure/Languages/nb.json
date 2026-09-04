@@ -726,6 +726,13 @@
     "TransferScopeAllNotes": "Alle notater"
   },
   "NotesEditor": {
+    "ProofingMisspelledTitle": "Feilstavet",
+    "ProofingUnknownWordTitle": "Ukjent ord",
+    "ProofingSuggestionsLoading": "Leter etter forslag",
+    "ProofingNoSuggestions": "Ingen forslag",
+    "ProofingAddToDictionary": "Legg til i ordlisten",
+    "ProofingIgnoreInNote": "Ignorer i dette notatet",
+    "ProofingCardLabel": "Stavekontroll",
     "Assist": "Assistent",
     "BoldTooltip": "Fet (Ctrl+B)",
     "ItalicTooltip": "Kursiv (Ctrl+I)",

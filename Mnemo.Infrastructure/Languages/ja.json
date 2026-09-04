@@ -726,6 +726,13 @@
     "TransferScopeAllNotes": "すべてのノート"
   },
   "NotesEditor": {
+    "ProofingMisspelledTitle": "つづりの誤り",
+    "ProofingUnknownWordTitle": "未知の単語",
+    "ProofingSuggestionsLoading": "候補を検索しています",
+    "ProofingNoSuggestions": "候補はありません",
+    "ProofingAddToDictionary": "辞書に追加",
+    "ProofingIgnoreInNote": "このノートでは無視",
+    "ProofingCardLabel": "スペルチェック",
     "Assist": "アシスト",
     "BoldTooltip": "太字 (Ctrl+B)",
     "ItalicTooltip": "斜体 (Ctrl+I)",
