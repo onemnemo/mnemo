@@ -32,8 +32,16 @@ internal sealed class MemorySettings : ISettingsService
         return this;
     }
 
-    public Task<T> GetAsync<T>(string key, T defaultValue = default!)
-        => Task.FromResult(_values.TryGetValue(key, out var value) && value is T typed ? typed : defaultValue);
+    /// <summary>
+    /// Yields before answering, the way a read from storage does. A synchronous answer here lets every
+    /// caller finish its read before any of them reaches an await, so a read-modify-write race cannot
+    /// interleave and a test written to catch one passes with the lock removed.
+    /// </summary>
+    public async Task<T> GetAsync<T>(string key, T defaultValue = default!)
+    {
+        await Task.Yield();
+        return _values.TryGetValue(key, out var value) && value is T typed ? typed : defaultValue;
+    }
 
     public async Task SetAsync<T>(string key, T value)
     {

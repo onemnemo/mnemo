@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Enums;
@@ -60,7 +61,7 @@ public sealed class HunspellProofingEngine : IProofingEngine
         if (words is null || string.IsNullOrEmpty(text))
             return [];
 
-        var tokens = ProofingTokenizer.Tokenize(text);
+        var tokens = ProofingTokenizer.Tokenize(text, ct);
         if (tokens.Count == 0)
             return [];
 
@@ -70,7 +71,7 @@ public sealed class HunspellProofingEngine : IProofingEngine
             ct.ThrowIfCancellationRequested();
 
             var word = text[token.Start..token.End];
-            if (words.Check(word))
+            if (words.Check(Composed(word)))
                 continue;
 
             issues.Add(new ProofingIssue(
@@ -100,11 +101,38 @@ public sealed class HunspellProofingEngine : IProofingEngine
 
         // Suggesting costs roughly six thousand times what checking one word costs, so it runs on a
         // thread pool thread and only ever for the one word the user asked about.
+        var word = Composed(issue.Text);
         var suggestions = await Task.Run(
-            () => words.Suggest(issue.Text).Take(MaxSuggestions).ToArray(),
+            () => words.Suggest(word).Take(MaxSuggestions).ToArray(),
             ct).ConfigureAwait(false);
 
         return [.. suggestions.Select(s => new ProofingFix(s, null))];
+    }
+
+    /// <summary>
+    /// The composed (NFC) form of a word, for the dictionary lookup only.
+    /// <para>
+    /// A word list stores composed forms, so a decomposed one misses every entry and the whole word is
+    /// reported as wrong. macOS hands out decomposed text on several paste and filename paths, which in
+    /// Spanish underlines most of a pasted document. Only the looked-up copy is normalised, never the
+    /// text the offsets index, because composing that would move every offset after the first accent.
+    /// </para>
+    /// </summary>
+    private static string Composed(string word)
+    {
+        try
+        {
+            return word.IsNormalized(NormalizationForm.FormC) ? word : word.Normalize(NormalizationForm.FormC);
+        }
+        catch (ArgumentException)
+        {
+            // Both calls refuse a string holding half a surrogate pair, which a range carried over from
+            // an earlier check can slice out of otherwise valid text. The raw word is the right lookup:
+            // it misses, which is the same answer as for any other word the list does not have. Keeping
+            // the guard here rather than only at the caller means neither path depends on a tokenizer
+            // invariant that lives in another file.
+            return word;
+        }
     }
 
     private async Task<WordList?> LoadAsync(string language, CancellationToken ct)

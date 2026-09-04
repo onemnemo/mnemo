@@ -73,6 +73,12 @@ public static class SettingsKeyRegistry
         // quirk is preserved rather than corrected here.
         new("Editor.Width", SettingValueKind.Text),
 
+        // Proofing.Language is validated on write against the dictionaries this build carries; an
+        // uninstalled tag is a 400. The effective language is still resolved by the proofing status
+        // endpoint, which falls back when nothing is stored.
+        new("Proofing.Enabled", SettingValueKind.Boolean),
+        new("Proofing.Language", SettingValueKind.Text),
+
         new("Markdown.BlockSpacing", SettingValueKind.Text),
         new("Markdown.LineHeight", SettingValueKind.Text),
         new("Markdown.LetterSpacing", SettingValueKind.Text),

@@ -3,7 +3,9 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Services;
+using Mnemo.Core.Services.Proofing;
 using Mnemo.Host.Contracts;
 
 namespace Mnemo.Host.Settings;
@@ -18,6 +20,9 @@ public static class SettingsEndpoints
     // The stored key holding the chosen UI language.
     private const string LanguageSettingKey = "App.Language";
     private const string DefaultLanguage = "en";
+
+    // The proofing language, checked below against what actually shipped.
+    private const string ProofingLanguageKey = "Proofing.Language";
 
     public static void MapSettings(this IEndpointRouteBuilder endpoints)
     {
@@ -70,10 +75,13 @@ public static class SettingsEndpoints
             return new SettingsValuesDto(values, secrets);
         });
 
-        endpoints.MapPut("/api/settings/values/{key}", async (string key, SettingValueDto body, ISettingsService settings) =>
+        endpoints.MapPut("/api/settings/values/{key}", async (string key, SettingValueDto body, ISettingsService settings, IServiceProvider services) =>
         {
             if (!SettingsKeyRegistry.TryGet(key, out var descriptor))
                 return Results.NotFound(new ErrorDto("unknown_setting", $"'{key}' is not an exposed setting."));
+
+            if (RejectUnknownProofingLanguage(key, body.Value, services) is { } rejected)
+                return rejected;
 
             switch (descriptor.Kind)
             {
@@ -91,6 +99,32 @@ public static class SettingsEndpoints
                         $"'{key}' is stored as a {(descriptor.Kind == SettingValueKind.Boolean ? "boolean" : "string")}."));
             }
         });
+    }
+
+    /// <summary>
+    /// Refuses a proofing language with no dictionary behind it, and returns null for every other
+    /// key and every allowed value.
+    /// <para>
+    /// This is the one exposed key whose valid values depend on which dictionaries shipped rather
+    /// than on a fixed list, so the check has to ask the feature. Storing a language nothing can
+    /// check would leave the settings page showing a choice that every check then quietly ignores.
+    /// </para>
+    /// </summary>
+    internal static IResult? RejectUnknownProofingLanguage(string key, JsonElement value, IServiceProvider services)
+    {
+        if (!string.Equals(key, ProofingLanguageKey, StringComparison.Ordinal))
+            return null;
+
+        if (value.ValueKind is not JsonValueKind.String)
+            return null;
+
+        // Resolved here rather than taken as a handler parameter, so that a proofing service which
+        // cannot be constructed fails the one key that needs it instead of every settings write.
+        var proofing = services.GetRequiredService<IProofingService>();
+        var language = value.GetString() ?? string.Empty;
+        return proofing.IsInstalled(language)
+            ? null
+            : Results.BadRequest(new ErrorDto("unknown_proofing_language", $"'{language}' has no installed dictionary."));
     }
 
     /// <summary>
