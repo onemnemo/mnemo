@@ -167,7 +167,7 @@ describe("peek store behaviour", () => {
     closePeekForItem("note", "somebody else")
     expect(usePeekStore.getState().item).toEqual(NOTE)
 
-    closePeekForItem("mindmap", NOTE.id)
+    closePeekForItem("card", NOTE.id)
     expect(usePeekStore.getState().item).toEqual(NOTE)
 
     closePeekForItem("note", NOTE.id)

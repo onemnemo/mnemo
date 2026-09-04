@@ -28,10 +28,14 @@ export type PeekSide = "right" | "left"
  * A card carries its own view rather than an id: there is no endpoint that serves one
  * card, the browse table that opens it already holds the row, and the item is never
  * persisted, so nothing here has to survive a restart.
+ *
+ * No map. The canvas binds window-level key and blur listeners and captures wheel,
+ * pointer and keydown across its pane, so a second one beside the first fights the
+ * first for every gesture, and the library thumbnail that stood in for it showed
+ * nothing the card had not. A map joins when the peek can host a real read-only map.
  */
 export type PeekItem =
   | { readonly kind: "note"; readonly id: string }
-  | { readonly kind: "mindmap"; readonly id: string; readonly title: string }
   | {
       readonly kind: "card"
       readonly id: string

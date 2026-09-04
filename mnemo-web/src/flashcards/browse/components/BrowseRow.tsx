@@ -12,6 +12,7 @@ import {
 import { LEECH_LAPSES } from "@/flashcards/leeches"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
+import { usePeekStore } from "@/peek/store"
 
 import { StateTag, cardStateKind } from "../../bits"
 import { stripMath } from "../../math"
@@ -164,6 +165,16 @@ export function BrowseRow({
       <ContextMenuContent>
         <ContextMenuItem icon="eye" onSelect={() => actions.onPeek(card.id)}>
           {fc("PeekCard")}
+        </ContextMenuItem>
+        <ContextMenuItem
+          icon="common/panel-right"
+          onSelect={() =>
+            usePeekStore
+              .getState()
+              .openPeek({ kind: "card", id: card.id, deckId: card.deckId, deckName, view })
+          }
+        >
+          {t("App", "PeekOpenInSidePeek")}
         </ContextMenuItem>
         <ContextMenuItem icon="flyout/rename" onSelect={() => actions.onEdit(card.id)}>
           {fc("EditCard")}
