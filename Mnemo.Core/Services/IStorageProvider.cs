@@ -22,7 +22,12 @@ public interface IStorageProvider
     /// </summary>
     /// <typeparam name="T">The type of data to load.</typeparam>
     /// <param name="key">The unique key identifying the data.</param>
-    /// <returns>A result containing the loaded data if successful.</returns>
+    /// <returns>
+    /// A result containing the loaded data if successful. A key that is not stored comes back as
+    /// a failure carrying no exception; every other failure attaches the exception that caused
+    /// it. SettingsService.ExistsAsync tells "nothing is stored" apart from "the store could not
+    /// answer" on exactly that distinction, so an implementation must keep it.
+    /// </returns>
     Task<Result<T?>> LoadAsync<T>(string key);
 
     /// <summary>
