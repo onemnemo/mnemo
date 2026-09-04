@@ -617,6 +617,13 @@ internal static class NoteTypstDocumentComposer
         return sb.ToString();
     }
 
+    /// <summary>
+    /// The Typst column width for a stored image, in points: the stored pixel width scaled to
+    /// points and clamped to a sane range. Shared by the uncropped and cropped image paths so a
+    /// stored width renders at the same physical width in both.
+    /// </summary>
+    private static string ImageColumnWidthPt(double width) => Pt((float)Math.Clamp(width * 0.75, 48, 520));
+
     private static void EmitImage(StringBuilder sb, Block block, NotePdfExportOptions options, INoteTypstAssetResolver? assets)
     {
         var payload = MatchedPayload<ImagePayload>(block);
@@ -635,7 +642,7 @@ internal static class NoteTypstDocumentComposer
 
         var captionSpans = GetImageCaptionSpans(block, alt);
         var widthAttr = payload is { Width: > 0 }
-            ? $", width: {Pt((float)Math.Clamp(payload.Width * 0.75, 48, 520))}"
+            ? $", width: {ImageColumnWidthPt(payload.Width)}"
             : string.Empty;
 
         sb.Append("#align(").Append(align).Append(")[");
@@ -669,7 +676,7 @@ internal static class NoteTypstDocumentComposer
     private static void AppendCroppedImage(StringBuilder sb, string resolved, ImageCrop crop, double width)
     {
         var frame = width > 0
-            ? Pt((float)Math.Clamp(width * 0.75, 48, 520))
+            ? ImageColumnWidthPt(width)
             : "size.width";
 
         sb.Append("#layout(size => { let fw = ").Append(frame)
