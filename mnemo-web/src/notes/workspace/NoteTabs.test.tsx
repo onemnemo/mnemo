@@ -1,15 +1,17 @@
 // @vitest-environment jsdom
 
 /**
- * Keyboard reachability for the tab strip. Before this, a tab's whole switch
- * surface was a `<div onClick>` with no `tabIndex` and no `onKeyDown`, so a
- * keyboard user could reach the close button on a tab but never the tab
- * itself: Tab skipped straight over it. Checked here rather than left to a
- * visual read, since a missing tab stop leaves nothing on screen to notice.
+ * Keyboard reachability for the tab strip, and the right-click menu that hangs
+ * off each tab. Before this, a tab's whole switch surface was a `<div onClick>`
+ * with no `tabIndex` and no `onKeyDown`, so a keyboard user could reach the
+ * close button on a tab but never the tab itself: Tab skipped straight over it.
+ * Checked here rather than left to a visual read, since a missing tab stop
+ * leaves nothing on screen to notice.
  *
- * The harness re-renders on every select, the way the real workspace does by
- * feeding `activeId` back from its own state, so the roving tabindex is
- * checked across an actual update and not just at a single fixed render.
+ * The harness re-renders on every select and owns the tab list, the way the real
+ * workspace does by feeding `activeId` and the derived tabs back from its own
+ * state, so the roving tabindex and the focus a close leaves behind are checked
+ * across an actual update and not just at a single fixed render.
  */
 
 import { act, useState } from 'react';
@@ -17,6 +19,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NoteTabs, type NoteTab } from './NoteTabs';
+import { tabsToClose, type TabCloseScope } from './tabs';
 
 vi.mock('@/i18n/useT', () => ({ useT: () => (_ns: string, key: string) => key }));
 
@@ -32,6 +35,7 @@ let container: HTMLElement;
 let root: Root;
 let selected: string[];
 let closed: string[];
+let scoped: { id: string; scope: TabCloseScope }[];
 
 beforeEach(() => {
   container = document.createElement('div');
@@ -39,6 +43,7 @@ beforeEach(() => {
   root = createRoot(container);
   selected = [];
   closed = [];
+  scoped = [];
 });
 
 afterEach(() => {
@@ -46,18 +51,29 @@ afterEach(() => {
   container.remove();
 });
 
-/** A minimal stand-in for the workspace: owns `activeId`, feeds it straight back in. */
+/** A minimal stand-in for the workspace: owns `activeId` and the strip, feeds both straight back in. */
 function Harness({ initial }: { initial: string }) {
   const [activeId, setActiveId] = useState(initial);
+  const [list, setList] = useState<readonly NoteTab[]>(tabs);
   return (
     <NoteTabs
-      tabs={tabs}
+      tabs={list}
       activeId={activeId}
       onSelect={(id) => {
         selected.push(id);
         setActiveId(id);
       }}
-      onClose={(id) => closed.push(id)}
+      onClose={(id) => {
+        closed.push(id);
+        setList((current) => current.filter((tab) => tab.id !== id));
+      }}
+      onCloseScope={(id, scope) => {
+        scoped.push({ id, scope });
+        setList((current) => {
+          const gone = new Set(tabsToClose(current.map((tab) => tab.id), id, scope));
+          return current.filter((tab) => !gone.has(tab.id));
+        });
+      }}
       onReorder={() => {}}
     />
   );
@@ -77,6 +93,35 @@ function keydown(el: HTMLElement, key: string): void {
   act(() => {
     el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
   });
+}
+
+/**
+ * A menu settles over two turns: it mounts on one and hands focus back from a
+ * timeout on the next, and the focus the strip moves has to survive that.
+ */
+async function settle(): Promise<void> {
+  await act(async () => {});
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+/** The press a right-click makes, and the one Shift+F10 makes without any press at all. */
+function openContextMenu(el: HTMLElement): void {
+  act(() => {
+    el.focus();
+    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  });
+}
+
+function menuItems(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+}
+
+function chooseMenuItem(label: string): void {
+  const item = menuItems().find((el) => el.textContent === label);
+  expect(item, `no menu item labelled ${label}`).not.toBeUndefined();
+  act(() => item!.click());
 }
 
 describe('NoteTabs keyboard reachability', () => {
@@ -135,5 +180,83 @@ describe('NoteTabs keyboard reachability', () => {
     expect(closed).toEqual(['b']);
     // The close click stops its own propagation, so it never also selects.
     expect(selected).toEqual([]);
+  });
+});
+
+describe('NoteTabs context menu', () => {
+  it("keeps the tabs as the tablist's own children, so the menu costs no structure", () => {
+    mount('a');
+    const bar = container.querySelector<HTMLElement>('[role="tablist"]')!;
+    const own = [...bar.children].filter((child) => child.getAttribute('role') === 'tab');
+    expect(own.length).toBe(tabs.length);
+  });
+
+  it('opens on a bare contextmenu event, which is all the keyboard sends', () => {
+    mount('a');
+    openContextMenu(tabElements()[1]);
+    expect(menuItems().map((el) => el.textContent)).toEqual([
+      'CloseTab',
+      'CloseOtherTabs',
+      'CloseTabsToTheLeft',
+      'CloseTabsToTheRight',
+    ]);
+  });
+
+  it('greys out the verbs the tab has nothing to act on', () => {
+    mount('a');
+    openContextMenu(tabElements()[0]);
+    const disabled = menuItems()
+      .filter((el) => el.getAttribute('aria-disabled') === 'true')
+      .map((el) => el.textContent);
+    expect(disabled).toEqual(['CloseTabsToTheLeft']);
+  });
+
+  it('still roves with the arrows once a menu has been up', async () => {
+    mount('b');
+    openContextMenu(tabElements()[1]);
+    expect(tabElements()[1].tabIndex).toBe(0);
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    await settle();
+    expect(menuItems()).toEqual([]);
+
+    keydown(tabElements()[1], 'ArrowRight');
+    expect(selected).toEqual(['c']);
+  });
+
+  it('leaves focus on a tab after closing the one the menu was raised on', async () => {
+    mount('b');
+    openContextMenu(tabElements()[1]);
+    chooseMenuItem('CloseTab');
+    await settle();
+
+    expect(closed).toEqual(['b']);
+    // Radix hands focus back to the trigger, and the trigger is the tab that was
+    // just unmounted, so without a move of its own the keyboard lands on nothing.
+    expect(document.activeElement?.getAttribute('data-tab-id')).toBe('c');
+  });
+
+  it('closes the rest and keeps focus on the tab that was kept', async () => {
+    mount('a');
+    openContextMenu(tabElements()[2]);
+    chooseMenuItem('CloseOtherTabs');
+    await settle();
+
+    expect(scoped).toEqual([{ id: 'c', scope: 'others' }]);
+    expect(tabElements().map((el) => el.dataset.tabId)).toEqual(['c']);
+    expect(document.activeElement?.getAttribute('data-tab-id')).toBe('c');
+  });
+
+  it('closes only one side and keeps focus on the tab the menu was raised on', async () => {
+    mount('a');
+    openContextMenu(tabElements()[1]);
+    chooseMenuItem('CloseTabsToTheRight');
+    await settle();
+
+    expect(scoped).toEqual([{ id: 'b', scope: 'right' }]);
+    expect(tabElements().map((el) => el.dataset.tabId)).toEqual(['a', 'b']);
+    expect(document.activeElement?.getAttribute('data-tab-id')).toBe('b');
   });
 });

@@ -43,9 +43,9 @@ function unmount() {
 }
 
 /** A synthetic press event carrying only what the hook reads. */
-function pressEvent(x: number, y: number): Parameters<PointerDrag<Handle, Target>['press']>[0] {
+function pressEvent(x: number, y: number, button = 0): Parameters<PointerDrag<Handle, Target>['press']>[0] {
   const target = document.createElement('button');
-  return { button: 0, pointerType: 'mouse', pointerId: 1, clientX: x, clientY: y, target } as never;
+  return { button, pointerType: 'mouse', pointerId: 1, clientX: x, clientY: y, target } as never;
 }
 
 function windowEvent(type: string, x: number, y: number) {
@@ -174,6 +174,18 @@ describe('usePointerDrag state machine', () => {
     expect(api!.suppressClick('a')).toBe(true);
     // The suppression is spent; a second click is a real one.
     expect(api!.suppressClick('a')).toBe(false);
+  });
+
+  it('ignores anything but the left button, so a right-click menu never arms a drag', () => {
+    const onDrop = vi.fn();
+    render(baseOptions({ onDrop }));
+    act(() => {
+      api!.press(pressEvent(100, 100, 2), { id: 'a' });
+    });
+    fire(windowEvent('pointermove', 140, 140));
+    expect(api!.handle).toBeNull();
+    fire(windowEvent('pointerup', 140, 140));
+    expect(onDrop).not.toHaveBeenCalled();
   });
 
   it('ignores a press that starts inside an ignored selector', () => {
