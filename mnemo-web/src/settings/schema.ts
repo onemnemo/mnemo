@@ -134,26 +134,6 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
             defaultValue: true,
           },
           {
-            kind: "toggle",
-            key: "Editor.SpellCheck",
-            title: "SpellCheck",
-            description: "SpellCheckDescription",
-            defaultValue: true,
-          },
-          {
-            kind: "dropdown",
-            key: "Editor.SpellCheckLanguages",
-            title: "SpellCheckLanguages",
-            description: "SpellCheckLanguagesDescription",
-            defaultValue: "en",
-            options: [
-              { value: "en", label: "SpellCheckLanguageEnglish" },
-              { value: "de", label: "SpellCheckLanguageGerman" },
-              { value: "es", label: "SpellCheckLanguageSpanish" },
-              { value: "nb", label: "SpellCheckLanguageNorwegianBokmal" },
-            ],
-          },
-          {
             kind: "slider",
             key: "Editor.Width",
             title: "EditorWidth",

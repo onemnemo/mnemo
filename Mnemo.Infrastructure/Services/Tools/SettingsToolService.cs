@@ -26,6 +26,11 @@ public sealed class SettingsToolService
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["theme"] = ThemeSettingKey,
+            // "Turn spell check off" has to reach the switch that governs both checkers, not
+            // the browser fallback that shares its name.
+            ["spellcheck"] = "Proofing.Enabled",
+            ["spell check"] = "Proofing.Enabled",
+            ["spelling"] = "Proofing.Enabled",
         };
 
     private static readonly IReadOnlyDictionary<string, SettingDescriptor> Catalog = new Dictionary<string, SettingDescriptor>
@@ -39,9 +44,10 @@ public sealed class SettingsToolService
         ["User.DisplayName"] = new("User", true, "John Doe", v => v?.ToString() ?? "John Doe"),
         ["User.ProfilePicture"] = new("User", false, string.Empty, v => v?.ToString() ?? string.Empty),
         ["Editor.AutoSave"] = new("Editor", true, true, CoerceBool),
-        ["Editor.SpellCheck"] = new("Editor", true, true, CoerceBool),
-        ["Editor.SpellCheckLanguages"] = new("Editor", true, "en", v => v?.ToString() ?? "en"),
         ["Editor.Width"] = new("Editor", true, "Wide", v => v?.ToString() ?? "Wide"),
+        // The master switch; the aliases above route the plain words here.
+        ["Proofing.Enabled"] = new("Proofing", true, true, CoerceBool),
+        ["Editor.SpellCheck"] = new("Proofing", true, true, CoerceBool),
         ["AI.EnableAssistant"] = new("AI", true, false, CoerceBool),
         // Not writable: a model must never be able to grant itself agent mode. Still
         // readable, so it can report the current state back to the user.

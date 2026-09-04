@@ -264,14 +264,14 @@ public static class Program
         // resolved value rides along on ServerHandle.
         var active = await app.Services.GetRequiredService<IProofingService>()
             .ResolveActiveAsync(CancellationToken.None).ConfigureAwait(false);
-        var language = await app.Services.GetRequiredService<ISettingsService>()
-            .GetAsync("Editor.SpellCheckLanguages", "en").ConfigureAwait(false);
+        var appLanguage = await app.Services.GetRequiredService<ISettingsService>()
+            .GetAsync("App.Language", "en").ConfigureAwait(false);
         // The window's own checker is keyed by bare language, so the first proofing language is cut
-        // back to its primary subtag. Handing it a full tag enables no dictionary at all. The editor
-        // setting is the fallback for a profile with no dictionary installed.
-        var spellcheckLanguage = active.Count > 0
-            ? PrimarySubtag(active[0])
-            : string.IsNullOrWhiteSpace(language) ? "en" : language;
+        // back to its primary subtag. Handing it a full tag enables no dictionary at all. With no
+        // dictionary installed the app language stands in: it is the one language choice the user
+        // still makes, and the one a profile without a Mnemo dictionary is most likely writing in.
+        var spellcheckLanguage = PrimarySubtag(
+            active.Count > 0 ? active[0] : string.IsNullOrWhiteSpace(appLanguage) ? "en" : appLanguage);
 
         // Kestrel cannot bind a port this process is still listening on, so the handover
         // happens here and nowhere earlier.

@@ -72,7 +72,6 @@ public static class SettingsKeyRegistry
 
         new("Editor.AutoSave", SettingValueKind.Boolean),
         new("Editor.SpellCheck", SettingValueKind.Boolean),
-        new("Editor.SpellCheckLanguages", SettingValueKind.Text),
         // Editor.Width and Markdown.BlockSpacing store the *translated* option label,
         // not a stable id. That is how the desktop persists step-slider and some
         // dropdown rows, and it still reads the same database during the port, so the
