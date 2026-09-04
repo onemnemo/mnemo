@@ -4,6 +4,8 @@
     "ModelTierMismatchMessage": "検出されたVRAMは、一部のインストール済みモデルより低いティアを示しています。GPUメモリが正しく読み取れるまでルーティングは小さいモデルを優先する場合があります。GPUやドライバ変更後はアプリを再起動してください。"
   },
   "Common": {
+    "Undo": "元に戻す",
+    "Retry": "再試行",
     "OK": "OK",
     "Error": "問題が発生しました",
     "Cancel": "キャンセル",
@@ -112,6 +114,13 @@
     "NoMatchFormat": "「{0}」に一致するアイコンはありません。"
   },
   "Settings": {
+    "ProofingPersonalLoading": "単語を読み込んでいます。",
+    "ProofingPersonalFailed": "単語を読み込めませんでした。",
+    "ProofingPersonalNotAWord": "チェッカーが検索できる単語ではありません。",
+    "ProofingPersonalFull": "辞書がいっぱいです。",
+    "ProofingPersonalAddedFormat": "{0} を追加しました。",
+    "ProofingPersonalRemovedFormat": "{0} を削除しました。",
+    "ProofingScopeAppliesTo": "適用先",
     "ProofingCategoryTitle": "スペルチェック",
     "ProofingSubtitle": "Mnemo によるスペルチェックの仕組み。",
     "ProofingEnable": "スペルチェック",
@@ -705,6 +714,14 @@
     "SummaryUsedTools": "{0}個のツールを使用しました"
   },
   "Notes": {
+    "SpellingManageIgnored": "このノートで無視した単語",
+    "SpellingIgnoredTitle": "このノートで無視",
+    "SpellingIgnoredSubtitle": "このノートが受け入れる単語。",
+    "SpellingIgnoredEmpty": "まだ何も無視していません。",
+    "SpellingIgnoredLoading": "読み込み中。",
+    "SpellingIgnoredFailed": "一覧を読み込めませんでした。",
+    "SpellingIgnoreLiftFormat": "{0} を再びチェックする",
+    "SpellingIgnoreLiftedFormat": "{0} を再びチェックします。",
     "SearchNotesPlaceholder": "ノートを検索",
     "NoSearchResults": "一致するノートがありません",
     "Saved": "保存済み",
@@ -1469,6 +1486,8 @@
     "PurgeBlockedByFormat": "「{0}」もゴミ箱にあり、この中に入っています。先にそちらを復元するか完全に削除してください。"
   },
   "TransferWarnings": {
+    "ProofingPayloadMissingFile": "スペルペイロードに proofing.json がありません。",
+    "ProofingWordsSkipped": "{count} 件の単語を辞書に追加できませんでした。",
     "AnkiPackageUnreadable": "Ankiパッケージを読み込めませんでした: {error}",
     "AnkiDeckImportFailed": "デッキ「{deckName}」をインポートできませんでした: {error}",
     "AnkiDecksImportFailedCount": "パッケージ内の{totalCount}個のデッキのうち{failedCount}個をインポートできませんでした。",

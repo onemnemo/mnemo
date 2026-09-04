@@ -113,6 +113,12 @@ export interface ProofingScheduler {
   start(): void;
   /** The document changed; re-check what changed once it settles. */
   noteEdit(): void;
+  /**
+   * A word list changed, so every segment naming one of these words has to be
+   * asked about again. Words arrive composed and lowercased, which is how the
+   * segment text is folded before the comparison.
+   */
+  forgetWords(words: readonly string[]): void;
   /** Cancels everything outstanding. The scheduler is dead afterwards. */
   destroy(): void;
 }
@@ -276,6 +282,19 @@ export function createProofingScheduler(options: ProofingSchedulerOptions): Proo
     });
   }
 
+  /**
+   * Whether a segment is worth asking about again after a word list changed.
+   *
+   * A substring rather than a word match, deliberately. Getting the boundary
+   * right needs the tokenizer's rules, which live on the host, and the cost of
+   * being loose is one re-check of a paragraph that was going to come back the
+   * same. The cost of being tight is an underline that never goes away.
+   */
+  function mentionsAny(text: string, words: readonly string[]): boolean {
+    const haystack = text.normalize('NFC').toLowerCase();
+    return words.some((word) => haystack.includes(word));
+  }
+
   function pump(): void {
     if (destroyed) return;
     const segments = checkableSegments(view.state.doc, registry);
@@ -399,6 +418,23 @@ export function createProofingScheduler(options: ProofingSchedulerOptions): Proo
     start(): void {
       if (destroyed) return;
       scheduleTick();
+    },
+
+    forgetWords(words: readonly string[]): void {
+      if (destroyed || words.length === 0) return;
+
+      let touched = false;
+      for (const segment of checkableSegments(view.state.doc, registry)) {
+        if (!mentionsAny(segment.text, words)) continue;
+        // The drawn record goes with it, so the answer that replaces this one is
+        // put on screen rather than compared against marks it no longer matches.
+        const key = keyOf(segment);
+        failedOnce.delete(key);
+        drawnKey.delete(segment.id);
+        if (answers.delete(key)) touched = true;
+      }
+
+      if (touched) scheduleTick();
     },
 
     noteEdit(): void {

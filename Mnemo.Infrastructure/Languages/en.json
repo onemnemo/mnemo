@@ -4,6 +4,8 @@
     "ModelTierMismatchMessage": "Detected VRAM suggests a lower tier than some models you have installed. Routing may prefer smaller models until GPU memory is read correctly. If you recently changed GPUs or drivers, restart the app."
   },
   "Common": {
+    "Undo": "Undo",
+    "Retry": "Try again",
     "OK": "OK",
     "Error": "Something went wrong",
     "Cancel": "Cancel",
@@ -112,6 +114,13 @@
     "NoMatchFormat": "No icon matches “{0}”."
   },
   "Settings": {
+    "ProofingPersonalLoading": "Loading your words.",
+    "ProofingPersonalFailed": "Your words could not be loaded.",
+    "ProofingPersonalNotAWord": "That is not a word the checker can look up.",
+    "ProofingPersonalFull": "Your dictionary is full.",
+    "ProofingPersonalAddedFormat": "Added {0}.",
+    "ProofingPersonalRemovedFormat": "Removed {0}.",
+    "ProofingScopeAppliesTo": "Applies to",
     "ProofingCategoryTitle": "Spelling",
     "ProofingSubtitle": "How Mnemo checks your spelling.",
     "ProofingEnable": "Spell check",
@@ -705,6 +714,14 @@
     "SummaryUsedTools": "used {0} tools"
   },
   "Notes": {
+    "SpellingManageIgnored": "Words ignored here",
+    "SpellingIgnoredTitle": "Ignored in this note",
+    "SpellingIgnoredSubtitle": "Words this note accepts.",
+    "SpellingIgnoredEmpty": "Nothing is ignored here yet.",
+    "SpellingIgnoredLoading": "Loading.",
+    "SpellingIgnoredFailed": "The list could not be loaded.",
+    "SpellingIgnoreLiftFormat": "Check {0} again",
+    "SpellingIgnoreLiftedFormat": "{0} is checked again.",
     "SearchNotesPlaceholder": "Search notes",
     "NoSearchResults": "No matching notes",
     "Saved": "Saved",
@@ -1469,6 +1486,8 @@
     "PurgeBlockedByFormat": "{0} is in the trash too and lives inside this. Restore or delete that for good first."
   },
   "TransferWarnings": {
+    "ProofingPayloadMissingFile": "The spelling payload is missing its proofing.json file.",
+    "ProofingWordsSkipped": "{count} words could not be added to your dictionary.",
     "AnkiPackageUnreadable": "Unable to read the Anki package: {error}",
     "AnkiDeckImportFailed": "Deck '{deckName}' could not be imported: {error}",
     "AnkiDecksImportFailedCount": "{failedCount} of {totalCount} deck(s) in the package could not be imported.",

@@ -26,6 +26,7 @@ import { useNotePdf } from '../pdf/store';
 import { useNoteTransfer } from '../transfer/store';
 import { hasCover } from './covers';
 import { NoteLanguageMenu } from './NoteLanguageMenu';
+import { ProofingIgnoresDialog } from './ProofingIgnoresDialog';
 import { CoverPicker } from './NoteHeaderChrome';
 import { EDITOR_WIDTH_KEY, useEditorMeasure, useEditorWidthOptions } from './useEditorMeasure';
 
@@ -67,7 +68,8 @@ export function PaneActions({
   // by the first of StrictMode's two passes and the picker would never open.
   const [menuOpen, setMenuOpen] = useState(false);
   const [picker, setPicker] = useState<'icon' | 'cover' | null>(null);
-  const [pending, setPending] = useState<'icon' | 'cover' | null>(null);
+  const [pending, setPending] = useState<'icon' | 'cover' | 'ignores' | null>(null);
+  const [ignores, setIgnores] = useState(false);
 
   // A timer rather than an animation frame: frames are throttled or suspended
   // entirely while the window is not compositing, and a control that needs the
@@ -75,7 +77,8 @@ export function PaneActions({
   useEffect(() => {
     if (menuOpen || !pending) return;
     const timer = setTimeout(() => {
-      setPicker(pending);
+      if (pending === 'ignores') setIgnores(true);
+      else setPicker(pending);
       setPending(null);
     }, 0);
     return () => clearTimeout(timer);
@@ -162,7 +165,7 @@ export function PaneActions({
               ))}
             </MenuRadioGroup>
           </MenuSubMenu>
-          <NoteLanguageMenu noteId={note.id} />
+          <NoteLanguageMenu noteId={note.id} onManageIgnores={() => setPending('ignores')} />
           <MenuSeparator />
           <MenuItem
             icon="common/upload"
@@ -195,6 +198,9 @@ export function PaneActions({
       >
         <span aria-hidden className="block size-0" />
       </EmojiPickerPopover>
+      {/* Outside the menu, like the pickers: a menu takes its own contents down when it
+          closes, and the row that opens this one closes it. */}
+      {ignores && <ProofingIgnoresDialog noteId={note.id} onClose={() => setIgnores(false)} />}
       <CoverPicker
         token={note.cover}
         coverCrop={note.coverCrop}

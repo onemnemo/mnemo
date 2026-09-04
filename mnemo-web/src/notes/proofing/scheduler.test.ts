@@ -620,4 +620,69 @@ describe('the proofing scheduler', () => {
     expect(proofingIssues(host.current())).toHaveLength(1);
     scheduler.destroy();
   });
+
+  it('asks again about the segments naming a word whose list changed', async () => {
+    const host = fakeView(stateOf(['Ordbanken is open', 'the cat sat']));
+    const clock = manualSchedule();
+    const flagged = new Set(['Ordbanken', 'teh']);
+    const { client, requests } = stubClient(flagWords(flagged));
+
+    const scheduler = createProofingScheduler({
+      view: host.view,
+      registry,
+      noteId: 'note',
+      languages: ['en-US'],
+      client,
+      schedule: clock.schedule,
+    });
+
+    scheduler.start();
+    clock.run();
+    await flush();
+    expect(proofingIssues(host.current()).map((located) => located.issue.text)).toEqual(['Ordbanken']);
+
+    // The word has been added to the dictionary, so the host would no longer
+    // flag it. Nothing in the document changed, which is exactly the case the
+    // remembered answers would otherwise hold the old underline through.
+    flagged.delete('Ordbanken');
+    scheduler.forgetWords(['ordbanken']);
+    clock.run();
+    await flush();
+
+    expect(proofingIssues(host.current())).toHaveLength(0);
+    // The paragraph that never named the word was not asked about again.
+    expect(requests).toHaveLength(2);
+    expect(requests[1].paragraphs.map((paragraph) => paragraph.text)).toEqual(['Ordbanken is open']);
+    scheduler.destroy();
+  });
+
+  it('leaves everything alone when no word it can see has changed', async () => {
+    const host = fakeView(stateOf(['teh cat']));
+    const clock = manualSchedule();
+    const { client, requests } = stubClient(flagWords(new Set(['teh'])));
+
+    const scheduler = createProofingScheduler({
+      view: host.view,
+      registry,
+      noteId: 'note',
+      languages: ['en-US'],
+      client,
+      schedule: clock.schedule,
+    });
+
+    scheduler.start();
+    clock.run();
+    await flush();
+    // The answer schedules one more tick to look for anything left; drain it, so
+    // what is pending afterwards is what these calls asked for.
+    clock.run();
+    await flush();
+    expect(clock.pending()).toBe(0);
+
+    scheduler.forgetWords([]);
+    scheduler.forgetWords(['glycolysis']);
+    expect(clock.pending()).toBe(0);
+    expect(requests).toHaveLength(1);
+    scheduler.destroy();
+  });
 });

@@ -1,4 +1,4 @@
-import { useEffect, type HTMLAttributes, type ReactNode } from "react"
+import { useEffect, useRef, type HTMLAttributes, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 
 import { AppIcon } from "@/components/icon/AppIcon"
@@ -45,6 +45,10 @@ interface ModalProps {
  * It still stamps `role="dialog"` and `data-state="open"`, which is what `isModalOpen()` reads,
  * so a window shortcut stays suppressed while one of these is on screen exactly as it does
  * under a Radix dialog.
+ *
+ * Tab is kept inside it and the control that opened it gets focus back on close, both of which
+ * a Radix dialog would have done. A menu opened from inside portals outside this element, so
+ * the trap steps aside while one is open rather than pulling focus out of it.
  */
 export function Modal({
   open,
@@ -61,9 +65,16 @@ export function Modal({
   children,
   className,
 }: ModalProps) {
+  const surfaceRef = useRef<HTMLDivElement | null>(null)
+
   useEffect(() => {
     if (!open) return
     function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Tab") {
+        trapTab(surfaceRef.current, event)
+        return
+      }
+
       if (event.key !== "Escape") return
       // Stopped here so a page that also answers Escape (the board's edit session does) does not
       // act on the same press that closed the dialog.
@@ -73,6 +84,15 @@ export function Modal({
     document.addEventListener("keydown", onKeyDown, true)
     return () => document.removeEventListener("keydown", onKeyDown, true)
   }, [open, onClose])
+
+  // Read on the way in rather than on the way out: by then focus is wherever the dialog left it.
+  useEffect(() => {
+    if (!open) return
+    const opener = document.activeElement
+    return () => {
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
+    }
+  }, [open])
 
   if (!open) return null
 
@@ -90,6 +110,7 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         data-state="open"
+        ref={surfaceRef}
         style={{ width, maxHeight }}
         {...surface}
         className={cn(
@@ -132,4 +153,40 @@ export function Modal({
     </div>,
     document.body,
   )
+}
+
+/** Anything focusable and on screen, in the order Tab would visit it. */
+function tabbable(root: HTMLElement): HTMLElement[] {
+  const candidates = root.querySelectorAll<HTMLElement>(
+    'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])',
+  )
+  return [...candidates].filter(
+    (element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true",
+  )
+}
+
+/**
+ * Wraps Tab around the dialog's own controls.
+ *
+ * Skipped while focus is somewhere else entirely, which is what a menu or a select opened from
+ * inside looks like: those portal to the body, and dragging focus back out of one would make the
+ * options unreachable by keyboard.
+ */
+function trapTab(surface: HTMLElement | null, event: KeyboardEvent): void {
+  if (!surface) return
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement) || !surface.contains(active)) return
+
+  const stops = tabbable(surface)
+  if (stops.length === 0) return
+
+  const first = stops[0]
+  const last = stops[stops.length - 1]
+  if (!event.shiftKey && active === last) {
+    event.preventDefault()
+    first.focus()
+  } else if (event.shiftKey && active === first) {
+    event.preventDefault()
+    last.focus()
+  }
 }

@@ -121,7 +121,7 @@ function Harness() {
     <Menu open={open} onOpenChange={setOpen}>
       <MenuTrigger />
       <MenuContent>
-        <NoteLanguageMenu noteId={NOTE_ID} client={{ setNoteLanguages }} />
+        <NoteLanguageMenu noteId={NOTE_ID} onManageIgnores={() => {}} client={{ setNoteLanguages }} />
       </MenuContent>
     </Menu>
   );

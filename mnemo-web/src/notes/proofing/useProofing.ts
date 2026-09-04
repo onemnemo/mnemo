@@ -11,6 +11,13 @@
  * the whole arrangement down and clears the marks, rather than trying to
  * reconcile answers about one set against a document being checked against
  * another.
+ *
+ * A word list changing is not that. The scheduler keeps the answer it was given
+ * for every text it has asked about, so a word accepted or dropped in settings
+ * would otherwise leave every open note showing the answer from before it, an
+ * underline under a word the user has just added among them. The two lists are
+ * watched here and the segments naming a changed word are handed back to the
+ * scheduler to ask about again.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -21,14 +28,17 @@ import type { BlockRegistry } from '../editor/registry/build';
 import { installCardTriggers } from './card-triggers';
 import { createProofingCard, type ProofingCardHandle } from './issue-card';
 import { dispatchProofing, subscribeProofing } from './proofing-plugin';
-import { createProofingScheduler, type ProofingSchedule } from './scheduler';
+import { createProofingScheduler, type ProofingSchedule, type ProofingScheduler } from './scheduler';
 import {
   effectiveLanguages,
   proofingClient,
   readyLanguages,
-  useInvalidateProofing,
+  useInvalidateProofingWords,
+  useProofingNoteIgnores,
+  useProofingPersonalWords,
   useProofingStatus,
 } from './status';
+import { changedWords } from './words';
 import type { ProofingClient } from './client';
 
 export interface UseProofingOptions {
@@ -60,7 +70,7 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
   const { view, registry, noteId } = options;
   const editable = options.editable ?? true;
   const client = options.client ?? proofingClient;
-  const invalidate = useInvalidateProofing();
+  const invalidate = useInvalidateProofingWords(noteId);
 
   const { data: status } = useProofingStatus(noteId);
   const enabled = useSettingValue('Proofing.Enabled', true);
@@ -80,6 +90,7 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
 
   const [card, setCard] = useState<ProofingCardHandle | null>(null);
   const [paused, setPaused] = useState(false);
+  const schedulerRef = useRef<ProofingScheduler | null>(null);
 
   const schedule = options.schedule;
   // A fresh array every render, so the arrangement below hangs off the contents
@@ -100,6 +111,7 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
       client,
       schedule,
     });
+    schedulerRef.current = scheduler;
     const handle = createProofingCard({
       view,
       client,
@@ -118,6 +130,7 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
 
     return () => {
       unsubscribe();
+      schedulerRef.current = null;
       scheduler.destroy();
       handle.destroy();
       setCard(null);
@@ -125,6 +138,15 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
       if (!view.isDestroyed) dispatchProofing(view, { type: 'clear' });
     };
   }, [view, registry, noteId, languages, active, client, schedule]);
+
+  // Only while marks are live. A note nothing is checking has no answers on file
+  // to go stale, so fetching the lists for it would be a request per open note
+  // for a refresh that could never do anything.
+  const personal = useProofingPersonalWords(active).data?.words;
+  const ignored = useProofingNoteIgnores(active ? noteId : undefined).data?.words;
+  const personalWords = useMemo(() => personal?.map((entry) => entry.word), [personal]);
+  useWordListRefresh(schedulerRef, personalWords);
+  useWordListRefresh(schedulerRef, ignored);
 
   // The triggers live on the document rather than in the plugin stack, because
   // opening the card needs the network and the plugin is not allowed to.
@@ -140,4 +162,25 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
     () => ({ active, paused: active && paused, suppressed }),
     [active, paused, suppressed],
   );
+}
+
+/**
+ * Hands the scheduler the words a list gained or lost since the last render.
+ *
+ * The first list to arrive is not a change: a scheduler built moments ago has
+ * asked about nothing, so telling it to forget would be work with no answer to
+ * replace.
+ */
+function useWordListRefresh(
+  scheduler: { current: ProofingScheduler | null },
+  words: readonly string[] | undefined,
+): void {
+  const seen = useRef<readonly string[] | null>(null);
+
+  useEffect(() => {
+    if (!words) return;
+    const before = seen.current;
+    seen.current = words;
+    if (before) scheduler.current?.forgetWords(changedWords(before, words));
+  }, [scheduler, words]);
 }

@@ -127,6 +127,12 @@ export interface PersonalWord {
 
 export interface PersonalWords {
   readonly words: readonly PersonalWord[];
+  /**
+   * Set by an addition alone, so a caller can tell a word that was stored from
+   * one that was already there without comparing the list against its own idea
+   * of what it held.
+   */
+  readonly outcome?: 'added' | 'alreadyPresent';
 }
 
 export interface NoteIgnores {

@@ -36,9 +36,12 @@ import {
  */
 export function NoteLanguageMenu({
   noteId,
+  onManageIgnores,
   client = proofingClient,
 }: {
   noteId: string;
+  /** Opens the note's ignore list. Owned by the pane, because a menu unmounts its own contents. */
+  onManageIgnores: () => void;
   /** Injected by tests; the app takes the default. */
   client?: Pick<ProofingClient, 'setNoteLanguages'>;
 }) {
@@ -127,6 +130,8 @@ export function NoteLanguageMenu({
       >
         {nt('SpellingSkipNote')}
       </MenuCheckItem>
+      <MenuSeparator />
+      <MenuItem onSelect={onManageIgnores}>{nt('SpellingManageIgnored')}</MenuItem>
       <MenuItem onSelect={() => navigate('settings', 'Proofing')}>{nt('SpellingSettings')}</MenuItem>
     </MenuSubMenu>
   );
