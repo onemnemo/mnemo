@@ -79,12 +79,12 @@ const BUNDLE = {
     ProofingPersonalAdd: "Add",
     ProofingPersonalEmpty: "No words yet.",
     ProofingPersonalSearch: "Find a word",
-    ProofingPersonalNoMatchFormat: "No word matches {0}.",
+    ProofingPersonalNoMatchFormat: "No word matches “{0}”.",
     ProofingPersonalRemoveFormat: "Remove {0}",
     ProofingPersonalAlreadyAdded: "That word is already in your dictionary.",
     ProofingScopeAll: "All languages",
     ProofingScopeAppliesTo: "Applies to",
-    ProofingScopeLabelFormat: "Languages {0} applies to",
+    ProofingScopeLabelFormat: "Which languages {0} applies to",
     ProofingPersonalAddedFormat: "Added {0}.",
     ProofingPersonalRemovedFormat: "Removed {0}.",
     ProofingPersonalLoading: "Loading your words.",
@@ -193,7 +193,7 @@ async function flush() {
 
 /** One word's overflow trigger, found by the accessible name it carries. */
 function scopeMenu(text: string): HTMLElement {
-  const trigger = document.body.querySelector<HTMLElement>(`[aria-label="Languages ${text} applies to"]`)
+  const trigger = document.body.querySelector<HTMLElement>(`[aria-label="Which languages ${text} applies to"]`)
   if (!trigger) throw new Error(`no scope menu for ${text}`)
   return trigger
 }
@@ -246,7 +246,7 @@ function closeMenus() {
 
 /** The words as the list renders them, in order. */
 function renderedWords(): (string | undefined)[] {
-  return [...document.body.querySelectorAll<HTMLElement>('[aria-label^="Languages "]')].map((trigger) =>
+  return [...document.body.querySelectorAll<HTMLElement>('[aria-label^="Which languages "]')].map((trigger) =>
     trigger.closest("div")?.querySelector("p")?.textContent?.trim(),
   )
 }

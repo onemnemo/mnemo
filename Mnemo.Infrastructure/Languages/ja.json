@@ -437,7 +437,7 @@
     "ProofingPersonalNone": "まだありません。",
     "ProofingPersonalPreviewFormat": "{0} ほか {1} 語",
     "ProofingPersonalSearch": "単語を検索",
-    "ProofingPersonalNoMatchFormat": "{0} に一致する単語はありません。",
+    "ProofingPersonalNoMatchFormat": "「{0}」に一致する単語はありません。",
     "ProofingPersonalRemoveFormat": "{0} を削除",
     "ProofingScopeAll": "すべての言語",
     "ProofingScopeLabelFormat": "{0} を適用する言語",

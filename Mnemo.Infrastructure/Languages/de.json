@@ -437,7 +437,7 @@
     "ProofingPersonalNone": "Noch nichts.",
     "ProofingPersonalPreviewFormat": "{0} und {1} weitere",
     "ProofingPersonalSearch": "Wort suchen",
-    "ProofingPersonalNoMatchFormat": "Kein Wort passt zu {0}.",
+    "ProofingPersonalNoMatchFormat": "Kein Wort passt zu „{0}“.",
     "ProofingPersonalRemoveFormat": "{0} entfernen",
     "ProofingScopeAll": "Alle Sprachen",
     "ProofingScopeLabelFormat": "Sprachen, für die {0} gilt",
