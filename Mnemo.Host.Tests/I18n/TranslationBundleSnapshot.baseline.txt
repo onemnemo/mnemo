@@ -3,10 +3,10 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 70c89a6e9cd8ded032df8d5fbcb153940b62ad60e970a3935f61b45c2dd9efc0
+sha256 525c5e150c03e5b07fe6b0a5872060955b6c9dbc4503c0c1324b08f9a576276f
 namespaces 38
-keys 2172
-  App 11
+keys 2189
+  App 28
   Chat 132
   Common 90
   EmojiPicker 14
@@ -46,10 +46,10 @@ keys 2172
   WidgetToday 9
 
 culture de
-sha256 c89f9d1ba3e957ef797e044237ad0d0aa8c77dc49f315bcb306488516380c313
+sha256 31a7ed6a72e1f77b7a0c11ab519e5bd6f774bdada8718db86319747bcbce91fc
 namespaces 38
-keys 2172
-  App 11
+keys 2189
+  App 28
   Chat 132
   Common 90
   EmojiPicker 14
@@ -89,10 +89,10 @@ keys 2172
   WidgetToday 9
 
 culture es
-sha256 fa69a2d1695accc23c2c5f3f8518f978cffa0911b1cbf80a33af13dc385ebefd
+sha256 c954c7c25fc6c81cec4ae35f1fdffcd478e4e103c1cd30b9c134292c780de815
 namespaces 38
-keys 2172
-  App 11
+keys 2189
+  App 28
   Chat 132
   Common 90
   EmojiPicker 14
@@ -132,10 +132,10 @@ keys 2172
   WidgetToday 9
 
 culture ja
-sha256 37dbd81dec8ce778734b960d4c92a07473221db83810719feee5c3f7eda228c8
+sha256 588d485d5dac02729ccd4e8984bac4775fe6481d86240205e0156a888e9350f0
 namespaces 38
-keys 2172
-  App 11
+keys 2189
+  App 28
   Chat 132
   Common 90
   EmojiPicker 14
@@ -175,10 +175,10 @@ keys 2172
   WidgetToday 9
 
 culture nb
-sha256 c09aae271dc16049db4706a152d18d1506cffae73a1bb4ef9c18dc41549b035f
+sha256 366846fa77bff4765a8d804b6efe43a2934a842efb8873d33e79aa48f129f954
 namespaces 38
-keys 2172
-  App 11
+keys 2189
+  App 28
   Chat 132
   Common 90
   EmojiPicker 14

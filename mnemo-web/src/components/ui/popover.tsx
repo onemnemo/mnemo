@@ -37,7 +37,8 @@ export function PopoverContent({
         // other app ends up with a menu half off the screen.
         collisionPadding={8}
         className={cn(
-          "z-50 rounded-lg border border-line bg-popover p-1 shadow-elevation-2 outline-none",
+          // Z_LAYERS.menu, spelled out because Tailwind reads class names from the source.
+          "z-[95] rounded-lg border border-line bg-popover p-1 shadow-elevation-2 outline-none",
           className,
         )}
       >
