@@ -12,6 +12,7 @@ import {
 import { useInlineEditor } from '@/components/ui/useInlineEditor';
 import { useT } from '@/i18n/useT';
 import { cn } from '@/lib/utils';
+import { openNoteInPeek } from '@/peek/store';
 import { useUndoDelete } from '@/trash/undo';
 
 import {
@@ -210,6 +211,7 @@ export function NoteRow({
   drag: TreeDrag | null;
   favourite?: boolean;
 }) {
+  const t = useT();
   const nt = useNotesT();
   const undo = useUndoDelete();
   const rename = useInlineEditor();
@@ -222,9 +224,13 @@ export function NoteRow({
 
   const handle: TreeDragHandle = { key: `note:${note.id}`, kind: 'note', id: note.id, label: note.title.trim() || nt('Untitled') };
 
-  const open = () => {
+  const open = (event: React.MouseEvent) => {
     if (drag?.suppressClick(handle.key) || rename.editing) return;
-    navigate('notes', note.id);
+    // Best effort only: most Linux window managers claim Alt plus a drag as the
+    // window-move gesture, so the press can be taken before the page ever sees it.
+    // Alt and Enter is the binding that always works.
+    if (event.altKey) openNoteInPeek(note.id);
+    else navigate('notes', note.id);
   };
 
   const commitRename = async (title: string) => {
@@ -265,10 +271,10 @@ export function NoteRow({
           onDoubleClick={rename.open}
           onKeyDown={(event) => {
             if (rename.editing) return;
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              navigate('notes', note.id);
-            }
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            if (event.altKey) openNoteInPeek(note.id);
+            else navigate('notes', note.id);
           }}
           style={{
             opacity: !favourite && drag?.sourceKey === handle.key ? 0.35 : undefined,
@@ -313,6 +319,9 @@ export function NoteRow({
             clicking the row. */}
         <ContextMenuItem icon="flyout/open" onSelect={() => openTab(note.id)}>
           {nt('OpenInNewTab')}
+        </ContextMenuItem>
+        <ContextMenuItem icon="common/panel-right" onSelect={() => openNoteInPeek(note.id)}>
+          {t('App', 'PeekOpenInSidePeek')}
         </ContextMenuItem>
         <ContextMenuItem icon="common/copy" onSelect={() => void duplicate()}>
           {nt('Duplicate')}

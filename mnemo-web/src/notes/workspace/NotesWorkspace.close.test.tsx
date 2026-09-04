@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
 /**
- * Where the pane lands, and what the store is left holding, when a close verb
- * takes a whole row of tabs down.
+ * What the tab menu's verbs do once they are run through the real workspace:
+ * where the pane lands and what the store is left holding when a close verb
+ * takes a whole row of tabs down, and which note the peek is handed.
  *
  * The strip renders only the open ids the library has named, so these run the
  * verbs through the real workspace rather than the pure rules alone: the note
@@ -17,6 +18,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { NoteSummaryDto } from '@/api/types';
+import { usePeekStore } from '@/peek/store';
 
 import { NotesWorkspace } from './NotesWorkspace';
 import { useNoteTabs } from './tabs';
@@ -114,6 +116,7 @@ beforeEach(() => {
   localStorage.clear();
   window.location.hash = '';
   useNoteTabs.setState({ ids: [] });
+  usePeekStore.setState({ item: null });
 
   client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 
@@ -132,6 +135,7 @@ afterEach(() => {
   globalThis.fetch = realFetch;
   localStorage.clear();
   useNoteTabs.setState({ ids: [] });
+  usePeekStore.setState({ item: null });
 });
 
 describe('closing a row of tabs', () => {
@@ -178,5 +182,19 @@ describe('closing a row of tabs', () => {
     // Left behind, 'ghost' would become a tab the moment the library named it.
     expect(useNoteTabs.getState().ids).toEqual(['note-3']);
     expect(window.location.hash).toBe('#/notes/note-3');
+  });
+});
+
+describe('opening a tab in the side peek', () => {
+  it('hands the peek the note the menu was raised on, not the one that is open', async () => {
+    await open(['note-1', 'note-2', 'note-3'], 'note-1');
+
+    chooseFromMenu('note-2', 'OpenInSidePeek');
+    await settle();
+
+    expect(usePeekStore.getState().item).toEqual({ kind: 'note', id: 'note-2' });
+    // Peeking is a second view, not a navigation: the tab stays where it was.
+    expect(window.location.hash).toBe('');
+    expect(useNoteTabs.getState().ids).toEqual(['note-1', 'note-2', 'note-3']);
   });
 });
