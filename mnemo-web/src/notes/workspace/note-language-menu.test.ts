@@ -17,6 +17,11 @@ import {
 
 const COPY = { off: 'off', none: 'none' };
 
+// A bundle with no entry for any of these keys, which is what a build that has
+// added a dictionary but not yet translated its name looks like. The English
+// the host sent is what has to come back.
+const named = (key: string) => key;
+
 function language(id: string, name: string, region: string, installed = true): ProofingLanguage {
   return {
     id,
@@ -91,20 +96,20 @@ describe('the languages the menu offers', () => {
 
 describe('naming a language', () => {
   it('leaves the region off when the name is already unambiguous', () => {
-    expect(languageLabel('en-US', [ENGLISH, SPANISH])).toBe('English');
+    expect(languageLabel('en-US', [ENGLISH, SPANISH], named)).toBe('English');
   });
 
   it('adds the region once a second entry shares the name', () => {
-    expect(languageLabel('en-US', [ENGLISH, BRITISH])).toBe('English (United States)');
-    expect(languageLabel('en-GB', [ENGLISH, BRITISH])).toBe('English (United Kingdom)');
+    expect(languageLabel('en-US', [ENGLISH, BRITISH], named)).toBe('English (United States)');
+    expect(languageLabel('en-GB', [ENGLISH, BRITISH], named)).toBe('English (United Kingdom)');
   });
 
   it('counts a twin the catalogue carries but has not installed', () => {
-    expect(languageLabel('en-US', [ENGLISH, BRITISH_ABSENT])).toBe('English (United States)');
+    expect(languageLabel('en-US', [ENGLISH, BRITISH_ABSENT], named)).toBe('English (United States)');
   });
 
   it('falls back to the id for a language the catalogue does not carry', () => {
-    expect(languageLabel('fr-FR', [ENGLISH, SPANISH])).toBe('fr-FR');
+    expect(languageLabel('fr-FR', [ENGLISH, SPANISH], named)).toBe('fr-FR');
   });
 });
 
@@ -190,19 +195,19 @@ describe('what a tick writes', () => {
 
 describe('the summary on the submenu row', () => {
   it('says the note is not checked when nobody wants it checked', () => {
-    expect(languageSummary(state({ mode: 'off' }), COPY)).toBe('off');
+    expect(languageSummary(state({ mode: 'off' }), COPY, named)).toBe('off');
   });
 
   it('says none installed when nothing is there to check with', () => {
-    expect(languageSummary(state({ mode: 'default' }, [], [NORWEGIAN]), COPY)).toBe('none');
+    expect(languageSummary(state({ mode: 'default' }, [], [NORWEGIAN]), COPY, named)).toBe('none');
   });
 
   it("says none installed when the note's own languages have all gone away", () => {
-    expect(languageSummary(state({ mode: 'custom', languages: ['nb-NO'] }), COPY)).toBe('none');
+    expect(languageSummary(state({ mode: 'custom', languages: ['nb-NO'] }), COPY, named)).toBe('none');
   });
 
   it('names what the note is checked in, in order', () => {
-    expect(languageSummary(state({ mode: 'custom', languages: ['es-ES', 'en-US'] }), COPY)).toBe(
+    expect(languageSummary(state({ mode: 'custom', languages: ['es-ES', 'en-US'] }), COPY, named)).toBe(
       'Spanish, English',
     );
   });
@@ -210,12 +215,12 @@ describe('the summary on the submenu row', () => {
 
 describe('the defaults spelled out', () => {
   it('names the global set', () => {
-    expect(activeLanguagesLabel(state({ mode: 'default' }, ['en-US', 'es-ES']), 'empty')).toBe(
+    expect(activeLanguagesLabel(state({ mode: 'default' }, ['en-US', 'es-ES']), 'empty', named)).toBe(
       'English, Spanish',
     );
   });
 
   it('says so when nothing is switched on', () => {
-    expect(activeLanguagesLabel(state({ mode: 'default' }, []), 'empty')).toBe('empty');
+    expect(activeLanguagesLabel(state({ mode: 'default' }, []), 'empty', named)).toBe('empty');
   });
 });

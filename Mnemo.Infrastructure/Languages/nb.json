@@ -95,7 +95,17 @@
     "TransferExportFinished": "Eksport fullført.",
     "TransferExportFailed": "Eksport mislyktes.",
     "Copy": "Kopier",
-    "Cut": "Klipp ut"
+    "Cut": "Klipp ut",
+    "proofing.language.name.en-US": "Engelsk",
+    "proofing.language.region.en-US": "USA",
+    "proofing.language.name.es-ES": "Spansk",
+    "proofing.language.region.es-ES": "Spania",
+    "proofing.language.name.de-DE": "Tysk",
+    "proofing.language.region.de-DE": "Tyskland",
+    "proofing.language.name.nb-NO": "Norsk bokmål",
+    "proofing.language.region.nb-NO": "Norge",
+    "proofing.language.name.ja-JP": "Japansk",
+    "proofing.language.region.ja-JP": "Japan"
   },
   "EmojiPicker": {
     "SearchPlaceholder": "Søk etter ikon",

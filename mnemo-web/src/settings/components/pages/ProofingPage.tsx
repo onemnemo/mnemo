@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { useI18nStore } from "@/i18n/store"
 import { useT } from "@/i18n/useT"
+import { labelOf, languageNameLookup } from "@/notes/proofing/language-names"
 import { useInvalidateProofing, useProofingPersonalWords, useProofingStatus } from "@/notes/proofing/status"
 import { useSettingsStore, useSettingValue } from "@/settings/store"
 
@@ -12,7 +13,7 @@ import { Block, Row, Section, SettingsPageShell } from "../kit"
 import { ProofingLanguagePicker } from "./ProofingLanguagePicker"
 import { ProofingLanguageRow } from "./ProofingLanguageRow"
 import { ProofingWordsDialog } from "./ProofingWordsDialog"
-import { describeState, labelOf, moveLanguage, withLanguage, withoutLanguage } from "./proofing-languages"
+import { describeState, moveLanguage, withLanguage, withoutLanguage } from "./proofing-languages"
 
 const NS = "Settings"
 
@@ -42,6 +43,7 @@ export function ProofingPage() {
   const st = (key: string, params?: Record<string, string | number>) => t(NS, key, params)
   const bundle = useI18nStore((state) => state.bundle)
   const shipped = (key: string) => bundle[NS]?.[key] !== undefined
+  const named = languageNameLookup(t)
 
   const { data: status } = useProofingStatus()
   const { data: personal } = useProofingPersonalWords()
@@ -109,7 +111,7 @@ export function ProofingPage() {
           <>
             {active.map((id, index) => {
               const language = catalog.find((entry) => entry.id === id)
-              const label = language ? labelOf(language, catalog) : id
+              const label = language ? labelOf(language, catalog, named) : id
               return (
                 <ProofingLanguageRow
                   key={id}

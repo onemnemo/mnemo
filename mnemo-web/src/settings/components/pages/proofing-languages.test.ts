@@ -1,11 +1,11 @@
 /**
- * The rules the spelling page reads the catalogue by.
+ * The rules the spelling page reads the catalogue by. How a language is named is
+ * shared with the note's own menu and tested beside it, in the proofing folder.
  *
- * Two of them exist because of something that already went wrong. A region on
- * every row is noise until two entries share a name, and a scope select that
- * offers a seeded word's bare code beside the dictionary that answers for it
- * lists the same language twice, while one that does not offer it at all leaves
- * that word's row showing no value.
+ * One rule here exists because of something that already went wrong. A scope
+ * select that offers a seeded word's bare code beside the dictionary that
+ * answers for it lists the same language twice, while one that does not offer it
+ * at all leaves that word's row showing no value.
  */
 
 import { describe, expect, it } from "vitest"
@@ -15,7 +15,6 @@ import type { ProofingLanguage } from "@/notes/proofing/types"
 import {
   ANY_LANGUAGE,
   describeState,
-  labelOf,
   moveLanguage,
   pickerGroups,
   resolveScope,
@@ -55,24 +54,9 @@ const CATALOG: ProofingLanguage[] = [
 
 const st = (key: string) => `t:${key}`
 
-describe("naming a language", () => {
-  it("leaves out the region while the name tells it apart on its own", () => {
-    expect(labelOf(CATALOG[0], CATALOG)).toBe("English")
-    expect(labelOf(CATALOG[1], CATALOG)).toBe("Spanish")
-  })
-
-  it("appends the region to both entries that share a name", () => {
-    const pool = [CATALOG[0], language({ id: "en-GB", region: "United Kingdom" }), CATALOG[1]]
-    expect(labelOf(pool[0], pool)).toBe("English (United States)")
-    expect(labelOf(pool[1], pool)).toBe("English (United Kingdom)")
-    expect(labelOf(pool[2], pool)).toBe("Spanish")
-  })
-
-  it("names an entry that carries no region by its name alone", () => {
-    const bare = language({ id: "eo", name: "Esperanto", region: "" })
-    expect(labelOf(bare, [bare, language({ id: "eo-XX", name: "Esperanto", region: "" })])).toBe("Esperanto")
-  })
-})
+// A bundle with no entry for the catalogue's name keys, so the scope labels below
+// read the English the host sent. How a translated one reads is language-names' own test.
+const named = (key: string) => key
 
 describe("what a dictionary is doing", () => {
   // A working dictionary says nothing: "Ready" under every row is noise that buries
@@ -204,24 +188,24 @@ describe("the scopes a word can be given", () => {
   it("never offers the same name twice", () => {
     for (const stored of [null, "en", "en-US", "es-ES", "de-DE", "fr"]) {
       const labels = scopeValues(stored, CATALOG).map((value) =>
-        value === ANY_LANGUAGE ? "All languages" : scopeLabel(value, CATALOG),
+        value === ANY_LANGUAGE ? "All languages" : scopeLabel(value, CATALOG, named),
       )
       expect(new Set(labels).size, `duplicate name for a word stored as ${stored}`).toBe(labels.length)
     }
   })
 
   it("names a stored scope by its catalogue entry", () => {
-    expect(scopeLabel("es-ES", CATALOG)).toBe("Spanish")
-    expect(scopeLabel("de-DE", CATALOG)).toBe("German")
+    expect(scopeLabel("es-ES", CATALOG, named)).toBe("Spanish")
+    expect(scopeLabel("de-DE", CATALOG, named)).toBe("German")
   })
 
   it("names a bare code by the entry sharing its primary subtag", () => {
-    expect(scopeLabel("en", CATALOG)).toBe("English")
-    expect(scopeLabel("EN", CATALOG)).toBe("English")
+    expect(scopeLabel("en", CATALOG, named)).toBe("English")
+    expect(scopeLabel("EN", CATALOG, named)).toBe("English")
   })
 
   it("shows a code the catalogue knows nothing about as it is stored", () => {
-    expect(scopeLabel("fr", CATALOG)).toBe("fr")
+    expect(scopeLabel("fr", CATALOG, named)).toBe("fr")
   })
 })
 

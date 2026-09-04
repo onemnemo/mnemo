@@ -12,6 +12,9 @@ namespace Mnemo.Infrastructure.Modules.Proofing;
 
 /// <summary>One language the proofing surface knows about, bundled or not.</summary>
 /// <param name="Id">BCP 47 tag, for example <c>en-US</c>.</param>
+/// <param name="Name">The English name, carried so a client whose bundle has no entry for this
+/// language still has a word to print rather than a key.</param>
+/// <param name="Region">The English region name, empty when the language names no region.</param>
 /// <param name="Installed">Whether the files are present, so a check for it can be attempted.</param>
 /// <param name="Bundled">Whether the files ship with the application rather than being fetched.</param>
 /// <param name="ReasonKey">Translation key explaining an absence. Null when the language is installed.</param>
@@ -26,7 +29,15 @@ public sealed record ProofingDictionaryEntry(
     ProofingLicense License,
     string? ReasonKey,
     string? AffixPath,
-    string? DictionaryPath);
+    string? DictionaryPath)
+{
+    /// <summary>Translation key for the name. Always set, whether or not a bundle carries it.</summary>
+    public string NameKey => ProofingDictionaryCatalog.NameKeyFor(Id);
+
+    /// <summary>Translation key for the region, or null when the language names no region.</summary>
+    public string? RegionKey =>
+        string.IsNullOrEmpty(Region) ? null : ProofingDictionaryCatalog.RegionKeyFor(Id);
+}
 
 /// <summary>
 /// What dictionaries this build carries, read once from the manifest that ships beside them.
@@ -41,6 +52,12 @@ public sealed class ProofingDictionaryCatalog
     public const string FolderName = "Proofing";
 
     private const string ManifestFileName = "manifest.json";
+
+    // A language reaches the catalog through the manifest, which any build can add one to, so the
+    // key that names it has to follow from its tag rather than be written down beside the words.
+    private const string NamePrefix = "proofing.language.name.";
+
+    private const string RegionPrefix = "proofing.language.region.";
 
     private const string LogCategory = "Proofing";
 
@@ -89,6 +106,12 @@ public sealed class ProofingDictionaryCatalog
     /// <summary>The tags that can actually be checked.</summary>
     public IReadOnlyList<string> InstalledLanguages =>
         [.. _entries.Where(e => e.Installed).Select(e => e.Id)];
+
+    /// <summary>The translation key naming one language. Derived from the tag, so it needs no manifest entry.</summary>
+    public static string NameKeyFor(string id) => NamePrefix + id;
+
+    /// <summary>The translation key naming one language's region.</summary>
+    public static string RegionKeyFor(string id) => RegionPrefix + id;
 
     /// <summary>Looks up one language. Returns null when nothing in the catalog carries that tag.</summary>
     public ProofingDictionaryEntry? Find(string? id) =>

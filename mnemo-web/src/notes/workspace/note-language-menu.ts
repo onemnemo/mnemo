@@ -10,6 +10,7 @@
  * compose it against a choice already superseded.
  */
 
+import { labelOf, type NameLookup } from '../proofing/language-names';
 import type {
   NoteProofing,
   NoteProofingChoice,
@@ -62,18 +63,17 @@ export function installedLanguages(state: NoteLanguageState): readonly ProofingL
 /**
  * How a language reads among its peers.
  *
- * The region earns its place only when a second entry carries the same name.
- * Told apart against the whole catalogue rather than against what is installed,
- * so a name does not quietly grow a region the first time its twin is added,
- * and so this menu and the spelling settings call a language the same thing.
+ * Named against the whole catalogue rather than against what is installed, so a
+ * name does not quietly grow a region the first time its twin is added, and so
+ * this menu and the spelling settings call a language the same thing.
  */
-export function languageLabel(id: string, catalogue: readonly ProofingLanguage[]): string {
+export function languageLabel(
+  id: string,
+  catalogue: readonly ProofingLanguage[],
+  tr: NameLookup,
+): string {
   const language = catalogue.find((entry) => entry.id === id);
-  if (!language) return id;
-  const twins = catalogue.filter((entry) => entry.name === language.name).length > 1;
-  return twins && language.region.length > 0
-    ? `${language.name} (${language.region})`
-    : language.name;
+  return language ? labelOf(language, catalogue, tr) : id;
 }
 
 /** The ids ticked for this note: its own list when it has one, the global set otherwise. */
@@ -108,19 +108,31 @@ export function noteLanguageChoice(state: NoteLanguageState, id: string): NotePr
 }
 
 /** What this note is checked in, for the submenu row itself. */
-export function languageSummary(state: NoteLanguageState, copy: LanguageSummaryCopy): string {
+export function languageSummary(
+  state: NoteLanguageState,
+  copy: LanguageSummaryCopy,
+  tr: NameLookup,
+): string {
   if (state.choice.mode === 'off') return copy.off;
   const effective = effectiveLanguageIds(state);
   if (effective.length === 0) return copy.none;
-  return joinNames(effective, state.catalogue);
+  return joinNames(effective, state.catalogue, tr);
 }
 
 /** The global set spelled out, for the row that follows it. */
-export function activeLanguagesLabel(state: NoteLanguageState, empty: string): string {
+export function activeLanguagesLabel(
+  state: NoteLanguageState,
+  empty: string,
+  tr: NameLookup,
+): string {
   if (state.active.length === 0) return empty;
-  return joinNames(state.active, state.catalogue);
+  return joinNames(state.active, state.catalogue, tr);
 }
 
-function joinNames(ids: readonly string[], catalogue: readonly ProofingLanguage[]): string {
-  return ids.map((id) => languageLabel(id, catalogue)).join(', ');
+function joinNames(
+  ids: readonly string[],
+  catalogue: readonly ProofingLanguage[],
+  tr: NameLookup,
+): string {
+  return ids.map((id) => languageLabel(id, catalogue, tr)).join(', ');
 }

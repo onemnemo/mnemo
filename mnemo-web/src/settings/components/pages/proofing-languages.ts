@@ -1,3 +1,4 @@
+import { labelOf, type NameLookup } from "@/notes/proofing/language-names"
 import type { ProofingLanguage } from "@/notes/proofing/types"
 
 /**
@@ -7,21 +8,6 @@ import type { ProofingLanguage } from "@/notes/proofing/types"
  * language tag, so this can never collide with a scope a word already stores.
  */
 export const ANY_LANGUAGE = "*"
-
-/**
- * A language's name, with the region appended only when that is what tells two
- * entries apart.
- *
- * Every call site passes the whole catalogue, so one language reads the same in
- * the active list as it does in the picker. Four rows reading "English" is the
- * failure the region is there to prevent; carrying it on the only Spanish there
- * is says nothing.
- */
-export function labelOf(language: ProofingLanguage, pool: readonly ProofingLanguage[]): string {
-  if (language.region.length === 0) return language.name
-  const shared = pool.some((other) => other.id !== language.id && other.name === language.name)
-  return shared ? `${language.name} (${language.region})` : language.name
-}
 
 /**
  * What a dictionary is doing, or null when there is nothing worth saying.
@@ -178,12 +164,16 @@ export function scopeChange(
  * applies to a language. That comparison ignores case, because a scope carried
  * over from the older setting was never canonicalised.
  */
-export function scopeLabel(scope: string, languages: readonly ProofingLanguage[]): string {
+export function scopeLabel(
+  scope: string,
+  languages: readonly ProofingLanguage[],
+  tr: NameLookup,
+): string {
   const exact = languages.find((language) => language.id === scope)
-  if (exact) return labelOf(exact, languages)
+  if (exact) return labelOf(exact, languages, tr)
   const primary = primarySubtag(scope)
   const related = languages.find((language) => primarySubtag(language.id) === primary)
-  return related ? labelOf(related, languages) : scope
+  return related ? labelOf(related, languages, tr) : scope
 }
 
 function primarySubtag(id: string): string {

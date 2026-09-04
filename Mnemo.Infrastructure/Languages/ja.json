@@ -95,7 +95,17 @@
     "TransferExportFinished": "エクスポートが完了しました。",
     "TransferExportFailed": "エクスポートに失敗しました。",
     "Copy": "コピー",
-    "Cut": "切り取り"
+    "Cut": "切り取り",
+    "proofing.language.name.en-US": "英語",
+    "proofing.language.region.en-US": "アメリカ合衆国",
+    "proofing.language.name.es-ES": "スペイン語",
+    "proofing.language.region.es-ES": "スペイン",
+    "proofing.language.name.de-DE": "ドイツ語",
+    "proofing.language.region.de-DE": "ドイツ",
+    "proofing.language.name.nb-NO": "ノルウェー語 (ブークモール)",
+    "proofing.language.region.nb-NO": "ノルウェー",
+    "proofing.language.name.ja-JP": "日本語",
+    "proofing.language.region.ja-JP": "日本"
   },
   "EmojiPicker": {
     "SearchPlaceholder": "アイコンを検索",

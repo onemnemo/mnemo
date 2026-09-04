@@ -3,9 +3,10 @@ import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
 import { useI18nStore } from "@/i18n/store"
 import { useT } from "@/i18n/useT"
+import { labelOf, languageNameLookup } from "@/notes/proofing/language-names"
 import type { ProofingLanguage } from "@/notes/proofing/types"
 
-import { describeState, labelOf, pickerGroups } from "./proofing-languages"
+import { describeState, pickerGroups } from "./proofing-languages"
 
 const NS = "Settings"
 
@@ -31,6 +32,7 @@ export function ProofingLanguagePicker({
   const st = (key: string, params?: Record<string, string | number>) => t(NS, key, params)
   const bundle = useI18nStore((state) => state.bundle)
   const shipped = (key: string) => bundle[NS]?.[key] !== undefined
+  const named = languageNameLookup(t)
 
   const groups = pickerGroups(languages, active)
 
@@ -53,7 +55,7 @@ export function ProofingLanguagePicker({
                       loaded right now says nothing about whether you want to write in it, and
                       "Preparing" on a language you have not added yet reads as a fault. */}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13.5px] text-ink">{labelOf(entry.language, languages)}</p>
+                    <p className="truncate text-[13.5px] text-ink">{labelOf(entry.language, languages, named)}</p>
                   </div>
                   {entry.active ? (
                     <span className="flex shrink-0 items-center gap-1.5 text-[12.5px] text-ink-3">
@@ -64,7 +66,7 @@ export function ProofingLanguagePicker({
                     <Button
                       variant="outline"
                       className="shrink-0"
-                      aria-label={st("ProofingPickerAddFormat", { 0: labelOf(entry.language, languages) })}
+                      aria-label={st("ProofingPickerAddFormat", { 0: labelOf(entry.language, languages, named) })}
                       onClick={() => onAdd(entry.language.id)}
                     >
                       {st("ProofingPickerAdd")}
@@ -82,7 +84,7 @@ export function ProofingLanguagePicker({
             <div className="[&>*+*]:border-t [&>*+*]:border-line-soft">
               {groups.unavailable.map((language) => (
                 <div key={language.id} className="py-2.5">
-                  <p className="truncate text-[13.5px] text-ink">{labelOf(language, languages)}</p>
+                  <p className="truncate text-[13.5px] text-ink">{labelOf(language, languages, named)}</p>
                   <p className="mt-0.5 text-[12px] text-ink-3">{describeState(language, st, shipped)}</p>
                 </div>
               ))}

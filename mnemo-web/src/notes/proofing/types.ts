@@ -24,8 +24,12 @@ export interface ProofingLicense {
 
 export interface ProofingLanguage {
   readonly id: string;
+  /** The host's English name, printed when the bundle has no entry for `nameKey`. */
   readonly name: string;
+  readonly nameKey?: string;
   readonly region: string;
+  /** Absent when the language names no region. */
+  readonly regionKey?: string;
   readonly installed: boolean;
   readonly bundled: boolean;
   readonly state: ProofingLanguageState;

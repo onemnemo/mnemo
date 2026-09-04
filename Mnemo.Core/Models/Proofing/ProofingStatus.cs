@@ -19,12 +19,18 @@ public static class ProofingLanguageState
 }
 
 /// <summary>One language the settings surface lists, whether or not it can be used.</summary>
+/// <param name="Name">The English name, so a client whose bundle has no entry for this language
+/// still has a word to print.</param>
+/// <param name="NameKey">Translation key naming the language.</param>
+/// <param name="RegionKey">Translation key naming the region, null when there is no region.</param>
 /// <param name="State">One of the constants on <see cref="ProofingLanguageState"/>.</param>
 /// <param name="ReasonKey">Translation key explaining an absence. Null when the language is usable.</param>
 public sealed record ProofingLanguageStatus(
     string Id,
     string Name,
+    string NameKey,
     string Region,
+    string? RegionKey,
     bool Installed,
     bool Bundled,
     string State,

@@ -8,6 +8,7 @@ import { ListState } from "@/components/ui/list-state"
 import { Modal } from "@/components/ui/modal"
 import { MODAL_MENU_CLASS } from "@/components/ui/modal-menu"
 import { useT } from "@/i18n/useT"
+import { languageNameLookup } from "@/notes/proofing/language-names"
 import {
   useAddPersonalWord,
   useProofingPersonalWords,
@@ -65,6 +66,7 @@ export function ProofingWordsDialog({
 }) {
   const t = useT()
   const st = (key: string, params?: Record<string, string | number>) => t(NS, key, params)
+  const named = languageNameLookup(t)
   const { data, isPending, isError, refetch } = useProofingPersonalWords()
   const [draft, setDraft] = useState("")
   const [query, setQuery] = useState("")
@@ -158,7 +160,7 @@ export function ProofingWordsDialog({
   const scopesFor = (stored: string | null) =>
     scopeValues(stored, languages).map((value) => ({
       value,
-      label: value === ANY_LANGUAGE ? st("ProofingScopeAll") : scopeLabel(value, languages),
+      label: value === ANY_LANGUAGE ? st("ProofingScopeAll") : scopeLabel(value, languages, named),
     }))
 
   return (
@@ -237,7 +239,7 @@ export function ProofingWordsDialog({
                     <p className="min-w-0 flex-1 truncate text-[13.5px] text-ink">{entry.word}</p>
 
                     {scope !== ANY_LANGUAGE && (
-                      <span className="shrink-0 truncate text-[12px] text-ink-3">{scopeLabel(scope, languages)}</span>
+                      <span className="shrink-0 truncate text-[12px] text-ink-3">{scopeLabel(scope, languages, named)}</span>
                     )}
 
                     <Menu>

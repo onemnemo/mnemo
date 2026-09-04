@@ -8,9 +8,10 @@
  * The contract, as both halves implement it:
  *
  *   GET  /proofing/status   (?noteId=... adds that note's own answer)
- *        -> { enabled, active: string[], languages: [{ id, name, region,
- *             installed, bundled, state: "ready" | "loading" | "absent",
- *             reasonKey?, license: { name, url } }], personalWordCount,
+ *        -> { enabled, active: string[], languages: [{ id, name, nameKey,
+ *             region, regionKey, installed, bundled,
+ *             state: "ready" | "loading" | "absent", reasonKey?,
+ *             license: { name, url } }], personalWordCount,
  *             note: { mode, languages, effective } | null }
  *   POST /proofing/check   { languages, noteId | null, paragraphs: [{ id, text }] }
  *        -> { languages, paragraphs: [{ id, issues: [{ start, end, text, kind,
