@@ -437,7 +437,7 @@
     "ProofingPersonalNone": "Ingenting ennå.",
     "ProofingPersonalPreviewFormat": "{0} og {1} til",
     "ProofingPersonalSearch": "Finn et ord",
-    "ProofingPersonalNoMatchFormat": "Ingen ord passer med {0}.",
+    "ProofingPersonalNoMatchFormat": "Ingen ord passer med «{0}».",
     "ProofingPersonalRemoveFormat": "Fjern {0}",
     "ProofingScopeAll": "Alle språk",
     "ProofingScopeLabelFormat": "Språk {0} gjelder for",

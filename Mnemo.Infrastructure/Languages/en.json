@@ -437,10 +437,10 @@
     "ProofingPersonalNone": "Nothing yet.",
     "ProofingPersonalPreviewFormat": "{0} and {1} more",
     "ProofingPersonalSearch": "Find a word",
-    "ProofingPersonalNoMatchFormat": "No word matches {0}.",
+    "ProofingPersonalNoMatchFormat": "No word matches “{0}”.",
     "ProofingPersonalRemoveFormat": "Remove {0}",
     "ProofingScopeAll": "All languages",
-    "ProofingScopeLabelFormat": "Languages {0} applies to",
+    "ProofingScopeLabelFormat": "Which languages {0} applies to",
     "ProofingPersonalManage": "Manage",
     "ProofingPersonalAlreadyAdded": "That word is already in your dictionary.",
     "proofing.language.notAvailableYet": "No dictionary ships for this language yet.",
@@ -581,7 +581,7 @@
     "PeekCollapse": "Collapse",
     "PeekExpand": "Show the side peek",
     "PeekTooLongTitle": "This note is too long to preview",
-    "PeekTooLongDescription": "Open it full to read the whole thing."
+    "PeekTooLongDescription": "Open it in full to read the whole thing."
   },
   "Chat": {
     "AssistantNoResponse": "No response.",
