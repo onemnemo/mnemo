@@ -10,6 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { NoteTransferImportResultDto, NoteTransferUploadDto } from "@/api/types"
 
+import { toast } from "@/stores/toast"
+
 import { NoteTransferOverlay } from "./NoteTransferOverlay"
 import { useNoteTransfer } from "./store"
 
@@ -203,5 +205,42 @@ describe("the note transfer overlay's replace consent", () => {
     expect(consentCheckbox()?.checked).toBe(false)
     expect(confirmButton().disabled).toBe(true)
     expect(api.runNoteImport).not.toHaveBeenCalled()
+  })
+})
+
+describe("the note transfer overlay's post-import warnings", () => {
+  // Only a .mnemo package's import adapter ever attaches a post-import warning; a plain
+  // markdown import never exercises this path. The result is shaped the way that adapter
+  // reports one, regardless of which file the queue happens to hold.
+  it("folds a warning into the completion toast and flips it to a warning tone", async () => {
+    openImportDialog()
+    await chooseFile("Notebook.md")
+    api.runNoteImport.mockResolvedValueOnce({
+      succeededFiles: 1,
+      failedFiles: 0,
+      importedNotes: 3,
+      warnings: [{ key: "PackageFolderRestoredAtRoot", params: {} }],
+      errors: [],
+    } satisfies NoteTransferImportResultDto)
+
+    act(() => confirmButton().click())
+    await flush()
+
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith(
+      "ImportCompleteTitle",
+      expect.objectContaining({ description: expect.stringContaining("PackageFolderRestoredAtRoot") }),
+    )
+  })
+
+  it("still reports plain success when the result carries no warnings", async () => {
+    openImportDialog()
+    await chooseFile("Notebook.md")
+
+    act(() => confirmButton().click())
+    await flush()
+
+    expect(toast.success).toHaveBeenCalledWith("ImportCompleteTitle", expect.anything())
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 })

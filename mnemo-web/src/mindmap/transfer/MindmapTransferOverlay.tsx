@@ -7,6 +7,7 @@ import type { ConflictPolicy } from "@/api/types"
 import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
 import { Segmented } from "@/flashcards/transfer/components/Segmented"
+import { fileNoteText } from "@/flashcards/transfer/transfer"
 import { useT } from "@/i18n/useT"
 import { isMac } from "@/keybinds/chord"
 import { toast } from "@/stores/toast"
@@ -231,19 +232,33 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
       // mindmap key is potentially stale, and picking through it would be guesswork.
       await client.invalidateQueries({ queryKey: mindmapKey })
 
+      // Only a .mnemo package ever attaches a post-import warning today, but every import result
+      // carries the field, so it is folded in here rather than only on the pre-import file rows.
+      const warningLines = result.warnings.map((warning) => fileNoteText(t, warning))
+      const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join("\n")
+
       if (result.succeededFiles === 0) {
-        toast.warning(common("ImportFailedTitle"), { description: result.errors.join("\n") })
+        toast.warning(common("ImportFailedTitle"), { description: join(result.errors.join("\n"), ...warningLines) })
       } else if (result.failedFiles > 0) {
         toast.warning(common("ImportCompleteTitle"), {
-          description: common("TransferImportPartialFormat", {
-            0: itemPhrase(result.importedMaps),
-            1: result.errors.join("\n"),
-          }),
+          description: join(
+            common("TransferImportPartialFormat", {
+              0: itemPhrase(result.importedMaps),
+              1: result.errors.join("\n"),
+            }),
+            ...warningLines,
+          ),
         })
       } else {
-        toast.success(common("ImportCompleteTitle"), {
-          description: common("TransferImportFinishedFormat", { 0: itemPhrase(result.importedMaps) }),
-        })
+        const description = join(
+          common("TransferImportFinishedFormat", { 0: itemPhrase(result.importedMaps) }),
+          ...warningLines,
+        )
+        if (warningLines.length > 0) {
+          toast.warning(common("ImportCompleteTitle"), { description })
+        } else {
+          toast.success(common("ImportCompleteTitle"), { description })
+        }
       }
       onClose()
     } catch (error) {
