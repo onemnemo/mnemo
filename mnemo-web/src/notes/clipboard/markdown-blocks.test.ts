@@ -242,7 +242,10 @@ describe('parseMarkdownToBlocks: inline markdown inside blocks', () => {
 });
 
 describe('parseMarkdownToBlocks: block-count cap', () => {
-  it('folds the tail of a pathologically long paste into one verbatim block', () => {
+  // Generous timeout: parsing MAX_BLOCKS-plus lines is real synchronous work that runs well
+  // inside vitest's 5000ms default alone, but not always under a full-suite run sharing the
+  // machine with other heavy tests.
+  it('folds the tail of a pathologically long paste into one verbatim block', { timeout: 20000 }, () => {
     const overflow = 50;
     const lineCount = MAX_BLOCKS + overflow;
     const blocks = parseMarkdownToBlocks(Array.from({ length: lineCount }, () => 'x').join('\n'));

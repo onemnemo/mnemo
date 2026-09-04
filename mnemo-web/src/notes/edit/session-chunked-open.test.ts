@@ -79,13 +79,20 @@ function nextFrame(): Promise<void> {
   });
 }
 
+// Every case here opens a note past the chunk threshold, which is real synchronous work
+// (building a 2400-block fixture, then draining chunked appends across animation frames)
+// that runs well inside vitest's 5000ms default alone, but not always under a full-suite
+// run sharing the machine with other heavy tests. Generous per-test timeouts, not a
+// looser default: nothing else in this file needs one.
+const GENEROUS = { timeout: 20000 };
+
 describe('opening a note past the chunk threshold', () => {
-  it('leaves the view holding only the first chunk once the session is assembled', () => {
+  it('leaves the view holding only the first chunk once the session is assembled', GENEROUS, () => {
     const h = openLargeNote();
     expect(h.session.view.state.doc.childCount).toBe(FIRST_CHUNK);
   });
 
-  it('runs the scheduled append at least once, which is what used to never happen', async () => {
+  it('runs the scheduled append at least once, which is what used to never happen', GENEROUS, async () => {
     const h = openLargeNote();
     const atOpen = h.session.view.state.doc.childCount;
 
@@ -94,7 +101,7 @@ describe('opening a note past the chunk threshold', () => {
     expect(h.session.view.state.doc.childCount).toBeGreaterThan(atOpen);
   });
 
-  it('finishes the document across further frames, and renders every block', async () => {
+  it('finishes the document across further frames, and renders every block', GENEROUS, async () => {
     const h = openLargeNote();
     // Generously bounded rather than counted: the point is that it completes on
     // its own, not how many frames the chunk size divides into.
@@ -109,7 +116,7 @@ describe('opening a note past the chunk threshold', () => {
     expect(root?.childElementCount).toBe(BLOCK_COUNT);
   });
 
-  it('hands a save the whole document even while the load is still running', async () => {
+  it('hands a save the whole document even while the load is still running', GENEROUS, async () => {
     // The rule chunking must never break. A snapshot mid-load drains first, so
     // what autosave commits is the note, never the part of it that had arrived.
     const h = openLargeNote();
@@ -120,7 +127,7 @@ describe('opening a note past the chunk threshold', () => {
     expect(h.session.view.state.doc.childCount).toBe(BLOCK_COUNT);
   });
 
-  it('takes an edit dispatched before anything has touched the editor', () => {
+  it('takes an edit dispatched before anything has touched the editor', GENEROUS, () => {
     // What a file drop does, through the whole chain a real one goes through:
     // the transaction is built from `view.state` and dispatched, with no
     // focus, press or keystroke ahead of it to have finished the load.
