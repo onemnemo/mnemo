@@ -1,18 +1,23 @@
 import { useState } from "react"
 
-import { useT } from "@/i18n/useT"
-import { useI18nStore } from "@/i18n/store"
+import { AppIcon } from "@/components/icon/AppIcon"
+import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { useI18nStore } from "@/i18n/store"
+import { useT } from "@/i18n/useT"
+import { useInvalidateProofing, useProofingPersonalWords, useProofingStatus } from "@/notes/proofing/status"
 import { useSettingsStore, useSettingValue } from "@/settings/store"
-import { useInvalidateProofing, useProofingStatus } from "@/notes/proofing/status"
-import type { ProofingLanguage } from "@/notes/proofing/types"
 
-import { SelectControl } from "../controls/SelectControl"
-import { labelOf, languageChoices } from "./proofing-languages"
-import { Row, Section, SettingsPageShell } from "../kit"
-import { ProofingPersonalWords } from "./ProofingPersonalWords"
+import { Block, Row, Section, SettingsPageShell } from "../kit"
+import { ProofingLanguagePicker } from "./ProofingLanguagePicker"
+import { ProofingLanguageRow } from "./ProofingLanguageRow"
+import { ProofingWordsDialog } from "./ProofingWordsDialog"
+import { describeState, labelOf, moveLanguage, withLanguage, withoutLanguage } from "./proofing-languages"
 
 const NS = "Settings"
+
+/** Added words named in the row itself, before the rest become a count. */
+const PREVIEW = 4
 
 /**
  * Spelling, in Application rather than under Notes.
@@ -24,34 +29,48 @@ const NS = "Settings"
  * The active set and what each dictionary is doing come from the host's status,
  * never from the stored key: resolving it takes the stored preference, the
  * older spellcheck setting and what is actually installed, and only the host
- * can see all three. So the select writes the key and then asks the host again
+ * can see all three. So a write stores the key and then asks the host again
  * rather than assuming the write is the answer.
  */
 export function ProofingPage() {
   const t = useT()
   const st = (key: string, params?: Record<string, string | number>) => t(NS, key, params)
   const bundle = useI18nStore((state) => state.bundle)
+  const shipped = (key: string) => bundle[NS]?.[key] !== undefined
 
   const { data: status } = useProofingStatus()
+  const { data: personal } = useProofingPersonalWords()
   const invalidate = useInvalidateProofing()
   const enabled = useSettingValue("Proofing.Enabled", true)
   const setValue = useSettingsStore((state) => state.setValue)
-  const [pendingLanguage, setPendingLanguage] = useState<string | null>(null)
+  const [dialog, setDialog] = useState<"languages" | "words" | null>(null)
 
-  const languages = status?.languages ?? []
-  const offered = languageChoices(languages, st("ProofingStateLoading"))
-  const selected = pendingLanguage ?? status?.active[0] ?? ""
+  const catalog = status?.languages ?? []
+  const active = status?.active ?? []
+  const words = personal?.words ?? []
 
   // Through the settings store like every other written key, so one cache holds
   // the stored value and the store's own rollback covers a failed write. The
-  // host still owns which languages are *effective*, which is why the status is
+  // host still owns which languages are effective, which is why the status is
   // invalidated rather than assumed to follow.
-  async function chooseLanguage(next: string) {
-    setPendingLanguage(next)
-    await setValue("Proofing.Languages", [next])
-    setPendingLanguage(null)
+  async function writeLanguages(next: readonly string[]) {
+    if (next === active) return
+    await setValue("Proofing.Languages", next)
     invalidate()
   }
+
+  const count =
+    words.length === 1 ? st("ProofingPersonalCountOne", { 0: 1 }) : st("ProofingPersonalCountMany", { 0: words.length })
+
+  const preview =
+    words.length === 0
+      ? st("ProofingPersonalNone")
+      : words.length > PREVIEW
+        ? st("ProofingPersonalPreviewFormat", {
+            0: words.slice(0, PREVIEW).map((entry) => entry.word).join(", "),
+            1: words.length - PREVIEW,
+          })
+        : words.map((entry) => entry.word).join(", ")
 
   return (
     <SettingsPageShell title={st("ProofingCategoryTitle")} description={st("ProofingSubtitle")}>
@@ -65,59 +84,75 @@ export function ProofingPage() {
             }}
           />
         </Row>
-
-        <Row label={st("ProofingLanguage")} description={st("ProofingLanguageDescription")}>
-          {/* No select at all rather than one holding an empty option: a Radix
-              item cannot carry an empty value, and a picker with nothing to
-              pick is a control that answers no question. */}
-          {offered.length === 0 ? (
-            <p className="text-[12.5px] text-ink-3">{st("ProofingNoLanguageReady")}</p>
-          ) : (
-            <SelectControl
-              value={selected}
-              label={st("ProofingLanguage")}
-              choices={offered}
-              onChange={(next) => void chooseLanguage(next)}
-            />
-          )}
-        </Row>
       </Section>
 
       <Section title={st("ProofingLanguagesTitle")} note={st("ProofingLanguagesNote")}>
-        {languages.map((language) => (
-          <Row
-            key={language.id}
-            label={labelOf(language)}
-            description={describe(language, st, (key) => bundle[NS]?.[key] !== undefined)}
-          >
-            {language.bundled ? <span className="text-[12.5px] text-ink-3">{st("ProofingBundled")}</span> : null}
-          </Row>
-        ))}
+        {/* Nothing at all until the host has answered: an empty active set and an
+            unanswered one look the same here, and only one of them means the user
+            has switched everything off. */}
+        {!status ? null : active.length === 0 ? (
+          <Block label={st("ProofingNoLanguages")} description={st("ProofingNoLanguagesDescription")}>
+            <Button
+              icon={<AppIcon name="plus" size={14} strokeWidth={1.8} />}
+              onClick={() => setDialog("languages")}
+            >
+              {st("ProofingAddLanguage")}
+            </Button>
+          </Block>
+        ) : (
+          <>
+            {active.map((id, index) => {
+              const language = catalog.find((entry) => entry.id === id)
+              const label = language ? labelOf(language, catalog) : id
+              return (
+                <ProofingLanguageRow
+                  key={id}
+                  label={label}
+                  state={language ? describeState(language, st, shipped) : st("ProofingStateAbsent")}
+                  primary={index === 0}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < active.length - 1}
+                  onMoveUp={() => void writeLanguages(moveLanguage(active, id, -1))}
+                  onMoveDown={() => void writeLanguages(moveLanguage(active, id, 1))}
+                  onRemove={() => void writeLanguages(withoutLanguage(active, id))}
+                />
+              )
+            })}
+
+            <button
+              type="button"
+              onClick={() => setDialog("languages")}
+              className="flex w-full items-center gap-2 rounded-lg py-3 text-left text-[13.5px] text-ink-2 transition-colors hover:text-ink"
+              style={{ transitionDuration: "var(--duration-fast)" }}
+            >
+              <AppIcon name="plus" size={15} strokeWidth={1.8} className="text-ink-icon" />
+              {st("ProofingAddLanguage")}
+            </button>
+          </>
+        )}
       </Section>
 
-      <ProofingPersonalWords />
+      <Section title={st("ProofingPersonalTitle")}>
+        <Row label={st("ProofingPersonalAddedWords")} description={preview}>
+          <Button
+            variant="outline"
+            icon={<AppIcon name="book-open" size={14} strokeWidth={1.7} />}
+            onClick={() => setDialog("words")}
+          >
+            {count}
+          </Button>
+        </Row>
+      </Section>
+
+      {dialog === "languages" && (
+        <ProofingLanguagePicker
+          onClose={() => setDialog(null)}
+          languages={catalog}
+          active={active}
+          onAdd={(id) => void writeLanguages(withLanguage(active, id))}
+        />
+      )}
+      {dialog === "words" && <ProofingWordsDialog onClose={() => setDialog(null)} languages={catalog} />}
     </SettingsPageShell>
   )
-}
-
-/**
- * What a dictionary is doing, in one line.
- *
- * The host's own reason is appended only when this build ships a translation
- * for it: a key that does not resolve renders as the key itself, which reads
- * as a bug to every user who sees it.
- */
-function describe(
-  language: ProofingLanguage,
-  st: (key: string) => string,
-  shipped: (key: string) => boolean,
-): string {
-  if (language.state === "ready") return st("ProofingStateReady")
-  if (language.state === "loading") return st("ProofingStateLoading")
-  // Japanese has no dictionary this engine can read, which is a different
-  // answer from one that has simply not been bundled yet.
-  if (language.id.toLowerCase().startsWith("ja")) return st("ProofingStateUnsupported")
-  const absent = st("ProofingStateAbsent")
-  if (language.reasonKey && shipped(language.reasonKey)) return `${absent}. ${st(language.reasonKey)}`
-  return absent
 }
