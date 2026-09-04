@@ -415,7 +415,7 @@ public static class MindmapEndpoints
     /// What an outline lands under. The title with anything a file system would refuse taken out, which
     /// leaves a name of nothing at all for a map called "?" and is why there is a fallback under it.
     /// </summary>
-    private static string OutlineFileName(string? title)
+    internal static string OutlineFileName(string? title)
     {
         var name = Blank(title) ?? "mindmap";
 
@@ -423,6 +423,6 @@ public static class MindmapEndpoints
             name = name.Replace(invalid, '_');
 
         name = name.Trim().Trim('.');
-        return (name.Length == 0 ? "mindmap" : name) + ".md";
+        return (string.IsNullOrWhiteSpace(name) || ReservedFileNames.IsReserved(name) ? "mindmap" : name) + ".md";
     }
 }
