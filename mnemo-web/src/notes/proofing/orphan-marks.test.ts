@@ -36,7 +36,7 @@ function stubClient(requests: ProofingCheckRequest[]) {
     check(request: ProofingCheckRequest): Promise<ProofingCheckResponse> {
       requests.push(request);
       return Promise.resolve({
-        language: request.language,
+        languages: request.languages,
         paragraphs: request.paragraphs.map((paragraph) => {
           const word = /\p{L}+/u.exec(paragraph.text);
           return {
@@ -83,7 +83,7 @@ function harness(...paragraphs: string[]) {
     view,
     registry,
     noteId: 'note',
-    language: 'en-US',
+    languages: ['en-US'],
     client: stubClient(requests),
     schedule,
     batchSize: 50,

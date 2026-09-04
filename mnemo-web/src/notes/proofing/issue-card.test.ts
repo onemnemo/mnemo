@@ -93,7 +93,7 @@ function harness(...spans: InlineSpan[]): Harness {
     view,
     client: stubClient(calls),
     noteId: 'note',
-    language: () => 'en-US',
+    languages: () => ['en-US'],
     onWordResolved: (word) => calls.resolved.push(word),
   });
 

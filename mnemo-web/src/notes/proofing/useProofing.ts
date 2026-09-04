@@ -7,9 +7,10 @@
  * chunked mount on the spot, so a hook that could see it would freeze the
  * opening of every large note.
  *
- * A language change, a note change or the toggle going off tears the whole
- * arrangement down and clears the marks, rather than trying to reconcile
- * answers about one language against a document being checked in another.
+ * A change to the set of languages, a note change or the toggle going off tears
+ * the whole arrangement down and clears the marks, rather than trying to
+ * reconcile answers about one set against a document being checked against
+ * another.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -21,7 +22,13 @@ import { installCardTriggers } from './card-triggers';
 import { createProofingCard, type ProofingCardHandle } from './issue-card';
 import { dispatchProofing, subscribeProofing } from './proofing-plugin';
 import { createProofingScheduler, type ProofingSchedule } from './scheduler';
-import { proofingClient, readyLanguage, useInvalidateProofing, useProofingStatus } from './status';
+import {
+  effectiveLanguages,
+  proofingClient,
+  readyLanguages,
+  useInvalidateProofing,
+  useProofingStatus,
+} from './status';
 import type { ProofingClient } from './client';
 
 export interface UseProofingOptions {
@@ -40,6 +47,13 @@ export interface ProofingSurface {
   readonly active: boolean;
   /** The note holds as many marks as one note may, so nothing more is checked. */
   readonly paused: boolean;
+  /**
+   * The note is meant to go unchecked: either the reader asked for that, or
+   * nothing is switched on to check it with. The browser's own checker stands
+   * down too, so "do not check this note" is not answered by red underlines
+   * from a dictionary this app does not own.
+   */
+  readonly suppressed: boolean;
 }
 
 export function useProofing(options: UseProofingOptions): ProofingSurface {
@@ -48,13 +62,19 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
   const client = options.client ?? proofingClient;
   const invalidate = useInvalidateProofing();
 
-  const { data: status } = useProofingStatus();
+  const { data: status } = useProofingStatus(noteId);
   const enabled = useSettingValue('Proofing.Enabled', true);
-  const language = readyLanguage(status);
-  const active = editable && enabled && language !== null;
+  const ready = readyLanguages(status);
+  const readyKey = ready.join(',');
+  const active = editable && enabled && ready.length > 0;
+  // Never before the status arrives: an unanswered note looks the same as one
+  // with nothing switched on, and guessing would leave the opening seconds of
+  // every note with no checker at all.
+  const suppressed =
+    status !== undefined && (status.note?.mode === 'off' || effectiveLanguages(status).length === 0);
 
   // Held in a ref so the effect below does not re-run whenever React Query
-  // hands back a new status object with the same language in it.
+  // hands back a new status object with the same languages in it.
   const invalidateRef = useRef(invalidate);
   invalidateRef.current = invalidate;
 
@@ -62,17 +82,21 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
   const [paused, setPaused] = useState(false);
 
   const schedule = options.schedule;
-  const languageRef = useRef<string | null>(language);
-  languageRef.current = language;
+  // A fresh array every render, so the arrangement below hangs off the contents
+  // rather than the identity: otherwise every status poll would tear the
+  // scheduler down and re-check the whole note.
+  const languages = useMemo(() => (readyKey === '' ? [] : readyKey.split(',')), [readyKey]);
+  const languagesRef = useRef<readonly string[]>(languages);
+  languagesRef.current = languages;
 
   useEffect(() => {
-    if (!view || !active || language === null) return;
+    if (!view || !active) return;
 
     const scheduler = createProofingScheduler({
       view,
       registry,
       noteId,
-      language,
+      languages,
       client,
       schedule,
     });
@@ -80,7 +104,7 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
       view,
       client,
       noteId,
-      language: () => languageRef.current ?? language,
+      languages: () => languagesRef.current,
       onWordResolved: () => invalidateRef.current(),
     });
     setCard(handle);
@@ -100,7 +124,7 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
       setPaused(false);
       if (!view.isDestroyed) dispatchProofing(view, { type: 'clear' });
     };
-  }, [view, registry, noteId, language, active, client, schedule]);
+  }, [view, registry, noteId, languages, active, client, schedule]);
 
   // The triggers live on the document rather than in the plugin stack, because
   // opening the card needs the network and the plugin is not allowed to.
@@ -112,5 +136,8 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
     });
   }, [view, card]);
 
-  return useMemo(() => ({ active, paused: active && paused }), [active, paused]);
+  return useMemo(
+    () => ({ active, paused: active && paused, suppressed }),
+    [active, paused, suppressed],
+  );
 }

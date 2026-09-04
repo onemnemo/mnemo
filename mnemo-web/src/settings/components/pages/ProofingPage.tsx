@@ -21,11 +21,11 @@ const NS = "Settings"
  * are prose the user typed too, and the moment this lives under Notes the
  * others either go unchecked or grow a second copy of the same switch.
  *
- * The effective language and what each dictionary is doing come from the host's
- * status, never from the stored key: resolving it takes the stored preference,
- * the older spellcheck setting and what is actually installed, and only the
- * host can see all three. So the select writes the key and then asks the host
- * again rather than assuming the write is the answer.
+ * The active set and what each dictionary is doing come from the host's status,
+ * never from the stored key: resolving it takes the stored preference, the
+ * older spellcheck setting and what is actually installed, and only the host
+ * can see all three. So the select writes the key and then asks the host again
+ * rather than assuming the write is the answer.
  */
 export function ProofingPage() {
   const t = useT()
@@ -40,15 +40,15 @@ export function ProofingPage() {
 
   const languages = status?.languages ?? []
   const offered = languageChoices(languages, st("ProofingStateLoading"))
-  const selected = pendingLanguage ?? status?.language ?? ""
+  const selected = pendingLanguage ?? status?.active[0] ?? ""
 
   // Through the settings store like every other written key, so one cache holds
   // the stored value and the store's own rollback covers a failed write. The
-  // host still owns which language is *effective*, which is why the status is
+  // host still owns which languages are *effective*, which is why the status is
   // invalidated rather than assumed to follow.
   async function chooseLanguage(next: string) {
     setPendingLanguage(next)
-    await setValue("Proofing.Language", next)
+    await setValue("Proofing.Languages", [next])
     setPendingLanguage(null)
     invalidate()
   }

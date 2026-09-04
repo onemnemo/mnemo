@@ -50,7 +50,7 @@ function stubClient(requests: ProofingCheckRequest[]) {
     check(request: ProofingCheckRequest): Promise<ProofingCheckResponse> {
       requests.push(request);
       return Promise.resolve({
-        language: request.language,
+        languages: request.languages,
         paragraphs: request.paragraphs.map((paragraph) => ({ id: paragraph.id, issues: [] })),
       });
     },
@@ -94,7 +94,7 @@ describe('proofing over a chunked mount', () => {
       view: mounted.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client: stubClient(requests),
       schedule: clock.schedule,
     });
@@ -123,7 +123,7 @@ describe('proofing over a chunked mount', () => {
       view: mounted.view,
       registry,
       noteId: 'note',
-      language: 'en-US',
+      languages: ['en-US'],
       client: stubClient(requests),
       schedule: clock.schedule,
       debounceMs: 0,

@@ -137,7 +137,7 @@ export function NoteSurface({
   // Given the view rather than the session: reading the session's state drains
   // a chunked mount on the spot, and proofing must never be what does that.
   const proofing = useProofing({ view, registry, noteId });
-  const { spellCheck, lang } = useSpellcheck(proofing.active);
+  const { spellCheck, lang } = useSpellcheck(proofing.active || proofing.suppressed);
 
   return (
     <div ref={paneRef} className="group/pane relative flex h-full min-h-0 flex-col">
