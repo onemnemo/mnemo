@@ -31,6 +31,11 @@ const PREVIEW = 4
  * older spellcheck setting and what is actually installed, and only the host
  * can see all three. So a write stores the key and then asks the host again
  * rather than assuming the write is the answer.
+ *
+ * This page is the only spelling surface. The browser's own checker is a
+ * fallback, so it sits here under that name rather than under the editor
+ * settings, where it would read as a second, disagreeing copy of this page, and
+ * the switch at the top governs it too.
  */
 export function ProofingPage() {
   const t = useT()
@@ -42,6 +47,7 @@ export function ProofingPage() {
   const { data: personal } = useProofingPersonalWords()
   const invalidate = useInvalidateProofing()
   const enabled = useSettingValue("Proofing.Enabled", true)
+  const fallback = useSettingValue("Editor.SpellCheck", true)
   const setValue = useSettingsStore((state) => state.setValue)
   const [dialog, setDialog] = useState<"languages" | "words" | null>(null)
 
@@ -130,6 +136,17 @@ export function ProofingPage() {
             </button>
           </>
         )}
+      </Section>
+
+      <Section title={st("ProofingSystemTitle")} note={st("ProofingSystemNote")}>
+        <Row label={st("ProofingSystemFallback")} description={st("ProofingSystemFallbackDescription")}>
+          <Switch
+            checked={fallback}
+            disabled={!enabled}
+            label={st("ProofingSystemFallback")}
+            onChange={(next) => void setValue("Editor.SpellCheck", next)}
+          />
+        </Row>
       </Section>
 
       <Section title={st("ProofingPersonalTitle")}>

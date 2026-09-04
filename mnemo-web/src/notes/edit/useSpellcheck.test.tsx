@@ -6,7 +6,11 @@
  * Two spellcheckers on one paragraph underline the same word twice, from two
  * dictionaries that disagree, and only one of them answers to the settings
  * page. So the browser's stands down whenever Mnemo's is marking or the note is
- * meant to go unchecked, and comes straight back otherwise.
+ * meant to go unchecked.
+ *
+ * The case worth pinning is the master switch. There is one control for spell
+ * check, and off means off: a reader who turns it off and still sees red
+ * underlines has been told the switch does nothing.
  */
 
 import { StrictMode, act } from 'react';
@@ -22,13 +26,19 @@ import { useSpellcheck } from './useSpellcheck';
 let container: HTMLElement;
 let root: Root;
 
-function Probe({ standDown }: { standDown: boolean }) {
-  const { spellCheck, lang } = useSpellcheck(standDown);
+function Probe({ standDown, language }: { standDown: boolean; language?: string }) {
+  const { spellCheck, lang } = useSpellcheck(standDown, language);
   return <div data-testid="probe" data-spellcheck={String(spellCheck)} data-lang={lang} />;
 }
 
-function render(standDown: boolean): void {
-  act(() => root.render(<StrictMode><Probe standDown={standDown} /></StrictMode>));
+function render(standDown: boolean, language?: string): void {
+  act(() =>
+    root.render(
+      <StrictMode>
+        <Probe standDown={standDown} language={language} />
+      </StrictMode>,
+    ),
+  );
 }
 
 function read(): { spellCheck: string | null; lang: string | null } {
@@ -55,7 +65,7 @@ describe('the editor container spellcheck attributes', () => {
     expect(read().spellCheck).toBe('false');
   });
 
-  it('leaves the existing behaviour alone when proofing is not marking', () => {
+  it('lets the browser fill in where Mnemo is not marking', () => {
     render(false);
     expect(read().spellCheck).toBe('true');
 
@@ -65,11 +75,23 @@ describe('the editor container spellcheck attributes', () => {
     expect(read().spellCheck).toBe('false');
   });
 
-  it('keeps reporting the document language either way', () => {
+  // The whole point of one switch: with it off, no checker underlines anything,
+  // not the fallback the reader never chose either.
+  it('turns both checkers off with the master switch', () => {
     act(() => {
-      useSettingsStore.setState({ values: { 'Editor.SpellCheckLanguages': 'nb' } });
+      useSettingsStore.setState({ values: { 'Proofing.Enabled': false, 'Editor.SpellCheck': true } });
     });
-    render(true);
-    expect(read().lang).toBe('nb');
+    render(false);
+    expect(read().spellCheck).toBe('false');
+  });
+
+  it('reports the language the note is checked in', () => {
+    render(true, 'nb-NO');
+    expect(read().lang).toBe('nb-NO');
+  });
+
+  it('falls back to English before the host has answered', () => {
+    render(false);
+    expect(read().lang).toBe('en');
   });
 });

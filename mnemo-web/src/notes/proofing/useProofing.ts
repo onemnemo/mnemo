@@ -64,6 +64,13 @@ export interface ProofingSurface {
    * from a dictionary this app does not own.
    */
   readonly suppressed: boolean;
+  /**
+   * What this note is written in, as the `lang` the container carries. The first
+   * of the note's effective languages, because that is the one whose corrections
+   * are offered first. Undefined until the host has answered, or when the note is
+   * checked in nothing.
+   */
+  readonly language?: string;
 }
 
 export function useProofing(options: UseProofingOptions): ProofingSurface {
@@ -158,9 +165,11 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
     });
   }, [view, card]);
 
+  const language = effectiveLanguages(status)[0];
+
   return useMemo(
-    () => ({ active, paused: active && paused, suppressed }),
-    [active, paused, suppressed],
+    () => ({ active, paused: active && paused, suppressed, language }),
+    [active, paused, suppressed, language],
   );
 }
 
