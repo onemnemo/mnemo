@@ -66,17 +66,39 @@ export function exportSaveOptions(common: (key: string) => string): ExportSaveOp
 }
 
 /**
+ * Windows device names a file's base name cannot be, with or without an extension, checked
+ * case-insensitively against everything before the first dot: "con", "CON" and "con.txt" all
+ * match. Shared by every route that turns a title into a download name, on both sides (the C#
+ * twins keep their own copy of the same list).
+ */
+const RESERVED_DEVICE_NAMES = new Set([
+  "con",
+  "prn",
+  "aux",
+  "nul",
+  "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+  "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+])
+
+function isReservedDeviceName(name: string): boolean {
+  const dot = name.indexOf(".")
+  const stem = dot < 0 ? name : name.slice(0, dot)
+  return RESERVED_DEVICE_NAMES.has(stem.toLowerCase())
+}
+
+/**
  * A name for the chooser to open on. Where the name is really settled is the chooser itself, and
  * the host holds the written file to the grant rather than to anything sent with it, so this only
  * has to be something a file system will take: the item's own title when one thing is going out,
- * and a plain fallback when several are.
+ * and a plain fallback when several are, or when the title alone is a reserved device name.
  */
 export function exportFileName(title: string | null, fallback: string, extension: string): string {
   const stem = (title ?? "")
     .replace(/[\\/:*?"<>|]/g, "_")
     .replace(/^\.+|\.+$/g, "")
     .trim()
-  return `${stem || fallback}${extension}`
+  const name = stem || fallback
+  return `${isReservedDeviceName(name) ? fallback : name}${extension}`
 }
 
 /** Where exports have gone before, and whether a chooser can be raised at all. */

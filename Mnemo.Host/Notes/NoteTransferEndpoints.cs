@@ -410,7 +410,7 @@ public static class NoteTransferEndpoints
             name = name.Replace(invalid, '_');
 
         name = name.Trim().Trim('.');
-        return (string.IsNullOrWhiteSpace(name) ? "notes" : name) + extension;
+        return (string.IsNullOrWhiteSpace(name) || ReservedFileNames.IsReserved(name) ? "notes" : name) + extension;
     }
 
     private static string ContentTypeFor(string extension) => extension.ToLowerInvariant() switch

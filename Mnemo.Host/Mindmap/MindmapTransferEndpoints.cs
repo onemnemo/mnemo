@@ -377,6 +377,6 @@ public static class MindmapTransferEndpoints
             name = name.Replace(invalid, '_');
 
         name = name.Trim().Trim('.');
-        return (string.IsNullOrWhiteSpace(name) ? "mindmaps" : name) + extension;
+        return (string.IsNullOrWhiteSpace(name) || ReservedFileNames.IsReserved(name) ? "mindmaps" : name) + extension;
     }
 }

@@ -346,6 +346,22 @@ describe("exportFileName", () => {
   it("keeps a separator out of what the chooser is handed", () => {
     expect(exportFileName("a/b", "notes", ".md")).toBe("a_b.md")
   })
+
+  it("falls back on a Windows reserved device name", () => {
+    expect(exportFileName("CON", "notes", ".md")).toBe("notes.md")
+  })
+
+  it("catches a reserved name regardless of case", () => {
+    expect(exportFileName("com3", "notes", ".md")).toBe("notes.md")
+  })
+
+  it("catches a reserved name carrying its own extension-like suffix", () => {
+    expect(exportFileName("nul.backup", "notes", ".md")).toBe("notes.md")
+  })
+
+  it("leaves a title that only starts with a reserved word alone", () => {
+    expect(exportFileName("Console notes", "notes", ".md")).toBe("Console notes.md")
+  })
 })
 
 /**

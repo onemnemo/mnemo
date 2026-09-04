@@ -425,7 +425,7 @@ public static class TransferEndpoints
             name = name.Replace(invalid, '_');
 
         name = name.Trim().Trim('.');
-        return (string.IsNullOrWhiteSpace(name) ? "flashcards" : name) + extension;
+        return (string.IsNullOrWhiteSpace(name) || ReservedFileNames.IsReserved(name) ? "flashcards" : name) + extension;
     }
 
     private static string ContentTypeFor(string extension) => extension.ToLowerInvariant() switch

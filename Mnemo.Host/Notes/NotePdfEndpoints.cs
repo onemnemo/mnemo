@@ -246,12 +246,12 @@ public static class NotePdfEndpoints
     };
 
     /// <summary>The download filename: the note's title, sanitized, or a generic fallback.</summary>
-    private static string DownloadName(string? title)
+    internal static string DownloadName(string? title)
     {
         var name = string.IsNullOrWhiteSpace(title) ? "note" : title!;
         foreach (var invalid in Path.GetInvalidFileNameChars())
             name = name.Replace(invalid, '_');
         name = name.Trim().Trim('.');
-        return (string.IsNullOrWhiteSpace(name) ? "note" : name) + ".pdf";
+        return (string.IsNullOrWhiteSpace(name) || ReservedFileNames.IsReserved(name) ? "note" : name) + ".pdf";
     }
 }
