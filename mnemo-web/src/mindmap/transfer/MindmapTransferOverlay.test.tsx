@@ -10,6 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { MindmapTransferImportResultDto, MindmapTransferUploadDto } from "@/api/types"
 
+import { toast } from "@/stores/toast"
+
 import { MindmapTransferOverlay } from "./MindmapTransferOverlay"
 import { useMindmapTransfer } from "./store"
 
@@ -203,5 +205,41 @@ describe("the mindmap transfer overlay's replace consent", () => {
     expect(consentCheckbox()?.checked).toBe(false)
     expect(confirmButton().disabled).toBe(true)
     expect(api.runMindmapImport).not.toHaveBeenCalled()
+  })
+})
+
+describe("the mindmap transfer overlay's post-import warnings", () => {
+  // Only a .mnemo package's import adapter ever attaches a post-import warning; the
+  // mocked format list here is already .mnemo-only, matching that.
+  it("folds a warning into the completion toast and flips it to a warning tone", async () => {
+    openImportDialog()
+    await chooseFile("Study.mnemo")
+    api.runMindmapImport.mockResolvedValueOnce({
+      succeededFiles: 1,
+      failedFiles: 0,
+      importedMaps: 2,
+      warnings: [{ key: "PackageFolderRestoredAtRoot", params: {} }],
+      errors: [],
+    } satisfies MindmapTransferImportResultDto)
+
+    act(() => confirmButton().click())
+    await flush()
+
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith(
+      "ImportCompleteTitle",
+      expect.objectContaining({ description: expect.stringContaining("PackageFolderRestoredAtRoot") }),
+    )
+  })
+
+  it("still reports plain success when the result carries no warnings", async () => {
+    openImportDialog()
+    await chooseFile("Study.mnemo")
+
+    act(() => confirmButton().click())
+    await flush()
+
+    expect(toast.success).toHaveBeenCalledWith("ImportCompleteTitle", expect.anything())
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 })
