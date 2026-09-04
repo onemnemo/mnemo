@@ -71,7 +71,7 @@ const BUNDLE = {
     ProofingAddLanguage: "Add a language",
     ProofingNoLanguages: "No language is switched on",
     ProofingNoLanguagesDescription: "Nothing is checked until you add one.",
-    ProofingPickerInstalled: "On this machine",
+    ProofingPickerInstalled: "Available",
     ProofingPickerUnavailable: "Not available",
     ProofingPickerAdd: "Add",
     ProofingPickerAddFormat: "Add {0}",
@@ -80,6 +80,7 @@ const BUNDLE = {
     ProofingPersonalNone: "Nothing yet.",
     ProofingPersonalCountOne: "{0} word",
     ProofingPersonalCountMany: "{0} words",
+    ProofingPersonalManage: "Manage",
     "proofing.language.notAvailableYet": "No dictionary ships for this language yet.",
   },
 }
@@ -157,10 +158,11 @@ describe("the spelling page with nothing switched on", () => {
     expect(container.querySelectorAll('[aria-label^="Options for"]')).toHaveLength(0)
   })
 
-  it("reports an empty word list on the row and on its button", () => {
+  it("reports an empty word list beside a way to manage it", () => {
     render()
     expect(textOf(container)).toContain("Nothing yet.")
-    expect(buttonSaying(container, "0 words")).toBeDefined()
+    expect(textOf(container)).toContain("0 words")
+    expect(buttonSaying(container, "Manage")).toBeDefined()
   })
 
   it("offers every installed dictionary in the picker, named for a screen reader", () => {
@@ -200,10 +202,11 @@ describe("the spelling page with two languages on", () => {
     expect(textOf(container)).toContain("Preparing")
   })
 
-  it("previews the added words beside a button carrying their count", () => {
+  it("previews the added words beside their count and a manage button", () => {
     render()
     expect(textOf(container)).toContain("mnemo, sillage")
-    expect(buttonSaying(container, "2 words")).toBeDefined()
+    expect(textOf(container)).toContain("2 words")
+    expect(buttonSaying(container, "Manage")).toBeDefined()
   })
 
   it("opens the picker on demand and not before", () => {
@@ -214,10 +217,11 @@ describe("the spelling page with two languages on", () => {
 
     const dialog = document.body.querySelector('[role="dialog"]')
     expect(dialog).not.toBeNull()
-    // Both groups, and the absent one states the host's reason rather than
-    // offering a button for a download that does not exist.
-    expect(textOf(dialog!)).toContain("On this machine")
-    expect(textOf(dialog!)).toContain("Not available")
+    // Both groups, split on whether the language can be checked at all, and the
+    // second states the host's reason rather than offering a button for a
+    // download that does not exist.
+    const headings = [...dialog!.querySelectorAll("section > p")].map((node) => node.textContent)
+    expect(headings).toEqual(["Available", "Not available"])
     expect(textOf(dialog!)).toContain("No dictionary ships for this language yet.")
     expect(buttonSaying(dialog!, "Add")).toBeUndefined()
     expect(textOf(dialog!)).toContain("Added")

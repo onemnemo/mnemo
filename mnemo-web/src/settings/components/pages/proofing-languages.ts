@@ -1,4 +1,4 @@
-import type { PersonalWord, ProofingLanguage } from "@/notes/proofing/types"
+import type { ProofingLanguage } from "@/notes/proofing/types"
 
 /**
  * The scope select's value for a word that belongs to no single language.
@@ -96,26 +96,76 @@ export function pickerGroups(
 }
 
 /**
- * Which scopes the words dialog may offer.
+ * Which of the offered scopes a word is sitting on.
  *
- * Every scope a word already carries has to be one of them or its own row
- * cannot show its own value. Words seeded from the older editor setting carry a
- * bare code such as `en` rather than a catalogue id, and removal matches the
- * stored string exactly, so the stored strings are part of the list rather than
- * something to map onto the catalogue.
+ * A word seeded from the older editor setting carries a bare code such as `en`
+ * rather than a catalogue id, and the host decides whether a scoped word applies
+ * to a language by comparing primary subtags, so on a machine with `en-US`
+ * installed a word scoped to `en` is scoped to that dictionary. Naming it any
+ * other way would put two options reading "English" in one list.
+ *
+ * Only a scope no installed language answers for stays as it is stored, and it
+ * is then an option of its own so the word's value is still one of them.
+ */
+export function resolveScope(stored: string | null, languages: readonly ProofingLanguage[]): string {
+  if (stored === null) return ANY_LANGUAGE
+  const offered = languages.filter((language) => language.installed)
+  // The word's own id wins over a relative of it, or a machine carrying both
+  // en-GB and en-US would move an en-US word onto whichever came first.
+  const exact = offered.find((language) => language.id === stored)
+  if (exact) return exact.id
+  const primary = primarySubtag(stored)
+  const related = offered.find((language) => primarySubtag(language.id) === primary)
+  return related ? related.id : stored
+}
+
+/**
+ * The scopes one word's select may offer: no language, every installed
+ * language, and nothing else unless the word is stored under a scope none of
+ * them answers for.
  */
 export function scopeValues(
-  words: readonly PersonalWord[],
+  stored: string | null,
   languages: readonly ProofingLanguage[],
 ): readonly string[] {
   const values = [ANY_LANGUAGE]
   for (const language of languages) {
     if (language.installed && !values.includes(language.id)) values.push(language.id)
   }
-  for (const word of words) {
-    if (word.language && !values.includes(word.language)) values.push(word.language)
-  }
+  const current = resolveScope(stored, languages)
+  if (!values.includes(current)) values.push(current)
   return values
+}
+
+/**
+ * An add and the removal that follows it, or nothing when the choice is the one
+ * already shown.
+ *
+ * The order is the point. The host has no way to move a word, so a scope change
+ * is two calls and a failure can land between them. Adding first leaves the word
+ * under both scopes until the next change; removing first loses it outright.
+ */
+export interface ScopeChange {
+  /** The string the word is stored under. A removal matches it exactly, so it goes back as it stands. */
+  readonly from: string | null
+  readonly to: string | null
+}
+
+/**
+ * What picking a scope has to do.
+ *
+ * Nothing when the pick is the option the row already shows: a word stored as
+ * `en` is shown on `en-US`, and rewriting it to that would move the stored
+ * string without changing anything the user can see. That is also what keeps the
+ * two scopes distinct, so the removal cannot take the row the add just made.
+ */
+export function scopeChange(
+  stored: string | null,
+  chosen: string,
+  languages: readonly ProofingLanguage[],
+): ScopeChange | null {
+  if (chosen === resolveScope(stored, languages)) return null
+  return { from: stored, to: chosen === ANY_LANGUAGE ? null : chosen }
 }
 
 /**

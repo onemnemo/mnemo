@@ -415,7 +415,7 @@
     "ProofingAddLanguage": "Legg til et språk",
     "ProofingNoLanguages": "Ingen språk er slått på",
     "ProofingNoLanguagesDescription": "Ingenting kontrolleres før du legger til ett.",
-    "ProofingPickerInstalled": "På denne maskinen",
+    "ProofingPickerInstalled": "Tilgjengelig",
     "ProofingPickerUnavailable": "Ikke tilgjengelig",
     "ProofingPickerAdd": "Legg til",
     "ProofingPickerAddFormat": "Legg til {0}",
@@ -429,8 +429,11 @@
     "ProofingPersonalRemoveFormat": "Fjern {0}",
     "ProofingScopeAll": "Alle språk",
     "ProofingScopeLabelFormat": "Språk {0} gjelder for",
+    "ProofingScopeAppliesTo": "Gjelder for",
+    "ProofingPersonalManage": "Administrer",
+    "ProofingPersonalAlreadyAdded": "Det ordet finnes allerede i ordboken din.",
     "proofing.language.notAvailableYet": "Ingen ordliste følger med for dette språket ennå.",
-    "proofing.language.unsupportedByEngine": "Kontrollen kan ikke lese en ordliste for dette språket.",
+    "proofing.language.unsupportedByEngine": "Kontrollen støtter ikke dette språket.",
     "proofing.language.filesMissing": "Ordlistefilene finnes ikke på denne maskinen."
   },
   "Onboarding": {

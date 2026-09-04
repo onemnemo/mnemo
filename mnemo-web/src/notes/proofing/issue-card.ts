@@ -264,7 +264,7 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
     view.focus();
   }
 
-  function resolveWord(word: string, work: Promise<void>): void {
+  function resolveWord(word: string, work: Promise<unknown>): void {
     // The word stays where it is and the caret belongs back in it.
     teardown('restore');
     void work

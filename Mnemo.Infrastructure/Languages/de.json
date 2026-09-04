@@ -415,7 +415,7 @@
     "ProofingAddLanguage": "Sprache hinzufügen",
     "ProofingNoLanguages": "Keine Sprache ist eingeschaltet",
     "ProofingNoLanguagesDescription": "Es wird nichts geprüft, bis du eine hinzufügst.",
-    "ProofingPickerInstalled": "Auf diesem Gerät",
+    "ProofingPickerInstalled": "Verfügbar",
     "ProofingPickerUnavailable": "Nicht verfügbar",
     "ProofingPickerAdd": "Hinzufügen",
     "ProofingPickerAddFormat": "{0} hinzufügen",
@@ -429,8 +429,11 @@
     "ProofingPersonalRemoveFormat": "{0} entfernen",
     "ProofingScopeAll": "Alle Sprachen",
     "ProofingScopeLabelFormat": "Sprachen, für die {0} gilt",
+    "ProofingScopeAppliesTo": "Gilt für",
+    "ProofingPersonalManage": "Verwalten",
+    "ProofingPersonalAlreadyAdded": "Dieses Wort steht bereits in deinem Wörterbuch.",
     "proofing.language.notAvailableYet": "Für diese Sprache wird noch kein Wörterbuch mitgeliefert.",
-    "proofing.language.unsupportedByEngine": "Die Prüfung kann für diese Sprache kein Wörterbuch lesen.",
+    "proofing.language.unsupportedByEngine": "Die Prüfung unterstützt diese Sprache nicht.",
     "proofing.language.filesMissing": "Die Wörterbuchdateien liegen nicht auf diesem Gerät."
   },
   "Onboarding": {
