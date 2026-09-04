@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { AppIcon } from '@/components/icon/AppIcon';
 import { useT } from '@/i18n/useT';
@@ -6,6 +6,9 @@ import { usePointerDrag } from '@/lib/dnd/usePointerDrag';
 import { cn } from '@/lib/utils';
 
 import { SidebarExpandButton } from './SidebarExpandButton';
+import { TabContextMenu } from './TabContextMenu';
+import { tabMenuItems } from './tab-menu-items';
+import { survivingNeighbour, tabsToClose, type TabCloseScope } from './tabs';
 
 export interface NoteTab {
   readonly id: string;
@@ -39,20 +42,57 @@ export function NoteTabs({
   activeId,
   onSelect,
   onClose,
+  onCloseScope,
   onReorder,
   onExpandSidebar,
+  onOpenInPeek,
+  onMoveToWindow,
 }: {
   tabs: readonly NoteTab[];
   activeId?: string;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
+  onCloseScope: (id: string, scope: TabCloseScope) => void;
   onReorder: (id: string, toIndex: number) => void;
   /** Present only while the tree is collapsed: the bar hosts the reopen control. */
   onExpandSidebar?: () => void;
+  /** Offered only where a side panel exists to show the note in. */
+  onOpenInPeek?: (id: string) => void;
+  /** Offered only where the app can put a note in a window of its own. */
+  onMoveToWindow?: (id: string) => void;
 }) {
   const t = useT();
   const nt = (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
   const barRef = useRef<HTMLDivElement>(null);
+  const ids = tabs.map((tab) => tab.id);
+
+  /**
+   * A menu hands focus back to the element it was raised on, which every close
+   * verb may have just unmounted, and a keyboard user lands on the body with
+   * nothing selected. The tab that should hold focus is claimed before the close
+   * and taken up once the shorter strip has rendered.
+   */
+  const focusAfterClose = useRef<string | null>(null);
+
+  useEffect(() => {
+    const id = focusAfterClose.current;
+    if (id === null) return;
+    focusAfterClose.current = null;
+    const target = [...(barRef.current?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? [])].find(
+      (candidate) => candidate.dataset.tabId === id,
+    );
+    target?.focus();
+  }, [tabs]);
+
+  /** A scope closes a whole range of tabs at once; `null` closes just this one. */
+  function closeVerb(id: string, scope: TabCloseScope | null): () => void {
+    return () => {
+      const closing = scope === null ? [id] : tabsToClose(ids, id, scope);
+      focusAfterClose.current = closing.includes(id) ? survivingNeighbour(ids, closing, id) : id;
+      if (scope === null) onClose(id);
+      else onCloseScope(id, scope);
+    };
+  }
 
   const drag = usePointerDrag<TabHandle, TabTarget, { id: string; index: number }>({
     getKey: (handle) => handle.id,
@@ -131,45 +171,59 @@ export function NoteTabs({
 
       {tabs.map((tab, index) => {
         const active = tab.id === activeId;
+        const entries = tabMenuItems({
+          index,
+          count: tabs.length,
+          t,
+          on: {
+            close: closeVerb(tab.id, null),
+            closeOthers: closeVerb(tab.id, 'others'),
+            closeLeft: closeVerb(tab.id, 'left'),
+            closeRight: closeVerb(tab.id, 'right'),
+            openInPeek: onOpenInPeek && (() => onOpenInPeek(tab.id)),
+            moveToWindow: onMoveToWindow && (() => onMoveToWindow(tab.id)),
+          },
+        });
         return (
-          <div
-            key={tab.id}
-            data-tab-id={tab.id}
-            role="tab"
-            aria-selected={active}
-            tabIndex={active ? 0 : -1}
-            onPointerDown={(event) => drag.press(event, { id: tab.id })}
-            onClick={() => !drag.suppressClick(tab.id) && onSelect(tab.id)}
-            onKeyDown={(event) => handleTabKeyDown(event, index)}
-            style={{ opacity: drag.sourceKey === tab.id ? 0.35 : undefined }}
-            className={cn(
-              'group/tab flex h-7 min-w-0 max-w-[210px] shrink-0 cursor-pointer items-center gap-1.5 rounded-lg pl-2.5 pr-1 outline-none transition-colors',
-              active
-                ? 'bg-canvas text-text-primary shadow-[0_1px_2px_rgb(0_0_0/0.06),0_0_0_1px_var(--line-soft)]'
-                : 'text-text-secondary hover:bg-frame-hover hover:text-text-primary focus-visible:bg-frame-hover focus-visible:text-text-primary',
-            )}
-          >
-            {tab.emoji ? (
-              <span aria-hidden className="shrink-0 text-[12px] leading-none">{tab.emoji}</span>
-            ) : (
-              <AppIcon name="common/file-text" size={12} className="shrink-0 text-text-faded" preserveColors={false} />
-            )}
-            <span className={cn('truncate text-[12.5px]', active ? 'font-medium' : 'font-normal')}>{tab.title}</span>
-            <button
-              type="button"
-              aria-label={nt('CloseTabFormat', { 0: tab.title })}
-              onClick={(event) => {
-                event.stopPropagation();
-                onClose(tab.id);
-              }}
+          <TabContextMenu key={tab.id} entries={entries}>
+            <div
+              data-tab-id={tab.id}
+              role="tab"
+              aria-selected={active}
+              tabIndex={active ? 0 : -1}
+              onPointerDown={(event) => drag.press(event, { id: tab.id })}
+              onClick={() => !drag.suppressClick(tab.id) && onSelect(tab.id)}
+              onKeyDown={(event) => handleTabKeyDown(event, index)}
+              style={{ opacity: drag.sourceKey === tab.id ? 0.35 : undefined }}
               className={cn(
-                'flex size-5 shrink-0 items-center justify-center rounded-md text-text-faded hover:bg-frame-active hover:text-text-primary',
-                active ? 'opacity-100' : 'opacity-0 group-hover/tab:opacity-100',
+                'group/tab flex h-7 min-w-0 max-w-[210px] shrink-0 cursor-pointer items-center gap-1.5 rounded-lg pl-2.5 pr-1 outline-none transition-colors',
+                active
+                  ? 'bg-canvas text-text-primary shadow-[0_1px_2px_rgb(0_0_0/0.06),0_0_0_1px_var(--line-soft)]'
+                  : 'text-text-secondary hover:bg-frame-hover hover:text-text-primary focus-visible:bg-frame-hover focus-visible:text-text-primary',
               )}
             >
-              <AppIcon name="common/x" size={12} />
-            </button>
-          </div>
+              {tab.emoji ? (
+                <span aria-hidden className="shrink-0 text-[12px] leading-none">{tab.emoji}</span>
+              ) : (
+                <AppIcon name="common/file-text" size={12} className="shrink-0 text-text-faded" preserveColors={false} />
+              )}
+              <span className={cn('truncate text-[12.5px]', active ? 'font-medium' : 'font-normal')}>{tab.title}</span>
+              <button
+                type="button"
+                aria-label={nt('CloseTabFormat', { 0: tab.title })}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onClose(tab.id);
+                }}
+                className={cn(
+                  'flex size-5 shrink-0 items-center justify-center rounded-md text-text-faded hover:bg-frame-active hover:text-text-primary',
+                  active ? 'opacity-100' : 'opacity-0 group-hover/tab:opacity-100',
+                )}
+              >
+                <AppIcon name="common/x" size={12} />
+              </button>
+            </div>
+          </TabContextMenu>
         );
       })}
     </div>

@@ -21,7 +21,7 @@ import {
   rememberCollapsedFolders,
   rememberLastNoteId,
 } from './session';
-import { useNoteTabs } from './tabs';
+import { survivingNeighbour, tabsToClose, useNoteTabs, type TabCloseScope } from './tabs';
 import { SidebarExpandButton } from './SidebarExpandButton';
 import { notesTrailCrumbs } from './trail';
 
@@ -71,6 +71,7 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
   const openTabs = useNoteTabs((s) => s.ids);
   const openTab = useNoteTabs((s) => s.open);
   const dropTab = useNoteTabs((s) => s.close);
+  const dropTabs = useNoteTabs((s) => s.closeMany);
   const moveTab = useNoteTabs((s) => s.move);
 
   // Navigating to a note opens it as a tab if it is not one already.
@@ -135,25 +136,41 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
     [openTabs, notes],
   );
 
+  // Closing the note you are on falls through to a neighbour rather than
+  // leaving the pane empty with tabs still open beside it.
+  const landOn = useCallback((fallback: string | null) => {
+    if (fallback) {
+      navigate('notes', fallback);
+    } else {
+      // Closing the last one is a decision to be on no note, so the next visit
+      // should not undo it by reopening what was just closed.
+      rememberLastNoteId(null);
+      navigate('notes');
+    }
+  }, []);
+
   const closeTab = useCallback(
     (id: string) => {
       const ids = tabs.map((tab) => tab.id);
-      const index = ids.indexOf(id);
       dropTab(id);
       if (id !== noteId) return;
-      // Closing the note you are on falls through to a neighbour rather than
-      // leaving the pane empty with tabs still open beside it.
-      const fallback = ids[index + 1] ?? ids[index - 1] ?? null;
-      if (fallback) {
-        navigate('notes', fallback);
-      } else {
-        // Closing the last one is a decision to be on no note, so the next visit
-        // should not undo it by reopening what was just closed.
-        rememberLastNoteId(null);
-        navigate('notes');
-      }
+      landOn(survivingNeighbour(ids, [id], noteId));
     },
-    [tabs, noteId, dropTab],
+    [tabs, noteId, dropTab, landOn],
+  );
+
+  const closeTabs = useCallback(
+    (id: string, scope: TabCloseScope) => {
+      const ids = tabs.map((tab) => tab.id);
+      const closing = tabsToClose(ids, id, scope);
+      // The strip shows only the open ids the library has named, so the range is
+      // taken off the store's own order as well. An id inside it with no tab yet
+      // would otherwise turn into one the moment the library answers.
+      dropTabs(tabsToClose(openTabs, id, scope));
+      if (!noteId || !closing.includes(noteId)) return;
+      landOn(survivingNeighbour(ids, closing, noteId));
+    },
+    [tabs, openTabs, noteId, dropTabs, landOn],
   );
 
   const toggleFolder = useCallback((id: string) => {
@@ -244,6 +261,7 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
             activeId={noteId}
             onSelect={(id) => navigate('notes', id)}
             onClose={closeTab}
+            onCloseScope={closeTabs}
             onReorder={moveTab}
             onExpandSidebar={sidebarOpen ? undefined : () => setSidebarOpen(true)}
           />
