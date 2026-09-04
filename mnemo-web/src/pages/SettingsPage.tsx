@@ -5,6 +5,7 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { KeyboardPage } from "@/settings/components/pages/KeyboardPage"
+import { ProofingPage } from "@/settings/components/pages/ProofingPage"
 import { SettingsPageShell } from "@/settings/components/kit"
 import { SettingRow } from "@/settings/components/SettingRow"
 import { SettingsGroupView } from "@/settings/components/SettingsGroupView"
@@ -129,6 +130,8 @@ function SettingsCategoryPage({ id }: { id: SettingsPageId }) {
   switch (id) {
     case "keyboard":
       return <KeyboardPage />
+    case "proofing":
+      return <ProofingPage />
     case "trash":
       return <TrashPage />
   }

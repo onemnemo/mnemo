@@ -495,6 +495,20 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
   },
 
   {
+    id: "Proofing",
+    icon: "common/spell-check",
+    title: "ProofingCategoryTitle",
+    subtitle: "ProofingSubtitle",
+    // Nobody hunting for the red underlines looks for the word "proofing".
+    keywords: ["spelling", "spell check", "dictionary", "autocorrect", "language", "typo"],
+    section: "app",
+    // Its own surface: a language catalogue and a word list are not label and
+    // control pairs, and the rest of settings is nothing but those.
+    page: "proofing",
+    groups: [],
+  },
+
+  {
     id: "Trash",
     icon: "trash-2",
     title: "TrashCategoryTitle",

@@ -202,7 +202,7 @@ export interface SettingsGroup {
  * row kinds that only ever have one instance. Trash is the same shape of exception: a live
  * list of content with two verbs on every row, and nothing about it is a setting.
  */
-export type SettingsPageId = "keyboard" | "trash"
+export type SettingsPageId = "keyboard" | "proofing" | "trash"
 
 /** One page in the settings nav. */
 export interface SettingsCategory {
