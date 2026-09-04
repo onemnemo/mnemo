@@ -1,0 +1,47 @@
+{
+  "languages": [
+    {
+      "id": "en-US",
+      "name": "English",
+      "region": "United States",
+      "archive": {
+        "url": "https://github.com/en-wl/wordlist/releases/download/rel-2026.02.25/hunspell-en_US-2026.02.25.zip",
+        "version": "2026.02.25",
+        "sha256": "ac8e73310e951d88c52c2cf2ba54ceaca34f8486a81630ac8a75dc5f931179f9",
+        "sizeBytes": 187271
+      },
+      "license": {
+        "name": "SCOWL collective work (permissive, verbatim notices)",
+        "url": "https://wordlist.aspell.net/scowl-readme/"
+      },
+      "files": {
+        "en_US.aff": "526e1dc32d1c0e8806dd72809c017b5546f2104b08b9424a4c47311aca526cca",
+        "en_US.dic": "ab012ae86ce4b46b60db5b150869288de9c4a87bc747911764e582125b1b961e",
+        "README_en_US.txt": "d63c711523fc9504fb71e1278489c6d7bb8cafcba75158c107cd17844955470f"
+      },
+      "licenseFile": "README_en_US.txt"
+    },
+    {
+      "id": "es-ES",
+      "name": "Spanish",
+      "region": "Spain",
+      "archive": {
+        "url": "https://github.com/sbosio/rla-es/releases/download/v2.9/es_ES.oxt",
+        "version": "2.9",
+        "sha256": "3eea87836b24b6004aa1ee6fd285b6c71774b0996aec70d096d75d5526efb4ac",
+        "sizeBytes": 1423283
+      },
+      "license": {
+        "name": "MPL 1.1 (chosen from GPLv3 / LGPLv3 / MPL 1.1)",
+        "url": "https://www.mozilla.org/en-US/MPL/1.1/"
+      },
+      "files": {
+        "es_ES.aff": "e73a9bf8e1383f4986a5dc9e2fbed49371c0c61f511c626d15586bd433c1cad9",
+        "es_ES.dic": "92992d3bd1c393cab1c66d954802466ae44964ccbd23953c22dafa0bb4e37341",
+        "LICENSE.md": "2b70fd5cb8d3b34cc6ae322c969557a2270b99017594addb2531ef5ffd9e1b17",
+        "README.txt": "455632a3a3588573452522fb745cf28fe695b886a7e662d0a493f3237f7d46ed"
+      },
+      "licenseFile": "LICENSE.md"
+    }
+  ]
+}

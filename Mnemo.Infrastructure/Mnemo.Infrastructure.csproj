@@ -37,6 +37,13 @@
     <Content Include="Dictionaries\Spellcheck\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Proofing dictionaries and the manifest recording where each file came from. Content with
+         CopyToOutputDirectory reaches the publish output on its own. The publish step that strips the
+         older Spellcheck assets matches the substring "Dictionaries/Spellcheck", so anything moved
+         under that folder name would silently vanish from every packaged build. -->
+    <Content Include="Dictionaries\Proofing\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="skills\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

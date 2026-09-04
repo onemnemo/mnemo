@@ -1,0 +1,5 @@
+# Proofing dictionaries are third-party files redistributed exactly as downloaded, and the SHA-256
+# of each one is recorded in a manifest and asserted by a test. Line ending conversion rewrites every
+# line of a word list, so on a machine with core.autocrlf set a plain checkout would break the whole
+# manifest and ship files that are not the ones the provenance record names.
+Mnemo.Infrastructure/Dictionaries/Proofing/** -text
