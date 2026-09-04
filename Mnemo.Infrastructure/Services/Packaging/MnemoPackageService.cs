@@ -196,6 +196,11 @@ public sealed class MnemoPackageService : IMnemoPackageService
                 ? new HashSet<string>(options.PayloadTypes, StringComparer.OrdinalIgnoreCase)
                 : null;
 
+            // Carried forward so a payload keyed by another payload's ids can follow whatever that
+            // one renamed. Entries are walked in manifest order, which an export writes in payload
+            // type order, so notes are always stored before anything keyed by a note id is read.
+            var remappedIds = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+
             foreach (var entry in manifest.Entries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -215,8 +220,12 @@ public sealed class MnemoPackageService : IMnemoPackageService
                     Entry = entry,
                     Options = options,
                     Files = FilesUnder(archiveEntries, entry),
-                    Manifest = manifest
+                    Manifest = manifest,
+                    RemappedIds = new Dictionary<string, IReadOnlyDictionary<string, string>>(remappedIds, StringComparer.OrdinalIgnoreCase)
                 }, cancellationToken).ConfigureAwait(false);
+
+                if (importResult.RemappedIds.Count > 0)
+                    remappedIds[entry.PayloadType] = importResult.RemappedIds;
 
                 result.ImportedCountsByPayload[entry.PayloadType] = importResult.ImportedCount;
                 result.DuplicatedCountsByPayload[entry.PayloadType] = importResult.DuplicatedCount;

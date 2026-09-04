@@ -112,6 +112,23 @@ public sealed class NoteIgnoreService : INoteIgnoreService
         }
     }
 
+    public async Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetAllAsync(CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var all = await LoadAsync().ConfigureAwait(false);
+            var copy = new Dictionary<string, IReadOnlyList<string>>(all.Count, StringComparer.Ordinal);
+            foreach (var (noteId, words) in all)
+                copy[noteId] = [.. words];
+            return copy;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     /// <summary>Caller must hold the gate.</summary>
     private async Task<Dictionary<string, List<string>>> LoadAsync()
     {

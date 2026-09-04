@@ -118,6 +118,11 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
                 continue;
             }
 
+            // Published so the payloads keyed by note id can follow the note that moved. Recorded
+            // only after the save, because an id nothing was written under points at no note.
+            if (!string.Equals(imported.NoteId, note.NoteId, StringComparison.Ordinal))
+                result.RemappedIds[note.NoteId] = imported.NoteId;
+
             result.ImportedCount++;
         }
 
@@ -127,7 +132,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
 
     private static HashSet<string> ResolveSelectedNoteIds(MnemoPackageExportOptions options)
     {
-        if (!options.PayloadOptions.TryGetValue("notes.noteIds", out var value))
+        if (!options.PayloadOptions.TryGetValue(MnemoPayloadOptionKeys.NoteIds, out var value))
             return new HashSet<string>(StringComparer.Ordinal);
         if (value is IEnumerable<string> ids)
             return new HashSet<string>(ids.Where(v => !string.IsNullOrWhiteSpace(v)), StringComparer.Ordinal);

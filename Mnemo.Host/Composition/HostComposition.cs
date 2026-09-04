@@ -250,6 +250,7 @@ public static class HostComposition
         services.AddSingleton<IMnemoPayloadHandler, SettingsMnemoPayloadHandler>();
         services.AddSingleton<IMnemoPayloadHandler, FlashcardsMnemoPayloadHandler>();
         services.AddSingleton<IMnemoPayloadHandler, MindmapsMnemoPayloadHandler>();
+        services.AddSingleton<IMnemoPayloadHandler, ProofingMnemoPayloadHandler>();
         services.AddSingleton<IImportExportCoordinator, ImportExportCoordinator>();
         services.AddSingleton<IContentFormatAdapter, NotesMnemoFormatAdapter>();
         services.AddSingleton<IContentFormatAdapter, NotesMarkdownFormatAdapter>();

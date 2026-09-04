@@ -25,4 +25,7 @@ public interface INoteIgnoreService
 
     /// <summary>Removes a word from one note. Removing something absent changes nothing.</summary>
     Task RemoveAsync(string noteId, string word, CancellationToken ct);
+
+    /// <summary>Every stored list, by note id. What a backup has to carry.</summary>
+    Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetAllAsync(CancellationToken ct);
 }
