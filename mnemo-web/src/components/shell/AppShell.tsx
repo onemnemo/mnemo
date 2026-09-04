@@ -9,6 +9,7 @@ import { useT } from "@/i18n/useT"
 import { activeNavRoute, navItemForRoute, useNavCategories } from "@/nav/store"
 import { navIcon } from "@/nav/icons"
 import { useTrail, type Crumb } from "@/nav/trail"
+import { SidePeek } from "@/peek/SidePeek"
 import { useShellStore } from "@/stores/shell"
 
 /**
@@ -42,7 +43,10 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col border-l border-line-soft">
         <Topbar crumbs={crumbs} collapsed={collapsed} onExpand={() => useShellStore.getState().setSidebarCollapsed(false)} />
 
-        <div className="flex min-h-0 flex-1">
+        {/* Positioned, so an overlaying side peek covers the canvas and the dock and
+            nothing else. No z-index of its own: this must not become a stacking context,
+            or the peek's tier would stop comparing against the rest of the app's. */}
+        <div className="relative flex min-h-0 flex-1">
           {/* min-h-0 as well as min-w-0: without it this wrapper grows to its
               content, and anything absolutely positioned inside it inherits the
               overflow and runs off the bottom of the window. */}
@@ -53,6 +57,10 @@ export function AppShell() {
                 or the dock. */}
             <ToastHost />
           </div>
+          {/* Between the canvas and the dock, always. The dock measures its own width
+              from the window's right edge, so a panel docked to the right of it would
+              make the first drag of its separator jump by this panel's width. */}
+          <SidePeek />
           <SomaDock />
         </div>
       </div>

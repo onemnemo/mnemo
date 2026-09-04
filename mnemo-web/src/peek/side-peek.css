@@ -1,0 +1,42 @@
+/*
+ * The side peek's own surface rules: the ones Tailwind utilities cannot say.
+ */
+
+/* The overlay's background alpha. Only the fill is thinned, never the panel: text,
+   icons and hairlines stay fully opaque, which an `opacity` on the element could not
+   do. The custom property carries a plain 0-to-1 number so the mix can be written
+   once here rather than rebuilt at every step the menu offers. */
+.peek-surface {
+  background: color-mix(
+    in srgb,
+    var(--canvas) calc(var(--peek-surface-alpha) * 100%),
+    transparent
+  );
+}
+
+/*
+ * The note renderer's measure.
+ *
+ * The editor's own measure is 720px plus a 56px gutter each side, which the peek does
+ * not have at any width it offers. The column is the panel instead, and the gutter
+ * narrows to the 28px the table's scroller hangs its handles into: less than that and
+ * the handles are clipped, more than that and a 400px peek has no text left.
+ */
+.peek-doc {
+  padding: 20px 28px 32px;
+  overflow-x: hidden;
+}
+.peek-doc .notes-doc {
+  max-width: 100%;
+}
+
+/* The two blocks that carry content which cannot wrap. Both already scroll inside
+   their own box in the editor; this only stops them from claiming a width the panel
+   does not have and pushing the prose sideways. */
+.peek-doc .notes-doc :where(.notes-code-frame, .notes-table-scroll) {
+  max-width: 100%;
+}
+.peek-doc .notes-doc :where(img) {
+  max-width: 100%;
+  height: auto;
+}

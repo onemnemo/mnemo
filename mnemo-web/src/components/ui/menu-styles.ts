@@ -4,7 +4,9 @@ import { cn } from "@/lib/utils"
 // variant (./context-menu) so the two are indistinguishable on screen. Kept out of
 // the component files so both stay fast-refreshable.
 
-export const CONTENT_CLASS = "z-50 min-w-[168px] rounded-lg border border-line bg-popover p-1 shadow-elevation-2"
+// The z tier is Z_LAYERS.menu, spelled out because Tailwind reads class names from the
+// source. peek/z-layers.test.ts fails if the two drift apart.
+export const CONTENT_CLASS = "z-[95] min-w-[168px] rounded-lg border border-line bg-popover p-1 shadow-elevation-2"
 
 export const ITEM_CLASS =
   "flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-body-extra-small outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45"
