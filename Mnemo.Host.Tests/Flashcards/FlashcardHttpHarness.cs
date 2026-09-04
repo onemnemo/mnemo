@@ -142,7 +142,10 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         var maintenance = _app.Services.GetRequiredService<TrashMaintenance>();
         maintenance.StartInBackground();
 
-        var deadline = DateTime.UtcNow.AddSeconds(10);
+        // The first pass constructs the trash service and reads every source off a data root that
+        // has just been created. On a cold CI runner, with the other test classes on the same disk,
+        // that has taken longer than ten seconds; a genuinely stuck pass is still caught.
+        var deadline = DateTime.UtcNow.AddSeconds(30);
         while (!maintenance.IsReady)
         {
             if (DateTime.UtcNow > deadline)
