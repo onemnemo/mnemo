@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Mnemo.Core.Models.Proofing;
 using Mnemo.Infrastructure.Modules.Proofing;
 using Xunit;
 
@@ -27,10 +28,11 @@ public sealed class PersonalDictionaryServiceTests
     {
         var service = new PersonalDictionaryService(new MemorySettings());
         await service.AddAsync("Ordbanken", null, CancellationToken.None);
+        var lookup = await service.LookupAsync(CancellationToken.None);
 
-        Assert.True(await service.ContainsAsync("ordbanken", "en-US", CancellationToken.None));
-        Assert.True(await service.ContainsAsync("ORDBANKEN", "es-ES", CancellationToken.None));
-        Assert.False(await service.ContainsAsync("ordbank", "en-US", CancellationToken.None));
+        Assert.True(lookup.Accepts("ordbanken", ["en-US"]));
+        Assert.True(lookup.Accepts("ORDBANKEN", ["es-ES"]));
+        Assert.False(lookup.Accepts("ordbank", ["en-US"]));
     }
 
     [Fact]
@@ -38,9 +40,10 @@ public sealed class PersonalDictionaryServiceTests
     {
         var service = new PersonalDictionaryService(new MemorySettings());
         await service.AddAsync("piso", "es-ES", CancellationToken.None);
+        var lookup = await service.LookupAsync(CancellationToken.None);
 
-        Assert.True(await service.ContainsAsync("piso", "es-ES", CancellationToken.None));
-        Assert.False(await service.ContainsAsync("piso", "en-US", CancellationToken.None));
+        Assert.True(lookup.Accepts("piso", ["es-ES"]));
+        Assert.False(lookup.Accepts("piso", ["en-US"]));
     }
 
     [Fact]
@@ -48,9 +51,29 @@ public sealed class PersonalDictionaryServiceTests
     {
         var service = new PersonalDictionaryService(new MemorySettings());
         await service.AddAsync("glycolysis", "en", CancellationToken.None);
+        var lookup = await service.LookupAsync(CancellationToken.None);
 
-        Assert.True(await service.ContainsAsync("glycolysis", "en-US", CancellationToken.None));
-        Assert.False(await service.ContainsAsync("glycolysis", "es-ES", CancellationToken.None));
+        Assert.True(lookup.Accepts("glycolysis", ["en-US"]));
+        Assert.False(lookup.Accepts("glycolysis", ["es-ES"]));
+    }
+
+    [Fact]
+    public async Task AnAccentedWordMatchesWhicheverWayItWasEncoded()
+    {
+        // The editor sends what the user typed and a dictionary answers with what it read, so the two
+        // can disagree on whether an accent is one character or a letter with a combining mark.
+        const string composed = "r\u00e9sum\u00e9";
+        const string decomposed = "re\u0301sume\u0301";
+
+        var service = new PersonalDictionaryService(new MemorySettings());
+        await service.AddAsync(decomposed, null, CancellationToken.None);
+        var lookup = await service.LookupAsync(CancellationToken.None);
+
+        Assert.True(lookup.Accepts(composed, ["en-US"]));
+
+        // And the removal aimed at the other spelling still finds it.
+        await service.RemoveAsync(composed, null, CancellationToken.None);
+        Assert.Empty(await service.ListAsync(CancellationToken.None));
     }
 
     [Fact]
@@ -71,10 +94,40 @@ public sealed class PersonalDictionaryServiceTests
     {
         var service = new PersonalDictionaryService(new MemorySettings());
 
-        await service.AddAsync("naiv", null, CancellationToken.None);
-        await service.AddAsync("Naiv", null, CancellationToken.None);
+        Assert.Equal(PersonalWordAddResult.Added, await service.AddAsync("naiv", null, CancellationToken.None));
+        Assert.Equal(PersonalWordAddResult.AlreadyPresent, await service.AddAsync("Naiv", null, CancellationToken.None));
 
         Assert.Single(await service.ListAsync(CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData("two words")]
+    [InlineData("plan9")]
+    [InlineData("...")]
+    [InlineData("a")]
+    [InlineData("   ")]
+    public async Task AnEntryTheCheckerCouldNeverAskAboutIsRefused(string entry)
+    {
+        var service = new PersonalDictionaryService(new MemorySettings());
+
+        Assert.Equal(PersonalWordAddResult.NotCheckable, await service.AddAsync(entry, null, CancellationToken.None));
+        Assert.Empty(await service.ListAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task TheListStopsGrowingAtItsLimit()
+    {
+        var service = new PersonalDictionaryService(new MemorySettings());
+        var settings = new MemorySettings();
+        var full = Enumerable
+            .Range(0, service.MaxWords)
+            .Select(i => new PersonalWord($"word{Stem(i)}", null, DateTimeOffset.UtcNow))
+            .ToList();
+        settings.Seed(PersonalDictionaryService.StorageKey, full);
+
+        var loaded = new PersonalDictionaryService(settings);
+
+        Assert.Equal(PersonalWordAddResult.LimitReached, await loaded.AddAsync("onemore", null, CancellationToken.None));
     }
 
     [Fact]
@@ -85,7 +138,7 @@ public sealed class PersonalDictionaryServiceTests
         var settings = new MemorySettings { WriteDelay = TimeSpan.FromMilliseconds(5) };
         var service = new PersonalDictionaryService(settings);
 
-        var words = Enumerable.Range(0, 24).Select(i => $"word{(char)('a' + i % 24)}{i}").ToArray();
+        var words = Enumerable.Range(0, 24).Select(i => $"word{Stem(i)}").ToArray();
         await Task.WhenAll(words.Select(w => service.AddAsync(w, null, CancellationToken.None)));
 
         var stored = await service.ListAsync(CancellationToken.None);
@@ -127,4 +180,8 @@ public sealed class PersonalDictionaryServiceTests
 
         Assert.Equal(["debounce"], (await second.ListAsync(CancellationToken.None)).Select(w => w.Word));
     }
+
+    /// <summary>A distinct all-letter suffix. Anything with a digit in it is not a storable word.</summary>
+    private static string Stem(int index) =>
+        $"{(char)('a' + index / 26 % 26)}{(char)('a' + index % 26)}";
 }

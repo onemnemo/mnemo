@@ -94,8 +94,11 @@ public sealed record ProofingSuggestResponseDto(IReadOnlyList<ProofingFixDto> Su
 /// <summary>One stored personal word.</summary>
 public sealed record ProofingPersonalWordDto(string Word, string? Language, string AddedAt);
 
-/// <summary>The whole personal dictionary.</summary>
-public sealed record ProofingPersonalWordsDto(IReadOnlyList<ProofingPersonalWordDto> Words);
+/// <summary>
+/// The whole personal dictionary. <paramref name="Outcome"/> is set by an addition alone, so the
+/// caller can tell a word that was stored from one that was already there without comparing counts.
+/// </summary>
+public sealed record ProofingPersonalWordsDto(IReadOnlyList<ProofingPersonalWordDto> Words, string? Outcome = null);
 
 /// <summary>A word to add to, or remove from, the personal dictionary.</summary>
 public sealed record ProofingPersonalWordRequestDto(string? Word, string? Language);

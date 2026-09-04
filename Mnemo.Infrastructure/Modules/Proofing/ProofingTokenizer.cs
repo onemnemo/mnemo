@@ -132,6 +132,22 @@ public static class ProofingTokenizer
         return tokens;
     }
 
+    /// <summary>
+    /// Whether a stored word is one a check could ever ask about: exactly one token, spanning the
+    /// whole of it. A phrase, anything holding a digit and anything with fewer than two letters is
+    /// skipped by <see cref="Tokenize"/>, so accepting it into a word list would look like it worked
+    /// and change nothing about what gets underlined.
+    /// </summary>
+    public static bool IsCheckableWord(string? word)
+    {
+        var trimmed = (word ?? string.Empty).Trim();
+        if (trimmed.Length == 0)
+            return false;
+
+        var tokens = Tokenize(trimmed);
+        return tokens.Count == 1 && tokens[0].Start == 0 && tokens[0].End == trimmed.Length;
+    }
+
     private static bool TryDecode(string text, int index, out Rune rune, out int consumed)
     {
         if (index >= text.Length)

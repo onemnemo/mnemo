@@ -8,22 +8,25 @@ namespace Mnemo.Core.Services.Proofing;
 /// <summary>
 /// The words the user has added, across every note.
 /// <para>
-/// Words are matched without regard to case, so adding <c>Ordbanken</c> also accepts
-/// <c>ordbanken</c>. The casing the user typed is kept for display, because a list of names that has
-/// been lowercased reads as a defect.
+/// Words are matched without regard to case and in composed form, so adding <c>Ordbanken</c> also
+/// accepts <c>ordbanken</c>, and an accented word matches however the editor happened to encode it.
+/// The casing the user typed is kept for display, because a list of names that has been lowercased
+/// reads as a defect.
 /// </para>
 /// </summary>
 public interface IPersonalDictionaryService
 {
+    /// <summary>How many words may be stored before further additions are refused.</summary>
+    int MaxWords { get; }
+
     /// <summary>Every stored word, newest first. Empty when nothing has been added.</summary>
     Task<IReadOnlyList<PersonalWord>> ListAsync(CancellationToken ct);
 
     /// <summary>
     /// Adds a word, scoped to one language or to all of them when <paramref name="language"/> is null.
-    /// Adding a word that is already stored under the same scope changes nothing. A blank word is
-    /// ignored.
+    /// The result says why nothing was stored when nothing was.
     /// </summary>
-    Task AddAsync(string word, string? language, CancellationToken ct);
+    Task<PersonalWordAddResult> AddAsync(string word, string? language, CancellationToken ct);
 
     /// <summary>
     /// Removes one entry. A word stored for every language and the same word scoped to one language
@@ -32,8 +35,8 @@ public interface IPersonalDictionaryService
     Task RemoveAsync(string word, string? language, CancellationToken ct);
 
     /// <summary>
-    /// Whether this word should be accepted while checking <paramref name="language"/>. True for a
-    /// match with no language scope and for a match scoped to this language.
+    /// The stored words in the form a check asks about them. Taken once per check rather than per
+    /// word, which is the difference between one read of the list and one per flagged word.
     /// </summary>
-    Task<bool> ContainsAsync(string word, string language, CancellationToken ct);
+    Task<PersonalWordLookup> LookupAsync(CancellationToken ct);
 }
