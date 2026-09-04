@@ -1,5 +1,6 @@
 /**
- * Documents to check against, built through the real mapper.
+ * Documents to check against, built through the real mapper, and the status
+ * shapes the host answers with.
  *
  * Through the mapper rather than by hand-assembling nodes, because the shapes
  * that matter here (an atom folded into prose, a caption, a cell) are exactly
@@ -12,6 +13,7 @@ import type { LocatedIssue, ProofingIssue } from './proofing-plugin';
 import { checkableSegments, resolveRange } from './segments';
 import { createEditorSchema } from '../editor/schema';
 import { defaultTextStyle, type Block, type InlineSpan } from '../model/types';
+import type { ProofingLanguage, ProofingLanguageState, ProofingStatus } from './types';
 
 export const { schema, registry, inline } = createEditorSchema();
 export const mapper = createDocumentMapper(schema, registry);
@@ -111,6 +113,40 @@ export function tableOf(rows: readonly (readonly string[])[], sidPrefix: string)
       }),
     ),
   });
+}
+
+/** A catalogue entry. Everything but `absent` counts as installed. */
+export function proofingLanguage(id: string, state: ProofingLanguageState): ProofingLanguage {
+  return {
+    id,
+    name: id,
+    region: '',
+    installed: state !== 'absent',
+    bundled: state !== 'absent',
+    state,
+    license: { name: 'SCOWL', url: 'https://example.com' },
+  };
+}
+
+/**
+ * A status over the two bundled dictionaries, one read and one still reading,
+ * which is the state the client has to keep working in.
+ */
+export function proofingStatusOf(
+  active: readonly string[],
+  over: Partial<ProofingStatus> = {},
+): ProofingStatus {
+  return {
+    enabled: true,
+    active,
+    languages: [
+      proofingLanguage('en-US', 'ready'),
+      proofingLanguage('es-ES', 'loading'),
+      proofingLanguage('de-DE', 'absent'),
+    ],
+    personalWordCount: 0,
+    ...over,
+  };
 }
 
 /** Every segment id the document currently has, as an answer meta carries them. */

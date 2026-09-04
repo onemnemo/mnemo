@@ -743,7 +743,14 @@
     "TransferFromFormat": "Desde {0}",
     "TransferScopeThisNote": "Esta nota",
     "TransferScopeFolder": "Carpeta",
-    "TransferScopeAllNotes": "Todas las notas"
+    "TransferScopeAllNotes": "Todas las notas",
+    "SpellingLanguage": "Ortografía",
+    "SpellingOff": "Sin revisar",
+    "SpellingNoneInstalled": "Ningún idioma instalado",
+    "SpellingUseDefaults": "Usar mis idiomas predeterminados",
+    "SpellingNoLanguagesOn": "No hay idiomas activados",
+    "SpellingSkipNote": "No revisar esta nota",
+    "SpellingSettings": "Configuración de ortografía"
   },
   "NotesEditor": {
     "ProofingPausedNotice": "Demasiadas marcas para una nota, así que la ortografía está en pausa aquí",

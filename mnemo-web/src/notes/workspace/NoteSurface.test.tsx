@@ -20,6 +20,9 @@ import { useImageEditorStore } from '@/components/ui/image-editor/store';
 import { useSettingsStore } from '@/settings/store';
 import { buildNoteEditState, type NoteEditState } from '../edit/build-edit-state';
 import { block, span } from '../editor/mapper/fixtures';
+import { proofingStatusOf } from '../proofing/fixtures';
+import { PROOFING_STATUS_KEY } from '../proofing/status';
+import type { ProofingStatus } from '../proofing/types';
 import { COVER_BANNER_HEIGHT } from './NoteHeaderChrome';
 import { NoteSurface } from './NoteSurface';
 
@@ -31,8 +34,8 @@ function editStateOf(...blocks: Parameters<typeof buildNoteEditState>[0]) {
   return built as Extract<NoteEditState, { ok: true }>;
 }
 
-function withClient(node: ReactNode): ReactNode {
-  return <QueryClientProvider client={new QueryClient()}>{node}</QueryClientProvider>;
+function withClient(node: ReactNode, client: QueryClient): ReactNode {
+  return <QueryClientProvider client={client}>{node}</QueryClientProvider>;
 }
 
 const note: NoteSummaryDto = {
@@ -110,8 +113,8 @@ function edit(): void {
   });
 }
 
-function render(node: ReactNode): void {
-  act(() => root.render(<StrictMode>{withClient(node)}</StrictMode>));
+function render(node: ReactNode, client = new QueryClient()): void {
+  act(() => root.render(<StrictMode>{withClient(node, client)}</StrictMode>));
 }
 
 function proseMirror(): HTMLElement {
@@ -262,6 +265,36 @@ describe('the save chrome', () => {
     // Last in a right-anchored row means the actions keep their place and the
     // label grows leftwards into empty chrome instead of pushing anything.
     expect(row?.lastElementChild).not.toBe(saveState());
+  });
+});
+
+describe('who owns the underlines', () => {
+  function renderWithStatus(status: ProofingStatus): void {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData([...PROOFING_STATUS_KEY, 'n1'], status);
+    render(surface(block('Text', [span('x')])), client);
+  }
+
+  function spellCheck(): string | null {
+    return container.querySelector('.notes-doc')?.getAttribute('spellcheck') ?? null;
+  }
+
+  it('leaves the browser checking while ours has nothing to say', () => {
+    renderWithStatus(proofingStatusOf(['es-ES']));
+    expect(spellCheck()).toBe('true');
+  });
+
+  it('stands the browser down while ours is marking', () => {
+    renderWithStatus(proofingStatusOf(['en-US']));
+    expect(spellCheck()).toBe('false');
+  });
+
+  it('stands the browser down on a note nobody wants checked', () => {
+    // The case the second checker would otherwise answer: ours is not marking,
+    // so without this the reader who asked for no checking gets underlines from
+    // the profile dictionary instead.
+    renderWithStatus(proofingStatusOf(['en-US'], { note: { mode: 'off', languages: [], effective: [] } }));
+    expect(spellCheck()).toBe('false');
   });
 });
 

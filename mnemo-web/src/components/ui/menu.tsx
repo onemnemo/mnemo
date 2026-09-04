@@ -152,18 +152,27 @@ export function MenuRadioItem({ value, children }: { value: string; children: Re
 export function MenuCheckItem({
   checked,
   onSelect,
+  closeOnSelect = true,
   icon,
   leading,
   hint,
+  description,
   disabled,
   children,
 }: {
   checked: boolean
   onSelect?: () => void
+  /**
+   * False on a row that is one tick among several: Radix closes the menu after
+   * every select, so switching two things on would otherwise cost two trips.
+   */
+  closeOnSelect?: boolean
   icon?: IconName
   /** Drawn in the icon column instead of a glyph, e.g. a colour swatch. */
   leading?: ReactNode
   hint?: string
+  /** A second line under the label, for a state the label cannot spell out. */
+  description?: string
   disabled?: boolean
   children: ReactNode
 }) {
@@ -171,17 +180,23 @@ export function MenuCheckItem({
     <DropdownMenu.CheckboxItem
       checked={checked}
       disabled={disabled}
-      onSelect={onSelect}
-      className={itemClass()}
+      onSelect={(event) => {
+        if (!closeOnSelect) event.preventDefault()
+        onSelect?.()
+      }}
+      className={cn(itemClass(), description && "items-start")}
     >
       <MenuItemBody
         icon={icon}
         leading={leading}
         hint={hint}
+        description={description}
         // The slot is reserved whether or not it is ticked, so a row does not
         // shift sideways as it is toggled.
         trailing={
-          <span className="grid size-[14px] shrink-0 place-items-center">
+          <span
+            className={cn("grid size-[14px] shrink-0 place-items-center", description && "mt-[3px]")}
+          >
             <DropdownMenu.ItemIndicator>
               <AppIcon name="common/check" size={13} className="text-text-secondary" />
             </DropdownMenu.ItemIndicator>
@@ -199,6 +214,7 @@ export function MenuItemBody({
   icon,
   leading,
   hint,
+  description,
   trailing,
 }: {
   children: ReactNode
@@ -206,12 +222,21 @@ export function MenuItemBody({
   /** Takes the icon column when the row's mark is not a glyph. */
   leading?: ReactNode
   hint?: string
+  /** A second line under the label. The row aligns to the top once it has one. */
+  description?: string
   trailing?: ReactNode
 }) {
   return (
     <>
       {leading ?? (icon ? <AppIcon name={icon} size={14} className="text-text-faded" /> : null)}
-      <span className="flex-1 truncate">{children}</span>
+      {description ? (
+        <span className="min-w-0 flex-1">
+          <span className="block truncate">{children}</span>
+          <span className="mt-0.5 block text-caption leading-snug text-text-faded">{description}</span>
+        </span>
+      ) : (
+        <span className="flex-1 truncate">{children}</span>
+      )}
       {hint ? <span className="text-caption text-text-faded tabular-nums">{hint}</span> : null}
       {trailing}
     </>
