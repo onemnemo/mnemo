@@ -12,6 +12,12 @@ public enum SettingValueKind
 
     /// <summary>Persisted as a JSON string. Dropdown, slider and free-text rows all land here.</summary>
     Text,
+
+    /// <summary>
+    /// Persisted as a JSON array of strings, read back as <c>string[]</c>. For a row whose value is
+    /// an ordered set rather than one choice.
+    /// </summary>
+    StringList,
 }
 
 /// <summary>One settings key the SPA is allowed to touch.</summary>
@@ -73,11 +79,14 @@ public static class SettingsKeyRegistry
         // quirk is preserved rather than corrected here.
         new("Editor.Width", SettingValueKind.Text),
 
-        // Proofing.Language is validated on write against the dictionaries this build carries; an
-        // uninstalled tag is a 400. The effective language is still resolved by the proofing status
-        // endpoint, which falls back when nothing is stored.
+        // Both language keys are validated on write against the dictionaries this build carries; a
+        // tag nothing can check is a 400. The languages actually used are still resolved by the
+        // proofing status endpoint, which falls back when nothing is stored. Proofing.Language is
+        // the older single choice: nothing writes it any more, and it stays exposed because a
+        // downgrade to an older build still reads it.
         new("Proofing.Enabled", SettingValueKind.Boolean),
         new("Proofing.Language", SettingValueKind.Text),
+        new("Proofing.Languages", SettingValueKind.StringList),
 
         new("Markdown.BlockSpacing", SettingValueKind.Text),
         new("Markdown.LineHeight", SettingValueKind.Text),

@@ -6,8 +6,8 @@ namespace Mnemo.Infrastructure.Modules.Proofing;
 
 /// <summary>
 /// Registers spell checking: the bundled dictionary catalog, the Hunspell engine, the registry that
-/// picks engines per language, and the two stores holding what the user has told the checker to
-/// accept.
+/// picks engines per language, the two stores holding what the user has told the checker to accept,
+/// and the per-note record of which languages to check in.
 /// <para>
 /// The engine is registered against <see cref="IProofingEngine"/> rather than by its own type, so a
 /// second engine for a language is one more registration and nothing else changes.
@@ -26,6 +26,7 @@ public sealed class ProofingBackendModule : IModule
         services.AddSingleton<IProofingEngineRegistry, ProofingEngineRegistry>();
         services.AddSingleton<IPersonalDictionaryService, PersonalDictionaryService>();
         services.AddSingleton<INoteIgnoreService, NoteIgnoreService>();
+        services.AddSingleton<INoteLanguageService, NoteLanguageService>();
         services.AddSingleton<IProofingService, ProofingService>();
     }
 

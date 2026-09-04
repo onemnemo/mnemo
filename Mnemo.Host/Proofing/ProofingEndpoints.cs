@@ -1,20 +1,23 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Mnemo.Core.Models.Proofing;
 using Mnemo.Core.Services.Proofing;
 using Mnemo.Host.Contracts;
+using Mnemo.Infrastructure.Modules.Proofing;
 
 namespace Mnemo.Host.Proofing;
 
 /// <summary>
-/// Spell checking for the editor, plus the two lists the user can add to.
+/// Spell checking for the editor: what the client needs before it starts, the batched check, and the
+/// suggestions for one word. The lists the user adds to and the per-note language choice are mapped
+/// from here and live beside this file.
 /// <para>
 /// A check is a batch because the editor sends a screen's worth of paragraphs at a time and one
 /// request per paragraph would cost more in round trips than the checking itself takes. The batch is
@@ -60,10 +63,14 @@ public static class ProofingEndpoints
         var deadlineAfter = loadTimeout ?? DefaultLoadTimeout;
 
         endpoints.MapGet("/api/proofing/status", async (
+            [FromQuery] string? noteId,
             IProofingService proofing,
             CancellationToken cancellationToken) =>
         {
-            var status = await proofing.GetStatusAsync(cancellationToken).ConfigureAwait(false);
+            if (BadOptionalNoteIdOrNull(noteId) is { } badNote)
+                return badNote;
+
+            var status = await proofing.GetStatusAsync(noteId, cancellationToken).ConfigureAwait(false);
             return Results.Json(ToDto(status));
         });
 
@@ -72,6 +79,9 @@ public static class ProofingEndpoints
             IProofingService proofing,
             CancellationToken cancellationToken) =>
         {
+            if (BadOptionalNoteIdOrNull(body?.NoteId) is { } badNote)
+                return badNote;
+
             var paragraphs = body?.Paragraphs ?? [];
             if (paragraphs.Count > MaxParagraphs)
                 return TooLarge($"A check carries at most {MaxParagraphs} paragraphs.");
@@ -92,7 +102,8 @@ public static class ProofingEndpoints
             if (characters > MaxCharacters)
                 return TooLarge($"A check carries at most {MaxCharacters} characters.");
 
-            var language = await ResolveAsync(proofing, body?.Language, cancellationToken).ConfigureAwait(false);
+            var languages = await ResolveAsync(proofing, body?.Languages, body?.NoteId, cancellationToken)
+                .ConfigureAwait(false);
 
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             deadline.CancelAfter(deadlineAfter);
@@ -103,7 +114,7 @@ public static class ProofingEndpoints
                 foreach (var paragraph in paragraphs)
                 {
                     var issues = await proofing
-                        .CheckAsync(language, body?.NoteId, paragraph.Text ?? string.Empty, deadline.Token)
+                        .CheckAsync(languages, body?.NoteId, paragraph.Text ?? string.Empty, deadline.Token)
                         .ConfigureAwait(false);
 
                     results.Add(new ProofingParagraphResultDto(paragraph.Id!, [.. issues.Select(ToDto)]));
@@ -118,7 +129,7 @@ public static class ProofingEndpoints
                     statusCode: StatusCodes.Status503ServiceUnavailable);
             }
 
-            return Results.Json(new ProofingCheckResponseDto(language, results));
+            return Results.Json(new ProofingCheckResponseDto(languages, results));
         });
 
         endpoints.MapPost("/api/proofing/suggest", async (
@@ -126,6 +137,9 @@ public static class ProofingEndpoints
             IProofingService proofing,
             CancellationToken cancellationToken) =>
         {
+            if (BadOptionalNoteIdOrNull(body?.NoteId) is { } badNote)
+                return badNote;
+
             var text = body?.Text ?? string.Empty;
             var start = body?.Start ?? 0;
             var end = body?.End ?? 0;
@@ -137,125 +151,65 @@ public static class ProofingEndpoints
                     statusCode: StatusCodes.Status400BadRequest);
             }
 
-            var language = await ResolveAsync(proofing, body?.Language, cancellationToken).ConfigureAwait(false);
+            var languages = await ResolveAsync(proofing, body?.Languages, body?.NoteId, cancellationToken)
+                .ConfigureAwait(false);
             var fixes = await proofing
-                .SuggestAsync(language, text, start, end, body?.RuleId, cancellationToken)
+                .SuggestAsync(languages, text, start, end, body?.RuleId, cancellationToken)
                 .ConfigureAwait(false);
 
             return Results.Json(new ProofingSuggestResponseDto([.. fixes.Select(ToDto)]));
         });
 
-        endpoints.MapGet("/api/proofing/personal", async (
-            IPersonalDictionaryService personal,
-            CancellationToken cancellationToken) =>
-        {
-            var words = await personal.ListAsync(cancellationToken).ConfigureAwait(false);
-            return Results.Json(new ProofingPersonalWordsDto([.. words.Select(ToDto)]));
-        });
-
-        endpoints.MapPost("/api/proofing/personal", async (
-            ProofingPersonalWordRequestDto? body,
-            IPersonalDictionaryService personal,
-            CancellationToken cancellationToken) =>
-        {
-            if (BadWordOrNull(body?.Word) is { } invalid)
-                return invalid;
-
-            await personal.AddAsync(body!.Word!, body.Language, cancellationToken).ConfigureAwait(false);
-            return await PersonalWordsAsync(personal, cancellationToken).ConfigureAwait(false);
-        });
-
-        // A removal is a POST with the word in the body rather than a DELETE with it in the path.
-        // Personal words are exactly the ones a dictionary lacks, so they carry accents, apostrophes
-        // and trailing dots, all of which a route segment either rejects or silently decodes twice.
-        endpoints.MapPost("/api/proofing/personal/remove", async (
-            ProofingPersonalWordRequestDto? body,
-            IPersonalDictionaryService personal,
-            CancellationToken cancellationToken) =>
-        {
-            if (BadWordOrNull(body?.Word) is { } invalid)
-                return invalid;
-
-            await personal.RemoveAsync(body!.Word!, body.Language, cancellationToken).ConfigureAwait(false);
-            return await PersonalWordsAsync(personal, cancellationToken).ConfigureAwait(false);
-        });
-
-        endpoints.MapGet("/api/proofing/notes/{noteId}/ignores", async (
-            string noteId,
-            INoteIgnoreService ignores,
-            CancellationToken cancellationToken) =>
-        {
-            if (BadNoteIdOrNull(noteId) is { } invalid)
-                return invalid;
-
-            var words = await ignores.ListAsync(noteId, cancellationToken).ConfigureAwait(false);
-            return Results.Json(new ProofingNoteIgnoresDto(words));
-        });
-
-        endpoints.MapPost("/api/proofing/notes/{noteId}/ignores", async (
-            string noteId,
-            ProofingNoteIgnoreRequestDto? body,
-            INoteIgnoreService ignores,
-            CancellationToken cancellationToken) =>
-        {
-            if (BadNoteIdOrNull(noteId) is { } badNote)
-                return badNote;
-
-            if (BadWordOrNull(body?.Word) is { } invalid)
-                return invalid;
-
-            var added = await ignores.AddAsync(noteId, body!.Word!, cancellationToken).ConfigureAwait(false);
-            if (!added)
-            {
-                return Results.Json(
-                    new ErrorDto("proofing_ignore_limit", $"A note ignores at most {ignores.MaxWordsPerNote} words."),
-                    statusCode: StatusCodes.Status409Conflict);
-            }
-
-            return await NoteIgnoresAsync(ignores, noteId, cancellationToken).ConfigureAwait(false);
-        });
-
-        endpoints.MapPost("/api/proofing/notes/{noteId}/ignores/remove", async (
-            string noteId,
-            ProofingNoteIgnoreRequestDto? body,
-            INoteIgnoreService ignores,
-            CancellationToken cancellationToken) =>
-        {
-            if (BadNoteIdOrNull(noteId) is { } badNote)
-                return badNote;
-
-            if (BadWordOrNull(body?.Word) is { } invalid)
-                return invalid;
-
-            await ignores.RemoveAsync(noteId, body!.Word!, cancellationToken).ConfigureAwait(false);
-            return await NoteIgnoresAsync(ignores, noteId, cancellationToken).ConfigureAwait(false);
-        });
+        endpoints.MapProofingWordLists();
+        endpoints.MapProofingNoteLanguages();
     }
 
     /// <summary>
-    /// Uses the language the caller asked for when a dictionary for it is installed, and otherwise the
-    /// one the host resolved. A client that has not read status yet, or that is a beat behind a
-    /// language change, gets a real answer rather than an empty one.
+    /// The languages a request runs in: the note's set when it named one, otherwise the resolved
+    /// active set, narrowed to the caller's list when every entry of that list is already in the set.
+    /// <para>
+    /// Narrowing only. A hint that reaches outside the set is ignored rather than honoured, so a
+    /// client a beat behind a language change cannot make a note be checked in something it did not
+    /// ask for, and the answer echoes what was used so the client can tell one from the other. The
+    /// editor narrows to the dictionaries it has seen become ready, which is how it keeps checking
+    /// while another is still being read.
+    /// </para>
     /// </summary>
-    private static async Task<string> ResolveAsync(IProofingService proofing, string? requested, CancellationToken ct)
+    private static async Task<IReadOnlyList<string>> ResolveAsync(
+        IProofingService proofing,
+        IReadOnlyList<string>? requested,
+        string? noteId,
+        CancellationToken ct)
     {
-        if (!string.IsNullOrWhiteSpace(requested) && proofing.IsInstalled(requested))
-            return requested;
+        var effective = string.IsNullOrWhiteSpace(noteId)
+            ? await proofing.ResolveActiveAsync(ct).ConfigureAwait(false)
+            : (await proofing.ResolveForNoteAsync(noteId, ct).ConfigureAwait(false)).Effective;
 
-        return await proofing.ResolveLanguageAsync(ct).ConfigureAwait(false);
+        if (requested is null || requested.Count == 0)
+            return effective;
+
+        var narrowed = new List<string>(requested.Count);
+        foreach (var id in requested)
+        {
+            var match = effective.FirstOrDefault(e => string.Equals(e, id, StringComparison.OrdinalIgnoreCase));
+            if (match is null)
+                return effective;
+
+            if (!narrowed.Contains(match, StringComparer.Ordinal))
+                narrowed.Add(match);
+        }
+
+        return narrowed;
     }
 
-    private static async Task<IResult> PersonalWordsAsync(IPersonalDictionaryService personal, CancellationToken ct)
+    internal static async Task<IResult> NoteLanguagesAsync(IProofingService proofing, string noteId, CancellationToken ct)
     {
-        var words = await personal.ListAsync(ct).ConfigureAwait(false);
-        return Results.Json(new ProofingPersonalWordsDto([.. words.Select(ToDto)]));
+        var note = await proofing.ResolveForNoteAsync(noteId, ct).ConfigureAwait(false);
+        return Results.Json(ToDto(note));
     }
 
-    private static async Task<IResult> NoteIgnoresAsync(INoteIgnoreService ignores, string noteId, CancellationToken ct)
-    {
-        var words = await ignores.ListAsync(noteId, ct).ConfigureAwait(false);
-        return Results.Json(new ProofingNoteIgnoresDto(words));
-    }
+    internal static IResult Refuse(string code, string message, int statusCode = StatusCodes.Status400BadRequest) =>
+        Results.Json(new ErrorDto(code, message), statusCode: statusCode);
 
     /// <summary>
     /// Whether either end of the range lands between the two halves of a surrogate pair.
@@ -281,39 +235,27 @@ public static class ProofingEndpoints
         && char.IsLowSurrogate(text[index])
         && char.IsHighSurrogate(text[index - 1]);
 
-    /// <summary>Null when the word may be stored, otherwise the refusal to return.</summary>
-    private static IResult? BadWordOrNull(string? word)
-    {
-        if (string.IsNullOrWhiteSpace(word))
-        {
-            return Results.Json(
-                new ErrorDto("proofing_word_required", "A word is required."),
-                statusCode: StatusCodes.Status400BadRequest);
-        }
-
-        if (word.Trim().Length > MaxWordLength)
-        {
-            return Results.Json(
-                new ErrorDto("proofing_word_too_long", $"A word is at most {MaxWordLength} characters."),
-                statusCode: StatusCodes.Status400BadRequest);
-        }
-
-        return null;
-    }
-
     /// <summary>
     /// Null when the route's note id is one a note could actually have, otherwise the refusal.
     /// <para>
-    /// Ignore lists are keyed by note id in one settings value, so an unchecked id lets anything at all
-    /// become a permanent row in it.
+    /// Both per-note stores are keyed by note id inside one settings value, so an unchecked id lets
+    /// anything at all become a permanent row in one.
     /// </para>
     /// </summary>
-    private static IResult? BadNoteIdOrNull(string noteId) =>
+    internal static IResult? BadNoteIdOrNull(string noteId) =>
         Guid.TryParse(noteId, out _)
             ? null
             : Results.Json(
                 new ErrorDto("proofing_note_invalid", "A note id must be a GUID."),
                 statusCode: StatusCodes.Status400BadRequest);
+
+    /// <summary>
+    /// The same check for the routes where naming a note is optional. Nothing at all is allowed and
+    /// means the request is not about one note; anything else has to be an id a note could have,
+    /// because it now selects which languages the request runs in.
+    /// </summary>
+    private static IResult? BadOptionalNoteIdOrNull(string? noteId) =>
+        string.IsNullOrWhiteSpace(noteId) ? null : BadNoteIdOrNull(noteId);
 
     private static IResult TooLarge(string message) => Results.Json(
         new ErrorDto("proofing_batch_too_large", message),
@@ -321,11 +263,14 @@ public static class ProofingEndpoints
 
     private static ProofingStatusDto ToDto(ProofingStatus status) => new(
         status.Enabled,
-        status.Language,
+        status.Active,
         [.. status.Languages.Select(l => new ProofingLanguageDto(
             l.Id, l.Name, l.Region, l.Installed, l.Bundled, l.State, l.ReasonKey,
             new ProofingLicenseDto(l.License.Name, l.License.Url)))],
-        status.PersonalWordCount);
+        status.PersonalWordCount,
+        status.Note is null ? null : ToDto(status.Note));
+
+    private static NoteProofingDto ToDto(NoteProofing note) => new(note.Mode, note.Languages, note.Effective);
 
     private static ProofingIssueDto ToDto(ProofingIssue issue) => new(
         issue.Start,
@@ -339,9 +284,4 @@ public static class ProofingEndpoints
         issue.Fixes.Count == 0 ? null : [.. issue.Fixes.Select(ToDto)]);
 
     private static ProofingFixDto ToDto(ProofingFix fix) => new(fix.Replacement, fix.Label);
-
-    private static ProofingPersonalWordDto ToDto(PersonalWord word) => new(
-        word.Word,
-        word.Language,
-        word.AddedAt.ToString("o", CultureInfo.InvariantCulture));
 }

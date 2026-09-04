@@ -39,6 +39,7 @@ internal sealed class ProofingHttpHarness : IAsyncDisposable
         builder.Services.AddSingleton<IProofingEngineRegistry, ProofingEngineRegistry>();
         builder.Services.AddSingleton<IPersonalDictionaryService, PersonalDictionaryService>();
         builder.Services.AddSingleton<INoteIgnoreService, NoteIgnoreService>();
+        builder.Services.AddSingleton<INoteLanguageService, NoteLanguageService>();
         builder.Services.AddSingleton<IProofingService, ProofingService>();
 
         _app = builder.Build();

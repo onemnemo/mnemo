@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Services;
 using Mnemo.Core.Services.Proofing;
 using Mnemo.Host.Contracts;
+using Mnemo.Infrastructure.Modules.Proofing;
 
 namespace Mnemo.Host.Settings;
 
@@ -21,8 +22,9 @@ public static class SettingsEndpoints
     private const string LanguageSettingKey = "App.Language";
     private const string DefaultLanguage = "en";
 
-    // The proofing language, checked below against what actually shipped.
+    // The proofing languages, checked below against what actually shipped.
     private const string ProofingLanguageKey = "Proofing.Language";
+    private const string ProofingLanguagesKey = "Proofing.Languages";
 
     public static void MapSettings(this IEndpointRouteBuilder endpoints)
     {
@@ -93,13 +95,86 @@ public static class SettingsEndpoints
                     await settings.SetAsync(key, body.Value.GetString() ?? string.Empty).ConfigureAwait(false);
                     return Results.NoContent();
 
+                case SettingValueKind.StringList when body.Value.ValueKind is JsonValueKind.Array:
+                {
+                    var items = ReadStringList(body.Value);
+                    if (items is null)
+                        return InvalidValue($"'{key}' is stored as a {Shape(descriptor.Kind)}.");
+
+                    // The proofing set is the only list key, and its entries have to name languages
+                    // this build knows, so the check asks the feature the way the single-language
+                    // guard below does.
+                    var stored = string.Equals(key, ProofingLanguagesKey, StringComparison.Ordinal)
+                        ? CanonicalProofingLanguages(items, services)
+                        : items;
+                    if (stored is null)
+                        return InvalidValue($"'{key}' takes languages this build knows about.");
+
+                    // Stored as string[] because that is the type the proofing service reads it back
+                    // as. The settings cache holds the written value and type-tests it on read, so a
+                    // List<string> here would read back as absent until the next launch.
+                    await settings.SetAsync(key, stored).ConfigureAwait(false);
+                    return Results.NoContent();
+                }
+
                 default:
-                    return Results.BadRequest(new ErrorDto(
-                        "invalid_setting_value",
-                        $"'{key}' is stored as a {(descriptor.Kind == SettingValueKind.Boolean ? "boolean" : "string")}."));
+                    return InvalidValue($"'{key}' is stored as a {Shape(descriptor.Kind)}.");
             }
         });
     }
+
+    /// <summary>
+    /// The array as <c>string[]</c>, or null when any element is something other than a string.
+    /// </summary>
+    private static string[]? ReadStringList(JsonElement value)
+    {
+        var items = new List<string>();
+        foreach (var element in value.EnumerateArray())
+        {
+            if (element.ValueKind is not JsonValueKind.String)
+                return null;
+
+            items.Add(element.GetString() ?? string.Empty);
+        }
+
+        return [.. items];
+    }
+
+    /// <summary>
+    /// The proofing languages in the catalog's own spelling, without duplicates and in the order
+    /// given, or null when one of them names no language this build carries.
+    /// <para>
+    /// A tag is refused rather than dropped for the same reason the single-language guard refuses
+    /// one: a settings page showing a choice that every check then ignores is worse than a failed
+    /// write. Uninstalled languages are kept, because resolution filters those and the picker can
+    /// legitimately hold one that a later build will ship.
+    /// </para>
+    /// </summary>
+    internal static string[]? CanonicalProofingLanguages(IReadOnlyList<string> requested, IServiceProvider services)
+    {
+        var catalog = services.GetRequiredService<ProofingDictionaryCatalog>();
+
+        // The catalog is the whole population, so anything longer is duplicates or junk. Taking the
+        // first entries bounds the lookups below rather than trusting the request's length.
+        var capped = requested.Count > catalog.Entries.Count
+            ? requested.Take(catalog.Entries.Count).ToArray()
+            : requested;
+
+        if (capped.Any(id => catalog.Find(id) is null))
+            return null;
+
+        return [.. ProofingLanguages.Canonical(catalog, capped)];
+    }
+
+    private static IResult InvalidValue(string message) =>
+        Results.BadRequest(new ErrorDto("invalid_setting_value", message));
+
+    private static string Shape(SettingValueKind kind) => kind switch
+    {
+        SettingValueKind.Boolean => "boolean",
+        SettingValueKind.StringList => "list of strings",
+        _ => "string",
+    };
 
     /// <summary>
     /// Refuses a proofing language with no dictionary behind it, and returns null for every other

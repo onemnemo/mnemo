@@ -32,15 +32,20 @@ public sealed record ProofingLanguageStatus(
     ProofingLicense License);
 
 /// <summary>
-/// Everything a client needs to decide whether to proof, and in which language.
+/// Everything a client needs to decide whether to proof, and in which languages.
 /// </summary>
-/// <param name="Language">
-/// The language the host will actually use. Resolved here rather than read from settings by the
-/// client, because it falls back through a stored value, the older editor setting, and finally a
-/// bundled default, and only the host can see all three.
+/// <param name="Active">
+/// The ordered set of languages the host will use, first one suggesting first, and empty when the
+/// user has switched them all off. Resolved here rather than read from settings by the client,
+/// because a profile that has never chosen falls back through an older single choice, the older
+/// editor setting and a bundled default, and only the host can see all three.
+/// </param>
+/// <param name="Note">
+/// What the note that was asked about is checked in, or null when no note was named.
 /// </param>
 public sealed record ProofingStatus(
     bool Enabled,
-    string Language,
+    IReadOnlyList<string> Active,
     IReadOnlyList<ProofingLanguageStatus> Languages,
-    int PersonalWordCount);
+    int PersonalWordCount,
+    NoteProofing? Note);
