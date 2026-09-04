@@ -5,6 +5,14 @@ namespace Mnemo.Infrastructure.Services.ImportExport.Adapters;
 
 public sealed class NotesMnemoFormatAdapter : IContentFormatAdapter
 {
+    /// <summary>
+    /// What a notes package carries. Proofing rides along because the languages a note is checked in
+    /// and the words it accepts are part of that note, and this is the only route a user has to a
+    /// package that holds notes at all; left out, they are lost on every export and every restore.
+    /// The count the caller sees stays the note count, since proofing is not a thing anyone selected.
+    /// </summary>
+    private static readonly string[] PayloadTypes = ["notes", "proofing"];
+
     private readonly IMnemoPackageService _packageService;
 
     public NotesMnemoFormatAdapter(IMnemoPackageService packageService)
@@ -64,7 +72,7 @@ public sealed class NotesMnemoFormatAdapter : IContentFormatAdapter
         var import = await _packageService.ImportAsync(request.FilePath, new MnemoPackageImportOptions
         {
             ConflictPolicy = ImportExportOptionKeys.GetConflictPolicy(request.Options),
-            PayloadTypes = ["notes"]
+            PayloadTypes = PayloadTypes
         }, cancellationToken).ConfigureAwait(false);
 
         return new ImportExportResult
@@ -82,17 +90,17 @@ public sealed class NotesMnemoFormatAdapter : IContentFormatAdapter
     {
         var payloadOptions = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         if (request.Payload is Note note)
-            payloadOptions["notes.noteIds"] = new[] { note.NoteId };
+            payloadOptions[MnemoPayloadOptionKeys.NoteIds] = new[] { note.NoteId };
         else if (request.Payload is IEnumerable<string> noteIds)
         {
             var selected = noteIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
             if (selected.Length > 0)
-                payloadOptions["notes.noteIds"] = selected;
+                payloadOptions[MnemoPayloadOptionKeys.NoteIds] = selected;
         }
 
         var export = await _packageService.ExportAsync(request.FilePath, new MnemoPackageExportOptions
         {
-            PayloadTypes = ["notes"],
+            PayloadTypes = PayloadTypes,
             PackageKind = "notes",
             PayloadOptions = payloadOptions
         }, cancellationToken).ConfigureAwait(false);

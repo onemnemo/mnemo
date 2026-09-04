@@ -95,6 +95,20 @@ public sealed class NoteLanguageService : INoteLanguageService
         }
     }
 
+    public async Task<IReadOnlyDictionary<string, NoteLanguageEntry>> GetAllAsync(CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var all = await LoadAsync().ConfigureAwait(false);
+            return new Dictionary<string, NoteLanguageEntry>(all, StringComparer.Ordinal);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     /// <summary>Caller must hold the gate.</summary>
     private async Task<Dictionary<string, NoteLanguageEntry>> LoadAsync()
     {

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Proofing;
@@ -25,4 +26,7 @@ public interface INoteLanguageService
 
     /// <summary>Drops a note's choice, so it follows settings again. Clearing an unknown note changes nothing.</summary>
     Task ClearAsync(string noteId, CancellationToken ct);
+
+    /// <summary>Every stored choice, by note id. What a backup has to carry.</summary>
+    Task<IReadOnlyDictionary<string, NoteLanguageEntry>> GetAllAsync(CancellationToken ct);
 }
