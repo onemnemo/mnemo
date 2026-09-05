@@ -366,6 +366,74 @@ describe('BlockGutter', () => {
     expect(buttons()).toEqual(['InsertBlockBelow', 'BlockActionsFormat']);
   });
 
+  /**
+   * A verb puts the caret back in the document itself. The grip refocus that
+   * follows a dismissal used to run anyway, one frame later, so every verb
+   * ended with the reader focused on a control that is not in the tab order
+   * and that reopens the menu on Space, and the next thing they typed went
+   * nowhere.
+   */
+  it('leaves the caret in the document after a verb rather than on the grip', () => {
+    const { view } = mount(calloutNote);
+    hover(blockElement(1));
+    const grip = [...(mounted?.chrome.querySelectorAll('button') ?? [])].at(-1);
+    if (!grip) throw new Error('no grip');
+    click(grip);
+
+    const row = [...document.querySelectorAll('[role="menuitem"]')].find(
+      (item) => item.textContent === 'Duplicate',
+    );
+    if (!row) throw new Error('no duplicate row');
+    click(row);
+    expect(view.state.doc.childCount).toBe(3);
+
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+    expect(document.activeElement).not.toBe(grip);
+    expect(view.hasFocus()).toBe(true);
+  });
+
+  /** Escape and a press outside are still the reader handing the grip back. */
+  it('puts the focus back on the grip when the menu is dismissed instead', () => {
+    mount(calloutNote);
+    hover(blockElement(1));
+    const grip = [...(mounted?.chrome.querySelectorAll('button') ?? [])].at(-1);
+    if (!grip) throw new Error('no grip');
+    click(grip);
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      vi.advanceTimersByTime(50);
+    });
+    expect(document.activeElement).toBe(grip);
+  });
+
+  /** One verb must not answer for the close after it. */
+  it('still hands the grip back on a dismissal that follows a verb', () => {
+    mount(calloutNote);
+    hover(blockElement(1));
+    const grip = [...(mounted?.chrome.querySelectorAll('button') ?? [])].at(-1);
+    if (!grip) throw new Error('no grip');
+
+    click(grip);
+    const row = [...document.querySelectorAll('[role="menuitem"]')].find(
+      (item) => item.textContent === 'Duplicate',
+    );
+    if (!row) throw new Error('no duplicate row');
+    click(row);
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+
+    click(grip);
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      vi.advanceTimersByTime(50);
+    });
+    expect(document.activeElement).toBe(grip);
+  });
+
   it('hands the glyph row on to the picker, and leaves the focus to it', () => {
     const { view } = mount(calloutNote);
     hover(blockElement(0));

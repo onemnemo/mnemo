@@ -99,6 +99,26 @@ describe('the view dispatch', () => {
   });
 });
 
+describe('opening the note', () => {
+  /**
+   * Every route into a note ends here: clicking a row in the tree, switching
+   * tabs, creating one. None of them used to put a caret in the document, so
+   * the note rendered and the next thing typed went to the row or the tab that
+   * still had the focus.
+   */
+  it('takes the keyboard and puts the caret at the start of the document', () => {
+    const h = harness();
+    expect(h.session.view.hasFocus()).toBe(true);
+    expect(h.session.view.state.selection.empty).toBe(true);
+    expect(h.session.view.state.selection.$from.parentOffset).toBe(0);
+  });
+
+  it('does not call the note edited for having been opened', () => {
+    const h = harness();
+    expect(h.session.authority.status().dirty).toBe(false);
+  });
+});
+
 describe('flush', () => {
   it('saves what has not been saved and leaves the editor mounted', async () => {
     const h = harness();

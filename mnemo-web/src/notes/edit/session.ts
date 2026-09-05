@@ -29,6 +29,7 @@ import {
 import type { BlockRegistry } from '../editor/registry/build';
 import type { EditorServices } from '../editor/registry/types';
 import { mountEditor } from '../editor/view/mount';
+import { focusNoteOnOpen } from '../editor/view/open-focus';
 import { startAutosave, type AutosaveOptions } from '../save/autosave';
 
 export interface NoteSessionOptions {
@@ -96,6 +97,13 @@ export function createNoteSession(options: NoteSessionOptions): NoteSession {
   });
 
   let closing: Promise<SaveResult> | null = null;
+
+  // Last, with the ring closed, so the caret arrives as an ordinary dispatch
+  // the plugins and the authority both see. Skipped while blocks are still
+  // streaming in: focus is one of the three events that finish that load in a
+  // single synchronous call, and a note big enough to chunk is exactly the one
+  // whose reader must not wait for it before seeing anything.
+  if (!mounted.chunked) focusNoteOnOpen(mounted.view);
 
   return {
     authority,

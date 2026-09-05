@@ -142,6 +142,15 @@ function appendNodes(view: EditorView, nodes: readonly PMNode[]): void {
 export interface MountedEditor {
   readonly view: EditorView;
   readonly handle: EditorHandle;
+  /**
+   * Whether this mount is still streaming blocks in.
+   *
+   * The first sign of a user finishes the load in one synchronous call, so
+   * anything that would touch the view on its own behalf has to know: doing it
+   * unasked spends the freeze the chunked mount exists to avoid, on the beat
+   * the note opens.
+   */
+  readonly chunked: boolean;
   /** Idempotent. Destroys the view, its DOM and the handle. */
   destroy(): void;
 }
@@ -261,6 +270,7 @@ export function mountEditor(options: MountEditorOptions): MountedEditor {
   return {
     view,
     handle,
+    chunked: chunking,
     destroy(): void {
       if (destroyed) return;
       destroyed = true;

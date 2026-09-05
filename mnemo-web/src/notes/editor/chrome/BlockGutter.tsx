@@ -250,6 +250,17 @@ export function BlockGutter({
 
   const gripRef = useRef<HTMLButtonElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * Whether a row in the open menu has run something.
+   *
+   * Closing a menu hands focus back to the control that opened it, which is
+   * what a keyboard user wants after Escape or a press outside. It is wrong
+   * after a verb: the verb has already put the caret back in the document, and
+   * the restore takes it straight out again onto a grip that is not in the tab
+   * order and that reopens the menu on Space. Cleared on every open, so one
+   * verb never covers the close after it.
+   */
+  const itemRanRef = useRef(false);
   // The blocks hover and the caret point at, and the element hover last resolved,
   // so a pointer moving within one element does no work.
   const activeRef = useRef<ActiveBlock | null>(null);
@@ -435,7 +446,15 @@ export function BlockGutter({
       const current = activeRef.current;
       if (!current) return;
       const target = { pos: current.pos, sid: String(current.node.attrs.sid ?? '') };
-      if (!runBlockVerb(view, registry, target, verb)) return;
+      // Set before the verb runs, and taken back only if it declines. The verb
+      // ends by putting the caret in the document, and that focus change is
+      // itself what dismisses the menu, so the close handler reads this while
+      // the call below is still on the stack.
+      itemRanRef.current = true;
+      if (!runBlockVerb(view, registry, target, verb)) {
+        itemRanRef.current = false;
+        return;
+      }
       refresh();
       if (verb.announce !== null) announce(verb.announce);
     },
@@ -447,7 +466,10 @@ export function BlockGutter({
       const current = activeRef.current;
       if (!current) return;
       const target = { pos: current.pos, sid: String(current.node.attrs.sid ?? '') };
-      runBlockAction(view, registry, target, action);
+      // Same order and the same reason as a verb: an action that raises its own
+      // surface has taken the focus before this call returns.
+      itemRanRef.current = true;
+      if (!runBlockAction(view, registry, target, action)) itemRanRef.current = false;
     },
     [view, registry],
   );
@@ -651,6 +673,9 @@ export function BlockGutter({
           // so the two live regions never double up.
           if (next !== current) setBlockSelection(view, next);
           if (intent === 'select') {
+            // The grip is where the menu really opens, so it is where the last
+            // open's answer is forgotten; radix is only told when to close.
+            itemRanRef.current = false;
             setMenuOpen((open) => !open);
             return;
           }
@@ -663,14 +688,16 @@ export function BlockGutter({
         open={menuOpen}
         onOpenChange={(open) => {
           setMenuOpen(open);
-          if (!open) {
-            refresh();
-            // A row that raised a layer has handed it the focus, and taking it
-            // back here would dismiss that layer in the frame it opens.
-            if (calloutIconRequest() === null) {
-              requestAnimationFrame(() => gripRef.current?.focus());
-            }
+          if (open) {
+            itemRanRef.current = false;
+            return;
           }
+          refresh();
+          // A row that ran has already decided where the caret goes, and a row
+          // that raised a layer has handed it the focus; taking it back here
+          // would undo the first and dismiss the second in the frame it opens.
+          if (itemRanRef.current || calloutIconRequest() !== null) return;
+          requestAnimationFrame(() => gripRef.current?.focus());
         }}
       >
         {/* An inert anchor the menu positions against, so the grip owns its own
@@ -678,7 +705,7 @@ export function BlockGutter({
         <MenuTrigger asChild>
           <span aria-hidden className="pointer-events-none absolute bottom-0 right-0 h-0 w-0" />
         </MenuTrigger>
-        <MenuContent align="start">
+        <MenuContent align="start" opensDialog={() => itemRanRef.current}>
           {menuEntries.map((entry) => {
             switch (entry.kind) {
               case 'separator':
