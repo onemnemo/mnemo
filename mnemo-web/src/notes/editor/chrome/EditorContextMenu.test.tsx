@@ -10,15 +10,19 @@
  * Which block was landed on is the other half. Over a picture the coordinate resolves to nothing,
  * because the media is the node view's own opaque DOM, so the press itself has to say, and the
  * cases worth pinning are the ones where trusting it would be wrong: a press naming a block that
- * is no longer there, and a press that has already answered once.
+ * is no longer there, a press that has already answered once, and a menu asked for from the
+ * keyboard, which has no press behind it at all and must not inherit the last one's.
  */
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { buildNoteEditState } from '../../edit/build-edit-state';
+import { liveSegmentIds, locatedIssueFor } from '../../proofing/fixtures';
+import { proofingKey } from '../../proofing/proofing-plugin';
 import { setBlockSelection } from '../../selection/block-selection-plugin';
 import { block, span } from '../mapper/fixtures';
 import { resolveServices, toNodeViews } from '../view/nodeviews';
@@ -32,13 +36,19 @@ let view: EditorView | null = null;
 
 interface Mounted {
   readonly surface: Element;
+  readonly view: EditorView;
   /** Position just before the `index`-th top-level block. */
   posOf(index: number): number;
   sidOf(index: number): string;
+  /** Marks `word` in the first block and hands back the rendered mark. */
+  markWord(word: string): HTMLElement;
 }
 
 /**
- * A note whose second block is a picture, with the menu mounted over a stand-in for the editor.
+ * A note whose second block is a picture, with the menu mounted over the editor.
+ *
+ * The view sits inside the trigger, the way the note surface arranges it, so a press on
+ * something the document rendered reaches the menu carrying that node as its target.
  *
  * `coordsIndex` is what the pointer's coordinate resolves to; `null` is the live case over a
  * picture, where jsdom and Chromium agree that there is no position to answer with. A `null`
@@ -89,23 +99,74 @@ function mount(selectIndex: number | null, coordsIndex: number | null = selectIn
 
   const surface = chrome.querySelector('[data-testid="surface"]');
   if (!surface) throw new Error('the trigger did not render');
-  return { surface, posOf, sidOf };
+  surface.appendChild(host);
+
+  const markWord = (word: string): HTMLElement => {
+    const located = locatedIssueFor(mountedView.state.doc, sidOf(0), word);
+    act(() => {
+      mountedView.dispatch(
+        mountedView.state.tr.setMeta(proofingKey, {
+          type: 'answers',
+          liveSegmentIds: liveSegmentIds(mountedView.state.doc),
+          segmentIds: [located.issue.segmentId],
+          issues: [located],
+        }),
+      );
+    });
+    const mark = mountedView.dom.querySelector('.proof-mark');
+    if (!(mark instanceof HTMLElement)) throw new Error('the mark was not rendered');
+    return mark;
+  };
+
+  return { surface, view: mountedView, posOf, sidOf, markWord };
 }
 
-function press(surface: Element, button: number) {
+function press(target: Element, button: number) {
   act(() => {
-    surface.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button, clientX: 10, clientY: 10 }));
+    target.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button, clientX: 10, clientY: 10 }));
   });
+}
+
+function contextMenu(target: Element): MouseEvent {
+  const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 });
+  act(() => {
+    target.dispatchEvent(event);
+  });
+  return event;
 }
 
 /** The press the menu snapshots from, then the menu itself. */
-function rightClick(surface: Element) {
-  press(surface, 2);
-  act(() => {
-    surface.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }));
-  });
+function rightClick(target: Element) {
+  press(target, 2);
+  contextMenu(target);
   // No bundle is loaded in a test, so a translated label renders as its own key.
   return document.body.textContent ?? '';
+}
+
+/** Every row the open menu is showing, and whether it can be chosen. */
+function rows(): { label: string; disabled: boolean }[] {
+  return Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => ({
+    // A row lays its icon and hint out in slots of their own, so the text it
+    // renders carries the whitespace between them.
+    label: (item.textContent ?? '').replace(/\s+/g, ' ').trim(),
+    disabled: item.hasAttribute('data-disabled'),
+  }));
+}
+
+const labels = () => rows().map((row) => row.label);
+
+/**
+ * A window that answers a clipboard read itself, which is what earns the Paste row.
+ * jsdom has neither constructor and reports no platform, so both are supplied.
+ */
+function allowPaste(): void {
+  Object.defineProperty(navigator, 'platform', { value: 'Win32', configurable: true });
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { read: () => Promise.resolve([]) },
+    configurable: true,
+  });
+  Reflect.set(globalThis, 'DataTransfer', class {});
+  Reflect.set(globalThis, 'ClipboardEvent', class {});
 }
 
 afterEach(() => {
@@ -116,6 +177,10 @@ afterEach(() => {
   // The slot is module state; a test that armed it must not arm the next one.
   takeImagePress();
   document.body.replaceChildren();
+  Reflect.deleteProperty(globalThis, 'DataTransfer');
+  Reflect.deleteProperty(globalThis, 'ClipboardEvent');
+  Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+  Object.defineProperty(navigator, 'platform', { value: '', configurable: true });
 });
 
 describe('EditorContextMenu', () => {
@@ -148,10 +213,97 @@ describe('EditorContextMenu', () => {
     expect(text).not.toContain('MoveUp');
   });
 
-  it('still offers nothing on a plain caret press, so the webview keeps its spelling menu', () => {
-    const text = rightClick(mount(null, 0).surface);
-    expect(text).not.toContain('ImageCropReposition');
-    expect(text).not.toContain('MoveUp');
+  it('answers a plain caret press with the clipboard rows, cut and copy greyed', () => {
+    allowPaste();
+    rightClick(mount(null, 0).surface);
+    expect(rows()).toEqual([
+      { label: 'Cut', disabled: true },
+      { label: 'Copy', disabled: true },
+      { label: 'Paste', disabled: false },
+    ]);
+  });
+
+  it('offers all three over a text range', () => {
+    allowPaste();
+    const mounted = mount(null, 0);
+    act(() => {
+      mounted.view.dispatch(
+        mounted.view.state.tr.setSelection(TextSelection.create(mounted.view.state.doc, 2, 5)),
+      );
+    });
+    rightClick(mounted.surface);
+    expect(rows()).toEqual([
+      { label: 'Cut', disabled: false },
+      { label: 'Copy', disabled: false },
+      { label: 'Paste', disabled: false },
+    ]);
+  });
+
+  it('opens nothing on a caret press where the row cannot be offered', () => {
+    // No clipboard to read, so the caret has nothing at all to answer with and a
+    // menu of two dead rows would be worse than none.
+    rightClick(mount(null, 0).surface);
+    expect(rows()).toHaveLength(0);
+  });
+
+  it('carries paste onto a block selection, which a paste replaces', () => {
+    allowPaste();
+    const text = rightClick(mount(0).surface);
+    expect(labels()).toContain('Paste');
+    expect(text).toContain('MoveUp');
+  });
+
+  it('leaves paste off a picture, whose press selects nothing for it to land on', () => {
+    allowPaste();
+    const mounted = mount(null, null);
+    recordImagePress({ pos: mounted.posOf(1), sid: mounted.sidOf(1) });
+    rightClick(mounted.surface);
+    expect(labels()).toContain('ImageCropReposition');
+    expect(labels()).not.toContain('Paste');
+  });
+
+  it('leaves a right press on a marked word to the proofing card', () => {
+    allowPaste();
+    const mounted = mount(null, 0);
+    const mark = mounted.markWord('prose');
+
+    press(mark, 2);
+    const event = contextMenu(mark);
+
+    expect(rows()).toHaveLength(0);
+    // Answered here, so the webview's own menu does not get it either.
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('opens over a marked word when a range is selected, because the verbs are the point', () => {
+    allowPaste();
+    const mounted = mount(null, 0);
+    const mark = mounted.markWord('prose');
+    act(() => {
+      mounted.view.dispatch(
+        mounted.view.state.tr.setSelection(TextSelection.create(mounted.view.state.doc, 2, 5)),
+      );
+    });
+
+    press(mark, 2);
+    contextMenu(mark);
+    expect(labels()).toEqual(['Cut', 'Copy', 'Paste']);
+  });
+
+  it('reads the live selection when the keyboard asks, not the last press', () => {
+    // Right click the picture, then move to the paragraph and ask from the
+    // keyboard: the rows have to be the paragraph's, and its verbs run there.
+    const mounted = mount(null, null);
+    recordImagePress({ pos: mounted.posOf(1), sid: mounted.sidOf(1) });
+    expect(rightClick(mounted.surface)).toContain('ImageCropReposition');
+
+    act(() => {
+      setBlockSelection(mounted.view, { selected: new Set([mounted.sidOf(0)]), anchorSid: mounted.sidOf(0) });
+    });
+    contextMenu(mounted.surface);
+
+    expect(labels()).toContain('MoveUp');
+    expect(labels()).not.toContain('ImageCropReposition');
   });
 
   it('takes the picture from the press when the coordinate resolves to nothing', () => {

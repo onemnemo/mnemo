@@ -1,33 +1,17 @@
 // WebView2 answers a right click with its own browser menu (Back, Reload, Save
 // as, Print, Inspect), which is a browser's menu in an app that is not a browser.
 // Where Mnemo has something to offer on right click it draws its own menu, so
-// everywhere else the click should do nothing, the way the Avalonia build did.
+// everywhere else the click does nothing, the way the Avalonia build did.
 //
-// Text entry is the exception: the native menu is where the webview puts spelling
-// suggestions and the clipboard commands, and there is no way to keep that part
-// of it while dropping the rest.
-
-const TEXT_INPUT_TYPES = new Set([
-  "text",
-  "search",
-  "url",
-  "email",
-  "password",
-  "tel",
-  "number",
-])
-
-function isTextEntry(node: EventTarget | null): boolean {
-  if (!(node instanceof HTMLElement)) return false
-  if (node instanceof HTMLTextAreaElement) return true
-  if (node instanceof HTMLInputElement) return TEXT_INPUT_TYPES.has(node.type)
-
-  // The click lands on whatever is under the cursor, usually a span inside the
-  // editor rather than the editable element itself, so the host is what counts.
-  // An editable="false" island (an embedded block in a note) is not text.
-  const editable = node.closest("[contenteditable]")
-  return editable !== null && editable.getAttribute("contenteditable") !== "false"
-}
+// Text is not the exception it once was. The menu was left alone over inputs and
+// editable prose because the webview's spelling suggestions live in it and
+// nothing else offered them; proofing marks its own words and answers a click on
+// the mark or Alt+Enter, so what was left over text was a browser menu naming
+// Back and Inspect on a page that has neither.
+//
+// Paste by mouse is the note editor's own menu now. Everywhere else the chord is
+// the way, which is what the field on the other side of this guard has always
+// been: a browser's menu cannot be trimmed down to the one row worth keeping.
 
 /**
  * Suppresses the webview's own context menu for the life of the returned disposer.
@@ -36,7 +20,6 @@ export function installContextMenuGuard(): () => void {
   const onContextMenu = (event: MouseEvent) => {
     // Allow the native page menu bypass only in development builds.
     if (event.shiftKey && import.meta.env.DEV) return
-    if (isTextEntry(event.target)) return
     event.preventDefault()
   }
 

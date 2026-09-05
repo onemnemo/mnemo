@@ -1,11 +1,12 @@
 /**
- * The two ways a marked word is asked about.
+ * The three ways a marked word is asked about.
  *
- * A left click on the mark, and Alt+Enter with the caret inside one. Right
- * click is deliberately not one of them: the editor's own context menu is a
- * bubble-phase Radix listener on the container above the view, so claiming the
- * event here at all took Cut, Copy and Paste away from every misspelled word,
- * and a misspelled word in a draft is not an edge case.
+ * A left click on the mark, a right click on it with nothing selected, and
+ * Alt+Enter with the caret inside one. The right click is shared with the
+ * editor's context menu, which declines exactly where `markForRightClick`
+ * answers, so one press produces a card or a menu and never both. A selection
+ * is what tips it the other way: the reader has a range in hand and the verbs
+ * for it are what the press is asking for.
  *
  * Alt+Enter is bound on the DOM rather than in a keymap so this stays out of
  * the plugin stack's precedence entirely. ProseMirror's own handler is
@@ -27,6 +28,23 @@ export function markUnder(view: EditorView, target: EventTarget | null): { locat
   if (!(mark instanceof HTMLElement)) return null;
   const located = issueAt(view.state, view.posAtDOM(mark, 0));
   return located ? { located, rect: mark.getBoundingClientRect() } : null;
+}
+
+/**
+ * The mark a right click is the card's to answer, or null when the menu takes it.
+ *
+ * Asked on the press rather than on the contextmenu event, and of the press
+ * target rather than of the selection: Chromium moves the caret into the word
+ * on the mousedown that precedes the menu, so by then every right click on a
+ * mark looks like a caret inside one. The editor's context menu asks this same
+ * question on the same press and stays shut whenever it answers.
+ */
+export function markForRightClick(
+  view: EditorView,
+  target: EventTarget | null,
+): { located: LocatedIssue; rect: Rect } | null {
+  if (!view.state.selection.empty) return null;
+  return markUnder(view, target);
 }
 
 /**
@@ -68,6 +86,12 @@ export function installCardTriggers(view: EditorView, options: CardTriggerOption
     if (hit) options.open({ ...hit, trigger: 'pointer' });
   };
 
+  const onPointerDown = (event: PointerEvent) => {
+    if (event.button !== 2 || options.isOpen()) return;
+    const hit = markForRightClick(view, event.target);
+    if (hit) options.open({ ...hit, trigger: 'pointer' });
+  };
+
   const onKeyDown = (event: KeyboardEvent) => {
     // Anything ahead of this on the same node has already had its say; a chord
     // it claimed is not this one's to reinterpret.
@@ -79,9 +103,11 @@ export function installCardTriggers(view: EditorView, options: CardTriggerOption
   };
 
   view.dom.addEventListener('click', onClick);
+  view.dom.addEventListener('pointerdown', onPointerDown);
   view.dom.addEventListener('keydown', onKeyDown);
   return () => {
     view.dom.removeEventListener('click', onClick);
+    view.dom.removeEventListener('pointerdown', onPointerDown);
     view.dom.removeEventListener('keydown', onKeyDown);
   };
 }

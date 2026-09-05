@@ -3,10 +3,12 @@
 /**
  * How a marked word is asked about, and what is deliberately left alone.
  *
- * The right-click case is the one worth pinning. The editor's own context menu
- * is a bubble-phase listener on the container above the view, so an earlier
- * handler here that claimed the event took Cut, Copy and Paste away from every
- * misspelled word. Nothing on this path may stop that event or cancel it.
+ * The right-click case is the one worth pinning, on both sides. A press with
+ * nothing selected is the card's, and a press with a range in hand is the
+ * editor menu's. The decision is taken on the press rather than on the
+ * contextmenu event that follows it, because Chromium has moved the caret into
+ * the word by then; nothing here may cancel that event or stop it reaching the
+ * container the menu is bound to.
  */
 
 import { EditorView } from 'prosemirror-view';
@@ -68,6 +70,11 @@ function harness(value: string, word: string) {
     caretOutsideMark() {
       view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, view.state.doc.content.size - 1)));
     },
+    selectTheMark() {
+      view.dispatch(
+        view.state.tr.setSelection(TextSelection.create(view.state.doc, located.from, located.to)),
+      );
+    },
     destroy() {
       uninstall();
       view.destroy();
@@ -96,14 +103,35 @@ describe('the card triggers', () => {
     h.destroy();
   });
 
-  it('leaves a right click on a marked word to the editor menu', () => {
+  it('opens on a right press on a marked word with nothing selected', () => {
+    const h = harness('wrold cat sat', 'wrold');
+    h.mark.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 2 }));
+    expect(h.opened).toEqual(['wrold']);
+    h.destroy();
+  });
+
+  it('leaves a right press on a marked word to the menu when a range is selected', () => {
+    const h = harness('wrold cat sat', 'wrold');
+    h.selectTheMark();
+    h.mark.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 2 }));
+    expect(h.opened).toHaveLength(0);
+    h.destroy();
+  });
+
+  it('ignores a right press on unmarked text', () => {
+    const h = harness('wrold cat sat', 'wrold');
+    h.view.dom.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 2 }));
+    expect(h.opened).toHaveLength(0);
+    h.destroy();
+  });
+
+  it('leaves the contextmenu event that follows the press untouched', () => {
     const h = harness('wrold cat sat', 'wrold');
     const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
     h.mark.dispatchEvent(event);
 
-    expect(h.opened).toHaveLength(0);
-    // Both halves of the regression: the event still reaches the container the
-    // editor's own menu is bound to, and nothing has cancelled it.
+    // The menu is bound to a container above the view and decides for itself; a
+    // handler here that cancelled this would take every one of its rows with it.
     expect(h.ancestorSaw).toEqual(['contextmenu']);
     expect(event.defaultPrevented).toBe(false);
     h.destroy();

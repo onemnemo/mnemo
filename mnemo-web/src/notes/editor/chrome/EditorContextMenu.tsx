@@ -1,4 +1,10 @@
-import { useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import {
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorState } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
@@ -15,6 +21,7 @@ import {
 import type { TranslateFn } from '@/i18n/types';
 import { useT } from '@/i18n/useT';
 
+import { markForRightClick } from '../../proofing/card-triggers';
 import { getBlockSelection } from '../../selection/block-selection-plugin';
 import { captionRevealFor } from '../blocks/image-caption-reveal';
 import { deepestBlockAt } from '../pipeline/block-locate';
@@ -37,16 +44,23 @@ import { imageMenuItems } from './image-menu-items';
 import { takeImagePress, type ImagePress } from './image-press';
 import { Announcer } from './Announcer';
 import { useAnnouncer } from './useAnnouncer';
-import { hasClipboardSelection, runClipboardVerb } from './selection-clipboard';
+import { canPasteFromMenu, hasClipboardSelection, runClipboardVerb, runPasteVerb } from './selection-clipboard';
 
 /**
  * The note editor's right-click menu.
  *
- * It offers what was selected before the click: the clipboard verbs on a text
- * range, the block verbs on a block selection. On a plain caret it offers
- * nothing and stays out of the way, which is deliberate. The webview's own menu
- * is the only place its spelling suggestions live, and a caret right-click on a
- * misspelled word is exactly how a reader asks for them.
+ * The webview's own menu is suppressed app-wide, so this is the only answer a
+ * right click in a note has. It offers what the press landed on: the clipboard
+ * verbs over prose, the block verbs on a block selection, the picture's own rows
+ * on a picture. On a plain caret cut and copy are drawn greyed rather than left
+ * out, so the menu keeps one shape over prose and a reader who meant to select
+ * first can see what the verbs are waiting for.
+ *
+ * A marked word is the one press this declines. A right click on a proofing mark
+ * with nothing selected opens the card, the same card a left click opens, and
+ * this stays shut so the press has one answer rather than two. A selection tips
+ * it back: the reader has a range in hand and the verbs for it are what the
+ * press is asking about.
  *
  * A picture is the one block that answers about itself. Right-clicking one offers the same rows
  * its own pill does, in place of the generic block menu, because "crop this" and "align this" are
@@ -57,16 +71,18 @@ import { hasClipboardSelection, runClipboardVerb } from './selection-clipboard';
  * picture deliberately selects nothing, so neither the coordinate nor the selection can name what
  * was pressed. The press itself can, and it is asked first.
  *
- * The offer is decided on pointerdown, not on the contextmenu event, for two
- * reasons. Chromium moves the caret (and selects the misspelled word) on the
- * mousedown that precedes the menu, so by contextmenu time the selection is no
- * longer the one the reader was looking at. And radix's trigger only yields to
- * the native menu through `disabled`, which it reads at render: preventing its
- * handler from the contextmenu event would take the native menu down with it.
+ * The offer is decided on pointerdown, not on the contextmenu event: Chromium
+ * moves the caret (and selects the misspelled word) on the mousedown that
+ * precedes the menu, so by contextmenu time the selection is no longer the one
+ * the reader was looking at. A menu opened from the keyboard has no press behind
+ * it and reads the live selection instead, because carrying the last press's
+ * offer over would run its verbs against a block the reader has since left.
  */
 
 interface MenuSnapshot {
-  readonly clipboard: boolean;
+  /** Cut and copy, drawn when the press was over prose; `live` is whether they have a range. */
+  readonly text: { readonly live: boolean } | null;
+  readonly paste: boolean;
   readonly blocks: readonly BlockMenuEntry[];
   readonly target: { pos: number; sid: string } | null;
 }
@@ -100,27 +116,38 @@ function blockSnapshot(
   const state = view.state;
   const sid = String(located.node.attrs.sid ?? '');
   const location = locateBlock(state, registry, located.pos, sid);
-  const blocks =
-    located.node.type.name === 'image'
-      ? imageMenuItems({
-          view,
-          registry,
-          node: located.node,
-          location,
-          services,
-          t,
-          caption: captionRevealFor(view, sid),
-        })
-      : blockMenuItems({ state, registry, node: located.node, location, t });
-  return { clipboard: false, blocks, target: { pos: located.pos, sid } };
+  const isImage = located.node.type.name === 'image';
+  const blocks = isImage
+    ? imageMenuItems({
+        view,
+        registry,
+        node: located.node,
+        location,
+        services,
+        t,
+        caption: captionRevealFor(view, sid),
+      })
+    : blockMenuItems({ state, registry, node: located.node, location, t });
+  // A paste over selected blocks takes their place, which is the one clipboard
+  // verb a block selection can carry: cut and copy need a DOM range, and the
+  // selection leaves the caret collapsed. A picture's rows are about that
+  // picture, and its press selects nothing, so a paste there would land at
+  // whatever caret was left elsewhere in the note.
+  return { text: null, paste: !isImage && canPasteFromMenu(), blocks, target: { pos: located.pos, sid } };
 }
 
+/**
+ * What the menu offers, or null when it should not open at all.
+ *
+ * `coords` is where the pointer was, and null when the keyboard asked and there
+ * is no pointer to read.
+ */
 function snapshotAt(
   view: EditorView,
   registry: BlockRegistry,
   services: EditorServices,
   t: TranslateFn,
-  coords: { left: number; top: number },
+  coords: { left: number; top: number } | null,
   press: ImagePress | null,
 ): MenuSnapshot | null {
   const state = view.state;
@@ -136,14 +163,17 @@ function snapshotAt(
     const located = deepestBlockAt(
       state.doc,
       registry,
-      view.posAtCoords(coords)?.pos ?? state.selection.head,
+      (coords ? view.posAtCoords(coords)?.pos : undefined) ?? state.selection.head,
     );
     if (!located) return null;
     return blockSnapshot(view, registry, services, t, located);
   }
 
-  if (hasClipboardSelection(state)) return { clipboard: true, blocks: [], target: null };
-  return null;
+  const paste = canPasteFromMenu();
+  if (hasClipboardSelection(state)) return { text: { live: true }, paste, blocks: [], target: null };
+  // A caret has nothing to cut or copy, so paste is the whole menu; where it
+  // cannot be offered there is no menu to draw and the press does nothing.
+  return paste ? { text: { live: false }, paste, blocks: [], target: null } : null;
 }
 
 export function EditorContextMenu({
@@ -161,25 +191,33 @@ export function EditorContextMenu({
   const t = useT();
   const { message, announce } = useAnnouncer();
   const [snapshot, setSnapshot] = useState<MenuSnapshot | null>(null);
+  // Whether the snapshot beside it was taken by a press. False means the menu was
+  // asked for from the keyboard, which has no press and no coordinate behind it.
+  const pressed = useRef(false);
+
+  const snapshotFor = (coords: { left: number; top: number } | null, press: ImagePress | null) =>
+    view ? snapshotAt(view, registry, resolveServices(services), t, coords, press) : null;
 
   const onPointerDown = (event: ReactPointerEvent) => {
     // Taken on every press, not only the one that opens a menu: a picture records its press
     // whatever the button, and a left click's would otherwise still be sitting there to answer
     // for a right click on some other block.
     const press = takeImagePress();
-    if (event.button !== 2) return;
-    setSnapshot(
-      view
-        ? snapshotAt(
-            view,
-            registry,
-            resolveServices(services),
-            t,
-            { left: event.clientX, top: event.clientY },
-            press,
-          )
-        : null,
-    );
+    pressed.current = event.button === 2;
+    if (!pressed.current) return;
+    // A marked word answers this press with its card, so the menu declines it.
+    const marked = view !== null && markForRightClick(view, event.target) !== null;
+    setSnapshot(marked ? null : snapshotFor({ left: event.clientX, top: event.clientY }, press));
+  };
+
+  const onContextMenu = (event: ReactMouseEvent) => {
+    const fromPress = pressed.current;
+    pressed.current = false;
+    const offer = fromPress ? snapshot : snapshotFor(null, null);
+    if (!fromPress) setSnapshot(offer);
+    // Radix opens on this event unless it has already been answered, which is how
+    // a press with nothing to offer, and one the proofing card took, stay shut.
+    if (offer === null) event.preventDefault();
   };
 
   const run = (verb: BlockMenuVerb) => {
@@ -239,20 +277,34 @@ export function EditorContextMenu({
   return (
     <>
       <ContextMenu>
-        <ContextMenuTrigger asChild disabled={snapshot === null} onPointerDown={onPointerDown}>
+        <ContextMenuTrigger asChild onPointerDown={onPointerDown} onContextMenu={onContextMenu}>
           {children}
         </ContextMenuTrigger>
         <ContextMenuContent>
-          {snapshot?.clipboard && view ? (
+          {snapshot?.text && view ? (
             <>
-              <ContextMenuItem icon="copy" onSelect={() => runClipboardVerb(view, 'copy')}>
-                {t('Common', 'Copy')}
-              </ContextMenuItem>
-              <ContextMenuItem icon="scissors" onSelect={() => runClipboardVerb(view, 'cut')}>
+              <ContextMenuItem
+                icon="scissors"
+                disabled={!snapshot.text.live}
+                onSelect={() => runClipboardVerb(view, 'cut')}
+              >
                 {t('Common', 'Cut')}
+              </ContextMenuItem>
+              <ContextMenuItem
+                icon="copy"
+                disabled={!snapshot.text.live}
+                onSelect={() => runClipboardVerb(view, 'copy')}
+              >
+                {t('Common', 'Copy')}
               </ContextMenuItem>
             </>
           ) : null}
+          {snapshot?.paste && view ? (
+            <ContextMenuItem icon="clipboard-paste" onSelect={() => void runPasteVerb(view)}>
+              {t('Common', 'Paste')}
+            </ContextMenuItem>
+          ) : null}
+          {snapshot?.paste && snapshot.blocks.length > 0 ? <ContextMenuSeparator /> : null}
           {snapshot?.blocks.map((entry) => {
             switch (entry.kind) {
               case 'separator':

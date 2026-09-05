@@ -3,8 +3,8 @@
 /**
  * Which right clicks reach the webview's own menu.
  *
- * The line that matters is text entry: suppressing the menu there would take the
- * spelling suggestions with it.
+ * Nothing does, in a shipped window. Text entry used to be the exception, so the
+ * cases that used to be let through are pinned here as suppressed.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -38,18 +38,14 @@ describe("installContextMenuGuard", () => {
     expect(rightClick(mount("<div>deck</div>"))).toBe(true)
   })
 
-  it("leaves it alone in inputs, textareas and editable content", () => {
+  it("swallows it in inputs, textareas and editable prose as well", () => {
     dispose = installContextMenuGuard()
-    expect(rightClick(mount("<input type='text'>"))).toBe(false)
-    expect(rightClick(mount("<textarea></textarea>"))).toBe(false)
+    expect(rightClick(mount("<input type='text'>"))).toBe(true)
+    expect(rightClick(mount("<textarea></textarea>"))).toBe(true)
 
+    // The click lands on the span inside the editor, not on the editable host.
     const editable = mount("<div contenteditable='true'><span>word</span></div>")
-    expect(rightClick(editable.firstElementChild!)).toBe(false)
-  })
-
-  it("still swallows it on non-text inputs", () => {
-    dispose = installContextMenuGuard()
-    expect(rightClick(mount("<input type='checkbox'>"))).toBe(true)
+    expect(rightClick(editable.firstElementChild!)).toBe(true)
   })
 
   it("lets shift through while developing, so Inspect stays reachable", () => {
