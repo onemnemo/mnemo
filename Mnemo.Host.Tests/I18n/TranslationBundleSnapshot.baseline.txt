@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 f72379e8331a87568e9fcd5e1c9899ef62a92b93e66ec8f0b47d267847f14542
+sha256 0050ab10b1dd75b86bdc480ba3ed2fe9d48098322220c7141ff309e9fe14654c
 namespaces 38
-keys 2269
+keys 2275
   App 28
   Chat 132
   Common 103
@@ -16,10 +16,10 @@ keys 2269
   Flashcards 392
   GlobalSearch 18
   Hardware 2
-  Keybinds 102
+  Keybinds 106
   Mindmap 331
   Notes 222
-  NotesEditor 204
+  NotesEditor 206
   Onboarding 55
   Overview 31
   Permissions 6
@@ -46,9 +46,9 @@ keys 2269
   WidgetToday 9
 
 culture de
-sha256 f80807302e35da01f2c75b1b6ed679aa2eb78131bab9bc7b870248b758b453a1
+sha256 228cb65d64afdda9a96d11265c1a6add040049908a79b1d8aa6277c79fe1326c
 namespaces 38
-keys 2269
+keys 2275
   App 28
   Chat 132
   Common 103
@@ -59,10 +59,10 @@ keys 2269
   Flashcards 392
   GlobalSearch 18
   Hardware 2
-  Keybinds 102
+  Keybinds 106
   Mindmap 331
   Notes 222
-  NotesEditor 204
+  NotesEditor 206
   Onboarding 55
   Overview 31
   Permissions 6
@@ -89,9 +89,9 @@ keys 2269
   WidgetToday 9
 
 culture es
-sha256 9b8ea649148285a1c25d10c5f2dbb49f14459d4f05325e76cca894cdf7b24b11
+sha256 d15b74cb5a8f6fe03453549efcb12357d3f096f37f2cd3546dc45fadc1efcd40
 namespaces 38
-keys 2269
+keys 2275
   App 28
   Chat 132
   Common 103
@@ -102,10 +102,10 @@ keys 2269
   Flashcards 392
   GlobalSearch 18
   Hardware 2
-  Keybinds 102
+  Keybinds 106
   Mindmap 331
   Notes 222
-  NotesEditor 204
+  NotesEditor 206
   Onboarding 55
   Overview 31
   Permissions 6
@@ -132,9 +132,9 @@ keys 2269
   WidgetToday 9
 
 culture ja
-sha256 40f438771129a6271fcbcff1e22a475f48f295fe0ea6e7ad0981142efd27d42c
+sha256 e48dcba7656686e97e0b81722ce2d2dc8d01f61c338b9d17b62cacad46006cdf
 namespaces 38
-keys 2269
+keys 2275
   App 28
   Chat 132
   Common 103
@@ -145,10 +145,10 @@ keys 2269
   Flashcards 392
   GlobalSearch 18
   Hardware 2
-  Keybinds 102
+  Keybinds 106
   Mindmap 331
   Notes 222
-  NotesEditor 204
+  NotesEditor 206
   Onboarding 55
   Overview 31
   Permissions 6
@@ -175,9 +175,9 @@ keys 2269
   WidgetToday 9
 
 culture nb
-sha256 398a9c87d99373461820d663619b791b3f5ad01cd11ad842c7bc07350d485113
+sha256 809fcea8f1e1efcd7d8e10fdfa627ba8f7cbcd3a20c2d304ad5449436cb91b26
 namespaces 38
-keys 2269
+keys 2275
   App 28
   Chat 132
   Common 103
@@ -188,10 +188,10 @@ keys 2269
   Flashcards 392
   GlobalSearch 18
   Hardware 2
-  Keybinds 102
+  Keybinds 106
   Mindmap 331
   Notes 222
-  NotesEditor 204
+  NotesEditor 206
   Onboarding 55
   Overview 31
   Permissions 6
