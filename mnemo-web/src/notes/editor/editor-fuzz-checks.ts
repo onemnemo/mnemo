@@ -210,17 +210,24 @@ const DERIVED_ATTRS: Readonly<Record<string, readonly string[]>> = {
   table: ['headerRows', 'headerColumns', 'columnWidths'],
 };
 
+/**
+ * Written from document position by the mapper on every save, at every level, so
+ * a block created in the editor carries the default until the round trip stamps
+ * its index. Nothing in the editor reads it back.
+ */
+const DERIVED_EVERYWHERE: readonly string[] = ['order'];
+
 function stripDerived(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stripDerived);
   if (typeof value !== 'object' || value === null) return value;
   const node = value as Record<string, unknown>;
   const out: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(node)) out[key] = stripDerived(entry);
-  const derived = typeof node.type === 'string' ? DERIVED_ATTRS[node.type] : undefined;
+  const derived = typeof node.type === 'string' ? (DERIVED_ATTRS[node.type] ?? []) : [];
   const attrs = out.attrs;
-  if (derived && typeof attrs === 'object' && attrs !== null) {
+  if (typeof attrs === 'object' && attrs !== null) {
     const copy = { ...(attrs as Record<string, unknown>) };
-    for (const key of derived) delete copy[key];
+    for (const key of [...derived, ...DERIVED_EVERYWHERE]) delete copy[key];
     out.attrs = copy;
   }
   return out;
