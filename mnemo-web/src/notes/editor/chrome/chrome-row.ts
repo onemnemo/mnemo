@@ -73,6 +73,31 @@ export interface ChromeRow {
  * the neighbour, and a stacked row is always over someone else's content: it
  * covers the splitter lane, which is the only place a narrow lane can be.
  */
+/**
+ * The row's top edge, or null when its block has scrolled out of the note.
+ *
+ * The row is drawn in a fixed layer, so no ancestor clips it: pinned straight to
+ * the block's own top it follows that block up out of the note's scroller and
+ * paints over the app chrome above it. Held inside the scroller instead, which
+ * also keeps it reachable beside a block taller than the visible area, and
+ * dropped entirely once the block itself is off screen, because a row parked
+ * against the edge pointing at nothing is worse than no row.
+ */
+export function chromeRowTop(input: {
+  blockTop: number;
+  blockBottom: number;
+  rowHeight: number;
+  clipTop: number;
+  clipBottom: number;
+}): number | null {
+  // A container with no room for one row has not been laid out yet (a pane that
+  // has never been shown, a test with no layout at all). Clipping to it would
+  // take the chrome away from every block in the document.
+  if (input.clipBottom - input.clipTop < input.rowHeight) return input.blockTop;
+  if (input.blockBottom <= input.clipTop || input.blockTop >= input.clipBottom) return null;
+  return Math.min(Math.max(input.blockTop, input.clipTop), input.clipBottom - input.rowHeight);
+}
+
 export function chromeRowGeometry(input: {
   blockLeft: number;
   rootLeft: number;

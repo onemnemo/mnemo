@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { RefObject } from 'react';
 import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorState, Transaction } from 'prosemirror-state';
@@ -38,7 +39,7 @@ import {
   type BlockMenuVerb,
 } from './block-menu-items';
 import { calloutIconRequest } from './callout-icon-request';
-import { chromeMinLeft, chromeRowGeometry, type ChromeRow } from './chrome-row';
+import { chromeMinLeft, chromeRowGeometry, chromeRowTop, type ChromeRow } from './chrome-row';
 import { Announcer } from './Announcer';
 import { useAnnouncer } from './useAnnouncer';
 
@@ -223,12 +224,22 @@ function blockFromElement(view: EditorView, registry: BlockRegistry, el: Element
   return blockFromPos(view, registry, pos);
 }
 
-export function BlockGutter({ view, registry }: { view: EditorView; registry: BlockRegistry }) {
+export function BlockGutter({
+  view,
+  registry,
+  scrollRef,
+}: {
+  view: EditorView;
+  registry: BlockRegistry;
+  /** The note's scroller, which is as far as the row may travel. */
+  scrollRef: RefObject<HTMLElement | null>;
+}) {
   const t = useT();
   const drag = useBlockDrag(view);
   const dragging = drag.handle !== null;
 
   const [active, setActive] = useState<ActiveBlock | null>(null);
+  const [clip, setClip] = useState<{ top: number; bottom: number } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const { message: announcement, announce } = useAnnouncer();
 
@@ -280,7 +291,9 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
     };
     activeRef.current = next;
     setActive(next);
-  }, [dragging, pinned, view, registry]);
+    const bounds = scrollRef.current?.getBoundingClientRect();
+    setClip(bounds ? { top: bounds.top, bottom: bounds.bottom } : null);
+  }, [dragging, pinned, view, registry, scrollRef]);
 
   // Track the hovered block, the caret block, and hover over the chrome itself.
   useEffect(() => {
@@ -537,6 +550,18 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
   // instead of sitting side by side, which is the same two buttons in the same
   // order, narrow enough to leave most of the neighbour's text showing.
   const row = handleBlock ? rowOf(handleBlock) : null;
+  const rowTop =
+    handleBlock && row
+      ? clip
+        ? chromeRowTop({
+            blockTop: handleBlock.rect.top,
+            blockBottom: handleBlock.rect.bottom,
+            rowHeight: row.height,
+            clipTop: clip.top,
+            clipBottom: clip.bottom,
+          })
+        : handleBlock.rect.top
+      : null;
 
   /**
    * Fades in, and then moves without animating.
@@ -552,7 +577,7 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
    * The animation runs on mount only, and moving between blocks does not remount,
    * so the two halves need no coordination.
    */
-  const overlay = handleBlock && handle && row && !dragging ? (
+  const overlay = handleBlock && handle && row && rowTop !== null && !dragging ? (
     <div
       ref={overlayRef}
       // The row floats over the page margin, and the marquee starts there. The
@@ -565,7 +590,7 @@ export function BlockGutter({ view, registry }: { view: EditorView; registry: Bl
         row.stacked && 'flex-col justify-center p-px',
         row.overContent && 'bg-canvas shadow-elevation-1',
       )}
-      style={{ left: row.left, top: handleBlock.rect.top, width: row.width, height: row.height }}
+      style={{ left: row.left, top: rowTop, width: row.width, height: row.height }}
       onPointerEnter={() => {
         overChromeRef.current = true;
       }}

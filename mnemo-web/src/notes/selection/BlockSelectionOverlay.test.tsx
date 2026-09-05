@@ -116,6 +116,16 @@ function selected(): ReadonlySet<string> {
   return getBlockSelection(view.state).selected;
 }
 
+/** Answer every coordinate lookup with `pos`, and collect the points asked for. */
+function answerCoordsWith(pos: number): { left: number; top: number }[] {
+  const asked: { left: number; top: number }[] = [];
+  view.posAtCoords = (coords) => {
+    asked.push(coords);
+    return { pos, inside: pos };
+  };
+  return asked;
+}
+
 /**
  * One two-column row, laid out by hand. The row fills the document column the
  * way a top-level block does, 100 to 500, and its two lanes split it either side
@@ -155,6 +165,9 @@ function openTwoColumn(): { left: Blocks[number]; right: Blocks[number] } {
 }
 
 beforeEach(() => {
+  // jsdom has no hit testing at all, and the view's coordinate lookup reaches
+  // for it directly; a miss is the honest answer for a document never laid out.
+  (document as Document & { elementFromPoint?: () => Element | null }).elementFromPoint = () => null;
   nextFrame = 0;
   frames = new Map();
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -303,6 +316,39 @@ describe('block marquee pointer ownership', () => {
     expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(false);
     expect(view.dom.hasAttribute('data-block-marquee')).toBe(false);
     expect(selected().size).toBe(0);
+  });
+
+  it('places the caret on the pressed row when a margin press never moves', () => {
+    open([block('Text', [span('first')]), block('Text', [span('second')])]);
+    // The second block's first text position. jsdom lays nothing out, so the
+    // view's own hit testing has no geometry to read and the answer is stubbed;
+    // what the test is about is the point it gets asked and what is done with
+    // the reply.
+    const secondLine = view.state.doc.child(0).nodeSize + 2;
+    const asked = answerCoordsWith(secondLine);
+
+    pointer(scroll, 'pointerdown', 50, 60);
+    pointer(window, 'pointerup', 50, 60);
+
+    // Pulled inside the document column, because the press itself happened in
+    // the margin where nothing resolves.
+    expect(asked).toEqual([{ left: 108, top: 60 }]);
+    expect(view.state.selection.empty).toBe(true);
+    expect(view.state.selection.from).toBe(secondLine);
+    expect(view.hasFocus()).toBe(true);
+  });
+
+  it('places no caret when the press became a marquee', () => {
+    const blocks = [block('Text', [span('first')]), block('Text', [span('second')])];
+    open(blocks);
+    const asked = answerCoordsWith(2);
+
+    pointer(scroll, 'pointerdown', 50, 10);
+    pointer(window, 'pointermove', 150, 90);
+    pointer(window, 'pointerup', 150, 90);
+
+    expect(asked).toEqual([]);
+    expect([...selected()]).toEqual(blocks.map((item) => item.sid));
   });
 
   it('receives margin presses from the floating gutter chrome sibling', () => {

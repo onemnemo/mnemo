@@ -53,6 +53,8 @@ import { restoreTextSelection, suppressTextSelection } from '../../lib/dnd/drag-
  */
 
 const START_THRESHOLD = 6;
+/** How far into the text column a margin click probes for the line it is beside. */
+const TEXT_COLUMN_INSET = 8;
 const SCROLL_ZONE = 40;
 const SCROLL_MIN_STEP = 9;
 const SCROLL_MAX_STEP = 18;
@@ -63,6 +65,8 @@ interface DragState {
   pointerId: number;
   /** Press point in the scroll container's content space; never moves. */
   anchor: Point;
+  /** Press point in viewport space, which is what a caret is resolved against. */
+  press: Point;
   /** Latest pointer position in viewport space. */
   pointer: Point;
   active: boolean;
@@ -256,10 +260,34 @@ export function BlockSelectionOverlay({
       if (drag.current?.active) scheduleFrame();
     };
 
+    /**
+     * The caret a click in the margin asks for.
+     *
+     * The press already called `preventDefault`, so the browser placed none of
+     * its own, and the point it happened at is outside the document's box, where
+     * `posAtCoords` answers nothing. Pulling the probe just inside the text
+     * column at the same height reads the line the click was beside, which is
+     * what clicking a page's margin means everywhere it means anything.
+     */
+    const placeCaret = (point: Point): boolean => {
+      const rootRect = view.dom.getBoundingClientRect();
+      const left = clamp(point.x, rootRect.left + TEXT_COLUMN_INSET, rootRect.right - TEXT_COLUMN_INSET);
+      const found = view.posAtCoords({ left, top: point.y });
+      if (!found) return false;
+      const { doc } = view.state;
+      const pos = clamp(found.pos, 0, doc.content.size);
+      view.dispatch(view.state.tr.setSelection(TextSelection.near(doc.resolve(pos))));
+      return true;
+    };
+
     const onUp = (event: PointerEvent) => {
       const state = drag.current;
       if (!state || event.pointerId !== state.pointerId) return;
-      end(state.active);
+      // A press that never became a marquee is a click, and a click has to leave
+      // the caret somewhere: without this the gesture takes the block selection
+      // away and puts nothing in its place.
+      const placed = state.active ? false : placeCaret(state.press);
+      end(state.active || placed);
     };
 
     const onCancel = (event: PointerEvent) => {
@@ -332,6 +360,7 @@ export function BlockSelectionOverlay({
       drag.current = {
         pointerId: event.pointerId,
         anchor: toContent(event.clientX, event.clientY),
+        press: { x: event.clientX, y: event.clientY },
         pointer: { x: event.clientX, y: event.clientY },
         active: false,
         frame: null,

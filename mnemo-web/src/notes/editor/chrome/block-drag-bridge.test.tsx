@@ -60,7 +60,7 @@ function mount() {
   act(() =>
     root?.render(
       <StrictMode>
-        <BlockGutter view={view!} registry={built.registry} />
+        <BlockGutter view={view!} registry={built.registry} scrollRef={{ current: host }} />
       </StrictMode>,
     ),
   );

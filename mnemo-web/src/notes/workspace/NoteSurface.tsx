@@ -208,7 +208,7 @@ export function NoteSurface({
       ) : null}
       {view ? <SelectionBands view={view} registry={registry} scrollRef={scrollRef} /> : null}
       {view ? <BlockSelectionAnnouncer view={view} /> : null}
-      {view ? <BlockGutter view={view} registry={registry} /> : null}
+      {view ? <BlockGutter view={view} registry={registry} scrollRef={scrollRef} /> : null}
       {view ? <CalloutIconPicker view={view} registry={registry} /> : null}
       {view ? <FindReplaceOverlay view={view} registry={registry} /> : null}
       <NodeViewPortals registry={portals} />

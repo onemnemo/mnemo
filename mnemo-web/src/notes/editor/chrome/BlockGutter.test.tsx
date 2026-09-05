@@ -22,7 +22,7 @@ import { block, span } from '../mapper/fixtures';
 import type { BlockRegistry } from '../registry/build';
 import { resolveServices, toNodeViews } from '../view/nodeviews';
 import { BlockGutter } from './BlockGutter';
-import { chromeRowGeometry } from './chrome-row';
+import { chromeRowGeometry, chromeRowTop } from './chrome-row';
 import { setCalloutEmoji } from './callout-icon';
 import { calloutIconRequest, closeCalloutIcon } from './callout-icon-request';
 
@@ -112,6 +112,34 @@ describe('chromeRowGeometry', () => {
   });
 });
 
+describe('chromeRowTop', () => {
+  /** A note scrolling between a topbar at 48 and the window's bottom at 800. */
+  const note = { rowHeight: 28, clipTop: 48, clipBottom: 800 };
+
+  it('sits on the block while the block is inside the note', () => {
+    expect(chromeRowTop({ ...note, blockTop: 300, blockBottom: 340 })).toBe(300);
+  });
+
+  it('holds the row inside the note while a tall block runs off the top', () => {
+    // The block still fills the visible area, so its row has to stay reachable
+    // rather than travel up over the topbar with the block's own edge.
+    expect(chromeRowTop({ ...note, blockTop: -400, blockBottom: 600 })).toBe(48);
+  });
+
+  it('holds the row inside the note at the bottom edge', () => {
+    expect(chromeRowTop({ ...note, blockTop: 790, blockBottom: 830 })).toBe(772);
+  });
+
+  it('drops the row once the block has left the note', () => {
+    expect(chromeRowTop({ ...note, blockTop: -90, blockBottom: -50 })).toBeNull();
+    expect(chromeRowTop({ ...note, blockTop: 810, blockBottom: 860 })).toBeNull();
+  });
+
+  it('clips nothing against a container that measures less than one row', () => {
+    expect(chromeRowTop({ rowHeight: 28, clipTop: 0, clipBottom: 0, blockTop: 300, blockBottom: 340 })).toBe(300);
+  });
+});
+
 type Blocks = Parameters<typeof buildNoteEditState>[0];
 
 interface Mounted {
@@ -140,7 +168,7 @@ function mount(blocks: Blocks): Mounted {
   const chrome = document.createElement('div');
   document.body.appendChild(chrome);
   root = createRoot(chrome);
-  act(() => root?.render(<BlockGutter view={view} registry={built.registry} />));
+  act(() => root?.render(<BlockGutter view={view} registry={built.registry} scrollRef={{ current: host }} />));
 
   mounted = { view, registry: built.registry, chrome };
   return mounted;
