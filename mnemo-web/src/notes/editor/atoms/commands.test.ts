@@ -40,6 +40,21 @@ function withCaret(state: EditorState, pos: number): EditorState {
   return state.apply(state.tr.setSelection(TextSelection.create(state.doc, pos)));
 }
 
+/** The whole of the first block's line selected, which is what a toolbar press acts on. */
+function selectingAll(state: EditorState): EditorState {
+  let line = -1;
+  state.doc.descendants((node, pos) => {
+    if (line < 0 && node.type.name === 'line') line = pos;
+    return line < 0;
+  });
+  if (line < 0) throw new Error('no line in fixture');
+  const node = state.doc.nodeAt(line);
+  if (!node) throw new Error('no line in fixture');
+  return state.apply(
+    state.tr.setSelection(TextSelection.create(state.doc, line + 1, line + 1 + node.content.size)),
+  );
+}
+
 function firstEquation(doc: PMNode): PMNode | null {
   let found: PMNode | null = null;
   doc.descendants((node) => {
@@ -91,6 +106,41 @@ describe('insertEquation', () => {
     expect(firstEquation(doc)?.attrs.latex).toBe('q');
     // The selected `ab` is gone, replaced by the atom.
     expect(doc.textContent).toBe('');
+  });
+
+  /**
+   * The regression the seeded source exists for: the toolbar only appears over
+   * a selection, so an insert that ignored it deleted whatever the user had
+   * highlighted and put an atom with no source in its place, which typesets to
+   * nothing. The text went in and nothing came out.
+   */
+  it('takes its source from the selected text', () => {
+    const state = selectingAll(paragraphState('E=mc^2'));
+    const dispatch = vi.fn<(tr: Transaction) => void>();
+    insertEquation()(state, dispatch);
+    expect(firstEquation(dispatch.mock.calls[0][0].doc)?.attrs.latex).toBe('E=mc^2');
+  });
+
+  it('strips one layer of dollar delimiters off the selected text', () => {
+    const state = selectingAll(paragraphState('$a^2$'));
+    const dispatch = vi.fn<(tr: Transaction) => void>();
+    insertEquation()(state, dispatch);
+    expect(firstEquation(dispatch.mock.calls[0][0].doc)?.attrs.latex).toBe('a^2');
+  });
+
+  it('folds an atom inside the selection in as its source rather than dropping it', () => {
+    const block = blockOf(
+      'Text',
+      [
+        { kind: 'text', text: 'x=', style: { ...defaultTextStyle } },
+        { kind: 'fraction', numerator: 3, denominator: 4, style: { ...defaultTextStyle } },
+      ],
+      { kind: 'empty' },
+    );
+    const state = selectingAll(stateOf(block));
+    const dispatch = vi.fn<(tr: Transaction) => void>();
+    insertEquation()(state, dispatch);
+    expect(firstEquation(dispatch.mock.calls[0][0].doc)?.attrs.latex).toBe('x=3/4');
   });
 
   it('reports availability without a dispatch', () => {

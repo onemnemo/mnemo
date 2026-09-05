@@ -57,6 +57,7 @@ import { structureKeymap } from '../editor/commands/structure';
 import { editorKeymap } from '../editor/commands';
 import { editorHistory, historyBoundaryPlugin } from '../editor/history';
 import { formattingToolbarPlugin } from '../editor/toolbar/formatting-toolbar';
+import { equationOpenOnInsert } from '../editor/atoms';
 import { slashMenuPlugin } from '../editor/slash';
 import type { BlockRegistry } from '../editor/registry/build';
 import type { InlineMapper } from '../editor/mapper/inline';
@@ -218,6 +219,11 @@ export function editorPlugins(
     intrinsicSizePlugin(registry),
     columnSplitterPlugin(),
     blockIdentityPlugin(registry),
+    // Holds one number for one state, the position an equation was just
+    // inserted at, so the atom's view knows to open its source card. It claims
+    // no key, appends nothing and reads no document, so it takes no part in the
+    // precedence this ordering describes.
+    equationOpenOnInsert(),
     editorHistory(),
     historyBoundaryPlugin(),
     formattingToolbarPlugin(),

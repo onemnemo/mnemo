@@ -35,3 +35,4 @@ export type {
   EquationEditorOptions,
 } from './equation-editor';
 export { insertEquation } from './commands';
+export { equationOpenOnInsert, openEditorOnInsert, opensEditorAt } from './open-on-insert';

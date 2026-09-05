@@ -1153,6 +1153,43 @@
   vertical-align: middle;
 }
 
+/* Inline equation. Hitting it with a pointer is the only way to edit one, so it
+ * carries a hit area of its own and says on hover that it is a thing to press.
+ * The minimum width is what keeps a source that typesets to nothing (`{}`, a
+ * lone spacing command) reachable rather than collapsing to a point. */
+.notes-doc .notes-equation {
+  display: inline-block;
+  min-width: 10px;
+  padding: 0 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color var(--duration-fast);
+}
+.notes-doc .notes-equation:hover {
+  background: var(--frame-hover);
+}
+/* An equation with no source yet. KaTeX typesets an empty source to an empty
+ * span, so without this the atom is zero pixels wide: present in the line,
+ * holding a caret position, with nothing to aim at and no way back into it. */
+.notes-doc .notes-equation-empty {
+  padding: 0 6px;
+  background: var(--canvas-sunken);
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+/* ProseMirror puts a separator image after an inline node whose DOM is not
+ * editable, an equation ending a line among them, to work around a Chromium
+ * selection bug. The app's reset makes every image a block, which would break
+ * the line the equation ends; ProseMirror's own stylesheet is not loaded, so
+ * the protection it ships lives here instead. */
+.notes-doc img.ProseMirror-separator {
+  display: inline;
+  vertical-align: baseline;
+  border: none;
+  margin: 0;
+}
+
 /* Block equation. Left-aligned and hugging its rendered width like the
  * desktop's (its host is HorizontalAlignment=Left with 8,6 padding), rather
  * than centred the way KaTeX draws display math by default. Long formulas

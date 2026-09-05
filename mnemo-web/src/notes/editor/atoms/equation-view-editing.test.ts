@@ -70,7 +70,7 @@ interface Harness {
   liveLatex(): string;
 }
 
-function harnessOf(latex: string): Harness {
+function harnessOf(latex: string, options: { editable?: boolean } = {}): Harness {
   let state = EditorState.create({ doc: docWith(latex), schema });
   const { pos, node } = findEquation(state.doc);
   const dispatched: Transaction[] = [];
@@ -85,6 +85,7 @@ function harnessOf(latex: string): Harness {
       state = state.apply(tr);
     },
     focus,
+    editable: options.editable ?? true,
   } as unknown as EditorView;
 
   const args = {
@@ -183,6 +184,57 @@ describe('committing an edit', () => {
   });
 });
 
+describe('an equation with no source', () => {
+  /**
+   * The regression: KaTeX typesets an empty source to an empty span, so the
+   * atom was zero pixels wide, holding a caret position with nothing to aim a
+   * pointer at and no way back into it.
+   */
+  it('draws a labelled placeholder rather than nothing', () => {
+    const h = harnessOf('');
+    expect(h.realized.dom.classList.contains('notes-equation-empty')).toBe(true);
+    expect(h.realized.dom.textContent?.length).toBeGreaterThan(0);
+    expect(h.realized.dom.getAttribute('aria-label')?.length).toBeGreaterThan(0);
+  });
+
+  it('goes back to drawing the maths as soon as a source is typed', () => {
+    const h = harnessOf('');
+    const input = openEditor(h.realized);
+    input.value = 'x^2';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(h.realized.dom.classList.contains('notes-equation-empty')).toBe(false);
+    expect(h.realized.dom.querySelector('.katex')).not.toBeNull();
+  });
+
+  it('is taken out when the editor commits it still empty, caret where it stood', () => {
+    const h = harnessOf('');
+    const input = openEditor(h.realized);
+    commit(input, '   ');
+    expect(h.view.state.doc.nodeAt(h.atomPos)?.type.name).not.toBe('equationSpan');
+    expect(h.view.state.selection.from).toBe(h.atomPos);
+    // One step, so a single undo brings back what the insert replaced.
+    expect(h.dispatched).toHaveLength(1);
+  });
+
+  it('is taken out on Escape, since there is no source to cancel back to', () => {
+    const h = harnessOf('');
+    const input = openEditor(h.realized);
+    input.value = 'y';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(h.view.state.doc.nodeAt(h.atomPos)?.type.name).not.toBe('equationSpan');
+  });
+
+  it('is taken out when an arrow escapes it empty', () => {
+    const h = harnessOf('');
+    const input = openEditor(h.realized);
+    input.setSelectionRange(0, 0);
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
+    );
+    expect(h.view.state.doc.nodeAt(h.atomPos)?.type.name).not.toBe('equationSpan');
+  });
+});
+
 describe('cancelling', () => {
   it('dispatches nothing and refocuses on Escape', () => {
     const h = harnessOf('x');
@@ -192,6 +244,26 @@ describe('cancelling', () => {
     expect(h.dispatched).toHaveLength(0);
     expect(h.liveLatex()).toBe('x');
     expect(h.focus).toHaveBeenCalled();
+  });
+
+  it('puts the stored source back on screen after a live preview', () => {
+    const h = harnessOf('x');
+    const input = openEditor(h.realized);
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(h.realized.dom.classList.contains('notes-equation-empty')).toBe(true);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(h.realized.dom.classList.contains('notes-equation-empty')).toBe(false);
+    expect(h.liveLatex()).toBe('x');
+  });
+});
+
+describe('a note being read', () => {
+  it('renders the equation but offers no editor', () => {
+    const h = harnessOf('x^2', { editable: false });
+    expect(h.realized.dom.querySelector('.katex')).not.toBeNull();
+    h.realized.dom.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(h.realized.dom.parentElement?.querySelector('.notes-equation-editor-source')).toBeNull();
   });
 });
 

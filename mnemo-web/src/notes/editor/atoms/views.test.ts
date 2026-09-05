@@ -7,6 +7,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import type { Node as PMNode } from 'prosemirror-model';
+import { EditorState } from 'prosemirror-state';
 import katex from 'katex';
 import { createEditorSchema } from '../schema';
 import type { RealizedBlockView, RealizedBlockViewArgs } from '../registry/types';
@@ -14,13 +15,21 @@ import { fallbackClass } from './katex';
 
 const { schema, registry } = createEditorSchema();
 
-/** The realized view for a node, from the registry the app actually builds. */
+/**
+ * The realized view for a node, from the registry the app actually builds.
+ *
+ * The rendering is what these cover, but a state and a position go in as well:
+ * the equation view reads both when it is built, to answer whether it is the
+ * atom an insert just asked to open. A fuller args, with a dispatch to record,
+ * is assembled where the editing wiring is under test.
+ */
 function viewOf(node: PMNode): RealizedBlockView {
   const factory = registry.realizedViews.get(node.type.name);
   if (!factory) throw new Error(`no realized view for ${node.type.name}`);
-  // The render-only views read `args.node` and nothing else; a fuller args is
-  // assembled where a view needs the live view or its position.
-  return factory({ node } as unknown as RealizedBlockViewArgs<Record<string, unknown>>);
+  const view = { state: EditorState.create({ schema }), editable: true };
+  return factory({ node, view, getPos: () => 0 } as unknown as RealizedBlockViewArgs<
+    Record<string, unknown>
+  >);
 }
 
 function equation(latex: string): PMNode {
