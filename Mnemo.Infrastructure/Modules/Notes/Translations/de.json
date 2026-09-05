@@ -175,6 +175,7 @@
     "editor.underline": "Unterstrichen",
     "editor.strikethrough": "Durchgestrichen",
     "editor.highlight": "Hervorheben",
+    "editor.code": "Inline-Code",
     "editor.link": "Link einfügen",
     "editor.subscript": "Tiefgestellt",
     "editor.superscript": "Hochgestellt",
@@ -192,6 +193,8 @@
     "editor.clipboard.pasteCancel": "Abbrechen",
     "category.file": "Datei",
     "editor.save": "Notiz speichern",
-    "editor.save.description": "Diese Notiz jetzt speichern, unabhängig vom automatischen Speichern."
+    "editor.save.description": "Diese Notiz jetzt speichern, unabhängig vom automatischen Speichern.",
+    "editor.checklist.toggle": "Aufgabe abhaken",
+    "editor.checklist.toggle.description": "Die Aufgabe am Cursor abhaken oder das Häkchen entfernen."
   }
 }

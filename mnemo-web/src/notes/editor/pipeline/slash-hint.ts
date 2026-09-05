@@ -15,7 +15,7 @@
  * keystroke; the hint is only ever visible on an empty block about to be typed in.
  */
 
-import { Plugin } from 'prosemirror-state';
+import { Plugin, PluginKey } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 
 import { useI18nStore } from '@/i18n/store';
@@ -25,10 +25,34 @@ function hintText(): string {
   return createTranslate(useI18nStore.getState().bundle)('Notes', 'editor.slashHint');
 }
 
+/**
+ * Whether the editor holds DOM focus, which the decoration cannot ask the state
+ * for. The hint invites the next keystroke, so it belongs to the caret that is
+ * about to take one; left up while the reader is in the sidebar or the tab bar
+ * it is a prompt aimed at nobody, on a block that merely happens to be empty.
+ */
+const focusKey = new PluginKey<boolean>('notes-slash-hint-focus');
+
 export function slashHintPlugin(): Plugin {
-  return new Plugin({
+  return new Plugin<boolean>({
+    key: focusKey,
+    state: {
+      init: () => false,
+      apply: (tr, focused) => (tr.getMeta(focusKey) as boolean | undefined) ?? focused,
+    },
     props: {
+      handleDOMEvents: {
+        focus(view) {
+          view.dispatch(view.state.tr.setMeta(focusKey, true));
+          return false;
+        },
+        blur(view) {
+          view.dispatch(view.state.tr.setMeta(focusKey, false));
+          return false;
+        },
+      },
       decorations(state) {
+        if (focusKey.getState(state) !== true) return null;
         const sel = state.selection;
         if (!sel.empty) return null;
 

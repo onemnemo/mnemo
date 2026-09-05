@@ -30,8 +30,33 @@ function line(text?: string): PMNode {
 function block(name: string, text?: string, attrs?: Record<string, unknown>): PMNode {
   return schema.nodes[name].create(attrs ?? null, line(text));
 }
+function cell(text: string): PMNode {
+  return schema.nodes.tableCell.create(null, line(text));
+}
+function row(...cells: PMNode[]): PMNode {
+  return schema.nodes.tableRow.create(null, [line(), ...cells]);
+}
+function table(...rows: PMNode[]): PMNode {
+  // Sized to the real column count, or the table's own invariant rewrites it.
+  return schema.nodes.table.create({ columnWidths: [160, 160] }, [line(), ...rows]);
+}
 function doc(...blocks: PMNode[]): PMNode {
   return schema.nodes.doc.create(null, blocks);
+}
+
+/** Position `offset` into the line of the cell whose text is `text`. */
+function cellCaret(document_: PMNode, text: string, offset: number): number {
+  let at: number | null = null;
+  document_.descendants((node, pos) => {
+    if (at !== null) return false;
+    if (node.type.name === 'tableCell' && node.textContent === text) {
+      at = pos + 2 + offset;
+      return false;
+    }
+    return true;
+  });
+  if (at === null) throw new Error(`no cell reading ${JSON.stringify(text)}`);
+  return at;
 }
 
 function mount(document_: PMNode, from: number, to = from): EditorView {
@@ -122,5 +147,41 @@ describe('undo after a split', () => {
     undo(view.state, view.dispatch);
     undo(view.state, view.dispatch);
     expect(shape(view)).toBe('paragraph("ab")');
+  });
+
+  it('one press takes back a markdown shortcut and leaves the marker typed out', () => {
+    // The space that fired the trigger is part of what undo gives back, or the
+    // line comes back a character short and retyping that character converts it
+    // again, which is what made a literal "# " impossible to type.
+    const document_ = doc(block('paragraph'));
+    const view = mount(document_, caretAt(document_, 0, 0));
+    typeChar(view, '#');
+    typeChar(view, ' ');
+    expect(shape(view)).toBe('heading("")');
+    undo(view.state, view.dispatch);
+    expect(shape(view)).toBe('paragraph("# ")');
+  });
+});
+
+describe('Shift+Enter over a range that reaches into a table', () => {
+  it('takes the range and keeps the table, as Enter over the same range does', () => {
+    // The break is the one hole the range delete did not own: `insertText` over
+    // a cross-block range is the generic replace, which lifts the cells out into
+    // the paragraph above and leaves a document with no table in it.
+    const document_ = doc(block('paragraph', 'hello'), table(row(cell('a1'), cell('b1'))));
+    const view = mount(document_, caretAt(document_, 0, 2), cellCaret(document_, 'a1', 1));
+    expect(press(view, 'Enter', { shiftKey: true })).toBe(true);
+    expect(shape(view)).toBe('paragraph("he\\n") | table("1b1")');
+    view.state.doc.check();
+  });
+});
+
+describe('a slash line that matches no row', () => {
+  it('hands Enter back to the editor, which splits the block', () => {
+    const document_ = doc(block('paragraph'));
+    const view = mount(document_, caretAt(document_, 0, 0));
+    for (const char of '/usr') typeChar(view, char);
+    expect(press(view, 'Enter')).toBe(true);
+    expect(shape(view)).toBe('paragraph("/usr") | paragraph("")');
   });
 });

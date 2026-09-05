@@ -27,10 +27,18 @@ import {
   toggleFormat,
 } from '../marks/commands';
 import { insertEquation } from '../atoms/commands';
+import { isChecklistItemChecked, toggleChecklistItem } from './checklist';
 import { redo, undo } from '../history';
 
 /** Toolbar sectioning and slash-menu grouping. */
-export type CommandGroup = 'history' | 'inline-format' | 'script' | 'color' | 'insert' | 'escape';
+export type CommandGroup =
+  | 'history'
+  | 'inline-format'
+  | 'block'
+  | 'script'
+  | 'color'
+  | 'insert'
+  | 'escape';
 
 interface CommandMeta {
   /** Stable id, shared with the desktop action id where one exists. */
@@ -119,9 +127,9 @@ function swatch(
 /**
  * The catalog. Ordered as the toolbar reads it left to right; the keymap and
  * slash menu take their own subsets. Shortcuts match the desktop chords
- * (`CoreUIModule.Chords`, and Ctrl+Z / Ctrl+Y for history); `code`, the swatches
- * and the equation carry none there and carry none here. Sub/sup use Primary+`,`
- * and `.`, `OemComma`/`OemPeriod`.
+ * (`CoreUIModule.Chords`, and Ctrl+Z / Ctrl+Y for history) wherever the desktop
+ * has one; the swatches and the equation have none on either side. Sub/sup use
+ * Primary+`,` and `.`, `OemComma`/`OemPeriod`.
  */
 export const EDITOR_COMMANDS: readonly EditorCommand[] = [
   {
@@ -155,7 +163,10 @@ export const EDITOR_COMMANDS: readonly EditorCommand[] = [
     'Mod-Shift-s',
   ),
   flag('editor.highlight', 'highlight', 'formatting-toolbar/highlighter', 'inline-format', 'Mod-Shift-h'),
-  flag('editor.code', 'code', 'notes/code', 'inline-format'),
+  // Inline code carries no desktop chord. Mod+E is what the editors people
+  // arrive from use for it, and nothing in this editor or in the app's global
+  // keybinds answers to it.
+  flag('editor.code', 'code', 'notes/code', 'inline-format', 'Mod-e'),
   swatch('editor.color.background', 'backgroundColor', undefined),
   swatch('editor.color.foreground', 'foregroundColor', undefined),
   flag('editor.subscript', 'subscript', 'formatting-toolbar/subscript', 'script', 'Mod-,'),
@@ -167,6 +178,19 @@ export const EDITOR_COMMANDS: readonly EditorCommand[] = [
     group: 'insert',
     run: insertEquation(),
     // "active" is meaningless for an insert, so no readout.
+  },
+  {
+    kind: 'direct',
+    id: 'editor.checklist.toggle',
+    titleKey: 'notes.command.checklist.toggle',
+    icon: 'notes/todo',
+    group: 'block',
+    // Bound in the structural keymap, which claims the chord first and falls
+    // back to the soft break outside a to-do; named here so the shortcut is
+    // listed wherever the catalog is read.
+    shortcut: 'Mod-Enter',
+    run: toggleChecklistItem,
+    isActive: isChecklistItemChecked,
   },
   {
     kind: 'direct',

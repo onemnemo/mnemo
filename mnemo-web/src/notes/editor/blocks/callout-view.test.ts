@@ -250,16 +250,20 @@ describe('the callout caret', () => {
     expect(shape(view)).toEqual(['paragraph:before', 'callout:remember!', 'paragraph:after']);
   });
 
-  it('splits on Enter at the caret, and the tail is a plain paragraph', () => {
+  it('wraps on Enter at the caret rather than splitting the box open', () => {
     const { view, calloutPos } = mountEditor();
     caret(view, calloutPos, 4);
     expect(splitBlock(view.state, view.dispatch)).toBe(true);
-    expect(shape(view)).toEqual([
-      'paragraph:before',
-      'callout:reme',
-      'paragraph:mber',
-      'paragraph:after',
-    ]);
+    expect(shape(view)).toEqual(['paragraph:before', 'callout:reme\nmber', 'paragraph:after']);
+  });
+
+  it('leaves the callout on Enter at a blank line, as a quote does', () => {
+    const { view, calloutPos } = mountEditor();
+    caret(view, calloutPos, 8);
+    expect(splitBlock(view.state, view.dispatch)).toBe(true);
+    caret(view, calloutPos, 9);
+    expect(splitBlock(view.state, view.dispatch)).toBe(true);
+    expect(shape(view)).toEqual(['paragraph:before', 'callout:remember', 'paragraph:', 'paragraph:after']);
   });
 
   it('strips the callout on Backspace at the start, then merges on the next', () => {

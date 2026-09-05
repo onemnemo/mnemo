@@ -175,6 +175,7 @@
     "editor.underline": "Underline",
     "editor.strikethrough": "Strikethrough",
     "editor.highlight": "Highlight",
+    "editor.code": "Inline code",
     "editor.link": "Insert link",
     "editor.subscript": "Subscript",
     "editor.superscript": "Superscript",
@@ -192,6 +193,8 @@
     "editor.clipboard.pasteCancel": "Cancel",
     "category.file": "File",
     "editor.save": "Save note",
-    "editor.save.description": "Write this note now, whether or not autosave is on."
+    "editor.save.description": "Write this note now, whether or not autosave is on.",
+    "editor.checklist.toggle": "Toggle to-do",
+    "editor.checklist.toggle.description": "Check or uncheck the to-do the caret is in."
   }
 }

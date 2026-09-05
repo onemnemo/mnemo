@@ -262,9 +262,21 @@ describe('Tab round trip', () => {
 
 describe('bindings', () => {
   it('binds Tab to indent and Shift+Tab to outdent', () => {
+    const d = doc(bullet('a'), bullet('b'));
     const bindings = listNestingKeyBindings();
-    expect(bindings.Tab).toBe(indentListItem);
-    expect(bindings['Shift-Tab']).toBe(outdentListItem);
+    const nested = run(d, bindings.Tab, caretAt(d, [1], 0)).state;
+    expect(outline(nested.doc)).toEqual(['bulletItem:a', '  bulletItem:b']);
+    const lifted = run(nested.doc, bindings['Shift-Tab'], nested.selection.from).state;
+    expect(lifted.doc.eq(d)).toBe(true);
+  });
+
+  it('answers Tab in prose as well, so focus never leaves the editor', () => {
+    // Unbound, the browser walks to the next tab stop inside the note (a to-do
+    // box, a card link) and the keystrokes after it go there instead.
+    const d = doc(para('plain'));
+    const { state, handled } = run(d, listNestingKeyBindings().Tab, caretAt(d, [0], 0));
+    expect(handled).toBe(true);
+    expect(state.doc.eq(d)).toBe(true);
   });
 
   it('isNested answers for list item parents only', () => {

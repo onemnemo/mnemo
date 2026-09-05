@@ -54,6 +54,7 @@ import { gapCursorPlugin } from '../selection/gap-cursor-plugin';
 import { resolveServices } from '../editor/view/nodeviews';
 import type { EditorServices } from '../editor/registry/types';
 import { listNestingKeymap } from '../editor/commands/list-nesting';
+import { collapseSelectionKeymap } from '../editor/commands/collapse-selection';
 import { structureKeymap } from '../editor/commands/structure';
 import { editorKeymap } from '../editor/commands';
 import { editorHistory, historyBoundaryPlugin } from '../editor/history';
@@ -194,8 +195,9 @@ export function editorPlugins(
     codeKeymap(),
     structureKeymap(),
     // Tab and Shift+Tab, which nothing else here binds. Beside the structural
-    // keymap because it is one: it claims the keys only inside a list, and a
-    // declined Tab has to reach the browser for focus to move as it always has.
+    // keymap because it is one: inside a list the keys nest and lift an item,
+    // and everywhere else they are swallowed, so Tab never hands focus to a
+    // control sitting between the blocks.
     listNestingKeymap(),
     editorKeymap(),
     keymap(baseKeymap),
@@ -225,6 +227,10 @@ export function editorPlugins(
     // handleKeyDown claims only Ctrl+F, and Escape while find is open, neither of
     // which any earlier plugin takes.
     findPlugin(),
+    // The bottom of the Escape escalation: find closes first, a block selection
+    // clears before that, and only a plain text range reaches this, which is why
+    // it sits below both rather than with the other structural keys.
+    collapseSelectionKeymap(),
     // The last of the decoration-only neighbours: it underlines what the
     // proofreader flagged. Its apply only maps its set and installs answers a
     // meta brings in, so a chunked mount appending a thousand blocks at once

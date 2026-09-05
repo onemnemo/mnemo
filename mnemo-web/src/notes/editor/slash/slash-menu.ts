@@ -7,7 +7,9 @@
  * shape of the line, so a path or a route the caret is merely placed in stays
  * ordinary content and keeps Enter, the arrows, Home and End. Backspacing over
  * the slash dismisses the menu, and so does Escape, in both cases leaving the
- * typed text there to be edited.
+ * typed text there to be edited. A query that stops matching any row dismisses
+ * it too: a line that can no longer be a command is content again, and content
+ * does not hold on to the keys the menu was borrowing.
  *
  * Rows come from the block registry, so a block type offers itself and the menu
  * has no list of its own to drift from. Their order is the registry's, which
@@ -268,8 +270,19 @@ function createController(
         return;
       }
 
+      const matched = allRows.filter((row) => matchesQuery(row.candidates, query));
+      if (matched.length === 0) {
+        // A query nothing can match is not a command any more, it is a path, a
+        // date or a route the user is writing. The menu stands down and the
+        // trigger with it, so Enter, the arrows, Home and End go back to the
+        // editor instead of being swallowed by a list with nothing in it.
+        close();
+        view.dispatch(view.state.tr.setMeta(slashMenuKey, DISMISS));
+        return;
+      }
+
       const wasOpen = open;
-      rows = allRows.filter((row) => matchesQuery(row.candidates, query));
+      rows = matched;
       // Back to the top on every query change, matching the desktop: the row
       // the user was on is rarely the one they still mean after typing more.
       index = 0;
@@ -299,8 +312,9 @@ function createController(
           move(rows.length);
           return true;
         case 'Enter':
-          // An empty list consumes Enter too. Falling through would split the
-          // block under an open menu, which is not what the press meant.
+          // The menu is only ever open over rows that match, so Enter always
+          // has something to pick; a query that matches nothing closes it in
+          // `sync` and this handler declines with it.
           pick(index);
           return true;
         case 'Escape':

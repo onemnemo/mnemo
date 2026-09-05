@@ -175,6 +175,7 @@
     "editor.underline": "Understreket",
     "editor.strikethrough": "Gjennomstreket",
     "editor.highlight": "Utheving",
+    "editor.code": "Inline-kode",
     "editor.link": "Sett inn lenke",
     "editor.subscript": "Senket skrift",
     "editor.superscript": "Hevet skrift",
@@ -192,6 +193,8 @@
     "editor.clipboard.pasteCancel": "Avbryt",
     "category.file": "Fil",
     "editor.save": "Lagre notat",
-    "editor.save.description": "Skriv dette notatet nå, uansett om autolagring er på."
+    "editor.save.description": "Skriv dette notatet nå, uansett om autolagring er på.",
+    "editor.checklist.toggle": "Merk av oppgave",
+    "editor.checklist.toggle.description": "Merk av eller fjern merket for oppgaven der markøren står."
   }
 }

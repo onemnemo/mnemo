@@ -56,6 +56,10 @@ export function calloutBlock(deps: BlockDeps): AnyBlockModule {
           0,
         ],
       },
+      // One framed aside, like the quote it is structurally: Enter wraps inside
+      // it and a blank line is the way out, so a second line cannot end up
+      // outside the frame.
+      softWrapEnter: true,
       attrsFrom: (block) => ({
         emoji: block.payload.kind === 'callout' ? block.payload.emoji : noteEmoji,
         tone: block.payload.kind === 'callout' ? block.payload.tone : defaultTone,

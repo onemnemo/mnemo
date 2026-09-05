@@ -40,6 +40,12 @@ function quote(text?: string, attrs?: Record<string, unknown>): PMNode {
 function bullet(text?: string, attrs?: Record<string, unknown>): PMNode {
   return schema.nodes.bulletItem.create(attrs ?? null, line(text));
 }
+function numbered(text?: string, attrs?: Record<string, unknown>): PMNode {
+  return schema.nodes.numberedItem.create(attrs ?? null, line(text));
+}
+function checklist(text?: string, checked = false): PMNode {
+  return schema.nodes.checklistItem.create({ checked }, line(text));
+}
 function code(text?: string, attrs?: Record<string, unknown>): PMNode {
   return schema.nodes.codeBlock.create(attrs ?? null, codeLine(text));
 }
@@ -92,6 +98,13 @@ function run(document: PMNode, command: Command, opts: RunOptions): { state: Edi
   return { state: next, handled };
 }
 
+/** Every top-level block as its type name and its text. */
+function shapeOf(document: PMNode): string[] {
+  const out: string[] = [];
+  document.forEach((node) => out.push(`${node.type.name}:${node.textContent}`));
+  return out;
+}
+
 /** Whether every text run in a block's line carries `markName`. */
 function allBold(block: PMNode): boolean {
   const lineNode = block.firstChild;
@@ -135,6 +148,29 @@ describe('splitBlock (Enter)', () => {
     expect(state.doc.child(1).type.name).toBe('heading');
     expect(state.doc.child(1).textContent).toBe('Title');
     expect(state.selection.from).toBe(caretAt(state.doc, 1, 0));
+  });
+
+  it('at the logical start of a list item pushes an empty item of the same type', () => {
+    // A paragraph here would end the run: any other block resets the count, so
+    // the list would read 1, blank, 1, 2 with the item the caret is in first.
+    const document = doc(numbered('one'), numbered('two'), numbered('three'));
+    const { state } = run(document, splitBlock, { from: caretAt(document, 1, 0) });
+    expect(shapeOf(state.doc)).toEqual([
+      'numberedItem:one',
+      'numberedItem:',
+      'numberedItem:two',
+      'numberedItem:three',
+    ]);
+    expect(state.doc.child(1).attrs.sid).toBe('');
+    expect(state.selection.from).toBe(caretAt(state.doc, 2, 0));
+  });
+
+  it('starts the pushed to-do unchecked, whatever the item below is', () => {
+    const document = doc(checklist('buy milk', true));
+    const { state } = run(document, splitBlock, { from: caretAt(document, 0, 0) });
+    expect(state.doc.child(0).type.name).toBe('checklistItem');
+    expect(state.doc.child(0).attrs.checked).toBe(false);
+    expect(state.doc.child(1).attrs.checked).toBe(true);
   });
 
   it('splits a bold run keeping the mark on both halves', () => {
@@ -318,8 +354,15 @@ describe('insertSoftBreak (Shift-Enter, Mod-Enter)', () => {
   it('answers both chords, and Enter stays a split', () => {
     const bindings = structureKeyBindings();
     expect(bindings['Shift-Enter']).toBe(insertSoftBreak);
-    expect(bindings['Mod-Enter']).toBe(insertSoftBreak);
     expect(bindings.Enter).toBe(splitBlock);
+    // Ctrl/Cmd+Enter is the to-do toggle first and the soft break after it, so
+    // the chord is a chain rather than the command itself.
+    const document = doc(para('ab'));
+    const { state, handled } = run(document, bindings['Mod-Enter'], {
+      from: caretAt(document, 0, 1),
+    });
+    expect(handled).toBe(true);
+    expect(state.doc.child(0).textContent).toBe('a\nb');
   });
 
   it('replaces a selected range with the newline', () => {
@@ -345,6 +388,33 @@ describe('insertSoftBreak (Shift-Enter, Mod-Enter)', () => {
     });
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
+  });
+
+  it('keeps a table whole when the range reaches into one of its cells', () => {
+    // The generic replace behind `insertText` fits the two open ends together
+    // under the schema alone, and `line block*` lets it lift the cells out into
+    // the paragraph above, leaving no table and a document that still checks.
+    const document = doc(para('hello'), table(tableRow(cell('a1'), cell('b1'))), para('after'));
+    const { state } = run(document, insertSoftBreak, {
+      from: caretAt(document, 0, 2),
+      to: blockPosOf(document, 'a1') + 3,
+    });
+    expect(shapeOf(state.doc)).toEqual(['paragraph:he\n', 'table:1b1', 'paragraph:after']);
+    const row = state.doc.child(1).child(1);
+    expect(row.childCount).toBe(3); // the row's own line, then both cells
+    state.doc.check();
+  });
+
+  it('joins nothing across a source line and a cell, which cannot be joined at all', () => {
+    // Left to the generic replace this dies with a TransformError: a codeLine
+    // and a line have no fit, so the keystroke takes the note with it.
+    const document = doc(code('x = 1'), table(tableRow(cell('a1'), cell('b1'))));
+    const { state } = run(document, insertSoftBreak, {
+      from: caretAt(document, 0, 1),
+      to: blockPosOf(document, 'a1') + 3,
+    });
+    expect(shapeOf(state.doc)).toEqual(['codeBlock:x\n', 'table:1b1']);
+    state.doc.check();
   });
 
   it('reaches the command from the real chord, through keymap normalization', () => {

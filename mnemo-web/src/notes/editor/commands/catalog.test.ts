@@ -90,6 +90,7 @@ describe('EDITOR_COMMANDS shape', () => {
       'editor.subscript',
       'editor.superscript',
       'editor.equation',
+      'editor.checklist.toggle',
       'editor.clearMarks',
     ]);
   });

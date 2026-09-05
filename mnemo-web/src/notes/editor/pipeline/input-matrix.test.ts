@@ -182,11 +182,11 @@ describe('inline atoms in the line', () => {
     // the caret is textless, so a text-only emptiness check reads the line as
     // "just the marker" and a clearing conversion would destroy the equation.
     const d = doc(para(text('#'), equation('\\pi r^2')));
-    const { state, handled } = type(d, caretAt(1), ' ');
+    const { state } = type(d, caretAt(1), ' ');
 
-    expect(handled).toBe(false);
     expect(equations(state.doc)).toEqual(['\\pi r^2']);
     expect(firstBlock(state.doc).type.name).toBe('paragraph');
+    expect(firstBlock(state.doc).textContent).toBe('# ');
   });
 
   it('still fires normally when the atom sits in a different block', () => {

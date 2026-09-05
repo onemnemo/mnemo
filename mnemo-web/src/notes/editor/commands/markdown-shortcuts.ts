@@ -52,8 +52,8 @@ function convertLeadingMarker(state: EditorState, targetNodeName: string): Trans
   // Same line kind (paragraph -> list item), so this is a `setNodeMarkup` that
   // leaves the body content and its marks in place; identity carries across.
   convertBlockType(tr, blockPos, block, target, { content: 'preserve' });
-  // Strip the marker, the `offset` characters that sat before the caret. The
-  // space that triggered us was never inserted, so nothing else needs removing.
+  // Strip the marker, the `offset` characters before the caret. The space that
+  // fired the trigger is one of them, since it is typed before this runs.
   if (offset > 0) tr.delete(blockPos + 2, blockPos + 2 + offset);
   tr.setSelection(TextSelection.create(tr.doc, blockPos + 2));
   return tr;

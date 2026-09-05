@@ -6,7 +6,7 @@
 
 import { afterEach, describe, expect, it } from "vitest"
 
-import { installNativeKeyGuard } from "./native-keys"
+import { installNativeKeyGuard, isNativeKeyRefusal } from "./native-keys"
 
 let dispose: (() => void) | undefined
 const nativePlatform = navigator.platform
@@ -105,5 +105,26 @@ describe("installNativeKeyGuard", () => {
   it("stops swallowing once disposed", () => {
     installNativeKeyGuard()()
     expect(prevented({ code: "F5", key: "F5" })).toBe(false)
+  })
+
+  // A handler on the same chord has to tell a press this guard refused from one
+  // that another handler has already answered; both arrive defaultPrevented.
+  it("marks the presses it refused, and only those", () => {
+    setPlatform("Win32")
+    dispose = installNativeKeyGuard()
+
+    const print = press({ code: "KeyP", key: "p", ctrlKey: true })
+    expect(isNativeKeyRefusal(print)).toBe(true)
+
+    const claimedElsewhere = new KeyboardEvent("keydown", {
+      code: "KeyN",
+      key: "n",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    claimedElsewhere.preventDefault()
+    window.dispatchEvent(claimedElsewhere)
+    expect(isNativeKeyRefusal(claimedElsewhere)).toBe(false)
   })
 })

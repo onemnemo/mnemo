@@ -102,6 +102,17 @@ export interface BlockDefinition<TAttrs extends Record<string, unknown>> {
    * of block names that drifts the moment a type is added.
    */
   readonly holdsCaret?: boolean;
+  /**
+   * Whether plain Enter wraps inside this block rather than splitting it, with a
+   * blank line as the way out.
+   *
+   * True for the blocks a reader takes as one framed unit, a quote and a
+   * callout: splitting one leaves the second half outside the frame, which is
+   * never what pressing Enter in the middle of a sentence meant. Declared on the
+   * node for the same reason `holdsCaret` is, so the Enter command asks the
+   * schema instead of matching block names.
+   */
+  readonly softWrapEnter?: boolean;
 
   /** Typed attrs read off the wire block. */
   attrsFrom(block: Block): TAttrs;
@@ -327,6 +338,7 @@ export function defineBlock<TAttrs extends Record<string, unknown>>(
     // dumped spec than an absent one.
     ...(def.forcedMarks ? { forcedMarks: def.forcedMarks } : {}),
     ...(def.holdsCaret === false ? { holdsCaret: false } : {}),
+    ...(def.softWrapEnter === true ? { softWrapEnter: true } : {}),
   };
 
   return {

@@ -12,9 +12,8 @@
  * Only a list item indents, and only under another list item. A paragraph
  * that ends up nested (an item de-formatted in place keeps its position) can
  * still be lifted out, so nothing a user can build is a state the keys cannot
- * undo. Tab and Shift+Tab claim the key only when the caret is in a list item
- * or a nested block: everywhere else they decline, and the browser moves focus
- * exactly as it did before.
+ * undo. Outside a list the keys move nothing, and they are still answered:
+ * Tab is not a way out of the text.
  *
  * Both moves are one transaction and one undo step, and both carry the node
  * across unchanged, so `id`, `sid`, `order` and `meta` survive, and the sid the
@@ -22,6 +21,7 @@
  */
 
 import { keymap } from 'prosemirror-keymap';
+import { chainCommands } from 'prosemirror-commands';
 import { Fragment, type Node as PMNode } from 'prosemirror-model';
 import { TextSelection, type Command, type EditorState, type Plugin, type Transaction } from 'prosemirror-state';
 import { isListItem } from '../blocks/shared';
@@ -137,10 +137,20 @@ export const outdentListItem: Command = (state, dispatch) => {
   return true;
 };
 
+/**
+ * Tab where nothing above claims it: swallowed, never handed on.
+ *
+ * Source lines and table cells take it first, and a list item takes it just
+ * above. Everywhere else the browser would move focus to the next tab stop
+ * inside the note, so the keystrokes after it go to a control instead of to the
+ * text the caret was in.
+ */
+const swallowTab: Command = () => true;
+
 export function listNestingKeyBindings(): Record<string, Command> {
   return {
-    Tab: indentListItem,
-    'Shift-Tab': outdentListItem,
+    Tab: chainCommands(indentListItem, swallowTab),
+    'Shift-Tab': chainCommands(outdentListItem, swallowTab),
   };
 }
 

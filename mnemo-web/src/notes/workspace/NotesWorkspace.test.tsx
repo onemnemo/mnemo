@@ -239,6 +239,57 @@ describe('the print chord', () => {
       disposeGuard();
     }
   });
+
+  it('stands down for the caret, for a dialog, and for a chord already answered', async () => {
+    reads = 'succeed';
+    render();
+    await settle();
+
+    const field = document.createElement('input');
+    document.body.appendChild(field);
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('data-state', 'open');
+
+    const press = (from: EventTarget, init: KeyboardEventInit = {}): KeyboardEvent => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'n',
+        code: 'KeyN',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+        ...init,
+      });
+      act(() => {
+        from.dispatchEvent(event);
+      });
+      return event;
+    };
+
+    // Typing into a field is the field's, a dialog owns the keyboard while it is
+    // up, a handler that already answered has claimed the chord, and Ctrl+Shift+N
+    // is a chord of its own rather than this one.
+    expect(press(field).defaultPrevented).toBe(false);
+    document.body.appendChild(dialog);
+    expect(press(container).defaultPrevented).toBe(false);
+    dialog.remove();
+    const claimed = new KeyboardEvent('keydown', {
+      key: 'n',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    claimed.preventDefault();
+    act(() => {
+      container.dispatchEvent(claimed);
+    });
+    expect(press(container, { shiftKey: true }).defaultPrevented).toBe(false);
+
+    // The plain chord, from outside any field, is still this handler's.
+    expect(press(container).defaultPrevented).toBe(true);
+    field.remove();
+    await settle();
+  });
 });
 
 describe('a library that read fine', () => {

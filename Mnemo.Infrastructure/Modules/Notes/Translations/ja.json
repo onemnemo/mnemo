@@ -175,6 +175,7 @@
     "editor.underline": "下線",
     "editor.strikethrough": "取り消し線",
     "editor.highlight": "ハイライト",
+    "editor.code": "インラインコード",
     "editor.link": "リンクを挿入",
     "editor.subscript": "下付き",
     "editor.superscript": "上付き",
@@ -192,6 +193,8 @@
     "editor.clipboard.pasteCancel": "キャンセル",
     "category.file": "ファイル",
     "editor.save": "ノートを保存",
-    "editor.save.description": "自動保存の設定にかかわらず、このノートをすぐに保存します。"
+    "editor.save.description": "自動保存の設定にかかわらず、このノートをすぐに保存します。",
+    "editor.checklist.toggle": "タスクを切り替え",
+    "editor.checklist.toggle.description": "カーソルのあるタスクのチェックを切り替えます。"
   }
 }

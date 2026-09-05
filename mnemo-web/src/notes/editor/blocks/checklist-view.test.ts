@@ -79,10 +79,12 @@ describe('checklist NodeView', () => {
     expect(box.contains(realized.contentDOM!)).toBe(false);
   });
 
-  it('keeps the box in Tab order: it is the only way to toggle it by keyboard', () => {
+  it('keeps the box out of Tab order, since the caret has a command for it', () => {
+    // Tab inside the editor never moves focus now, so a tab stop between the
+    // blocks would be one the caret cannot reach and cannot leave.
     const { realized } = mountItem(false);
     const box = realized.dom.querySelector('.notes-checkbox')!;
-    expect((box as HTMLElement).tabIndex).toBe(0);
+    expect((box as HTMLElement).tabIndex).toBe(-1);
   });
 
   it('toggles through one own-undo-step transaction on click', () => {

@@ -31,6 +31,7 @@ import type { Plugin } from 'prosemirror-state';
 import { blockChildrenOf, containerBlockNames, isListItem, lineIsCaretTarget, lineOf } from '../blocks/shared';
 import { asOwnUndoStep } from '../history';
 import { blockContext, blockContextAt, type BlockContext } from './caret-block';
+import { toggleChecklistItem } from './checklist';
 import { isNested, outdentTransaction } from './list-nesting';
 import { buildCrossBlockDelete } from './range-delete';
 import { backspaceAtCellStart, cellStartContext } from './two-column';
@@ -87,7 +88,9 @@ export function hasInlineAtom(content: Fragment): boolean {
  * `DocumentOperation` and flushed the open typing batch on the way in, so none of
  * them ever shared an undo entry with the typing around it. A soft break is the
  * exception on both sides: it inserts a character into one block, and the desktop
- * recorded it as typing too.
+ * recorded it as typing too. Its cross-block branch is not, because there the
+ * press also deletes a range of blocks, and an edit that removes content is one
+ * a single undo has to take back whole.
  */
 function dispatchStructural(
   tr: Transaction,
@@ -214,6 +217,19 @@ export const insertSoftBreak: Command = (state, dispatch) => {
   // The same gate splitBlock keeps: over a node selection the insert would
   // REPLACE the selected block with the newline, so only text takes the break.
   if (!(state.selection instanceof TextSelection)) return false;
+
+  // A range that reaches from one block into another is the cross-block
+  // delete's, exactly as it is for Enter. `insertText` over such a range is the
+  // generic replace, which reads `line block*` alone and lifts a cut table's
+  // cells into the block the range started in, or, from source into prose,
+  // cannot join the two open ends at all and throws.
+  const cross = buildCrossBlockDelete(state);
+  if (cross) {
+    const tr = cross.tr;
+    tr.insertText('\n', tr.selection.from);
+    return dispatchStructural(tr.scrollIntoView(), dispatch);
+  }
+
   const { from, to } = state.selection;
   if (dispatch) dispatch(state.tr.insertText('\n', from, to).scrollIntoView());
   return true;
@@ -226,14 +242,22 @@ function visualLineBounds(text: string, caret: number): { start: number; endExcl
   return { start, endExcl: nl < 0 ? text.length : nl };
 }
 
-/** Whether the caret sits on a whitespace-only visual line, the quote exit trigger. */
+/** Whether the caret sits on a whitespace-only visual line, the soft-wrap exit trigger. */
 function caretOnBlankVisualLine(text: string, caret: number): boolean {
   const { start, endExcl } = visualLineBounds(text, caret);
   return isVisuallyEmpty(text.slice(start, endExcl));
 }
 
-/** Splits a quote at a blank line: body stays a quote, the tail becomes a Text block. */
-function splitQuoteOnBlankLine(
+/**
+ * Whether plain Enter wraps inside this block instead of splitting it, the rule
+ * the boxes a reader takes as one unit declare (see `softWrapEnter`).
+ */
+function softWrapsOnEnter(block: PMNode): boolean {
+  return block.type.spec.softWrapEnter === true;
+}
+
+/** Splits a soft-wrapping block at a blank line: the tail becomes a Text block. */
+function splitAtBlankLine(
   state: Parameters<Command>[0],
   ctx: BlockContext,
   dispatch?: (tr: Transaction) => void,
@@ -252,8 +276,8 @@ function splitQuoteOnBlankLine(
   else if (text[tailStart] === '\n' || text[tailStart] === '\r') tailStart += 1;
   while (text[tailStart] === '\r' || text[tailStart] === '\n') tailStart++;
 
-  // Quotes are prose, so text offsets and content positions coincide (no atoms
-  // sit at a blank-line boundary in practice); cut the fragment at those offsets.
+  // These blocks are prose, so text offsets and content positions coincide (no
+  // atom sits at a blank-line boundary in practice); cut at those offsets.
   const bodyContent = line.content.cut(0, Math.min(bodyEnd, line.content.size));
   const tailContent = line.content.cut(Math.min(tailStart, line.content.size));
 
@@ -292,9 +316,21 @@ function breakAtStart(content: Fragment): number {
 }
 
 /**
+ * The type a block Enter is pressed in spawns beside itself: a same-type sibling
+ * for a list item, a Text block for everything else, so a split heading does not
+ * spawn another heading while a split bullet stays in its list.
+ *
+ * Both ends of the gesture ask this. A block pushed *above* by a caret at the
+ * start has to be the same kind as one split off below, or Enter at the top of
+ * a numbered item breaks the run in two and restarts the count at one.
+ */
+function splitSiblingType(block: PMNode): NodeType {
+  return isListItem(block) ? block.type : block.type.schema.nodes.paragraph;
+}
+
+/**
  * The general split: the block keeps its type and the content before the caret,
- * the block below gets the rest, a same-type sibling for a list item and a Text
- * block for everything else (a split heading does not spawn another heading).
+ * the block below gets the rest.
  *
  * A line separator at the split point is the soft break the user is turning into
  * a block boundary, so exactly one of them goes. Left in place it renders as a
@@ -310,7 +346,7 @@ function splitAtCaret(tr: Transaction, ctx: BlockContext): Transaction {
   if (trailing > 0) before = before.cut(0, before.size - trailing);
   else after = after.cut(breakAtStart(after));
 
-  const belowType = isListItem(block) ? block.type : schema.nodes.paragraph;
+  const belowType = splitSiblingType(block);
   const lineContentStart = blockPos + 2;
   const lineContentEnd = lineContentStart + line.content.size;
   const blockEnd = blockPos + block.nodeSize;
@@ -355,7 +391,7 @@ function splitOverRange(
   // The shapes whose Enter is a newline rather than a split, exactly as below.
   if (
     ctx.block.type.name === 'tableCell' ||
-    ctx.block.type.name === 'quote' ||
+    softWrapsOnEnter(ctx.block) ||
     ctx.line.type.name === 'codeLine'
   ) {
     tr.insertText('\n', tr.selection.from);
@@ -397,14 +433,15 @@ export const splitBlock: Command = (state, dispatch) => {
 
   const blank = isContentVisuallyEmpty(line.content);
 
-  // Quote: an empty current line exits to a new Text block; otherwise soft-wrap.
-  if (block.type.name === 'quote') {
+  // Quote and callout: an empty current line exits to a new Text block;
+  // otherwise soft-wrap, so the frame keeps holding what was written into it.
+  if (softWrapsOnEnter(block)) {
     // The blank-line split cuts the line at offsets measured in text, which only
-    // line up with content positions while the line is all text. A quote holding
-    // an atom soft-wraps instead, the atom survives, which beats exiting the
-    // quote at a boundary computed from the wrong coordinate space.
+    // line up with content positions while the line is all text. A block holding
+    // an atom soft-wraps instead, the atom survives, which beats leaving the
+    // block at a boundary computed from the wrong coordinate space.
     if (!hasInlineAtom(line.content) && caretOnBlankVisualLine(line.textContent, offset)) {
-      return splitQuoteOnBlankLine(state, ctx, dispatch);
+      return splitAtBlankLine(state, ctx, dispatch);
     }
     return insertSoftBreak(state, dispatch);
   }
@@ -430,12 +467,14 @@ export const splitBlock: Command = (state, dispatch) => {
     );
   }
 
-  // Caret at the logical start of a non-empty block: push an empty Text block
-  // above and leave the caret where it was, regardless of the block's type.
+  // Caret at the logical start of a non-empty block: push an empty block above
+  // and leave the caret where it was. The block pushed up is a sibling of the
+  // same kind for a list item and Text for everything else, the same rule the
+  // split below the caret follows.
   const atLogicalStart =
     offset === 0 || (offset === 1 && line.textContent.charCodeAt(0) === 0x200b);
   if (atLogicalStart && !blank) {
-    const above = emptyTextBlock(schema);
+    const above = splitSiblingType(block).create(null, schema.nodes.line.create());
     const tr = state.tr.insert(blockPos, above);
     tr.setSelection(TextSelection.create(tr.doc, blockPos + above.nodeSize + 2));
     return dispatchStructural(tr.scrollIntoView(), dispatch);
@@ -782,7 +821,10 @@ export function structureKeyBindings(): Record<string, Command> {
     // Two chords, one meaning: Shift+Enter is the web convention and
     // Ctrl/Cmd+Enter is the desktop's, the same pairing the chat composer keeps.
     'Shift-Enter': insertSoftBreak,
-    'Mod-Enter': insertSoftBreak,
+    // Inside a to-do the desktop chord checks it instead, which is where every
+    // other editor puts that gesture and the only key that reaches the box. The
+    // toggle declines everywhere else, so the soft break keeps the chord.
+    'Mod-Enter': chainCommands(toggleChecklistItem, insertSoftBreak),
     Backspace: backspaceStructural,
     Delete: deleteForwardStructural,
     // Document-order traversal the browser cannot do on its own: across an image

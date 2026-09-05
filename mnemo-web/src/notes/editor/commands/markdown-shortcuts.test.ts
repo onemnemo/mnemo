@@ -186,11 +186,10 @@ describe('markdown whole-line shortcuts', () => {
 
   it('does not fire when text follows the caret (whole line is not the marker)', () => {
     const d = doc(para('#hello'));
-    const { state, handled } = type(d, caretAt(d, 0, 1), ' ');
-    expect(handled).toBe(false);
-    // Untouched: still a paragraph reading "#hello".
+    const { state } = type(d, caretAt(d, 0, 1), ' ');
+    // Unconverted: still a paragraph, and the typed space is ordinary text.
     expect(blockAt(state.doc, 0).type.name).toBe('paragraph');
-    expect(blockAt(state.doc, 0).textContent).toBe('#hello');
+    expect(blockAt(state.doc, 0).textContent).toBe('# hello');
   });
 });
 

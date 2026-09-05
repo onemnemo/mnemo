@@ -4,7 +4,9 @@ import { navigate } from '@/app/router';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useT } from '@/i18n/useT';
-import { isMac } from '@/keybinds/chord';
+import { isEditableTarget, isMac } from '@/keybinds/chord';
+import { isModalOpen } from '@/lib/modal';
+import { isNativeKeyRefusal } from '@/lib/native-keys';
 import { usePublishTrail } from '@/nav/trail';
 import { openNoteInPeek } from '@/peek/store';
 import type { NoteSummaryDto } from '@/api/types';
@@ -207,11 +209,18 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
     requestAnimationFrame(() => searchInputRef.current?.focus());
   }, []);
 
-  // Handle app shortcuts even when the browser-default guard prevents printing on the same chord.
+  // The workspace shortcuts, guarded the way the global keybind matcher guards its own: a
+  // chord another handler has already answered, a dialog holding the keyboard, or a caret in
+  // text is not this handler's to act on. The print chord is the exception to the first, it
+  // arrives prevented by the guard that keeps the engine from opening its print dialog, and
+  // that refusal leaves it unclaimed rather than answered.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      if (event.defaultPrevented && !isNativeKeyRefusal(event)) return;
+      if (isModalOpen() || isEditableTarget(event.target)) return;
       const primary = isMac ? event.metaKey : event.ctrlKey;
-      if (!primary || event.altKey) return;
+      if (!primary || event.altKey || event.shiftKey) return;
       const key = event.key.toLowerCase();
       if (key === 'n') {
         event.preventDefault();

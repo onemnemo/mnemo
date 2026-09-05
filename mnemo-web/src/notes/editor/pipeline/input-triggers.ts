@@ -17,13 +17,20 @@
  *    owner alongside it.
  *
  *  - **First match wins.** Triggers are tried in registry order and the first one
- *    that both matches and returns a transaction handles the input; the inserted
- *    character is suppressed. A trigger may still decline by returning null (the
- *    line was not actually a whole-line marker, say), and the next one is tried.
+ *    that both matches and returns a transaction handles the input. A trigger may
+ *    still decline by returning null (the line was not actually a whole-line
+ *    marker, say), and the next one is tried.
+ *
+ * The typed character goes in first, as ordinary typing, and the conversion
+ * follows as its own undo step against the line that now holds it. One undo then
+ * gives back the literal marker, `# ` and the space that fired it, rather than a
+ * marker one character short, which is a line the shortcut fires on again the
+ * moment that character is retyped. Until this, no keystroke sequence could
+ * leave a literal `# ` at the start of a paragraph.
  */
 
 import { Plugin } from 'prosemirror-state';
-import type { BlockRegistry } from '../registry/build';
+import type { BlockRegistry, InputTriggerEntry } from '../registry/build';
 import { asOwnUndoStep } from '../history';
 
 export function inputTriggerPlugin(registry: BlockRegistry): Plugin {
@@ -58,11 +65,24 @@ export function inputTriggerPlugin(registry: BlockRegistry): Plugin {
         if (textBefore.length !== $from.parentOffset) return false;
         const matchText = textBefore + text;
 
+        const candidates: { readonly trigger: InputTriggerEntry; readonly match: RegExpExecArray }[] = [];
         for (const trigger of triggers) {
           if (trigger.nodeName !== blockName) continue;
           const match = trigger.match.exec(matchText);
-          if (!match) continue;
-          const tr = trigger.handler(state, match, from, to);
+          if (match) candidates.push({ trigger, match });
+        }
+        if (candidates.length === 0) return false;
+
+        // The character that completed the marker, typed rather than swallowed,
+        // so it joins the run before it and one undo lands on the literal text.
+        view.dispatch(state.tr.insertText(text, from, to).scrollIntoView());
+
+        const caret = from + text.length;
+        for (const { trigger, match } of candidates) {
+          // Against the state that now holds the marker in full: the handlers
+          // measure the marker from the caret's own offset, which is what makes
+          // the trailing space part of what a list marker strips.
+          const tr = trigger.handler(view.state, match, caret, caret);
           if (tr) {
             // The conversion is its own undo step, so a first press takes back
             // the block type and gives the marker text back to be edited, the
@@ -71,7 +91,9 @@ export function inputTriggerPlugin(registry: BlockRegistry): Plugin {
             return true;
           }
         }
-        return false;
+        // Every candidate declined (the line was not the marker after all), and
+        // the character is already in, so the press is answered either way.
+        return true;
       },
     },
   });

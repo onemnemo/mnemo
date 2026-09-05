@@ -143,6 +143,9 @@ internal static class EditorKeybindManifest
         new("editor.underline", "Primary+U", null),
         new("editor.strikethrough", "Primary+Shift+S", null),
         new("editor.highlight", "Primary+Shift+H", null),
+        // No desktop chord to match; the web editor gives inline code the one the
+        // editors people arrive from use, and it is listed here so it can be moved.
+        new("editor.code", "Primary+E", null),
         new("editor.link", "Primary+Shift+L", null),
         new("editor.subscript", "Primary+OemComma", null),
         new("editor.superscript", "Primary+OemPeriod", null),

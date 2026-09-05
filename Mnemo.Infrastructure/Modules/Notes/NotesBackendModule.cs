@@ -86,5 +86,27 @@ public sealed class NotesBackendModule : IModule
                 }
             ]
         });
+
+        // The editor owns this chord too, where it falls back to a line break outside a
+        // to-do. It is registered so the one keyboard route to a checkbox is listed with
+        // the rest rather than being something a reader has to discover.
+        registry.Register(new KeybindActionDefinition
+        {
+            ActionId = "editor.checklist.toggle",
+            Namespace = "editor",
+            Scope = KeybindScope.Local,
+            Module = "editor",
+            DisplayLabelKey = "editor.checklist.toggle",
+            DisplayDescriptionKey = "editor.checklist.toggle.description",
+            DisplayCategoryKey = "category.formatting",
+            Bindings =
+            [
+                new KeybindBindingEntry
+                {
+                    Kind = KeybindBindingKind.Chord,
+                    Chord = CanonicalKeyGestureCodec.ParseChord("Primary+Enter")
+                }
+            ]
+        });
     }
 }

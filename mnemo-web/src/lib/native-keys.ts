@@ -25,6 +25,19 @@ function isEngineAccelerator(event: KeyboardEvent): boolean {
   return isApplePlatform() ? event.metaKey : event.ctrlKey
 }
 
+const refused = new WeakSet<KeyboardEvent>()
+
+/**
+ * Whether this guard is the reason an event is already `defaultPrevented`.
+ *
+ * An app handler on the same chord has to tell the two apart: a press the guard
+ * refused is still unclaimed and is the handler's to answer, while one prevented
+ * by anything else was answered before it arrived.
+ */
+export function isNativeKeyRefusal(event: KeyboardEvent): boolean {
+  return refused.has(event)
+}
+
 /**
  * Refuses the engine's reload and print accelerators for the life of the returned
  * disposer. Only their default is prevented, so an app binding on the same chord
@@ -34,6 +47,7 @@ export function installNativeKeyGuard(): () => void {
   // Block repeated presses and presses while dialogs are open as well.
   const onKeyDown = (event: KeyboardEvent) => {
     if (!isEngineAccelerator(event)) return
+    refused.add(event)
     event.preventDefault()
   }
 

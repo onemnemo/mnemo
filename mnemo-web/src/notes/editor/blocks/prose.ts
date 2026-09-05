@@ -53,6 +53,9 @@ export function quoteBlock(deps: BlockDeps): AnyBlockModule {
       // not a container, and modelling it as a wrapper would let the user build
       // nesting the storage format cannot express.
       nodeOptions: { parseDOM: [{ tag: 'blockquote' }], toDOM: () => ['blockquote', 0] },
+      // Enter wraps inside the quote and a blank line leaves it, the desktop's
+      // QuoteEnterBehavior.
+      softWrapEnter: true,
       attrsFrom: () => ({}),
       wireFrom: () => ({ type: 'Quote' as BlockType, payload: { kind: 'empty' as const } }),
       toMarkdown: (_node, _ctx, inline) => `> ${inline}\n`,

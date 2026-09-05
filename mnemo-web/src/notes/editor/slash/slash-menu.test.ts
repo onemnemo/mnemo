@@ -246,11 +246,10 @@ describe('the rows', () => {
     expect(rowLabels()).toEqual(['Quote']);
   });
 
-  it('says so rather than showing an empty box when nothing matches', () => {
+  it('goes away when nothing matches, rather than standing over the line empty', () => {
     openMenu('zzz');
     expect(rowLabels()).toEqual([]);
-    const empty = menuEl().querySelector('.notes-slash-menu-empty');
-    expect(empty?.hasAttribute('data-hidden')).toBe(false);
+    expect(menuEl().hasAttribute('data-hidden')).toBe(true);
   });
 
   it('draws each row with its name and description', () => {
@@ -354,10 +353,14 @@ describe('keyboard', () => {
     expect(isOpen()).toBe(true);
   });
 
-  it('still swallows Enter with no rows, so it cannot split the block underneath', () => {
-    const view = openMenu('zzz');
-    expect(press(view, 'Enter')).toBe(true);
-    expect(view.state.doc.childCount).toBe(1);
+  it('hands Enter and the caret keys back once the query matches nothing', () => {
+    // A path, a date or a route: the line stopped being a command, so the keys
+    // it was borrowing belong to the editor again and Enter splits the block.
+    const view = openMenu('usr');
+    expect(isOpen()).toBe(false);
+    expect(press(view, 'Enter')).toBe(false);
+    expect(press(view, 'ArrowDown')).toBe(false);
+    expect(press(view, 'Home')).toBe(false);
   });
 });
 
@@ -549,11 +552,11 @@ describe('what the menu tells a screen reader', () => {
     expect(activeRow(view)?.dataset.label).toBe('Quote');
   });
 
-  /** Pointing at a row that does not exist is worse than pointing at nothing. */
-  it('points at no row when the query matches none', () => {
+  /** Announcing an open list with nothing in it is worse than announcing none. */
+  it('says nothing is open when the query matches none', () => {
     const view = openMenu('zzz');
     expect(view.dom.hasAttribute('aria-activedescendant')).toBe(false);
-    expect(view.dom.getAttribute('aria-expanded')).toBe('true');
+    expect(view.dom.hasAttribute('aria-expanded')).toBe(false);
   });
 
   it('lets go of all of it when the menu closes', () => {

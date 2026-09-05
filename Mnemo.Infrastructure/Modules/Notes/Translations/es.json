@@ -175,6 +175,7 @@
     "editor.underline": "Subrayado",
     "editor.strikethrough": "Tachado",
     "editor.highlight": "Resaltar",
+    "editor.code": "Código en línea",
     "editor.link": "Insertar enlace",
     "editor.subscript": "Subíndice",
     "editor.superscript": "Superíndice",
@@ -192,6 +193,8 @@
     "editor.clipboard.pasteCancel": "Cancelar",
     "category.file": "Archivo",
     "editor.save": "Guardar nota",
-    "editor.save.description": "Guarda esta nota ahora, esté activado o no el guardado automático."
+    "editor.save.description": "Guarda esta nota ahora, esté activado o no el guardado automático.",
+    "editor.checklist.toggle": "Marcar tarea",
+    "editor.checklist.toggle.description": "Marca o desmarca la tarea donde está el cursor."
   }
 }

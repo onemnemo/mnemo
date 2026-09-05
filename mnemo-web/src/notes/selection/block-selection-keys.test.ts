@@ -54,9 +54,23 @@ function mount(blocks: PMNode[], selected: readonly string[]): EditorView {
   return view;
 }
 
-function press(view: EditorView, key: string): boolean {
-  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+function press(view: EditorView, key: string, init: KeyboardEventInit = {}): boolean {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
   return view.someProp('handleKeyDown', (f) => f(view, event)) === true;
+}
+
+/** Types one character the way the view offers it, at the selection the plugin left. */
+function typeChar(view: EditorView, text: string): boolean {
+  const { from, to } = view.state.selection;
+  const deflt = () => view.state.tr.insertText(text, from, to);
+  return view.someProp('handleTextInput', (f) => f(view, from, to, text, deflt)) === true;
+}
+
+/** Every top-level block as its type name and its text. */
+function shape(view: EditorView): string[] {
+  const out: string[] = [];
+  view.state.doc.forEach((node) => out.push(`${node.type.name}:${node.textContent}`));
+  return out;
 }
 
 /** A paragraph beside a table, with only one of the table's cells selected. */
@@ -105,5 +119,52 @@ describe('Escape on a block selection', () => {
     expect(press(view, 'Escape')).toBe(true);
     expect(view.state.doc).toBe(before);
     expect(getBlockSelection(view.state).selected.size).toBe(0);
+  });
+});
+
+describe('typing over a block selection', () => {
+  it('replaces the marked blocks with the character, as a paste replaces them', () => {
+    const view = mount(
+      [para('alpha', 'p1'), para('beta', 'p2'), para('gamma', 'p3')],
+      ['p1', 'p2', 'p3'],
+    );
+    expect(typeChar(view, 'X')).toBe(true);
+    expect(shape(view)).toEqual(['paragraph:X']);
+    expect(getBlockSelection(view.state).selected.size).toBe(0);
+  });
+
+  it('takes only the marked blocks, and lands the text where they were', () => {
+    const view = mount([para('alpha', 'p1'), para('beta', 'p2'), para('gamma', 'p3')], ['p1', 'p2']);
+    expect(typeChar(view, 'X')).toBe(true);
+    expect(shape(view)).toEqual(['paragraph:Xgamma']);
+  });
+
+  it('ends a selection it cannot delete and lets the character through', () => {
+    const view = uncoverableSelection();
+    const before = view.state.doc;
+    expect(typeChar(view, 'X')).toBe(false);
+    expect(view.state.doc).toBe(before);
+    expect(getBlockSelection(view.state).selected.size).toBe(0);
+  });
+});
+
+describe('Enter on a block selection', () => {
+  it('goes back to editing the last marked block rather than replacing them', () => {
+    const view = mount([para('alpha', 'p1'), para('beta', 'p2'), para('gamma', 'p3')], ['p1', 'p2']);
+    expect(press(view, 'Enter')).toBe(true);
+    expect(shape(view)).toEqual(['paragraph:alpha', 'paragraph:beta', 'paragraph:gamma']);
+    const { selection } = view.state;
+    expect(selection.empty).toBe(true);
+    expect(selection.$from.parent.textContent).toBe('beta');
+    expect(selection.from).toBe(selection.$from.end());
+    expect(getBlockSelection(view.state).selected.size).toBe(0);
+  });
+
+  it('answers the chords that would otherwise write a break at the hidden caret', () => {
+    for (const init of [{ shiftKey: true }, { ctrlKey: true }]) {
+      const view = mount([para('alpha', 'p1'), para('beta', 'p2')], ['p1', 'p2']);
+      expect(press(view, 'Enter', init)).toBe(true);
+      expect(shape(view)).toEqual(['paragraph:alpha', 'paragraph:beta']);
+    }
   });
 });

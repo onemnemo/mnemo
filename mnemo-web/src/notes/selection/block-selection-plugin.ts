@@ -27,6 +27,8 @@ import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 
 import type { BlockRegistry } from '../editor/registry/build';
+import { lineIsCaretTarget, lineOf } from '../editor/blocks/shared';
+import { inCaretlessLine } from '../editor/pipeline/container-caret';
 import {
   EMPTY_SELECTION,
   orderedSids,
@@ -134,6 +136,28 @@ function notify(view: EditorView, state: BlockSelectionPluginState): void {
   for (const listener of set) listener(state);
 }
 
+/**
+ * The end of the last selected block's own line, where Enter leaves the caret.
+ *
+ * Read from the back so a set ending in a divider or a picture still answers:
+ * those draw no caret, and the block the user means is the last one that does.
+ * Null when the set holds no such block at all.
+ */
+function endOfLastSelected(
+  doc: PMNode,
+  registry: BlockRegistry,
+  selected: ReadonlySet<string>,
+): number | null {
+  const entries = selectableEntries(doc, registry);
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (!selected.has(entry.sid) || !lineIsCaretTarget(entry.node.type)) continue;
+    const line = lineOf(entry.node);
+    if (line) return entry.pos + 2 + line.content.size;
+  }
+  return null;
+}
+
 function isSelectAll(event: KeyboardEvent): boolean {
   if (event.key !== 'a' && event.key !== 'A') return false;
   if (!(event.ctrlKey || event.metaKey)) return false;
@@ -195,6 +219,27 @@ export function blockSelectionPlugin(registry: BlockRegistry): Plugin<BlockSelec
             clearBlockSelection(view);
             return true;
           }
+          if (event.key === 'Enter') {
+            // Enter on marked blocks goes back to editing them rather than
+            // replacing them: the caret lands at the end of the last one and
+            // the highlight goes. Nothing is split and nothing is deleted, so
+            // the press that follows a mis-aimed Ctrl+A costs nothing. The
+            // modifiers are not consulted, because the soft break the chords
+            // below would otherwise reach writes a newline into whichever
+            // block the collapsed caret happens to be sitting in.
+            const at = endOfLastSelected(view.state.doc, registry, selection.selected);
+            if (at !== null) {
+              view.dispatch(
+                view.state.tr
+                  .setSelection(TextSelection.create(view.state.doc, at))
+                  .scrollIntoView(),
+              );
+            } else {
+              clearBlockSelection(view);
+            }
+            view.focus();
+            return true;
+          }
         }
 
         if (isSelectAll(event)) {
@@ -213,6 +258,33 @@ export function blockSelectionPlugin(registry: BlockRegistry): Plugin<BlockSelec
         }
 
         return false;
+      },
+      handleTextInput(view, _from, _to, text) {
+        const selection = getBlockSelection(view.state);
+        if (selection.selected.size === 0) return false;
+        // Typing over marked blocks replaces them, the way it replaces a text
+        // range and the way a paste already replaces them. Without this the
+        // character lands at the collapsed caret the selection left behind and
+        // the highlight simply disappears, so the blocks the user was about to
+        // overwrite are still there with a stray character among them.
+        const tr = buildDeleteSelected(view.state, registry, selection.selected);
+        if (!tr) {
+          // Nothing in the set can be removed, the lone covered table cell the
+          // delete keys meet as well. The selection ends there too, so the
+          // character is typed at the caret with no highlight left pointing
+          // somewhere else.
+          clearBlockSelection(view);
+          return false;
+        }
+        // The delete leaves the caret where the first removed block was, which
+        // is a line that draws no caret when a divider or a picture follows.
+        // Text written there is invisible and is dropped on the next load, so
+        // the press keeps the delete and gives up the character instead.
+        if (tr.selection instanceof TextSelection && !inCaretlessLine(tr.selection.$from)) {
+          tr.insertText(text, tr.selection.from);
+        }
+        view.dispatch(tr.scrollIntoView());
+        return true;
       },
     },
     view(editorView) {
