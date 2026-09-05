@@ -1664,7 +1664,9 @@
   cursor: pointer;
   text-align: left;
 }
-.notes-slash-menu-row:hover,
+/* No hover rule of its own: moving the pointer onto a row makes it the chosen
+ * row, so the one highlight follows the pointer as well as the arrow keys, and
+ * two rows can never read as chosen at the same time. */
 .notes-slash-menu-row.is-selected {
   background: var(--frame-hover);
 }

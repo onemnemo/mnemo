@@ -28,6 +28,7 @@ import { asOwnUndoStep } from '../history';
 import { changedRanges } from '../pipeline/invariants';
 import { blockContext, hasInlineAtom } from '../commands/structure';
 import { placeMenu, type Rect } from '../floating/position';
+import { anchorInContainer, scrollContainerOf } from '../floating/scroll-container';
 import { useI18nStore } from '../../../i18n/store';
 import { createTranslate } from '../../../i18n/translate';
 import { createSlashMenuView, type MenuRow } from './menu-view';
@@ -184,6 +185,15 @@ function createController(
    * it drifts up off the text it belongs to.
    */
   let anchor: Rect | null = null;
+  /**
+   * The box the caret has to stay inside, resolved once per open.
+   *
+   * The note scrolls in an ancestor of the editable root rather than in the
+   * window, so a caret can leave the note while its coordinates are still
+   * perfectly valid ones for the window. Resolved at open rather than on every
+   * scroll frame, since walking the ancestors reads computed style.
+   */
+  let scroller: HTMLElement | null = null;
 
   /**
    * Points the editor at the open list and at the row the arrows are on.
@@ -212,8 +222,23 @@ function createController(
     if (!open) return;
     open = false;
     anchor = null;
+    scroller = null;
     menu.root.setAttribute('data-hidden', '');
     syncEditorAria();
+  }
+
+  /**
+   * Closes for good, the answer to everything that is not the query changing.
+   *
+   * Hiding the DOM is not enough on its own: the slash is still at the start of
+   * the line, so the next transaction would find the same live trigger and put
+   * the menu straight back. The dismissal has to be recorded in the document,
+   * which is the same route Escape takes.
+   */
+  function dismiss(): void {
+    if (!open) return;
+    close();
+    view.dispatch(view.state.tr.setMeta(slashMenuKey, DISMISS));
   }
 
   function pick(at: number): void {
@@ -252,14 +277,56 @@ function createController(
     menu.root.style.left = `${String(placement.left)}px`;
   }
 
+  /** The one place the chosen row changes, whether a key or the pointer chose it. */
+  function choose(at: number): void {
+    if (at === index || at < 0 || at >= rows.length) return;
+    index = at;
+    menu.select(index);
+    syncEditorAria();
+  }
+
   function move(delta: number): void {
     if (rows.length === 0) return;
     // Clamped, not wrapped: the desktop clamps, and a list this short reads as
     // a broken key when the highlight jumps end to end.
-    index = Math.min(rows.length - 1, Math.max(0, index + delta));
-    menu.select(index);
-    syncEditorAria();
+    choose(Math.min(rows.length - 1, Math.max(0, index + delta)));
   }
+
+  /**
+   * A press anywhere that is neither the document nor the menu itself.
+   *
+   * The menu is a body-level element outside the editor, so nothing about a
+   * press on the note tree, a tab or the topbar reaches the plugin any other
+   * way: none of them dispatches a transaction, and the only state this reacts
+   * to is the document's.
+   */
+  function onOutsidePointer(event: PointerEvent): void {
+    if (!open) return;
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    if (view.dom.contains(target) || menu.root.contains(target)) return;
+    dismiss();
+  }
+
+  function onViewportChange(): void {
+    if (!open || !anchor) return;
+    const fresh = anchorRect(view);
+    // The vertical only. The held horizontal is deliberately the slash's, not
+    // the caret's, and taking the caret's here would slide the menu right by
+    // the width of whatever has been typed since it opened.
+    if (fresh) anchor = { ...anchor, top: fresh.top, bottom: fresh.bottom };
+    if (!anchorInContainer(anchor, scroller)) {
+      dismiss();
+      return;
+    }
+    reposition();
+  }
+
+  // Capture, because the note scrolls in an ancestor of the editable root and a
+  // scroll event on that ancestor never reaches the window by bubbling.
+  document.addEventListener('pointerdown', onOutsidePointer, true);
+  window.addEventListener('scroll', onViewportChange, true);
+  window.addEventListener('resize', onViewportChange);
 
   return {
     sync(): void {
@@ -288,11 +355,14 @@ function createController(
       index = 0;
       open = true;
       menu.root.removeAttribute('data-hidden');
-      menu.render(rows, index, pick);
+      menu.render(rows, index, pick, choose);
       syncEditorAria();
       // The anchor is taken once; the placement is redone on every query, since
       // the list it is placing has just changed size.
-      if (!wasOpen) anchor = anchorRect(view);
+      if (!wasOpen) {
+        anchor = anchorRect(view);
+        scroller = scrollContainerOf(view.dom);
+      }
       reposition();
     },
 
@@ -329,6 +399,9 @@ function createController(
     },
 
     destroy(): void {
+      document.removeEventListener('pointerdown', onOutsidePointer, true);
+      window.removeEventListener('scroll', onViewportChange, true);
+      window.removeEventListener('resize', onViewportChange);
       // Before the menu goes, so the editor is not left pointing at a list that
       // is no longer in the document.
       close();

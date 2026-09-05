@@ -35,6 +35,23 @@ if (typeof HTMLElement !== "undefined") {
   })
 }
 
+// jsdom runs no layout, so `Range` carries neither of the two box-reading
+// methods an `Element` at least answers with zeros. ProseMirror measures a
+// character by putting a range around it, which is how it answers where the
+// caret is on screen and what it does on every scroll into view, so without
+// these a floating layer cannot be placed at all and a focused editor throws on
+// its next edit. Zeros, matching what jsdom already answers everywhere else:
+// nothing here can report a layout that did not run.
+if (typeof Range !== "undefined") {
+  Range.prototype.getClientRects ??= function (): DOMRectList {
+    const list = [] as unknown as DOMRectList
+    return list
+  }
+  Range.prototype.getBoundingClientRect ??= function (): DOMRect {
+    return new DOMRect(0, 0, 0, 0)
+  }
+}
+
 /** One attached observer's captured callback, so a test can fire it with a specific width. */
 type ResizeNotifier = (width: number) => void
 

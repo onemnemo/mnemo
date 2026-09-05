@@ -43,8 +43,18 @@ export interface SlashMenuView {
   readonly listId: string;
   /** The id of the row at `index`, or null when there is no such row. */
   rowId(index: number): string | null;
-  /** Redraws the rows and selects `index`. A row click reports its own index. */
-  render(rows: readonly MenuRow[], index: number, onPick: (index: number) => void): void;
+  /**
+   * Redraws the rows and selects `index`. A row click reports its own index,
+   * and so does a row the pointer moves onto: the highlight belongs to whoever
+   * touched the list last, so hover and the arrow keys can never mark two rows
+   * as chosen at once.
+   */
+  render(
+    rows: readonly MenuRow[],
+    index: number,
+    onPick: (index: number) => void,
+    onHover: (index: number) => void,
+  ): void;
   select(index: number): void;
   destroy(): void;
 }
@@ -104,7 +114,12 @@ export function createSlashMenuView(translate: (key: string) => string): SlashMe
     return span;
   }
 
-  function render(rows: readonly MenuRow[], index: number, onPick: (i: number) => void): void {
+  function render(
+    rows: readonly MenuRow[],
+    index: number,
+    onPick: (i: number) => void,
+    onHover: (i: number) => void,
+  ): void {
     list.replaceChildren();
     let lastGroup: SlashGroup | null = null;
     rowElements = rows.map((row, i) => {
@@ -132,6 +147,9 @@ export function createSlashMenuView(translate: (key: string) => string): SlashMe
 
       el.addEventListener('mousedown', () => {
         onPick(i);
+      });
+      el.addEventListener('mouseenter', () => {
+        onHover(i);
       });
       list.appendChild(el);
       return el;

@@ -601,3 +601,120 @@ describe('teardown', () => {
     expect(dom.hasAttribute('aria-activedescendant')).toBe(false);
   });
 });
+
+describe('dismissal from outside the document', () => {
+  function openMenu(): EditorView {
+    const view = mount([block('Text', [span('')])]);
+    caretAtStart(view);
+    type(view, '/');
+    return view;
+  }
+
+  /**
+   * A press on the note tree, a tab or the topbar dispatches no transaction, so
+   * nothing about it reaches a plugin that only watches the document. Without a
+   * listener of its own the palette sat over the app until the user came back
+   * and pressed Escape.
+   */
+  it('closes on a press anywhere outside the editor and the menu', () => {
+    const view = openMenu();
+    expect(isOpen()).toBe(true);
+
+    const elsewhere = document.createElement('button');
+    document.body.appendChild(elsewhere);
+    elsewhere.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    expect(isOpen()).toBe(false);
+
+    // Recorded in the document, not merely hidden: the slash is still at the
+    // start of the line, so a menu closed any other way would come straight
+    // back on the next transaction.
+    type(view, 'h');
+    expect(isOpen()).toBe(false);
+  });
+
+  it('stays open for a press inside the editor', () => {
+    const view = openMenu();
+    view.dom.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    expect(isOpen()).toBe(true);
+  });
+
+  it('stays open for a press on one of its own rows', () => {
+    openMenu();
+    rows()[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    expect(isOpen()).toBe(true);
+  });
+});
+
+describe('following the note as it scrolls', () => {
+  /**
+   * jsdom lays nothing out, so the scroller is described rather than built: an
+   * ancestor reporting an overflow and more content than box is what the
+   * container lookup wants, and its rect is what decides whether the caret is
+   * still in the note. The caret itself measures at the origin.
+   */
+  function mountInScroller(rect: { top: number; bottom: number; left: number; right: number }): void {
+    const result = mapper.toDoc([block('Text', [span('')])]);
+    if (!result.ok) throw new Error(`quarantined: ${result.reason.message}`);
+
+    const scroller = document.createElement('div');
+    scroller.style.overflowY = 'auto';
+    Object.defineProperty(scroller, 'scrollHeight', { value: 2000 });
+    Object.defineProperty(scroller, 'clientHeight', { value: 400 });
+    scroller.getBoundingClientRect = () =>
+      ({ ...rect, width: rect.right - rect.left, height: rect.bottom - rect.top }) as DOMRect;
+    document.body.appendChild(scroller);
+
+    const container = document.createElement('div');
+    scroller.appendChild(container);
+    const view = new EditorView(container, {
+      state: EditorState.create({
+        doc: result.doc,
+        schema,
+        plugins: [editorHistory(), slashMenuPlugin(registry, { translate })],
+      }),
+    });
+    caretAtStart(view);
+    type(view, '/');
+  }
+
+  it('stays open while the line it belongs to is still in the note', () => {
+    mountInScroller({ top: -50, bottom: 50, left: -50, right: 50 });
+    window.dispatchEvent(new Event('scroll'));
+    expect(isOpen()).toBe(true);
+  });
+
+  it('closes once that line has scrolled out of the note', () => {
+    mountInScroller({ top: 400, bottom: 900, left: 0, right: 600 });
+    window.dispatchEvent(new Event('scroll'));
+    expect(isOpen()).toBe(false);
+  });
+
+  it('answers a resize the same way', () => {
+    mountInScroller({ top: 400, bottom: 900, left: 0, right: 600 });
+    window.dispatchEvent(new Event('resize'));
+    expect(isOpen()).toBe(false);
+  });
+});
+
+describe('the pointer and the highlight', () => {
+  /**
+   * Hover used to paint a second row with the same background the keyboard's
+   * row has, so two rows read as chosen and Enter took the one the pointer was
+   * not over.
+   */
+  it('moving onto a row makes it the chosen one', () => {
+    const view = mount([block('Text', [span('')])]);
+    caretAtStart(view);
+    type(view, '/');
+    expect(selectedLabel()).toBe('Text');
+
+    rows()[2].dispatchEvent(new MouseEvent('mouseenter'));
+    expect(selectedLabel()).toBe('Heading2');
+    expect(menuEl().querySelectorAll('.is-selected')).toHaveLength(1);
+
+    // And Enter takes the row the pointer moved the highlight to.
+    press(view, 'Enter');
+    expect(firstBlock(view).type.name).toBe('heading');
+    expect(firstBlock(view).attrs.level).toBe(2);
+  });
+});

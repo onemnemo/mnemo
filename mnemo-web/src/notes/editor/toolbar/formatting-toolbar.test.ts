@@ -1068,6 +1068,68 @@ describe('what the toolbar tells a screen reader', () => {
   });
 });
 
+describe('a selection scrolled out of the note', () => {
+  /**
+   * The bubble is placed by a clamp, which keeps an anchor that has left the
+   * window inside it rather than dropping it: without a cull it slid up and
+   * parked against the top of the window, over the app's own chrome, pointing
+   * at a line nobody could see.
+   *
+   * jsdom lays nothing out, so the scroller is described rather than built and
+   * the selection measures at the origin. A box that straddles the origin means
+   * "still in the note"; one below it means "scrolled away".
+   */
+  const IN_VIEW = { top: -50, bottom: 50, left: -50, right: 50 };
+  const SCROLLED_AWAY = { top: 400, bottom: 900, left: 0, right: 600 };
+
+  /** Reads its rect through a box the test can move under it, as a scroll does. */
+  function mountInScroller(box: { top: number; bottom: number; left: number; right: number }): EditorView {
+    const result = mapper.toDoc([textBlock('hello')]);
+    if (!result.ok) throw new Error(`quarantined: ${result.reason.message}`);
+
+    const scroller = document.createElement('div');
+    scroller.style.overflowY = 'auto';
+    Object.defineProperty(scroller, 'scrollHeight', { value: 2000 });
+    Object.defineProperty(scroller, 'clientHeight', { value: 400 });
+    scroller.getBoundingClientRect = () =>
+      ({ ...box, width: box.right - box.left, height: box.bottom - box.top }) as DOMRect;
+    document.body.appendChild(scroller);
+
+    const mount = document.createElement('div');
+    scroller.appendChild(mount);
+    return new EditorView(mount, {
+      state: EditorState.create({
+        doc: result.doc,
+        schema,
+        plugins: [formattingToolbarPlugin({ translate: (key) => `t:${key}` })],
+      }),
+    });
+  }
+
+  it('shows while the selection is still inside the note', () => {
+    const view = mountInScroller({ ...IN_VIEW });
+    selectAll(view);
+    expect(toolbarEl().hasAttribute('data-hidden')).toBe(false);
+  });
+
+  it('hides once the selection has scrolled out of it', () => {
+    const view = mountInScroller({ ...SCROLLED_AWAY });
+    selectAll(view);
+    expect(toolbarEl().hasAttribute('data-hidden')).toBe(true);
+  });
+
+  it('comes back when the selection scrolls into view again', () => {
+    const box = { ...SCROLLED_AWAY };
+    const view = mountInScroller(box);
+    selectAll(view);
+    expect(toolbarEl().hasAttribute('data-hidden')).toBe(true);
+
+    Object.assign(box, IN_VIEW);
+    window.dispatchEvent(new Event('scroll'));
+    expect(toolbarEl().hasAttribute('data-hidden')).toBe(false);
+  });
+});
+
 describe('teardown', () => {
   it('destroy removes the toolbar from the document', () => {
     const view = mount([textBlock('hello')]);

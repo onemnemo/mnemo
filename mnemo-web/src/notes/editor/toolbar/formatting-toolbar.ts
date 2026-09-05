@@ -30,6 +30,7 @@ import { useI18nStore } from '../../../i18n/store';
 import { createTranslate } from '../../../i18n/translate';
 import { BACKGROUND_SWATCHES, TEXT_SWATCHES, type SwatchCell } from './palette';
 import { placePopover, placeToolbar, type Rect } from '../floating/position';
+import { anchorInContainer, scrollContainerOf } from '../floating/scroll-container';
 import { createRovingFocus } from '../floating/roving-focus';
 import { openTransientFocus, type TransientFocusScope } from '../focus';
 import { createLinkPopover, type LinkPopoverHandle } from './link-popover';
@@ -400,6 +401,10 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
       // selection to hand back, so Escape returns the caret rather than leaving
       // it wherever the document happens to have moved it.
       let focusScope: TransientFocusScope | null = null;
+      // The selection is off the note's scroll box, so there is nothing on
+      // screen to point at. Decided in `reposition` and re-applied by `sync`,
+      // which shows the toolbar again without necessarily re-measuring.
+      let culled = false;
 
       // The toolbar is a row; the palette is a grid of two. Both read their
       // controls live, because which ones are available moves with the caret.
@@ -413,6 +418,23 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
 
       function holdsFocus(): boolean {
         return dom.root.contains(document.activeElement);
+      }
+
+      /**
+       * The box the selection has to stay inside to be worth pointing at.
+       *
+       * Resolved on first use and kept, since walking the ancestors reads
+       * computed style and this is asked on every scroll frame. The editable
+       * root does not move between scrollers for the life of one view.
+       */
+      let scroller: HTMLElement | null = null;
+      let scrollerResolved = false;
+      function noteScroller(view: EditorView): HTMLElement | null {
+        if (!scrollerResolved) {
+          scroller = scrollContainerOf(view.dom);
+          scrollerResolved = true;
+        }
+        return scroller;
       }
 
       function cancelScheduledClose(): void {
@@ -464,6 +486,7 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
         if (!visible) return;
         const hadFocus = holdsFocus();
         visible = false;
+        culled = false;
         dom.root.setAttribute('data-hidden', '');
         closePopover();
         linkPopover.close();
@@ -513,12 +536,24 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
       function reposition(view: EditorView): void {
         const anchor = measureAnchor(view);
         if (anchor) {
-          const size = { width: dom.root.offsetWidth, height: dom.root.offsetHeight };
-          const viewport = { width: window.innerWidth, height: window.innerHeight };
-          const placement = placeToolbar(anchor, size, viewport);
-          dom.root.style.top = `${String(placement.top)}px`;
-          dom.root.style.left = `${String(placement.left)}px`;
-          dom.root.classList.toggle(`${ROOT}-below`, !placement.showAbove);
+          // Placement clamps a stray anchor back inside the window rather than
+          // dropping it, which is right for a bubble whose text is on screen and
+          // wrong for one whose text is not: the selection scrolls out of the
+          // note and the bubble parks against the window edge over the app's own
+          // chrome, pointing at a line nobody can see. So the cull is decided
+          // here, against the box the note actually scrolls in, before the
+          // placement is asked. Never while the keyboard is in the toolbar,
+          // which hides with `display: none` and would take focus with it.
+          culled = !anchorInContainer(anchor, noteScroller(view)) && !holdsFocus();
+          dom.root.toggleAttribute('data-hidden', culled);
+          if (!culled) {
+            const size = { width: dom.root.offsetWidth, height: dom.root.offsetHeight };
+            const viewport = { width: window.innerWidth, height: window.innerHeight };
+            const placement = placeToolbar(anchor, size, viewport);
+            dom.root.style.top = `${String(placement.top)}px`;
+            dom.root.style.left = `${String(placement.left)}px`;
+            dom.root.classList.toggle(`${ROOT}-below`, !placement.showAbove);
+          }
         }
         // Outside that, because the palette hangs off the toolbar rather than
         // off the text: it has to be placed again whenever the toolbar moves or
@@ -586,7 +621,7 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
         }
         cancelScheduledClose();
         visible = true;
-        dom.root.removeAttribute('data-hidden');
+        dom.root.toggleAttribute('data-hidden', culled);
         updateActiveStates(view);
         if (moved) reposition(view);
       }
