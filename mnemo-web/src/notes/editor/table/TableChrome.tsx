@@ -30,6 +30,7 @@ import {
   trimRows,
   type Rect,
 } from './model'
+import { trackDrag } from './drag-gesture'
 import { AxisMenuItems, CellMenuItems } from './TableMenus'
 import { useTableGrid } from './useTableGrid'
 import { writeGridToClipboard } from '../../clipboard/table-grid'
@@ -63,6 +64,13 @@ import { writeGridToClipboard } from '../../clipboard/table-grid'
  * the table itself rather than to a preview of it. A click is the n = 1 case of
  * the drag, so there is nothing extra to learn and no second control, and
  * dragging back up takes the empty ones away again.
+ *
+ * ## A drag can always be put down again
+ *
+ * The handle, the rail and the resize strip all show their result on the table
+ * as you go, so all three answer Escape and a lost pointer by handing the
+ * pre-drag table straight back (see {@link trackDrag}). Without that the shape
+ * the release was going to roll back is the shape you are left with.
  */
 
 /** Travel before a press on a handle becomes a drag rather than a click. */
@@ -596,8 +604,6 @@ export function TableChrome({
     }
 
     const onUp = (): void => {
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', onUp)
       setMove(null)
       if (to >= 0 && movesAnything(at, to)) {
         const table = latest.current
@@ -610,8 +616,10 @@ export function TableChrome({
       // are still being painted, and a backgrounded tab is not painting any.
     }
 
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', onUp)
+    // Nothing has moved yet: this drag only paints where the run would land, so
+    // abandoning it is dropping that indicator and reordering nothing. The run
+    // the press selected stays selected, which is what the press meant.
+    trackDrag({ move: onPointerMove, end: onUp, abort: () => setMove(null) })
   }
 
   /* -- rails: one gesture, and a click is n = 1 -------------------------- */
@@ -689,8 +697,6 @@ export function TableChrome({
     }
 
     const onUp = (): void => {
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', onUp)
       setGrowing(null)
       const final = shapeFor(count)
       // Put the pre-drag table back invisibly, then commit once: the twenty shapes
@@ -702,8 +708,16 @@ export function TableChrome({
       replaceTable(final, kind === 'row' && count > 0 ? { caret: { row: at, col: 0 } } : undefined)
     }
 
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', onUp)
+    // The preview is the table itself, so a gesture that never reaches its
+    // release has to be handed the pre-drag shape back the same way an empty
+    // one is. The first row is already on screen by now, and Escape is the way
+    // back off it.
+    const onAbort = (): void => {
+      setGrowing(null)
+      replaceTable(table, { addToHistory: false })
+    }
+
+    trackDrag({ move: onPointerMove, end: onUp, abort: onAbort })
   }
 
   /* -- resize ------------------------------------------------------------ */
@@ -722,15 +736,17 @@ export function TableChrome({
       replaceTable(setColumnWidth(table, at, last), { addToHistory: false })
     }
     const onUp = (): void => {
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', onUp)
       setResizing(null)
       replaceTable(table, { addToHistory: false })
       if (Math.abs(last - startWidth) < 1) return
       replaceTable(setColumnWidth(table, at, last))
     }
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', onUp)
+    // The same rollback the release runs, with nothing committed after it.
+    const onAbort = (): void => {
+      setResizing(null)
+      replaceTable(table, { addToHistory: false })
+    }
+    trackDrag({ move: onPointerMove, end: onUp, abort: onAbort })
   }
 
   /* -- paint ------------------------------------------------------------- */

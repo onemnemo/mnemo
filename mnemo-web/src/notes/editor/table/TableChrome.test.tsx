@@ -34,7 +34,7 @@ import { plainSpan } from '../../model/spans';
 import { resolveServices, toNodeViews } from '../view/nodeviews';
 import { NodeViewPortals } from '../view/NodeViewPortal';
 import { createPortalRegistry, type PortalRegistry } from '../view/portal-registry';
-import { cellAtPos, cellCaretPos } from './model';
+import { cellAtPos, cellCaretPos, tableRows } from './model';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -603,5 +603,114 @@ describe('the cell range drag', () => {
     act(() => harness!.root.unmount());
 
     expect(document.body.classList.contains(DRAGGING_CLASS)).toBe(false);
+  });
+});
+
+/**
+ * Putting a drag down again.
+ *
+ * All three drags preview on the table itself and hand the pre-drag shape back
+ * before committing the released one, so the two endings that are not a release
+ * have to run that rollback too: without it the table keeps the preview, and the
+ * gesture's own listeners outlive it.
+ */
+describe('abandoning a table drag', () => {
+  function table() {
+    return harness!.view.state.doc.firstChild!;
+  }
+
+  function rowCount(): number {
+    return tableRows(table()).length;
+  }
+
+  function press(target: Element, x: number, y: number): void {
+    act(() => {
+      target.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          bubbles: true,
+          button: 0,
+          clientX: x,
+          clientY: y,
+          pointerId: 1,
+          isPrimary: true,
+        }),
+      );
+    });
+  }
+
+  function dragTo(x: number, y: number): void {
+    act(() => {
+      window.dispatchEvent(
+        new PointerEvent('pointermove', { bubbles: true, clientX: x, clientY: y, pointerId: 1, isPrimary: true }),
+      );
+    });
+  }
+
+  /** Escape as the browser delivers it: on the element holding the caret. */
+  function escape(): void {
+    act(() => {
+      harness!.view.dom.dispatchEvent(
+        new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' }),
+      );
+    });
+  }
+
+  function cancelPointer(): void {
+    act(() => {
+      window.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1, isPrimary: true }));
+    });
+  }
+
+  function rowRail(): HTMLElement {
+    const rail = rails().find((candidate) => candidate.style.height === '14px');
+    if (!rail) throw new Error('the row rail did not render');
+    return rail;
+  }
+
+  it.each([
+    ['Escape', escape],
+    ['a lost pointer', cancelPointer],
+  ] as const)('takes the rail row back off the table on %s', (_ending, end) => {
+    expect(rowCount()).toBe(2);
+    press(rowRail(), 40, 2 * CELL_H);
+    // The press adds the first row; the drag only says how many more.
+    expect(rowCount()).toBe(3);
+
+    end();
+
+    expect(rowCount()).toBe(2);
+    // The listeners went with it: a move reaching the abandoned drag would start
+    // previewing rows again.
+    dragTo(40, 2 * CELL_H + 200);
+    expect(rowCount()).toBe(2);
+  });
+
+  it('keeps the column at the width it had when a resize is abandoned', () => {
+    movePointer(40, 20);
+    const strip = document.querySelectorAll<HTMLElement>('.notes-table-resize')[0];
+    press(strip, CELL_W, 20);
+    dragTo(CELL_W + 60, 20);
+    expect(table().attrs.columnWidths[0]).toBe(CELL_W + 60);
+
+    escape();
+
+    expect(table().attrs.columnWidths[0]).toBe(CELL_W);
+    dragTo(CELL_W + 120, 20);
+    expect(table().attrs.columnWidths[0]).toBe(CELL_W);
+  });
+
+  it('reorders nothing and drops the indicator when a handle drag is abandoned', () => {
+    movePointer(-11, 20);
+    const handle = document.querySelectorAll<HTMLElement>('.notes-table-handle')[1];
+    press(handle, -11, 20);
+    // Past the last row's own gap, which is the first drop that would move it.
+    dragTo(-11, 2 * CELL_H + 10);
+    expect(document.querySelector('.notes-table-drop')).not.toBeNull();
+    const before = tableRows(table()).map((row) => row.textContent);
+
+    escape();
+
+    expect(document.querySelector('.notes-table-drop')).toBeNull();
+    expect(tableRows(table()).map((row) => row.textContent)).toEqual(before);
   });
 });
