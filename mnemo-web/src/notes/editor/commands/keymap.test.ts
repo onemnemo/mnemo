@@ -70,6 +70,7 @@ describe('editorKeyBindings', () => {
       [
         'Mod-,',
         'Mod-.',
+        'Mod-Shift-e',
         'Mod-Shift-h',
         'Mod-Shift-s',
         'Mod-b',
@@ -90,9 +91,9 @@ describe('editorKeyBindings', () => {
     expect(bindings['Mod-b']).toBe((COMMANDS_BY_ID.get('editor.bold') as DirectCommand).run);
   });
 
-  it('omits commands with no shortcut, swatches, equation, escape', () => {
+  it('omits commands with no shortcut, swatches, escape', () => {
     const bound = new Set(Object.values(editorKeyBindings()));
-    expect(bound.has((COMMANDS_BY_ID.get('editor.equation') as DirectCommand).run)).toBe(false);
+    expect(bound.has((COMMANDS_BY_ID.get('editor.equation') as DirectCommand).run)).toBe(true);
     expect(bound.has((COMMANDS_BY_ID.get('editor.clearMarks') as DirectCommand).run)).toBe(false);
   });
 

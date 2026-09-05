@@ -147,6 +147,7 @@ internal static class EditorKeybindManifest
         // editors people arrive from use, and it is listed here so it can be moved.
         new("editor.code", "Primary+E", null),
         new("editor.link", "Primary+Shift+L", null),
+        new("editor.equation", "Primary+Shift+E", null),
         new("editor.subscript", "Primary+OemComma", null),
         new("editor.superscript", "Primary+OemPeriod", null),
         new("editor.clipboard.copy", "Primary+C", "editor.clipboard.copy.description", "category.clipboard"),

@@ -177,6 +177,7 @@
     "editor.highlight": "Utheving",
     "editor.code": "Inline-kode",
     "editor.link": "Sett inn lenke",
+    "editor.equation": "Sett inn ligning",
     "editor.subscript": "Senket skrift",
     "editor.superscript": "Hevet skrift",
     "editor.bold.description": "Veksler fet skrift for markeringen.",

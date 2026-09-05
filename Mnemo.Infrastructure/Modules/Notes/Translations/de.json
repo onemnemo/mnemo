@@ -177,6 +177,7 @@
     "editor.highlight": "Hervorheben",
     "editor.code": "Inline-Code",
     "editor.link": "Link einfügen",
+    "editor.equation": "Formel einfügen",
     "editor.subscript": "Tiefgestellt",
     "editor.superscript": "Hochgestellt",
     "editor.bold.description": "Fett für die Auswahl umschalten.",

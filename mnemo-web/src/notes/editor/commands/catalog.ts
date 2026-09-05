@@ -128,7 +128,8 @@ function swatch(
  * The catalog. Ordered as the toolbar reads it left to right; the keymap and
  * slash menu take their own subsets. Shortcuts match the desktop chords
  * (`CoreUIModule.Chords`, and Ctrl+Z / Ctrl+Y for history) wherever the desktop
- * has one; the swatches and the equation have none on either side. Sub/sup use
+ * has one; the swatches have none on either side, and the equation takes the
+ * chord its toolbar tooltip has always named. Sub/sup use
  * Primary+`,` and `.`, `OemComma`/`OemPeriod`.
  */
 export const EDITOR_COMMANDS: readonly EditorCommand[] = [
@@ -176,6 +177,7 @@ export const EDITOR_COMMANDS: readonly EditorCommand[] = [
     id: 'editor.equation',
     titleKey: 'notes.command.equation',
     group: 'insert',
+    shortcut: 'Mod-Shift-e',
     run: insertEquation(),
     // "active" is meaningless for an insert, so no readout.
   },

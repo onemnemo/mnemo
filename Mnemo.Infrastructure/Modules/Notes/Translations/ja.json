@@ -177,6 +177,7 @@
     "editor.highlight": "ハイライト",
     "editor.code": "インラインコード",
     "editor.link": "リンクを挿入",
+    "editor.equation": "数式を挿入",
     "editor.subscript": "下付き",
     "editor.superscript": "上付き",
     "editor.bold.description": "選択範囲の太字を切り替えます。",

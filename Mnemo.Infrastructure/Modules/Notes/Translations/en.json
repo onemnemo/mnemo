@@ -177,6 +177,7 @@
     "editor.highlight": "Highlight",
     "editor.code": "Inline code",
     "editor.link": "Insert link",
+    "editor.equation": "Insert equation",
     "editor.subscript": "Subscript",
     "editor.superscript": "Superscript",
     "editor.bold.description": "Toggle bold on the selection.",

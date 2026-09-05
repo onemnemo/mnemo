@@ -177,6 +177,7 @@
     "editor.highlight": "Resaltar",
     "editor.code": "Código en línea",
     "editor.link": "Insertar enlace",
+    "editor.equation": "Insertar ecuación",
     "editor.subscript": "Subíndice",
     "editor.superscript": "Superíndice",
     "editor.bold.description": "Activa o desactiva negrita en la selección.",

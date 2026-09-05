@@ -8,7 +8,7 @@
  * a behaviour the toolbar labels differently.
  *
  * Only direct commands with a shortcut bind. Swatches take a token chosen at
- * click time and have no fixed chord; the equation carries none.
+ * click time and have no fixed chord.
  *
  * The keymap is editor-scoped: mounted as a plugin on the note's `EditorState`,
  * it matches only while the view holds selection, which is exactly the scope
