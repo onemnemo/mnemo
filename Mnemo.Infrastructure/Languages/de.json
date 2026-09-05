@@ -952,6 +952,8 @@
     "InsertLinkDisplayLabel": "Anzeigetext",
     "InsertLinkDisplayPlaceholder": "z. B. Abbildung 1",
     "InsertLinkRemoveLink": "Link entfernen",
+    "LinkOpen": "Link öffnen",
+    "LinkActionsLabel": "Linkaktionen",
     "CrossBlockLinkHint": "Die Auswahl umfasst mehrere Blöcke. Hier wird nur die Adresse gesetzt; der markierte Text bleibt in jedem Block erhalten.",
     "ExternalLinkTitle": "Externen Link öffnen",
     "ExternalLinkMessage": "Sie sind dabei, die folgende Adresse zu öffnen. Browser oder E-Mail-Programm starten außerhalb von Mnemo.\n\n{0}",

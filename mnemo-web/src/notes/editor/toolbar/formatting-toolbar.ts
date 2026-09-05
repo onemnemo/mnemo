@@ -33,7 +33,8 @@ import { placePopover, placeToolbar, type Rect } from '../floating/position';
 import { anchorInContainer, scrollContainerOf } from '../floating/scroll-container';
 import { createRovingFocus } from '../floating/roving-focus';
 import { openTransientFocus, type TransientFocusScope } from '../focus';
-import { createLinkPopover, type LinkPopoverHandle } from './link-popover';
+import { createLinkPopover } from './link-popover';
+import { linkPopoverFor, registerLinkPopover, unregisterLinkPopover } from './link-popover-registry';
 
 const ROOT = 'notes-formatting-toolbar';
 
@@ -371,9 +372,6 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
   // Keyed by view rather than captured: one plugin instance can be reached from
   // more than one view, and the toolbar to focus is the one this view owns.
   const focusEntries = new WeakMap<EditorView, () => boolean>();
-  // The link popover instance for each view, so the `Mod-Shift-l` handler
-  // below can reach the same popover the toolbar button opens.
-  const linkEntries = new WeakMap<EditorView, LinkPopoverHandle>();
 
   return new Plugin({
     state: {
@@ -385,7 +383,10 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
       const dom = buildToolbarDom(commandsById, translate);
       document.body.appendChild(dom.root);
       const linkPopover = createLinkPopover(editorView);
-      linkEntries.set(editorView, linkPopover);
+      // Published per view rather than captured here: the chord below and the
+      // link chip both have to reach the same flyout the button opens, and one
+      // plugin instance can be reached from more than one view.
+      registerLinkPopover(editorView, linkPopover);
 
       let visible = false;
       let popoverOpen = false;
@@ -780,7 +781,7 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
           document.removeEventListener('mousedown', onDocumentMouseDown, true);
           document.removeEventListener('mouseup', onDocumentMouseUp, true);
           focusEntries.delete(editorView);
-          linkEntries.delete(editorView);
+          unregisterLinkPopover(editorView);
           linkPopover.destroy();
           // Never restored: the view is going away, and there is no document
           // left to put a selection back into.
@@ -800,7 +801,7 @@ export function formattingToolbarPlugin(options: FormattingToolbarOptions = {}):
           // the same as any other selection; the fallback is only for the
           // environments it already returns null for.
           const anchor = measureAnchor(view) ?? { top: 0, bottom: 0, left: 0, right: 0 };
-          return linkEntries.get(view)?.open(anchor) ?? false;
+          return linkPopoverFor(view)?.open(anchor) ?? false;
         }
         return false;
       },

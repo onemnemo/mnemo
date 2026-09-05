@@ -952,6 +952,8 @@
     "InsertLinkDisplayLabel": "表示テキスト",
     "InsertLinkDisplayPlaceholder": "例: 図1",
     "InsertLinkRemoveLink": "リンクを削除",
+    "LinkOpen": "リンクを開く",
+    "LinkActionsLabel": "リンクの操作",
     "CrossBlockLinkHint": "複数のブロックにまたがる選択です。ここではリンク先のみ設定します。各ブロックの選択テキストはそのままです。",
     "ExternalLinkTitle": "外部リンクを開く",
     "ExternalLinkMessage": "次のアドレスを開こうとしています。ブラウザまたはメールが Mnemo の外で起動します。\n\n{0}",

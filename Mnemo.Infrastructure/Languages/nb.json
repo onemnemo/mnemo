@@ -952,6 +952,8 @@
     "InsertLinkDisplayLabel": "Tekst som skal vises",
     "InsertLinkDisplayPlaceholder": "f.eks. Figur 1",
     "InsertLinkRemoveLink": "Fjern lenke",
+    "LinkOpen": "Åpne lenke",
+    "LinkActionsLabel": "Lenkehandlinger",
     "CrossBlockLinkHint": "Utvalget spenner over flere blokker. Kun lenkeadressen settes her; hver blokk beholder sin egen markerte tekst.",
     "ExternalLinkTitle": "Åpne ekstern lenke",
     "ExternalLinkMessage": "Du er i ferd med å åpne følgende adresse. Nettleseren eller e-postprogrammet ditt vil åpne seg utenfor Mnemo.\n\n{0}",

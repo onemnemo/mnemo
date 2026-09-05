@@ -110,6 +110,28 @@ export function placeMenu(anchor: Rect, size: Size, viewport: Size): MenuPlaceme
   return { top, left, showAbove, maxHeight };
 }
 
+/** The air a card hanging off a box in the document leaves around it. */
+const CARD_GUTTER = 6;
+
+/**
+ * Places a card under the thing it is about: left-aligned to the anchor,
+ * clamped into the viewport, flipped above when below cannot hold it.
+ *
+ * The plainest of the three placements, and the one for chrome that answers a
+ * question about a specific box rather than about the selection. It does not
+ * flip on room alone the way {@link placeMenu} does, because a card is a fixed
+ * size and there is nothing to cap: either it fits below or it goes above.
+ */
+export function placeCard(anchor: Rect, size: Size, viewport: Size): { top: number; left: number } {
+  const left = clamp(anchor.left, EDGE_MARGIN, viewport.width - size.width - EDGE_MARGIN);
+  const below = anchor.bottom + CARD_GUTTER;
+  const top =
+    below + size.height > viewport.height - EDGE_MARGIN
+      ? Math.max(EDGE_MARGIN, anchor.top - size.height - CARD_GUTTER)
+      : below;
+  return { top, left };
+}
+
 /** The air the CSS leaves between the toolbar and a panel hanging off it. */
 const POPOVER_GUTTER = 6;
 

@@ -952,6 +952,8 @@
     "InsertLinkDisplayLabel": "Text to display",
     "InsertLinkDisplayPlaceholder": "e.g. Figure 1",
     "InsertLinkRemoveLink": "Remove link",
+    "LinkOpen": "Open link",
+    "LinkActionsLabel": "Link actions",
     "CrossBlockLinkHint": "Selection spans multiple blocks. Only the link address is set here; each block keeps its own selected text.",
     "ExternalLinkTitle": "Open external link",
     "ExternalLinkMessage": "You are about to open the following address. Your browser or mail app will open outside Mnemo.\n\n{0}",

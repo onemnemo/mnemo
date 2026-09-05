@@ -952,6 +952,8 @@
     "InsertLinkDisplayLabel": "Texto a mostrar",
     "InsertLinkDisplayPlaceholder": "p. ej. Figura 1",
     "InsertLinkRemoveLink": "Eliminar enlace",
+    "LinkOpen": "Abrir enlace",
+    "LinkActionsLabel": "Acciones de enlace",
     "CrossBlockLinkHint": "La selección abarca varios bloques. Aquí solo se establece la dirección del enlace; cada bloque conserva su propio texto seleccionado.",
     "ExternalLinkTitle": "Abrir enlace externo",
     "ExternalLinkMessage": "Está a punto de abrir la siguiente dirección. Su navegador o aplicación de correo se abrirá fuera de Mnemo.\n\n{0}",

@@ -1384,6 +1384,68 @@
   font-size: 11.5px;
 }
 
+/* The link chip: the address and its three verbs, hanging under the link that
+ * was clicked. One row rather than the flyout's stacked card, because it is
+ * read at a glance and dismissed, not filled in. */
+.notes-link-chip {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 420px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--canvas);
+  box-shadow: var(--shadow-pop);
+  font-family: var(--font-sans);
+}
+.notes-link-chip-href {
+  overflow: hidden;
+  min-width: 0;
+  padding: 0 6px;
+  color: var(--ink-2);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notes-link-chip-action {
+  display: flex;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.notes-link-chip-action:hover:not(:disabled) {
+  background: var(--frame-hover);
+  color: var(--ink);
+}
+/* An address the host cannot launch, a mailto or a tel: the row stays so the
+ * card keeps its shape, and says plainly that this one is not for pressing. */
+.notes-link-chip-action:disabled {
+  color: var(--ink-3);
+  cursor: default;
+  opacity: 0.5;
+}
+.notes-link-chip-remove {
+  color: var(--danger);
+}
+.notes-link-chip-remove:hover:not(:disabled) {
+  background: var(--danger-wash);
+  color: var(--danger);
+}
+.notes-link-chip-action svg {
+  width: 15px;
+  height: 15px;
+}
+
 /* Inline marks the browser does not style itself. */
 .notes-doc code {
   font-family: var(--font-mono);
@@ -1403,6 +1465,10 @@
   color: var(--text-color-swatch-3);
   text-decoration: underline;
   text-underline-offset: 2px;
+  /* A link is something to press even inside an editable note: a click raises
+   * the chip that says where it goes, and Ctrl or Cmd follows it. Without this
+   * the pointer stays an I-beam and nothing on screen says either is there. */
+  cursor: pointer;
 }
 
 /* Foreground colour swatches. */

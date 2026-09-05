@@ -61,6 +61,7 @@ import { editorHistory, historyBoundaryPlugin } from '../editor/history';
 import { formattingToolbarPlugin } from '../editor/toolbar/formatting-toolbar';
 import { equationOpenOnInsert } from '../editor/atoms';
 import { slashMenuPlugin } from '../editor/slash';
+import { linkInteractionPlugin } from '../editor/marks/link-interaction';
 import type { BlockRegistry } from '../editor/registry/build';
 import type { InlineMapper } from '../editor/mapper/inline';
 import type { Block } from '../model/types';
@@ -147,7 +148,10 @@ export type NoteEditState =
  *  - `formattingToolbarPlugin` binds one key, the chord that moves focus into
  *    the toolbar, and nothing else here or in `baseKeymap` claims it. It has no
  *    `appendTransaction` either, so it takes no part in the precedence this
- *    ordering describes and is listed last.
+ *    ordering describes and is listed near the end.
+ *  - `linkInteractionPlugin` is last, and has to be after the toolbar: the
+ *    toolbar's plugin view is what publishes the link flyout that this one's
+ *    Edit action opens, and plugin views are built in this order.
  */
 export function editorPlugins(
   registry: BlockRegistry,
@@ -247,6 +251,10 @@ export function editorPlugins(
     editorHistory(),
     historyBoundaryPlugin(),
     formattingToolbarPlugin(),
+    // After the toolbar, whose plugin view is what publishes the link flyout
+    // this one's Edit action reuses. It claims no key and appends no step; the
+    // clicks it answers are taken on `view.dom` in the capture phase.
+    linkInteractionPlugin(),
   ];
 }
 
