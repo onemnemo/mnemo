@@ -14,14 +14,13 @@ namespace Mnemo.Host.Nav;
 /// </summary>
 public static class NavEndpoints
 {
-    // The setting that decides whether the assistant entry appears in the nav model.
-    private const string AiAssistantEnabledKey = "AI.EnableAssistant";
-
     public static void MapNav(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/api/nav", async (HeadlessSidebarService sidebar, ISettingsService settings) =>
         {
-            var aiEnabled = await settings.GetAsync(AiAssistantEnabledKey, false).ConfigureAwait(false);
+            // The assistant entry appears only while the assistant does, which means both
+            // its own switch and the developer mode that switch lives behind.
+            var aiEnabled = await AiAvailability.IsEnabledAsync(settings).ConfigureAwait(false);
 
             return sidebar.BuildNavModel()
                 .Select(category => new NavCategoryDto(

@@ -7,7 +7,7 @@ import { useT } from "@/i18n/useT"
 import { startEdgeResize, widthFromArrowKey } from "@/lib/edge-resize"
 import { cn } from "@/lib/utils"
 import { Z_LAYERS } from "@/lib/z-layers"
-import { useSettingValue } from "@/settings/store"
+import { useAiEnabled } from "@/settings/aiEnabled"
 import { clampDockWidth, useSomaStore } from "@/stores/soma"
 
 import { PeekBody } from "./PeekBody"
@@ -52,7 +52,7 @@ export function SidePeek() {
 
   // The assistant dock is the peek's only neighbour in this row, so an overlay insets
   // past it rather than covering a panel somebody deliberately opened.
-  const assistantOn = useSettingValue("AI.EnableAssistant", false)
+  const assistantOn = useAiEnabled()
   const dockOpen = useSomaStore((s) => s.dockOpen)
   const dockWidth = useSomaStore((s) => s.dockWidth)
   const neighbour = assistantOn && dockOpen ? clampDockWidth(dockWidth) : 0

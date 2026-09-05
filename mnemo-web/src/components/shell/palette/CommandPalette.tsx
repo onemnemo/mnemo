@@ -9,6 +9,7 @@ import { getActions } from "@/search/actions"
 import { defaultGroups, runSearch, scopeFor } from "@/search/score"
 import type { ActionContext, Group, Hit, Scope } from "@/search/types"
 import { useSearchPool } from "@/search/useSearchPool"
+import { useAiEnabled } from "@/settings/aiEnabled"
 import { usePaletteStore } from "@/stores/palette"
 import { useShellStore } from "@/stores/shell"
 import { useSomaStore } from "@/stores/soma"
@@ -22,8 +23,9 @@ import { useThemeStore } from "@/stores/theme"
  * `#` tags) are the whole of the advanced interface.
  *
  * Two rules do most of the work. It is useful before you type: recents and
- * destinations, not a blank box. And it never dead-ends: the last row is Soma, so
- * a search that finds nothing still goes somewhere.
+ * destinations, not a blank box. And where the assistant is available it never
+ * dead-ends: the last row is Soma, so a search that finds nothing still goes
+ * somewhere.
  */
 export function CommandPalette() {
   const open = usePaletteStore((s) => s.open)
@@ -34,6 +36,7 @@ export function CommandPalette() {
 
 function PaletteBody() {
   const t = useT()
+  const aiEnabled = useAiEnabled()
   const close = () => usePaletteStore.getState().setOpen(false)
 
   const [raw, setRaw] = useState("")
@@ -59,7 +62,9 @@ function PaletteBody() {
   // One flat list underneath the headings: arrows should never stop on a group
   // label, and the index has to survive regrouping as the query changes.
   const flat = useMemo(() => groups.flatMap((group) => group.hits), [groups])
-  const askRow = raw.trim().length > 0
+  // The last-resort row goes where Soma is, so it can only be offered where Soma is:
+  // with the assistant unavailable it opened a dock that renders nothing.
+  const askRow = aiEnabled && raw.trim().length > 0
   const total = flat.length + (askRow ? 1 : 0)
 
   useEffect(() => setActive(0), [raw, scope])

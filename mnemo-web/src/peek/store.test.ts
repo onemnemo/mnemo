@@ -38,7 +38,7 @@ beforeEach(() => {
   localStorage.clear()
   usePeekStore.setState({ ...initial, item: null, nonce: 0 })
   useSomaStore.setState({ dockOpen: false })
-  useSettingsStore.setState({ values: { "AI.EnableAssistant": true } })
+  useSettingsStore.setState({ values: { "App.DeveloperMode": true, "AI.EnableAssistant": true } })
 })
 
 afterEach(() => {
@@ -200,7 +200,14 @@ describe("Soma in the peek and Soma in the dock", () => {
   })
 
   it("refuses to open Soma at all while the assistant is off", () => {
-    useSettingsStore.setState({ values: { "AI.EnableAssistant": false } })
+    useSettingsStore.setState({ values: { "App.DeveloperMode": true, "AI.EnableAssistant": false } })
+    usePeekStore.getState().openPeek({ kind: "soma" })
+
+    expect(usePeekStore.getState().item).toBeNull()
+  })
+
+  it("refuses to open Soma with developer mode off, whatever the assistant switch says", () => {
+    useSettingsStore.setState({ values: { "App.DeveloperMode": false, "AI.EnableAssistant": true } })
     usePeekStore.getState().openPeek({ kind: "soma" })
 
     expect(usePeekStore.getState().item).toBeNull()

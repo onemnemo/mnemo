@@ -107,7 +107,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
             key: "App.DeveloperMode",
             titleText: "Developer mode",
             descriptionText:
-              "Shows a Developer section in Settings. Tap the Settings title seven times within two seconds to reveal this switch.",
+              "Shows the AI & Tools and Developer pages in Settings. Tap the Settings title seven times within two seconds to reveal this switch.",
             defaultValue: false,
           },
         ],
@@ -220,6 +220,11 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
     title: "AITools",
     subtitle: "AIToolsSubtitle",
     section: "modules",
+    // Behind developer mode as well as its own master switch. The assistant is unfinished,
+    // and a page advertising it to somebody who was looking for something else invites them
+    // to try it; hiding the page means the switch is only found by someone who went looking
+    // for the developer gate first.
+    visible: (context) => context.developerMode,
     groups: [
       {
         // One unnamed group: everything AI lives behind the master switch.

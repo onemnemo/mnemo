@@ -29,7 +29,8 @@ public static class ChatTurnEndpoint
 {
     public static void MapChatTurns(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/api/chat/conversations/{id}/turns", HandleTurnAsync);
+        endpoints.MapPost("/api/chat/conversations/{id}/turns", HandleTurnAsync)
+            .RequireAiAvailable();
 
         endpoints.MapPost("/api/chat/turns/{turnId}/cancel", (string turnId, ChatTurnRegistry turns) =>
             turns.Cancel(turnId) ? Results.NoContent() : Results.NotFound());

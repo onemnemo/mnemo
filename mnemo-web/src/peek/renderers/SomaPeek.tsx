@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 
 import { SomaDockBody } from "@/chat/components/SomaDockBody"
-import { useSettingValue } from "@/settings/store"
+import { useAiEnabled } from "@/settings/aiEnabled"
 
 import { usePeekStore } from "../store"
 
@@ -14,7 +14,7 @@ import { usePeekStore } from "../store"
  * rather than leaving a disabled shell of it behind.
  */
 export function SomaPeek() {
-  const enabled = useSettingValue("AI.EnableAssistant", false)
+  const enabled = useAiEnabled()
 
   useEffect(() => {
     if (!enabled) usePeekStore.getState().closePeek()

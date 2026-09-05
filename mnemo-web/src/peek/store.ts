@@ -1,7 +1,7 @@
 import { create } from "zustand"
 
 import type { CardViewDto } from "@/api/types"
-import { getSettingValue } from "@/settings/store"
+import { getAiEnabled } from "@/settings/aiEnabled"
 import { useSomaStore } from "@/stores/soma"
 
 /**
@@ -164,7 +164,7 @@ export const usePeekStore = create<PeekState>((set, get) => ({
     // The assistant toggle hides Soma everywhere rather than disabling it, so with it
     // off there is no Soma surface for the peek to host either.
     if (item.kind === "soma") {
-      if (!getSettingValue("AI.EnableAssistant", false)) return
+      if (!getAiEnabled()) return
       useSomaStore.getState().setDockOpen(false)
     }
     set((s) => ({ item, nonce: s.nonce + 1, collapsed: false }))

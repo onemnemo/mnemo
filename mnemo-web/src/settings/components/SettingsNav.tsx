@@ -3,6 +3,7 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { useTrashCountQuery } from "@/trash/api"
 
+import { useAiEnabled } from "../aiEnabled"
 import { DEFAULT_PROFILE_PICTURE } from "../assets"
 import { useDeveloperGateTap } from "../developerGate"
 import { UNTRANSLATED_CATEGORY_TITLES } from "../schema"
@@ -110,7 +111,7 @@ function NavItem({
   onSelect: () => void
 }) {
   const t = useT()
-  const aiEnabled = useSettingValue("AI.EnableAssistant", false)
+  const aiEnabled = useAiEnabled()
   const avatar = useAvatarUrl(useSettingValue("User.ProfilePicture", DEFAULT_PROFILE_PICTURE))
 
   const title = UNTRANSLATED_CATEGORY_TITLES[category.id] ?? t("Settings", category.title)

@@ -39,7 +39,7 @@ public static class AiEndpoints
                     new ErrorDto(AiErrorMapping.ToWire(ex.Kind), ex.Message),
                     statusCode: AiErrorMapping.ToHttpStatus(ex.Kind));
             }
-        });
+        }).RequireAiAvailable();
 
         endpoints.MapPost("/api/ai/validate-key", async (AiKeyValidationRequestDto? request, IAiKeyValidator validator, ISettingsService settings, CancellationToken ct) =>
         {
@@ -51,13 +51,13 @@ public static class AiEndpoints
 
             var result = await validator.ValidateAsync(key ?? string.Empty, ct).ConfigureAwait(false);
             return Results.Ok(AiKeyValidationResultDto.FromModel(result));
-        });
+        }).RequireAiAvailable();
 
         endpoints.MapGet("/api/ai/settings", async (ISettingsService settings) =>
         {
             var webSearchEnabled = await settings.GetAsync(WebSearchEnabledKey, true).ConfigureAwait(false);
             return new AiSettingsDto(webSearchEnabled);
-        });
+        }).RequireAiAvailable();
 
         endpoints.MapPut("/api/ai/settings/web-search", async (UpdateBoolSettingDto body, ISettingsService settings) =>
         {
@@ -65,6 +65,6 @@ public static class AiEndpoints
             // GetAsync<bool> would silently fall back to the default on a shape mismatch.
             await settings.SetAsync(WebSearchEnabledKey, body.Value).ConfigureAwait(false);
             return Results.NoContent();
-        });
+        }).RequireAiAvailable();
     }
 }

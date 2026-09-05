@@ -8,7 +8,7 @@ import { useT } from "@/i18n/useT"
 import { useShortcutLabel } from "@/keybinds/store"
 import { restoreTextSelection, suppressTextSelection } from "@/lib/dnd/drag-select"
 import { usePeekStore } from "@/peek/store"
-import { useSettingValue } from "@/settings/store"
+import { useAiEnabled } from "@/settings/aiEnabled"
 import { clampDockWidth, DOCK_MAX_WIDTH, DOCK_MIN_WIDTH, useSomaStore } from "@/stores/soma"
 
 // The dock is frame furniture, so it is mounted on every route. Importing the
@@ -38,7 +38,7 @@ const KEYBOARD_STEP = 16
  */
 export function SomaDock() {
   const t = useT()
-  const enabled = useSettingValue("AI.EnableAssistant", false)
+  const enabled = useAiEnabled()
   const open = useSomaStore((s) => s.dockOpen)
   const width = useSomaStore((s) => s.dockWidth)
   const setDockWidth = useSomaStore((s) => s.setDockWidth)

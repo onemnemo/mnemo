@@ -10,8 +10,8 @@ using Mnemo.Infrastructure.Services.Tools;
 namespace Mnemo.Infrastructure.Services.AI;
 
 /// <summary>
-/// Defers module tool registration and skill disk loading until <see cref="IAiAssistantToolHost.EnabledSettingKey"/> is true.
-/// Unloads both when the setting is turned off.
+/// Defers module tool registration and skill disk loading until <see cref="AiAvailability.IsEnabledAsync"/> is true.
+/// Unloads both when either switch behind it is turned off.
 /// </summary>
 public sealed class AiAssistantToolHost : IAiAssistantToolHost
 {
@@ -99,7 +99,7 @@ public sealed class AiAssistantToolHost : IAiAssistantToolHost
             _functionRegistry.ClearTools();
             _skillRegistry.Unload();
             _loaded = false;
-            _logger.Debug("AiAssistantToolHost", "AI tools and skills unloaded (AI assistant disabled).");
+            _logger.Debug("AiAssistantToolHost", "AI tools and skills unloaded (AI assistant unavailable).");
         }
     }
 
@@ -107,10 +107,7 @@ public sealed class AiAssistantToolHost : IAiAssistantToolHost
     {
         try
         {
-            var enabled = await _settingsService
-                .GetAsync(IAiAssistantToolHost.EnabledSettingKey, false)
-                .ConfigureAwait(false);
-            if (enabled)
+            if (await AiAvailability.IsEnabledAsync(_settingsService).ConfigureAwait(false))
                 await EnsureLoadedAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -121,22 +118,21 @@ public sealed class AiAssistantToolHost : IAiAssistantToolHost
 
     private async void OnSettingChanged(object? sender, string key)
     {
-        if (!string.Equals(key, IAiAssistantToolHost.EnabledSettingKey, StringComparison.Ordinal))
+        // Developer mode counts as much as the assistant switch: turning it off has to take
+        // the tools down with it, or the assistant stays armed behind a hidden settings page.
+        if (!AiAvailability.IsGatedBy(key))
             return;
 
         try
         {
-            var enabled = await _settingsService
-                .GetAsync(IAiAssistantToolHost.EnabledSettingKey, false)
-                .ConfigureAwait(false);
-            if (enabled)
+            if (await AiAvailability.IsEnabledAsync(_settingsService).ConfigureAwait(false))
                 await EnsureLoadedAsync().ConfigureAwait(false);
             else
                 Unload();
         }
         catch (Exception ex)
         {
-            _logger.Error("AiAssistantToolHost", "Failed to apply AI.EnableAssistant change.", ex);
+            _logger.Error("AiAssistantToolHost", $"Failed to apply {key} change.", ex);
         }
     }
 }

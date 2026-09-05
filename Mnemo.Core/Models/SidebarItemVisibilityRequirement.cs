@@ -4,6 +4,6 @@ namespace Mnemo.Core.Models;
 public enum SidebarItemVisibilityRequirement
 {
     None,
-    /// <summary>Show only when <c>AI.EnableAssistant</c> is true.</summary>
+    /// <summary>Show only while the assistant is available; see <c>AiAvailability</c>.</summary>
     AiAssistantEnabled,
 }

@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url"
 
 import { describe, expect, it } from "vitest"
 
-import { isRowHidden, SETTINGS_SCHEMA } from "./schema"
+import { isRowHidden, SETTINGS_SCHEMA, visibleCategories } from "./schema"
 import type { SettingsRow } from "./types"
 
 const REGISTRY = fileURLToPath(
@@ -139,5 +139,13 @@ describe("isRowHidden", () => {
     expect(row).toBeDefined()
     expect(isRowHidden(row as SettingsRow, { developerGateUnlocked: false })).toBe(true)
     expect(isRowHidden(row as SettingsRow, { developerGateUnlocked: true })).toBe(false)
+  })
+
+  it("lists the AI page only in developer mode, so nobody finds the assistant by browsing", () => {
+    const listed = (developerMode: boolean) =>
+      visibleCategories({ developerGateUnlocked: true, developerMode }).map((c) => c.id)
+
+    expect(listed(false)).not.toContain("AITools")
+    expect(listed(true)).toContain("AITools")
   })
 })

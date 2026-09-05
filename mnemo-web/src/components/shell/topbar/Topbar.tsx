@@ -6,7 +6,7 @@ import { useT } from "@/i18n/useT"
 import { useShortcutLabel } from "@/keybinds/store"
 import { onTitlebarPointerDown } from "@/lib/window"
 import type { Crumb } from "@/nav/trail"
-import { useSettingValue } from "@/settings/store"
+import { useAiEnabled } from "@/settings/aiEnabled"
 import { usePaletteStore } from "@/stores/palette"
 import { useSomaStore } from "@/stores/soma"
 
@@ -31,7 +31,7 @@ interface TopbarProps {
  */
 export function Topbar({ crumbs, collapsed, onExpand }: TopbarProps) {
   const t = useT()
-  const aiEnabled = useSettingValue("AI.EnableAssistant", false)
+  const aiEnabled = useAiEnabled()
   const dockOpen = useSomaStore((s) => s.dockOpen)
   const toggleDock = useSomaStore((s) => s.toggleDock)
   const togglePalette = usePaletteStore((s) => s.toggle)

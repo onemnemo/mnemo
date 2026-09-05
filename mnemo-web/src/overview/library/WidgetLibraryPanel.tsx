@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
 import { useI18nStore } from "@/i18n/store"
 import { useT } from "@/i18n/useT"
-import { useSettingValue } from "@/settings/store"
+import { useAiEnabled } from "@/settings/aiEnabled"
 
 import { useOverviewStore } from "../store"
 import { allWidgets } from "../widgets/registry"
@@ -29,9 +29,9 @@ export function WidgetLibraryPanel() {
   const addWidget = useOverviewStore((state) => state.addWidget)
   const draft = useOverviewStore((state) => state.draft)
 
-  // Soma is a whole thing behind one switch, so its widget goes with the rest of the surface rather
-  // than sitting in the gallery advertising an assistant this build has turned off.
-  const aiEnabled = useSettingValue("AI.EnableAssistant", false)
+  // Soma is a whole thing behind the assistant's switches, so its widget goes with the rest of
+  // the surface rather than sitting in the gallery advertising an assistant this build has off.
+  const aiEnabled = useAiEnabled()
 
   const [filter, setFilter] = useState<LibraryFilter>("all")
   const [query, setQuery] = useState("")

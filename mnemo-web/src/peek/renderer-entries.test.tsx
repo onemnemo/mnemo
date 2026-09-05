@@ -64,7 +64,7 @@ beforeEach(() => {
   localStorage.clear()
   usePeekStore.setState({ ...initial, item: null, nonce: 0 })
   useSomaStore.setState({ dockOpen: true })
-  useSettingsStore.setState({ values: { "AI.EnableAssistant": true } })
+  useSettingsStore.setState({ values: { "App.DeveloperMode": true, "AI.EnableAssistant": true } })
 
   container = document.createElement("div")
   document.body.append(container)
