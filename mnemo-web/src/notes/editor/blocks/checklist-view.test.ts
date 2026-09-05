@@ -58,6 +58,12 @@ function clickBox(realized: ReturnType<typeof mountItem>['realized']): void {
     .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 }
 
+function pressBox(realized: ReturnType<typeof mountItem>['realized']): MouseEvent {
+  const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+  realized.dom.querySelector('.notes-checkbox')!.dispatchEvent(event);
+  return event;
+}
+
 describe('checklist NodeView', () => {
   it('renders the box outside the editable body and mirrors the checked state', () => {
     const { realized } = mountItem(true);
@@ -106,6 +112,15 @@ describe('checklist NodeView', () => {
     const { realized, dispatched } = mountItem(false, false);
     clickBox(realized);
     expect(dispatched).toHaveLength(0);
+  });
+
+  it('swallows the press only where there is a caret to keep out of the item', () => {
+    const editable = pressBox(mountItem(false).realized);
+    expect(editable.defaultPrevented).toBe(true);
+    // Read-only, the same guard is what stops a press on the box beginning a
+    // text selection through the item beside it.
+    const readOnly = pressBox(mountItem(false, false).realized);
+    expect(readOnly.defaultPrevented).toBe(false);
   });
 
   it('owns its chrome mutations and nothing in the body', () => {

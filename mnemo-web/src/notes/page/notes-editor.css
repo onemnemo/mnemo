@@ -220,10 +220,19 @@
   font: inherit;
   line-height: inherit;
   color: inherit;
-  cursor: pointer;
   user-select: none;
 }
-.notes-doc .notes-callout-glyph:hover {
+/* Only an editable note can answer the glyph, so only an editable note offers
+ * it. A read-only mount renders the same view with its handlers gated off, and
+ * a hand cursor over a control that does nothing is a promise it cannot keep.
+ *
+ * Every one of these editable gates is wrapped in `:where`, so it costs no
+ * specificity and the rule keeps the weight it had. Spelled out, the gate would
+ * outrank the state rules beside it and a busy card would lose its own cursor. */
+.notes-doc :where(.ProseMirror[contenteditable="true"]) .notes-callout-glyph {
+  cursor: pointer;
+}
+.notes-doc :where(.ProseMirror[contenteditable="true"]) .notes-callout-glyph:hover {
   background: var(--frame-hover);
 }
 /* No glyph means no column: without this the text sits indented past an empty
@@ -928,12 +937,15 @@
   border: 1px dashed var(--line-color);
   border-radius: var(--radius-md, 8px);
   color: var(--text-tertiary);
-  cursor: pointer;
   transition:
     border-color var(--duration-fast) ease,
     color var(--duration-fast) ease;
 }
-.notes-doc .notes-image-card:hover {
+/* The card opens a file picker, which a read-only mount has nothing to do with. */
+.notes-doc :where(.ProseMirror[contenteditable="true"]) .notes-image-card {
+  cursor: pointer;
+}
+.notes-doc :where(.ProseMirror[contenteditable="true"]) .notes-image-card:hover {
   border-color: var(--text-tertiary);
 }
 /* A picture being dragged over the card: the card is what takes it, so it says so, in the
@@ -1202,8 +1214,12 @@
   padding: 6px 8px;
   overflow-x: auto;
   overflow-y: hidden;
-  cursor: pointer;
   border-radius: var(--radius-md, 8px);
+}
+/* Pressing it opens the source, which only an editable note can save; the
+ * read-only mount renders the same block and takes no press. */
+:where(.notes-doc .ProseMirror[contenteditable="true"]) .notes-equation-block {
+  cursor: pointer;
 }
 .notes-equation-block .katex-display {
   margin: 0;

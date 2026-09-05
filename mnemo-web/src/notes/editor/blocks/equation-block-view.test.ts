@@ -263,6 +263,13 @@ describe('opening the source editor', () => {
     click(h.realized);
     expect(sourceInput(h.realized)).toBeNull();
   });
+
+  it('is a tab stop only where the stop leads somewhere', () => {
+    expect(harnessOf('x').realized.dom.tabIndex).toBe(0);
+    // A read-only mount opens no editor, so landing on it is a detour into
+    // nothing rather than the one keyboard route to the source.
+    expect(harnessOf('x', { editable: false }).realized.dom.tabIndex).toBe(-1);
+  });
 });
 
 describe('resolving an edit', () => {

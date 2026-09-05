@@ -67,7 +67,8 @@ export function equationBlockView(
   // content and has no position to map back to.
   dom.setAttribute('contenteditable', 'false');
   // Reachable by keyboard, because activating it is the only way to edit it.
-  dom.tabIndex = 0;
+  // A read-only mount has nothing to activate, so it is not a stop there.
+  if (view.editable) dom.tabIndex = 0;
 
   let rendered: string | null = null;
   let editor: EquationEditorHandle | null = null;

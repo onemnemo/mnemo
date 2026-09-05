@@ -85,7 +85,9 @@ export function calloutView(
     openAtPress = calloutIconRequest();
   };
   // A press inside the editor places the caret before the click lands, so the
-  // glyph swallows the default the same way the checklist's box does.
+  // glyph swallows the default the same way the checklist's box does. There is
+  // no caret to protect in a read-only note, where the same guard would only
+  // stop a press on the glyph starting a text selection.
   const onMouseDown = (event: MouseEvent): void => {
     event.preventDefault();
   };
@@ -105,7 +107,7 @@ export function calloutView(
     openCalloutIcon(at);
   };
   glyph.addEventListener('pointerdown', onPointerDown);
-  glyph.addEventListener('mousedown', onMouseDown);
+  if (view.editable) glyph.addEventListener('mousedown', onMouseDown);
   glyph.addEventListener('click', onClick);
 
   return {

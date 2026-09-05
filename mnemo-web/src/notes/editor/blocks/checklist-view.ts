@@ -72,11 +72,13 @@ export function checklistView(
   };
   // pointerdown would fire before the editor moves the selection, but a click
   // is the committed gesture; preventDefault on mousedown keeps the caret from
-  // jumping into the item on the way.
+  // jumping into the item on the way. Only where there is a caret to protect:
+  // in a read-only note the same guard means a press on the box cannot begin a
+  // text selection, and there is nothing it is protecting the reader from.
   const onMouseDown = (event: MouseEvent): void => {
     event.preventDefault();
   };
-  box.addEventListener('mousedown', onMouseDown);
+  if (view.editable) box.addEventListener('mousedown', onMouseDown);
   box.addEventListener('click', onClick);
 
   return {

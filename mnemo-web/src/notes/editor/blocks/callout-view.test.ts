@@ -164,6 +164,15 @@ describe('callout NodeView', () => {
     expect(mousedown.defaultPrevented).toBe(true);
   });
 
+  it('leaves the press alone in a read-only view', () => {
+    const { glyph } = mountView('💡', false);
+    const mousedown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    glyph.dispatchEvent(mousedown);
+    // No caret to keep out of the glyph there, and swallowing the press is what
+    // would stop a reader starting a text selection on it.
+    expect(mousedown.defaultPrevented).toBe(false);
+  });
+
   it('stops listening once it is destroyed', () => {
     const { glyph, realized } = mountView('💡');
     realized.destroy!();
