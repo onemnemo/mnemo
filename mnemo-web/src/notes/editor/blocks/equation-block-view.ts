@@ -18,7 +18,9 @@
  *
  * The consequence is that the position inside the line has no DOM to sit at, so
  * whatever creates one of these has to leave the caret somewhere else. That is
- * `insertAtomicBlock`'s job, not this file's.
+ * `insertAtomicBlock`'s job, not this file's. Reaching the boundary beside the
+ * block afterwards is the gap cursor's, which is what makes a note that starts
+ * with one of these something the reader can still type above.
  *
  * ## Editing reuses the inline equation's editor
  *

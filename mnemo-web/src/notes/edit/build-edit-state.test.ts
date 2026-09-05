@@ -118,10 +118,12 @@ describe('editorPlugins wiring', () => {
     const result = buildNoteEditState([block('Text', [span('#')])]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const inputPlugin = result.state.plugins.find(
+    // More than one plugin claims text input, so the trigger is driven the way
+    // ProseMirror drives it: each in stack order until one answers.
+    const inputPlugins = result.state.plugins.filter(
       (p) => p.props && (p.props as { handleTextInput?: unknown }).handleTextInput,
     );
-    expect(inputPlugin).toBeDefined();
+    expect(inputPlugins.length).toBeGreaterThan(0);
 
     // Drive the trigger the way a view would: caret after "#", type a space.
     const caret = 3; // block at 0, content opens at 2, one char in
@@ -134,11 +136,13 @@ describe('editorPlugins wiring', () => {
         view.state = view.state.apply(tr);
       },
     };
-    const handled = (
-      inputPlugin!.props as unknown as {
-        handleTextInput(v: typeof view, from: number, to: number, text: string): boolean;
-      }
-    ).handleTextInput(view, caret, caret, ' ');
+    const handled = inputPlugins.some((plugin) =>
+      (
+        plugin.props as unknown as {
+          handleTextInput(v: typeof view, from: number, to: number, text: string): boolean;
+        }
+      ).handleTextInput(view, caret, caret, ' '),
+    );
     expect(handled).toBe(true);
     expect(view.state.doc.firstChild!.type.name).toBe('heading');
   });

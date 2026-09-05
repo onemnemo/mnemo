@@ -1757,6 +1757,40 @@
   border-radius: 6px;
 }
 
+/* The caret at a boundary the engine cannot draw one at. A divider or an
+ * equation renders no editable content, so the position beside it has no DOM the
+ * browser could put a caret in; the selection is a widget instead. It is a child
+ * of the editable root like any block, so it has to opt out of the block rhythm
+ * and of the off-screen skipping both, or appearing would reserve a block's
+ * worth of height and push the document down. Shown only while the editor holds
+ * focus, like the caret it stands in for. */
+.notes-doc .notes-gap-caret {
+  display: none;
+  position: relative;
+  height: 0;
+  margin: 0;
+  pointer-events: none;
+  content-visibility: visible;
+  contain-intrinsic-size: auto;
+}
+.notes-doc .ProseMirror-focused .notes-gap-caret {
+  display: block;
+}
+.notes-doc .notes-gap-caret::after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: -1px;
+  width: 24px;
+  border-top: 1px solid var(--ink);
+  animation: notes-gap-caret 1.1s steps(2, start) infinite;
+}
+@keyframes notes-gap-caret {
+  to {
+    visibility: hidden;
+  }
+}
+
 /* A gutter marquee keeps the block cursor while crossing selectable prose. */
 .notes-doc [data-block-marquee],
 .notes-doc [data-block-marquee] * {

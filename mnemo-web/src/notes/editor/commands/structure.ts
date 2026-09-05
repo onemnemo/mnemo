@@ -451,7 +451,7 @@ export const splitBlock: Command = (state, dispatch) => {
  * whose line is the one directly above. Null at the start of a run whose parent
  * holds no line of its own, the document or a column cell.
  */
-function precedingLineBlock(doc: PMNode, blockPos: number): { node: PMNode; pos: number } | null {
+export function precedingLineBlock(doc: PMNode, blockPos: number): { node: PMNode; pos: number } | null {
   const $block = doc.resolve(blockPos);
   const before = $block.nodeBefore;
   if (before && !before.isTextblock) {
@@ -485,7 +485,7 @@ function precedingLineBlock(doc: PMNode, blockPos: number): { node: PMNode; pos:
  * the end of a list item's sub-list, whatever follows that item, climbing as far
  * as list items go. Null at the end of the document or of a container.
  */
-function followingLineBlock(doc: PMNode, ctx: BlockContext): { node: PMNode; pos: number } | null {
+export function followingLineBlock(doc: PMNode, ctx: BlockContext): { node: PMNode; pos: number } | null {
   const children = blockChildrenOf(ctx.block);
   if (children.length > 0) return { node: children[0], pos: ctx.blockPos + 1 + ctx.line.nodeSize };
   let pos = ctx.blockPos;

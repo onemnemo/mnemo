@@ -50,6 +50,7 @@ import { slashHintPlugin } from '../editor/pipeline/slash-hint';
 import { findPlugin } from '../find/find-plugin';
 import { proofingPlugin } from '../proofing/proofing-plugin';
 import { blockSelectionPlugin } from '../selection/block-selection-plugin';
+import { gapCursorPlugin } from '../selection/gap-cursor-plugin';
 import { resolveServices } from '../editor/view/nodeviews';
 import type { EditorServices } from '../editor/registry/types';
 import { listNestingKeymap } from '../editor/commands/list-nesting';
@@ -101,6 +102,15 @@ export type NoteEditState =
  *    claimed unconditionally because both of its stages are its own, the block's
  *    content first and every block second, and `baseKeymap`'s select-all (which
  *    takes the whole document in one press) must never be reached.
+ *  - `gapCursorPlugin` follows the block selection and precedes everything that
+ *    could claim the same key first. It takes an arrow only at the edge of a
+ *    block with a caret-less neighbour, Enter and typing only while a gap cursor
+ *    is live, and Backspace or Delete only when they point at a neighbour with
+ *    no line to merge into, which is exactly what the structural keymap below
+ *    swallows.
+ *    Its place after the block selection is what makes the second press a
+ *    delete: the first marks the block, and from then on that plugin owns both
+ *    keys.
  *  - `inputTriggerPlugin` runs on text input, not on a key chord, so it sits
  *    before the keymaps without competing with them.
  *  - `crossBlockRangePlugin` owns Backspace, Delete and typing over a text
@@ -171,6 +181,10 @@ export function editorPlugins(
     // block selection exists. Its highlight is a decoration and it appends no
     // step, so it never dirties the note.
     blockSelectionPlugin(registry),
+    // Directly after it, so a block this plugin marks is deleted by the next
+    // press rather than marked again. It owns the caret at the edge of a block
+    // that holds none, which the keymaps below have no position for.
+    gapCursorPlugin(registry),
     inputTriggerPlugin(registry),
     // Before every keymap and before the generic replace they fall through to:
     // it claims only a text range that spans two blocks.
