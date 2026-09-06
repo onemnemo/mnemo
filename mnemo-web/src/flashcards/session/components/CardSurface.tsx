@@ -6,7 +6,7 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { useSettingValue } from "@/settings/store"
 
-import { MathText } from "../../MathText"
+import { CardText } from "../../CardText"
 import { answerText, promptText } from "../../study"
 import { AttachmentCarousel } from "./AttachmentCarousel"
 
@@ -82,9 +82,7 @@ export function CardSurface({
       <div style={proseSize}>
         <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
           <div className="chat-prose min-w-0 flex-[1_1_17rem] whitespace-pre-wrap" data-selectable>
-            <p>
-              <MathText>{promptText(card)}</MathText>
-            </p>
+            <CardText>{promptText(card)}</CardText>
           </div>
           <AttachmentCarousel key={`${card.id}-front`} attachments={card.attachments} side="front" />
         </div>
@@ -99,9 +97,7 @@ export function CardSurface({
                 {answerText(card)
                   .split(/\n{2,}/)
                   .map((para, i) => (
-                    <p key={i}>
-                      <MathText>{para}</MathText>
-                    </p>
+                    <CardText key={i}>{para}</CardText>
                   ))}
               </div>
               <AttachmentCarousel key={`${card.id}-back`} attachments={card.attachments} side="back" />

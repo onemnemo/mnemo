@@ -98,6 +98,14 @@ describe("revealCloze", () => {
   it("leaves text carrying no deletions untouched", () => {
     expect(revealCloze("The capital is Tokyo")).toBe("The capital is Tokyo")
   })
+
+  it("keeps whitespace the writer selected outside the markers, which will not otherwise pair", () => {
+    expect(revealCloze("The capital is{{c1:: Tokyo }}today")).toBe("The capital is **Tokyo** today")
+  })
+
+  it("reveals an empty deletion as nothing rather than a stray pair of markers", () => {
+    expect(revealCloze("Nothing here: {{c1::}}")).toBe("Nothing here: ")
+  })
 })
 
 describe("progressFillWidth", () => {

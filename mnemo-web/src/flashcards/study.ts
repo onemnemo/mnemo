@@ -16,9 +16,18 @@ export function maskCloze(front: string): string {
   return front.replace(CLOZE, "[…]")
 }
 
-/** Reads whatever deletions a piece of text still carries back out, in bold. */
+/**
+ * Reads whatever deletions a piece of text still carries back out, in bold.
+ *
+ * Whitespace the writer happened to select stays outside the markers. A marker with a space on
+ * the inside is not formatting, so `** Tokyo **` would reach the card as four literal asterisks.
+ */
 export function revealCloze(text: string): string {
-  return text.replace(CLOZE, "**$1**")
+  return text.replace(CLOZE, (_match, inner: string) => {
+    const spans = /^(\s*)([\s\S]*?)(\s*)$/.exec(inner)
+    if (!spans || !spans[2]) return inner
+    return `${spans[1]}**${spans[2]}**${spans[3]}`
+  })
 }
 
 /**

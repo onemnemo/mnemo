@@ -44,6 +44,13 @@ const multilineCard: CardDto = {
   updatedAt: "2026-01-01T00:00:00Z",
 }
 
+const formattedCard: CardDto = {
+  ...multilineCard,
+  id: "card-2",
+  front: "What is **ATP** for?",
+  back: "- energy currency\n- made in the mitochondria",
+}
+
 let host: HTMLDivElement
 let root: Root
 
@@ -58,11 +65,11 @@ afterEach(() => {
   host.remove()
 })
 
-function render(revealed: boolean): void {
+function render(revealed: boolean, cardToRender: CardDto = multilineCard): void {
   act(() =>
     root.render(
       <TestCard
-        card={multilineCard}
+        card={cardToRender}
         answer=""
         revealed={revealed}
         canUndo={false}
@@ -93,5 +100,14 @@ describe("TestCard", () => {
     for (const el of prose) {
       expect(getComputedStyle(el).whiteSpace).toBe("pre-wrap")
     }
+  })
+
+  it("renders the format bar's markers on both sides instead of showing them", () => {
+    render(true, formattedCard)
+
+    expect(host.querySelector("strong")?.textContent).toBe("ATP")
+    expect(host.querySelectorAll("li")).toHaveLength(2)
+    expect(host.textContent).not.toContain("**")
+    expect(host.textContent).not.toContain("- ")
   })
 })
