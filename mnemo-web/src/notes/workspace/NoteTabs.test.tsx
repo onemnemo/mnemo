@@ -170,6 +170,41 @@ describe('NoteTabs keyboard reachability', () => {
     expect(selected).toEqual(['c', 'a']);
   });
 
+  it('closes a tab on the middle button, and swallows the platform scroll widget', () => {
+    mount('a');
+    const press = new PointerEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      button: 1,
+      pointerId: 1,
+      isPrimary: true,
+    });
+    act(() => {
+      tabElements()[1].dispatchEvent(press);
+    });
+
+    expect(closed).toEqual(['b']);
+    expect(press.defaultPrevented).toBe(true);
+    // A middle press is a close, never the start of a reorder or a switch.
+    expect(selected).toEqual([]);
+  });
+
+  it('still starts a drag from the primary button', () => {
+    mount('a');
+    act(() => {
+      tabElements()[1].dispatchEvent(
+        new PointerEvent('pointerdown', {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+          pointerId: 1,
+          isPrimary: true,
+        }),
+      );
+    });
+    expect(closed).toEqual([]);
+  });
+
   it('leaves the close button reachable and independent of the tab body', () => {
     mount('a');
     const closeButtons = [...container.querySelectorAll('button')];

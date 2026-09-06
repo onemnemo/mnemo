@@ -191,7 +191,17 @@ export function NoteTabs({
               role="tab"
               aria-selected={active}
               tabIndex={active ? 0 : -1}
-              onPointerDown={(event) => drag.press(event, { id: tab.id })}
+              onPointerDown={(event) => {
+                // The tab strip gesture every other one has. preventDefault as
+                // well, or the middle button raises the platform's own scroll
+                // widget over the note.
+                if (event.button === 1) {
+                  event.preventDefault();
+                  closeVerb(tab.id, null)();
+                  return;
+                }
+                drag.press(event, { id: tab.id });
+              }}
               onClick={() => !drag.suppressClick(tab.id) && onSelect(tab.id)}
               onKeyDown={(event) => handleTabKeyDown(event, index)}
               style={{ opacity: drag.sourceKey === tab.id ? 0.35 : undefined }}
