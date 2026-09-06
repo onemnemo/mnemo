@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
 namespace Mnemo.Infrastructure.Services.Flashcards.Trash;
@@ -183,12 +185,13 @@ public sealed class FlashcardCardTrashSource : ITrashSource
     {
         string layoutKey;
         string typeId;
+        string factId;
 
         await using (var read = writer.CreateCommand())
         {
             read.Transaction = tx;
             read.CommandText = """
-                SELECT c.LayoutKey, f.TypeId FROM FlashcardCards c
+                SELECT c.LayoutKey, f.TypeId, f.Id FROM FlashcardCards c
                 JOIN FlashcardFacts f ON f.Id = c.FactId
                 WHERE c.TrashId = $entry AND c.LayoutKey IS NOT NULL LIMIT 1;
                 """;
@@ -200,6 +203,7 @@ public sealed class FlashcardCardTrashSource : ITrashSource
 
             layoutKey = reader.GetString(0);
             typeId = reader.GetString(1);
+            factId = reader.GetString(2);
         }
 
         var type = await new CardTypeRepository(_logger)
@@ -208,8 +212,22 @@ public sealed class FlashcardCardTrashSource : ITrashSource
 
         // A type that is gone leaves the material reading through the fallback type, and refusing
         // here would strand the card with nothing anyone could put back.
-        if (type is null || !string.IsNullOrEmpty(type.Generator))
+        if (type is null)
             return false;
+
+        // A generated type has no layout list to consult; its cards exist while the material still
+        // carries the deletion or the mask that made them, so the generator is asked directly.
+        if (!string.IsNullOrEmpty(type.Generator))
+        {
+            var fact = await new FactRepository(_logger)
+                .GetAsync(writer, factId, cancellationToken)
+                .ConfigureAwait(false);
+            if (fact is null)
+                return false;
+
+            return !FlashcardGeneration.Generate(type, fact)
+                .Any(card => string.Equals(card.Key, layoutKey, StringComparison.Ordinal));
+        }
 
         foreach (var layout in type.Layouts)
         {

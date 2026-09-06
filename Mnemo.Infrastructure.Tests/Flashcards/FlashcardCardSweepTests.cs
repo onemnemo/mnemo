@@ -143,6 +143,54 @@ public sealed class FlashcardCardSweepTests
         Assert.NotNull(await h.Store.ReadAsync((conn, ct) => h.Schedules.GetAsync(conn, production, ct)));
     }
 
+    [Fact]
+    public async Task A_cloze_card_is_declined_while_its_deletion_is_gone_and_comes_back_with_it()
+    {
+        await using var h = await OpenAsync();
+        var first = await SaveClozeAsync(h, "{{c1::Paris}} is the capital of {{c2::France}}.");
+        var second = first.Cards.Single(c => c.LayoutKey == "c2").Id;
+        await StudyAsync(h, second, reps: 4);
+
+        await SaveClozeAsync(h, "{{c1::Paris}} is the capital of France.", first.Fact.Id);
+
+        var entry = Assert.Single(await h.HeldAsync());
+        Assert.Equal(second, entry.ItemId);
+        var refused = Assert.Single(await h.Trash.RestoreAsync([entry.Id]));
+        Assert.Equal(TrashRestoreOutcome.NoLongerGenerated, refused.Outcome);
+        Assert.Null(await LiveCardAsync(h, second));
+        Assert.Equal(entry.Id, Assert.Single(await h.HeldAsync()).Id);
+
+        await SaveClozeAsync(h, "{{c1::Paris}} is the capital of {{c2::France}}.", first.Fact.Id);
+
+        var restored = Assert.Single(await h.Trash.RestoreAsync([entry.Id]));
+        Assert.Equal(TrashRestoreOutcome.Restored, restored.Outcome);
+        var card = await LiveCardAsync(h, second);
+        Assert.NotNull(card);
+        Assert.Equal("c2", card!.LayoutKey);
+        var schedule = await h.Store.ReadAsync((conn, ct) => h.Schedules.GetAsync(conn, second, ct));
+        Assert.Equal(4, schedule!.Reps);
+        var liveSecond = await h.Store.ReadAsync(async (conn, ct) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT COUNT(*) FROM FlashcardCards
+                WHERE FactId = $fact AND LayoutKey = 'c2' AND TrashId IS NULL;
+                """;
+            cmd.Parameters.AddWithValue("$fact", first.Fact.Id);
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync(ct));
+        });
+        Assert.Equal(1, liveSecond);
+    }
+
+    private static Task<FlashcardFactSaved> SaveClozeAsync(FlashcardStoreHarness h, string text, string? id = null) =>
+        h.FactService.SaveFactAsync(new FlashcardFactDraft(
+            id,
+            "deck-1",
+            FlashcardCardType.ClozeId,
+            new Dictionary<string, string> { [FlashcardCardType.ClozeTextFieldId] = text },
+            new Dictionary<string, IReadOnlyList<FlashcardAttachment>>(),
+            []));
+
     private static async Task<FlashcardStoreHarness> OpenAsync()
     {
         var harness = new FlashcardStoreHarness(Now);
