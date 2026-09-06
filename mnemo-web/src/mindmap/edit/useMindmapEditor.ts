@@ -87,6 +87,12 @@ export interface MindmapEditor {
     step: EditStep,
     algorithm?: string,
   ): Promise<MindmapOpsResult | null>
+  /**
+   * Resolves once the queue is quiet, so closing the window does not cut a write off half way. Never
+   * rejects: a write that failed is reported to whoever sent it, and an exit has nothing to do about
+   * it either way.
+   */
+  drain(): Promise<void>
   undo(): void
   redo(): void
   canUndo: boolean
@@ -189,6 +195,22 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
     // copy exists so one failed write does not poison every write after it.
     queueRef.current = next.catch(() => undefined)
     return next
+  }, [])
+
+  /**
+   * Waits the queue out, rechecking the tail after every wait rather than awaiting the one it
+   * started on.
+   *
+   * Exit steps all run at once, so one of them can send a write after this has read the queue, and a
+   * write on the canvas is sent without its sender keeping the promise. Waiting a single tail would
+   * answer the host with that write still in the air.
+   */
+  const drain = useCallback(async (): Promise<void> => {
+    let tail: Promise<unknown>
+    do {
+      tail = queueRef.current
+      await tail
+    } while (queueRef.current !== tail)
   }, [])
 
   /**
@@ -436,6 +458,7 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
   return {
     apply,
     arrange,
+    drain,
     undo: useCallback(() => travel("undo"), [travel]),
     redo: useCallback(() => travel("redo"), [travel]),
     canUndo: canUndo(history),
