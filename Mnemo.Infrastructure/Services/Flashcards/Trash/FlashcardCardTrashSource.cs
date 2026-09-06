@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
@@ -14,7 +16,9 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Trash;
 /// </summary>
 /// <remarks>
 /// A card cannot sit at a root the way a note or a deck can, because every card belongs to a deck.
-/// Restoring one whose deck is gone therefore asks the caller for a live deck to put it in.
+/// Restoring one whose deck is gone therefore asks the caller for a live deck to put it in, and a
+/// card whose layout has left its card type in the meantime is declined outright rather than put
+/// back as something nothing regenerates.
 /// </remarks>
 public sealed class FlashcardCardTrashSource : ITrashSource
 {
@@ -85,6 +89,9 @@ public sealed class FlashcardCardTrashSource : ITrashSource
         CancellationToken cancellationToken = default) =>
         _store.WriteAsync(async (writer, tx, ct) =>
         {
+            if (await LayoutIsGoneAsync(writer, tx, entryId, ct).ConfigureAwait(false))
+                return new TrashRestore(TrashRestoreOutcome.NoLongerGenerated);
+
             var placement = await FlashcardTrashPlacement
                 .ResolveAsync(writer, tx, "FlashcardCards", entryId, target, ct)
                 .ConfigureAwait(false);
@@ -158,6 +165,60 @@ public sealed class FlashcardCardTrashSource : ITrashSource
     public Task ReleaseAsync(IReadOnlyCollection<string> entryIds, CancellationToken cancellationToken = default) =>
         _store.WriteAsync((writer, tx, ct) =>
             FlashcardTrashSql.ClearMarksAsync(writer, tx, "FlashcardCards", entryIds, ct), cancellationToken);
+
+    /// <summary>
+    /// Whether the card this entry holds belongs to a layout its material's card type no longer
+    /// lists.
+    /// </summary>
+    /// <remarks>
+    /// Such a card would come back live with nothing behind it: no save regenerates it, and the
+    /// first save of its material or its type sweeps it straight back into the trash. Refusing
+    /// keeps it recoverable and says why, and putting the layout back on the type makes the
+    /// restore work again. A card with no material, and one belonging to a type that makes its
+    /// cards from the content of a field rather than from a list of layouts, are both left alone:
+    /// neither has a layout list to be missing from.
+    /// </remarks>
+    private async Task<bool> LayoutIsGoneAsync(
+        SqliteConnection writer, SqliteTransaction tx, string entryId, CancellationToken cancellationToken)
+    {
+        string layoutKey;
+        string typeId;
+
+        await using (var read = writer.CreateCommand())
+        {
+            read.Transaction = tx;
+            read.CommandText = """
+                SELECT c.LayoutKey, f.TypeId FROM FlashcardCards c
+                JOIN FlashcardFacts f ON f.Id = c.FactId
+                WHERE c.TrashId = $entry AND c.LayoutKey IS NOT NULL LIMIT 1;
+                """;
+            read.Parameters.AddWithValue("$entry", entryId);
+
+            await using var reader = await read.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                return false;
+
+            layoutKey = reader.GetString(0);
+            typeId = reader.GetString(1);
+        }
+
+        var type = await new CardTypeRepository(_logger)
+            .GetAsync(writer, typeId, cancellationToken)
+            .ConfigureAwait(false);
+
+        // A type that is gone leaves the material reading through the fallback type, and refusing
+        // here would strand the card with nothing anyone could put back.
+        if (type is null || !string.IsNullOrEmpty(type.Generator))
+            return false;
+
+        foreach (var layout in type.Layouts)
+        {
+            if (string.Equals(layout.Id, layoutKey, StringComparison.Ordinal))
+                return false;
+        }
+
+        return true;
+    }
 
     private static async Task<TrashSnapshot?> ReadSnapshotAsync(
         Microsoft.Data.Sqlite.SqliteCommand cmd, CancellationToken cancellationToken)

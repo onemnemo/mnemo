@@ -1,7 +1,15 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { apiFetch, apiSend, ApiError } from "@/api/client"
-import type { CardTypeDto, CardTypeSummaryDto, FactDto, FactSavedDto, SaveCardTypeDto, SaveFactDto } from "@/api/types"
+import type {
+  CardTypeDto,
+  CardTypePreflightDto,
+  CardTypeSummaryDto,
+  FactDto,
+  FactSavedDto,
+  SaveCardTypeDto,
+  SaveFactDto,
+} from "@/api/types"
 import type { TrashActionDto } from "@/trash/types"
 
 export const cardTypesKey = ["flashcards", "card-types"] as const
@@ -59,6 +67,11 @@ export function saveCardType(body: SaveCardTypeDto): Promise<CardTypeDto> {
 
 export function deleteCardType(typeId: string): Promise<void> {
   return apiSend(`/card-types/${typeId}`, { method: "DELETE" })
+}
+
+/** What saving this draft would move to the trash, asked before the confirmation is raised. */
+export function previewCardTypeSave(typeId: string, body: SaveCardTypeDto): Promise<CardTypePreflightDto> {
+  return apiFetch<CardTypePreflightDto>(`/card-types/${typeId}/preflight`, json(body))
 }
 
 /**

@@ -1,11 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Models.Trash;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
+using Mnemo.Infrastructure.Services.Flashcards.Trash;
+using Mnemo.Infrastructure.Services.Trash;
 using Mnemo.Infrastructure.Tests.Widgets;
 
 namespace Mnemo.Infrastructure.Tests.Flashcards.Persistence;
@@ -17,6 +22,7 @@ namespace Mnemo.Infrastructure.Tests.Flashcards.Persistence;
 internal sealed class FlashcardStoreHarness : IAsyncDisposable
 {
     private readonly string _dbPath;
+    private readonly TrashDatabase _trashDatabase;
 
     public FlashcardStore Store { get; }
     public FolderRepository Folders { get; } = new();
@@ -37,6 +43,12 @@ internal sealed class FlashcardStoreHarness : IAsyncDisposable
     /// <summary>Turns a fact into the cards it makes, the way saving one does.</summary>
     public FlashcardCardMaterializer Materializer { get; }
 
+    /// <summary>
+    /// The application trash over the four flashcard sources, so a save that drops a card runs the
+    /// same path a person's Delete does.
+    /// </summary>
+    public TrashService Trash { get; }
+
     /// <summary>The material surface, wired over this store.</summary>
     public FlashcardFactService FactService { get; }
 
@@ -47,9 +59,31 @@ internal sealed class FlashcardStoreHarness : IAsyncDisposable
         Time = new TestTimeProvider(now ?? DateTimeOffset.UtcNow, zone);
         Clock = new FlashcardClock(Time);
         _dbPath = Path.Combine(Path.GetTempPath(), $"mnemo_fc_{Guid.NewGuid():N}.db");
-        Store = new FlashcardStore(new TestLogger(), _dbPath, Time);
+        var logger = new TestLogger();
+        Store = new FlashcardStore(logger, _dbPath, Time);
         Materializer = new FlashcardCardMaterializer(Cards, Schedules, Facts);
-        FactService = new FlashcardFactService(Store, Facts, CardTypes, Cards, Materializer, Clock);
+
+        // The ledger lives in the collection's own file, as it does in the app.
+        _trashDatabase = new TrashDatabase(logger, _dbPath);
+        Trash = new TrashService(
+            new TrashStore(_trashDatabase),
+            new TrashSourceRegistry([
+                new FlashcardDeckFolderTrashSource(Store, logger),
+                new FlashcardDeckTrashSource(Store, logger),
+                new FlashcardFactTrashSource(Store, logger),
+                new FlashcardCardTrashSource(Store, logger),
+            ]),
+            logger,
+            time: Time);
+
+        FactService = new FlashcardFactService(Store, Facts, CardTypes, Cards, Materializer, Clock, Trash);
+    }
+
+    /// <summary>Every entry the trash is holding, newest first.</summary>
+    public async Task<IReadOnlyList<TrashEntry>> HeldAsync()
+    {
+        var page = await Trash.ListAsync(new TrashListQuery(Limit: 200));
+        return [.. page.Entries.Select(listing => listing.Entry)];
     }
 
     /// <summary>Seeds a preset + deck so cards satisfy the foreign keys, and returns the deck id.</summary>
@@ -80,6 +114,8 @@ internal sealed class FlashcardStoreHarness : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        Trash.Dispose();
+        await _trashDatabase.DisposeAsync();
         await Store.DisposeAsync();
         foreach (var suffix in new[] { "", "-wal", "-shm" })
         {

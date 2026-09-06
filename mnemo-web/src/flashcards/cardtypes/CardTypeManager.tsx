@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Dialog } from "radix-ui"
 
 import { ApiError } from "@/api/client"
+import type { CardTypeLayoutDto } from "@/api/types"
 import { onDirtyCheck } from "@/app/shutdown"
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
@@ -9,7 +10,13 @@ import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
 
-import { deleteCardType, saveCardType, useCardTypesQuery, useRefreshAfterFactWrite } from "../facts/api"
+import {
+  deleteCardType,
+  previewCardTypeSave,
+  saveCardType,
+  useCardTypesQuery,
+  useRefreshAfterFactWrite,
+} from "../facts/api"
 import {
   addField,
   addLayout,
@@ -23,6 +30,7 @@ import {
   removeField,
   removeLayout,
   removedLayouts,
+  requiredFieldChanges,
   toSaveDto,
   uniqueName,
   type CardTypeDraft,
@@ -141,8 +149,12 @@ export function CardTypeManager({
   const canSave = canSaveDrafts(drafts)
 
   /**
-   * Confirm all layout removals before saving any type, since each save commits independently.
-   * This does not detect losses caused by changes to Requires.
+   * Confirm every card loss before saving any type, since each save commits independently.
+   *
+   * Two edits cost cards: dropping a layout, which takes its card from all the material using the
+   * type, and pointing a layout at a field it now requires, which takes its card from whichever
+   * material leaves that field empty. The second keeps the layout's id, so no diff of the draft
+   * sees it, and only the server can say how much material it reaches.
    */
   const confirmRemovedCards = async (): Promise<boolean> => {
     const stored = new Map((types.data ?? []).map((summary) => [summary.type.id, summary]))
@@ -155,27 +167,58 @@ export function CardTypeManager({
       if (!before || before.factCount === 0) continue
 
       const removed = removedLayouts(before.type, draft)
-      if (removed.length === 0) continue
+      const required = requiredFieldChanges(before.type, draft)
+      if (removed.length === 0 && required.length === 0) continue
 
-      const confirmed = await dialog.confirm({
-        title: fc("CardTypesRemoveCardsTitle"),
-        message: fc("CardTypesRemoveCardsMessage", {
-          0: removed
-            .map((layout) => layout.name.trim())
-            .filter((name) => name.length > 0)
-            .join(", "),
-          1: draft.name.trim(),
-          2: before.factCount,
-        }),
-        confirmLabel: fc("CardTypesRemoveCardsConfirm"),
-        cancelLabel: t("Common", "Cancel"),
-        destructive: true,
-      })
+      let count: number
+      try {
+        count = (await previewCardTypeSave(draft.serverId, toSaveDto(draft))).removedCardCount
+      } catch (error) {
+        // There is nothing honest to put in front of somebody without the count, and a save
+        // nobody can describe is not one to wave through.
+        toast.warning(fc("CardTypesSaveErrorTitle"), {
+          description: error instanceof Error ? error.message : undefined,
+        })
+        return false
+      }
+
+      // Nothing is actually lost: a layout no material was making, or a field every piece of it
+      // already fills in.
+      if (count === 0) continue
+
+      // One question per type, because the count is what the whole save costs and two dialogs
+      // naming it would read as twice the loss. A removal is the stricter of the two, since those
+      // cards cannot be restored until the card is back on the type, so it is the one asked.
+      const confirmed =
+        removed.length > 0
+          ? await ask("CardTypesRemoveCards", removed, draft.name, count)
+          : await ask("CardTypesRequiresChange", required, draft.name, count)
       if (!confirmed) return false
     }
 
     return true
   }
+
+  const ask = (
+    key: string,
+    layouts: readonly CardTypeLayoutDto[],
+    typeName: string,
+    count: number,
+  ): Promise<boolean> =>
+    dialog.confirm({
+      title: fc(`${key}Title`),
+      message: fc(`${key}Message`, {
+        0: layouts
+          .map((layout) => layout.name.trim())
+          .filter((name) => name.length > 0)
+          .join(", "),
+        1: typeName.trim(),
+        2: count,
+      }),
+      confirmLabel: fc(`${key}Confirm`),
+      cancelLabel: t("Common", "Cancel"),
+      destructive: true,
+    })
 
   const save = async () => {
     if (!canSave || saving) return

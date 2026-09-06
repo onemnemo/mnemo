@@ -1485,6 +1485,7 @@
     "RestoreContainerHeld": "これが入っていた場所はまだゴミ箱にあります。先にそちらを復元してください。",
     "RestoreNeedsDestination": "戻し先のデッキを選んでください。",
     "RestoreMissing": "これはもう復元できません。",
+    "RestoreNoLongerGenerated": "このカードを作っていたカードタイプが、もうこのカードを作りません。そのカードをタイプに戻してから復元してください。",
     "PurgeBlockedFormat": "ゴミ箱内の他の {0} 件がこの中にあります。先にそれらを復元するか完全に削除してください。",
     "PurgeBlockedByFormat": "「{0}」もゴミ箱にあり、この中に入っています。先にそちらを復元するか完全に削除してください。"
   },

@@ -205,6 +205,16 @@ export interface CardTypeSummaryDto {
   factCount: number
 }
 
+/**
+ * Mirrors Mnemo.Host/Contracts/FlashcardFactDto.cs CardTypePreflightDto. What a proposed card
+ * type save would take out of the collection, which only the server can work out: the client sees
+ * which layouts a draft lists, not which of them stop firing against the material behind them.
+ */
+export interface CardTypePreflightDto {
+  removedCardCount: number
+  affectedFactCount: number
+}
+
 /** Mirrors Mnemo.Host/Contracts/FlashcardFactDto.cs SaveCardTypeDto. */
 export interface SaveCardTypeDto {
   id: string | null

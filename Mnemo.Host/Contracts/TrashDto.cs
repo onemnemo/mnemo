@@ -75,8 +75,8 @@ public sealed record TrashRestoreRequestDto(IReadOnlyList<string>? EntryIds, str
 
 /// <summary>What happened to one entry a restore touched.</summary>
 /// <param name="Outcome">
-/// One of <c>restored</c>, <c>missing</c>, <c>rooted</c>, <c>destination_required</c>, or
-/// <c>container_held</c>.
+/// One of <c>restored</c>, <c>missing</c>, <c>rooted</c>, <c>destination_required</c>,
+/// <c>container_held</c>, or <c>no_longer_generated</c>.
 /// </param>
 public sealed record TrashRestoreResultDto(
     string EntryId,
@@ -104,6 +104,7 @@ public sealed record TrashRestoreResultDto(
         TrashRestoreOutcome.Rooted => "rooted",
         TrashRestoreOutcome.DestinationRequired => "destination_required",
         TrashRestoreOutcome.BlockedByContainer => "container_held",
+        TrashRestoreOutcome.NoLongerGenerated => "no_longer_generated",
         _ => "missing",
     };
 }
@@ -113,8 +114,9 @@ public sealed record TrashRestoreResultDto(
 /// </summary>
 /// <param name="RestoredCount">Entries that came back, at their original place or at a root.</param>
 /// <param name="PendingCount">
-/// Entries still held because they need a destination or their container is held. Copy reports
-/// partial completion from this rather than claiming the whole batch returned.
+/// Entries still held: they need a destination, their container is held, or nothing in the
+/// collection makes them any more. Copy reports partial completion from this rather than claiming
+/// the whole batch returned.
 /// </param>
 public sealed record TrashRestoreResponseDto(
     IReadOnlyList<TrashRestoreResultDto> Results,
@@ -127,7 +129,9 @@ public sealed record TrashRestoreResponseDto(
         var restored = results.Count(r =>
             r.Outcome is TrashRestoreOutcome.Restored or TrashRestoreOutcome.Rooted);
         var pending = results.Count(r =>
-            r.Outcome is TrashRestoreOutcome.DestinationRequired or TrashRestoreOutcome.BlockedByContainer);
+            r.Outcome is TrashRestoreOutcome.DestinationRequired
+                or TrashRestoreOutcome.BlockedByContainer
+                or TrashRestoreOutcome.NoLongerGenerated);
         return new TrashRestoreResponseDto(
             results.Select(TrashRestoreResultDto.FromModel).ToList(),
             restored,

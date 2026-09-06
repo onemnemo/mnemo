@@ -17,6 +17,14 @@ public interface IFlashcardFactService
     /// </summary>
     Task<FlashcardCardType> SaveCardTypeAsync(FlashcardCardType type, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Counts the cards a proposed card type save would move to the trash, changing nothing. The
+    /// editor asks this before it offers the save, so the confirmation names the real number
+    /// rather than how much material happens to use the type.
+    /// </summary>
+    Task<FlashcardCardTypePreflight> PreviewCardTypeSaveAsync(
+        FlashcardCardType type, CancellationToken cancellationToken = default);
+
     /// <summary>Refuses while material still uses the type, and never removes a built-in.</summary>
     Task<bool> DeleteCardTypeAsync(string typeId, CancellationToken cancellationToken = default);
 

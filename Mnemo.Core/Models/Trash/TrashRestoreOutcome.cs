@@ -24,5 +24,11 @@ public enum TrashRestoreOutcome
     /// The container the item would return to is itself held by another entry. Restore that
     /// entry first.
     /// </summary>
-    BlockedByContainer = 4
+    BlockedByContainer = 4,
+
+    /// <summary>
+    /// The item is made from something that has since been taken away, so nothing would keep it in
+    /// step once it was back. It stays held until whatever made it returns.
+    /// </summary>
+    NoLongerGenerated = 5
 }
