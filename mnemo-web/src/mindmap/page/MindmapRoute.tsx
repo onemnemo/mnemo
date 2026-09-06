@@ -31,6 +31,7 @@ import { SaveTemplateDialog } from "../chrome/SaveTemplateDialog"
 import type { AlignControl } from "../chrome/AlignBar"
 import { MindmapSelectionBar } from "../chrome/SelectionBar"
 import { useMinimapShown } from "../chrome/useMinimapShown"
+import { useDrainOnExit } from "../edit/useDrainOnExit"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
 import { ALIGN_MIN } from "../edit/align"
 import { canDistribute, planAlign, type AlignCandidate } from "../edit/align-plan"
@@ -150,6 +151,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   // The loaded revision goes in, or a fresh editor believes it holds revision zero and reads the
   // first notice for its own map as somebody else's write.
   const editor = useMindmapEditor(mapId ?? null, map.data?.revision)
+  useDrainOnExit(editor)
   const actionFor = useLocalActions("mindmap")
   const runtime = useRef<CanvasRuntime | null>(null)
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION)
