@@ -13,7 +13,7 @@ import { CardPeekBody } from "./CardPeekBody"
 /**
  * A read-only quick look at one card, opened from the browser without leaving the table.
  *
- * Renders the same way study and the editor do - MathText for the body, the deck table's own
+ * Renders the same way study does - CardText for the body, the deck table's own
  * due/lapses readings - and never more: there is no field to type into here, and an attachment
  * this card cannot serve (imported from outside the managed images directory, or any kind that
  * is not an image) shows as a named, non-interactive pill rather than a broken frame or a crash.

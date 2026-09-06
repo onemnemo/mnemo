@@ -1,16 +1,16 @@
 // @vitest-environment jsdom
 
 /**
- * Mounts the real component rather than testing `split`/`render` in isolation, because the
- * short-circuit for plain text and the error fallback both live in the component body, not in
- * `math.ts`.
+ * Mounts the real component rather than checking the parse in isolation, because the KaTeX
+ * typesetting, its error fallback and the elements each marker turns into all live here rather
+ * than in `card-format.ts`.
  */
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { MathText } from "./MathText"
+import { CardText } from "./CardText"
 
 vi.mock("@/i18n/useT", () => ({
   useT: () => (_ns: string, key: string) => key,
@@ -34,11 +34,11 @@ afterEach(() => {
 
 function render(children: string) {
   act(() => {
-    root.render(<MathText>{children}</MathText>)
+    root.render(<CardText>{children}</CardText>)
   })
 }
 
-describe("MathText", () => {
+describe("CardText maths", () => {
   it("renders plain text unchanged when there is no dollar sign", () => {
     render("no formulas here")
     expect(container.textContent).toBe("no formulas here")
@@ -74,5 +74,58 @@ describe("MathText", () => {
     expect(container.textContent).toContain("before")
     expect(container.textContent).toContain("middle")
     expect(container.textContent).toContain("after")
+  })
+})
+
+describe("CardText formatting", () => {
+  it("renders each of the format bar's markers as its own element", () => {
+    render("**b** *i* __u__ `c` ==h==")
+
+    expect(container.querySelector("strong")?.textContent).toBe("b")
+    expect(container.querySelector("em")?.textContent).toBe("i")
+    expect(container.querySelector("u")?.textContent).toBe("u")
+    expect(container.querySelector("code")?.textContent).toBe("c")
+    expect(container.querySelector("mark")?.textContent).toBe("h")
+    expect(container.textContent).not.toContain("*")
+  })
+
+  it("leaves an unpaired marker on screen as typed", () => {
+    render("5 * 3 is 15")
+
+    expect(container.querySelector("em")).toBeNull()
+    expect(container.textContent).toBe("5 * 3 is 15")
+  })
+
+  it("typesets a formula inside a marker", () => {
+    render("**$E=mc^2$**")
+
+    const bold = container.querySelector("strong")
+    expect(bold).not.toBeNull()
+    expect(bold?.querySelector(".katex")).not.toBeNull()
+  })
+
+  it("renders a bulleted answer as a list with one item per line", () => {
+    render("- one\n- two\n- three")
+
+    const items = container.querySelectorAll("li")
+    expect(items).toHaveLength(3)
+    expect([...items].map((li) => li.textContent)).toEqual(["one", "two", "three"])
+    expect(container.querySelectorAll("ul")).toHaveLength(1)
+    expect(container.textContent).not.toContain("- ")
+  })
+
+  it("keeps multiline plain text in one paragraph, newlines and all", () => {
+    render("first\nsecond\nthird")
+
+    expect(container.querySelectorAll("p")).toHaveLength(1)
+    expect(container.textContent).toBe("first\nsecond\nthird")
+  })
+
+  it("puts a list outside the paragraph rather than inside it", () => {
+    render("Because:\n- one\n- two")
+
+    expect(container.querySelector("p")?.textContent).toBe("Because:")
+    expect(container.querySelector("p > ul")).toBeNull()
+    expect(container.querySelectorAll("li")).toHaveLength(2)
   })
 })

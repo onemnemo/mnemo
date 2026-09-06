@@ -1,18 +1,20 @@
+import type { CSSProperties } from "react"
+
 import type { CardAttachmentDto, CardDto } from "@/api/types"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
+import { CardText } from "../../CardText"
 import { useCardAssetUrl } from "../../editor/assets"
-import { MathText } from "../../MathText"
 
 /**
  * One card's two sides and its tags, with no chrome of its own.
  *
  * Its own component because a card is read in two places, the browser's quick look
- * and the side peek, and the reading has to be identical in both: the same MathText the
- * editor and study use, and an attachment this card cannot serve shown as a named,
- * non-interactive pill rather than a broken frame.
+ * and the side peek, and the reading has to be identical in both: the same CardText study
+ * uses, and an attachment this card cannot serve shown as a named, non-interactive pill
+ * rather than a broken frame.
  */
 export function CardPeekBody({ card }: { card: CardDto }) {
   const t = useT()
@@ -50,8 +52,10 @@ function CardSide({
   return (
     <div>
       <p className="mb-1.5 text-[10.5px] font-semibold tracking-[0.05em] text-ink-3">{label}</p>
-      <div className="text-[14px] leading-relaxed whitespace-pre-wrap text-ink">
-        <MathText>{text}</MathText>
+      {/* .chat-prose reads its size from this variable, so setting it here keeps the peek at its
+          own compact size while the marks and lists match what study shows. */}
+      <div className="chat-prose whitespace-pre-wrap" style={{ "--font-size-body-medium": "14px" } as CSSProperties}>
+        <CardText>{text}</CardText>
       </div>
       {attachments.length > 0 ? (
         <div className="mt-2 flex flex-wrap items-center gap-2">
