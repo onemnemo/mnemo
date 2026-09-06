@@ -78,6 +78,19 @@ public sealed record SaveCardTypeDto(
 public sealed record CardTypeSummaryDto(CardTypeDto Type, int FactCount);
 
 /// <summary>
+/// What a proposed card type save would take out of the collection, so the editor can name the
+/// number before it asks.
+/// </summary>
+/// <param name="RemovedCardCount">Cards the save would move to the trash.</param>
+/// <param name="AffectedFactCount">Pieces of material that would lose at least one card.</param>
+public sealed record CardTypePreflightDto(int RemovedCardCount, int AffectedFactCount)
+{
+    /// <summary>Maps one preflight.</summary>
+    public static CardTypePreflightDto FromModel(FlashcardCardTypePreflight model) =>
+        new(model.RemovedCardCount, model.AffectedFactCount);
+}
+
+/// <summary>
 /// The attachments on one field of a fact. Keyed by field rather than by card side, so a reversed
 /// card carries the right pictures without anything having to know the reversal exists.
 /// </summary>

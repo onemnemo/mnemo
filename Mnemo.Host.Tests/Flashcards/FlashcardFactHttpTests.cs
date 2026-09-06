@@ -155,6 +155,58 @@ public sealed class FlashcardFactHttpTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task PreflightCountsTheCardsANewlyRequiredFieldWouldTake()
+    {
+        await using var h = new FlashcardHttpHarness();
+        await h.StartAsync();
+        var deckId = await CreateDeckAsync(h, "Facts");
+        var typeId = await CreateTwoCardTypeAsync(h);
+        await SaveFactAsync(h, deckId, typeId, "with an answer", "Paris");
+        await SaveFactAsync(h, deckId, typeId, "no answer yet", string.Empty);
+
+        var response = await h.Client.PostAsync($"/api/card-types/{typeId}/preflight", JsonBody(new
+        {
+            id = typeId,
+            name = "Basic",
+            fields = new[]
+            {
+                new { id = "front", name = "Front", hint = (string?)null },
+                new { id = "back", name = "Back", hint = (string?)null },
+            },
+            sortFieldId = "front",
+            layouts = new[]
+            {
+                new { id = "card1", name = "Card 1", front = "{{front}}", back = "{{back}}", requires = (string?)null },
+                new { id = "card2", name = "Card 2", front = "{{back}}", back = "{{front}}", requires = "back" },
+            },
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var preflight = Parse<CardTypePreflightDto>(await response.Content.ReadAsStringAsync());
+        Assert.Equal(1, preflight.RemovedCardCount);
+        Assert.Equal(1, preflight.AffectedFactCount);
+    }
+
+    [Fact]
+    public async Task PreflightOnAnUnknownCardTypeIsA404()
+    {
+        await using var h = new FlashcardHttpHarness();
+        await h.StartAsync();
+
+        var response = await h.Client.PostAsync("/api/card-types/does-not-exist/preflight", JsonBody(new
+        {
+            id = "does-not-exist",
+            name = "Basic",
+            fields = Array.Empty<object>(),
+            sortFieldId = (string?)null,
+            layouts = Array.Empty<object>(),
+        }));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal("unknown_card_type", Parse<ErrorDto>(await response.Content.ReadAsStringAsync()).Error);
+    }
+
     private static async Task<string> CreateDeckAsync(FlashcardHttpHarness h, string name)
     {
         var response = await h.Client.PostAsync("/api/decks", JsonBody(new { name, folderId = (string?)null, presetId = (string?)null }));
@@ -181,6 +233,41 @@ public sealed class FlashcardFactHttpTests
         }));
         response.EnsureSuccessStatusCode();
         return Parse<CardTypeDto>(await response.Content.ReadAsStringAsync()).Id;
+    }
+
+    /// <summary>A type whose two layouts both fire, so a Requires edit is the only thing that stops one.</summary>
+    private static async Task<string> CreateTwoCardTypeAsync(FlashcardHttpHarness h)
+    {
+        var response = await h.Client.PostAsync("/api/card-types", JsonBody(new
+        {
+            id = (string?)null,
+            name = "Basic",
+            fields = new[]
+            {
+                new { id = "front", name = "Front", hint = (string?)null },
+                new { id = "back", name = "Back", hint = (string?)null },
+            },
+            sortFieldId = "front",
+            layouts = new[]
+            {
+                new { id = "card1", name = "Card 1", front = "{{front}}", back = "{{back}}", requires = (string?)null },
+                new { id = "card2", name = "Card 2", front = "{{back}}", back = "{{front}}", requires = (string?)null },
+            },
+        }));
+        response.EnsureSuccessStatusCode();
+        return Parse<CardTypeDto>(await response.Content.ReadAsStringAsync()).Id;
+    }
+
+    private static async Task SaveFactAsync(
+        FlashcardHttpHarness h, string deckId, string typeId, string front, string back)
+    {
+        var response = await h.Client.PostAsync("/api/facts", JsonBody(new
+        {
+            deckId,
+            typeId,
+            values = new Dictionary<string, string> { ["front"] = front, ["back"] = back },
+        }));
+        response.EnsureSuccessStatusCode();
     }
 
     private static StringContent JsonBody(object value) =>
